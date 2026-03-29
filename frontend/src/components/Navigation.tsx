@@ -110,7 +110,7 @@ const Navigation = () => {
       {/* Theme toggle */}
       <div className="mt-auto pt-4">
         <div
-          className="flex items-center gap-1 rounded-2xl p-1"
+          className="flex items-center gap-1 rounded-xl p-1"
           style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
           role="group"
           aria-label="Theme selection"
@@ -130,7 +130,7 @@ const Navigation = () => {
                 aria-label={label}
                 className={`app-nav-link flex-1 justify-center ${isActive ? 'app-nav-link-active' : ''}`}
               >
-                <Icon size={16} strokeWidth={isActive ? 2 : 1.5} aria-hidden />
+                <Icon size={16} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
               </button>
             );
           })}
