@@ -5,6 +5,7 @@ Table users [headercolor: #3B82F6] {
   last_name varchar(256)
   profile_pic text [note: "the location of the profile picture"]
   tz text [not null, note: "Timezone is automatically derived from the user's device"]
+  base_currency char(3) [not null, ref: > currencies.id, note: "mandatory base currency for aggregate views and FX conversion"]
   created_at timestamptz [not null]
 }
 
