@@ -45,6 +45,11 @@
     color: var(--app-text);
   }
 
+  ::selection {
+    background: var(--app-accent-soft);
+    color: var(--app-text);
+  }
+
   body {
     min-height: 100dvh;
     margin: 0;
