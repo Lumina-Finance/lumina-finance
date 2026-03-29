@@ -1,6 +1,14 @@
 export default function Dashboard() {
-  const greeting = 'Good Morning'
-  const subtitle = 'Here is your financial overview.'
+  const hour = new Date().getHours()
+  const greeting =
+    hour >= 1 && hour < 4 ? 'Still Up?' :
+    hour < 12 ? 'Good Morning' :
+    hour < 17 ? 'Good Afternoon' :
+    'Good Evening'
+  const subtitle =
+    hour >= 1 && hour < 4
+      ? 'Your finances can wait, your sleep can\u2019t.'
+      : 'Here is your financial overview.'
 
   return (
     <div>
