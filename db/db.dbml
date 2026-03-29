@@ -107,7 +107,7 @@ enum category_kind {
   transfer
 }
 
-Table categories [headercolor: #F59E0B] {
+Table categories [headercolor: #F59E0B, note: "app seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
   id uuid pk
   household_id uuid [ref: > households.id]
   owner_id uuid [not null, ref: > users.id]
