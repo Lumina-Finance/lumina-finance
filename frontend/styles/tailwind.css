@@ -55,9 +55,23 @@
 }
 
 @layer components {
+  .app-nav-link {
+    @apply relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5
+           font-medium no-underline transition-all duration-200;
+    font-size: 0.9375rem;
+    color: var(--app-text-muted);
+    border: 1px solid transparent;
+  }
+
   .app-nav-link:hover {
     color: var(--app-text);
     background: var(--app-surface-soft);
     border-color: var(--app-border);
+  }
+
+  .app-nav-link-active {
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent-border);
+    color: var(--app-accent);
   }
 }
