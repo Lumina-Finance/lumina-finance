@@ -1,13 +1,18 @@
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   BarChart2,
   CreditCard,
   LayoutDashboard,
+  Moon,
+  Monitor,
   PieChart,
   Receipt,
   Settings,
+  Sun,
   type LucideIcon,
 } from 'lucide-react';
+import type { Theme } from '@/types';
 
 interface NavigationItem {
   to: string;
@@ -23,11 +28,37 @@ const navItems: NavigationItem[] = [
   { to: '/insights', icon: BarChart2, label: 'Insights' },
 ];
 
+const THEME_KEY = 'lumina:settings:theme';
+
 const Navigation = () => {
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem(THEME_KEY) as Theme) || 'system'
+  );
+
+  // Resolve theme and apply .dark class + colorScheme to <html>
+  useEffect(() => {
+    const root = document.documentElement;
+    const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const apply = () => {
+      const isDark = theme === 'dark' || (theme === 'system' && darkQuery.matches);
+      root.classList.toggle('dark', isDark);
+      root.style.colorScheme = isDark ? 'dark' : 'light';
+    };
+
+    apply();
+    localStorage.setItem(THEME_KEY, theme);
+
+    // Re-apply when OS preference changes while in 'system' mode
+    if (theme === 'system') {
+      darkQuery.addEventListener('change', apply);
+      return () => darkQuery.removeEventListener('change', apply);
+    }
+  }, [theme]);
   return (
     <nav
       aria-label="Primary"
-      className="sticky top-5 flex flex-col w-60 shrink-0 rounded-2xl px-4 py-7 m-5 mr-0"
+      className="sticky top-5 flex flex-col h-[calc(100vh-2.5rem)] w-60 shrink-0 rounded-2xl px-4 py-7 m-5 mr-0"
       style={{
         background: 'var(--app-nav-bg)',
         border: '1px solid var(--app-border)',
@@ -74,6 +105,36 @@ const Navigation = () => {
           );
         })}
       </ul>
+
+      {/* Theme toggle */}
+      <div className="mt-auto pt-4">
+        <div
+          className="flex items-center gap-1 rounded-2xl p-1"
+          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+          role="group"
+          aria-label="Theme selection"
+        >
+          {([
+            { value: 'light' as Theme, icon: Sun, label: 'Light theme' },
+            { value: 'system' as Theme, icon: Monitor, label: 'System theme' },
+            { value: 'dark' as Theme, icon: Moon, label: 'Dark theme' },
+          ]).map(({ value, icon: Icon, label }) => {
+            const isActive = theme === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTheme(value)}
+                aria-pressed={isActive}
+                aria-label={label}
+                className={`app-nav-link flex-1 justify-center ${isActive ? 'app-nav-link-active' : ''}`}
+              >
+                <Icon size={16} strokeWidth={isActive ? 2 : 1.5} aria-hidden />
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </nav>
   );
 };
