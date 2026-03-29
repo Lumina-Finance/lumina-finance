@@ -64,9 +64,9 @@
   }
 
   .app-nav-link:hover {
-    color: var(--app-text);
-    background: var(--app-surface-soft);
-    border-color: var(--app-border);
+    color: var(--app-accent);
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent-border);
   }
 
   .app-nav-link-active {
