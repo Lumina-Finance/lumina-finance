@@ -133,12 +133,20 @@ Table categories [headercolor: #F59E0B, note: "app seeds a default 'Uncategorize
   created_at timestamptz [not null]
 }
 
-Table transactions [headercolor: #F59E0B, note: "acts as a ledger: positive amount = money in, negative = money out; transfers are two linked rows"] {
+Table merchants [headercolor: #F59E0B, note: "per-user merchant registry; includes employers, people, stores — anything that sends or receives money"] {
+  id uuid pk
+  owner_id uuid [not null, ref: > users.id]
+  name varchar(256) [not null]
+  default_category_id uuid [ref: > categories.id, note: "auto-categorization hint for new transactions with this merchant"]
+  created_at timestamptz [not null]
+}
+
+Table transactions [headercolor: #F59E0B, note: "acts as a ledger: positive amount = money in, negative = money out; transfers are two independent rows"] {
   id uuid pk
   created_by_user_id uuid [not null, ref: > users.id]
   account_id uuid [not null, ref: > accounts.id]
   ts timestamptz [not null]
-  merchant_name text
+  merchant_id uuid [ref: > merchants.id, note: "null for transfers between own accounts"]
   category_id uuid [not null, ref: > categories.id]
   amount bigint [not null, note: "stored in base currency units; positive = inflow, negative = outflow"]
   currency char(3) [not null, ref: > currencies.id, note: "defaults to the user's account currency"]
