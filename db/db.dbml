@@ -90,7 +90,7 @@ Table accounts [headercolor: #10B981, note: "need to add a constraint to only al
   account_type account_type [not null]
   name varchar(256) [not null]
   institution_id uuid [ref: > institutions.id]
-  currency char(3) [ref: > currencies.id]
+  currency char(3) [not null, ref: > currencies.id]
 }
 
 Table account_balance_snapshots [headercolor: #10B981] {
