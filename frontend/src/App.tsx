@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Navigation from './components/Navigation'
+import Navigation from '@/components/Navigation'
 
 function App() {
   return (
