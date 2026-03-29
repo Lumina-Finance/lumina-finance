@@ -59,7 +59,7 @@ const Navigation = () => {
               <NavLink
                 to={item.to}
                 end
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-[0.9375rem] no-underline transition-colors duration-150"
+                className="app-nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-[0.9375rem] no-underline transition-colors duration-150"
                 style={({ isActive }) => ({
                   color: isActive ? 'var(--app-accent)' : 'var(--app-text-muted)',
                   background: isActive ? 'var(--app-accent-soft)' : 'transparent',
