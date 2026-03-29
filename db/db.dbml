@@ -70,6 +70,13 @@ Table currencies [headercolor: #64748B] {
   minor_unit_exponent smallint [not null, note: "e.g., CAD=2, JPY=0, BHD=3"]
 }
 
+enum tax_treatment {
+  taxable [note: "e.g., checking, savings, investment"]
+  tax_free [note: "e.g., TFSA, Roth IRA, FHSA"]
+  tax_deferred [note: "e.g., RRSP, 401k, traditional IRA"]
+  tax_assisted [note: "e.g., RESP — grants/matching, taxed on withdrawal in beneficiary's hands"]
+}
+
 enum account_type {
   checking
   savings
@@ -88,9 +95,11 @@ Table accounts [headercolor: #10B981, note: "need to add a constraint to only al
   owner_id uuid [ref: > users.id]
   household_id uuid [ref: > households.id]
   account_type account_type [not null]
+  tax_treatment tax_treatment [not null, default: "taxable"]
   name varchar(256) [not null]
   institution_id uuid [ref: > institutions.id]
   currency char(3) [not null, ref: > currencies.id]
+  lifetime_contribution_limit bigint [note: "lifetime cap in account currency base units; null if not applicable (e.g., FHSA=4000000, RESP=5000000)"]
   is_hidden boolean [not null, default: false]
   closed_at timestamptz [note: "null = active; non-null = closed on this date"]
 }
@@ -99,6 +108,13 @@ Table account_balance_snapshots [headercolor: #10B981] {
   account_id uuid pk [ref: > accounts.id]
   balance bigint [not null, note: "stored in the base unit of the currency (e.g., cents for CAD/USD, 1 JPY, etc.)"]
   ts timestamptz pk [not null]
+}
+
+Table tax_advantaged_configs [headercolor: #10B981, note: "per-account, per-year limits for tax-advantaged accounts (TFSA, RRSP, FHSA, RESP); app seeds default CRA limits, user can override"] {
+  account_id uuid pk [not null, ref: > accounts.id]
+  year smallint pk [not null]
+  contribution_limit bigint [not null, note: "annual contribution limit in account currency base units"]
+  withdrawal_limit bigint [note: "annual withdrawal limit; null means no limit"]
 }
 
 enum category_kind {
