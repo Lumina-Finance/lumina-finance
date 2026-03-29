@@ -125,6 +125,7 @@ Table transactions [headercolor: #F59E0B] {
   amount bigint [not null]
   currency char(3) [not null, ref: > currencies.id, note: "defaults to the user's account currency"]
   fx_rate numeric [default: null, note: "used to be autoderived from the transaction; should show 1.0 in the frontend as default value"]
+  notes text [note: "user-provided notes for context or analysis"]
 }
 
 Table budgets [headercolor: #F43F5E, note: "need to add a constraint to only allow either owner_id or household_id to be null, but not both at the same time"] {
