@@ -1,3 +1,27 @@
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
+
+@layer base {
+  :root {
+    /* Light — warm parchment */
+    --app-bg: #F2EDE4;
+    --app-surface: rgba(255, 252, 245, 0.94);
+    --app-border: rgba(75, 55, 35, 0.11);
+    --app-text: #1C1510;
+    --app-text-muted: #63513F;
+    --app-text-subtle: #9A8878;
+    --app-accent: #9B6C2C;
+  }
+
+  .dark {
+    /* Dark — warm charcoal */
+    --app-bg: #0F0E0C;
+    --app-surface: rgba(22, 19, 16, 0.97);
+    --app-border: rgba(210, 180, 120, 0.09);
+    --app-text: #ECE6DA;
+    --app-text-muted: #8C8074;
+    --app-text-subtle: #534940;
+    --app-accent: #C9A96A;
+  }
+}
