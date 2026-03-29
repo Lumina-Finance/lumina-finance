@@ -111,7 +111,7 @@ Table categories [headercolor: #F59E0B, note: "app seeds a default 'Uncategorize
   id uuid pk
   household_id uuid [ref: > households.id]
   owner_id uuid [not null, ref: > users.id]
-  name text
+  name text [not null]
   kind category_kind [not null]
   parent_id uuid [ref: > categories.id]
   created_at timestamptz [not null]
