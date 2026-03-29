@@ -4,6 +4,10 @@
 
 @layer base {
   :root {
+    /* Fluid type scale */
+    --text-display: 3.4rem;
+    --text-body-lg: 1.0625rem;
+
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
     --app-surface: rgba(255, 252, 245, 0.94);
@@ -78,5 +82,21 @@
     background: var(--app-accent-soft);
     border-color: var(--app-accent-border);
     color: var(--app-accent);
+  }
+
+  .app-page-header {
+    @apply mb-8 space-y-3;
+  }
+
+  .app-page-title {
+    font-size: var(--text-display);
+    line-height: 1;
+    font-family: "Cormorant Garamond", Georgia, serif;
+  }
+
+  .app-page-description {
+    @apply max-w-2xl leading-relaxed;
+    font-size: var(--text-body-lg);
+    color: var(--app-text-muted);
   }
 }

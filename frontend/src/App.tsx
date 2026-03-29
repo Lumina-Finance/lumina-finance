@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Navigation from '@/components/Navigation'
+import Dashboard from '@/components/Dashboard'
 
 function App() {
   return (
@@ -10,9 +11,9 @@ function App() {
       >
         <Navigation />
 
-        <main className="flex-1 px-8 py-8">
+        <main className="flex-1 px-5 pb-8 pt-6 lg:px-8 lg:pb-12 lg:pt-12">
           <Routes>
-            <Route path="/" element={<PageTitle title="Dashboard" />} />
+            <Route path="/" element={<Dashboard />} />
             <Route path="/accounts" element={<PageTitle title="Accounts" />} />
             <Route path="/transactions" element={<PageTitle title="Transactions" />} />
             <Route path="/budgets" element={<PageTitle title="Budgets" />} />
