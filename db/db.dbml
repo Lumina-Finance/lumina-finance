@@ -1,0 +1,151 @@
+Table users [headercolor: #3B82F6] {
+  id uuid pk
+  email email [not null, unique]
+  first_name varchar(256) [not null]
+  last_name varchar(256)
+  profile_pic text [note: "the location of the profile picture"]
+  tz text [not null, note: "Timezone is automatically derived from the user's device"]
+  created_at timestamptz [not null]
+}
+
+// Households are not part of the MVP free tier (features 1, 2, 4, 5 only).
+// Kept here for future reference.
+Table households [headercolor: #8B5CF6] {
+  id uuid pk
+  owner_id uuid [not null, ref: > users.id]
+  name text
+  profile_pic text [note: "the location of the profile picture"]
+  created_at timestamptz [not null]
+}
+
+Table household_members [headercolor: #8B5CF6] {
+  household_id uuid pk [ref: > households.id]
+  user_id uuid pk [ref: > users.id]
+}
+
+// Only supporting passwords for now
+enum auth_provider {
+  password
+  // google
+  // github
+  // generic_oidc [note: "to accomodate self hosted solutions like Authentik, Gitea, etc."]
+}
+
+Table auth_identities [headercolor: #3B82F6] {
+  id uuid pk
+  user_id uuid [ref: > users.id]
+  auth_provider auth_provider [not null]
+  email_verified boolean [not null, default: false]
+  email_verified_at timestamptz
+  // unique constraint: (user_id, auth_provider)
+}
+
+Table password_credentials [headercolor: #3B82F6] {
+  user_id uuid pk [ref: - users.id]
+  password_hash text [not null]
+  password_algo text [not null]
+  updated_at timestamptz [not null]
+  failed_attempt_count int [not null, default: 0, note: "should be zeroed out once user successfully authenticate"]
+  locked_until timestamptz [default: null, note: "used to lock the user's account after too many failed attempts"]
+}
+
+enum institution_status {
+  canonical
+  pending
+}
+
+Table institutions [headercolor: #64748B, note: "globally available table"] {
+  id uuid pk
+  status institution_status [not null, default: "pending"]
+  name varchar(256) [not null]
+  country_code char(2) [not null]
+  website varchar [not null]
+}
+
+Table currencies [headercolor: #64748B] {
+  id char(3) pk
+  name text [not null, note: "spelled out full term in singular (e.g., Canadian Dollar)"]
+  symbol varchar(8) [not null]
+  minor_unit_exponent smallint [not null, note: "e.g., CAD=2, JPY=0, BHD=3"]
+}
+
+enum account_type {
+  checking
+  savings
+  credit_card
+  cash
+  investment
+  // tax-advantaged (Canada)
+  tfsa
+  rrsp
+  fhsa
+  resp
+}
+
+Table accounts [headercolor: #10B981, note: "need to add a constraint to only allow either owner_id or household_id to be null, but not both at the same time"] {
+  id uuid pk
+  owner_id uuid [ref: > users.id]
+  household_id uuid [ref: > households.id]
+  account_type account_type [not null]
+  name varchar(256) [not null]
+  institution_id uuid [ref: > institutions.id]
+  currency char(3) [ref: > currencies.id]
+}
+
+Table account_balance_snapshots [headercolor: #10B981] {
+  account_id uuid pk [ref: > accounts.id]
+  balance bigint [not null, note: "stored in the base unit of the currency (e.g., cents for CAD/USD, 1 JPY, etc.)"]
+  ts timestamptz pk [not null]
+}
+
+enum category_kind {
+  expense
+  income
+  transfer
+}
+
+Table categories [headercolor: #F59E0B] {
+  id uuid pk
+  household_id uuid [ref: > households.id]
+  owner_id uuid [not null, ref: > users.id]
+  name text
+  kind category_kind [not null]
+  parent_id uuid [ref: > categories.id]
+  created_at timestamptz [not null]
+}
+
+Table transactions [headercolor: #F59E0B] {
+  id uuid pk
+  created_by_user_id uuid [not null, ref: > users.id]
+  account_id uuid [not null, ref: > accounts.id]
+  ts timestamptz [not null]
+  merchant_name text
+  category_id uuid [not null, ref: > categories.id]
+  amount bigint [not null]
+  currency char(3) [not null, ref: > currencies.id, note: "defaults to the user's account currency"]
+  fx_rate numeric [default: null, note: "used to be autoderived from the transaction; should show 1.0 in the frontend as default value"]
+}
+
+Table budgets [headercolor: #F43F5E, note: "need to add a constraint to only allow either owner_id or household_id to be null, but not both at the same time"] {
+  id uuid pk
+  owner_id uuid [ref: > users.id]
+  household_id uuid [ref: > households.id]
+  name varchar(256) [not null]
+  period_start date [not null]
+  period_end date [not null]
+  overall_limit bigint [default: null, note: "optional spending cap across all categories; stored in the budget's currency units"]
+  currency char(3) [not null, ref: > currencies.id]
+  created_at timestamptz [not null]
+}
+
+Table budget_allocations [headercolor: #F43F5E, note: "a named spending limit within a budget; covers both single-category and grouped-category limits"] {
+  id uuid pk
+  budget_id uuid [not null, ref: > budgets.id]
+  name varchar(256) [not null, note: "e.g., 'Groceries' for a single category or 'All Food' for a group"]
+  amount bigint [not null, note: "spend limit in the budget's currency units"]
+}
+
+Table budget_allocation_categories [headercolor: #F43F5E] {
+  allocation_id uuid pk [ref: > budget_allocations.id]
+  category_id uuid pk [ref: > categories.id]
+}
