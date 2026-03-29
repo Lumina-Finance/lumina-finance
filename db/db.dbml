@@ -91,6 +91,8 @@ Table accounts [headercolor: #10B981, note: "need to add a constraint to only al
   name varchar(256) [not null]
   institution_id uuid [ref: > institutions.id]
   currency char(3) [not null, ref: > currencies.id]
+  is_hidden boolean [not null, default: false]
+  closed_at timestamptz [note: "null = active; non-null = closed on this date"]
 }
 
 Table account_balance_snapshots [headercolor: #10B981] {
