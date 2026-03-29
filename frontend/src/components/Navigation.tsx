@@ -24,6 +24,7 @@ const navItems: NavigationItem[] = [
 const Navigation = () => {
   return (
     <nav
+      aria-label="Primary"
       className="sticky top-5 flex flex-col w-60 shrink-0 rounded-2xl px-4 py-7 m-5 mr-0"
       style={{
         background: 'var(--app-nav-bg)',
@@ -44,34 +45,31 @@ const Navigation = () => {
         </p>
       </div>
 
-      {/* Navigation items */}
-      <div className="space-y-1">
+      <ul className="list-none space-y-1 p-0 m-0">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
-            <div
+            <li
               key={item.label}
               className="flex items-center gap-3 px-3 py-2.5 font-medium text-[0.9375rem]"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              <Icon size={17} strokeWidth={1.75} className="shrink-0" />
+              <Icon size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
               {item.label}
-            </div>
+            </li>
           );
         })}
-      </div>
 
-      {/* Separator */}
-      <div className="mx-2 my-3 h-px" style={{ background: 'var(--app-border)' }} />
+        <li aria-hidden className="mx-2 my-3 h-px" style={{ background: 'var(--app-border)' }} />
 
-      {/* Settings button */}
-      <div
-        className="flex items-center gap-3 px-3 py-2.5 font-medium text-[0.9375rem]"
-        style={{ color: 'var(--app-text-muted)' }}
-      >
-        <Settings size={17} strokeWidth={1.75} className="shrink-0" />
-        Settings
-      </div>
+        <li
+          className="flex items-center gap-3 px-3 py-2.5 font-medium text-[0.9375rem]"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          <Settings size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
+          Settings
+        </li>
+      </ul>
     </nav>
   );
 };
