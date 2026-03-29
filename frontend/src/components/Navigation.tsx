@@ -4,6 +4,7 @@ import {
   BarChart2,
   CreditCard,
   LayoutDashboard,
+  LogOut,
   Moon,
   Monitor,
   PieChart,
@@ -133,6 +134,33 @@ const Navigation = () => {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* User profile */}
+      <div className="pt-3">
+        <div
+          className="app-nav-link cursor-pointer"
+          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+        >
+          <div
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+            style={{
+              background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
+              color: '#1C1510',
+            }}
+          >
+            JD
+          </div>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p className="truncate text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+              Jane Doe
+            </p>
+            <p className="truncate text-[0.6875rem]" style={{ color: 'var(--app-text-subtle)' }}>
+              Premium Plan
+            </p>
+          </div>
+          <LogOut size={14} className="shrink-0" style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
         </div>
       </div>
     </nav>
