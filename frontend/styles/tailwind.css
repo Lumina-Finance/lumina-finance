@@ -24,4 +24,22 @@
     --app-text-subtle: #534940;
     --app-accent: #C9A96A;
   }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    min-height: 100dvh;
+    background-color: var(--app-bg);
+    color: var(--app-text);
+  }
+
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    background-color: var(--app-bg);
+    color: var(--app-text);
+    font-family: "DM Sans", system-ui, sans-serif;
+  }
 }
