@@ -65,7 +65,7 @@ Table institutions [headercolor: #64748B, note: "globally available table"] {
   status institution_status [not null, default: "pending"]
   name varchar(256) [not null]
   country_code char(2) [not null]
-  website varchar [not null]
+  website text [not null]
 }
 
 Table currencies [headercolor: #64748B] {

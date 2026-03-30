@@ -101,7 +101,7 @@ Global registry of financial institutions (banks, brokerages, etc.).
 | `status`       | enum (`canonical`, `pending`) | NOT NULL, default `pending` | `canonical` = verified/approved; `pending` = user-submitted, awaiting review |
 | `name`         | varchar(256)                  | NOT NULL                    | e.g., "Royal Bank of Canada"                                                 |
 | `country_code` | char(2)                       | NOT NULL                    | ISO 3166-1 alpha-2 (e.g., `CA`, `US`)                                        |
-| `website`      | varchar                       | NOT NULL                    |                                                                              |
+| `website`      | text                          | NOT NULL                    |                                                                              |
 
 
 ### `currencies`
