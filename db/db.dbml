@@ -102,6 +102,7 @@ Table accounts [headercolor: #10B981, note: "need to add a constraint to only al
   lifetime_contribution_limit bigint [note: "lifetime cap in account currency base units; null if not applicable (e.g., FHSA=4000000, RESP=5000000)"]
   is_hidden boolean [not null, default: false]
   closed_at timestamptz [note: "null = active; non-null = closed on this date"]
+  created_at timestamptz [not null]
 }
 
 Table account_balance_snapshots [headercolor: #10B981] {
