@@ -1,0 +1,162 @@
+import uuid
+
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from app.models.base import HouseholdRole
+from app.models.currency import Currency
+from app.models.household import Household, HouseholdMember
+from app.models.user import User
+
+# --- Fixtures ---
+
+
+@pytest.fixture
+async def currency(db):
+    """Seed a currency for FK references."""
+    c = Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2)
+    db.add(c)
+    await db.flush()
+    return c
+
+
+@pytest.fixture
+async def user(db, currency):
+    """Seed a user."""
+    u = User(email="user1@example.com", first_name="User", last_name="One", tz="America/Toronto", base_currency="CAD")
+    db.add(u)
+    await db.flush()
+    return u
+
+
+@pytest.fixture
+async def member(db, currency):
+    """Seed a second user for household membership."""
+    u = User(email="user2@example.com", first_name="User", last_name="Two", tz="America/Toronto", base_currency="CAD")
+    db.add(u)
+    await db.flush()
+    return u
+
+
+@pytest.fixture
+async def household(db, user):
+    """Seed a household."""
+    h = Household(owner_id=user.id, name="Test Household")
+    db.add(h)
+    await db.flush()
+    return h
+
+
+# --- Household: Basic CRUD ---
+
+
+async def test_create_household(db, household, user):
+    """Insert a household and verify fields."""
+    result = await db.get(Household, household.id)
+    assert result is not None
+    assert result.owner_id == user.id
+    assert result.name == "Test Household"
+    assert result.created_at is not None
+
+
+async def test_update_household(db, household):
+    """Update a household's name."""
+    household.name = "Updated Household"
+    await db.flush()
+
+    result = await db.get(Household, household.id)
+    assert result.name == "Updated Household"
+
+
+async def test_delete_household(db, household):
+    """Delete a household."""
+    hid = household.id
+    await db.delete(household)
+    await db.flush()
+
+    result = await db.get(Household, hid)
+    assert result is None
+
+
+# --- Household: Constraints ---
+
+
+async def test_null_owner_rejected(db):
+    """Household owner_id is NOT NULL."""
+    db.add(Household(owner_id=None, name="Invalid"))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_invalid_owner_rejected(db):
+    """Household owner_id must reference a valid user."""
+    db.add(Household(owner_id=uuid.uuid4(), name="Invalid"))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- HouseholdMember: Basic CRUD ---
+
+
+async def test_add_member(db, household, member):
+    """Add a member to a household."""
+    m = HouseholdMember(household_id=household.id, user_id=member.id, role=HouseholdRole.EDITOR)
+    db.add(m)
+    await db.flush()
+
+    result = await db.get(HouseholdMember, (household.id, member.id))
+    assert result is not None
+    assert result.role == HouseholdRole.EDITOR
+
+
+async def test_remove_member(db, household, member):
+    """Remove a member from a household."""
+    m = HouseholdMember(household_id=household.id, user_id=member.id)
+    db.add(m)
+    await db.flush()
+
+    await db.delete(m)
+    await db.flush()
+
+    result = await db.get(HouseholdMember, (household.id, member.id))
+    assert result is None
+
+
+# --- HouseholdMember: Defaults ---
+
+
+async def test_role_defaults_to_viewer(db, household, member):
+    """Role should default to viewer."""
+    m = HouseholdMember(household_id=household.id, user_id=member.id)
+    db.add(m)
+    await db.flush()
+
+    result = await db.get(HouseholdMember, (household.id, member.id))
+    assert result.role == HouseholdRole.VIEWER
+
+
+# --- HouseholdMember: Constraints ---
+
+
+async def test_duplicate_member_rejected(db, household, member):
+    """Same user can't be added to the same household twice."""
+    db.add(HouseholdMember(household_id=household.id, user_id=member.id))
+    await db.flush()
+
+    db.add(HouseholdMember(household_id=household.id, user_id=member.id, role=HouseholdRole.ADMIN))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_invalid_household_rejected(db, member):
+    """household_id must reference a valid household."""
+    db.add(HouseholdMember(household_id=uuid.uuid4(), user_id=member.id))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_invalid_user_rejected(db, household):
+    """user_id must reference a valid user."""
+    db.add(HouseholdMember(household_id=household.id, user_id=uuid.uuid4()))
+    with pytest.raises(IntegrityError):
+        await db.flush()
