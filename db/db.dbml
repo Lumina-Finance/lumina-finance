@@ -156,6 +156,19 @@ Table transactions [headercolor: #F59E0B, note: "acts as a ledger: positive amou
   updated_at timestamptz [not null, note: "tracks last modification; useful for sync and conflict resolution"]
 }
 
+Table tags [headercolor: #F59E0B, note: "per-user tag registry for cross-cutting transaction analysis beyond categories"] {
+  id uuid pk
+  owner_id uuid [not null, ref: > users.id]
+  name varchar(64) [not null]
+  created_at timestamptz [not null]
+  // unique constraint: (owner_id, name)
+}
+
+Table transaction_tags [headercolor: #F59E0B, note: "junction table instead of a tags column on transactions — enables indexed joins for tag queries, single-row renames, and consistent tag naming across transactions"] {
+  transaction_id uuid pk [ref: > transactions.id]
+  tag_id uuid pk [ref: > tags.id]
+}
+
 enum recurrence_freq {
   daily
   weekly
