@@ -22,6 +22,10 @@ dev = [
     "ruff>=0.15.8",
 ]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
 [tool.ruff]
 target-version = "py314"
 line-length = 144
