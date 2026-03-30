@@ -9,8 +9,6 @@ Table users [headercolor: #3B82F6] {
   created_at timestamptz [not null]
 }
 
-// Households are not part of the MVP free tier (features 1, 2, 4, 5 only).
-// Kept here for future reference.
 Table households [headercolor: #8B5CF6] {
   id uuid pk
   owner_id uuid [not null, ref: > users.id]
@@ -208,4 +206,10 @@ Table budget_allocations [headercolor: #F43F5E, note: "a named spending limit wi
 Table budget_allocation_categories [headercolor: #F43F5E] {
   allocation_id uuid pk [ref: > budget_allocations.id]
   category_id uuid pk [ref: > categories.id]
+}
+
+// Scopes a household budget to specific members; when no rows exist for a budget, all household members are included
+Table budget_members [headercolor: #F43F5E] {
+  budget_id uuid pk [ref: > budgets.id]
+  user_id uuid pk [ref: > users.id]
 }
