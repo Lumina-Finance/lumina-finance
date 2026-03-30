@@ -4,7 +4,7 @@ Table users [headercolor: #3B82F6] {
   first_name varchar(256) [not null]
   last_name varchar(256)
   profile_pic text [note: "the location of the profile picture"]
-  tz text [not null, note: "Timezone is automatically derived from the user's device"]
+  tz varchar(40) [not null, note: "IANA timezone identifier (e.g., America/Toronto), auto-derived from device"]
   base_currency char(3) [not null, ref: > currencies.id, note: "mandatory base currency for aggregate views and FX conversion"]
   created_at timestamptz [not null]
 }

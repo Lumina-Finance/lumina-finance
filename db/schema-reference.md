@@ -20,7 +20,7 @@ Core user profile. Every user has exactly one row here.
 | `first_name`    | varchar(256) | NOT NULL                       |                                                                     |
 | `last_name`     | varchar(256) |                                | Optional                                                            |
 | `profile_pic`   | text         |                                | Path/URL to profile picture                                         |
-| `tz`            | text         | NOT NULL                       | Timezone, auto-derived from user's device (e.g., `America/Toronto`) |
+| `tz`            | varchar(40)  | NOT NULL                       | IANA timezone identifier, auto-derived from device (e.g., `America/Toronto`) |
 | `base_currency` | char(3)      | NOT NULL, FK → `currencies.id` | Mandatory base currency for aggregate views and FX conversion       |
 | `created_at`    | timestamptz  | NOT NULL                       |                                                                     |
 
