@@ -19,9 +19,16 @@ Table households [headercolor: #8B5CF6] {
   created_at timestamptz [not null]
 }
 
+enum household_role {
+  admin [note: "full control: manage members, edit all shared objects"]
+  editor [note: "can create and edit shared objects but cannot manage members"]
+  viewer [note: "read-only access to shared household data"]
+}
+
 Table household_members [headercolor: #8B5CF6] {
   household_id uuid pk [ref: > households.id]
   user_id uuid pk [ref: > users.id]
+  role household_role [not null, default: "viewer"]
 }
 
 // Only supporting passwords for now
