@@ -88,11 +88,6 @@ enum account_type {
   credit_card
   cash
   investment
-  // tax-advantaged (Canada)
-  tfsa
-  rrsp
-  fhsa
-  resp
 }
 
 Table accounts [headercolor: #10B981, note: "need to add a constraint to only allow either owner_id or household_id to be null, but not both at the same time"] {
@@ -116,7 +111,7 @@ Table account_balance_snapshots [headercolor: #10B981] {
   ts timestamptz pk [not null]
 }
 
-Table tax_advantaged_configs [headercolor: #10B981, note: "per-account, per-year limits for tax-advantaged accounts (TFSA, RRSP, FHSA, RESP); app seeds default CRA limits, user can override"] {
+Table tax_advantaged_configs [headercolor: #10B981, note: "per-account, per-year limits for tax-advantaged accounts; user is responsible for entering limits"] {
   account_id uuid pk [not null, ref: > accounts.id]
   year smallint pk [not null]
   contribution_limit bigint [not null, note: "annual contribution limit in account currency base units"]
