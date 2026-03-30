@@ -158,7 +158,7 @@ Point-in-time balance records for an account. Used for historical balance charts
 
 ### `tax_advantaged_configs`
 
-Per-account, per-year contribution and withdrawal limits for tax-advantaged accounts. User is responsible for entering limits.
+Per-account, per-year contribution and withdrawal limits for tax-advantaged accounts. User is responsible for entering limits. Applies to all non-taxable accounts regardless of tax treatment (`tax_free`, `tax_deferred`, `tax_assisted`) — the specific treatment is determined by `accounts.tax_treatment`, not by this table.
 
 
 | Column               | Type     | Constraints                      | Description                                      |
