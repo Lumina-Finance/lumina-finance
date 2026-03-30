@@ -199,7 +199,7 @@ Per-user registry of entities that send or receive money (stores, employers, peo
 | `id`                  | uuid         | PK                        |                                                                                        |
 | `owner_id`            | uuid         | NOT NULL, FK → `users.id` |                                                                                        |
 | `name`                | varchar(256) | NOT NULL                  | e.g., "Costco", "Employer Inc."                                                        |
-| `default_category_id` | uuid         | FK → `categories.id`      | Auto-categorization hint: new transactions with this merchant default to this category |
+| `default_category_id` | uuid         | FK → `categories.id`      | Auto-categorization hint: new transactions with this merchant default to this category (used for manully created merchants not imported from Plaid) |
 | `created_at`          | timestamptz  | NOT NULL                  |                                                                                        |
 
 
