@@ -25,6 +25,7 @@ dev = [
 [tool.ruff]
 target-version = "py314"
 line-length = 144
+exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
