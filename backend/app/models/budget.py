@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import VARCHAR, BigInteger, Date, DateTime, ForeignKey, SmallInteger, func
+from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, SmallInteger, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, RecurrenceFreq
@@ -11,6 +11,12 @@ class Budget(Base):
     """Spending plan for a time period. Recurring budgets use a template/instance pattern."""
 
     __tablename__ = "budgets"
+    __table_args__ = (
+        CheckConstraint(
+            "(owner_id IS NOT NULL AND household_id IS NULL) OR (owner_id IS NULL AND household_id IS NOT NULL)",
+            name="ck_budgets_owner_xor_household",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))

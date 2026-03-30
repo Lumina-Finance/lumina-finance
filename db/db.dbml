@@ -90,7 +90,7 @@ enum account_type {
   investment
 }
 
-Table accounts [headercolor: #10B981, note: "need to add a constraint to only allow either owner_id or household_id to be null, but not both at the same time"] {
+Table accounts [headercolor: #10B981, note: "check constraint: exactly one of owner_id or household_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
   household_id uuid [ref: > households.id]
@@ -176,7 +176,7 @@ enum recurrence_freq {
   yearly
 }
 
-Table budgets [headercolor: #F43F5E, note: "need to add a constraint to only allow either owner_id or household_id to be null, but not both at the same time"] {
+Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of owner_id or household_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
   household_id uuid [ref: > households.id]

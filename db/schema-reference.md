@@ -142,7 +142,7 @@ Represents a real-world financial account. Owned by either a user (personal) or 
 | `created_at`                  | timestamptz  | NOT NULL                       |                                                                                            |
 
 
-**App-level constraint:** exactly one of `owner_id` or `household_id` must be non-null.
+**Check constraint:** exactly one of `owner_id` or `household_id` must be non-null.
 
 ### `account_balance_snapshots`
 
@@ -274,7 +274,7 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 | `created_at`          | timestamptz                                   | NOT NULL                       |                                                                                     |
 
 
-**App-level constraint:** exactly one of `owner_id` or `household_id` must be non-null.
+**Check constraint:** exactly one of `owner_id` or `household_id` must be non-null.
 
 ### `budget_allocations`
 

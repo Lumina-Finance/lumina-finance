@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, BigInteger, Boolean, DateTime, ForeignKey, SmallInteger, func
+from sqlalchemy import VARCHAR, BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, SmallInteger, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AccountType, Base, TaxTreatment
@@ -11,6 +11,12 @@ class Account(Base):
     """Represents a real-world financial account. Owned by either a user or a household, never both."""
 
     __tablename__ = "accounts"
+    __table_args__ = (
+        CheckConstraint(
+            "(owner_id IS NOT NULL AND household_id IS NULL) OR (owner_id IS NULL AND household_id IS NOT NULL)",
+            name="ck_accounts_owner_xor_household",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
