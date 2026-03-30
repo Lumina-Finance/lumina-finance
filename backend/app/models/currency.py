@@ -1,4 +1,4 @@
-from sqlalchemy import SmallInteger, VarChar
+from sqlalchemy import SmallInteger, VARCHAR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -9,7 +9,7 @@ class Currency(Base):
 
     __tablename__ = "currencies"
 
-    id: Mapped[str] = mapped_column(VarChar(3), primary_key=True)  # ISO 4217 code (e.g., CAD, USD, JPY)
-    name: Mapped[str] = mapped_column(VarChar(64), nullable=False)  # Full name in singular (e.g., "Canadian Dollar")
-    symbol: Mapped[str] = mapped_column(VarChar(8), nullable=False)
+    id: Mapped[str] = mapped_column(VARCHAR(3), primary_key=True)  # ISO 4217 code (e.g., CAD, USD, JPY)
+    name: Mapped[str] = mapped_column(VARCHAR(64), nullable=False)  # Full name in singular (e.g., "Canadian Dollar")
+    symbol: Mapped[str] = mapped_column(VARCHAR(8), nullable=False)
     minor_unit_exponent: Mapped[int] = mapped_column(SmallInteger, nullable=False)  # e.g., CAD=2, JPY=0, BHD=3
