@@ -18,3 +18,10 @@ dependencies = [
 dev = [
     "ruff>=0.15.8",
 ]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 144
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "S", "UP", "W"]
