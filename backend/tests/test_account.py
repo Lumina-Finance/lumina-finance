@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.account import Account
-from app.models.base import AccountType
+from app.models.base import AccountType, TaxTreatment
 from app.models.currency import Currency
 from app.models.household import Household
 from app.models.user import User
@@ -35,6 +35,51 @@ async def household(db, user):
     db.add(h)
     await db.flush()
     return h
+
+
+# --- Defaults ---
+
+
+async def test_created_at_auto_set(db, user, currency):
+    """created_at should be set automatically by the database."""
+    a = Account(owner_id=user.id, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
+    db.add(a)
+    await db.flush()
+    await db.refresh(a)
+
+    assert a.created_at is not None
+
+
+async def test_tax_treatment_defaults_to_taxable(db, user, currency):
+    """tax_treatment should default to taxable."""
+    a = Account(owner_id=user.id, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
+    db.add(a)
+    await db.flush()
+
+    result = await db.get(Account, a.id)
+    assert result.tax_treatment == TaxTreatment.TAXABLE
+
+
+async def test_is_hidden_defaults_to_false(db, user, currency):
+    """is_hidden should default to false."""
+    a = Account(owner_id=user.id, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
+    db.add(a)
+    await db.flush()
+
+    result = await db.get(Account, a.id)
+    assert result.is_hidden is False
+
+
+async def test_nullable_fields_default_to_null(db, user, currency):
+    """institution_id, lifetime_contribution_limit, closed_at should default to null."""
+    a = Account(owner_id=user.id, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
+    db.add(a)
+    await db.flush()
+
+    result = await db.get(Account, a.id)
+    assert result.institution_id is None
+    assert result.lifetime_contribution_limit is None
+    assert result.closed_at is None
 
 
 # --- Owner XOR Household Check Constraint ---

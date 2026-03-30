@@ -80,6 +80,20 @@ async def test_delete_merchant(db, merchant):
     assert result is None
 
 
+# --- Defaults ---
+
+
+async def test_created_at_auto_set(db, merchant):
+    """created_at should be set automatically by the database."""
+    await db.refresh(merchant)
+    assert merchant.created_at is not None
+
+
+async def test_default_category_defaults_to_null(db, merchant):
+    """default_category_id should default to null."""
+    assert merchant.default_category_id is None
+
+
 # --- Default Category ---
 
 

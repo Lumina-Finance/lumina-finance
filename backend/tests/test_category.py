@@ -85,6 +85,28 @@ async def test_create_subcategory(db, category, user):
     assert result.parent_id == category.id
 
 
+# --- Defaults ---
+
+
+async def test_created_at_auto_set(db, category):
+    """created_at should be set automatically by the database."""
+    await db.refresh(category)
+    assert category.created_at is not None
+
+
+async def test_parent_defaults_to_null(db, category):
+    """parent_id should default to null for top-level categories."""
+    assert category.parent_id is None
+
+
+async def test_household_defaults_to_null(db, category):
+    """household_id should default to null for personal categories."""
+    assert category.household_id is None
+
+
+# --- Constraints ---
+
+
 async def test_invalid_parent_rejected(db, user):
     """parent_id must reference a valid category."""
     db.add(Category(owner_id=user.id, name="Orphan", kind=CategoryKind.EXPENSE, parent_id=uuid.uuid4()))
