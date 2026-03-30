@@ -70,7 +70,7 @@ Table institutions [headercolor: #64748B, note: "globally available table"] {
 
 Table currencies [headercolor: #64748B] {
   id char(3) pk
-  name text [not null, note: "spelled out full term in singular (e.g., Canadian Dollar)"]
+  name varchar(64) [not null, note: "spelled out full term in singular (e.g., Canadian Dollar)"]
   symbol varchar(8) [not null]
   minor_unit_exponent smallint [not null, note: "e.g., CAD=2, JPY=0, BHD=3"]
 }

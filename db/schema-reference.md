@@ -112,7 +112,7 @@ Reference table of supported currencies. Seeded with ISO 4217 data.
 | Column                | Type       | Constraints | Description                                           |
 | --------------------- | ---------- | ----------- | ----------------------------------------------------- |
 | `id`                  | char(3)    | PK          | ISO 4217 code (e.g., `CAD`, `USD`, `JPY`)             |
-| `name`                | text       | NOT NULL    | Full name in singular (e.g., "Canadian Dollar")       |
+| `name`                | varchar(64) | NOT NULL    | Full name in singular (e.g., "Canadian Dollar")       |
 | `symbol`              | varchar(8) | NOT NULL    | e.g., `$`, `¥`, `£`                                   |
 | `minor_unit_exponent` | smallint   | NOT NULL    | Number of decimal places: CAD=2 (cents), JPY=0, BHD=3 |
 
