@@ -1,6 +1,6 @@
 Table users [headercolor: #3B82F6] {
   id uuid pk
-  email email [not null, unique]
+  email varchar(254) [not null, unique, note: "RFC 3696: 254 character practical limit for email addresses"]
   first_name varchar(256) [not null]
   last_name varchar(256)
   profile_pic text [note: "the location of the profile picture"]

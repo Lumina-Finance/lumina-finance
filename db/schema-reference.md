@@ -16,7 +16,7 @@ Core user profile. Every user has exactly one row here.
 | Column          | Type         | Constraints                    | Description                                                         |
 | --------------- | ------------ | ------------------------------ | ------------------------------------------------------------------- |
 | `id`            | uuid         | PK                             |                                                                     |
-| `email`         | email        | NOT NULL, UNIQUE               | Login email                                                         |
+| `email`         | varchar(254) | NOT NULL, UNIQUE               | Login email; 254 char limit per RFC 3696                            |
 | `first_name`    | varchar(256) | NOT NULL                       |                                                                     |
 | `last_name`     | varchar(256) |                                | Optional                                                            |
 | `profile_pic`   | text         |                                | Path/URL to profile picture                                         |
