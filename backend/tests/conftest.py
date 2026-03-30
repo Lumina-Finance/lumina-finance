@@ -4,6 +4,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import _require
+
+# Import all models so Base.metadata has the full schema
+from app.models import account, auth, budget, category, currency, household, institution, merchant, tag, transaction, user  # noqa: F401
 from app.models.base import Base
 
 # Test database credentials — separate user/db from development
