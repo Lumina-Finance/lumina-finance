@@ -1,0 +1,18 @@
+import uuid
+
+from sqlalchemy import VARCHAR, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, InstitutionStatus
+
+
+class Institution(Base):
+    """Global registry of financial institutions (banks, brokerages, etc.)."""
+
+    __tablename__ = "institutions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    status: Mapped[InstitutionStatus] = mapped_column(nullable=False, default=InstitutionStatus.PENDING)
+    name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
+    country_code: Mapped[str] = mapped_column(VARCHAR(2), nullable=False)  # ISO 3166-1 alpha-2
+    website: Mapped[str] = mapped_column(Text, nullable=False)
