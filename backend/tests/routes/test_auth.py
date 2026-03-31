@@ -204,3 +204,53 @@ async def test_refresh_invalid_cookie_returns_401(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid or expired refresh token"
+
+
+# --- Logout ---
+
+
+async def test_logout_revokes_tokens_and_clears_cookie(client):
+    """Logout removes both tokens from active_tokens and clears the refresh cookie."""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    client.cookies.set("refresh_token", refresh_cookie)
+    resp = await client.post(
+        "/auth/logout",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "Logged out"
+
+    # Both tokens should be removed from the allowlist
+    async with TestSession() as session:
+        result = await session.execute(select(ActiveToken))
+        tokens = result.scalars().all()
+        assert len(tokens) == 0
+
+
+async def test_logout_access_token_cannot_be_reused(client):
+    """After logout, the revoked access token should not authenticate."""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    client.cookies.set("refresh_token", refresh_cookie)
+    await client.post(
+        "/auth/logout",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    # Refresh with the old cookie should fail
+    client.cookies.set("refresh_token", refresh_cookie)
+    resp = await client.post("/auth/refresh")
+    assert resp.status_code == 401
+
+
+async def test_logout_without_auth_header_returns_401(client):
+    """Logout without an Authorization header is rejected by the bearer dependency."""
+    resp = await client.post("/auth/logout")
+
+    assert resp.status_code == 401
