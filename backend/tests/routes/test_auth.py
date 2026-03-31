@@ -85,6 +85,25 @@ async def test_signup_duplicate_email_returns_409(client):
     assert resp.json()["detail"] == "Email already registered"
 
 
+async def test_signup_without_last_name_succeeds(client):
+    """Signup with last_name omitted should succeed since it's optional."""
+    await _seed_currency()
+    payload = {k: v for k, v in SIGNUP_PAYLOAD.items() if k != "last_name"}
+    resp = await client.post("/auth/signup", json=payload)
+
+    assert resp.status_code == 201
+    assert resp.json()["user"]["last_name"] is None
+
+
+async def test_signup_missing_required_field_returns_422(client):
+    """Signup without a required field returns 422 validation error."""
+    await _seed_currency()
+    payload = {k: v for k, v in SIGNUP_PAYLOAD.items() if k != "email"}
+    resp = await client.post("/auth/signup", json=payload)
+
+    assert resp.status_code == 422
+
+
 # --- Login ---
 
 
@@ -150,6 +169,29 @@ async def test_login_locked_account_rejects_valid_credentials(client):
     # Valid password should still be rejected
     resp = await client.post("/auth/login", json=LOGIN_PAYLOAD)
     assert resp.status_code == 423
+
+
+async def test_successful_login_resets_failed_attempt_count(client):
+    """A successful login after failed attempts resets the counter to zero."""
+    await _create_user(client)
+    bad_login = {"email": "test@example.com", "password": "wrongpassword"}
+
+    # 3 failed attempts (below lockout threshold of 5)
+    for _ in range(3):
+        await client.post("/auth/login", json=bad_login)
+
+    # Successful login should reset the counter
+    resp = await client.post("/auth/login", json=LOGIN_PAYLOAD)
+    assert resp.status_code == 200
+
+    # Verify counter was reset in the database
+    async with TestSession() as session:
+        from app.models.auth import PasswordCredential
+
+        result = await session.execute(select(PasswordCredential))
+        credential = result.scalar_one()
+        assert credential.failed_attempt_count == 0
+        assert credential.locked_until is None
 
 
 # --- Refresh ---
