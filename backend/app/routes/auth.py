@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import JWT_REFRESH_TOKEN_EXPIRE_HOURS
 from app.database import get_db
-from app.schemas.auth import AuthResponse, SignupRequest, UserInfo
-from app.services.auth import create_access_token, create_refresh_token, signup
+from app.schemas.auth import AuthResponse, LoginRequest, SignupRequest, UserInfo
+from app.services.auth import create_access_token, create_refresh_token, login, signup
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,6 +33,18 @@ async def signup_route(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     user = await signup(db, data)
+    access_token = create_access_token(user.id)
+    _set_refresh_cookie(response, create_refresh_token(user.id))
+    return AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login_route(
+    data: LoginRequest,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    user = await login(db, data)
     access_token = create_access_token(user.id)
     _set_refresh_cookie(response, create_refresh_token(user.id))
     return AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
