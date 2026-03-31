@@ -14,6 +14,12 @@ SIGNUP_PAYLOAD = {
 }
 
 
+LOGIN_PAYLOAD = {
+    "email": "test@example.com",
+    "password": "securepassword123",
+}
+
+
 async def _seed_currency():
     """Insert the CAD currency row required by the user's base_currency FK."""
     async with TestSession() as session:
@@ -21,6 +27,12 @@ async def _seed_currency():
 
         session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
+
+
+async def _create_user(client):
+    """Seed currency and sign up a test user. Returns the signup response."""
+    await _seed_currency()
+    return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
 
 
 # --- Signup ---
@@ -71,3 +83,70 @@ async def test_signup_duplicate_email_returns_409(client):
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "Email already registered"
+
+
+# --- Login ---
+
+
+async def test_login_returns_user_and_access_token(client):
+    """Valid credentials return user info and an access token."""
+    await _create_user(client)
+    resp = await client.post("/auth/login", json=LOGIN_PAYLOAD)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    user = data["user"]
+    assert user["email"] == SIGNUP_PAYLOAD["email"]
+    assert user["first_name"] == SIGNUP_PAYLOAD["first_name"]
+    assert user["last_name"] == SIGNUP_PAYLOAD.get("last_name")
+    assert user["id"] is not None
+    assert user["created_at"] is not None
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+    assert "refresh_token" in resp.cookies
+
+
+async def test_login_invalid_email_returns_401(client):
+    """Non-existent email returns 401."""
+    await _create_user(client)
+    resp = await client.post("/auth/login", json={"email": "nobody@example.com", "password": LOGIN_PAYLOAD["password"]})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid credentials"
+
+
+async def test_login_invalid_password_returns_401(client):
+    """Wrong password returns 401."""
+    await _create_user(client)
+    resp = await client.post("/auth/login", json={"email": "test@example.com", "password": "wrongpassword"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid credentials"
+
+
+async def test_login_locks_account_after_5_failed_attempts(client):
+    """Account is locked for 30 minutes after 5 consecutive failed login attempts."""
+    await _create_user(client)
+    bad_login = {"email": "test@example.com", "password": "wrongpassword"}
+
+    for _ in range(5):
+        resp = await client.post("/auth/login", json=bad_login)
+        assert resp.status_code == 401
+
+    # 6th attempt should return 423 Locked
+    resp = await client.post("/auth/login", json=bad_login)
+    assert resp.status_code == 423
+    assert resp.json()["detail"] == "Account temporarily locked"
+
+
+async def test_login_locked_account_rejects_valid_credentials(client):
+    """Even correct credentials are rejected when the account is locked."""
+    await _create_user(client)
+    bad_login = {"email": "test@example.com", "password": "wrongpassword"}
+
+    for _ in range(5):
+        await client.post("/auth/login", json=bad_login)
+
+    # Valid password should still be rejected
+    resp = await client.post("/auth/login", json=LOGIN_PAYLOAD)
+    assert resp.status_code == 423
