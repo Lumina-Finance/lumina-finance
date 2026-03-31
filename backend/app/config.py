@@ -32,11 +32,21 @@ JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 JWT_REFRESH_TOKEN_EXPIRE_HOURS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_HOURS", "24"))
 JWT_ISSUER = os.getenv("JWT_ISSUER", "lumina-finance")
 
-# Load RSA private key from file path. Falls back to backend/keys/private.pem for local dev.
-_key_path = Path(os.getenv("JWT_PRIVATE_KEY_PATH", Path(__file__).resolve().parent.parent / "keys" / "private.pem"))
-if not _key_path.exists():
-    raise RuntimeError(
-        f"JWT private key not found at {_key_path}. "
-        f"Run: openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out {_key_path}"
-    )
-JWT_PRIVATE_KEY = _key_path.read_text()
+# Separate RSA key pairs for access and refresh tokens.
+# Falls back to backend/keys/ for local dev.
+_keys_dir = Path(__file__).resolve().parent.parent / "keys"
+
+
+def _load_key(env_var: str, default_path: Path) -> str:
+    """Load an RSA private key from env var path or default. Fails fast if missing."""
+    key_path = Path(os.getenv(env_var, default_path))
+    if not key_path.exists():
+        raise RuntimeError(
+            f"JWT key not found at {key_path}. "
+            f"Run: openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out {key_path}"
+        )
+    return key_path.read_text()
+
+
+JWT_ACCESS_PRIVATE_KEY = _load_key("JWT_ACCESS_PRIVATE_KEY_PATH", _keys_dir / "access_private.pem")
+JWT_REFRESH_PRIVATE_KEY = _load_key("JWT_REFRESH_PRIVATE_KEY_PATH", _keys_dir / "refresh_private.pem")
