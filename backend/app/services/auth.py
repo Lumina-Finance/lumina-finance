@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -22,7 +23,12 @@ from app.models.base import AuthProvider
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
 
-_ph = argon2.PasswordHasher()
+# Use less secure params in testing to keep the suite fast; production uses defaults
+_ph = (
+    argon2.PasswordHasher(time_cost=1, memory_cost=8, parallelism=1, hash_len=8, salt_len=8)
+    if os.getenv("TESTING")
+    else argon2.PasswordHasher()
+)
 
 
 def _hash_password(password: str) -> str:
