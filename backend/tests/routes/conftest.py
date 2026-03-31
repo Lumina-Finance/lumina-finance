@@ -1,8 +1,13 @@
+from typing import Annotated
+
 import pytest
+from fastapi import Depends
 from httpx import ASGITransport, AsyncClient
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.main import app
+from app.models.user import User
 from tests.conftest import TestSession
 
 
@@ -13,6 +18,12 @@ async def _override_get_db():
 
 
 app.dependency_overrides[get_db] = _override_get_db
+
+
+# Test-only route to exercise the get_current_user dependency
+@app.get("/test/me")
+async def _test_me(user: Annotated[User, Depends(get_current_user)]):
+    return {"id": str(user.id), "email": user.email}
 
 
 @pytest.fixture

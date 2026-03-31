@@ -284,3 +284,41 @@ async def test_jwks_keys_have_valid_structure(client):
         assert key["kty"] == "RSA"
         assert key["use"] == "sig"
         assert key["alg"] == "RS256"
+
+
+# --- get_current_user ---
+
+
+async def test_valid_access_token_authenticates(client):
+    """A valid access token returns the authenticated user via the dependency."""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {access_token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["email"] == SIGNUP_PAYLOAD["email"]
+
+
+async def test_invalid_access_token_returns_401(client):
+    """A garbage access token is rejected."""
+    resp = await client.get("/test/me", headers={"Authorization": "Bearer not.a.valid.jwt"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired token"
+
+
+async def test_revoked_access_token_returns_401(client):
+    """An access token removed from the allowlist is rejected."""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    # Logout revokes the token
+    client.cookies.set("refresh_token", refresh_cookie)
+    await client.post("/auth/logout", headers={"Authorization": f"Bearer {access_token}"})
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {access_token}"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Token is not active"
