@@ -206,6 +206,18 @@ async def test_refresh_invalid_cookie_returns_401(client):
     assert resp.json()["detail"] == "Invalid or expired refresh token"
 
 
+async def test_access_token_as_refresh_cookie_returns_401(client):
+    """An access token cannot be used as a refresh token (different signing key)."""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+
+    client.cookies.set("refresh_token", access_token)
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired refresh token"
+
+
 # --- Logout ---
 
 
@@ -322,3 +334,14 @@ async def test_revoked_access_token_returns_401(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Token is not active"
+
+
+async def test_refresh_token_as_access_token_returns_401(client):
+    """A refresh token cannot be used as an access token (different signing key)."""
+    signup_resp = await _create_user(client)
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {refresh_cookie}"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired token"
