@@ -254,3 +254,33 @@ async def test_logout_without_auth_header_returns_401(client):
     resp = await client.post("/auth/logout")
 
     assert resp.status_code == 401
+
+
+# --- JWKS ---
+
+
+async def test_jwks_returns_both_keys_with_correct_kids(client):
+    """JWKS endpoint returns both access and refresh public keys with configured kid values."""
+    from app.config import JWT_ACCESS_KID, JWT_REFRESH_KID
+
+    resp = await client.get("/auth/.well-known/jwks.json")
+
+    assert resp.status_code == 200
+    keys = resp.json()["keys"]
+    assert len(keys) == 2
+
+    kids = {k["kid"] for k in keys}
+    assert JWT_ACCESS_KID in kids
+    assert JWT_REFRESH_KID in kids
+
+
+async def test_jwks_keys_have_valid_structure(client):
+    """Each JWK has the required RSA fields and metadata."""
+    resp = await client.get("/auth/.well-known/jwks.json")
+    required_fields = {"kty", "n", "e", "use", "kid", "alg"}
+
+    for key in resp.json()["keys"]:
+        assert required_fields.issubset(key.keys())
+        assert key["kty"] == "RSA"
+        assert key["use"] == "sig"
+        assert key["alg"] == "RS256"
