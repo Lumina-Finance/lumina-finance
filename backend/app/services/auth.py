@@ -51,42 +51,48 @@ def _verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: uuid.UUID) -> str:
+def create_access_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     """Create a short-lived JWT access token signed with the access private key.
 
     Args:
         user_id: The user's UUID to embed as the token subject.
 
     Returns:
-        An encoded RS256 JWT string.
+        Tuple of (encoded JWT string, jti, expires_at) for storing in active_tokens.
     """
     now = datetime.now(UTC)
+    jti = uuid.uuid4()
+    expires_at = now + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
+        "jti": str(jti),
         "iat": now,
-        "exp": now + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
+        "exp": expires_at,
         "iss": JWT_ISSUER,
     }
-    return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM), jti, expires_at
 
 
-def create_refresh_token(user_id: uuid.UUID) -> str:
+def create_refresh_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     """Create a longer-lived JWT refresh token signed with the refresh private key.
 
     Args:
         user_id: The user's UUID to embed as the token subject.
 
     Returns:
-        An encoded RS256 JWT string.
+        Tuple of (encoded JWT string, jti, expires_at) for storing in active_tokens.
     """
     now = datetime.now(UTC)
+    jti = uuid.uuid4()
+    expires_at = now + timedelta(hours=JWT_REFRESH_TOKEN_EXPIRE_HOURS)
     payload = {
         "sub": str(user_id),
+        "jti": str(jti),
         "iat": now,
-        "exp": now + timedelta(hours=JWT_REFRESH_TOKEN_EXPIRE_HOURS),
+        "exp": expires_at,
         "iss": JWT_ISSUER,
     }
-    return jwt.encode(payload, JWT_REFRESH_PRIVATE_KEY, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, JWT_REFRESH_PRIVATE_KEY, algorithm=JWT_ALGORITHM), jti, expires_at
 
 
 async def signup(db: AsyncSession, data: SignupRequest) -> User:
