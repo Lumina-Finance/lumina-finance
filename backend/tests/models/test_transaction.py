@@ -129,7 +129,7 @@ async def test_merchant_defaults_to_null(db, transaction):
 
 
 async def test_notes_defaults_to_null(db, transaction):
-    """notes should default to null."""
+    """Notes should default to null."""
     assert transaction.notes is None
 
 
@@ -213,7 +213,7 @@ async def test_null_category_rejected(db, user, account):
 
 
 async def test_null_amount_rejected(db, user, account, category):
-    """amount is NOT NULL."""
+    """Amount is NOT NULL."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
         ts=datetime.now(UTC), amount=None, currency="CAD",
@@ -223,7 +223,7 @@ async def test_null_amount_rejected(db, user, account, category):
 
 
 async def test_null_currency_rejected(db, user, account, category):
-    """currency is NOT NULL."""
+    """Currency is NOT NULL."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
         ts=datetime.now(UTC), amount=-1000, currency=None,
@@ -243,7 +243,7 @@ async def test_invalid_account_rejected(db, user, category):
 
 
 async def test_invalid_currency_rejected(db, user, account, category):
-    """currency must reference a valid currency."""
+    """Currency must reference a valid currency."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
         ts=datetime.now(UTC), amount=-1000, currency="ZZZ",

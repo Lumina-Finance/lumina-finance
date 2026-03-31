@@ -119,7 +119,7 @@ async def test_null_first_name_rejected(db, currency):
 
 
 async def test_null_tz_rejected(db, currency):
-    """tz is NOT NULL."""
+    """Tz is NOT NULL."""
     db.add(User(email="test@example.com", first_name="Test", tz=None, base_currency="CAD"))
     with pytest.raises(IntegrityError):
         await db.flush()

@@ -232,7 +232,7 @@ async def test_neither_owner_nor_household_rejected(db, currency):
 
 
 async def test_null_name_rejected(db, user):
-    """name is NOT NULL."""
+    """Name is NOT NULL."""
     db.add(Budget(
         owner_id=user.id, name=None,
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
@@ -242,7 +242,7 @@ async def test_null_name_rejected(db, user):
 
 
 async def test_null_currency_rejected(db, user):
-    """currency is NOT NULL."""
+    """Currency is NOT NULL."""
     db.add(Budget(
         owner_id=user.id, name="Bad",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency=None,
@@ -252,7 +252,7 @@ async def test_null_currency_rejected(db, user):
 
 
 async def test_invalid_currency_rejected(db, user):
-    """currency must reference a valid currency."""
+    """Currency must reference a valid currency."""
     db.add(Budget(
         owner_id=user.id, name="Bad",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="ZZZ",

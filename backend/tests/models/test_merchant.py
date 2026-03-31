@@ -125,7 +125,7 @@ async def test_null_owner_rejected(db):
 
 
 async def test_null_name_rejected(db, user):
-    """name is NOT NULL."""
+    """Name is NOT NULL."""
     db.add(Merchant(owner_id=user.id, name=None))
     with pytest.raises(IntegrityError):
         await db.flush()

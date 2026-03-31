@@ -125,14 +125,14 @@ async def test_null_owner_rejected(db):
 
 
 async def test_null_name_rejected(db, user):
-    """name is NOT NULL."""
+    """Name is NOT NULL."""
     db.add(Category(owner_id=user.id, name=None, kind=CategoryKind.EXPENSE))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_null_kind_rejected(db, user):
-    """kind is NOT NULL."""
+    """Kind is NOT NULL."""
     db.add(Category(owner_id=user.id, name="Bad", kind=None))
     with pytest.raises(IntegrityError):
         await db.flush()

@@ -6,7 +6,20 @@ from sqlalchemy.pool import NullPool
 from app.config import _require
 
 # Import all models so Base.metadata has the full schema
-from app.models import account, auth, budget, category, currency, household, institution, merchant, tag, transaction, user  # noqa: F401
+from app.models import (  # noqa: F401
+    account,
+    active_token,
+    auth,
+    budget,
+    category,
+    currency,
+    household,
+    institution,
+    merchant,
+    tag,
+    transaction,
+    user,
+)
 from app.models.base import Base
 
 # Test database credentials — separate user/db from development
@@ -31,10 +44,3 @@ async def clean_tables():
             "TRUNCATE " + ", ".join(t.name for t in reversed(Base.metadata.sorted_tables)) + " CASCADE"
         ))
     yield
-
-
-@pytest.fixture
-async def db():
-    """Provide a database session for each test."""
-    async with TestSession() as session:
-        yield session
