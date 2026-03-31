@@ -15,6 +15,12 @@ _COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_HOURS * 3600  # Convert hours to seco
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
+    """Set the refresh token as an httpOnly cookie on the response.
+
+    Args:
+        response: FastAPI response object.
+        token: The encoded refresh JWT string.
+    """
     response.set_cookie(
         key=_COOKIE_KEY,
         value=token,
@@ -32,6 +38,19 @@ async def signup_route(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    """Register a new user and issue a JWT token pair.
+
+    Args:
+        data: Signup payload with email, password, name, timezone, and currency.
+        response: FastAPI response object for setting the refresh cookie.
+        db: Async database session.
+
+    Returns:
+        AuthResponse with user info and access token. Refresh token set as cookie.
+
+    Raises:
+        HTTPException 409: Email is already registered.
+    """
     user = await signup(db, data)
     access_token = create_access_token(user.id)
     _set_refresh_cookie(response, create_refresh_token(user.id))
@@ -44,6 +63,20 @@ async def login_route(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    """Authenticate a user and issue a JWT token pair.
+
+    Args:
+        data: Login payload with email and password.
+        response: FastAPI response object for setting the refresh cookie.
+        db: Async database session.
+
+    Returns:
+        AuthResponse with user info and access token. Refresh token set as cookie.
+
+    Raises:
+        HTTPException 401: Invalid credentials.
+        HTTPException 423: Account temporarily locked.
+    """
     user = await login(db, data)
     access_token = create_access_token(user.id)
     _set_refresh_cookie(response, create_refresh_token(user.id))

@@ -22,7 +22,21 @@ async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """Extract and validate the access JWT, then return the authenticated user."""
+    """Extract and validate the access JWT from the Authorization header.
+
+    Decodes the Bearer token using the access public key, then loads
+    the corresponding user from the database.
+
+    Args:
+        credentials: Bearer token extracted from the Authorization header.
+        db: Async database session.
+
+    Returns:
+        The authenticated User.
+
+    Raises:
+        HTTPException 401: Token is missing, invalid, expired, or user not found.
+    """
     try:
         payload = jwt.decode(
             credentials.credentials,

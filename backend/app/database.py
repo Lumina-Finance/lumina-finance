@@ -9,6 +9,10 @@ async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_db():
-    """Yield a database session for use as a FastAPI dependency."""
+    """Yield an async database session for use as a FastAPI dependency.
+
+    Yields:
+        An AsyncSession that is automatically closed when the request completes.
+    """
     async with async_session() as session:
         yield session

@@ -7,7 +7,17 @@ load_dotenv()
 
 
 def _require(key: str) -> str:
-    """Return the value of an environment variable or raise if missing."""
+    """Return the value of an environment variable or raise if missing.
+
+    Args:
+        key: The environment variable name.
+
+    Returns:
+        The environment variable value.
+
+    Raises:
+        RuntimeError: If the environment variable is not set.
+    """
     value = os.getenv(key)
     if not value:
         raise RuntimeError(f"Missing required environment variable: {key}")
@@ -38,7 +48,21 @@ _keys_dir = Path(__file__).resolve().parent.parent / "keys"
 
 
 def _load_key(env_var: str, default_path: Path) -> str:
-    """Load an RSA private key from env var path or default. Fails fast if missing."""
+    """Load an RSA private key from a file path.
+
+    Checks the env var for a custom path, otherwise uses the default.
+    Fails fast at startup if the key file is missing.
+
+    Args:
+        env_var: Environment variable name containing the key file path.
+        default_path: Fallback path if the env var is not set.
+
+    Returns:
+        The PEM-encoded private key as a string.
+
+    Raises:
+        RuntimeError: If the key file does not exist.
+    """
     key_path = Path(os.getenv(env_var, default_path))
     if not key_path.exists():
         raise RuntimeError(

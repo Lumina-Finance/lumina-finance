@@ -24,10 +24,27 @@ _ph = argon2.PasswordHasher()
 
 
 def _hash_password(password: str) -> str:
+    """Hash a plaintext password using argon2id.
+
+    Args:
+        password: The plaintext password to hash.
+
+    Returns:
+        The argon2id hash string for storage in the database.
+    """
     return _ph.hash(password)
 
 
 def _verify_password(password: str, password_hash: str) -> bool:
+    """Compare a plaintext password against a stored argon2id hash.
+
+    Args:
+        password: The plaintext password to verify.
+        password_hash: The stored argon2id hash.
+
+    Returns:
+        True if the password matches, False otherwise.
+    """
     try:
         return _ph.verify(password_hash, password)
     except argon2.exceptions.VerifyMismatchError:
@@ -35,7 +52,14 @@ def _verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(user_id: uuid.UUID) -> str:
-    """Signed with the access key — only verifiable by the access public key."""
+    """Create a short-lived JWT access token signed with the access private key.
+
+    Args:
+        user_id: The user's UUID to embed as the token subject.
+
+    Returns:
+        An encoded RS256 JWT string.
+    """
     now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
@@ -47,7 +71,14 @@ def create_access_token(user_id: uuid.UUID) -> str:
 
 
 def create_refresh_token(user_id: uuid.UUID) -> str:
-    """Signed with the refresh key — only verifiable by the refresh public key."""
+    """Create a longer-lived JWT refresh token signed with the refresh private key.
+
+    Args:
+        user_id: The user's UUID to embed as the token subject.
+
+    Returns:
+        An encoded RS256 JWT string.
+    """
     now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
@@ -59,7 +90,20 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
 
 
 async def signup(db: AsyncSession, data: SignupRequest) -> User:
-    """Register a new user with password credentials."""
+    """Register a new user with password credentials.
+
+    Creates a User, AuthIdentity, and PasswordCredential in a single transaction.
+
+    Args:
+        db: Async database session.
+        data: Signup payload with email, password, name, timezone, and currency.
+
+    Returns:
+        The newly created User.
+
+    Raises:
+        HTTPException 409: Email is already registered.
+    """
     # Check if email is already registered
     result = await db.execute(select(User).where(User.email == data.email))
     if result.scalar_one_or_none():
@@ -95,7 +139,21 @@ _LOCKOUT_MINUTES = 30
 
 
 async def login(db: AsyncSession, data: LoginRequest) -> User:
-    """Authenticate a user by email and password. Returns user on success."""
+    """Authenticate a user by email and password.
+
+    Verifies credentials and enforces account lockout after repeated failures.
+
+    Args:
+        db: Async database session.
+        data: Login payload with email and password.
+
+    Returns:
+        The authenticated User.
+
+    Raises:
+        HTTPException 401: Invalid email or password.
+        HTTPException 423: Account temporarily locked after too many failed attempts.
+    """
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if not user:
