@@ -3,6 +3,9 @@ from datetime import UTC, datetime, timedelta
 
 import argon2
 import jwt
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
     JWT_ACCESS_PRIVATE_KEY,
@@ -12,6 +15,10 @@ from app.config import (
     JWT_REFRESH_PRIVATE_KEY,
     JWT_REFRESH_TOKEN_EXPIRE_HOURS,
 )
+from app.models.auth import AuthIdentity, PasswordCredential
+from app.models.base import AuthProvider
+from app.models.user import User
+from app.schemas.auth import SignupRequest
 
 _ph = argon2.PasswordHasher()
 
@@ -49,3 +56,34 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
         "iss": JWT_ISSUER,
     }
     return jwt.encode(payload, JWT_REFRESH_PRIVATE_KEY, algorithm=JWT_ALGORITHM)
+
+
+async def signup(db: AsyncSession, data: SignupRequest) -> User:
+    """Register a new user with password credentials."""
+    # Check if email is already registered
+    result = await db.execute(select(User).where(User.email == data.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    user = User(
+        email=data.email,
+        first_name=data.first_name,
+        last_name=data.last_name,
+        tz=data.tz,
+        base_currency=data.base_currency,
+    )
+    db.add(user)
+    await db.flush()
+
+    db.add(AuthIdentity(user_id=user.id, auth_provider=AuthProvider.PASSWORD))
+    db.add(
+        PasswordCredential(
+            user_id=user.id,
+            password_hash=_hash_password(data.password),
+            password_algo="argon2id",  # noqa: S106 — algorithm name, not a secret
+        )
+    )
+
+    await db.commit()
+    await db.refresh(user)
+    return user
