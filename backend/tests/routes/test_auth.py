@@ -268,6 +268,40 @@ async def test_logout_without_auth_header_returns_401(client):
     assert resp.status_code == 401
 
 
+async def test_double_logout_is_idempotent(client):
+    """Calling logout twice with the same tokens should return 200 both times."""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    client.cookies.set("refresh_token", refresh_cookie)
+    resp1 = await client.post("/auth/logout", headers=headers)
+    assert resp1.status_code == 200
+
+    client.cookies.set("refresh_token", refresh_cookie)
+    resp2 = await client.post("/auth/logout", headers=headers)
+    assert resp2.status_code == 200
+
+
+async def test_logout_without_refresh_cookie_revokes_access_only(client):
+    """Logout with only an access token still succeeds and revokes the access token."""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+
+    # No refresh cookie set — only pass the access token
+    resp = await client.post("/auth/logout", headers={"Authorization": f"Bearer {access_token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "Logged out"
+
+    # Only the refresh token should remain in the allowlist
+    async with TestSession() as session:
+        result = await session.execute(select(ActiveToken))
+        tokens = result.scalars().all()
+        assert len(tokens) == 1
+
+
 # --- JWKS ---
 
 
