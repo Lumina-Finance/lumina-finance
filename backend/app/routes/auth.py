@@ -233,3 +233,29 @@ async def logout_route(
     await db.commit()
     _clear_refresh_cookie(response)
     return {"detail": "Logged out"}
+
+
+@router.get("/.well-known/jwks.json")
+async def jwks():
+    """Publish the public keys in JWKS format for external token verification.
+
+    Exposes both the access and refresh public keys so API Gateway,
+    self-hosted reverse proxies, or other services can verify token
+    signatures without access to the private keys.
+
+    Returns:
+        JWKS document containing both public keys.
+    """
+    from jwt.algorithms import RSAAlgorithm
+
+    access_jwk = RSAAlgorithm.to_jwk(_access_public_key, as_dict=True)
+    access_jwk["use"] = "sig"
+    access_jwk["kid"] = "access-1"
+    access_jwk["alg"] = JWT_ALGORITHM
+
+    refresh_jwk = RSAAlgorithm.to_jwk(_refresh_public_key, as_dict=True)
+    refresh_jwk["use"] = "sig"
+    refresh_jwk["kid"] = "refresh-1"
+    refresh_jwk["alg"] = JWT_ALGORITHM
+
+    return {"keys": [access_jwk, refresh_jwk]}

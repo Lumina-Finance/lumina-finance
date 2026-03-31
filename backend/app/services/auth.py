@@ -70,7 +70,8 @@ def create_access_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
         "exp": expires_at,
         "iss": JWT_ISSUER,
     }
-    return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM), jti, expires_at
+    token = jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": "access-1"})
+    return token, jti, expires_at
 
 
 def create_refresh_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
@@ -92,7 +93,8 @@ def create_refresh_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
         "exp": expires_at,
         "iss": JWT_ISSUER,
     }
-    return jwt.encode(payload, JWT_REFRESH_PRIVATE_KEY, algorithm=JWT_ALGORITHM), jti, expires_at
+    token = jwt.encode(payload, JWT_REFRESH_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": "refresh-1"})
+    return token, jti, expires_at
 
 
 async def signup(db: AsyncSession, data: SignupRequest) -> User:
