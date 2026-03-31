@@ -9,7 +9,15 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER, JWT_REFRESH_PRIVATE_KEY, JWT_REFRESH_TOKEN_EXPIRE_HOURS
+from app.config import (
+    JWT_ACCESS_KID,
+    JWT_ACCESS_PRIVATE_KEY,
+    JWT_ALGORITHM,
+    JWT_ISSUER,
+    JWT_REFRESH_KID,
+    JWT_REFRESH_PRIVATE_KEY,
+    JWT_REFRESH_TOKEN_EXPIRE_HOURS,
+)
 from app.database import get_db
 from app.models.active_token import ActiveToken
 from app.models.user import User
@@ -250,12 +258,12 @@ async def jwks():
 
     access_jwk = RSAAlgorithm.to_jwk(_access_public_key, as_dict=True)
     access_jwk["use"] = "sig"
-    access_jwk["kid"] = "access-1"
+    access_jwk["kid"] = JWT_ACCESS_KID
     access_jwk["alg"] = JWT_ALGORITHM
 
     refresh_jwk = RSAAlgorithm.to_jwk(_refresh_public_key, as_dict=True)
     refresh_jwk["use"] = "sig"
-    refresh_jwk["kid"] = "refresh-1"
+    refresh_jwk["kid"] = JWT_REFRESH_KID
     refresh_jwk["alg"] = JWT_ALGORITHM
 
     return {"keys": [access_jwk, refresh_jwk]}

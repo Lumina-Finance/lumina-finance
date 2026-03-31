@@ -8,10 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
+    JWT_ACCESS_KID,
     JWT_ACCESS_PRIVATE_KEY,
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
     JWT_ALGORITHM,
     JWT_ISSUER,
+    JWT_REFRESH_KID,
     JWT_REFRESH_PRIVATE_KEY,
     JWT_REFRESH_TOKEN_EXPIRE_HOURS,
 )
@@ -70,7 +72,7 @@ def create_access_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
         "exp": expires_at,
         "iss": JWT_ISSUER,
     }
-    token = jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": "access-1"})
+    token = jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
     return token, jti, expires_at
 
 
@@ -93,7 +95,7 @@ def create_refresh_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
         "exp": expires_at,
         "iss": JWT_ISSUER,
     }
-    token = jwt.encode(payload, JWT_REFRESH_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": "refresh-1"})
+    token = jwt.encode(payload, JWT_REFRESH_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_REFRESH_KID})
     return token, jti, expires_at
 
 

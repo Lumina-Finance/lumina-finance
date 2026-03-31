@@ -74,3 +74,7 @@ def _load_key(env_var: str, default_path: Path) -> str:
 
 JWT_ACCESS_PRIVATE_KEY = _load_key("JWT_ACCESS_PRIVATE_KEY_PATH", _keys_dir / "access_private.pem")
 JWT_REFRESH_PRIVATE_KEY = _load_key("JWT_REFRESH_PRIVATE_KEY_PATH", _keys_dir / "refresh_private.pem")
+
+# Key IDs for JWKS matching — bump version and date when rotating keys
+JWT_ACCESS_KID = _require("JWT_ACCESS_KID")
+JWT_REFRESH_KID = _require("JWT_REFRESH_KID")
