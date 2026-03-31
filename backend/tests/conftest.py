@@ -2,8 +2,8 @@ import os
 
 os.environ["TESTING"] = "1"  # Must be set before app imports to use lightweight argon2 params
 
-import pytest  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
