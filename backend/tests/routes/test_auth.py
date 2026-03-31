@@ -150,3 +150,53 @@ async def test_login_locked_account_rejects_valid_credentials(client):
     # Valid password should still be rejected
     resp = await client.post("/auth/login", json=LOGIN_PAYLOAD)
     assert resp.status_code == 423
+
+
+# --- Refresh ---
+
+
+async def test_refresh_returns_new_token_pair(client):
+    """Valid refresh cookie returns a new access token and refresh cookie."""
+    signup_resp = await _create_user(client)
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    resp = await client.post("/auth/refresh", cookies={"refresh_token": refresh_cookie})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+    assert data["user"]["email"] == SIGNUP_PAYLOAD["email"]
+    assert "refresh_token" in resp.cookies
+
+
+async def test_refresh_rotates_token(client):
+    """After refresh, the old refresh token is deleted and a new one is issued."""
+    signup_resp = await _create_user(client)
+    old_cookie = signup_resp.cookies["refresh_token"]
+
+    resp = await client.post("/auth/refresh", cookies={"refresh_token": old_cookie})
+    new_cookie = resp.cookies["refresh_token"]
+
+    # Old and new cookies should differ
+    assert old_cookie != new_cookie
+
+    # Old token should no longer work
+    resp = await client.post("/auth/refresh", cookies={"refresh_token": old_cookie})
+    assert resp.status_code == 401
+
+
+async def test_refresh_missing_cookie_returns_401(client):
+    """Request with no refresh cookie returns 401."""
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Missing refresh token"
+
+
+async def test_refresh_invalid_cookie_returns_401(client):
+    """Tampered or garbage refresh cookie returns 401."""
+    resp = await client.post("/auth/refresh", cookies={"refresh_token": "not.a.valid.jwt"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired refresh token"
