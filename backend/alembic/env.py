@@ -8,7 +8,20 @@ from alembic import context
 from app.config import DATABASE_URL
 
 # Import all models so Alembic can detect them for autogenerate
-from app.models import account, auth, budget, category, currency, household, institution, merchant, tag, transaction, user  # noqa: F401
+from app.models import (  # noqa: F401
+    account,
+    active_token,
+    auth,
+    budget,
+    category,
+    currency,
+    household,
+    institution,
+    merchant,
+    tag,
+    transaction,
+    user,
+)
 from app.models.base import Base
 
 config = context.config
