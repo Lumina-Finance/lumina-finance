@@ -146,3 +146,17 @@ async def refresh_route(
     new_access = create_access_token(user.id)
     _set_refresh_cookie(response, create_refresh_token(user.id))
     return AuthResponse(user=UserInfo.model_validate(user), access_token=new_access)
+
+
+@router.post("/logout")
+async def logout_route(response: Response):
+    """Clear the refresh token cookie to end the user's session.
+
+    Args:
+        response: FastAPI response object.
+
+    Returns:
+        Confirmation message.
+    """
+    _clear_refresh_cookie(response)
+    return {"detail": "Logged out"}
