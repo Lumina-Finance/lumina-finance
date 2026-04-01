@@ -36,7 +36,7 @@ async def update_me(
     if "base_currency" in updates:
         result = await db.execute(select(Currency).where(Currency.id == updates["base_currency"]))
         if not result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid currency code")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
 
     for field, value in updates.items():
         setattr(user, field, value)
