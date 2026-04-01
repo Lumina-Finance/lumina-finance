@@ -182,9 +182,9 @@ Hierarchical transaction categories. App seeds a default "Uncategorized" categor
 | -------------- | -------------------------------------- | ------------------------- | --------------------------------------------------------------- |
 | `id`           | uuid                                   | PK                        |                                                                 |
 | `household_id` | uuid                                   | FK → `households.id`      | Non-null for household-shared categories                        |
-| `owner_id`     | uuid                                   | NOT NULL, FK → `users.id` | Creator/owner of the category                                   |
-| `name`         | text                                   | NOT NULL                  | e.g., "Groceries", "Salary"                                     |
-| `kind`         | enum (`expense`, `income`, `transfer`) | NOT NULL                  | Determines which transaction direction this category applies to |
+| `owner_id`     | uuid                                   | NOT NULL, FK → `users.id`, UNIQUE(owner_id, name, kind) | Creator/owner of the category                                   |
+| `name`         | text                                   | NOT NULL, UNIQUE(owner_id, name, kind)                  | e.g., "Groceries", "Salary"                                     |
+| `kind`         | enum (`expense`, `income`, `transfer`) | NOT NULL, UNIQUE(owner_id, name, kind)                  | Determines which transaction direction this category applies to |
 | `parent_id`    | uuid                                   | FK → `categories.id`      | Null = top-level; non-null = subcategory                        |
 | `created_at`   | timestamptz                            | NOT NULL                  |                                                                 |
 

@@ -136,6 +136,10 @@ Table categories [headercolor: #F59E0B, note: "app seeds a default 'Uncategorize
   kind category_kind [not null]
   parent_id uuid [ref: > categories.id]
   created_at timestamptz [not null]
+
+  indexes {
+    (owner_id, name, kind) [unique, name: "uq_category_owner_name_kind"]
+  }
 }
 
 Table merchants [headercolor: #F59E0B, note: "per-user merchant registry; includes employers, people, stores — anything that sends or receives money"] {
