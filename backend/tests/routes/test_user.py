@@ -32,7 +32,7 @@ async def _create_user(client):
     return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
 
 
-def _auth_header(resp):
+def _get_auth_header(resp):
     """Extract a Bearer Authorization header dict from a signup/login response."""
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -44,7 +44,7 @@ def _auth_header(resp):
 async def test_get_me_returns_full_profile(client):
     """Authenticated GET /me returns all user profile fields."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.get("/me", headers=headers)
 
@@ -78,7 +78,7 @@ async def test_get_me_with_invalid_token_returns_401(client):
 async def test_patch_updates_first_name(client):
     """PATCH /me updates first_name and returns the updated profile."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"first_name": "Updated"}, headers=headers)
 
@@ -89,7 +89,7 @@ async def test_patch_updates_first_name(client):
 async def test_patch_updates_last_name(client):
     """PATCH /me updates last_name."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"last_name": "NewLast"}, headers=headers)
 
@@ -100,7 +100,7 @@ async def test_patch_updates_last_name(client):
 async def test_patch_updates_timezone(client):
     """PATCH /me updates timezone."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"tz": "Europe/London"}, headers=headers)
 
@@ -111,7 +111,7 @@ async def test_patch_updates_timezone(client):
 async def test_patch_updates_base_currency(client):
     """PATCH /me updates base_currency when the new currency exists."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
     await _seed_usd()
 
     resp = await client.patch("/me", json={"base_currency": "USD"}, headers=headers)
@@ -123,7 +123,7 @@ async def test_patch_updates_base_currency(client):
 async def test_patch_updates_multiple_fields(client):
     """PATCH /me updates multiple fields at once."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"first_name": "Multi", "tz": "Asia/Tokyo"}, headers=headers)
 
@@ -136,7 +136,7 @@ async def test_patch_updates_multiple_fields(client):
 async def test_patch_empty_body_returns_unchanged_profile(client):
     """PATCH /me with empty body returns 200 with no changes."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     before = await client.get("/me", headers=headers)
     resp = await client.patch("/me", json={}, headers=headers)
@@ -148,7 +148,7 @@ async def test_patch_empty_body_returns_unchanged_profile(client):
 async def test_patch_null_clears_nullable_field(client):
     """PATCH /me with null clears a nullable field."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     # Set last_name first
     await client.patch("/me", json={"last_name": "Temporary"}, headers=headers)
@@ -162,7 +162,7 @@ async def test_patch_null_clears_nullable_field(client):
 async def test_patch_invalid_currency_returns_422(client):
     """PATCH /me with a non-existent currency code returns 422."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"base_currency": "ZZZ"}, headers=headers)
 
@@ -172,7 +172,7 @@ async def test_patch_invalid_currency_returns_422(client):
 async def test_patch_empty_first_name_returns_422(client):
     """PATCH /me with empty first_name violates min_length and returns 422."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"first_name": ""}, headers=headers)
 
@@ -182,7 +182,7 @@ async def test_patch_empty_first_name_returns_422(client):
 async def test_patch_short_currency_code_returns_422(client):
     """PATCH /me with a currency code shorter than 3 chars returns 422."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"base_currency": "X"}, headers=headers)
 
@@ -192,7 +192,7 @@ async def test_patch_short_currency_code_returns_422(client):
 async def test_patch_null_first_name_returns_422(client):
     """PATCH /me with null first_name returns 422 (non-nullable field)."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"first_name": None}, headers=headers)
 
@@ -202,7 +202,7 @@ async def test_patch_null_first_name_returns_422(client):
 async def test_patch_null_tz_returns_422(client):
     """PATCH /me with null tz returns 422 (non-nullable field)."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"tz": None}, headers=headers)
 
@@ -212,7 +212,7 @@ async def test_patch_null_tz_returns_422(client):
 async def test_patch_null_base_currency_returns_422(client):
     """PATCH /me with null base_currency returns 422 (non-nullable field)."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"base_currency": None}, headers=headers)
 
@@ -222,7 +222,7 @@ async def test_patch_null_base_currency_returns_422(client):
 async def test_patch_extra_fields_are_ignored(client):
     """PATCH /me with unknown fields ignores them and doesn't change the profile."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     before = await client.get("/me", headers=headers)
     resp = await client.patch("/me", json={"foo": "bar"}, headers=headers)
@@ -234,7 +234,7 @@ async def test_patch_extra_fields_are_ignored(client):
 async def test_patch_email_is_ignored(client):
     """PATCH /me cannot change email even if included in the body."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"email": "hacker@evil.com"}, headers=headers)
 
@@ -245,7 +245,7 @@ async def test_patch_email_is_ignored(client):
 async def test_patch_updates_profile_pic(client):
     """PATCH /me updates profile_pic."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.patch("/me", json={"profile_pic": "https://example.com/pic.jpg"}, headers=headers)
 
@@ -262,7 +262,7 @@ async def test_patch_without_auth_returns_401(client):
 async def test_patch_persists_across_requests(client):
     """PATCH /me changes are visible on subsequent GET /me."""
     signup_resp = await _create_user(client)
-    headers = _auth_header(signup_resp)
+    headers = _get_auth_header(signup_resp)
 
     await client.patch("/me", json={"first_name": "Persisted"}, headers=headers)
     resp = await client.get("/me", headers=headers)
