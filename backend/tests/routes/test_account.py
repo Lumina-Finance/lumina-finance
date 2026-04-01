@@ -398,6 +398,71 @@ async def test_patch_account_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
+async def test_patch_account_clears_institution(client):
+    """PATCH with institution_id=null detaches the account from its institution."""
+    inst = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, institution_id=str(inst.id))
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"institution_id": None}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["institution_id"] is None
+
+
+async def test_patch_account_clears_closed_at(client):
+    """PATCH with closed_at=null reopens a closed account."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    # Close it
+    await client.patch(f"/accounts/{account_id}", json={"closed_at": "2026-03-01T00:00:00Z"}, headers=headers)
+    # Reopen it
+    resp = await client.patch(f"/accounts/{account_id}", json={"closed_at": None}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["closed_at"] is None
+
+
+async def test_patch_account_invalid_institution_returns_422(client):
+    """PATCH with non-existent institution_id returns 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/accounts/{account_id}",
+        json={"institution_id": NONEXISTENT_ID},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Institution not found"
+
+
+async def test_patch_account_immutable_fields_ignored(client):
+    """PATCH cannot change account_type or currency — extra fields are ignored."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/accounts/{account_id}",
+        json={"account_type": "savings", "currency": "USD"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["account_type"] == ACCOUNT_PAYLOAD["account_type"]
+    assert resp.json()["currency"] == ACCOUNT_PAYLOAD["currency"]
+
+
 # --- DELETE /accounts/{account_id} ---
 
 
