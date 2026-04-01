@@ -143,3 +143,22 @@ async def test_invalid_owner_rejected(db):
     db.add(Category(owner_id=uuid.uuid4(), name="Bad", kind=CategoryKind.EXPENSE))
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+async def test_duplicate_name_and_kind_rejected(db, user):
+    """Same owner + name + kind combination is rejected by unique constraint."""
+    db.add(Category(owner_id=user.id, name="Food", kind=CategoryKind.EXPENSE))
+    await db.flush()
+
+    db.add(Category(owner_id=user.id, name="Food", kind=CategoryKind.EXPENSE))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_same_name_different_kind_allowed(db, user):
+    """Same name with a different kind is allowed (e.g., 'Transfer' as expense and transfer)."""
+    db.add(Category(owner_id=user.id, name="Misc", kind=CategoryKind.EXPENSE))
+    await db.flush()
+
+    db.add(Category(owner_id=user.id, name="Misc", kind=CategoryKind.INCOME))
+    await db.flush()  # Should not raise
