@@ -1,0 +1,194 @@
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.base import CategoryKind
+from app.models.category import Category
+from app.models.user import User
+from app.schemas.category import CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest
+
+router = APIRouter(prefix="/categories", tags=["categories"])
+
+_VALID_KINDS = {e.value for e in CategoryKind}
+
+
+@router.get("", response_model=list[CategoryResponse])
+async def list_categories(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return all categories owned by the authenticated user.
+
+    Args:
+        user: The authenticated user.
+        db: Async database session.
+
+    Returns:
+        List of categories sorted by name.
+    """
+    result = await db.execute(
+        select(Category).where(Category.owner_id == user.id).order_by(Category.name),
+    )
+    return result.scalars().all()
+
+
+@router.get("/{category_id}", response_model=CategoryResponse)
+async def get_category(
+    category_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return a single category by ID. Must belong to the authenticated user.
+
+    Args:
+        category_id: UUID of the category.
+        user: The authenticated user.
+        db: Async database session.
+
+    Returns:
+        The matching category.
+
+    Raises:
+        HTTPException 404: Category not found or not owned by the user.
+    """
+    result = await db.execute(
+        select(Category).where(Category.id == category_id, Category.owner_id == user.id),
+    )
+    category = result.scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return category
+
+
+@router.post("", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
+async def create_category(
+    data: CreateCategoryRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Create a new category for the authenticated user.
+
+    Args:
+        data: Category details (name, kind, optional parent_id).
+        user: The authenticated user.
+        db: Async database session.
+
+    Returns:
+        The created category.
+
+    Raises:
+        HTTPException 422: Invalid kind or parent category not found.
+    """
+    if data.kind not in _VALID_KINDS:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid category kind")
+
+    # Reject duplicate name + kind for the same user
+    result = await db.execute(
+        select(Category).where(
+            Category.owner_id == user.id,
+            Category.name == data.name,
+            Category.kind == data.kind,
+        ),
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category with this name and kind already exists")
+
+    # Validate parent exists and belongs to the user
+    if data.parent_id:
+        result = await db.execute(
+            select(Category).where(Category.id == data.parent_id, Category.owner_id == user.id),
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
+
+    category = Category(
+        owner_id=user.id,
+        name=data.name,
+        kind=data.kind,
+        parent_id=data.parent_id,
+    )
+    db.add(category)
+    await db.commit()
+    await db.refresh(category)
+    return category
+
+
+@router.patch("/{category_id}", response_model=CategoryResponse)
+async def update_category(
+    category_id: uuid.UUID,
+    data: UpdateCategoryRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Update a category. Only provided fields are changed. Must belong to the authenticated user.
+
+    Args:
+        category_id: UUID of the category.
+        data: Partial update payload.
+        user: The authenticated user.
+        db: Async database session.
+
+    Returns:
+        The updated category.
+
+    Raises:
+        HTTPException 404: Category not found or not owned by the user.
+        HTTPException 422: Parent category not found.
+    """
+    result = await db.execute(
+        select(Category).where(Category.id == category_id, Category.owner_id == user.id),
+    )
+    category = result.scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        return category
+
+    # Validate parent exists and belongs to the user
+    if "parent_id" in updates and updates["parent_id"] is not None:
+        result = await db.execute(
+            select(Category).where(Category.id == updates["parent_id"], Category.owner_id == user.id),
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
+
+    for field, value in updates.items():
+        setattr(category, field, value)
+
+    await db.commit()
+    await db.refresh(category)
+    return category
+
+
+@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(
+    category_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete a category. Must belong to the authenticated user.
+
+    Args:
+        category_id: UUID of the category.
+        user: The authenticated user.
+        db: Async database session.
+
+    Raises:
+        HTTPException 404: Category not found or not owned by the user.
+    """
+    result = await db.execute(
+        select(Category).where(Category.id == category_id, Category.owner_id == user.id),
+    )
+    category = result.scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    await db.delete(category)
+    await db.commit()
