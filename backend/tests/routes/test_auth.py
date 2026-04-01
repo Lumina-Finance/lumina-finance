@@ -2,37 +2,14 @@ from sqlalchemy import select
 
 from app.models.active_token import ActiveToken
 from tests.conftest import TestSession
+from tests.routes.conftest import SIGNUP_PAYLOAD, _create_user, _seed_currency
 
 # --- Helpers ---
-
-SIGNUP_PAYLOAD = {
-    "email": "test@example.com",
-    "password": "securepassword123",
-    "first_name": "Test",
-    "tz": "America/Toronto",
-    "base_currency": "CAD",
-}
-
 
 LOGIN_PAYLOAD = {
     "email": "test@example.com",
     "password": "securepassword123",
 }
-
-
-async def _seed_currency():
-    """Insert the CAD currency row required by the user's base_currency FK."""
-    async with TestSession() as session:
-        from app.models.currency import Currency
-
-        session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-        await session.commit()
-
-
-async def _create_user(client):
-    """Seed currency and sign up a test user. Returns the signup response."""
-    await _seed_currency()
-    return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
 
 
 # --- Signup ---

@@ -1,22 +1,8 @@
 from app.models.currency import Currency
 from tests.conftest import TestSession
+from tests.routes.conftest import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
 # --- Helpers ---
-
-SIGNUP_PAYLOAD = {
-    "email": "test@example.com",
-    "password": "securepassword123",
-    "first_name": "Test",
-    "tz": "America/Toronto",
-    "base_currency": "CAD",
-}
-
-
-async def _seed_currency():
-    """Insert the CAD currency row required by the user's base_currency FK."""
-    async with TestSession() as session:
-        session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-        await session.commit()
 
 
 async def _seed_usd():
@@ -24,18 +10,6 @@ async def _seed_usd():
     async with TestSession() as session:
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
-
-
-async def _create_user(client):
-    """Seed currency and sign up a test user. Returns the signup response."""
-    await _seed_currency()
-    return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
-
-
-def _get_auth_header(resp):
-    """Extract a Bearer Authorization header dict from a signup/login response."""
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
 
 
 # --- GET /me ---
