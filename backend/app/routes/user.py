@@ -32,6 +32,15 @@ async def update_me(
     if not updates:
         return UserProfile.model_validate(user)
 
+    # Non-nullable fields cannot be explicitly set to null
+    _non_nullable = {"first_name", "tz", "base_currency"}
+    null_fields = [f for f in _non_nullable if f in updates and updates[f] is None]
+    if null_fields:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Cannot set to null: {', '.join(sorted(null_fields))}",
+        )
+
     # Validate currency exists if being changed
     if "base_currency" in updates:
         result = await db.execute(select(Currency).where(Currency.id == updates["base_currency"]))
