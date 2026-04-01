@@ -197,7 +197,7 @@ async def test_create_account_invalid_currency_returns_422(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_account(client, headers, currency="ZZZ")
+    resp = await _create_account(client, headers, currency="XXX")
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Invalid currency code"
@@ -310,7 +310,7 @@ async def test_patch_account_invalid_tax_treatment_returns_422(client):
 
     resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_treatment": "exempt"},
+        json={"tax_treatment": "not_a_real_treatment"},
         headers=headers,
     )
 

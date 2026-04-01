@@ -138,7 +138,7 @@ async def test_patch_invalid_currency_returns_422(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.patch("/me", json={"base_currency": "ZZZ"}, headers=headers)
+    resp = await client.patch("/me", json={"base_currency": "XXX"}, headers=headers)
 
     assert resp.status_code == 422
 

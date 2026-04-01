@@ -68,7 +68,7 @@ async def test_get_currency_not_found_returns_404(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.get("/currencies/ZZZ", headers=headers)
+    resp = await client.get("/currencies/XXX", headers=headers)
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Currency not found"
