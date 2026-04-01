@@ -189,6 +189,36 @@ async def test_patch_short_currency_code_returns_422(client):
     assert resp.status_code == 422
 
 
+async def test_patch_null_first_name_returns_422(client):
+    """PATCH /me with null first_name returns 422 (non-nullable field)."""
+    signup_resp = await _create_user(client)
+    headers = _auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"first_name": None}, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_patch_null_tz_returns_422(client):
+    """PATCH /me with null tz returns 422 (non-nullable field)."""
+    signup_resp = await _create_user(client)
+    headers = _auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"tz": None}, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_patch_null_base_currency_returns_422(client):
+    """PATCH /me with null base_currency returns 422 (non-nullable field)."""
+    signup_resp = await _create_user(client)
+    headers = _auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"base_currency": None}, headers=headers)
+
+    assert resp.status_code == 422
+
+
 async def test_patch_without_auth_returns_401(client):
     """PATCH /me without an Authorization header returns 401."""
     resp = await client.patch("/me", json={"first_name": "Hacker"})
