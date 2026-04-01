@@ -36,6 +36,17 @@ async def _create_account(client, headers, **overrides):
     return await client.post("/accounts", json=payload, headers=headers)
 
 
+async def _create_second_user(client):
+    """Sign up a second user. Returns the signup response."""
+    return await client.post("/auth/signup", json={
+        "email": "other@example.com",
+        "password": "securepassword123",
+        "first_name": "Other",
+        "tz": "America/Toronto",
+        "base_currency": "CAD",
+    })
+
+
 # --- GET /accounts ---
 
 
@@ -116,15 +127,7 @@ async def test_get_account_other_user_returns_404(client):
     create_resp = await _create_account(client, headers)
     account_id = create_resp.json()["id"]
 
-    # Sign up a second user
-    second_resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "securepassword123",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
-    other_headers = _get_auth_header(second_resp)
+    other_headers = _get_auth_header(await _create_second_user(client))
 
     resp = await client.get(f"/accounts/{account_id}", headers=other_headers)
 
@@ -370,15 +373,7 @@ async def test_delete_account_other_user_returns_404(client):
     create_resp = await _create_account(client, headers)
     account_id = create_resp.json()["id"]
 
-    # Sign up a second user
-    second_resp = await client.post("/auth/signup", json={
-        "email": "other@example.com",
-        "password": "securepassword123",
-        "first_name": "Other",
-        "tz": "America/Toronto",
-        "base_currency": "CAD",
-    })
-    other_headers = _get_auth_header(second_resp)
+    other_headers = _get_auth_header(await _create_second_user(client))
 
     resp = await client.delete(f"/accounts/{account_id}", headers=other_headers)
 
@@ -389,3 +384,38 @@ async def test_delete_account_without_auth_returns_401(client):
     """DELETE /accounts/{id} without an Authorization header returns 401."""
     resp = await client.delete(f"/accounts/{NONEXISTENT_ID}")
     assert resp.status_code == 401
+
+
+# --- Ownership isolation ---
+
+
+async def test_other_user_cannot_patch_account(client):
+    """PATCH on another user's account returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    other_headers = _get_auth_header(await _create_second_user(client))
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"name": "Hacked"}, headers=other_headers)
+
+    assert resp.status_code == 404
+
+
+async def test_list_accounts_excludes_other_users_accounts(client):
+    """User A's accounts do not appear in User B's list."""
+    signup_resp = await _create_user(client)
+    headers_a = _get_auth_header(signup_resp)
+    await _create_account(client, headers_a, name="User A Account")
+
+    headers_b = _get_auth_header(await _create_second_user(client))
+    await _create_account(client, headers_b, name="User B Account")
+
+    # User B should only see their own account
+    resp = await client.get("/accounts", headers=headers_b)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["name"] == "User B Account"
