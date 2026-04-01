@@ -1,11 +1,11 @@
-import uuid
-
 from app.models.base import InstitutionStatus
 from app.models.institution import Institution
 from tests.conftest import TestSession
 from tests.routes.conftest import _create_user, _get_auth_header
 
 # --- Helpers ---
+
+NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 INSTITUTION_PAYLOAD = {
     "name": "Test Bank",
@@ -147,7 +147,7 @@ async def test_get_institution_not_found_returns_404(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.get(f"/institutions/{uuid.uuid4()}", headers=headers)
+    resp = await client.get(f"/institutions/{NONEXISTENT_ID}", headers=headers)
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Institution not found"
@@ -165,7 +165,7 @@ async def test_get_institution_invalid_uuid_returns_422(client):
 
 async def test_get_institution_without_auth_returns_401(client):
     """GET /institutions/{id} without an Authorization header returns 401."""
-    resp = await client.get(f"/institutions/{uuid.uuid4()}")
+    resp = await client.get(f"/institutions/{NONEXISTENT_ID}")
     assert resp.status_code == 401
 
 
