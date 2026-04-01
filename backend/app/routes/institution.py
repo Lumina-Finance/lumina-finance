@@ -80,7 +80,24 @@ async def create_institution(
 
     Returns:
         The created institution with PENDING status.
+
+    Raises:
+        HTTPException 409: Institution with the same name and country already exists.
     """
+    # Reject duplicates by name + country_code
+    result = await db.execute(
+        select(Institution).where(
+            Institution.name == data.name,
+            Institution.country_code == data.country_code,
+        ),
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Institution with this name and country already exists",
+        )
+
+    # Explicitly set PENDING — never trust client input for status
     institution = Institution(
         name=data.name,
         country_code=data.country_code,
