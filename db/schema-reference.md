@@ -221,6 +221,7 @@ Core ledger table. Positive amount = money in (income/transfer received), negati
 | `currency`           | char(3)     | NOT NULL, FK → `currencies.id` | Defaults to the account's currency                                |
 | `fx_rate`            | numeric     | default `null`                 | Exchange rate to account currency; frontend shows 1.0 as default  |
 | `notes`              | text        |                                | User-provided context for analysis                                |
+| `created_at`         | timestamptz | NOT NULL                       | When the transaction was entered into the system                  |
 | `updated_at`         | timestamptz | NOT NULL                       | Tracks last modification; useful for sync and conflict resolution |
 
 

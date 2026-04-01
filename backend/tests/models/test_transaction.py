@@ -87,6 +87,7 @@ async def test_create_transaction(db, transaction, user, account, category):
     assert result.merchant_id is None
     assert result.fx_rate is None
     assert result.notes is None
+    assert result.created_at is not None
     assert result.updated_at is not None
 
 
@@ -110,6 +111,12 @@ async def test_delete_transaction(db, transaction):
 
 
 # --- Defaults ---
+
+
+async def test_created_at_auto_set(db, transaction):
+    """created_at should be set automatically by the database."""
+    await db.refresh(transaction)
+    assert transaction.created_at is not None
 
 
 async def test_updated_at_auto_set(db, transaction):

@@ -17,6 +17,7 @@ class TransactionResponse(BaseModel):
     currency: str
     fx_rate: float | None
     notes: str | None
+    created_at: datetime
     updated_at: datetime
     tag_ids: list[uuid.UUID] = []
 
