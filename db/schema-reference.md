@@ -188,6 +188,7 @@ Hierarchical transaction categories. App seeds a default "Uncategorized" categor
 | `parent_id`    | uuid                                   | FK → `categories.id`      | Null = top-level; non-null = subcategory                        |
 | `created_at`   | timestamptz                            | NOT NULL                  |                                                                 |
 
+**Hierarchy behavior:** Categories support one level of nesting via `parent_id`. A category with `parent_id = null` is top-level; setting `parent_id` to another category's ID makes it a subcategory.
 
 ### `merchants`
 
