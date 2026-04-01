@@ -39,11 +39,18 @@ engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 TestSession = async_sessionmaker(engine, expire_on_commit=False)
 
 
+@pytest.fixture(scope="session", autouse=True)
+async def _setup_schema():
+    """Drop and recreate all tables once at the start of the test run."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+
 @pytest.fixture(autouse=True)
 async def clean_tables():
     """Truncate all tables before each test for a clean slate."""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text(
             "TRUNCATE " + ", ".join(t.name for t in reversed(Base.metadata.sorted_tables)) + " CASCADE"
         ))
