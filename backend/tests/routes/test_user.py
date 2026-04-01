@@ -219,6 +219,40 @@ async def test_patch_null_base_currency_returns_422(client):
     assert resp.status_code == 422
 
 
+async def test_patch_extra_fields_are_ignored(client):
+    """PATCH /me with unknown fields ignores them and doesn't change the profile."""
+    signup_resp = await _create_user(client)
+    headers = _auth_header(signup_resp)
+
+    before = await client.get("/me", headers=headers)
+    resp = await client.patch("/me", json={"foo": "bar"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == before.json()
+
+
+async def test_patch_email_is_ignored(client):
+    """PATCH /me cannot change email even if included in the body."""
+    signup_resp = await _create_user(client)
+    headers = _auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"email": "hacker@evil.com"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["email"] == SIGNUP_PAYLOAD["email"]
+
+
+async def test_patch_updates_profile_pic(client):
+    """PATCH /me updates profile_pic."""
+    signup_resp = await _create_user(client)
+    headers = _auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"profile_pic": "https://example.com/pic.jpg"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["profile_pic"] == "https://example.com/pic.jpg"
+
+
 async def test_patch_without_auth_returns_401(client):
     """PATCH /me without an Authorization header returns 401."""
     resp = await client.patch("/me", json={"first_name": "Hacker"})
