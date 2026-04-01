@@ -512,6 +512,20 @@ async def test_delete_account_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
+async def test_double_delete_returns_404_on_second(client):
+    """Deleting the same account twice returns 204 then 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp1 = await client.delete(f"/accounts/{account_id}", headers=headers)
+    resp2 = await client.delete(f"/accounts/{account_id}", headers=headers)
+
+    assert resp1.status_code == 204
+    assert resp2.status_code == 404
+
+
 # --- Ownership isolation ---
 
 
