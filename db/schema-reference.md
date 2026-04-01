@@ -144,6 +144,8 @@ Represents a real-world financial account. Owned by either a user (personal) or 
 
 **Check constraint:** exactly one of `owner_id` or `household_id` must be non-null.
 
+**Immutable after creation:** `account_type`, `currency`.
+
 ### `account_balance_snapshots`
 
 Point-in-time balance records for an account. Used for historical balance charts and net worth tracking.
@@ -224,6 +226,7 @@ Core ledger table. Positive amount = money in (income/transfer received), negati
 | `created_at`         | timestamptz | NOT NULL                       | When the transaction was entered into the system                  |
 | `updated_at`         | timestamptz | NOT NULL                       | Tracks last modification; useful for sync and conflict resolution |
 
+**Immutable after creation:** `created_by_user_id`, `currency`, `created_at`.
 
 ### `tags`
 
