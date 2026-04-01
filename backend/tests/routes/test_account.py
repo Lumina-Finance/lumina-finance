@@ -244,6 +244,67 @@ async def test_create_account_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
+async def test_create_account_null_institution_accepted(client):
+    """Null institution_id is valid — cash or unlinked accounts have no institution."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, institution_id=None)
+
+    assert resp.status_code == 201
+    assert resp.json()["institution_id"] is None
+
+
+async def test_create_account_with_all_optional_fields(client):
+    """Account created with all optional fields set returns correct values."""
+    inst = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client, headers,
+        institution_id=str(inst.id),
+        lifetime_contribution_limit=500000,
+        is_hidden=True,
+        tax_treatment="tax_free",
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["institution_id"] == str(inst.id)
+    assert data["lifetime_contribution_limit"] == 500000
+    assert data["is_hidden"] is True
+    assert data["tax_treatment"] == "tax_free"
+
+
+async def test_create_account_extra_fields_ignored(client):
+    """Extra fields like owner_id in the body cannot hijack ownership."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+
+    payload = {**ACCOUNT_PAYLOAD, "owner_id": NONEXISTENT_ID, "household_id": NONEXISTENT_ID}
+    resp = await client.post("/accounts", json=payload, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["owner_id"] == user_id
+    assert data["household_id"] is None
+
+
+async def test_create_account_duplicate_names_allowed(client):
+    """Multiple accounts with the same name are allowed."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp1 = await _create_account(client, headers, name="Savings")
+    resp2 = await _create_account(client, headers, name="Savings")
+
+    assert resp1.status_code == 201
+    assert resp2.status_code == 201
+    assert resp1.json()["id"] != resp2.json()["id"]
+
+
 # --- PATCH /accounts/{account_id} ---
 
 
