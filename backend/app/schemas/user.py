@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class UserProfile(BaseModel):
@@ -17,3 +17,13 @@ class UserProfile(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class UpdateProfileRequest(BaseModel):
+    """Partial update for user profile. Only provided fields are changed."""
+
+    first_name: str | None = Field(None, min_length=1, max_length=256)
+    last_name: str | None = None
+    profile_pic: str | None = None
+    tz: str | None = Field(None, max_length=40)
+    base_currency: str | None = Field(None, min_length=3, max_length=3)
