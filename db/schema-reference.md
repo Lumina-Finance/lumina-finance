@@ -13,16 +13,16 @@ All monetary values are stored as `bigint` in the currency's base units (e.g., c
 Core user profile. Every user has exactly one row here.
 
 
-| Column          | Type         | Constraints                    | Description                                                         |
-| --------------- | ------------ | ------------------------------ | ------------------------------------------------------------------- |
-| `id`            | uuid         | PK                             |                                                                     |
-| `email`         | varchar(254) | NOT NULL, UNIQUE               | Login email; 254 char limit per RFC 3696                            |
-| `first_name`    | varchar(256) | NOT NULL                       |                                                                     |
-| `last_name`     | varchar(256) |                                | Optional                                                            |
-| `profile_pic`   | text         |                                | Path/URL to profile picture                                         |
+| Column          | Type         | Constraints                    | Description                                                                  |
+| --------------- | ------------ | ------------------------------ | ---------------------------------------------------------------------------- |
+| `id`            | uuid         | PK                             |                                                                              |
+| `email`         | varchar(254) | NOT NULL, UNIQUE               | Login email; 254 char limit per RFC 3696                                     |
+| `first_name`    | varchar(256) | NOT NULL                       |                                                                              |
+| `last_name`     | varchar(256) |                                | Optional                                                                     |
+| `profile_pic`   | text         |                                | Path/URL to profile picture                                                  |
 | `tz`            | varchar(40)  | NOT NULL                       | IANA timezone identifier, auto-derived from device (e.g., `America/Toronto`) |
-| `base_currency` | char(3)      | NOT NULL, FK → `currencies.id` | Mandatory base currency for aggregate views and FX conversion       |
-| `created_at`    | timestamptz  | NOT NULL                       |                                                                     |
+| `base_currency` | char(3)      | NOT NULL, FK → `currencies.id` | Mandatory base currency for aggregate views and FX conversion                |
+| `created_at`    | timestamptz  | NOT NULL                       |                                                                              |
 
 
 ### `auth_identities`
@@ -95,13 +95,13 @@ Junction table linking users to households with a role.
 Global registry of financial institutions (banks, brokerages, etc.).
 
 
-| Column         | Type                          | Constraints                 | Description                                                                  |
-| -------------- | ----------------------------- | --------------------------- | ---------------------------------------------------------------------------- |
-| `id`           | uuid                          | PK                          |                                                                              |
-| `status`       | enum (`canonical`, `pending`) | NOT NULL, default `pending` | `canonical` = verified/approved; `pending` = user-submitted, awaiting review |
-| `name`         | varchar(256)                  | NOT NULL                    | e.g., "Royal Bank of Canada"                                                 |
-| `country_code` | char(2)                       | NOT NULL                    | ISO 3166-1 alpha-2 (e.g., `CA`, `US`)                                        |
-| `website`      | text                          | NOT NULL                    |                                                                              |
+| Column         | Type                          | Constraints                          | Description                                                                  |
+| -------------- | ----------------------------- | ------------------------------------ | ---------------------------------------------------------------------------- |
+| `id`           | uuid                          | PK                                   |                                                                              |
+| `status`       | enum (`canonical`, `pending`) | NOT NULL, default `pending`          | `canonical` = verified/approved; `pending` = user-submitted, awaiting review |
+| `name`         | varchar(256)                  | NOT NULL, UNIQUE(name, country_code) | e.g., "Royal Bank of Canada"                                                 |
+| `country_code` | char(2)                       | NOT NULL, UNIQUE(name, country_code) | ISO 3166-1 alpha-2 (e.g., `CA`, `US`)                                        |
+| `website`      | text                          | NOT NULL                             |                                                                              |
 
 
 ### `currencies`
@@ -109,12 +109,12 @@ Global registry of financial institutions (banks, brokerages, etc.).
 Reference table of supported currencies. Seeded with ISO 4217 data.
 
 
-| Column                | Type       | Constraints | Description                                           |
-| --------------------- | ---------- | ----------- | ----------------------------------------------------- |
-| `id`                  | char(3)    | PK          | ISO 4217 code (e.g., `CAD`, `USD`, `JPY`)             |
+| Column                | Type        | Constraints | Description                                           |
+| --------------------- | ----------- | ----------- | ----------------------------------------------------- |
+| `id`                  | char(3)     | PK          | ISO 4217 code (e.g., `CAD`, `USD`, `JPY`)             |
 | `name`                | varchar(64) | NOT NULL    | Full name in singular (e.g., "Canadian Dollar")       |
-| `symbol`              | varchar(8) | NOT NULL    | e.g., `$`, `¥`, `£`                                   |
-| `minor_unit_exponent` | smallint   | NOT NULL    | Number of decimal places: CAD=2 (cents), JPY=0, BHD=3 |
+| `symbol`              | varchar(8)  | NOT NULL    | e.g., `$`, `¥`, `£`                                   |
+| `minor_unit_exponent` | smallint    | NOT NULL    | Number of decimal places: CAD=2 (cents), JPY=0, BHD=3 |
 
 
 ---
@@ -126,20 +126,20 @@ Reference table of supported currencies. Seeded with ISO 4217 data.
 Represents a real-world financial account. Owned by either a user (personal) or a household (shared/joint), never both.
 
 
-| Column                        | Type         | Constraints                    | Description                                                                                |
-| ----------------------------- | ------------ | ------------------------------ | ------------------------------------------------------------------------------------------ |
-| `id`                          | uuid         | PK                             |                                                                                            |
-| `owner_id`                    | uuid         | FK → `users.id`                | Set for personal accounts; null for household accounts                                     |
-| `household_id`                | uuid         | FK → `households.id`           | Set for shared/joint accounts; null for personal accounts                                  |
-| `account_type`                | enum         | NOT NULL                       | `checking`, `savings`, `credit_card`, `cash`, `investment` |
-| `tax_treatment`               | enum         | NOT NULL, default `taxable`    | `taxable`, `tax_free`, `tax_deferred`, `tax_assisted`                                      |
-| `name`                        | varchar(256) | NOT NULL                       | User-facing display name                                                                   |
-| `institution_id`              | uuid         | FK → `institutions.id`         | Null for cash or unlinked accounts                                                         |
-| `currency`                    | char(3)      | NOT NULL, FK → `currencies.id` | Account's native currency                                                                  |
-| `lifetime_contribution_limit` | bigint       |                                | Lifetime cap in base currency units; null if N/A (e.g., FHSA=4000000, RESP=5000000)        |
-| `is_hidden`                   | boolean      | NOT NULL, default `false`      | Hidden accounts are excluded from default views                                            |
-| `closed_at`                   | timestamptz  |                                | Null = active; non-null = closed on this date                                              |
-| `created_at`                  | timestamptz  | NOT NULL                       |                                                                                            |
+| Column                        | Type         | Constraints                    | Description                                                                         |
+| ----------------------------- | ------------ | ------------------------------ | ----------------------------------------------------------------------------------- |
+| `id`                          | uuid         | PK                             |                                                                                     |
+| `owner_id`                    | uuid         | FK → `users.id`                | Set for personal accounts; null for household accounts                              |
+| `household_id`                | uuid         | FK → `households.id`           | Set for shared/joint accounts; null for personal accounts                           |
+| `account_type`                | enum         | NOT NULL                       | `checking`, `savings`, `credit_card`, `cash`, `investment`                          |
+| `tax_treatment`               | enum         | NOT NULL, default `taxable`    | `taxable`, `tax_free`, `tax_deferred`, `tax_assisted`                               |
+| `name`                        | varchar(256) | NOT NULL                       | User-facing display name                                                            |
+| `institution_id`              | uuid         | FK → `institutions.id`         | Null for cash or unlinked accounts                                                  |
+| `currency`                    | char(3)      | NOT NULL, FK → `currencies.id` | Account's native currency                                                           |
+| `lifetime_contribution_limit` | bigint       |                                | Lifetime cap in base currency units; null if N/A (e.g., FHSA=4000000, RESP=5000000) |
+| `is_hidden`                   | boolean      | NOT NULL, default `false`      | Hidden accounts are excluded from default views                                     |
+| `closed_at`                   | timestamptz  |                                | Null = active; non-null = closed on this date                                       |
+| `created_at`                  | timestamptz  | NOT NULL                       |                                                                                     |
 
 
 **Check constraint:** exactly one of `owner_id` or `household_id` must be non-null.
@@ -194,13 +194,13 @@ Hierarchical transaction categories. App seeds a default "Uncategorized" categor
 Per-user registry of entities that send or receive money (stores, employers, people, etc.).
 
 
-| Column                | Type         | Constraints               | Description                                                                            |
-| --------------------- | ------------ | ------------------------- | -------------------------------------------------------------------------------------- |
-| `id`                  | uuid         | PK                        |                                                                                        |
-| `owner_id`            | uuid         | NOT NULL, FK → `users.id` |                                                                                        |
-| `name`                | varchar(256) | NOT NULL                  | e.g., "Costco", "Employer Inc."                                                        |
+| Column                | Type         | Constraints               | Description                                                                                                                                         |
+| --------------------- | ------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                  | uuid         | PK                        |                                                                                                                                                     |
+| `owner_id`            | uuid         | NOT NULL, FK → `users.id` |                                                                                                                                                     |
+| `name`                | varchar(256) | NOT NULL                  | e.g., "Costco", "Employer Inc."                                                                                                                     |
 | `default_category_id` | uuid         | FK → `categories.id`      | Auto-categorization hint: new transactions with this merchant default to this category (used for manully created merchants not imported from Plaid) |
-| `created_at`          | timestamptz  | NOT NULL                  |                                                                                        |
+| `created_at`          | timestamptz  | NOT NULL                  |                                                                                                                                                     |
 
 
 ### `transactions`

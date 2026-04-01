@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import VARCHAR, Text
+from sqlalchemy import VARCHAR, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, InstitutionStatus
@@ -10,6 +10,9 @@ class Institution(Base):
     """Global registry of financial institutions (banks, brokerages, etc.)."""
 
     __tablename__ = "institutions"
+    __table_args__ = (
+        UniqueConstraint("name", "country_code", name="uq_institution_name_country"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     status: Mapped[InstitutionStatus] = mapped_column(nullable=False, default=InstitutionStatus.PENDING)

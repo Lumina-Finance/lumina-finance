@@ -66,6 +66,10 @@ Table institutions [headercolor: #64748B, note: "globally available table"] {
   name varchar(256) [not null]
   country_code char(2) [not null]
   website text [not null]
+
+  indexes {
+    (name, country_code) [unique, name: "uq_institution_name_country"]
+  }
 }
 
 Table currencies [headercolor: #64748B] {
