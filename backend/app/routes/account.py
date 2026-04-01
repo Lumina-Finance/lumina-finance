@@ -89,20 +89,20 @@ async def create_account(
         HTTPException 422: Invalid account_type, tax_treatment, currency, or institution.
     """
     if data.account_type not in _VALID_ACCOUNT_TYPES:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid account type")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid account type")
     if data.tax_treatment not in _VALID_TAX_TREATMENTS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid tax treatment")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
 
     # Validate currency exists
     result = await db.execute(select(Currency).where(Currency.id == data.currency))
     if not result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid currency code")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
 
     # Validate institution exists if provided
     if data.institution_id:
         result = await db.execute(select(Institution).where(Institution.id == data.institution_id))
         if not result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Institution not found")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
     account = Account(
         owner_id=user.id,
@@ -155,13 +155,13 @@ async def update_account(
 
     # Validate tax_treatment if being changed
     if "tax_treatment" in updates and updates["tax_treatment"] not in _VALID_TAX_TREATMENTS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid tax treatment")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
 
     # Validate institution if being changed
     if "institution_id" in updates and updates["institution_id"] is not None:
         result = await db.execute(select(Institution).where(Institution.id == updates["institution_id"]))
         if not result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Institution not found")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
     for field, value in updates.items():
         setattr(account, field, value)
