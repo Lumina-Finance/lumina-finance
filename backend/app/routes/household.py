@@ -237,6 +237,48 @@ async def update_member_role(
     return target
 
 
+@router.delete("/{household_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_member(
+    household_id: uuid.UUID,
+    member_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Remove a member from a household. Admins can remove others; any member can leave.
+
+    The owner cannot be removed — they must delete the household instead.
+    """
+    caller = await _check_membership_or_404(db, household_id, user.id)
+
+    # Any member can self-leave, but only admins can remove others
+    is_self = member_id == user.id
+    if not is_self and caller.role != HouseholdRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
+    # Prevent removing the owner
+    result = await db.execute(
+        select(Household.owner_id).where(Household.id == household_id),
+    )
+    if member_id == result.scalar_one():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot remove the owner")
+
+    if is_self:
+        target = caller
+    else:
+        target_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == household_id,
+                HouseholdMember.user_id == member_id,
+            ),
+        )
+        target = target_result.scalar_one_or_none()
+        if not target:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    await db.delete(target)
+    await db.commit()
+
+
 @router.post("", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
 async def create_household(
     data: CreateHouseholdRequest,
