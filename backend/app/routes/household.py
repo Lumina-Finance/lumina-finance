@@ -182,7 +182,7 @@ async def add_member(
         select(User).where(User.id == data.user_id),
     )
     if not target_user.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User not found")
 
     # Check if already a member
     existing = await db.execute(
