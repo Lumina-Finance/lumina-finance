@@ -96,7 +96,9 @@ async def _get_tag_ids_batch(
 
 def _build_response(txn: Transaction, tag_ids: list[uuid.UUID]) -> TransactionResponse:
     """Build a TransactionResponse from a Transaction model and its tag IDs."""
-    return TransactionResponse.model_validate(txn, update={"tag_ids": tag_ids})
+    data = TransactionResponse.model_validate(txn)
+    data.tag_ids = tag_ids
+    return data
 
 
 @router.get("", response_model=list[TransactionResponse])
