@@ -11,6 +11,7 @@ from app.models.base import HouseholdRole
 from app.models.household import Household, HouseholdMember
 from app.models.user import User
 from app.schemas.household import (
+    AddHouseholdMemberRequest,
     CreateHouseholdRequest,
     HouseholdMemberResponse,
     HouseholdResponse,
@@ -163,6 +164,42 @@ async def list_members(
         select(HouseholdMember).where(HouseholdMember.household_id == household_id),
     )
     return result.scalars().all()
+
+
+@router.post("/{household_id}/members", response_model=HouseholdMemberResponse, status_code=status.HTTP_201_CREATED)
+async def add_member(
+    household_id: uuid.UUID,
+    data: AddHouseholdMemberRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Add a user to a household. Only admins can add members."""
+    await _check_admin_or_403(db, household_id, user.id)
+
+    # Verify target user exists
+    target_user = await db.execute(
+        select(User).where(User.id == data.user_id),
+    )
+    if not target_user.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="User not found")
+
+    # Check if already a member
+    existing = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == data.user_id,
+        ),
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member")
+
+    member = HouseholdMember(
+        household_id=household_id, user_id=data.user_id, role=data.role,
+    )
+    db.add(member)
+    await db.commit()
+    await db.refresh(member)
+    return member
 
 
 @router.post("", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
