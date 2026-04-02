@@ -113,7 +113,7 @@ async def list_transactions(
     to_date: Annotated[datetime | None, Query()] = None,
     sort_by: Annotated[str, Query()] = "ts",
     sort_order: Annotated[str, Query()] = "desc",
-    limit: Annotated[int, Query(ge=1, le=200)] = 15,
+    limit: Annotated[int, Query(ge=1, le=50)] = 15,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
     """Return paginated transactions with sorting and filtering."""
