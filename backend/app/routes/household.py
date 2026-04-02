@@ -77,7 +77,7 @@ async def _check_admin_or_403(
 async def list_households(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    include_archived: Annotated[bool, Query()] = False,
+    exclude_archived: Annotated[bool, Query()] = False,
 ):
     """Return all households the authenticated user is a member of."""
     query = (
@@ -85,7 +85,7 @@ async def list_households(
         .join(HouseholdMember, HouseholdMember.household_id == Household.id)
         .where(HouseholdMember.user_id == user.id)
     )
-    if not include_archived:
+    if exclude_archived:
         query = query.where(Household.is_archived.is_(False))
     result = await db.execute(query.order_by(Household.name))
     return result.scalars().all()
