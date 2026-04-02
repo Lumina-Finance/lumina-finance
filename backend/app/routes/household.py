@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,14 +70,17 @@ async def _check_admin_or_403(
 async def list_households(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    include_archived: Annotated[bool, Query()] = False,
 ):
     """Return all households the authenticated user is a member of."""
-    result = await db.execute(
+    query = (
         select(Household)
         .join(HouseholdMember, HouseholdMember.household_id == Household.id)
         .where(HouseholdMember.user_id == user.id)
-        .order_by(Household.name),
     )
+    if not include_archived:
+        query = query.where(Household.is_archived.is_(False))
+    result = await db.execute(query.order_by(Household.name))
     return result.scalars().all()
 
 
@@ -120,6 +123,27 @@ async def update_household(
     await db.commit()
     await db.refresh(household)
     return household
+
+
+@router.delete("/{household_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_household(
+    household_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete a household. Only the owner can delete."""
+    await _check_membership_or_404(db, household_id, user.id)
+
+    result = await db.execute(
+        select(Household).where(Household.id == household_id),
+    )
+    household = result.scalar_one()
+
+    if household.owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can delete this household")
+
+    await db.delete(household)
+    await db.commit()
 
 
 @router.post("", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
