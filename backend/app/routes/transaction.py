@@ -49,14 +49,17 @@ async def _require_owned(db: AsyncSession, model, record_id: uuid.UUID, user_id:
     return record
 
 
-async def _validate_tag_ids(db: AsyncSession, user_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
-    """Validate all tag IDs exist and belong to the user in a single query."""
+async def _validate_tag_ids(db: AsyncSession, user_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    """Validate all tag IDs exist and belong to the user. Returns deduplicated list."""
+    # Deduplicate to avoid inserting duplicate junction rows (composite PK violation)
+    unique_ids = list(set(tag_ids))
     result = await db.execute(
-        select(Tag.id).where(Tag.id.in_(tag_ids), Tag.owner_id == user_id),
+        select(Tag.id).where(Tag.id.in_(unique_ids), Tag.owner_id == user_id),
     )
     found_ids = set(result.scalars().all())
-    if found_ids != set(tag_ids):
+    if found_ids != set(unique_ids):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag not found")
+    return unique_ids
 
 
 async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
@@ -190,8 +193,9 @@ async def create_transaction(
     await _require_owned(db, Category, data.category_id, user.id, "Category not found")
     if data.merchant_id:
         await _require_owned(db, Merchant, data.merchant_id, user.id, "Merchant not found")
+    validated_tag_ids = []
     if data.tag_ids:
-        await _validate_tag_ids(db, user.id, data.tag_ids)
+        validated_tag_ids = await _validate_tag_ids(db, user.id, data.tag_ids)
 
     txn = Transaction(
         created_by_user_id=user.id,
@@ -207,8 +211,8 @@ async def create_transaction(
     db.add(txn)
     await db.flush()
 
-    if data.tag_ids:
-        await _replace_tags(db, txn.id, data.tag_ids)
+    if validated_tag_ids:
+        await _replace_tags(db, txn.id, validated_tag_ids)
 
     await db.commit()
     await db.refresh(txn)
