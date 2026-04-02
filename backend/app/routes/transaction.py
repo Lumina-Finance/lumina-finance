@@ -268,3 +268,25 @@ async def update_transaction(
 
     tag_ids = await _get_tag_ids(db, txn.id)
     return _build_response(txn, tag_ids)
+
+
+@router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_transaction(
+    transaction_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete a transaction. Must belong to the authenticated user."""
+    txn_query = await db.execute(
+        select(Transaction).where(Transaction.id == transaction_id, Transaction.created_by_user_id == user.id),
+    )
+    txn = txn_query.scalar_one_or_none()
+    if not txn:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    # Delete junction rows before the transaction itself
+    await db.execute(
+        sa.delete(TransactionTag).where(TransactionTag.transaction_id == transaction_id),
+    )
+    await db.delete(txn)
+    await db.commit()
