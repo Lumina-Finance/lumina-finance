@@ -10,7 +10,12 @@ from app.dependencies import get_current_user
 from app.models.base import HouseholdRole
 from app.models.household import Household, HouseholdMember
 from app.models.user import User
-from app.schemas.household import CreateHouseholdRequest, HouseholdResponse, UpdateHouseholdRequest
+from app.schemas.household import (
+    CreateHouseholdRequest,
+    HouseholdMemberResponse,
+    HouseholdResponse,
+    UpdateHouseholdRequest,
+)
 
 router = APIRouter(prefix="/households", tags=["households"])
 
@@ -144,6 +149,20 @@ async def delete_household(
 
     await db.delete(household)
     await db.commit()
+
+
+@router.get("/{household_id}/members", response_model=list[HouseholdMemberResponse])
+async def list_members(
+    household_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """List all members of a household. User must be a member."""
+    await _check_membership_or_404(db, household_id, user.id)
+    result = await db.execute(
+        select(HouseholdMember).where(HouseholdMember.household_id == household_id),
+    )
+    return result.scalars().all()
 
 
 @router.post("", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
