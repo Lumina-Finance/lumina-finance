@@ -17,7 +17,7 @@ from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
+from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -213,6 +213,55 @@ async def create_transaction(
 
     if validated_tag_ids:
         await _replace_tags(db, txn.id, validated_tag_ids)
+
+    await db.commit()
+    await db.refresh(txn)
+
+    tag_ids = await _get_tag_ids(db, txn.id)
+    return _build_response(txn, tag_ids)
+
+
+@router.patch("/{transaction_id}", response_model=TransactionResponse)
+async def update_transaction(
+    transaction_id: uuid.UUID,
+    data: UpdateTransactionRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Update a transaction. Only provided fields are changed."""
+    txn_query = await db.execute(
+        select(Transaction).where(Transaction.id == transaction_id, Transaction.created_by_user_id == user.id),
+    )
+    txn = txn_query.scalar_one_or_none()
+    if not txn:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    changed_fields = data.model_dump(exclude_unset=True)
+    if not changed_fields:
+        tag_ids = await _get_tag_ids(db, txn.id)
+        return _build_response(txn, tag_ids)
+
+    if "account_id" in changed_fields:
+        account = await _require_owned(db, Account, changed_fields["account_id"], user.id, "Account not found")
+        if txn.currency != account.currency and txn.fx_rate is None and "fx_rate" not in changed_fields:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="fx_rate is required when transaction currency differs from account currency",
+            )
+    if "category_id" in changed_fields:
+        await _require_owned(db, Category, changed_fields["category_id"], user.id, "Category not found")
+    if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
+        await _require_owned(db, Merchant, changed_fields["merchant_id"], user.id, "Merchant not found")
+
+    # Handle tags separately — validate and replace in bulk
+    new_tag_ids = changed_fields.pop("tag_ids", None)
+
+    for field, value in changed_fields.items():
+        setattr(txn, field, value)
+
+    if new_tag_ids is not None:
+        validated = await _validate_tag_ids(db, user.id, new_tag_ids) if new_tag_ids else []
+        await _replace_tags(db, txn.id, validated)
 
     await db.commit()
     await db.refresh(txn)
