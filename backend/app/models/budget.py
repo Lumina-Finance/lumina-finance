@@ -20,7 +20,7 @@ class Budget(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
-    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id"))
+    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
     parent_budget_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("budgets.id"))  # Null = template or one-off
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     period_start: Mapped[date] = mapped_column(Date, nullable=False)

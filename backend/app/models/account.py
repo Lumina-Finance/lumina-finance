@@ -20,7 +20,7 @@ class Account(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
-    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id"))
+    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
     account_type: Mapped[AccountType] = mapped_column(nullable=False)
     tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False, default=TaxTreatment.TAXABLE)
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)

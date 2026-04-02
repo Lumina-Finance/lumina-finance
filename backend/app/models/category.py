@@ -16,7 +16,7 @@ class Category(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id"))
+    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)  # Creator/owner
     name: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[CategoryKind] = mapped_column(nullable=False)

@@ -13,6 +13,7 @@ class HouseholdResponse(BaseModel):
     owner_id: uuid.UUID
     name: str | None
     profile_pic: str | None
+    is_archived: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -30,6 +31,7 @@ class UpdateHouseholdRequest(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=128)
     profile_pic: str | None = None
+    is_archived: bool | None = None
 
 
 class HouseholdMemberResponse(BaseModel):
