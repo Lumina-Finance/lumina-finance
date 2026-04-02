@@ -16,7 +16,14 @@ ACCOUNT_PAYLOAD = {
 
 
 async def _seed_institution():
-    """Insert a canonical institution for FK tests. Returns the institution."""
+    """Insert a canonical institution for FK tests.
+
+    Inserts via raw session (not the API) because institutions are seeded data,
+    not user-created resources.
+
+    Returns:
+        The persisted Institution ORM instance.
+    """
     async with TestSession() as session:
         inst = Institution(
             status=InstitutionStatus.CANONICAL,
@@ -31,13 +38,32 @@ async def _seed_institution():
 
 
 async def _create_account(client, headers, **overrides):
-    """Create an account via the API. Returns the response."""
+    """Create an account via POST /accounts.
+
+    Defaults: account_type="checking", tax_treatment="taxable",
+    name="Main Chequing", currency="CAD".
+
+    Args:
+        client: The async test client.
+        headers: Auth headers for the requesting user.
+        **overrides: Fields to override in the default payload.
+
+    Returns:
+        The HTTP response from the API.
+    """
     payload = {**ACCOUNT_PAYLOAD, **overrides}
     return await client.post("/accounts", json=payload, headers=headers)
 
 
 async def _create_second_user(client):
-    """Sign up a second user. Returns the signup response."""
+    """Sign up a second user for ownership-isolation tests.
+
+    Args:
+        client: The async test client.
+
+    Returns:
+        The HTTP response from the signup endpoint.
+    """
     return await client.post("/auth/signup", json={
         "email": "other@example.com",
         "password": "securepassword123",

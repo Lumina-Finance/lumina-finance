@@ -11,13 +11,31 @@ CATEGORY_PAYLOAD = {
 
 
 async def _create_category(client, headers, **overrides):
-    """Create a category via the API. Returns the response."""
+    """Create a category via POST /categories.
+
+    Defaults: name="Groceries", kind="expense".
+
+    Args:
+        client: The async test client.
+        headers: Auth headers for the requesting user.
+        **overrides: Fields to override in the default payload.
+
+    Returns:
+        The HTTP response from the API.
+    """
     payload = {**CATEGORY_PAYLOAD, **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
 
 async def _create_second_user(client):
-    """Sign up a second user. Returns the signup response."""
+    """Sign up a second user for ownership-isolation tests.
+
+    Args:
+        client: The async test client.
+
+    Returns:
+        The HTTP response from the signup endpoint.
+    """
     return await client.post("/auth/signup", json={
         "email": "other@example.com",
         "password": "securepassword123",
