@@ -64,6 +64,7 @@ Stores password hashes. One-to-one with `users` (only exists when auth provider 
 
 A shared financial group (e.g., a couple, family). A user can own one or more households.
 
+**Data lifecycle:** Deleting a household cascades to all associated accounts, categories, budgets, and their transactions. Members who leave (or are removed from) a household lose access to all shared data — there is no transfer of ownership. Users should archive a household instead of deleting it to preserve historical data.
 
 | Column        | Type        | Constraints               | Description                                 |
 | ------------- | ----------- | ------------------------- | ------------------------------------------- |
