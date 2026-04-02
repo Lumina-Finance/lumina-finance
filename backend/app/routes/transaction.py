@@ -94,7 +94,7 @@ async def _get_tag_ids_batch(
     return tag_map
 
 
-def _to_response(txn: Transaction, tag_ids: list[uuid.UUID]) -> TransactionResponse:
+def _build_response(txn: Transaction, tag_ids: list[uuid.UUID]) -> TransactionResponse:
     """Build a TransactionResponse from a Transaction model and its tag IDs."""
     return TransactionResponse.model_validate(txn, update={"tag_ids": tag_ids})
 
@@ -150,7 +150,7 @@ async def list_transactions(
     transactions = result.scalars().all()
 
     tag_map = await _get_tag_ids_batch(db, [txn.id for txn in transactions])
-    return [_to_response(txn, tag_map[txn.id]) for txn in transactions]
+    return [_build_response(txn, tag_map[txn.id]) for txn in transactions]
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
@@ -168,7 +168,7 @@ async def get_transaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
     tag_ids = await _get_tag_ids(db, txn.id)
-    return _to_response(txn, tag_ids)
+    return _build_response(txn, tag_ids)
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
@@ -218,4 +218,4 @@ async def create_transaction(
     await db.refresh(txn)
 
     tag_ids = await _get_tag_ids(db, txn.id)
-    return _to_response(txn, tag_ids)
+    return _build_response(txn, tag_ids)
