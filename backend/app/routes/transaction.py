@@ -113,3 +113,21 @@ async def list_transactions(
 
     tag_map = await _get_tag_ids_batch(db, [txn.id for txn in transactions])
     return [_to_response(txn, tag_map[txn.id]) for txn in transactions]
+
+
+@router.get("/{transaction_id}", response_model=TransactionResponse)
+async def get_transaction(
+    transaction_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return a single transaction by ID. Must belong to the authenticated user."""
+    result = await db.execute(
+        select(Transaction).where(Transaction.id == transaction_id, Transaction.created_by_user_id == user.id),
+    )
+    txn = result.scalar_one_or_none()
+    if not txn:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    tag_ids = await _get_tag_ids(db, txn.id)
+    return _to_response(txn, tag_ids)
