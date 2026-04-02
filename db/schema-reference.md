@@ -71,6 +71,7 @@ A shared financial group (e.g., a couple, family). A user can own one or more ho
 | `owner_id`    | uuid        | NOT NULL, FK → `users.id` | The user who created and owns the household |
 | `name`        | text        |                           | Display name                                |
 | `profile_pic` | text        |                           | Path/URL to household picture               |
+| `is_archived` | boolean     | NOT NULL, default `false` | Hidden from default list but data preserved |
 | `created_at`  | timestamptz | NOT NULL                  |                                             |
 
 
@@ -81,8 +82,8 @@ Junction table linking users to households with a role.
 
 | Column         | Type                               | Constraints                | Description                                                                                                     |
 | -------------- | ---------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `household_id` | uuid                               | PK, FK → `households.id`   |                                                                                                                 |
-| `user_id`      | uuid                               | PK, FK → `users.id`        |                                                                                                                 |
+| `household_id` | uuid                               | PK, FK → `households.id` ON DELETE CASCADE |                                                                                                                 |
+| `user_id`      | uuid                               | PK, FK → `users.id`                       |                                                                                                                 |
 | `role`         | enum (`admin`, `editor`, `viewer`) | NOT NULL, default `viewer` | `admin` = full control including member management; `editor` = create/edit shared objects; `viewer` = read-only |
 
 
@@ -130,7 +131,7 @@ Represents a real-world financial account. Owned by either a user (personal) or 
 | ----------------------------- | ------------ | ------------------------------ | ----------------------------------------------------------------------------------- |
 | `id`                          | uuid         | PK                             |                                                                                     |
 | `owner_id`                    | uuid         | FK → `users.id`                | Set for personal accounts; null for household accounts                              |
-| `household_id`                | uuid         | FK → `households.id`           | Set for shared/joint accounts; null for personal accounts                           |
+| `household_id`                | uuid         | FK → `households.id` ON DELETE CASCADE | Set for shared/joint accounts; null for personal accounts                           |
 | `account_type`                | enum         | NOT NULL                       | `checking`, `savings`, `credit_card`, `cash`, `investment`                          |
 | `tax_treatment`               | enum         | NOT NULL, default `taxable`    | `taxable`, `tax_free`, `tax_deferred`, `tax_assisted`                               |
 | `name`                        | varchar(256) | NOT NULL                       | User-facing display name                                                            |
@@ -183,7 +184,7 @@ Hierarchical transaction categories. App seeds a default "Uncategorized" categor
 | Column         | Type                                   | Constraints               | Description                                                     |
 | -------------- | -------------------------------------- | ------------------------- | --------------------------------------------------------------- |
 | `id`           | uuid                                   | PK                        |                                                                 |
-| `household_id` | uuid                                   | FK → `households.id`      | Non-null for household-shared categories                        |
+| `household_id` | uuid                                   | FK → `households.id` ON DELETE CASCADE | Non-null for household-shared categories                        |
 | `owner_id`     | uuid                                   | NOT NULL, FK → `users.id`, UNIQUE(owner_id, name, kind) | Creator/owner of the category                                   |
 | `name`         | text                                   | NOT NULL, UNIQUE(owner_id, name, kind)                  | e.g., "Groceries", "Salary"                                     |
 | `kind`         | enum (`expense`, `income`, `transfer`) | NOT NULL, UNIQUE(owner_id, name, kind)                  | Determines which transaction direction this category applies to |
@@ -267,7 +268,7 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 | --------------------- | --------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
 | `id`                  | uuid                                          | PK                             |                                                                                     |
 | `owner_id`            | uuid                                          | FK → `users.id`                | Set for personal budgets                                                            |
-| `household_id`        | uuid                                          | FK → `households.id`           | Set for household budgets                                                           |
+| `household_id`        | uuid                                          | FK → `households.id` ON DELETE CASCADE | Set for household budgets                                                           |
 | `parent_budget_id`    | uuid                                          | FK → `budgets.id`              | Null = template or one-off; non-null = generated instance of a recurring template   |
 | `name`                | varchar(256)                                  | NOT NULL                       | e.g., "March 2026 Budget"                                                           |
 | `period_start`        | date                                          | NOT NULL                       |                                                                                     |

@@ -14,6 +14,7 @@ Table households [headercolor: #8B5CF6] {
   owner_id uuid [not null, ref: > users.id]
   name text
   profile_pic text [note: "the location of the profile picture"]
+  is_archived boolean [not null, default: false, note: "hidden from default list but data preserved"]
   created_at timestamptz [not null]
 }
 
@@ -24,7 +25,7 @@ enum household_role {
 }
 
 Table household_members [headercolor: #8B5CF6] {
-  household_id uuid pk [ref: > households.id]
+  household_id uuid pk [ref: > households.id, delete: cascade]
   user_id uuid pk [ref: > users.id]
   role household_role [not null, default: "viewer"]
 }
@@ -97,7 +98,7 @@ enum account_type {
 Table accounts [headercolor: #10B981, note: "check constraint: exactly one of owner_id or household_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
-  household_id uuid [ref: > households.id]
+  household_id uuid [ref: > households.id, delete: cascade]
   account_type account_type [not null]
   tax_treatment tax_treatment [not null, default: "taxable"]
   name varchar(256) [not null]
@@ -130,7 +131,7 @@ enum category_kind {
 
 Table categories [headercolor: #F59E0B, note: "app seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
   id uuid pk
-  household_id uuid [ref: > households.id]
+  household_id uuid [ref: > households.id, delete: cascade]
   owner_id uuid [not null, ref: > users.id]
   name text [not null]
   kind category_kind [not null]
@@ -188,7 +189,7 @@ enum recurrence_freq {
 Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of owner_id or household_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
-  household_id uuid [ref: > households.id]
+  household_id uuid [ref: > households.id, delete: cascade]
   parent_budget_id uuid [ref: > budgets.id, note: "null = template/one-off; non-null = auto-generated instance pointing to its template"]
   name varchar(256) [not null]
   period_start date [not null]
