@@ -15,6 +15,7 @@ from app.schemas.household import (
     CreateHouseholdRequest,
     HouseholdMemberResponse,
     HouseholdResponse,
+    UpdateHouseholdMemberRoleRequest,
     UpdateHouseholdRequest,
 )
 
@@ -200,6 +201,40 @@ async def add_member(
     await db.commit()
     await db.refresh(member)
     return member
+
+
+@router.patch("/{household_id}/members/{member_id}", response_model=HouseholdMemberResponse)
+async def update_member_role(
+    household_id: uuid.UUID,
+    member_id: uuid.UUID,
+    data: UpdateHouseholdMemberRoleRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Update a member's role. Only admins can change roles. Cannot demote the owner."""
+    await _check_admin_or_403(db, household_id, user.id)
+
+    target_membership = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == member_id,
+        ),
+    )
+    target = target_membership.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    # Prevent demoting the household owner
+    result = await db.execute(
+        select(Household.owner_id).where(Household.id == household_id),
+    )
+    if member_id == result.scalar_one() and data.role != HouseholdRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot change the owner's role")
+
+    target.role = data.role
+    await db.commit()
+    await db.refresh(target)
+    return target
 
 
 @router.post("", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
