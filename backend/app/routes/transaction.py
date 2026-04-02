@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,10 +10,14 @@ from sqlalchemy.orm import MappedColumn
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.tag import TransactionTag
+from app.models.account import Account
+from app.models.category import Category
+from app.models.currency import Currency
+from app.models.merchant import Merchant
+from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.transaction import TransactionResponse
+from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -31,6 +36,36 @@ _FILTER_FIELDS: dict[str, MappedColumn] = {
     "merchant_id": Transaction.merchant_id,
     "currency": Transaction.currency,
 }
+
+
+async def _require_owned(db: AsyncSession, model, record_id: uuid.UUID, user_id: uuid.UUID, detail: str):
+    """Look up a record by ID + owner_id. Returns the record or raises 422."""
+    result = await db.execute(
+        select(model).where(model.id == record_id, model.owner_id == user_id),
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
+    return record
+
+
+async def _validate_tag_ids(db: AsyncSession, user_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
+    """Validate all tag IDs exist and belong to the user in a single query."""
+    result = await db.execute(
+        select(Tag.id).where(Tag.id.in_(tag_ids), Tag.owner_id == user_id),
+    )
+    found_ids = set(result.scalars().all())
+    if found_ids != set(tag_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag not found")
+
+
+async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
+    """Replace all tags on a transaction with the given tag IDs."""
+    await db.execute(
+        sa.delete(TransactionTag).where(TransactionTag.transaction_id == transaction_id),
+    )
+    for tag_id in tag_ids:
+        db.add(TransactionTag(transaction_id=transaction_id, tag_id=tag_id))
 
 
 async def _get_tag_ids(db: AsyncSession, transaction_id: uuid.UUID) -> list[uuid.UUID]:
@@ -128,6 +163,55 @@ async def get_transaction(
     txn = txn_query.scalar_one_or_none()
     if not txn:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    tag_ids = await _get_tag_ids(db, txn.id)
+    return _to_response(txn, tag_ids)
+
+
+@router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
+async def create_transaction(
+    data: CreateTransactionRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Create a new transaction for the authenticated user."""
+    account = await _require_owned(db, Account, data.account_id, user.id, "Account not found")
+
+    currency_lookup = await db.execute(select(Currency).where(Currency.id == data.currency))
+    if not currency_lookup.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
+
+    if data.currency != account.currency and data.fx_rate is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="fx_rate is required when transaction currency differs from account currency",
+        )
+
+    await _require_owned(db, Category, data.category_id, user.id, "Category not found")
+    if data.merchant_id:
+        await _require_owned(db, Merchant, data.merchant_id, user.id, "Merchant not found")
+    if data.tag_ids:
+        await _validate_tag_ids(db, user.id, data.tag_ids)
+
+    txn = Transaction(
+        created_by_user_id=user.id,
+        account_id=data.account_id,
+        ts=data.ts,
+        merchant_id=data.merchant_id,
+        category_id=data.category_id,
+        amount=data.amount,
+        currency=data.currency,
+        fx_rate=data.fx_rate,
+        notes=data.notes,
+    )
+    db.add(txn)
+    await db.flush()
+
+    if data.tag_ids:
+        await _replace_tags(db, txn.id, data.tag_ids)
+
+    await db.commit()
+    await db.refresh(txn)
 
     tag_ids = await _get_tag_ids(db, txn.id)
     return _to_response(txn, tag_ids)
