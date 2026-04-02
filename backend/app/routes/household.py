@@ -10,7 +10,7 @@ from app.dependencies import get_current_user
 from app.models.base import HouseholdRole
 from app.models.household import Household, HouseholdMember
 from app.models.user import User
-from app.schemas.household import CreateHouseholdRequest, HouseholdResponse
+from app.schemas.household import CreateHouseholdRequest, HouseholdResponse, UpdateHouseholdRequest
 
 router = APIRouter(prefix="/households", tags=["households"])
 
@@ -43,6 +43,29 @@ async def _check_membership_or_404(
     return membership
 
 
+async def _check_admin_or_403(
+    db: AsyncSession, household_id: uuid.UUID, user_id: uuid.UUID,
+) -> HouseholdMember:
+    """Return the user's membership or raise 403 if they are not an admin.
+
+    Args:
+        db: Async database session.
+        household_id: UUID of the household.
+        user_id: UUID of the user.
+
+    Returns:
+        The HouseholdMember row.
+
+    Raises:
+        HTTPException 404: User is not a member of the household.
+        HTTPException 403: User is a member but not an admin.
+    """
+    membership = await _check_membership_or_404(db, household_id, user_id)
+    if membership.role != HouseholdRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    return membership
+
+
 @router.get("", response_model=list[HouseholdResponse])
 async def list_households(
     user: Annotated[User, Depends(get_current_user)],
@@ -70,6 +93,33 @@ async def get_household(
         select(Household).where(Household.id == household_id),
     )
     return result.scalar_one()
+
+
+@router.patch("/{household_id}", response_model=HouseholdResponse)
+async def update_household(
+    household_id: uuid.UUID,
+    data: UpdateHouseholdRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Update a household. Only admins can update."""
+    await _check_admin_or_403(db, household_id, user.id)
+
+    result = await db.execute(
+        select(Household).where(Household.id == household_id),
+    )
+    household = result.scalar_one()
+
+    changed_fields = data.model_dump(exclude_unset=True)
+    if not changed_fields:
+        return household
+
+    for field, value in changed_fields.items():
+        setattr(household, field, value)
+
+    await db.commit()
+    await db.refresh(household)
+    return household
 
 
 @router.post("", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
