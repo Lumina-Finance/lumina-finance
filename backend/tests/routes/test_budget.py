@@ -276,6 +276,75 @@ async def test_create_household_budget_viewer_returns_403(client):
     assert resp.status_code == 403
 
 
+async def test_create_household_budget_non_member_returns_404(client):
+    """Non-member of the household cannot create a budget for it."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+
+    resp = await _create_budget(client, other_headers, household_id=household_id)
+
+    assert resp.status_code == 404
+
+
+async def test_create_household_budget_with_categories(client):
+    """Admin can create a household budget with household categories."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, headers)
+    cat_id = await _create_category(client, headers, name="Groceries", household_id=household_id)
+
+    resp = await _create_budget(client, headers, household_id=household_id, category_ids=[cat_id])
+
+    assert resp.status_code == 201
+    assert resp.json()["category_ids"] == [cat_id]
+
+
+async def test_create_budget_with_valid_base_budget_id(client):
+    """Personal budget with a valid base_budget_id stores it correctly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_budget(client, headers, name="Base Budget")
+    base_id = base_resp.json()["id"]
+
+    resp = await _create_budget(
+        client, headers,
+        name="April Budget",
+        period_start="2026-04-01",
+        period_end="2026-04-30",
+        base_budget_id=base_id,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["base_budget_id"] == base_id
+
+
+async def test_create_household_budget_with_base_budget_id(client):
+    """Household budget can reference another household budget as base."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, headers)
+    base_resp = await _create_budget(client, headers, name="Base Budget", household_id=household_id)
+    base_id = base_resp.json()["id"]
+
+    resp = await _create_budget(
+        client, headers,
+        name="April Budget",
+        period_start="2026-04-01",
+        period_end="2026-04-30",
+        household_id=household_id,
+        base_budget_id=base_id,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["base_budget_id"] == base_id
+
+
 # --- GET /budgets/{budget_id} ---
 
 
@@ -419,6 +488,8 @@ async def test_delete_budget_with_categories_returns_204(client):
 
     assert resp.status_code == 204
 
+    get_resp = await client.get(f"/budgets/{budget_id}", headers=headers)
+    assert get_resp.status_code == 404
 
 
 async def test_delete_budget_nonexistent_returns_404(client):
@@ -701,6 +772,14 @@ async def test_remove_budget_member_returns_204(client):
 
     assert resp.status_code == 204
 
+    # Re-adding should succeed, confirming the member was actually removed
+    re_add_resp = await client.post(
+        f"/budgets/{budget_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+    assert re_add_resp.status_code == 201
+
 
 async def test_remove_budget_member_as_editor_returns_403(client):
     """Editor cannot remove a member from a budget."""
@@ -883,6 +962,24 @@ async def test_update_budget_start_only_returns_200(client):
 
     assert resp.status_code == 200
     assert resp.json()["period_start"] == "2026-03-15"
+
+
+async def test_update_budget_end_only_returns_200(client):
+    """Updating only period_end is valid if it stays after existing period_start."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"period_end": "2026-04-15"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["period_end"] == "2026-04-15"
 
 
 async def test_update_budget_start_after_end_returns_422(client):
@@ -1201,6 +1298,36 @@ async def test_list_budgets_excludes_other_users_budgets(client):
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+async def test_list_budgets_secondary_sort_by_name(client):
+    """Budgets with same period_end are sorted alphabetically by name."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_budget(client, headers, name="Zebra Budget")
+    await _create_budget(client, headers, name="Alpha Budget")
+
+    resp = await client.get("/budgets", headers=headers)
+
+    assert resp.status_code == 200
+    names = [b["name"] for b in resp.json()]
+    assert names == ["Alpha Budget", "Zebra Budget"]
+
+
+async def test_list_budgets_no_duplicates_for_household_budget(client):
+    """Household budget appears exactly once even when user is owner and member."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, headers)
+    await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+
+    resp = await client.get("/budgets", headers=headers)
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["name"] == "Family Budget"
 
 
 async def test_list_budgets_unauthenticated_returns_401(client):
