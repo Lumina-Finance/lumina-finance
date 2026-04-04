@@ -1,10 +1,21 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, SmallInteger, func
+from sqlalchemy import (
+    VARCHAR,
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    SmallInteger,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import AccountType, Base, TaxTreatment
+from app.models.base import AccountType, Base, PermissionLevel, TaxTreatment
 
 
 class Account(Base):
@@ -29,6 +40,27 @@ class Account(Base):
     lifetime_contribution_limit: Mapped[int | None] = mapped_column(BigInteger)  # In currency base units; null if N/A
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AccountPermission(Base):
+    """Per-account permission for a household member. Admins have implicit full access."""
+
+    __tablename__ = "account_permissions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["household_id", "user_id"],
+            ["household_members.household_id", "household_members.user_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("household_id", "user_id", "account_id", name="uq_account_perm_member_account"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    household_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    level: Mapped[PermissionLevel] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
