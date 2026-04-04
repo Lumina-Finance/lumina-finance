@@ -216,6 +216,35 @@ async def add_budget_member(
     return budget_member
 
 
+@router.delete("/{budget_id}/members/{member_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_budget_member(
+    budget_id: uuid.UUID,
+    member_user_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Remove a member from a household budget. Requires editor/admin role."""
+    budget = await _get_budget_or_404(db, budget_id, user.id)
+
+    if not budget.household_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support member scoping")
+
+    await _check_household_editor_or_403(db, budget.household_id, user.id)
+
+    result = await db.execute(
+        select(BudgetMember).where(
+            BudgetMember.budget_id == budget_id,
+            BudgetMember.user_id == member_user_id,
+        ),
+    )
+    budget_member = result.scalar_one_or_none()
+    if not budget_member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget member not found")
+
+    await db.delete(budget_member)
+    await db.commit()
+
+
 @router.patch("/{budget_id}", response_model=BudgetResponse)
 async def update_budget(
     budget_id: uuid.UUID,
