@@ -1104,3 +1104,107 @@ async def test_update_budget_unauthenticated_returns_401(client):
     )
 
     assert resp.status_code == 401
+
+
+# --- GET /budgets ---
+
+
+async def test_list_budgets_returns_200(client):
+    """User with budgets gets them in a list."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_budget(client, headers, name="March Budget")
+    await _create_budget(client, headers, name="April Budget", period_start="2026-04-01", period_end="2026-04-30")
+
+    resp = await client.get("/budgets", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+    # Ordered by period_end desc, then name
+    assert data[0]["name"] == "April Budget"
+    assert data[1]["name"] == "March Budget"
+
+
+async def test_list_budgets_empty(client):
+    """User with no budgets gets an empty list."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get("/budgets", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_list_budgets_includes_category_ids(client):
+    """Listed budgets include their tracked category IDs."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    cat_id = await _create_category(client, headers)
+    await _create_budget(client, headers, category_ids=[cat_id])
+
+    resp = await client.get("/budgets", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["category_ids"] == [cat_id]
+
+
+async def test_list_budgets_includes_household_budgets(client):
+    """User sees both personal and household budgets."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, headers)
+    await _create_budget(client, headers, name="Personal Budget")
+    await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+
+    resp = await client.get("/budgets", headers=headers)
+
+    assert resp.status_code == 200
+    names = {b["name"] for b in resp.json()}
+    assert names == {"Personal Budget", "Family Budget"}
+
+
+async def test_list_budgets_household_member_sees_household_budgets(client):
+    """Non-admin household member sees household budgets in their list."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "viewer"},
+        headers=headers,
+    )
+    await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+
+    resp = await client.get("/budgets", headers=other_headers)
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["name"] == "Family Budget"
+
+
+async def test_list_budgets_excludes_other_users_budgets(client):
+    """User does not see another user's personal budgets."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    await _create_budget(client, headers, name="My Budget")
+
+    resp = await client.get("/budgets", headers=other_headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_list_budgets_unauthenticated_returns_401(client):
+    """Listing budgets without auth returns 401."""
+    resp = await client.get("/budgets")
+
+    assert resp.status_code == 401
