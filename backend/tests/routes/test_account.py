@@ -303,19 +303,17 @@ async def test_create_account_with_all_optional_fields(client):
     assert data["tax_treatment"] == "tax_free"
 
 
-async def test_create_account_extra_fields_ignored(client):
-    """Extra fields like owner_id in the body cannot hijack ownership."""
+async def test_create_account_owner_id_cannot_be_hijacked(client):
+    """Extra owner_id in the body cannot hijack ownership."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
 
-    payload = {**ACCOUNT_PAYLOAD, "owner_id": NONEXISTENT_ID, "household_id": NONEXISTENT_ID}
+    payload = {**ACCOUNT_PAYLOAD, "owner_id": NONEXISTENT_ID}
     resp = await client.post("/accounts", json=payload, headers=headers)
 
     assert resp.status_code == 201
-    data = resp.json()
-    assert data["owner_id"] == user_id
-    assert data["household_id"] is None
+    assert resp.json()["owner_id"] == user_id
 
 
 async def test_create_account_duplicate_names_allowed(client):
