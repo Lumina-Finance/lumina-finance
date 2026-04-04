@@ -9,7 +9,7 @@ from app.models.base import RecurrenceFreq
 
 
 class AddBudgetMemberRequest(BaseModel):
-    """Scope a household budget to a specific member."""
+    """Add a member to a household budget."""
 
     user_id: uuid.UUID
 
