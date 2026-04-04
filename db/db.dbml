@@ -203,7 +203,7 @@ Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of own
 
 Table budget_tracked_categories [headercolor: #F43F5E, note: "tracks which categories a budget monitors and when; enables historical budget utilization"] {
   id uuid pk
-  budget_id uuid [not null, ref: > budgets.id]
+  budget_id uuid [not null, ref: > budgets.id, note: "ON DELETE CASCADE"]
   category_id uuid [not null, ref: > categories.id]
   added_at timestamptz [not null, note: "when this category started being tracked"]
   removed_at timestamptz [note: "null = still active; set when unlinked"]
@@ -211,6 +211,6 @@ Table budget_tracked_categories [headercolor: #F43F5E, note: "tracks which categ
 
 // Scopes a household budget to specific members; when no rows exist for a budget, all household members are included
 Table budget_members [headercolor: #F43F5E] {
-  budget_id uuid pk [ref: > budgets.id]
+  budget_id uuid pk [ref: > budgets.id, note: "ON DELETE CASCADE"]
   user_id uuid pk [ref: > users.id]
 }

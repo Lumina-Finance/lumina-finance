@@ -291,7 +291,7 @@ Tracks which categories a budget monitors and when. Enables historical budget ut
 | Column        | Type        | Constraints                     | Description                                |
 | ------------- | ----------- | ------------------------------- | ------------------------------------------ |
 | `id`          | uuid        | PK                              |                                            |
-| `budget_id`   | uuid        | NOT NULL, FK → `budgets.id`     |                                            |
+| `budget_id`   | uuid        | NOT NULL, FK → `budgets.id` ON DELETE CASCADE |                                            |
 | `category_id` | uuid        | NOT NULL, FK → `categories.id`  |                                            |
 | `added_at`    | timestamptz | NOT NULL                        | When this category started being tracked   |
 | `removed_at`  | timestamptz |                                 | Null = still active; set when unlinked     |
@@ -304,7 +304,9 @@ Scopes a household budget to specific members. When no rows exist for a given bu
 
 | Column      | Type | Constraints           | Description |
 | ----------- | ---- | --------------------- | ----------- |
-| `budget_id` | uuid | PK, FK → `budgets.id` |             |
+| `budget_id` | uuid | PK, FK → `budgets.id` ON DELETE CASCADE |             |
 | `user_id`   | uuid | PK, FK → `users.id`   |             |
+
+**Data lifecycle:** Budgets use hard delete. Expired budgets are naturally preserved as historical records (they remain queryable by period), so a delete means the user intentionally wants the budget removed. Cascading delete removes associated `budget_tracked_categories` and `budget_members` rows.
 
 
