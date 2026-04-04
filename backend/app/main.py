@@ -3,6 +3,7 @@ from mangum import Mangum
 
 from app.routes.account import router as account_router
 from app.routes.auth import router as auth_router
+from app.routes.budget import router as budget_router
 from app.routes.category import router as category_router
 from app.routes.currency import router as currency_router
 from app.routes.household import router as household_router
@@ -23,6 +24,7 @@ app.include_router(merchant_router)
 app.include_router(tag_router)
 app.include_router(transaction_router)
 app.include_router(household_router)
+app.include_router(budget_router)
 
 
 @app.get("/health")
