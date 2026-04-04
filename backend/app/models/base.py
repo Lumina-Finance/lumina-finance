@@ -58,6 +58,6 @@ class RecurrenceFreq(enum.StrEnum):
 # --- Households ---
 
 class HouseholdRole(enum.StrEnum):
-    ADMIN = "admin"      # Full control: manage members, edit all shared objects
-    EDITOR = "editor"    # Can create and edit shared objects but cannot manage members
+    ADMIN = "admin"      # Full control: manage members, budgets, and all shared objects
+    EDITOR = "editor"    # Can create and edit shared objects except budgets; cannot manage members
     VIEWER = "viewer"    # Read-only access to shared household data

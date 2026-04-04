@@ -19,8 +19,8 @@ Table households [headercolor: #8B5CF6] {
 }
 
 enum household_role {
-  admin [note: "full control: manage members, edit all shared objects"]
-  editor [note: "can create and edit shared objects but cannot manage members"]
+  admin [note: "full control: manage members, budgets, and all shared objects"]
+  editor [note: "can create and edit shared objects except budgets; cannot manage members"]
   viewer [note: "read-only access to shared household data"]
 }
 

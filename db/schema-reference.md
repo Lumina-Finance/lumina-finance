@@ -85,7 +85,7 @@ Junction table linking users to households with a role.
 | -------------- | ---------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `household_id` | uuid                               | PK, FK → `households.id` ON DELETE CASCADE |                                                                                                                 |
 | `user_id`      | uuid                               | PK, FK → `users.id`                       |                                                                                                                 |
-| `role`         | enum (`admin`, `editor`, `viewer`) | NOT NULL, default `viewer` | `admin` = full control including member management; `editor` = create/edit shared objects; `viewer` = read-only |
+| `role`         | enum (`admin`, `editor`, `viewer`) | NOT NULL, default `viewer` | `admin` = full control including member and budget management; `editor` = create/edit shared objects (except budgets); `viewer` = read-only |
 
 
 ---
