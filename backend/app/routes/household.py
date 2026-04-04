@@ -382,3 +382,24 @@ async def revoke_account_permission(
 
     await db.delete(account_permission)
     await db.commit()
+
+
+@router.get("/{household_id}/account-permissions", response_model=list[AccountPermissionResponse])
+async def list_account_permissions(
+    household_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user_id: uuid.UUID | None = None,
+    account_id: uuid.UUID | None = None,
+):
+    """List account permissions for a household. Requires admin. Supports optional user_id and account_id filters."""
+    await _check_admin_or_403(db, household_id, user.id)
+
+    query = select(AccountPermission).where(AccountPermission.household_id == household_id)
+    if user_id:
+        query = query.where(AccountPermission.user_id == user_id)
+    if account_id:
+        query = query.where(AccountPermission.account_id == account_id)
+
+    result = await db.execute(query.order_by(AccountPermission.created_at))
+    return result.scalars().all()
