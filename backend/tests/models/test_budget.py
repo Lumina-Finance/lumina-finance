@@ -3,11 +3,11 @@ from datetime import date
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models.base import CategoryKind, RecurrenceFreq
-from app.models.budget import Budget, BudgetMember, BudgetTrackedCategory
+from app.models.base import CategoryKind, PermissionLevel, RecurrenceFreq
+from app.models.budget import Budget, BudgetMember, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.household import Household
+from app.models.household import Household, HouseholdMember
 from app.models.user import User
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
@@ -394,3 +394,181 @@ async def test_invalid_budget_member_user_rejected(db, budget):
     db.add(BudgetMember(budget_id=budget.id, user_id=NONEXISTENT_ID))
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+# --- BudgetPermission fixtures ---
+
+
+@pytest.fixture
+async def household_membership(db, household, member):
+    """Add the second user as a household member."""
+    m = HouseholdMember(household_id=household.id, user_id=member.id)
+    db.add(m)
+    await db.flush()
+    return m
+
+
+@pytest.fixture
+async def household_budget(db, household):
+    """Seed a household-scoped budget."""
+    b = Budget(
+        household_id=household.id, owner_id=None, name="Family Budget",
+        period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+    )
+    db.add(b)
+    await db.flush()
+    return b
+
+
+# --- BudgetPermission: Basic CRUD ---
+
+
+async def test_create_budget_permission(db, household, member, household_membership, household_budget):
+    """Grant a budget permission and verify fields."""
+    perm = BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.READ,
+    )
+    db.add(perm)
+    await db.flush()
+
+    result = await db.get(BudgetPermission, perm.id)
+    assert result is not None
+    assert result.household_id == household.id
+    assert result.user_id == member.id
+    assert result.budget_id == household_budget.id
+    assert result.level == PermissionLevel.READ
+    assert result.created_at is not None
+
+
+async def test_delete_budget_permission(db, household, member, household_membership, household_budget):
+    """Revoke a budget permission by deleting the row."""
+    perm = BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.WRITE,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(perm)
+    await db.flush()
+
+    result = await db.get(BudgetPermission, perm_id)
+    assert result is None
+
+
+# --- BudgetPermission: Constraints ---
+
+
+async def test_duplicate_budget_permission_rejected(db, household, member, household_membership, household_budget):
+    """Same (household, user, budget) combo cannot have two permission rows."""
+    db.add(BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.READ,
+    ))
+    await db.flush()
+
+    db.add(BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.WRITE,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_invalid_budget_rejected(db, household, member, household_membership):
+    """budget_id must reference a valid budget."""
+    db.add(BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=NONEXISTENT_ID, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_invalid_household_rejected(db, member, household_budget):
+    """household_id must reference a valid household."""
+    db.add(BudgetPermission(
+        household_id=NONEXISTENT_ID, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_invalid_user_rejected(db, household, household_budget):
+    """user_id must reference a valid user."""
+    db.add(BudgetPermission(
+        household_id=household.id, user_id=NONEXISTENT_ID,
+        budget_id=household_budget.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_non_member_rejected(db, household, member, household_budget):
+    """User must be a household member to receive a budget permission."""
+    db.add(BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- BudgetPermission: Cascades ---
+
+
+async def test_budget_permission_cascades_on_member_removal(db, household, member, household_membership, household_budget):
+    """Removing a member cascades to their budget permissions."""
+    perm = BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.READ,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(household_membership)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(BudgetPermission, perm_id)
+    assert result is None
+
+
+async def test_budget_permission_cascades_on_budget_deletion(db, household, member, household_membership, household_budget):
+    """Deleting a budget cascades to its permissions."""
+    perm = BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.WRITE,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(household_budget)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(BudgetPermission, perm_id)
+    assert result is None
+
+
+async def test_budget_permission_cascades_on_household_deletion(db, household, member, household_membership, household_budget):
+    """Deleting a household cascades to all its budget permissions."""
+    perm = BudgetPermission(
+        household_id=household.id, user_id=member.id,
+        budget_id=household_budget.id, level=PermissionLevel.ADMIN,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(household)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(BudgetPermission, perm_id)
+    assert result is None
