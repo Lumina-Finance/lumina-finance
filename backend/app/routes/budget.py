@@ -1,0 +1,176 @@
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.base import HouseholdRole
+from app.models.budget import Budget, BudgetTrackedCategory
+from app.models.category import Category
+from app.models.household import HouseholdMember
+from app.models.user import User
+from app.schemas.budget import BudgetResponse, CreateBudgetRequest
+
+router = APIRouter(prefix="/budgets", tags=["budgets"])
+
+
+async def _check_household_editor_or_403(
+    db: AsyncSession, household_id: uuid.UUID, user_id: uuid.UUID,
+) -> HouseholdMember:
+    """Return the user's membership or raise 403 if they lack edit access.
+
+    Args:
+        db: Async database session.
+        household_id: UUID of the household.
+        user_id: UUID of the user.
+
+    Returns:
+        The HouseholdMember row.
+
+    Raises:
+        HTTPException 404: User is not a member of the household.
+        HTTPException 403: User is a viewer (read-only).
+    """
+    result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == user_id,
+        ),
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+    if membership.role == HouseholdRole.VIEWER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Viewer role cannot manage budgets")
+    return membership
+
+
+async def _validate_category_ids(
+    db: AsyncSession, category_ids: list[uuid.UUID], user_id: uuid.UUID, household_id: uuid.UUID | None,
+) -> list[uuid.UUID]:
+    """Verify all category IDs exist and belong to the user or household. Returns deduplicated list.
+
+    Args:
+        db: Async database session.
+        category_ids: List of category UUIDs to validate.
+        user_id: UUID of the requesting user.
+        household_id: UUID of the household, or None for personal budgets.
+
+    Returns:
+        Deduplicated list of valid category IDs.
+
+    Raises:
+        HTTPException 422: One or more categories not found.
+    """
+    if not category_ids:
+        return []
+    unique_ids = list(set(category_ids))
+    query = select(Category.id).where(Category.id.in_(unique_ids))
+    if household_id:
+        query = query.where(
+            (Category.owner_id == user_id) | (Category.household_id == household_id),
+        )
+    else:
+        query = query.where(Category.owner_id == user_id)
+    result = await db.execute(query)
+    found = set(result.scalars().all())
+    if found != set(unique_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
+    return unique_ids
+
+
+async def _get_tracked_category_ids(db: AsyncSession, budget_id: uuid.UUID) -> list[uuid.UUID]:
+    """Fetch tracked category IDs for a budget.
+
+    Args:
+        db: Async database session.
+        budget_id: UUID of the budget.
+
+    Returns:
+        List of category UUIDs.
+    """
+    result = await db.execute(
+        select(BudgetTrackedCategory.category_id).where(BudgetTrackedCategory.budget_id == budget_id),
+    )
+    return list(result.scalars().all())
+
+
+async def _build_budget_response(db: AsyncSession, budget: Budget) -> BudgetResponse:
+    """Build a BudgetResponse with tracked category IDs.
+
+    Args:
+        db: Async database session.
+        budget: The Budget model instance.
+
+    Returns:
+        BudgetResponse with category_ids populated.
+    """
+    category_ids = await _get_tracked_category_ids(db, budget.id)
+    resp = BudgetResponse.model_validate(budget)
+    resp.category_ids = category_ids
+    return resp
+
+
+@router.post("", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
+async def create_budget(
+    data: CreateBudgetRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Create a new budget with optional tracked categories."""
+    # Validate period
+    if data.period_start >= data.period_end:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must be before period end")
+
+    # Budget currency must match the user's base currency
+    if data.currency != user.base_currency:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Budget currency must match your base currency")
+
+    # Determine ownership
+    owner_id = user.id
+    household_id = data.household_id
+    if household_id:
+        await _check_household_editor_or_403(db, household_id, user.id)
+        owner_id = None
+
+    # Validate base budget if this is a recurring instance
+    if data.base_budget_id:
+        base_query = select(Budget).where(Budget.id == data.base_budget_id)
+        if household_id:
+            base_query = base_query.where(Budget.household_id == household_id)
+        else:
+            base_query = base_query.where(Budget.owner_id == user.id)
+        base_result = await db.execute(base_query)
+        if not base_result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Base budget not found")
+
+    # Validate tracked category IDs
+    validated_cat_ids = await _validate_category_ids(db, data.category_ids, user.id, household_id)
+
+    # Generate ID in Python to avoid intermediate flush
+    budget_id = uuid.uuid4()
+    budget = Budget(
+        id=budget_id,
+        owner_id=owner_id,
+        household_id=household_id,
+        base_budget_id=data.base_budget_id,
+        name=data.name,
+        period_start=data.period_start,
+        period_end=data.period_end,
+        recurrence_freq=data.recurrence_freq,
+        recurrence_interval=data.recurrence_interval,
+        overall_limit=data.overall_limit,
+        currency=data.currency,
+    )
+    db.add(budget)
+
+    # Link tracked categories
+    for cat_id in validated_cat_ids:
+        db.add(BudgetTrackedCategory(budget_id=budget_id, category_id=cat_id))
+
+    await db.commit()
+    await db.refresh(budget)
+    return await _build_budget_response(db, budget)
