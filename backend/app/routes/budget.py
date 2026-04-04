@@ -9,11 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import HouseholdRole
-from app.models.budget import Budget, BudgetTrackedCategory
+from app.models.budget import Budget, BudgetMember, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.household import HouseholdMember
 from app.models.user import User
-from app.schemas.budget import BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
+from app.schemas.budget import AddBudgetMemberRequest, BudgetMemberResponse, BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -173,6 +173,47 @@ async def delete_budget(
 
     await db.delete(budget)
     await db.commit()
+
+
+@router.post("/{budget_id}/members", response_model=BudgetMemberResponse, status_code=status.HTTP_201_CREATED)
+async def add_budget_member(
+    budget_id: uuid.UUID,
+    data: AddBudgetMemberRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Add a member to a household budget. Requires editor/admin role."""
+    budget = await _get_budget_or_404(db, budget_id, user.id)
+
+    if not budget.household_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support member scoping")
+
+    await _check_household_editor_or_403(db, budget.household_id, user.id)
+
+    # Target user must be a household member
+    result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == budget.household_id,
+            HouseholdMember.user_id == data.user_id,
+        ),
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this household")
+
+    # Check for duplicate
+    result = await db.execute(
+        select(BudgetMember).where(
+            BudgetMember.budget_id == budget_id,
+            BudgetMember.user_id == data.user_id,
+        ),
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already added to this budget")
+
+    budget_member = BudgetMember(budget_id=budget_id, user_id=data.user_id)
+    db.add(budget_member)
+    await db.commit()
+    return budget_member
 
 
 @router.patch("/{budget_id}", response_model=BudgetResponse)
