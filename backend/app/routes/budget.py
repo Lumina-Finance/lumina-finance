@@ -159,6 +159,22 @@ async def get_budget(
     return await _build_budget_response(db, budget)
 
 
+@router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_budget(
+    budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete a budget. Household budgets require editor/admin role."""
+    budget = await _get_budget_or_404(db, budget_id, user.id)
+
+    if budget.household_id:
+        await _check_household_editor_or_403(db, budget.household_id, user.id)
+
+    await db.delete(budget)
+    await db.commit()
+
+
 @router.patch("/{budget_id}", response_model=BudgetResponse)
 async def update_budget(
     budget_id: uuid.UUID,
