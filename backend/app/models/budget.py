@@ -34,12 +34,15 @@ class Budget(Base):
 
 
 class BudgetTrackedCategory(Base):
-    """Links a budget to the categories it tracks spending for."""
+    """Tracks which categories a budget monitors and when. Enables historical budget utilization."""
 
     __tablename__ = "budget_tracked_categories"
 
-    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id"), primary_key=True)
-    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id"), nullable=False)
+    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class BudgetMember(Base):

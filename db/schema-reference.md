@@ -285,13 +285,16 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 
 ### `budget_tracked_categories`
 
-Links a budget to the categories it tracks spending for. A budget tracking "Eating" across Groceries + Takeout would have two rows.
+Tracks which categories a budget monitors and when. Enables historical budget utilization by preserving a record of when categories were added and removed. A budget tracking "Eating" across Groceries + Takeout would have two active rows (where `removed_at` is null).
 
 
-| Column        | Type | Constraints              | Description |
-| ------------- | ---- | ------------------------ | ----------- |
-| `budget_id`   | uuid | PK, FK → `budgets.id`   |             |
-| `category_id` | uuid | PK, FK → `categories.id` |             |
+| Column        | Type        | Constraints                     | Description                                |
+| ------------- | ----------- | ------------------------------- | ------------------------------------------ |
+| `id`          | uuid        | PK                              |                                            |
+| `budget_id`   | uuid        | NOT NULL, FK → `budgets.id`     |                                            |
+| `category_id` | uuid        | NOT NULL, FK → `categories.id`  |                                            |
+| `added_at`    | timestamptz | NOT NULL                        | When this category started being tracked   |
+| `removed_at`  | timestamptz |                                 | Null = still active; set when unlinked     |
 
 
 ### `budget_members`

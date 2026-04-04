@@ -1,6 +1,7 @@
 import uuid
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,7 @@ from app.models.budget import Budget, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.household import HouseholdMember
 from app.models.user import User
-from app.schemas.budget import BudgetResponse, CreateBudgetRequest
+from app.schemas.budget import BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -82,18 +83,21 @@ async def _validate_category_ids(
     return unique_ids
 
 
-async def _get_tracked_category_ids(db: AsyncSession, budget_id: uuid.UUID) -> list[uuid.UUID]:
-    """Fetch tracked category IDs for a budget.
+async def _get_active_category_ids(db: AsyncSession, budget_id: uuid.UUID) -> list[uuid.UUID]:
+    """Fetch currently active tracked category IDs for a budget (removed_at is null).
 
     Args:
         db: Async database session.
         budget_id: UUID of the budget.
 
     Returns:
-        List of category UUIDs.
+        List of active category UUIDs.
     """
     result = await db.execute(
-        select(BudgetTrackedCategory.category_id).where(BudgetTrackedCategory.budget_id == budget_id),
+        select(BudgetTrackedCategory.category_id).where(
+            BudgetTrackedCategory.budget_id == budget_id,
+            BudgetTrackedCategory.removed_at.is_(None),
+        ),
     )
     return list(result.scalars().all())
 
@@ -108,7 +112,7 @@ async def _build_budget_response(db: AsyncSession, budget: Budget) -> BudgetResp
     Returns:
         BudgetResponse with category_ids populated.
     """
-    category_ids = await _get_tracked_category_ids(db, budget.id)
+    category_ids = await _get_active_category_ids(db, budget.id)
     resp = BudgetResponse.model_validate(budget)
     resp.category_ids = category_ids
     return resp
@@ -173,12 +177,15 @@ async def list_budgets(
     result = await db.execute(query)
     budgets = result.scalars().unique().all()
 
-    # Batch fetch tracked categories for all budgets
+    # Batch fetch active tracked categories for all budgets
     budget_ids = [b.id for b in budgets]
     cat_map: dict[uuid.UUID, list[uuid.UUID]] = {b_id: [] for b_id in budget_ids}
     if budget_ids:
         cat_result = await db.execute(
-            select(BudgetTrackedCategory).where(BudgetTrackedCategory.budget_id.in_(budget_ids)),
+            select(BudgetTrackedCategory).where(
+                BudgetTrackedCategory.budget_id.in_(budget_ids),
+                BudgetTrackedCategory.removed_at.is_(None),
+            ),
         )
         for row in cat_result.scalars().all():
             cat_map[row.budget_id].append(row.category_id)

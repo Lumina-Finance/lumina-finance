@@ -258,25 +258,31 @@ async def test_invalid_currency_rejected(db, user):
 
 async def test_link_budget_to_category(db, budget, category):
     """Link a budget to a tracked category."""
-    btc = BudgetTrackedCategory(budget_id=budget.id, category_id=category.id)
-    db.add(btc)
+    bcp = BudgetTrackedCategory(budget_id=budget.id, category_id=category.id)
+    db.add(bcp)
     await db.flush()
 
-    result = await db.get(BudgetTrackedCategory, (budget.id, category.id))
+    result = await db.get(BudgetTrackedCategory, bcp.id)
     assert result is not None
+    assert result.budget_id == budget.id
+    assert result.category_id == category.id
+    assert result.added_at is not None
+    assert result.removed_at is None
 
 
-async def test_unlink_budget_from_category(db, budget, category):
-    """Remove a tracked category from a budget."""
-    btc = BudgetTrackedCategory(budget_id=budget.id, category_id=category.id)
-    db.add(btc)
+async def test_soft_delete_budget_category(db, budget, category):
+    """Setting removed_at soft-deletes the category link."""
+    from sqlalchemy import func
+
+    bcp = BudgetTrackedCategory(budget_id=budget.id, category_id=category.id)
+    db.add(bcp)
     await db.flush()
 
-    await db.delete(btc)
+    bcp.removed_at = func.now()
     await db.flush()
+    await db.refresh(bcp)
 
-    result = await db.get(BudgetTrackedCategory, (budget.id, category.id))
-    assert result is None
+    assert bcp.removed_at is not None
 
 
 async def test_multiple_tracked_categories(db, budget, user):
@@ -287,12 +293,14 @@ async def test_multiple_tracked_categories(db, budget, user):
     db.add(cat2)
     await db.flush()
 
-    db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=cat1.id))
-    db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=cat2.id))
+    bcp1 = BudgetTrackedCategory(budget_id=budget.id, category_id=cat1.id)
+    bcp2 = BudgetTrackedCategory(budget_id=budget.id, category_id=cat2.id)
+    db.add(bcp1)
+    db.add(bcp2)
     await db.flush()
 
-    r1 = await db.get(BudgetTrackedCategory, (budget.id, cat1.id))
-    r2 = await db.get(BudgetTrackedCategory, (budget.id, cat2.id))
+    r1 = await db.get(BudgetTrackedCategory, bcp1.id)
+    r2 = await db.get(BudgetTrackedCategory, bcp2.id)
     assert r1 is not None
     assert r2 is not None
 
