@@ -18,10 +18,10 @@ from app.schemas.budget import AddBudgetMemberRequest, BudgetMemberResponse, Bud
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
 
-async def _check_household_editor_or_403(
+async def _check_household_admin_or_403(
     db: AsyncSession, household_id: uuid.UUID, user_id: uuid.UUID,
 ) -> HouseholdMember:
-    """Return the user's membership or raise 403 if they lack edit access.
+    """Return the user's membership or raise 403 if they lack admin access.
 
     Args:
         db: Async database session.
@@ -33,7 +33,7 @@ async def _check_household_editor_or_403(
 
     Raises:
         HTTPException 404: User is not a member of the household.
-        HTTPException 403: User is a viewer (read-only).
+        HTTPException 403: User is not an admin.
     """
     result = await db.execute(
         select(HouseholdMember).where(
@@ -44,8 +44,8 @@ async def _check_household_editor_or_403(
     membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
-    if membership.role == HouseholdRole.VIEWER:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Viewer role cannot manage budgets")
+    if membership.role != HouseholdRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage budgets")
     return membership
 
 
@@ -169,7 +169,7 @@ async def delete_budget(
     budget = await _get_budget_or_404(db, budget_id, user.id)
 
     if budget.household_id:
-        await _check_household_editor_or_403(db, budget.household_id, user.id)
+        await _check_household_admin_or_403(db, budget.household_id, user.id)
 
     await db.delete(budget)
     await db.commit()
@@ -188,7 +188,7 @@ async def add_budget_member(
     if not budget.household_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support member scoping")
 
-    await _check_household_editor_or_403(db, budget.household_id, user.id)
+    await _check_household_admin_or_403(db, budget.household_id, user.id)
 
     # Target user must be a household member
     result = await db.execute(
@@ -229,7 +229,7 @@ async def remove_budget_member(
     if not budget.household_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support member scoping")
 
-    await _check_household_editor_or_403(db, budget.household_id, user.id)
+    await _check_household_admin_or_403(db, budget.household_id, user.id)
 
     result = await db.execute(
         select(BudgetMember).where(
@@ -257,7 +257,7 @@ async def update_budget(
 
     # Household budgets require editor or admin role
     if budget.household_id:
-        await _check_household_editor_or_403(db, budget.household_id, user.id)
+        await _check_household_admin_or_403(db, budget.household_id, user.id)
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
@@ -362,7 +362,7 @@ async def create_budget(
     owner_id = user.id
     household_id = data.household_id
     if household_id:
-        await _check_household_editor_or_403(db, household_id, user.id)
+        await _check_household_admin_or_403(db, household_id, user.id)
         owner_id = None
 
     # Validate base budget if this is a recurring instance
