@@ -1,10 +1,21 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, SmallInteger, func
+from sqlalchemy import (
+    VARCHAR,
+    BigInteger,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    SmallInteger,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, RecurrenceFreq
+from app.models.base import Base, PermissionLevel, RecurrenceFreq
 
 
 class Budget(Base):
@@ -52,3 +63,24 @@ class BudgetMember(Base):
 
     budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+
+
+class BudgetPermission(Base):
+    """Per-budget permission for a household member. Admins have implicit full access."""
+
+    __tablename__ = "budget_permissions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["household_id", "user_id"],
+            ["household_members.household_id", "household_members.user_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("household_id", "user_id", "budget_id", name="uq_budget_perm_member_budget"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    household_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
+    level: Mapped[PermissionLevel] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
