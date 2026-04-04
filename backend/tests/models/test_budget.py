@@ -1,4 +1,3 @@
-import uuid
 from datetime import date
 
 import pytest
@@ -10,6 +9,8 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.household import Household
 from app.models.user import User
+
+NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 # --- Fixtures ---
 
@@ -326,14 +327,14 @@ async def test_multiple_tracked_categories(db, budget, user):
 
 async def test_invalid_tracked_budget_rejected(db, category):
     """budget_id must reference a valid budget."""
-    db.add(BudgetTrackedCategory(budget_id=uuid.uuid4(), category_id=category.id))
+    db.add(BudgetTrackedCategory(budget_id=NONEXISTENT_ID, category_id=category.id))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_invalid_tracked_category_rejected(db, budget):
     """category_id must reference a valid category."""
-    db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=uuid.uuid4()))
+    db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=NONEXISTENT_ID))
     with pytest.raises(IntegrityError):
         await db.flush()
 
@@ -383,13 +384,13 @@ async def test_remove_budget_member(db, household, member, currency):
 
 async def test_invalid_budget_member_budget_rejected(db, member):
     """budget_id must reference a valid budget."""
-    db.add(BudgetMember(budget_id=uuid.uuid4(), user_id=member.id))
+    db.add(BudgetMember(budget_id=NONEXISTENT_ID, user_id=member.id))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_invalid_budget_member_user_rejected(db, budget):
     """user_id must reference a valid user."""
-    db.add(BudgetMember(budget_id=budget.id, user_id=uuid.uuid4()))
+    db.add(BudgetMember(budget_id=budget.id, user_id=NONEXISTENT_ID))
     with pytest.raises(IntegrityError):
         await db.flush()

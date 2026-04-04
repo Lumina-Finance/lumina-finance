@@ -1,5 +1,3 @@
-import uuid
-
 import pytest
 from sqlalchemy.exc import IntegrityError
 
@@ -8,6 +6,8 @@ from app.models.base import AccountType, HouseholdRole, PermissionLevel, TaxTrea
 from app.models.currency import Currency
 from app.models.household import Household, HouseholdMember
 from app.models.user import User
+
+NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 # --- Fixtures ---
 
@@ -91,7 +91,7 @@ async def test_null_owner_rejected(db):
 
 async def test_invalid_owner_rejected(db):
     """Household owner_id must reference a valid user."""
-    db.add(Household(owner_id=uuid.uuid4(), name="Invalid"))
+    db.add(Household(owner_id=NONEXISTENT_ID, name="Invalid"))
     with pytest.raises(IntegrityError):
         await db.flush()
 
@@ -151,14 +151,14 @@ async def test_duplicate_member_rejected(db, household, member):
 
 async def test_invalid_household_rejected(db, member):
     """household_id must reference a valid household."""
-    db.add(HouseholdMember(household_id=uuid.uuid4(), user_id=member.id))
+    db.add(HouseholdMember(household_id=NONEXISTENT_ID, user_id=member.id))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_invalid_user_rejected(db, household):
     """user_id must reference a valid user."""
-    db.add(HouseholdMember(household_id=household.id, user_id=uuid.uuid4()))
+    db.add(HouseholdMember(household_id=household.id, user_id=NONEXISTENT_ID))
     with pytest.raises(IntegrityError):
         await db.flush()
 
@@ -249,7 +249,7 @@ async def test_account_permission_invalid_account_rejected(db, household, member
     """account_id must reference a valid account."""
     db.add(AccountPermission(
         household_id=household.id, user_id=member.id,
-        account_id=uuid.uuid4(), level=PermissionLevel.READ,
+        account_id=NONEXISTENT_ID, level=PermissionLevel.READ,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -258,7 +258,7 @@ async def test_account_permission_invalid_account_rejected(db, household, member
 async def test_account_permission_invalid_household_rejected(db, member, household_account):
     """household_id must reference a valid household."""
     db.add(AccountPermission(
-        household_id=uuid.uuid4(), user_id=member.id,
+        household_id=NONEXISTENT_ID, user_id=member.id,
         account_id=household_account.id, level=PermissionLevel.READ,
     ))
     with pytest.raises(IntegrityError):
@@ -268,7 +268,7 @@ async def test_account_permission_invalid_household_rejected(db, member, househo
 async def test_account_permission_invalid_user_rejected(db, household, household_account):
     """user_id must reference a valid user."""
     db.add(AccountPermission(
-        household_id=household.id, user_id=uuid.uuid4(),
+        household_id=household.id, user_id=NONEXISTENT_ID,
         account_id=household_account.id, level=PermissionLevel.READ,
     ))
     with pytest.raises(IntegrityError):
