@@ -867,7 +867,7 @@ async def test_update_budget_period_returns_200(client):
     assert resp.json()["period_end"] == "2026-04-30"
 
 
-async def test_update_budget_start_only_is_valid(client):
+async def test_update_budget_start_only_returns_200(client):
     """Updating only period_start is valid if it stays before existing period_end."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
