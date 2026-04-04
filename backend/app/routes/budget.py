@@ -114,6 +114,47 @@ async def _build_budget_response(db: AsyncSession, budget: Budget) -> BudgetResp
     return resp
 
 
+async def _get_budget_or_404(
+    db: AsyncSession, budget_id: uuid.UUID, user_id: uuid.UUID,
+) -> Budget:
+    """Fetch a budget by ID, verifying the user owns it or is a household member.
+
+    Args:
+        db: Async database session.
+        budget_id: UUID of the budget.
+        user_id: UUID of the requesting user.
+
+    Returns:
+        The Budget row.
+
+    Raises:
+        HTTPException 404: Budget not found or user lacks access.
+    """
+    result = await db.execute(
+        select(Budget)
+        .outerjoin(HouseholdMember, Budget.household_id == HouseholdMember.household_id)
+        .where(
+            Budget.id == budget_id,
+            (Budget.owner_id == user_id) | (HouseholdMember.user_id == user_id),
+        ),
+    )
+    budget = result.scalar_one_or_none()
+    if not budget:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
+    return budget
+
+
+@router.get("/{budget_id}", response_model=BudgetResponse)
+async def get_budget(
+    budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return a single budget. User must own it or be a household member."""
+    budget = await _get_budget_or_404(db, budget_id, user.id)
+    return await _build_budget_response(db, budget)
+
+
 @router.get("", response_model=list[BudgetResponse])
 async def list_budgets(
     user: Annotated[User, Depends(get_current_user)],
