@@ -283,28 +283,15 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 
 **Check constraint:** exactly one of `owner_id` or `household_id` must be non-null.
 
-### `budget_allocations`
+### `budget_tracked_categories`
 
-A named spending limit within a budget. Can cover a single category or a group of categories.
-
-
-| Column      | Type         | Constraints                 | Description                                              |
-| ----------- | ------------ | --------------------------- | -------------------------------------------------------- |
-| `id`        | uuid         | PK                          |                                                          |
-| `budget_id` | uuid         | NOT NULL, FK → `budgets.id` |                                                          |
-| `name`      | varchar(256) | NOT NULL                    | e.g., "Groceries" or "All Food" for a grouped allocation |
-| `amount`    | bigint       | NOT NULL                    | Spending limit in the budget's currency units            |
+Links a budget to the categories it tracks spending for. A budget tracking "Eating" across Groceries + Takeout would have two rows.
 
 
-### `budget_allocation_categories`
-
-Links a budget allocation to one or more categories. A single-category allocation has one row; a grouped allocation (e.g., "All Food" covering "Groceries" + "Dining Out") has multiple.
-
-
-| Column          | Type | Constraints                      | Description |
-| --------------- | ---- | -------------------------------- | ----------- |
-| `allocation_id` | uuid | PK, FK → `budget_allocations.id` |             |
-| `category_id`   | uuid | PK, FK → `categories.id`         |             |
+| Column        | Type | Constraints              | Description |
+| ------------- | ---- | ------------------------ | ----------- |
+| `budget_id`   | uuid | PK, FK → `budgets.id`   |             |
+| `category_id` | uuid | PK, FK → `categories.id` |             |
 
 
 ### `budget_members`

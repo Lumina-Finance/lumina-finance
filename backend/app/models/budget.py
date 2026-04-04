@@ -33,23 +33,12 @@ class Budget(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
-class BudgetAllocation(Base):
-    """A named spending limit within a budget. Can cover one or multiple categories."""
+class BudgetTrackedCategory(Base):
+    """Links a budget to the categories it tracks spending for."""
 
-    __tablename__ = "budget_allocations"
+    __tablename__ = "budget_tracked_categories"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id"), nullable=False)
-    name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)  # e.g., "Groceries" or "All Food"
-    amount: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Spend limit in budget's currency units
-
-
-class BudgetAllocationCategory(Base):
-    """Links a budget allocation to one or more categories."""
-
-    __tablename__ = "budget_allocation_categories"
-
-    allocation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budget_allocations.id"), primary_key=True)
+    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id"), primary_key=True)
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), primary_key=True)
 
 

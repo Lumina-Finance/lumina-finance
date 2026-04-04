@@ -5,43 +5,6 @@ from pydantic import BaseModel, Field
 
 from app.models.base import RecurrenceFreq
 
-# --- Allocation schemas ---
-
-
-class AllocationCategoryRequest(BaseModel):
-    """A category linked to an allocation."""
-
-    category_id: uuid.UUID
-
-
-class CreateAllocationRequest(BaseModel):
-    """Create a spending allocation within a budget."""
-
-    name: str = Field(min_length=1, max_length=256)
-    amount: int
-    category_ids: list[uuid.UUID] = []
-
-
-class UpdateAllocationRequest(BaseModel):
-    """Partial update for an allocation. Only provided fields are changed."""
-
-    name: str | None = Field(None, min_length=1, max_length=256)
-    amount: int | None = None
-    category_ids: list[uuid.UUID] | None = None
-
-
-class AllocationResponse(BaseModel):
-    """Allocation returned within a budget response."""
-
-    id: uuid.UUID
-    budget_id: uuid.UUID
-    name: str
-    amount: int
-    category_ids: list[uuid.UUID] = []
-
-    model_config = {"from_attributes": True}
-
-
 # --- Budget member schemas ---
 
 
@@ -75,7 +38,7 @@ class CreateBudgetRequest(BaseModel):
     recurrence_freq: RecurrenceFreq | None = None
     recurrence_interval: int | None = Field(None, ge=1)
     overall_limit: int | None = None
-    allocations: list[CreateAllocationRequest] = []
+    category_ids: list[uuid.UUID] = []
 
 
 class UpdateBudgetRequest(BaseModel):
@@ -87,6 +50,7 @@ class UpdateBudgetRequest(BaseModel):
     recurrence_freq: RecurrenceFreq | None = None
     recurrence_interval: int | None = Field(None, ge=1)
     overall_limit: int | None = None
+    category_ids: list[uuid.UUID] | None = None
 
 
 class BudgetResponse(BaseModel):
@@ -104,6 +68,6 @@ class BudgetResponse(BaseModel):
     overall_limit: int | None
     currency: str
     created_at: datetime
-    allocations: list[AllocationResponse] = []
+    category_ids: list[uuid.UUID] = []
 
     model_config = {"from_attributes": True}

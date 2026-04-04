@@ -201,15 +201,8 @@ Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of own
   created_at timestamptz [not null]
 }
 
-Table budget_allocations [headercolor: #F43F5E, note: "a named spending limit within a budget; covers both single-category and grouped-category limits"] {
-  id uuid pk
-  budget_id uuid [not null, ref: > budgets.id]
-  name varchar(256) [not null, note: "e.g., 'Groceries' for a single category or 'All Food' for a group"]
-  amount bigint [not null, note: "spend limit in the budget's currency units"]
-}
-
-Table budget_allocation_categories [headercolor: #F43F5E] {
-  allocation_id uuid pk [ref: > budget_allocations.id]
+Table budget_tracked_categories [headercolor: #F43F5E, note: "links a budget to the categories it tracks spending for"] {
+  budget_id uuid pk [ref: > budgets.id]
   category_id uuid pk [ref: > categories.id]
 }
 

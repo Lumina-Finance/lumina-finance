@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.base import CategoryKind, RecurrenceFreq
-from app.models.budget import Budget, BudgetAllocation, BudgetAllocationCategory, BudgetMember
+from app.models.budget import Budget, BudgetMember, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.household import Household
@@ -70,14 +70,6 @@ async def category(db, user):
     await db.flush()
     return c
 
-
-@pytest.fixture
-async def allocation(db, budget):
-    """Seed a budget allocation."""
-    a = BudgetAllocation(budget_id=budget.id, name="Groceries", amount=30000)
-    db.add(a)
-    await db.flush()
-    return a
 
 
 # --- Budget: Basic CRUD ---
@@ -261,114 +253,63 @@ async def test_invalid_currency_rejected(db, user):
         await db.flush()
 
 
-# --- BudgetAllocation: Basic CRUD ---
+# --- BudgetTrackedCategory: Basic CRUD ---
 
 
-async def test_create_allocation(db, allocation, budget):
-    """Insert a budget allocation and verify fields."""
-    result = await db.get(BudgetAllocation, allocation.id)
-    assert result is not None
-    assert result.budget_id == budget.id
-    assert result.name == "Groceries"
-    assert result.amount == 30000
-
-
-async def test_update_allocation(db, allocation):
-    """Update an allocation's amount."""
-    allocation.amount = 40000
+async def test_link_budget_to_category(db, budget, category):
+    """Link a budget to a tracked category."""
+    btc = BudgetTrackedCategory(budget_id=budget.id, category_id=category.id)
+    db.add(btc)
     await db.flush()
 
-    result = await db.get(BudgetAllocation, allocation.id)
-    assert result.amount == 40000
-
-
-async def test_delete_allocation(db, allocation):
-    """Delete a budget allocation."""
-    aid = allocation.id
-    await db.delete(allocation)
-    await db.flush()
-
-    result = await db.get(BudgetAllocation, aid)
-    assert result is None
-
-
-# --- BudgetAllocation: Constraints ---
-
-
-async def test_null_allocation_budget_rejected(db):
-    """budget_id is NOT NULL."""
-    db.add(BudgetAllocation(budget_id=None, name="Bad", amount=1000))
-    with pytest.raises(IntegrityError):
-        await db.flush()
-
-
-async def test_invalid_allocation_budget_rejected(db):
-    """budget_id must reference a valid budget."""
-    db.add(BudgetAllocation(budget_id=uuid.uuid4(), name="Bad", amount=1000))
-    with pytest.raises(IntegrityError):
-        await db.flush()
-
-
-# --- BudgetAllocationCategory: Basic CRUD ---
-
-
-async def test_link_allocation_to_category(db, allocation, category):
-    """Link a budget allocation to a category."""
-    bac = BudgetAllocationCategory(allocation_id=allocation.id, category_id=category.id)
-    db.add(bac)
-    await db.flush()
-
-    result = await db.get(BudgetAllocationCategory, (allocation.id, category.id))
+    result = await db.get(BudgetTrackedCategory, (budget.id, category.id))
     assert result is not None
 
 
-async def test_unlink_allocation_from_category(db, allocation, category):
-    """Remove a category from a budget allocation."""
-    bac = BudgetAllocationCategory(allocation_id=allocation.id, category_id=category.id)
-    db.add(bac)
+async def test_unlink_budget_from_category(db, budget, category):
+    """Remove a tracked category from a budget."""
+    btc = BudgetTrackedCategory(budget_id=budget.id, category_id=category.id)
+    db.add(btc)
     await db.flush()
 
-    await db.delete(bac)
+    await db.delete(btc)
     await db.flush()
 
-    result = await db.get(BudgetAllocationCategory, (allocation.id, category.id))
+    result = await db.get(BudgetTrackedCategory, (budget.id, category.id))
     assert result is None
 
 
-async def test_multiple_categories_per_allocation(db, allocation, user):
-    """An allocation can cover multiple categories (e.g., 'All Food' = Groceries + Dining)."""
+async def test_multiple_tracked_categories(db, budget, user):
+    """A budget can track multiple categories."""
+    cat1 = Category(owner_id=user.id, name="Groceries 2", kind=CategoryKind.EXPENSE)
     cat2 = Category(owner_id=user.id, name="Dining", kind=CategoryKind.EXPENSE)
+    db.add(cat1)
     db.add(cat2)
     await db.flush()
 
-    # Need a first category
-    cat1 = Category(owner_id=user.id, name="Groceries 2", kind=CategoryKind.EXPENSE)
-    db.add(cat1)
+    db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=cat1.id))
+    db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=cat2.id))
     await db.flush()
 
-    db.add(BudgetAllocationCategory(allocation_id=allocation.id, category_id=cat1.id))
-    db.add(BudgetAllocationCategory(allocation_id=allocation.id, category_id=cat2.id))
-    await db.flush()
-
-    r1 = await db.get(BudgetAllocationCategory, (allocation.id, cat1.id))
-    r2 = await db.get(BudgetAllocationCategory, (allocation.id, cat2.id))
+    r1 = await db.get(BudgetTrackedCategory, (budget.id, cat1.id))
+    r2 = await db.get(BudgetTrackedCategory, (budget.id, cat2.id))
     assert r1 is not None
     assert r2 is not None
 
 
-# --- BudgetAllocationCategory: Constraints ---
+# --- BudgetTrackedCategory: Constraints ---
 
 
-async def test_invalid_allocation_rejected(db, category):
-    """allocation_id must reference a valid allocation."""
-    db.add(BudgetAllocationCategory(allocation_id=uuid.uuid4(), category_id=category.id))
+async def test_invalid_tracked_budget_rejected(db, category):
+    """budget_id must reference a valid budget."""
+    db.add(BudgetTrackedCategory(budget_id=uuid.uuid4(), category_id=category.id))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
-async def test_invalid_category_rejected(db, allocation):
+async def test_invalid_tracked_category_rejected(db, budget):
     """category_id must reference a valid category."""
-    db.add(BudgetAllocationCategory(allocation_id=allocation.id, category_id=uuid.uuid4()))
+    db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=uuid.uuid4()))
     with pytest.raises(IntegrityError):
         await db.flush()
 
