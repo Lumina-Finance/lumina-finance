@@ -24,7 +24,7 @@ class AccountResponse(BaseModel):
 
 
 class CreateAccountRequest(BaseModel):
-    """Create a new personal account for the authenticated user."""
+    """Create a new account. Either personal (default) or household-scoped."""
 
     account_type: str  # AccountType enum value
     tax_treatment: str = "taxable"  # TaxTreatment enum value
@@ -33,6 +33,7 @@ class CreateAccountRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     lifetime_contribution_limit: int | None = None
     is_hidden: bool = False
+    household_id: uuid.UUID | None = None
 
 
 class UpdateAccountRequest(BaseModel):
