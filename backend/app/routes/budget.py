@@ -114,6 +114,42 @@ async def _build_budget_response(db: AsyncSession, budget: Budget) -> BudgetResp
     return resp
 
 
+@router.get("", response_model=list[BudgetResponse])
+async def list_budgets(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return all budgets the user owns or has access to via household membership."""
+    # Personal budgets + household budgets where the user is a member
+    query = (
+        select(Budget)
+        .outerjoin(HouseholdMember, Budget.household_id == HouseholdMember.household_id)
+        .where(
+            (Budget.owner_id == user.id) | (HouseholdMember.user_id == user.id),
+        )
+        .order_by(Budget.period_end.desc(), Budget.name)
+    )
+    result = await db.execute(query)
+    budgets = result.scalars().unique().all()
+
+    # Batch fetch tracked categories for all budgets
+    budget_ids = [b.id for b in budgets]
+    cat_map: dict[uuid.UUID, list[uuid.UUID]] = {b_id: [] for b_id in budget_ids}
+    if budget_ids:
+        cat_result = await db.execute(
+            select(BudgetTrackedCategory).where(BudgetTrackedCategory.budget_id.in_(budget_ids)),
+        )
+        for row in cat_result.scalars().all():
+            cat_map[row.budget_id].append(row.category_id)
+
+    responses = []
+    for budget in budgets:
+        resp = BudgetResponse.model_validate(budget)
+        resp.category_ids = cat_map[budget.id]
+        responses.append(resp)
+    return responses
+
+
 @router.post("", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
 async def create_budget(
     data: CreateBudgetRequest,
