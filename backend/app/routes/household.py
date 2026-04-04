@@ -358,3 +358,27 @@ async def grant_account_permission(
     await db.commit()
     await db.refresh(account_permission)
     return account_permission
+
+
+@router.delete("/{household_id}/account-permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_account_permission(
+    household_id: uuid.UUID,
+    permission_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Revoke a member's access to a household account. Requires admin."""
+    await _check_admin_or_403(db, household_id, user.id)
+
+    result = await db.execute(
+        select(AccountPermission).where(
+            AccountPermission.id == permission_id,
+            AccountPermission.household_id == household_id,
+        ),
+    )
+    account_permission = result.scalar_one_or_none()
+    if not account_permission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
+
+    await db.delete(account_permission)
+    await db.commit()
