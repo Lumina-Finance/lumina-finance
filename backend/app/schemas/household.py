@@ -3,8 +3,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.models.base import HouseholdRole
-
 
 class HouseholdResponse(BaseModel):
     """Household returned by list and detail endpoints."""
@@ -39,19 +37,18 @@ class HouseholdMemberResponse(BaseModel):
 
     household_id: uuid.UUID
     user_id: uuid.UUID
-    role: HouseholdRole
+    is_admin: bool
 
     model_config = {"from_attributes": True}
 
 
 class AddHouseholdMemberRequest(BaseModel):
-    """Add a user to a household with a specified role."""
+    """Add a user to a household. New members join as non-admin."""
 
     user_id: uuid.UUID
-    role: HouseholdRole = HouseholdRole.VIEWER
 
 
-class UpdateHouseholdMemberRoleRequest(BaseModel):
-    """Update a household member's role."""
+class UpdateHouseholdMemberAdminRequest(BaseModel):
+    """Promote or demote a household member. Only the owner can change admin status."""
 
-    role: HouseholdRole
+    is_admin: bool

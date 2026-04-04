@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.base import HouseholdRole
 from app.models.budget import Budget, BudgetMember, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.household import HouseholdMember
@@ -44,7 +43,7 @@ async def _check_household_admin_or_403(
     membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
-    if membership.role != HouseholdRole.ADMIN:
+    if not membership.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage budgets")
     return membership
 
@@ -165,7 +164,7 @@ async def delete_budget(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a budget. Household budgets require editor/admin role."""
+    """Delete a budget. Household budgets require admin role."""
     budget = await _get_budget_or_404(db, budget_id, user.id)
 
     if budget.household_id:
@@ -182,7 +181,7 @@ async def add_budget_member(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Add a member to a household budget. Requires editor/admin role."""
+    """Add a member to a household budget. Requires admin role."""
     budget = await _get_budget_or_404(db, budget_id, user.id)
 
     if not budget.household_id:
@@ -223,7 +222,7 @@ async def remove_budget_member(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Remove a member from a household budget. Requires editor/admin role."""
+    """Remove a member from a household budget. Requires admin role."""
     budget = await _get_budget_or_404(db, budget_id, user.id)
 
     if not budget.household_id:
@@ -252,10 +251,10 @@ async def update_budget(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a budget. Household budgets require editor/admin role."""
+    """Update a budget. Household budgets require admin role."""
     budget = await _get_budget_or_404(db, budget_id, user.id)
 
-    # Household budgets require editor or admin role
+    # Household budgets require admin role
     if budget.household_id:
         await _check_household_admin_or_403(db, budget.household_id, user.id)
 

@@ -78,14 +78,52 @@ A shared financial group (e.g., a couple, family). A user can own one or more ho
 
 ### `household_members`
 
-Junction table linking users to households with a role.
+Junction table linking users to households.
 
 
-| Column         | Type                               | Constraints                | Description                                                                                                     |
-| -------------- | ---------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `household_id` | uuid                               | PK, FK → `households.id` ON DELETE CASCADE |                                                                                                                 |
-| `user_id`      | uuid                               | PK, FK → `users.id`                       |                                                                                                                 |
-| `role`         | enum (`admin`, `editor`, `viewer`) | NOT NULL, default `viewer` | `admin` = full control including member and budget management; `editor` = create/edit shared objects (except budgets); `viewer` = read-only |
+| Column         | Type    | Constraints                                | Description                                                   |
+| -------------- | ------- | ------------------------------------------ | ------------------------------------------------------------- |
+| `household_id` | uuid    | PK, FK → `households.id` ON DELETE CASCADE |                                                               |
+| `user_id`      | uuid    | PK, FK → `users.id`                       |                                                               |
+| `is_admin`     | boolean | NOT NULL, default `false`                  | Admins can manage membership and have implicit full access to all household resources. Only the owner can promote/demote admins. |
+
+
+### `account_permissions`
+
+Per-account access control for household members. Admins have implicit full access and don't need explicit permission rows. Categories are automatically visible to all household members. Transactions inherit permissions from their parent account.
+
+
+| Column         | Type             | Constraints                                                          | Description                              |
+| -------------- | ---------------- | -------------------------------------------------------------------- | ---------------------------------------- |
+| `id`           | uuid             | PK                                                                   |                                          |
+| `household_id` | uuid             | NOT NULL, FK → `households.id` ON DELETE CASCADE                     |                                          |
+| `user_id`      | uuid             | NOT NULL, FK → `users.id`                                           |                                          |
+| `account_id`   | uuid             | NOT NULL, FK → `accounts.id` ON DELETE CASCADE                       |                                          |
+| `level`        | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view account + transactions; `write` = also create/edit/delete transactions; `admin` = also edit/delete account |
+| `created_at`   | timestamptz      | NOT NULL                                                             |                                          |
+
+**Unique constraint:** `(household_id, user_id, account_id)` — one permission level per member per account.
+
+**Composite FK:** `(household_id, user_id)` → `household_members(household_id, user_id) ON DELETE CASCADE` — removing a member cleans up all their permissions.
+
+
+### `budget_permissions`
+
+Per-budget access control for household members. Same structure as account_permissions.
+
+
+| Column         | Type             | Constraints                                                          | Description                              |
+| -------------- | ---------------- | -------------------------------------------------------------------- | ---------------------------------------- |
+| `id`           | uuid             | PK                                                                   |                                          |
+| `household_id` | uuid             | NOT NULL, FK → `households.id` ON DELETE CASCADE                     |                                          |
+| `user_id`      | uuid             | NOT NULL, FK → `users.id`                                           |                                          |
+| `budget_id`    | uuid             | NOT NULL, FK → `budgets.id` ON DELETE CASCADE                        |                                          |
+| `level`        | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view budget; `write` = also edit budget details; `admin` = also delete budget |
+| `created_at`   | timestamptz      | NOT NULL                                                             |                                          |
+
+**Unique constraint:** `(household_id, user_id, budget_id)` — one permission level per member per budget.
+
+**Composite FK:** `(household_id, user_id)` → `household_members(household_id, user_id) ON DELETE CASCADE`.
 
 
 ---

@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.base import HouseholdRole
 from app.models.household import Household, HouseholdMember
 from app.models.user import User
 from app.schemas.household import (
@@ -15,7 +14,7 @@ from app.schemas.household import (
     CreateHouseholdRequest,
     HouseholdMemberResponse,
     HouseholdResponse,
-    UpdateHouseholdMemberRoleRequest,
+    UpdateHouseholdMemberAdminRequest,
     UpdateHouseholdRequest,
 )
 
@@ -68,7 +67,7 @@ async def _check_admin_or_403(
         HTTPException 403: User is a member but not an admin.
     """
     membership = await _check_membership_or_404(db, household_id, user_id)
-    if membership.role != HouseholdRole.ADMIN:
+    if not membership.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return membership
 
@@ -174,7 +173,7 @@ async def add_member(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Add a user to a household. Only admins can add members."""
+    """Add a user to a household. Only admins can add members. New members join as non-admin."""
     await _check_admin_or_403(db, household_id, user.id)
 
     # Verify target user exists
@@ -194,44 +193,47 @@ async def add_member(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member")
 
-    member = HouseholdMember(
-        household_id=household_id, user_id=data.user_id, role=data.role,
-    )
-    db.add(member)
+    household_member = HouseholdMember(household_id=household_id, user_id=data.user_id)
+    db.add(household_member)
     await db.commit()
-    await db.refresh(member)
-    return member
+    await db.refresh(household_member)
+    return household_member
 
 
 @router.patch("/{household_id}/members/{member_id}", response_model=HouseholdMemberResponse)
-async def update_member_role(
+async def update_member_admin(
     household_id: uuid.UUID,
     member_id: uuid.UUID,
-    data: UpdateHouseholdMemberRoleRequest,
+    data: UpdateHouseholdMemberAdminRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a member's role. Only admins can change roles. Cannot demote the owner."""
-    await _check_admin_or_403(db, household_id, user.id)
+    """Promote or demote a member. Only the household owner can change admin status."""
+    await _check_membership_or_404(db, household_id, user.id)
 
-    target_membership = await db.execute(
+    # Only the owner can promote/demote admins
+    result = await db.execute(
+        select(Household.owner_id).where(Household.id == household_id),
+    )
+    owner_id = result.scalar_one()
+    if user.id != owner_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can change admin status")
+
+    target_result = await db.execute(
         select(HouseholdMember).where(
             HouseholdMember.household_id == household_id,
             HouseholdMember.user_id == member_id,
         ),
     )
-    target = target_membership.scalar_one_or_none()
+    target = target_result.scalar_one_or_none()
     if not target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
 
-    # Prevent demoting the household owner
-    result = await db.execute(
-        select(Household.owner_id).where(Household.id == household_id),
-    )
-    if member_id == result.scalar_one() and data.role != HouseholdRole.ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot change the owner's role")
+    # Owner cannot be demoted
+    if member_id == owner_id and not data.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot demote the owner")
 
-    target.role = data.role
+    target.is_admin = data.is_admin
     await db.commit()
     await db.refresh(target)
     return target
@@ -252,7 +254,7 @@ async def remove_member(
 
     # Any member can self-leave, but only admins can remove others
     is_self = member_id == user.id
-    if not is_self and caller.role != HouseholdRole.ADMIN:
+    if not is_self and not caller.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
     # Prevent removing the owner
@@ -288,11 +290,9 @@ async def create_household(
     """Create a new household. The creator becomes the owner and is auto-added as admin."""
     household_id = uuid.uuid4()
     household = Household(id=household_id, owner_id=user.id, name=data.name, profile_pic=data.profile_pic)
-    member = HouseholdMember(
-        household_id=household_id, user_id=user.id, role=HouseholdRole.ADMIN,
-    )
+    household_member = HouseholdMember(household_id=household_id, user_id=user.id, is_admin=True)
     db.add(household)
-    db.add(member)
+    db.add(household_member)
     await db.commit()
     await db.refresh(household)
     return household

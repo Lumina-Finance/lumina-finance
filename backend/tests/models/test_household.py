@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.account import Account, AccountPermission
-from app.models.base import AccountType, HouseholdRole, PermissionLevel, TaxTreatment
+from app.models.base import AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.household import Household, HouseholdMember
 from app.models.user import User
@@ -101,13 +101,13 @@ async def test_invalid_owner_rejected(db):
 
 async def test_add_member(db, household, member):
     """Add a member to a household."""
-    m = HouseholdMember(household_id=household.id, user_id=member.id, role=HouseholdRole.EDITOR)
+    m = HouseholdMember(household_id=household.id, user_id=member.id)
     db.add(m)
     await db.flush()
 
     result = await db.get(HouseholdMember, (household.id, member.id))
     assert result is not None
-    assert result.role == HouseholdRole.EDITOR
+    assert result.is_admin is False
 
 
 async def test_remove_member(db, household, member):
@@ -126,14 +126,14 @@ async def test_remove_member(db, household, member):
 # --- HouseholdMember: Defaults ---
 
 
-async def test_role_defaults_to_viewer(db, household, member):
-    """Role should default to viewer."""
+async def test_is_admin_defaults_to_false(db, household, member):
+    """is_admin should default to False."""
     m = HouseholdMember(household_id=household.id, user_id=member.id)
     db.add(m)
     await db.flush()
 
     result = await db.get(HouseholdMember, (household.id, member.id))
-    assert result.role == HouseholdRole.VIEWER
+    assert result.is_admin is False
 
 
 # --- HouseholdMember: Constraints ---
@@ -144,7 +144,7 @@ async def test_duplicate_member_rejected(db, household, member):
     db.add(HouseholdMember(household_id=household.id, user_id=member.id))
     await db.flush()
 
-    db.add(HouseholdMember(household_id=household.id, user_id=member.id, role=HouseholdRole.ADMIN))
+    db.add(HouseholdMember(household_id=household.id, user_id=member.id, is_admin=True))
     with pytest.raises(IntegrityError):
         await db.flush()
 

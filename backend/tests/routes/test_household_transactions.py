@@ -96,7 +96,7 @@ async def _create_household(client, headers, **overrides):
 async def _setup_household_with_two_members(client):
     """Create two users in the same household, each with their own account and category.
 
-    User 1 is the household owner (admin). User 2 is added as an editor.
+    User 1 is the household owner (admin). User 2 is added as a regular member.
 
     Args:
         client: The async test client.
@@ -132,7 +132,7 @@ async def _setup_household_with_two_members(client):
     # Add user 2 to household
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": user2_id, "role": "editor"},
+        json={"user_id": user2_id},
         headers=headers1,
     )
 

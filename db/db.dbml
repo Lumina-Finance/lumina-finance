@@ -18,16 +18,42 @@ Table households [headercolor: #8B5CF6] {
   created_at timestamptz [not null]
 }
 
-enum household_role {
-  admin [note: "full control: manage members, budgets, and all shared objects"]
-  editor [note: "can create and edit shared objects except budgets; cannot manage members"]
-  viewer [note: "read-only access to shared household data"]
-}
-
 Table household_members [headercolor: #8B5CF6] {
   household_id uuid pk [ref: > households.id, delete: cascade]
   user_id uuid pk [ref: > users.id]
-  role household_role [not null, default: "viewer"]
+  is_admin boolean [not null, default: false, note: "only the owner can promote/demote admins"]
+}
+
+enum permission_level {
+  read
+  write
+  admin
+}
+
+Table account_permissions [headercolor: #8B5CF6, note: "per-account access for household members; admins have implicit full access"] {
+  id uuid pk
+  household_id uuid [not null, ref: > households.id, note: "ON DELETE CASCADE"]
+  user_id uuid [not null, ref: > users.id]
+  account_id uuid [not null, ref: > accounts.id, note: "ON DELETE CASCADE"]
+  level permission_level [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (household_id, user_id, account_id) [unique, name: "uq_account_perm_member_account"]
+  }
+}
+
+Table budget_permissions [headercolor: #F43F5E, note: "per-budget access for household members; admins have implicit full access"] {
+  id uuid pk
+  household_id uuid [not null, ref: > households.id, note: "ON DELETE CASCADE"]
+  user_id uuid [not null, ref: > users.id]
+  budget_id uuid [not null, ref: > budgets.id, note: "ON DELETE CASCADE"]
+  level permission_level [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (household_id, user_id, budget_id) [unique, name: "uq_budget_perm_member_budget"]
+  }
 }
 
 // Only supporting passwords for now

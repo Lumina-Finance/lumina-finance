@@ -77,7 +77,7 @@ async def test_create_household_auto_adds_creator_as_admin(client):
     members = members_resp.json()
     assert len(members) == 1
     assert members[0]["user_id"] == user_id
-    assert members[0]["role"] == "admin"
+    assert members[0]["is_admin"] is True
 
 
 async def test_create_household_with_profile_pic(client):
@@ -286,30 +286,15 @@ async def test_update_household_empty_body_returns_unchanged(client):
     assert resp.json()["name"] == "Smith Family"
 
 
-async def test_update_household_by_editor_returns_403(client):
-    """Editor cannot update household."""
+async def test_update_household_by_non_admin_returns_403(client):
+    """Non-admin member cannot update household."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_household(client, headers)
     household_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "editor"}, headers=headers)
-
-    resp = await client.patch(f"/households/{household_id}", json={"name": "Nope"}, headers=other_headers)
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == "Admin role required"
-
-
-async def test_update_household_by_viewer_returns_403(client):
-    """Viewer cannot update household."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "viewer"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     resp = await client.patch(f"/households/{household_id}", json={"name": "Nope"}, headers=other_headers)
     assert resp.status_code == 403
@@ -386,7 +371,8 @@ async def test_delete_household_by_admin_non_owner_returns_403(client):
     household_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "admin"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     resp = await client.delete(f"/households/{household_id}", headers=other_headers)
     assert resp.status_code == 403
@@ -446,14 +432,14 @@ async def test_list_members_returns_all_members(client):
     household_id = create_resp.json()["id"]
 
     _, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "viewer"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     resp = await client.get(f"/households/{household_id}/members", headers=headers)
 
     assert resp.status_code == 200
     assert len(resp.json()) == 2
-    roles = {m["role"] for m in resp.json()}
-    assert roles == {"admin", "viewer"}
+    admin_flags = {m["is_admin"] for m in resp.json()}
+    assert admin_flags == {True, False}
 
 
 async def test_list_members_by_non_member_returns_404(client):
@@ -479,7 +465,7 @@ async def test_list_members_without_auth_returns_401(client):
 
 
 async def test_add_member_returns_201(client):
-    """Admin adds a member with default viewer role."""
+    """Admin adds a member who defaults to non-admin."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_household(client, headers)
@@ -495,26 +481,7 @@ async def test_add_member_returns_201(client):
 
     assert resp.status_code == 201
     assert resp.json()["user_id"] == other_user_id
-    assert resp.json()["role"] == "viewer"
-
-
-async def test_add_member_with_editor_role(client):
-    """Admin adds a member as editor."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    _, other_user_id = await _create_second_user(client)
-
-    resp = await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 201
-    assert resp.json()["role"] == "editor"
+    assert resp.json()["is_admin"] is False
 
 
 async def test_add_member_duplicate_returns_409(client):
@@ -550,15 +517,41 @@ async def test_add_member_nonexistent_user_id_returns_422(client):
     assert resp.json()["detail"] == "User not found"
 
 
-async def test_add_member_by_editor_returns_403(client):
-    """Editor cannot add members."""
+async def test_add_member_by_non_owner_admin_returns_201(client):
+    """Non-owner admin can add members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_household(client, headers)
     household_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "editor"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+
+    third_resp = await client.post("/auth/signup", json={
+        "email": "third@example.com", "password": "securepassword123",
+        "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    third_user_id = third_resp.json()["user"]["id"]
+
+    resp = await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": third_user_id},
+        headers=other_headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["is_admin"] is False
+
+
+async def test_add_member_by_non_admin_returns_403(client):
+    """Non-admin member cannot add members."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_household(client, headers)
+    household_id = create_resp.json()["id"]
+
+    other_headers, other_user_id = await _create_second_user(client)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     resp = await client.post(
         f"/households/{household_id}/members",
@@ -585,23 +578,6 @@ async def test_add_member_by_non_member_returns_404(client):
     assert resp.status_code == 404
 
 
-async def test_add_member_invalid_role_returns_422(client):
-    """Adding a member with an invalid role returns 422."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    _, other_user_id = await _create_second_user(client)
-
-    resp = await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "superadmin"},
-        headers=headers,
-    )
-    assert resp.status_code == 422
-
-
 async def test_add_member_without_auth_returns_401(client):
     """POST /households/{id}/members without auth returns 401."""
     resp = await client.post(f"/households/{NONEXISTENT_ID}/members", json={"user_id": NONEXISTENT_ID})
@@ -611,98 +587,8 @@ async def test_add_member_without_auth_returns_401(client):
 # --- PATCH /households/{id}/members/{member_id} ---
 
 
-async def test_update_member_role_returns_200(client):
-    """Admin changes a viewer to editor."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    _, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "viewer"}, headers=headers)
-
-    resp = await client.patch(
-        f"/households/{household_id}/members/{other_user_id}",
-        json={"role": "editor"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["role"] == "editor"
-
-
-async def test_update_member_role_owner_demotion_returns_403(client):
-    """Cannot change the owner's role from admin."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    user_id = signup_resp.json()["user"]["id"]
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/households/{household_id}/members/{user_id}",
-        json={"role": "viewer"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == "Cannot change the owner's role"
-
-
-async def test_update_member_role_nonexistent_member_returns_404(client):
-    """Changing role of nonexistent member returns 404."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/households/{household_id}/members/{NONEXISTENT_ID}",
-        json={"role": "editor"},
-        headers=headers,
-    )
-    assert resp.status_code == 404
-    assert resp.json()["detail"] == "Member not found"
-
-
-async def test_update_member_role_by_editor_returns_403(client):
-    """Editor cannot change roles."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "editor"}, headers=headers)
-
-    resp = await client.patch(
-        f"/households/{household_id}/members/{other_user_id}",
-        json={"role": "admin"},
-        headers=other_headers,
-    )
-    assert resp.status_code == 403
-
-
-async def test_update_member_role_non_member_returns_404(client):
-    """Non-member cannot change roles."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    user_id = signup_resp.json()["user"]["id"]
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
-
-    other_headers, _ = await _create_second_user(client)
-
-    resp = await client.patch(
-        f"/households/{household_id}/members/{user_id}",
-        json={"role": "editor"},
-        headers=other_headers,
-    )
-    assert resp.status_code == 404
-
-
-async def test_update_member_role_invalid_role_returns_422(client):
-    """Updating a member with an invalid role returns 422."""
+async def test_promote_member_to_admin_returns_200(client):
+    """Owner can promote a member to admin."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_household(client, headers)
@@ -713,15 +599,137 @@ async def test_update_member_role_invalid_role_returns_422(client):
 
     resp = await client.patch(
         f"/households/{household_id}/members/{other_user_id}",
-        json={"role": "superadmin"},
+        json={"is_admin": True},
         headers=headers,
     )
-    assert resp.status_code == 422
+
+    assert resp.status_code == 200
+    assert resp.json()["is_admin"] is True
 
 
-async def test_update_member_role_without_auth_returns_401(client):
+async def test_demote_admin_returns_200(client):
+    """Owner can demote an admin to regular member."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_household(client, headers)
+    household_id = create_resp.json()["id"]
+
+    _, other_user_id = await _create_second_user(client)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+
+    resp = await client.patch(
+        f"/households/{household_id}/members/{other_user_id}",
+        json={"is_admin": False},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["is_admin"] is False
+
+
+async def test_demote_owner_returns_403(client):
+    """Cannot demote the household owner."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    create_resp = await _create_household(client, headers)
+    household_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/households/{household_id}/members/{user_id}",
+        json={"is_admin": False},
+        headers=headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Cannot demote the owner"
+
+
+async def test_promote_member_nonexistent_returns_404(client):
+    """Promoting a nonexistent member returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_household(client, headers)
+    household_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/households/{household_id}/members/{NONEXISTENT_ID}",
+        json={"is_admin": True},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Member not found"
+
+
+async def test_non_owner_admin_cannot_promote_returns_403(client):
+    """Admin who is not the owner cannot promote/demote members."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_household(client, headers)
+    household_id = create_resp.json()["id"]
+
+    other_headers, other_user_id = await _create_second_user(client)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    # Promote other user to admin
+    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+
+    # Create a third user to be the target
+    third_resp = await client.post("/auth/signup", json={
+        "email": "third@example.com", "password": "securepassword123",
+        "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    third_user_id = third_resp.json()["user"]["id"]
+    await client.post(f"/households/{household_id}/members", json={"user_id": third_user_id}, headers=headers)
+
+    # Non-owner admin tries to promote third user
+    resp = await client.patch(
+        f"/households/{household_id}/members/{third_user_id}",
+        json={"is_admin": True},
+        headers=other_headers,
+    )
+    assert resp.status_code == 403
+
+
+async def test_regular_member_cannot_promote_returns_403(client):
+    """Non-admin member cannot promote/demote."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_household(client, headers)
+    household_id = create_resp.json()["id"]
+
+    other_headers, other_user_id = await _create_second_user(client)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+
+    resp = await client.patch(
+        f"/households/{household_id}/members/{other_user_id}",
+        json={"is_admin": True},
+        headers=other_headers,
+    )
+    assert resp.status_code == 403
+
+
+async def test_promote_member_non_member_returns_404(client):
+    """Non-member cannot change admin status."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    create_resp = await _create_household(client, headers)
+    household_id = create_resp.json()["id"]
+
+    other_headers, _ = await _create_second_user(client)
+
+    resp = await client.patch(
+        f"/households/{household_id}/members/{user_id}",
+        json={"is_admin": True},
+        headers=other_headers,
+    )
+    assert resp.status_code == 404
+
+
+async def test_promote_member_without_auth_returns_401(client):
     """PATCH /households/{id}/members/{id} without auth returns 401."""
-    resp = await client.patch(f"/households/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}", json={"role": "editor"})
+    resp = await client.patch(f"/households/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}", json={"is_admin": True})
     assert resp.status_code == 401
 
 
@@ -753,7 +761,7 @@ async def test_remove_member_self_leave_returns_204(client):
     household_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "viewer"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     resp = await client.delete(f"/households/{household_id}/members/{other_user_id}", headers=other_headers)
     assert resp.status_code == 204
@@ -771,7 +779,8 @@ async def test_remove_member_owner_cannot_be_removed_returns_403(client):
     household_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "admin"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     resp = await client.delete(f"/households/{household_id}/members/{user_id}", headers=other_headers)
     assert resp.status_code == 403
@@ -791,15 +800,15 @@ async def test_remove_member_owner_cannot_self_leave_returns_403(client):
     assert resp.json()["detail"] == "Cannot remove the owner"
 
 
-async def test_remove_member_editor_cannot_remove_others_returns_403(client):
-    """Editor cannot remove other members."""
+async def test_remove_member_non_admin_cannot_remove_others_returns_403(client):
+    """Non-admin member cannot remove other members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_household(client, headers)
     household_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id, "role": "editor"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     # Create a third user to be the removal target
     third_resp = await client.post("/auth/signup", json={
@@ -810,7 +819,7 @@ async def test_remove_member_editor_cannot_remove_others_returns_403(client):
         "base_currency": "CAD",
     })
     third_user_id = third_resp.json()["user"]["id"]
-    await client.post(f"/households/{household_id}/members", json={"user_id": third_user_id, "role": "viewer"}, headers=headers)
+    await client.post(f"/households/{household_id}/members", json={"user_id": third_user_id}, headers=headers)
 
     resp = await client.delete(f"/households/{household_id}/members/{third_user_id}", headers=other_headers)
     assert resp.status_code == 403

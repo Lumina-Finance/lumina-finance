@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, HouseholdRole
+from app.models.base import Base
 
 
 class Household(Base):
@@ -21,10 +21,10 @@ class Household(Base):
 
 
 class HouseholdMember(Base):
-    """Junction table linking users to households with a role."""
+    """Junction table linking users to households."""
 
     __tablename__ = "household_members"
 
     household_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    role: Mapped[HouseholdRole] = mapped_column(nullable=False, default=HouseholdRole.VIEWER)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")

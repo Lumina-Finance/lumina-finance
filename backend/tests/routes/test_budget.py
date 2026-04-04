@@ -240,8 +240,8 @@ async def test_create_household_budget_as_admin(client):
     assert data["owner_id"] is None
 
 
-async def test_create_household_budget_as_editor_returns_403(client):
-    """Editor cannot create a budget for a household."""
+async def test_create_household_budget_as_non_admin_returns_403(client):
+    """Non-admin member cannot create a budget for a household."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -249,7 +249,7 @@ async def test_create_household_budget_as_editor_returns_403(client):
     household_id = await _create_household(client, headers)
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
 
@@ -257,23 +257,6 @@ async def test_create_household_budget_as_editor_returns_403(client):
 
     assert resp.status_code == 403
 
-
-async def test_create_household_budget_viewer_returns_403(client):
-    """Viewer cannot create a budget for a household."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    household_id = await _create_household(client, headers)
-    await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "viewer"},
-        headers=headers,
-    )
-
-    resp = await _create_budget(client, other_headers, household_id=household_id)
-
-    assert resp.status_code == 403
 
 
 async def test_create_household_budget_non_member_returns_404(client):
@@ -405,8 +388,8 @@ async def test_get_household_budget_as_admin(client):
     assert resp.json()["id"] == budget_id
 
 
-async def test_get_household_budget_as_editor(client):
-    """Editor can retrieve a household budget."""
+async def test_get_household_budget_as_non_admin(client):
+    """Non-admin member can retrieve a household budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -414,29 +397,7 @@ async def test_get_household_budget_as_editor(client):
     household_id = await _create_household(client, headers)
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
-        headers=headers,
-    )
-
-    create_resp = await _create_budget(client, headers, household_id=household_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.get(f"/budgets/{budget_id}", headers=other_headers)
-
-    assert resp.status_code == 200
-    assert resp.json()["id"] == budget_id
-
-
-async def test_get_household_budget_as_viewer(client):
-    """Viewer can retrieve a household budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    household_id = await _create_household(client, headers)
-    await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "viewer"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
 
@@ -530,8 +491,8 @@ async def test_delete_household_budget_as_admin(client):
     assert resp.status_code == 204
 
 
-async def test_delete_household_budget_as_editor_returns_403(client):
-    """Editor cannot delete a household budget."""
+async def test_delete_household_budget_as_non_admin_returns_403(client):
+    """Non-admin member cannot delete a household budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -539,28 +500,7 @@ async def test_delete_household_budget_as_editor_returns_403(client):
     household_id = await _create_household(client, headers)
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
-        headers=headers,
-    )
-
-    create_resp = await _create_budget(client, headers, household_id=household_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
-
-    assert resp.status_code == 403
-
-
-async def test_delete_household_budget_viewer_returns_403(client):
-    """Viewer cannot delete a household budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    household_id = await _create_household(client, headers)
-    await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "viewer"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
 
@@ -608,7 +548,7 @@ async def test_add_budget_member_returns_201(client):
 
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
 
@@ -624,34 +564,14 @@ async def test_add_budget_member_returns_201(client):
     assert data["user_id"] == other_user_id
 
 
-async def test_add_budget_member_as_editor_returns_403(client):
-    """Editor cannot add a member to a budget."""
+async def test_add_budget_member_as_non_admin_returns_403(client):
+    """Non-admin member cannot add a member to a budget."""
     headers, _, household_id, budget_id = await _setup_household_with_budget(client)
     other_headers, other_user_id = await _create_second_user(client)
 
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
-        headers=headers,
-    )
-
-    resp = await client.post(
-        f"/budgets/{budget_id}/members",
         json={"user_id": other_user_id},
-        headers=other_headers,
-    )
-
-    assert resp.status_code == 403
-
-
-async def test_add_budget_member_viewer_returns_403(client):
-    """Viewer cannot add a member to a budget."""
-    headers, _, household_id, budget_id = await _setup_household_with_budget(client)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "viewer"},
         headers=headers,
     )
 
@@ -703,7 +623,7 @@ async def test_add_budget_member_duplicate_returns_409(client):
 
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
 
@@ -756,7 +676,7 @@ async def test_remove_budget_member_returns_204(client):
 
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
     await client.post(
@@ -781,41 +701,17 @@ async def test_remove_budget_member_returns_204(client):
     assert re_add_resp.status_code == 201
 
 
-async def test_remove_budget_member_as_editor_returns_403(client):
-    """Editor cannot remove a member from a budget."""
+async def test_remove_budget_member_as_non_admin_returns_403(client):
+    """Non-admin member cannot remove a member from a budget."""
     headers, user_id, household_id, budget_id = await _setup_household_with_budget(client)
     other_headers, other_user_id = await _create_second_user(client)
 
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
     # Admin adds themselves to budget scope
-    await client.post(
-        f"/budgets/{budget_id}/members",
-        json={"user_id": user_id},
-        headers=headers,
-    )
-
-    resp = await client.delete(
-        f"/budgets/{budget_id}/members/{user_id}",
-        headers=other_headers,
-    )
-
-    assert resp.status_code == 403
-
-
-async def test_remove_budget_member_as_viewer_returns_403(client):
-    """Viewer cannot remove a member from a budget."""
-    headers, user_id, household_id, budget_id = await _setup_household_with_budget(client)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "viewer"},
-        headers=headers,
-    )
     await client.post(
         f"/budgets/{budget_id}/members",
         json={"user_id": user_id},
@@ -837,7 +733,7 @@ async def test_remove_budget_member_not_found_returns_404(client):
 
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
 
@@ -1143,8 +1039,8 @@ async def test_update_household_budget_as_admin(client):
     assert resp.json()["name"] == "Updated"
 
 
-async def test_update_household_budget_as_editor_returns_403(client):
-    """Editor cannot update a household budget."""
+async def test_update_household_budget_as_non_admin_returns_403(client):
+    """Non-admin member cannot update a household budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -1152,32 +1048,7 @@ async def test_update_household_budget_as_editor_returns_403(client):
     household_id = await _create_household(client, headers)
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "editor"},
-        headers=headers,
-    )
-
-    create_resp = await _create_budget(client, headers, household_id=household_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"name": "Hacked"},
-        headers=other_headers,
-    )
-
-    assert resp.status_code == 403
-
-
-async def test_update_household_budget_as_viewer_returns_403(client):
-    """Viewer cannot update a household budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    household_id = await _create_household(client, headers)
-    await client.post(
-        f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "viewer"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
 
@@ -1274,7 +1145,7 @@ async def test_list_budgets_household_member_sees_household_budgets(client):
     household_id = await _create_household(client, headers)
     await client.post(
         f"/households/{household_id}/members",
-        json={"user_id": other_user_id, "role": "viewer"},
+        json={"user_id": other_user_id},
         headers=headers,
     )
     await _create_budget(client, headers, name="Family Budget", household_id=household_id)
