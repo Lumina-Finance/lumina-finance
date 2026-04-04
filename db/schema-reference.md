@@ -262,7 +262,9 @@ Junction table linking transactions to tags. Uses a dedicated table instead of a
 
 ### `budgets`
 
-Spending plan for a time period. Can be one-off or recurring. Recurring budgets use a template/instance pattern: the template row has `recurrence_freq` set and `base_budget_id = null`; auto-generated period instances point back to the template via `base_budget_id`.
+Spending plan for a time period. Can be one-off or recurring. Recurring budgets use lazy recurrence: the frontend computes which period the user is currently in by adding `recurrence_interval` × `recurrence_freq` to `period_start` and `period_end`. No instance rows are generated — each budget row is self-contained. `base_budget_id` is reserved for future use when users want to override limits for a specific period (the override row would point back to the original).
+
+**Recurrence:** the frontend computes subsequent periods by adding `recurrence_interval` × `recurrence_freq` to both `period_start` and `period_end`. Recurring budgets must use calendar-aligned dates to avoid drift: weekly = any 7-day span (user picks start day), monthly = 1st to last day of month, yearly = Jan 1 to Dec 31. Custom date ranges are only allowed for one-off budgets. This alignment is enforced by the frontend.
 
 
 | Column                | Type                                          | Constraints                    | Description                                                                         |
@@ -270,11 +272,11 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 | `id`                  | uuid                                          | PK                             |                                                                                     |
 | `owner_id`            | uuid                                          | FK → `users.id`                | Set for personal budgets                                                            |
 | `household_id`        | uuid                                          | FK → `households.id` ON DELETE CASCADE | Set for household budgets                                                           |
-| `base_budget_id`    | uuid                                          | FK → `budgets.id`              | Null = template or one-off; non-null = generated instance of a recurring template   |
+| `base_budget_id`    | uuid                                          | FK → `budgets.id`              | Reserved for per-period overrides; null for most budgets                             |
 | `name`                | varchar(256)                                  | NOT NULL                       | e.g., "March 2026 Budget"                                                           |
 | `period_start`        | date                                          | NOT NULL                       |                                                                                     |
 | `period_end`          | date                                          | NOT NULL                       |                                                                                     |
-| `recurrence_freq`     | enum (`daily`, `weekly`, `monthly`, `yearly`) |                                | Null = one-off; only set on the template row                                        |
+| `recurrence_freq`     | enum (`weekly`, `monthly`, `yearly`)          |                                | Null = one-off; set when the budget recurs                                          |
 | `recurrence_interval` | smallint                                      |                                | e.g., 1 = every period, 2 = every other; null when `recurrence_freq` is null        |
 | `overall_limit`       | bigint                                        | default `null`                 | Optional overall spending cap across all categories, in the budget's currency units |
 | `currency`            | char(3)                                       | NOT NULL, FK → `currencies.id` |                                                                                     |

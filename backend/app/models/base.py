@@ -50,7 +50,6 @@ class CategoryKind(enum.StrEnum):
 # --- Budgets ---
 
 class RecurrenceFreq(enum.StrEnum):
-    DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     YEARLY = "yearly"

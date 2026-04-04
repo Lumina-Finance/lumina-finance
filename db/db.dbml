@@ -180,7 +180,6 @@ Table transaction_tags [headercolor: #F59E0B, note: "junction table instead of a
 }
 
 enum recurrence_freq {
-  daily
   weekly
   monthly
   yearly
@@ -190,11 +189,11 @@ Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of own
   id uuid pk
   owner_id uuid [ref: > users.id]
   household_id uuid [ref: > households.id, delete: cascade]
-  base_budget_id uuid [ref: > budgets.id, note: "null = template/one-off; non-null = auto-generated instance pointing to its template"]
+  base_budget_id uuid [ref: > budgets.id, note: "reserved for per-period overrides; null for most budgets"]
   name varchar(256) [not null]
   period_start date [not null]
   period_end date [not null]
-  recurrence_freq recurrence_freq [note: "null = one-off budget; only set on the template"]
+  recurrence_freq recurrence_freq [note: "null = one-off; set when the budget recurs"]
   recurrence_interval smallint [note: "e.g., 1 = every period, 2 = every other, 11 = every 11th; null when recurrence_freq is null"]
   overall_limit bigint [default: null, note: "optional spending cap across all categories; stored in the budget's currency units"]
   currency char(3) [not null, ref: > currencies.id]
