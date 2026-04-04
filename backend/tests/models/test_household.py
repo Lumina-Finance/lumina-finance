@@ -3,7 +3,8 @@ import uuid
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models.base import HouseholdRole
+from app.models.account import Account, AccountPermission
+from app.models.base import AccountType, HouseholdRole, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.household import Household, HouseholdMember
 from app.models.user import User
@@ -160,3 +161,182 @@ async def test_invalid_user_rejected(db, household):
     db.add(HouseholdMember(household_id=household.id, user_id=uuid.uuid4()))
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+# --- AccountPermission fixtures ---
+
+
+@pytest.fixture
+async def household_membership(db, household, member):
+    """Add the second user as a household member."""
+    m = HouseholdMember(household_id=household.id, user_id=member.id)
+    db.add(m)
+    await db.flush()
+    return m
+
+
+@pytest.fixture
+async def household_account(db, household, currency):
+    """Seed a household-scoped account."""
+    a = Account(
+        household_id=household.id, owner_id=None,
+        account_type=AccountType.CHECKING, tax_treatment=TaxTreatment.TAXABLE,
+        name="Joint Checking", currency="CAD",
+    )
+    db.add(a)
+    await db.flush()
+    return a
+
+
+# --- AccountPermission: Basic CRUD ---
+
+
+async def test_create_account_permission(db, household, member, household_membership, household_account):
+    """Grant a permission and verify fields."""
+    perm = AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.READ,
+    )
+    db.add(perm)
+    await db.flush()
+
+    result = await db.get(AccountPermission, perm.id)
+    assert result is not None
+    assert result.household_id == household.id
+    assert result.user_id == member.id
+    assert result.account_id == household_account.id
+    assert result.level == PermissionLevel.READ
+    assert result.created_at is not None
+
+
+async def test_delete_account_permission(db, household, member, household_membership, household_account):
+    """Revoke a permission by deleting the row."""
+    perm = AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.WRITE,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(perm)
+    await db.flush()
+
+    result = await db.get(AccountPermission, perm_id)
+    assert result is None
+
+
+# --- AccountPermission: Constraints ---
+
+
+async def test_duplicate_account_permission_rejected(db, household, member, household_membership, household_account):
+    """Same (household, user, account) combo cannot have two permission rows."""
+    db.add(AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.READ,
+    ))
+    await db.flush()
+
+    db.add(AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.WRITE,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_account_permission_invalid_account_rejected(db, household, member, household_membership):
+    """account_id must reference a valid account."""
+    db.add(AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=uuid.uuid4(), level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_account_permission_invalid_household_rejected(db, member, household_account):
+    """household_id must reference a valid household."""
+    db.add(AccountPermission(
+        household_id=uuid.uuid4(), user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_account_permission_invalid_user_rejected(db, household, household_account):
+    """user_id must reference a valid user."""
+    db.add(AccountPermission(
+        household_id=household.id, user_id=uuid.uuid4(),
+        account_id=household_account.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_account_permission_non_member_rejected(db, household, member, household_account):
+    """User must be a household member to receive a permission."""
+    db.add(AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- AccountPermission: Cascades ---
+
+
+async def test_account_permission_cascades_on_member_removal(db, household, member, household_membership, household_account):
+    """Removing a member cascades to their account permissions."""
+    perm = AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.READ,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(household_membership)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(AccountPermission, perm_id)
+    assert result is None
+
+
+async def test_account_permission_cascades_on_account_deletion(db, household, member, household_membership, household_account):
+    """Deleting an account cascades to its permissions."""
+    perm = AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.WRITE,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(household_account)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(AccountPermission, perm_id)
+    assert result is None
+
+
+async def test_account_permission_cascades_on_household_deletion(db, household, member, household_membership, household_account):
+    """Deleting a household cascades to all its account permissions."""
+    perm = AccountPermission(
+        household_id=household.id, user_id=member.id,
+        account_id=household_account.id, level=PermissionLevel.ADMIN,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(household)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(AccountPermission, perm_id)
+    assert result is None
