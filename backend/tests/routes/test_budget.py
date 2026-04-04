@@ -807,3 +807,300 @@ async def test_remove_budget_member_unauthenticated_returns_401(client):
     )
 
     assert resp.status_code == 401
+
+
+# --- PATCH /budgets/{budget_id} ---
+
+
+async def test_update_budget_name_returns_200(client):
+    """Owner can update budget name."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "April Budget"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "April Budget"
+
+
+async def test_update_budget_limit_returns_200(client):
+    """Owner can update budget overall_limit."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers, overall_limit=50000)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"overall_limit": 75000},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["overall_limit"] == 75000
+
+
+async def test_update_budget_period_returns_200(client):
+    """Owner can update budget period dates."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"period_start": "2026-04-01", "period_end": "2026-04-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["period_start"] == "2026-04-01"
+    assert resp.json()["period_end"] == "2026-04-30"
+
+
+async def test_update_budget_start_only_is_valid(client):
+    """Updating only period_start is valid if it stays before existing period_end."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"period_start": "2026-03-15"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["period_start"] == "2026-03-15"
+
+
+async def test_update_budget_start_after_end_returns_422(client):
+    """Updating period_start to >= period_end is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"period_start": "2026-04-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_budget_add_categories(client):
+    """Adding tracked categories via PATCH returns updated category_ids."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    cat_id = await _create_category(client, headers)
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"category_ids": [cat_id]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["category_ids"] == [cat_id]
+
+
+async def test_update_budget_remove_categories(client):
+    """Sending empty category_ids soft-deletes all tracked categories."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    cat_id = await _create_category(client, headers)
+    create_resp = await _create_budget(client, headers, category_ids=[cat_id])
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"category_ids": []},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["category_ids"] == []
+
+
+async def test_update_budget_swap_categories(client):
+    """Replacing one tracked category with another works correctly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    cat_id_1 = await _create_category(client, headers, name="Groceries")
+    cat_id_2 = await _create_category(client, headers, name="Takeout")
+    create_resp = await _create_budget(client, headers, category_ids=[cat_id_1])
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"category_ids": [cat_id_2]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["category_ids"] == [cat_id_2]
+
+
+async def test_update_budget_invalid_category_returns_422(client):
+    """Non-existent category ID in PATCH is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"category_ids": [NONEXISTENT_ID]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_budget_empty_body_returns_200(client):
+    """Empty PATCH body returns current budget unchanged."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "March Budget"
+
+
+async def test_update_budget_nonexistent_returns_404(client):
+    """Non-existent budget ID returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/budgets/{NONEXISTENT_ID}",
+        json={"name": "New Name"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+
+
+async def test_update_budget_other_users_budget_returns_404(client):
+    """User cannot update another user's personal budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Hacked"},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 404
+
+
+async def test_update_household_budget_as_admin(client):
+    """Admin can update a household budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, headers)
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Updated"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Updated"
+
+
+async def test_update_household_budget_as_editor_returns_403(client):
+    """Editor cannot update a household budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "editor"},
+        headers=headers,
+    )
+
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Hacked"},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 403
+
+
+async def test_update_household_budget_as_viewer_returns_403(client):
+    """Viewer cannot update a household budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "viewer"},
+        headers=headers,
+    )
+
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Hacked"},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 403
+
+
+async def test_update_budget_unauthenticated_returns_401(client):
+    """Updating a budget without auth returns 401."""
+    resp = await client.patch(
+        f"/budgets/{NONEXISTENT_ID}",
+        json={"name": "Hacked"},
+    )
+
+    assert resp.status_code == 401
