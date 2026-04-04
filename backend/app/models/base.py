@@ -55,6 +55,14 @@ class RecurrenceFreq(enum.StrEnum):
     YEARLY = "yearly"
 
 
+# --- Permissions ---
+
+class PermissionLevel(enum.StrEnum):
+    READ = "read"
+    WRITE = "write"
+    ADMIN = "admin"
+
+
 # --- Households ---
 
 class HouseholdRole(enum.StrEnum):
