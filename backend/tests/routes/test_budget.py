@@ -388,3 +388,124 @@ async def test_get_budget_unauthenticated_returns_401(client):
     resp = await client.get(f"/budgets/{NONEXISTENT_ID}")
 
     assert resp.status_code == 401
+
+
+# --- DELETE /budgets/{budget_id} ---
+
+
+async def test_delete_budget_returns_204(client):
+    """Owner can delete their personal budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=headers)
+
+    assert resp.status_code == 204
+
+    get_resp = await client.get(f"/budgets/{budget_id}", headers=headers)
+    assert get_resp.status_code == 404
+
+
+async def test_delete_budget_with_categories_returns_204(client):
+    """Deleting a budget with tracked categories succeeds (DB cascade)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    cat_id = await _create_category(client, headers)
+    create_resp = await _create_budget(client, headers, category_ids=[cat_id])
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=headers)
+
+    assert resp.status_code == 204
+
+
+
+async def test_delete_budget_nonexistent_returns_404(client):
+    """Non-existent budget ID returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.delete(f"/budgets/{NONEXISTENT_ID}", headers=headers)
+
+    assert resp.status_code == 404
+
+
+async def test_delete_budget_other_users_budget_returns_404(client):
+    """User cannot delete another user's personal budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
+
+    assert resp.status_code == 404
+
+
+async def test_delete_household_budget_as_admin(client):
+    """Admin can delete a household budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, headers)
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=headers)
+
+    assert resp.status_code == 204
+
+
+async def test_delete_household_budget_as_editor(client):
+    """Editor can delete a household budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "editor"},
+        headers=headers,
+    )
+
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
+
+    assert resp.status_code == 204
+
+
+async def test_delete_household_budget_viewer_returns_403(client):
+    """Viewer cannot delete a household budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "viewer"},
+        headers=headers,
+    )
+
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
+
+    assert resp.status_code == 403
+
+
+async def test_delete_budget_unauthenticated_returns_401(client):
+    """Deleting a budget without auth returns 401."""
+    resp = await client.delete(f"/budgets/{NONEXISTENT_ID}")
+
+    assert resp.status_code == 401
