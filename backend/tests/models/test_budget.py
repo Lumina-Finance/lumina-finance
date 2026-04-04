@@ -105,6 +105,22 @@ async def test_delete_budget(db, budget):
     assert result is None
 
 
+async def test_delete_budget_cascades_tracked_categories(db, budget, category):
+    """Deleting a budget cascades to its tracked categories."""
+    tracked = BudgetTrackedCategory(budget_id=budget.id, category_id=category.id)
+    db.add(tracked)
+    await db.flush()
+    tracked_id = tracked.id
+
+    await db.delete(budget)
+    await db.commit()
+
+    # Expire cache so the next query hits the DB and sees the cascade
+    db.expire_all()
+    result = await db.get(BudgetTrackedCategory, tracked_id)
+    assert result is None
+
+
 # --- Budget: Defaults ---
 
 
