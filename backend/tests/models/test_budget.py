@@ -133,9 +133,9 @@ async def test_overall_limit_defaults_to_null(db, budget):
     assert budget.overall_limit is None
 
 
-async def test_parent_budget_defaults_to_null(db, budget):
-    """parent_budget_id should default to null for templates/one-offs."""
-    assert budget.parent_budget_id is None
+async def test_base_budget_defaults_to_null(db, budget):
+    """base_budget_id should default to null for standalone budgets."""
+    assert budget.base_budget_id is None
 
 
 # --- Budget: Recurring ---
@@ -167,14 +167,14 @@ async def test_recurring_budget_instance(db, user):
     await db.flush()
 
     instance = Budget(
-        owner_id=user.id, name="April Budget", parent_budget_id=template.id,
+        owner_id=user.id, name="April Budget", base_budget_id=template.id,
         period_start=date(2026, 4, 1), period_end=date(2026, 4, 30), currency="CAD",
     )
     db.add(instance)
     await db.flush()
 
     result = await db.get(Budget, instance.id)
-    assert result.parent_budget_id == template.id
+    assert result.base_budget_id == template.id
 
 
 # --- Budget: Owner XOR Household Check Constraint ---

@@ -190,7 +190,7 @@ Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of own
   id uuid pk
   owner_id uuid [ref: > users.id]
   household_id uuid [ref: > households.id, delete: cascade]
-  parent_budget_id uuid [ref: > budgets.id, note: "null = template/one-off; non-null = auto-generated instance pointing to its template"]
+  base_budget_id uuid [ref: > budgets.id, note: "null = template/one-off; non-null = auto-generated instance pointing to its template"]
   name varchar(256) [not null]
   period_start date [not null]
   period_end date [not null]

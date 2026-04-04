@@ -262,7 +262,7 @@ Junction table linking transactions to tags. Uses a dedicated table instead of a
 
 ### `budgets`
 
-Spending plan for a time period. Can be one-off or recurring. Recurring budgets use a template/instance pattern: the template row has `recurrence_freq` set and `parent_budget_id = null`; auto-generated period instances point back to the template via `parent_budget_id`.
+Spending plan for a time period. Can be one-off or recurring. Recurring budgets use a template/instance pattern: the template row has `recurrence_freq` set and `base_budget_id = null`; auto-generated period instances point back to the template via `base_budget_id`.
 
 
 | Column                | Type                                          | Constraints                    | Description                                                                         |
@@ -270,7 +270,7 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 | `id`                  | uuid                                          | PK                             |                                                                                     |
 | `owner_id`            | uuid                                          | FK → `users.id`                | Set for personal budgets                                                            |
 | `household_id`        | uuid                                          | FK → `households.id` ON DELETE CASCADE | Set for household budgets                                                           |
-| `parent_budget_id`    | uuid                                          | FK → `budgets.id`              | Null = template or one-off; non-null = generated instance of a recurring template   |
+| `base_budget_id`    | uuid                                          | FK → `budgets.id`              | Null = template or one-off; non-null = generated instance of a recurring template   |
 | `name`                | varchar(256)                                  | NOT NULL                       | e.g., "March 2026 Budget"                                                           |
 | `period_start`        | date                                          | NOT NULL                       |                                                                                     |
 | `period_end`          | date                                          | NOT NULL                       |                                                                                     |
