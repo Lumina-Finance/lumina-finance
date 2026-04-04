@@ -673,3 +673,137 @@ async def test_add_budget_member_unauthenticated_returns_401(client):
     )
 
     assert resp.status_code == 401
+
+
+# --- DELETE /budgets/{budget_id}/members/{member_user_id} ---
+
+
+async def test_remove_budget_member_returns_204(client):
+    """Admin can remove a member from a budget."""
+    headers, _, household_id, budget_id = await _setup_household_with_budget(client)
+    _, other_user_id = await _create_second_user(client)
+
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "editor"},
+        headers=headers,
+    )
+    await client.post(
+        f"/budgets/{budget_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+
+    resp = await client.delete(
+        f"/budgets/{budget_id}/members/{other_user_id}",
+        headers=headers,
+    )
+
+    assert resp.status_code == 204
+
+
+async def test_remove_budget_member_as_editor_returns_403(client):
+    """Editor cannot remove a member from a budget."""
+    headers, user_id, household_id, budget_id = await _setup_household_with_budget(client)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "editor"},
+        headers=headers,
+    )
+    # Admin adds themselves to budget scope
+    await client.post(
+        f"/budgets/{budget_id}/members",
+        json={"user_id": user_id},
+        headers=headers,
+    )
+
+    resp = await client.delete(
+        f"/budgets/{budget_id}/members/{user_id}",
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 403
+
+
+async def test_remove_budget_member_as_viewer_returns_403(client):
+    """Viewer cannot remove a member from a budget."""
+    headers, user_id, household_id, budget_id = await _setup_household_with_budget(client)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "viewer"},
+        headers=headers,
+    )
+    await client.post(
+        f"/budgets/{budget_id}/members",
+        json={"user_id": user_id},
+        headers=headers,
+    )
+
+    resp = await client.delete(
+        f"/budgets/{budget_id}/members/{user_id}",
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 403
+
+
+async def test_remove_budget_member_not_found_returns_404(client):
+    """Removing a user not scoped to the budget returns 404."""
+    headers, _, household_id, budget_id = await _setup_household_with_budget(client)
+    _, other_user_id = await _create_second_user(client)
+
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id, "role": "editor"},
+        headers=headers,
+    )
+
+    resp = await client.delete(
+        f"/budgets/{budget_id}/members/{other_user_id}",
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+
+
+async def test_remove_budget_member_personal_budget_returns_422(client):
+    """Cannot remove a member from a personal budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    _, other_user_id = await _create_second_user(client)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.delete(
+        f"/budgets/{budget_id}/members/{other_user_id}",
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_remove_budget_member_nonexistent_budget_returns_404(client):
+    """Non-existent budget ID returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.delete(
+        f"/budgets/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}",
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+
+
+async def test_remove_budget_member_unauthenticated_returns_401(client):
+    """Removing a budget member without auth returns 401."""
+    resp = await client.delete(
+        f"/budgets/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}",
+    )
+
+    assert resp.status_code == 401
