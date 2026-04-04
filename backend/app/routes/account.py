@@ -10,6 +10,7 @@ from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.base import AccountType, TaxTreatment
 from app.models.currency import Currency
+from app.models.household import HouseholdMember
 from app.models.institution import Institution
 from app.models.user import User
 from app.schemas.account import AccountResponse, CreateAccountRequest, UpdateAccountRequest
@@ -75,7 +76,7 @@ async def create_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new personal account for the authenticated user.
+    """Create a new account. Personal by default, or household-scoped if household_id is provided.
 
     Args:
         data: Account details.
@@ -87,6 +88,8 @@ async def create_account(
 
     Raises:
         HTTPException 422: Invalid account_type, tax_treatment, currency, or institution.
+        HTTPException 403: User is not an admin of the household.
+        HTTPException 404: User is not a member of the household.
     """
     if data.account_type not in _VALID_ACCOUNT_TYPES:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid account type")
@@ -104,8 +107,26 @@ async def create_account(
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
+    # Determine ownership
+    owner_id = user.id
+    household_id = data.household_id
+    if household_id:
+        membership_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        membership = membership_result.scalar_one_or_none()
+        if not membership:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        if not membership.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create household accounts")
+        owner_id = None
+
     account = Account(
-        owner_id=user.id,
+        owner_id=owner_id,
+        household_id=household_id,
         account_type=data.account_type,
         tax_treatment=data.tax_treatment,
         name=data.name,
