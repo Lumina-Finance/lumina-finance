@@ -132,27 +132,8 @@ async def update_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update an account. Only provided fields are changed. Must belong to the authenticated user.
-
-    Args:
-        account_id: UUID of the account.
-        data: Partial update payload.
-        user: The authenticated user.
-        db: Async database session.
-
-    Returns:
-        The updated account.
-
-    Raises:
-        HTTPException 404: Account not found or not owned by the user.
-        HTTPException 422: Invalid tax_treatment or institution.
-    """
-    result = await db.execute(
-        select(Account).where(Account.id == account_id, Account.owner_id == user.id),
-    )
-    account = result.scalar_one_or_none()
-    if not account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    """Update an account. Requires admin access."""
+    account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
 
     updates = data.model_dump(exclude_unset=True)
     if not updates:
