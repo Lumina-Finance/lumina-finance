@@ -538,3 +538,22 @@ async def revoke_budget_permission(
 
     await db.delete(budget_permission)
     await db.commit()
+
+
+@router.get("/{budget_id}/permissions", response_model=list[BudgetPermissionResponse])
+async def list_budget_permissions(
+    budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user_id: uuid.UUID | None = None,
+):
+    """List permissions for a household budget. Requires admin."""
+    budget = await _get_household_budget_or_404(db, budget_id)
+    await _check_budget_admin_or_403(db, budget.household_id, user.id)
+
+    query = select(BudgetPermission).where(BudgetPermission.budget_id == budget_id)
+    if user_id:
+        query = query.where(BudgetPermission.user_id == user_id)
+
+    result = await db.execute(query.order_by(BudgetPermission.created_at))
+    return result.scalars().all()
