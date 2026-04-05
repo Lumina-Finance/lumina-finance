@@ -84,7 +84,7 @@ async def _setup_household_with_member_and_account(client):
     return admin_headers, member_headers, member_user_id, household_id, account_id
 
 
-# --- POST /households/{id}/account-permissions ---
+# --- POST /accounts/{account_id}/permissions ---
 
 
 async def test_grant_account_permission_returns_201(client):
@@ -92,8 +92,8 @@ async def test_grant_account_permission_returns_201(client):
     admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
 
@@ -109,11 +109,11 @@ async def test_grant_account_permission_returns_201(client):
 
 async def test_grant_account_permission_write_level(client):
     """Admin can grant write permission."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "write"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "write"},
         headers=admin_headers,
     )
 
@@ -123,11 +123,11 @@ async def test_grant_account_permission_write_level(client):
 
 async def test_grant_account_permission_admin_level_on_account(client):
     """Admin can grant account-level admin permission (full control over the account)."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "admin"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "admin"},
         headers=admin_headers,
     )
 
@@ -137,18 +137,18 @@ async def test_grant_account_permission_admin_level_on_account(client):
 
 async def test_grant_account_permission_updating_level(client):
     """Elevating a member's permission on the same account updates in place."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     resp1 = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
     permission_id = resp1.json()["id"]
 
     resp2 = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "write"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "write"},
         headers=admin_headers,
     )
 
@@ -159,11 +159,11 @@ async def test_grant_account_permission_updating_level(client):
 
 async def test_grant_account_permission_invalid_level_returns_422(client):
     """Invalid permission level is rejected."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "superadmin"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "superadmin"},
         headers=admin_headers,
     )
 
@@ -179,10 +179,9 @@ async def test_grant_account_permission_to_admin_member_returns_422(client):
     household_id = await _create_household(client, admin_headers)
     account_id = await _create_household_account(client, admin_headers, household_id)
 
-    # Try to grant permission to self (the owner, who is admin)
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": user_id, "level": "read"},
         headers=admin_headers,
     )
 
@@ -194,7 +193,6 @@ async def test_grant_account_permission_to_promoted_admin_returns_422(client):
     """Cannot grant permission to a member who was promoted to admin."""
     admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
 
-    # Promote member to admin
     await client.patch(
         f"/households/{household_id}/members/{member_user_id}",
         json={"is_admin": True},
@@ -202,8 +200,8 @@ async def test_grant_account_permission_to_promoted_admin_returns_422(client):
     )
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
 
@@ -213,11 +211,11 @@ async def test_grant_account_permission_to_promoted_admin_returns_422(client):
 
 async def test_grant_account_permission_to_non_member_returns_422(client):
     """Cannot grant permission to a user who is not a household member."""
-    admin_headers, _, _, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, _, _, account_id = await _setup_household_with_member_and_account(client)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": NONEXISTENT_ID, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": NONEXISTENT_ID, "level": "read"},
         headers=admin_headers,
     )
 
@@ -227,44 +225,44 @@ async def test_grant_account_permission_to_non_member_returns_422(client):
 
 async def test_grant_account_permission_personal_account_returns_422(client):
     """Cannot grant permission on a personal account (not household-scoped)."""
-    admin_headers, _, member_user_id, household_id, _ = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, _ = await _setup_household_with_member_and_account(client)
 
-    # Create a personal account
     personal_resp = await client.post("/accounts", json={
         "account_type": "checking", "name": "Personal", "currency": "CAD",
     }, headers=admin_headers)
     personal_account_id = personal_resp.json()["id"]
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": personal_account_id, "level": "read"},
+        f"/accounts/{personal_account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account not found in this household"
+    assert resp.json()["detail"] == "Only household accounts support permissions"
 
 
-async def test_grant_account_permission_nonexistent_account_returns_422(client):
+async def test_grant_account_permission_nonexistent_account_returns_404(client):
     """Cannot grant permission on a nonexistent account."""
-    admin_headers, _, member_user_id, household_id, _ = await _setup_household_with_member_and_account(client)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": NONEXISTENT_ID, "level": "read"},
-        headers=admin_headers,
+        f"/accounts/{NONEXISTENT_ID}/permissions",
+        json={"user_id": NONEXISTENT_ID, "level": "read"},
+        headers=headers,
     )
 
-    assert resp.status_code == 422
+    assert resp.status_code == 404
 
 
 async def test_grant_account_permission_by_non_admin_returns_403(client):
     """Non-admin member cannot grant permissions."""
-    _, member_headers, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    _, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=member_headers,
     )
 
@@ -273,9 +271,8 @@ async def test_grant_account_permission_by_non_admin_returns_403(client):
 
 async def test_grant_account_permission_by_non_member_returns_404(client):
     """Non-member cannot grant permissions."""
-    _, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    _, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
-    # Create a third user who is not a member
     third_resp = await client.post("/auth/signup", json={
         "email": "third@example.com", "password": "securepassword123",
         "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
@@ -283,102 +280,95 @@ async def test_grant_account_permission_by_non_member_returns_404(client):
     third_headers = _get_auth_header(third_resp)
 
     resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=third_headers,
     )
 
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "Household not found"
+    assert resp.json()["detail"] == "Account not found"
 
 
 async def test_grant_account_permission_unauthenticated_returns_401(client):
     """Granting permission without auth returns 401."""
     resp = await client.post(
-        f"/households/{NONEXISTENT_ID}/account-permissions",
-        json={"user_id": NONEXISTENT_ID, "account_id": NONEXISTENT_ID, "level": "read"},
+        f"/accounts/{NONEXISTENT_ID}/permissions",
+        json={"user_id": NONEXISTENT_ID, "level": "read"},
     )
 
     assert resp.status_code == 401
 
 
-# --- DELETE /households/{id}/account-permissions/{permission_id} ---
+# --- DELETE /accounts/{account_id}/permissions/{permission_id} ---
 
 
 async def test_revoke_account_permission_returns_204(client):
     """Admin can revoke a permission."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     grant_resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
     permission_id = grant_resp.json()["id"]
 
     resp = await client.delete(
-        f"/households/{household_id}/account-permissions/{permission_id}",
+        f"/accounts/{account_id}/permissions/{permission_id}",
         headers=admin_headers,
     )
 
     assert resp.status_code == 204
 
-    # Verify it's gone by listing
-    list_resp = await client.get(
-        f"/households/{household_id}/account-permissions",
-        headers=admin_headers,
-    )
+    list_resp = await client.get(f"/accounts/{account_id}/permissions", headers=admin_headers)
     assert list_resp.json() == []
 
 
 async def test_revoke_account_permission_double_revoke_returns_404(client):
     """Revoking the same permission twice returns 404 on the second call."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     grant_resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
     permission_id = grant_resp.json()["id"]
 
-    first = await client.delete(f"/households/{household_id}/account-permissions/{permission_id}", headers=admin_headers)
+    first = await client.delete(f"/accounts/{account_id}/permissions/{permission_id}", headers=admin_headers)
     assert first.status_code == 204
 
-    second = await client.delete(f"/households/{household_id}/account-permissions/{permission_id}", headers=admin_headers)
+    second = await client.delete(f"/accounts/{account_id}/permissions/{permission_id}", headers=admin_headers)
     assert second.status_code == 404
 
 
 async def test_revoke_account_permission_nonexistent_returns_404(client):
     """Revoking a nonexistent permission returns 404."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    household_id = await _create_household(client, headers)
+    admin_headers, _, _, _, account_id = await _setup_household_with_member_and_account(client)
 
     resp = await client.delete(
-        f"/households/{household_id}/account-permissions/{NONEXISTENT_ID}",
-        headers=headers,
+        f"/accounts/{account_id}/permissions/{NONEXISTENT_ID}",
+        headers=admin_headers,
     )
 
     assert resp.status_code == 404
 
 
-async def test_revoke_account_permission_wrong_household_returns_404(client):
-    """Permission from a different household returns 404."""
+async def test_revoke_account_permission_wrong_account_returns_404(client):
+    """Permission ID from a different account returns 404."""
     admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
 
     grant_resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
     permission_id = grant_resp.json()["id"]
 
-    # Create a second household
-    second_household_id = await _create_household(client, admin_headers, )
+    second_account_id = await _create_household_account(client, admin_headers, household_id)
 
     resp = await client.delete(
-        f"/households/{second_household_id}/account-permissions/{permission_id}",
+        f"/accounts/{second_account_id}/permissions/{permission_id}",
         headers=admin_headers,
     )
 
@@ -388,17 +378,17 @@ async def test_revoke_account_permission_wrong_household_returns_404(client):
 
 async def test_revoke_account_permission_by_non_admin_returns_403(client):
     """Non-admin cannot revoke permissions."""
-    admin_headers, member_headers, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     grant_resp = await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
     permission_id = grant_resp.json()["id"]
 
     resp = await client.delete(
-        f"/households/{household_id}/account-permissions/{permission_id}",
+        f"/accounts/{account_id}/permissions/{permission_id}",
         headers=member_headers,
     )
 
@@ -408,29 +398,26 @@ async def test_revoke_account_permission_by_non_admin_returns_403(client):
 async def test_revoke_account_permission_unauthenticated_returns_401(client):
     """Revoking permission without auth returns 401."""
     resp = await client.delete(
-        f"/households/{NONEXISTENT_ID}/account-permissions/{NONEXISTENT_ID}",
+        f"/accounts/{NONEXISTENT_ID}/permissions/{NONEXISTENT_ID}",
     )
 
     assert resp.status_code == 401
 
 
-# --- GET /households/{id}/account-permissions ---
+# --- GET /accounts/{account_id}/permissions ---
 
 
 async def test_list_account_permissions_returns_200(client):
-    """Admin can list all permissions for a household."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    """Admin can list all permissions for an account."""
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
 
-    resp = await client.get(
-        f"/households/{household_id}/account-permissions",
-        headers=admin_headers,
-    )
+    resp = await client.get(f"/accounts/{account_id}/permissions", headers=admin_headers)
 
     assert resp.status_code == 200
     assert len(resp.json()) == 1
@@ -441,14 +428,9 @@ async def test_list_account_permissions_returns_200(client):
 
 async def test_list_account_permissions_empty(client):
     """Empty list when no permissions exist."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    household_id = await _create_household(client, headers)
+    admin_headers, _, _, _, account_id = await _setup_household_with_member_and_account(client)
 
-    resp = await client.get(
-        f"/households/{household_id}/account-permissions",
-        headers=headers,
-    )
+    resp = await client.get(f"/accounts/{account_id}/permissions", headers=admin_headers)
 
     assert resp.status_code == 200
     assert resp.json() == []
@@ -456,16 +438,16 @@ async def test_list_account_permissions_empty(client):
 
 async def test_list_account_permissions_filter_by_user_id(client):
     """Filter permissions by user_id."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
+    admin_headers, _, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
 
     await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
 
     resp = await client.get(
-        f"/households/{household_id}/account-permissions?user_id={member_user_id}",
+        f"/accounts/{account_id}/permissions?user_id={member_user_id}",
         headers=admin_headers,
     )
 
@@ -474,60 +456,8 @@ async def test_list_account_permissions_filter_by_user_id(client):
     assert resp.json()[0]["user_id"] == member_user_id
     assert resp.json()[0]["level"] == "read"
 
-    # Filter by nonexistent user returns empty
     resp2 = await client.get(
-        f"/households/{household_id}/account-permissions?user_id={NONEXISTENT_ID}",
-        headers=admin_headers,
-    )
-    assert resp2.json() == []
-
-
-async def test_list_account_permissions_filter_by_account_id(client):
-    """Filter permissions by account_id."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
-
-    await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "write"},
-        headers=admin_headers,
-    )
-
-    resp = await client.get(
-        f"/households/{household_id}/account-permissions?account_id={account_id}",
-        headers=admin_headers,
-    )
-
-    assert resp.status_code == 200
-    assert len(resp.json()) == 1
-    assert resp.json()[0]["user_id"] == member_user_id
-    assert resp.json()[0]["account_id"] == account_id
-    assert resp.json()[0]["level"] == "write"
-
-
-async def test_list_account_permissions_filter_by_both(client):
-    """Filter by user_id and account_id together."""
-    admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
-
-    await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
-        headers=admin_headers,
-    )
-
-    resp = await client.get(
-        f"/households/{household_id}/account-permissions?user_id={member_user_id}&account_id={account_id}",
-        headers=admin_headers,
-    )
-
-    assert resp.status_code == 200
-    assert len(resp.json()) == 1
-    assert resp.json()[0]["user_id"] == member_user_id
-    assert resp.json()[0]["account_id"] == account_id
-    assert resp.json()[0]["level"] == "read"
-
-    # Both filters with nonexistent account returns empty
-    resp2 = await client.get(
-        f"/households/{household_id}/account-permissions?user_id={member_user_id}&account_id={NONEXISTENT_ID}",
+        f"/accounts/{account_id}/permissions?user_id={NONEXISTENT_ID}",
         headers=admin_headers,
     )
     assert resp2.json() == []
@@ -537,53 +467,45 @@ async def test_list_account_permissions_multiple_ordered_by_created_at(client):
     """Multiple permissions are returned ordered by created_at."""
     admin_headers, _, member_user_id, household_id, account_id = await _setup_household_with_member_and_account(client)
 
-    # Create a second household account
-    second_account_resp = await client.post("/accounts", json={
-        "account_type": "savings", "name": "Joint Savings", "currency": "CAD",
-        "household_id": household_id,
-    }, headers=admin_headers)
-    second_account_id = second_account_resp.json()["id"]
+    third_resp = await client.post("/auth/signup", json={
+        "email": "third@example.com", "password": "securepassword123",
+        "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    third_user_id = third_resp.json()["user"]["id"]
+    await client.post(f"/households/{household_id}/members", json={"user_id": third_user_id}, headers=admin_headers)
 
     await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": account_id, "level": "read"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
         headers=admin_headers,
     )
     await client.post(
-        f"/households/{household_id}/account-permissions",
-        json={"user_id": member_user_id, "account_id": second_account_id, "level": "write"},
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": third_user_id, "level": "write"},
         headers=admin_headers,
     )
 
-    resp = await client.get(
-        f"/households/{household_id}/account-permissions",
-        headers=admin_headers,
-    )
+    resp = await client.get(f"/accounts/{account_id}/permissions", headers=admin_headers)
 
     assert resp.status_code == 200
     assert len(resp.json()) == 2
-    assert resp.json()[0]["account_id"] == account_id
+    assert resp.json()[0]["user_id"] == member_user_id
     assert resp.json()[0]["level"] == "read"
-    assert resp.json()[1]["account_id"] == second_account_id
+    assert resp.json()[1]["user_id"] == third_user_id
     assert resp.json()[1]["level"] == "write"
 
 
 async def test_list_account_permissions_by_non_admin_returns_403(client):
     """Non-admin cannot list permissions."""
-    _, member_headers, _, household_id, _ = await _setup_household_with_member_and_account(client)
+    _, member_headers, _, _, account_id = await _setup_household_with_member_and_account(client)
 
-    resp = await client.get(
-        f"/households/{household_id}/account-permissions",
-        headers=member_headers,
-    )
+    resp = await client.get(f"/accounts/{account_id}/permissions", headers=member_headers)
 
     assert resp.status_code == 403
 
 
 async def test_list_account_permissions_unauthenticated_returns_401(client):
     """Listing permissions without auth returns 401."""
-    resp = await client.get(
-        f"/households/{NONEXISTENT_ID}/account-permissions",
-    )
+    resp = await client.get(f"/accounts/{NONEXISTENT_ID}/permissions")
 
     assert resp.status_code == 401
