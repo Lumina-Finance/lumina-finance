@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import CategoryKind
 from app.models.category import Category
+from app.models.household import HouseholdMember
 from app.models.user import User
 from app.schemas.category import CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest
 
@@ -21,19 +22,27 @@ _VALID_KINDS = {e.value for e in CategoryKind}
 async def list_categories(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    household_id: Annotated[uuid.UUID | None, Query()] = None,
 ):
-    """Return all categories owned by the authenticated user.
+    """Return categories the user can access. Personal only by default, or include a household's categories."""
+    query = select(Category).where(Category.owner_id == user.id)
 
-    Args:
-        user: The authenticated user.
-        db: Async database session.
+    if household_id:
+        # Verify membership
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        if not member_result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
 
-    Returns:
-        List of categories sorted by name.
-    """
-    result = await db.execute(
-        select(Category).where(Category.owner_id == user.id).order_by(Category.name),
-    )
+        query = select(Category).where(
+            (Category.owner_id == user.id) | (Category.household_id == household_id),
+        )
+
+    result = await db.execute(query.order_by(Category.name))
     return result.scalars().all()
 
 
