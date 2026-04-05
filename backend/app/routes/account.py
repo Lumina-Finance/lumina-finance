@@ -29,19 +29,24 @@ async def list_accounts(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return all accounts owned by the authenticated user.
-
-    Args:
-        user: The authenticated user.
-        db: Async database session.
-
-    Returns:
-        List of accounts sorted by creation date.
-    """
-    result = await db.execute(
-        select(Account).where(Account.owner_id == user.id).order_by(Account.created_at),
+    """Return all accounts the user can access: personal, household admin, or explicit permission."""
+    # Personal accounts OR household accounts where user is admin OR has explicit permission
+    query = (
+        select(Account)
+        .outerjoin(HouseholdMember, Account.household_id == HouseholdMember.household_id)
+        .outerjoin(
+            AccountPermission,
+            (AccountPermission.account_id == Account.id) & (AccountPermission.user_id == user.id),
+        )
+        .where(
+            (Account.owner_id == user.id)
+            | ((HouseholdMember.user_id == user.id) & (HouseholdMember.is_admin.is_(True)))
+            | (AccountPermission.user_id == user.id),
+        )
+        .order_by(Account.created_at)
     )
-    return result.scalars().all()
+    result = await db.execute(query)
+    return result.scalars().unique().all()
 
 
 @router.get("/{account_id}", response_model=AccountResponse)
