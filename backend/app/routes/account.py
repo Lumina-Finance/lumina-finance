@@ -7,13 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account
+from app.models.account import Account, AccountPermission
 from app.models.base import AccountType, TaxTreatment
 from app.models.currency import Currency
 from app.models.household import HouseholdMember
 from app.models.institution import Institution
 from app.models.user import User
 from app.schemas.account import AccountResponse, CreateAccountRequest, UpdateAccountRequest
+from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -217,3 +218,157 @@ async def delete_account(
 
     await db.delete(account)
     await db.commit()
+
+
+# --- Account permissions ---
+
+
+async def _get_household_account_or_404(
+    db: AsyncSession, account_id: uuid.UUID,
+) -> Account:
+    """Fetch a household account or raise 404 if not found or not household-scoped.
+
+    Args:
+        db: Async database session.
+        account_id: UUID of the account.
+
+    Returns:
+        The Account row (must have household_id set).
+
+    Raises:
+        HTTPException 404: Account not found.
+        HTTPException 422: Account is not a household account.
+    """
+    result = await db.execute(select(Account).where(Account.id == account_id))
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    if not account.household_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household accounts support permissions")
+    return account
+
+
+async def _check_account_admin_or_403(
+    db: AsyncSession, household_id: uuid.UUID, user_id: uuid.UUID,
+) -> HouseholdMember:
+    """Verify the user is an admin of the account's household.
+
+    Args:
+        db: Async database session.
+        household_id: UUID of the household.
+        user_id: UUID of the user.
+
+    Returns:
+        The HouseholdMember row.
+
+    Raises:
+        HTTPException 404: User is not a member of the household.
+        HTTPException 403: User is not an admin.
+    """
+    result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == user_id,
+        ),
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    if not membership.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    return membership
+
+
+@router.post("/{account_id}/permissions", response_model=AccountPermissionResponse, status_code=status.HTTP_201_CREATED)
+async def grant_account_permission(
+    account_id: uuid.UUID,
+    data: GrantAccountPermissionRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Grant or update a member's access level on a household account. Requires admin."""
+    account = await _get_household_account_or_404(db, account_id)
+    await _check_account_admin_or_403(db, account.household_id, user.id)
+
+    # Target must be a non-admin household member (admins have implicit full access)
+    target_result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == account.household_id,
+            HouseholdMember.user_id == data.user_id,
+        ),
+    )
+    target_member = target_result.scalar_one_or_none()
+    if not target_member:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this household")
+    if target_member.is_admin:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Admins have implicit full access")
+
+    # Update level if permission already exists, otherwise create a new one
+    existing_result = await db.execute(
+        select(AccountPermission).where(
+            AccountPermission.household_id == account.household_id,
+            AccountPermission.user_id == data.user_id,
+            AccountPermission.account_id == account_id,
+        ),
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        existing.level = data.level
+        await db.commit()
+        await db.refresh(existing)
+        return existing
+
+    account_permission = AccountPermission(
+        household_id=account.household_id,
+        user_id=data.user_id,
+        account_id=account_id,
+        level=data.level,
+    )
+    db.add(account_permission)
+    await db.commit()
+    await db.refresh(account_permission)
+    return account_permission
+
+
+@router.delete("/{account_id}/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_account_permission(
+    account_id: uuid.UUID,
+    permission_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Revoke a member's access to a household account. Requires admin."""
+    account = await _get_household_account_or_404(db, account_id)
+    await _check_account_admin_or_403(db, account.household_id, user.id)
+
+    result = await db.execute(
+        select(AccountPermission).where(
+            AccountPermission.id == permission_id,
+            AccountPermission.account_id == account_id,
+        ),
+    )
+    account_permission = result.scalar_one_or_none()
+    if not account_permission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
+
+    await db.delete(account_permission)
+    await db.commit()
+
+
+@router.get("/{account_id}/permissions", response_model=list[AccountPermissionResponse])
+async def list_account_permissions(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user_id: uuid.UUID | None = None,
+):
+    """List permissions for a household account. Requires admin."""
+    account = await _get_household_account_or_404(db, account_id)
+    await _check_account_admin_or_403(db, account.household_id, user.id)
+
+    query = select(AccountPermission).where(AccountPermission.account_id == account_id)
+    if user_id:
+        query = query.where(AccountPermission.user_id == user_id)
+
+    result = await db.execute(query.order_by(AccountPermission.created_at))
+    return result.scalars().all()

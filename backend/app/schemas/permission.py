@@ -12,7 +12,6 @@ class GrantAccountPermissionRequest(BaseModel):
     """Grant or update a member's access level on a household account."""
 
     user_id: uuid.UUID
-    account_id: uuid.UUID
     level: PermissionLevel
 
 
@@ -36,7 +35,6 @@ class GrantBudgetPermissionRequest(BaseModel):
     """Grant or update a member's access level on a household budget."""
 
     user_id: uuid.UUID
-    budget_id: uuid.UUID
     level: PermissionLevel
 
 
