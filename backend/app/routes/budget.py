@@ -513,3 +513,28 @@ async def grant_budget_permission(
     await db.commit()
     await db.refresh(budget_permission)
     return budget_permission
+
+
+@router.delete("/{budget_id}/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_budget_permission(
+    budget_id: uuid.UUID,
+    permission_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Revoke a member's access to a household budget. Requires admin."""
+    budget = await _get_household_budget_or_404(db, budget_id)
+    await _check_budget_admin_or_403(db, budget.household_id, user.id)
+
+    result = await db.execute(
+        select(BudgetPermission).where(
+            BudgetPermission.id == permission_id,
+            BudgetPermission.budget_id == budget_id,
+        ),
+    )
+    budget_permission = result.scalar_one_or_none()
+    if not budget_permission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
+
+    await db.delete(budget_permission)
+    await db.commit()
