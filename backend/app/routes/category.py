@@ -52,21 +52,16 @@ async def get_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single category by ID. Must belong to the authenticated user.
+    """Return a single category. Must be personal or from a household the user belongs to."""
+    household_ids = (
+        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    ).scalar_subquery()
 
-    Args:
-        category_id: UUID of the category.
-        user: The authenticated user.
-        db: Async database session.
-
-    Returns:
-        The matching category.
-
-    Raises:
-        HTTPException 404: Category not found or not owned by the user.
-    """
     result = await db.execute(
-        select(Category).where(Category.id == category_id, Category.owner_id == user.id),
+        select(Category).where(
+            Category.id == category_id,
+            (Category.owner_id == user.id) | (Category.household_id.in_(household_ids)),
+        ),
     )
     category = result.scalar_one_or_none()
     if not category:
