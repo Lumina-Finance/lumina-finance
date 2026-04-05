@@ -11,12 +11,14 @@ from sqlalchemy.orm import MappedColumn
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
+from app.models.base import PermissionLevel
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.permissions import check_transaction_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -161,14 +163,8 @@ async def get_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single transaction by ID. Must belong to the authenticated user."""
-    txn_query = await db.execute(
-        select(Transaction).where(Transaction.id == transaction_id, Transaction.created_by_user_id == user.id),
-    )
-    txn = txn_query.scalar_one_or_none()
-    if not txn:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
-
+    """Return a single transaction by ID. Requires read access on the parent account."""
+    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
     tag_ids = await _get_tag_ids(db, txn.id)
     return _build_response(txn, tag_ids)
 

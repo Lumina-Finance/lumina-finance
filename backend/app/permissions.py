@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
 from app.models.household import HouseholdMember
+from app.models.transaction import Transaction
 
 # Ordered mapping for level comparison (higher = more access)
 _LEVEL_RANK = {PermissionLevel.READ: 0, PermissionLevel.WRITE: 1, PermissionLevel.ADMIN: 2}
@@ -71,3 +72,29 @@ async def check_account_access(
             return account
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+
+
+async def check_transaction_access(
+    db: AsyncSession, transaction_id: uuid.UUID, user_id: uuid.UUID, required_level: PermissionLevel,
+) -> Transaction:
+    """Verify the user can access a transaction via its parent account.
+
+    Args:
+        db: Async database session.
+        transaction_id: UUID of the transaction.
+        user_id: UUID of the requesting user.
+        required_level: Minimum permission level needed on the parent account.
+
+    Returns:
+        The Transaction row.
+
+    Raises:
+        HTTPException 404: Transaction not found or user lacks access to its account.
+    """
+    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+    txn = result.scalar_one_or_none()
+    if not txn:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    await check_account_access(db, txn.account_id, user_id, required_level)
+    return txn
