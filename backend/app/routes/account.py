@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountPermission
-from app.models.base import AccountType, TaxTreatment
+from app.models.base import AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.household import HouseholdMember
 from app.models.institution import Institution
 from app.models.user import User
+from app.permissions import check_account_access
 from app.schemas.account import AccountResponse, CreateAccountRequest, UpdateAccountRequest
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
 
@@ -49,26 +50,8 @@ async def get_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single account by ID. Must belong to the authenticated user.
-
-    Args:
-        account_id: UUID of the account.
-        user: The authenticated user.
-        db: Async database session.
-
-    Returns:
-        The matching account.
-
-    Raises:
-        HTTPException 404: Account not found or not owned by the user.
-    """
-    result = await db.execute(
-        select(Account).where(Account.id == account_id, Account.owner_id == user.id),
-    )
-    account = result.scalar_one_or_none()
-    if not account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    return account
+    """Return a single account by ID. Requires read access."""
+    return await check_account_access(db, account_id, user.id, PermissionLevel.READ)
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
