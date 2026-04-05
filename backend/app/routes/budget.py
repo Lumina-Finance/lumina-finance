@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.budget import Budget, BudgetMember, BudgetTrackedCategory
+from app.models.budget import Budget, BudgetMember, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.household import HouseholdMember
 from app.models.user import User
 from app.schemas.budget import AddBudgetMemberRequest, BudgetMemberResponse, BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
+from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -402,3 +403,113 @@ async def create_budget(
     await db.commit()
     await db.refresh(budget)
     return await _build_budget_response(db, budget)
+
+
+# --- Budget permissions ---
+
+
+async def _get_household_budget_or_404(
+    db: AsyncSession, budget_id: uuid.UUID,
+) -> Budget:
+    """Fetch a household budget or raise 404 if not found, 422 if not household-scoped.
+
+    Args:
+        db: Async database session.
+        budget_id: UUID of the budget.
+
+    Returns:
+        The Budget row (must have household_id set).
+
+    Raises:
+        HTTPException 404: Budget not found.
+        HTTPException 422: Budget is not a household budget.
+    """
+    result = await db.execute(select(Budget).where(Budget.id == budget_id))
+    budget = result.scalar_one_or_none()
+    if not budget:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
+    if not budget.household_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support permissions")
+    return budget
+
+
+async def _check_budget_admin_or_403(
+    db: AsyncSession, household_id: uuid.UUID, user_id: uuid.UUID,
+) -> HouseholdMember:
+    """Verify the user is an admin of the budget's household.
+
+    Args:
+        db: Async database session.
+        household_id: UUID of the household.
+        user_id: UUID of the user.
+
+    Returns:
+        The HouseholdMember row.
+
+    Raises:
+        HTTPException 404: User is not a member of the household.
+        HTTPException 403: User is not an admin.
+    """
+    result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == user_id,
+        ),
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
+    if not membership.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    return membership
+
+
+@router.post("/{budget_id}/permissions", response_model=BudgetPermissionResponse, status_code=status.HTTP_201_CREATED)
+async def grant_budget_permission(
+    budget_id: uuid.UUID,
+    data: GrantBudgetPermissionRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Grant or update a member's access level on a household budget. Requires admin."""
+    budget = await _get_household_budget_or_404(db, budget_id)
+    await _check_budget_admin_or_403(db, budget.household_id, user.id)
+
+    # Target must be a non-admin household member (admins have implicit full access)
+    target_result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == budget.household_id,
+            HouseholdMember.user_id == data.user_id,
+        ),
+    )
+    target_member = target_result.scalar_one_or_none()
+    if not target_member:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this household")
+    if target_member.is_admin:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Admins have implicit full access")
+
+    # Update level if permission already exists, otherwise create a new one
+    existing_result = await db.execute(
+        select(BudgetPermission).where(
+            BudgetPermission.household_id == budget.household_id,
+            BudgetPermission.user_id == data.user_id,
+            BudgetPermission.budget_id == budget_id,
+        ),
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        existing.level = data.level
+        await db.commit()
+        await db.refresh(existing)
+        return existing
+
+    budget_permission = BudgetPermission(
+        household_id=budget.household_id,
+        user_id=data.user_id,
+        budget_id=budget_id,
+        level=data.level,
+    )
+    db.add(budget_permission)
+    await db.commit()
+    await db.refresh(budget_permission)
+    return budget_permission
