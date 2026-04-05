@@ -75,43 +75,49 @@ async def create_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new category for the authenticated user.
-
-    Args:
-        data: Category details (name, kind, optional parent_id).
-        user: The authenticated user.
-        db: Async database session.
-
-    Returns:
-        The created category.
-
-    Raises:
-        HTTPException 422: Invalid kind or parent category not found.
-    """
+    """Create a new category. Personal by default, or household-scoped if household_id is provided."""
     if data.kind not in _VALID_KINDS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid category kind")
 
-    # Reject duplicate name + kind for the same user
-    result = await db.execute(
-        select(Category).where(
-            Category.owner_id == user.id,
-            Category.name == data.name,
-            Category.kind == data.kind,
-        ),
-    )
-    if result.scalar_one_or_none():
+    household_id = data.household_id
+    if household_id:
+        # Only admins can create household categories
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        member = member_result.scalar_one_or_none()
+        if not member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        if not member.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
+    # Reject duplicate name + kind within the scope (household or personal)
+    dup_query = select(Category).where(Category.name == data.name, Category.kind == data.kind)
+    if household_id:
+        dup_query = dup_query.where(Category.household_id == household_id)
+    else:
+        dup_query = dup_query.where(Category.owner_id == user.id)
+    if (await db.execute(dup_query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category with this name and kind already exists")
 
-    # Validate parent exists and belongs to the user
+    # Validate parent exists and is accessible (personal or same household)
     if data.parent_id:
-        result = await db.execute(
-            select(Category).where(Category.id == data.parent_id, Category.owner_id == user.id),
-        )
-        if not result.scalar_one_or_none():
+        parent_query = select(Category).where(Category.id == data.parent_id)
+        if household_id:
+            parent_query = parent_query.where(
+                (Category.owner_id == user.id) | (Category.household_id == household_id),
+            )
+        else:
+            parent_query = parent_query.where(Category.owner_id == user.id)
+        if not (await db.execute(parent_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
 
     category = Category(
         owner_id=user.id,
+        household_id=household_id,
         name=data.name,
         kind=data.kind,
         parent_id=data.parent_id,
