@@ -109,7 +109,7 @@ Per-account access control for household members. Admins have implicit full acce
 
 ### `budget_permissions`
 
-Per-budget access control for household members. Same structure as account_permissions.
+Per-budget access control for household members. Same structure as account_permissions. Budget permissions are independent of account permissions — a user with budget READ can see aggregated spending per category without needing account access. This enables privacy-respecting monitoring (e.g., parents see "Food: $150 / $300" without seeing individual transactions).
 
 
 | Column         | Type             | Constraints                                                          | Description                              |
@@ -118,7 +118,7 @@ Per-budget access control for household members. Same structure as account_permi
 | `household_id` | uuid             | NOT NULL, FK → `households.id` ON DELETE CASCADE                     |                                          |
 | `user_id`      | uuid             | NOT NULL, FK → `users.id`                                           |                                          |
 | `budget_id`    | uuid             | NOT NULL, FK → `budgets.id` ON DELETE CASCADE                        |                                          |
-| `level`        | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view budget; `write` = also edit budget details; `admin` = also delete budget |
+| `level`        | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view budget config + aggregated utilization; `write` = also edit budget details; `admin` = also delete budget |
 | `created_at`   | timestamptz      | NOT NULL                                                             |                                          |
 
 **Unique constraint:** `(household_id, user_id, budget_id)` — one permission level per member per budget.

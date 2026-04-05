@@ -43,7 +43,7 @@ Table account_permissions [headercolor: #8B5CF6, note: "per-account access for h
   }
 }
 
-Table budget_permissions [headercolor: #F43F5E, note: "per-budget access for household members; admins have implicit full access"] {
+Table budget_permissions [headercolor: #F43F5E, note: "per-budget access for household members; admins have implicit full access; independent of account permissions — read grants aggregated utilization without exposing individual transactions"] {
   id uuid pk
   household_id uuid [not null, ref: > households.id, note: "ON DELETE CASCADE"]
   user_id uuid [not null, ref: > users.id]
