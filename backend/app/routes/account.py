@@ -163,23 +163,8 @@ async def delete_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete an account. Must belong to the authenticated user.
-
-    Args:
-        account_id: UUID of the account.
-        user: The authenticated user.
-        db: Async database session.
-
-    Raises:
-        HTTPException 404: Account not found or not owned by the user.
-    """
-    result = await db.execute(
-        select(Account).where(Account.id == account_id, Account.owner_id == user.id),
-    )
-    account = result.scalar_one_or_none()
-    if not account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-
+    """Delete an account. Requires admin access."""
+    account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
     await db.delete(account)
     await db.commit()
 
