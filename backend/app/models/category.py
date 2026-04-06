@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CategoryKind
@@ -12,7 +12,12 @@ class Category(Base):
 
     __tablename__ = "categories"
     __table_args__ = (
-        UniqueConstraint("owner_id", "name", "kind", name="uq_category_owner_name_kind"),
+        # Personal categories: unique per user (only when not household-scoped)
+        Index(
+            "uq_category_owner_name_kind", "owner_id", "name", "kind",
+            unique=True, postgresql_where=text("household_id IS NULL"),
+        ),
+        # Household categories: unique per household
         UniqueConstraint("household_id", "name", "kind", name="uq_category_household_name_kind"),
     )
 
