@@ -311,25 +311,25 @@ async def create_budget(
 async def _get_household_budget_or_404(
     db: AsyncSession, budget_id: uuid.UUID,
 ) -> Budget:
-    """Fetch a household budget or raise 404 if not found, 422 if not household-scoped.
+    """Fetch a budget that belongs to a household, or raise 404.
+
+    Personal budgets also return 404 (not 422) so that unauthorized
+    callers cannot distinguish between nonexistent and personal budgets.
 
     Args:
         db: Async database session.
         budget_id: UUID of the budget.
 
     Returns:
-        The Budget row (must have household_id set).
+        The Budget row with household_id set.
 
     Raises:
-        HTTPException 404: Budget not found.
-        HTTPException 422: Budget is not a household budget.
+        HTTPException 404: Budget not found or is a personal budget.
     """
     result = await db.execute(select(Budget).where(Budget.id == budget_id))
     budget = result.scalar_one_or_none()
-    if not budget:
+    if not budget or not budget.household_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
-    if not budget.household_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support permissions")
     return budget
 
 

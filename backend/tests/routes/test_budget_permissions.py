@@ -224,8 +224,8 @@ async def test_grant_budget_permission_to_non_member_returns_422(client):
     assert resp.json()["detail"] == "User is not a member of this household"
 
 
-async def test_grant_budget_permission_personal_budget_returns_422(client):
-    """Cannot grant permission on a personal budget (not household-scoped)."""
+async def test_grant_permission_on_personal_budget_returns_404(client):
+    """Personal budgets don't support permissions; returns 404 to avoid leaking existence."""
     admin_headers, _, member_user_id, _, _ = await _setup_household_with_member_and_budget(client)
 
     personal_resp = await client.post("/budgets", json={
@@ -242,8 +242,8 @@ async def test_grant_budget_permission_personal_budget_returns_422(client):
         headers=admin_headers,
     )
 
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Only household budgets support permissions"
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
 
 
 async def test_grant_budget_permission_nonexistent_budget_returns_404(client):
