@@ -73,17 +73,43 @@ async def create_merchant(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new merchant for the authenticated user."""
-    # Validate default_category_id if provided
-    if data.default_category_id:
-        result = await db.execute(
-            select(Category).where(Category.id == data.default_category_id, Category.owner_id == user.id),
+    """Create a new merchant. Personal by default, or household-scoped if household_id is provided."""
+    household_id = data.household_id
+    if household_id:
+        # Any household member can create household merchants
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == household_id,
+                HouseholdMember.user_id == user.id,
+            ),
         )
-        if not result.scalar_one_or_none():
+        if not member_result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+
+    # Reject duplicate name within the scope (household or personal)
+    dup_query = select(Merchant).where(Merchant.name == data.name)
+    if household_id:
+        dup_query = dup_query.where(Merchant.household_id == household_id)
+    else:
+        dup_query = dup_query.where(Merchant.owner_id == user.id, Merchant.household_id.is_(None))
+    if (await db.execute(dup_query)).scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Merchant with this name already exists")
+
+    # Validate default_category_id (accept personal or same household categories)
+    if data.default_category_id:
+        cat_query = select(Category).where(Category.id == data.default_category_id)
+        if household_id:
+            cat_query = cat_query.where(
+                (Category.owner_id == user.id) | (Category.household_id == household_id),
+            )
+        else:
+            cat_query = cat_query.where(Category.owner_id == user.id)
+        if not (await db.execute(cat_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 
     merchant = Merchant(
         owner_id=user.id,
+        household_id=household_id,
         name=data.name,
         default_category_id=data.default_category_id,
     )
