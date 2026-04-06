@@ -41,16 +41,6 @@ _FILTER_FIELDS: dict[str, MappedColumn] = {
 }
 
 
-async def _require_owned(db: AsyncSession, model, record_id: uuid.UUID, user_id: uuid.UUID, detail: str):
-    """Look up a record by ID + owner_id. Returns the record or raises 422."""
-    result = await db.execute(
-        select(model).where(model.id == record_id, model.owner_id == user_id),
-    )
-    record = result.scalar_one_or_none()
-    if not record:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
-    return record
-
 
 async def _check_category_access_or_422(
     db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, household_id: uuid.UUID | None = None,
