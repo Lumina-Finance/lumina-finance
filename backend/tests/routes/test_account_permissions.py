@@ -509,3 +509,121 @@ async def test_list_account_permissions_unauthenticated_returns_401(client):
     resp = await client.get(f"/accounts/{NONEXISTENT_ID}/permissions")
 
     assert resp.status_code == 401
+
+
+# --- Permission enforcement on account endpoints ---
+
+
+async def _grant_account_permission(client, admin_headers, account_id, member_user_id, level):
+    """Grant an account permission to a member via POST /accounts/{id}/permissions.
+
+    Args:
+        client: The async test client.
+        admin_headers: Auth headers for a household admin.
+        account_id: UUID of the account.
+        member_user_id: UUID of the member receiving permission.
+        level: Permission level ("read", "write", or "admin").
+    """
+    await client.post(
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": level},
+        headers=admin_headers,
+    )
+
+
+async def test_read_permission_allows_get_account(client):
+    """Member with READ permission can retrieve the account."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    resp = await client.get(f"/accounts/{account_id}", headers=member_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == account_id
+
+
+async def test_read_permission_blocks_patch_account(client):
+    """Member with READ permission cannot update the account (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    resp = await client.patch(
+        f"/accounts/{account_id}",
+        json={"name": "Hacked"},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_read_permission_blocks_delete_account(client):
+    """Member with READ permission cannot delete the account (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    resp = await client.delete(f"/accounts/{account_id}", headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_write_permission_blocks_patch_account(client):
+    """Member with WRITE permission cannot update the account (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    resp = await client.patch(
+        f"/accounts/{account_id}",
+        json={"name": "Hacked"},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_write_permission_blocks_delete_account(client):
+    """Member with WRITE permission cannot delete the account (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    resp = await client.delete(f"/accounts/{account_id}", headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_admin_permission_allows_patch_account(client):
+    """Member with ADMIN permission can update the account."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "admin")
+
+    resp = await client.patch(
+        f"/accounts/{account_id}",
+        json={"name": "Renamed by member"},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Renamed by member"
+
+
+async def test_admin_permission_allows_delete_account(client):
+    """Member with ADMIN permission can delete the account."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_household_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "admin")
+
+    resp = await client.delete(f"/accounts/{account_id}", headers=member_headers)
+
+    assert resp.status_code == 204
+
+
+async def test_no_permission_returns_404_on_get_account(client):
+    """Household member without any explicit permission gets 404 on GET."""
+    _, member_headers, _, _, account_id = await _setup_household_with_member_and_account(client)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=member_headers)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Account not found"
