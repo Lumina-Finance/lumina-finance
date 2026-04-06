@@ -56,15 +56,6 @@ class BudgetTrackedCategory(Base):
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class BudgetMember(Base):
-    """Scopes a household budget to specific members. No rows = all members included."""
-
-    __tablename__ = "budget_members"
-
-    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"), primary_key=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
-
-
 class BudgetPermission(Base):
     """Per-budget permission for a household member. Admins have implicit full access."""
 

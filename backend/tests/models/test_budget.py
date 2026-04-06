@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.base import CategoryKind, PermissionLevel, RecurrenceFreq
-from app.models.budget import Budget, BudgetMember, BudgetPermission, BudgetTrackedCategory
+from app.models.budget import Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.household import Household, HouseholdMember
@@ -335,63 +335,6 @@ async def test_invalid_tracked_budget_rejected(db, category):
 async def test_invalid_tracked_category_rejected(db, budget):
     """category_id must reference a valid category."""
     db.add(BudgetTrackedCategory(budget_id=budget.id, category_id=NONEXISTENT_ID))
-    with pytest.raises(IntegrityError):
-        await db.flush()
-
-
-# --- BudgetMember: Basic CRUD ---
-
-
-async def test_add_budget_member(db, household, member, currency):
-    """Scope a household budget to a specific member."""
-    b = Budget(
-        household_id=household.id, name="Scoped Budget",
-        period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
-    )
-    db.add(b)
-    await db.flush()
-
-    bm = BudgetMember(budget_id=b.id, user_id=member.id)
-    db.add(bm)
-    await db.flush()
-
-    result = await db.get(BudgetMember, (b.id, member.id))
-    assert result is not None
-
-
-async def test_remove_budget_member(db, household, member, currency):
-    """Remove a member from a budget's scope."""
-    b = Budget(
-        household_id=household.id, name="Scoped Budget",
-        period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
-    )
-    db.add(b)
-    await db.flush()
-
-    bm = BudgetMember(budget_id=b.id, user_id=member.id)
-    db.add(bm)
-    await db.flush()
-
-    await db.delete(bm)
-    await db.flush()
-
-    result = await db.get(BudgetMember, (b.id, member.id))
-    assert result is None
-
-
-# --- BudgetMember: Constraints ---
-
-
-async def test_invalid_budget_member_budget_rejected(db, member):
-    """budget_id must reference a valid budget."""
-    db.add(BudgetMember(budget_id=NONEXISTENT_ID, user_id=member.id))
-    with pytest.raises(IntegrityError):
-        await db.flush()
-
-
-async def test_invalid_budget_member_user_rejected(db, budget):
-    """user_id must reference a valid user."""
-    db.add(BudgetMember(budget_id=budget.id, user_id=NONEXISTENT_ID))
     with pytest.raises(IntegrityError):
         await db.flush()
 

@@ -5,26 +5,6 @@ from pydantic import BaseModel, Field
 
 from app.models.base import RecurrenceFreq
 
-# --- Budget member schemas ---
-
-
-class AddBudgetMemberRequest(BaseModel):
-    """Add a member to a household budget."""
-
-    user_id: uuid.UUID
-
-
-class BudgetMemberResponse(BaseModel):
-    """A member scoped to a household budget."""
-
-    budget_id: uuid.UUID
-    user_id: uuid.UUID
-
-    model_config = {"from_attributes": True}
-
-
-# --- Budget schemas ---
-
 
 class CreateBudgetRequest(BaseModel):
     """Create a new budget. Either owner_id or household_id is set by the route."""

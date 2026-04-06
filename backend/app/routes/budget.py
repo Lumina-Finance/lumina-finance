@@ -9,12 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
-from app.models.budget import Budget, BudgetMember, BudgetPermission, BudgetTrackedCategory
+from app.models.budget import Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.household import HouseholdMember
 from app.models.user import User
 from app.permissions import check_budget_access
-from app.schemas.budget import AddBudgetMemberRequest, BudgetMemberResponse, BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
+from app.schemas.budget import BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
 from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
@@ -120,36 +120,6 @@ async def _build_budget_response(db: AsyncSession, budget: Budget) -> BudgetResp
     return resp
 
 
-async def _get_budget_or_404(
-    db: AsyncSession, budget_id: uuid.UUID, user_id: uuid.UUID,
-) -> Budget:
-    """Fetch a budget by ID, verifying the user owns it or is a household member.
-
-    Args:
-        db: Async database session.
-        budget_id: UUID of the budget.
-        user_id: UUID of the requesting user.
-
-    Returns:
-        The Budget row.
-
-    Raises:
-        HTTPException 404: Budget not found or user lacks access.
-    """
-    result = await db.execute(
-        select(Budget)
-        .outerjoin(HouseholdMember, Budget.household_id == HouseholdMember.household_id)
-        .where(
-            Budget.id == budget_id,
-            (Budget.owner_id == user_id) | (HouseholdMember.user_id == user_id),
-        ),
-    )
-    budget = result.scalar_one_or_none()
-    if not budget:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
-    return budget
-
-
 @router.get("/{budget_id}", response_model=BudgetResponse)
 async def get_budget(
     budget_id: uuid.UUID,
@@ -170,76 +140,6 @@ async def delete_budget(
     """Delete a budget. Requires ADMIN access."""
     budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
     await db.delete(budget)
-    await db.commit()
-
-
-@router.post("/{budget_id}/members", response_model=BudgetMemberResponse, status_code=status.HTTP_201_CREATED)
-async def add_budget_member(
-    budget_id: uuid.UUID,
-    data: AddBudgetMemberRequest,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Add a member to a household budget. Requires admin role."""
-    budget = await _get_budget_or_404(db, budget_id, user.id)
-
-    if not budget.household_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support member scoping")
-
-    await _check_household_admin_or_403(db, budget.household_id, user.id)
-
-    # Target user must be a household member
-    result = await db.execute(
-        select(HouseholdMember).where(
-            HouseholdMember.household_id == budget.household_id,
-            HouseholdMember.user_id == data.user_id,
-        ),
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this household")
-
-    # Check for duplicate
-    result = await db.execute(
-        select(BudgetMember).where(
-            BudgetMember.budget_id == budget_id,
-            BudgetMember.user_id == data.user_id,
-        ),
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already added to this budget")
-
-    budget_member = BudgetMember(budget_id=budget_id, user_id=data.user_id)
-    db.add(budget_member)
-    await db.commit()
-    return budget_member
-
-
-@router.delete("/{budget_id}/members/{member_user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_budget_member(
-    budget_id: uuid.UUID,
-    member_user_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Remove a member from a household budget. Requires admin role."""
-    budget = await _get_budget_or_404(db, budget_id, user.id)
-
-    if not budget.household_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household budgets support member scoping")
-
-    await _check_household_admin_or_403(db, budget.household_id, user.id)
-
-    result = await db.execute(
-        select(BudgetMember).where(
-            BudgetMember.budget_id == budget_id,
-            BudgetMember.user_id == member_user_id,
-        ),
-    )
-    budget_member = result.scalar_one_or_none()
-    if not budget_member:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget member not found")
-
-    await db.delete(budget_member)
     await db.commit()
 
 
