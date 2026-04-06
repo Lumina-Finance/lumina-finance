@@ -9,6 +9,7 @@ class MerchantResponse(BaseModel):
 
     id: uuid.UUID
     owner_id: uuid.UUID
+    household_id: uuid.UUID | None
     name: str
     default_category_id: uuid.UUID | None
     created_at: datetime
@@ -17,10 +18,11 @@ class MerchantResponse(BaseModel):
 
 
 class CreateMerchantRequest(BaseModel):
-    """Create a new merchant for the authenticated user."""
+    """Create a new merchant. Personal by default, or household-scoped if household_id is provided."""
 
     name: str = Field(min_length=1, max_length=256)
     default_category_id: uuid.UUID | None = None
+    household_id: uuid.UUID | None = None
 
 
 class UpdateMerchantRequest(BaseModel):
