@@ -173,6 +173,8 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if not user:
+        # Prevent timing-based attacks — always run a hash so both paths take equal time
+        _ph.hash("dummy-password")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     result = await db.execute(select(PasswordCredential).where(PasswordCredential.user_id == user.id))
