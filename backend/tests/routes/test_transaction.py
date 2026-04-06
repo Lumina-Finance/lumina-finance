@@ -881,15 +881,15 @@ async def test_patch_transaction_updated_at_changes(client):
     assert resp.json()["updated_at"] > original_updated_at
 
 
-async def test_patch_transaction_invalid_account_returns_422(client):
-    """PATCH with non-existent account_id returns 422."""
+async def test_patch_transaction_invalid_account_returns_404(client):
+    """PATCH with non-existent account_id returns 404."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     create_resp = await _create_transaction(client, headers, account_id, category_id)
     txn_id = create_resp.json()["id"]
 
     resp = await client.patch(f"/transactions/{txn_id}", json={"account_id": NONEXISTENT_ID}, headers=headers)
 
-    assert resp.status_code == 422
+    assert resp.status_code == 404
     assert resp.json()["detail"] == "Account not found"
 
 

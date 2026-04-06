@@ -252,30 +252,34 @@ async def update_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a transaction. Only provided fields are changed."""
-    txn_query = await db.execute(
-        select(Transaction).where(Transaction.id == transaction_id, Transaction.created_by_user_id == user.id),
-    )
-    txn = txn_query.scalar_one_or_none()
-    if not txn:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    """Update a transaction. Requires write access on the target account."""
+    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
         tag_ids = await _get_tag_ids(db, txn.id)
         return _build_response(txn, tag_ids)
 
+    # Resolve the account's household_id for category/merchant validation
+    account_household_id = None
     if "account_id" in changed_fields:
-        account = await _require_owned(db, Account, changed_fields["account_id"], user.id, "Account not found")
-        if txn.currency != account.currency and txn.fx_rate is None and "fx_rate" not in changed_fields:
+        # Moving to a new account — check write access on the target
+        new_account = await check_account_access(db, changed_fields["account_id"], user.id, PermissionLevel.WRITE)
+        account_household_id = new_account.household_id
+        if txn.currency != new_account.currency and txn.fx_rate is None and "fx_rate" not in changed_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="fx_rate is required when transaction currency differs from account currency",
             )
+    else:
+        # Staying on the same account — look up its household_id
+        current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
+        account_household_id = current_account.household_id
+
     if "category_id" in changed_fields:
-        await _require_owned(db, Category, changed_fields["category_id"], user.id, "Category not found")
+        await _check_category_access_or_422(db, changed_fields["category_id"], user.id, account_household_id)
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
-        await _require_owned(db, Merchant, changed_fields["merchant_id"], user.id, "Merchant not found")
+        await _check_merchant_access_or_422(db, changed_fields["merchant_id"], user.id, account_household_id)
 
     # Handle tags separately — validate and replace in bulk
     new_tag_ids = changed_fields.pop("tag_ids", None)
