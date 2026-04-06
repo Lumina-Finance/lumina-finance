@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
+from app.models.budget import Budget, BudgetPermission
 from app.models.household import HouseholdMember
 from app.models.transaction import Transaction
 
@@ -101,3 +102,67 @@ async def check_transaction_access(
 
     await check_account_access(db, txn.account_id, user_id, required_level)
     return txn
+
+
+async def check_budget_access(
+    db: AsyncSession, budget_id: uuid.UUID, user_id: uuid.UUID, required_level: PermissionLevel,
+) -> Budget:
+    """Verify the user can access a budget at the required permission level.
+
+    Resolution order:
+    1. Personal owner → full access
+    2. Household admin → implicit full access
+    3. Explicit BudgetPermission row → check level is sufficient
+
+    Args:
+        db: Async database session.
+        budget_id: UUID of the budget.
+        user_id: UUID of the requesting user.
+        required_level: Minimum permission level needed.
+
+    Returns:
+        The Budget row.
+
+    Raises:
+        HTTPException 404: Budget not found or user lacks access.
+        HTTPException 403: User has some access but insufficient level.
+    """
+    result = await db.execute(select(Budget).where(Budget.id == budget_id))
+    budget = result.scalar_one_or_none()
+    if not budget:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
+
+    # Personal budget — owner has full access
+    if budget.owner_id == user_id:
+        return budget
+
+    # Household budget — check membership
+    if budget.household_id:
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == budget.household_id,
+                HouseholdMember.user_id == user_id,
+            ),
+        )
+        budget_member = member_result.scalar_one_or_none()
+        if not budget_member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
+
+        # Admins have implicit full access
+        if budget_member.is_admin:
+            return budget
+
+        # Check explicit permission row
+        perm_result = await db.execute(
+            select(BudgetPermission).where(
+                BudgetPermission.budget_id == budget_id,
+                BudgetPermission.user_id == user_id,
+            ),
+        )
+        perm = perm_result.scalar_one_or_none()
+        if perm:
+            if _LEVEL_RANK[perm.level] >= _LEVEL_RANK[required_level]:
+                return budget
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")

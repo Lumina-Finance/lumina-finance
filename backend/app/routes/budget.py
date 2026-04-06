@@ -8,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.base import PermissionLevel
 from app.models.budget import Budget, BudgetMember, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.household import HouseholdMember
 from app.models.user import User
+from app.permissions import check_budget_access
 from app.schemas.budget import AddBudgetMemberRequest, BudgetMemberResponse, BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
 from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 
@@ -154,8 +156,8 @@ async def get_budget(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single budget. User must own it or be a household member."""
-    budget = await _get_budget_or_404(db, budget_id, user.id)
+    """Return a single budget. Requires READ access."""
+    budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
     return await _build_budget_response(db, budget)
 
 
