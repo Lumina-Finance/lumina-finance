@@ -1,13 +1,14 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.category import Category
+from app.models.household import HouseholdMember
 from app.models.merchant import Merchant
 from app.models.user import User
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, UpdateMerchantRequest
@@ -19,11 +20,27 @@ router = APIRouter(prefix="/merchants", tags=["merchants"])
 async def list_merchants(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    household_id: Annotated[uuid.UUID | None, Query()] = None,
 ):
-    """Return all merchants owned by the authenticated user."""
-    result = await db.execute(
-        select(Merchant).where(Merchant.owner_id == user.id).order_by(Merchant.name),
-    )
+    """Return merchants the user can access. Personal only by default, or include a household's merchants."""
+    # Without a filter, only return personal merchants (household_id is null)
+    query = select(Merchant).where(Merchant.owner_id == user.id, Merchant.household_id.is_(None))
+
+    if household_id:
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        if not member_result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+
+        query = select(Merchant).where(
+            (Merchant.owner_id == user.id) | (Merchant.household_id == household_id),
+        )
+
+    result = await db.execute(query.order_by(Merchant.name))
     return result.scalars().all()
 
 
