@@ -142,7 +142,7 @@ async def update_merchant(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
 
     # Only admins can update household merchants
-    if merchant.household_id:
+    if merchant.household_id is not None:
         member_result = await db.execute(
             select(HouseholdMember).where(
                 HouseholdMember.household_id == merchant.household_id,
@@ -160,7 +160,7 @@ async def update_merchant(
     # Validate default_category_id (accept personal or same household categories)
     if "default_category_id" in updates and updates["default_category_id"] is not None:
         cat_query = select(Category).where(Category.id == updates["default_category_id"])
-        if merchant.household_id:
+        if merchant.household_id is not None:
             cat_query = cat_query.where(
                 (Category.owner_id == user.id) | (Category.household_id == merchant.household_id),
             )
