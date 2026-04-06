@@ -10,10 +10,11 @@ from sqlalchemy.orm import MappedColumn
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account
+from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
 from app.models.category import Category
 from app.models.currency import Currency
+from app.models.household import HouseholdMember
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
@@ -153,7 +154,23 @@ async def list_transactions(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
 
     sort_column = _SORT_FIELDS[sort_by]
-    query = select(Transaction).where(Transaction.created_by_user_id == user.id)
+
+    # Subquery: all account IDs the user can access (personal, household admin, or explicit permission)
+    accessible_accounts = (
+        select(Account.id)
+        .outerjoin(HouseholdMember, Account.household_id == HouseholdMember.household_id)
+        .outerjoin(
+            AccountPermission,
+            (AccountPermission.account_id == Account.id) & (AccountPermission.user_id == user.id),
+        )
+        .where(
+            (Account.owner_id == user.id)
+            | ((HouseholdMember.user_id == user.id) & (HouseholdMember.is_admin.is_(True)))
+            | (AccountPermission.user_id == user.id),
+        )
+    ).scalar_subquery()
+
+    query = select(Transaction).where(Transaction.account_id.in_(accessible_accounts))
 
     # Apply exact-match filters
     filters = {
