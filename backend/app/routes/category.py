@@ -132,38 +132,47 @@ async def update_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a category. Only provided fields are changed. Must belong to the authenticated user.
+    """Update a category. Household categories require admin role."""
+    household_ids = (
+        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    ).scalar_subquery()
 
-    Args:
-        category_id: UUID of the category.
-        data: Partial update payload.
-        user: The authenticated user.
-        db: Async database session.
-
-    Returns:
-        The updated category.
-
-    Raises:
-        HTTPException 404: Category not found or not owned by the user.
-        HTTPException 422: Parent category not found.
-    """
     result = await db.execute(
-        select(Category).where(Category.id == category_id, Category.owner_id == user.id),
+        select(Category).where(
+            Category.id == category_id,
+            (Category.owner_id == user.id) | (Category.household_id.in_(household_ids)),
+        ),
     )
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
+    # Household categories require admin
+    if category.household_id:
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == category.household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        member = member_result.scalar_one_or_none()
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return category
 
-    # Validate parent exists and belongs to the user
+    # Validate parent exists and is accessible (personal or same household)
     if "parent_id" in updates and updates["parent_id"] is not None:
-        result = await db.execute(
-            select(Category).where(Category.id == updates["parent_id"], Category.owner_id == user.id),
-        )
-        if not result.scalar_one_or_none():
+        parent_query = select(Category).where(Category.id == updates["parent_id"])
+        if category.household_id:
+            parent_query = parent_query.where(
+                (Category.owner_id == user.id) | (Category.household_id == category.household_id),
+            )
+        else:
+            parent_query = parent_query.where(Category.owner_id == user.id)
+        if not (await db.execute(parent_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
 
     for field, value in updates.items():
