@@ -1098,8 +1098,8 @@ async def test_update_household_budget_as_admin(client):
     assert resp.json()["name"] == "Updated"
 
 
-async def test_update_household_budget_as_non_admin_returns_403(client):
-    """Non-admin member cannot update a household budget."""
+async def test_update_household_budget_as_non_admin_without_permission_returns_404(client):
+    """Non-admin member without permission cannot see or update a household budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -1120,7 +1120,41 @@ async def test_update_household_budget_as_non_admin_returns_403(client):
         headers=other_headers,
     )
 
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_update_household_budget_with_write_permission_returns_403(client):
+    """Non-admin with WRITE permission cannot update (requires ADMIN)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    # Grant WRITE — still insufficient for update
+    await client.post(
+        f"/budgets/{budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "write"},
+        headers=headers,
+    )
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Hacked"},
+        headers=other_headers,
+    )
+
     assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
 
 
 async def test_update_budget_unauthenticated_returns_401(client):
