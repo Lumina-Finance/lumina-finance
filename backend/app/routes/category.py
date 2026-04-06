@@ -25,7 +25,8 @@ async def list_categories(
     household_id: Annotated[uuid.UUID | None, Query()] = None,
 ):
     """Return categories the user can access. Personal only by default, or include a household's categories."""
-    query = select(Category).where(Category.owner_id == user.id)
+    # Without a filter, only return personal categories (household_id is null)
+    query = select(Category).where(Category.owner_id == user.id, Category.household_id.is_(None))
 
     if household_id:
         # Verify membership
