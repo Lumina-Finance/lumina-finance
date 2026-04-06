@@ -388,8 +388,8 @@ async def test_get_household_budget_as_admin(client):
     assert resp.json()["id"] == budget_id
 
 
-async def test_get_household_budget_as_non_admin(client):
-    """Non-admin member can retrieve a household budget."""
+async def test_get_household_budget_as_non_admin_without_permission_returns_404(client):
+    """Non-admin member without explicit permission cannot retrieve a household budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -403,6 +403,35 @@ async def test_get_household_budget_as_non_admin(client):
 
     create_resp = await _create_budget(client, headers, household_id=household_id)
     budget_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/budgets/{budget_id}", headers=other_headers)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_get_household_budget_with_read_permission(client):
+    """Non-admin member with READ permission can retrieve a household budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    # Grant READ permission
+    await client.post(
+        f"/budgets/{budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "read"},
+        headers=headers,
+    )
 
     resp = await client.get(f"/budgets/{budget_id}", headers=other_headers)
 
