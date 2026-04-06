@@ -50,9 +50,16 @@ async def get_merchant(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single merchant by ID. Must belong to the authenticated user."""
+    """Return a single merchant. Must be personal or from a household the user belongs to."""
+    household_ids = (
+        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    ).scalar_subquery()
+
     result = await db.execute(
-        select(Merchant).where(Merchant.id == merchant_id, Merchant.owner_id == user.id),
+        select(Merchant).where(
+            Merchant.id == merchant_id,
+            (Merchant.owner_id == user.id) | (Merchant.household_id.in_(household_ids)),
+        ),
     )
     merchant = result.scalar_one_or_none()
     if not merchant:
