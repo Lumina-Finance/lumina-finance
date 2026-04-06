@@ -155,10 +155,10 @@ enum category_kind {
   transfer
 }
 
-Table categories [headercolor: #F59E0B, note: "app seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
+Table categories [headercolor: #F59E0B, note: "any household member can create; only admins can edit/delete. App seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
   id uuid pk
   household_id uuid [ref: > households.id, delete: cascade]
-  owner_id uuid [not null, ref: > users.id]
+  owner_id uuid [not null, ref: > users.id, note: "creator of the category"]
   name text [not null]
   kind category_kind [not null]
   parent_id uuid [ref: > categories.id]
@@ -166,6 +166,7 @@ Table categories [headercolor: #F59E0B, note: "app seeds a default 'Uncategorize
 
   indexes {
     (owner_id, name, kind) [unique, name: "uq_category_owner_name_kind"]
+    (household_id, name, kind) [unique, name: "uq_category_household_name_kind"]
   }
 }
 

@@ -90,7 +90,7 @@ Junction table linking users to households.
 
 ### `account_permissions`
 
-Per-account access control for household members. Admins have implicit full access and don't need explicit permission rows. Categories are automatically visible to all household members. Transactions inherit permissions from their parent account.
+Per-account access control for household members. Admins have implicit full access and don't need explicit permission rows. Categories are visible to all household members and any member can create new ones, but only admins can edit or delete them. Transactions inherit permissions from their parent account.
 
 
 | Column         | Type             | Constraints                                                          | Description                              |
@@ -217,18 +217,20 @@ Per-account, per-year contribution and withdrawal limits for tax-advantaged acco
 
 ### `categories`
 
-Hierarchical transaction categories. App seeds a default "Uncategorized" category per kind per user so `category_id` on transactions is never null.
+Hierarchical transaction categories. App seeds a default "Uncategorized" category per kind per user so `category_id` on transactions is never null. Any household member can create household categories, but only admins can edit or delete them. This lets members add categories they need (e.g., a kid adding "Games") without requiring admin intervention.
 
 
 | Column         | Type                                   | Constraints               | Description                                                     |
 | -------------- | -------------------------------------- | ------------------------- | --------------------------------------------------------------- |
 | `id`           | uuid                                   | PK                        |                                                                 |
 | `household_id` | uuid                                   | FK → `households.id` ON DELETE CASCADE | Non-null for household-shared categories                        |
-| `owner_id`     | uuid                                   | NOT NULL, FK → `users.id`, UNIQUE(owner_id, name, kind) | Creator/owner of the category                                   |
+| `owner_id`     | uuid                                   | NOT NULL, FK → `users.id`, UNIQUE(owner_id, name, kind) | Creator of the category                                         |
 | `name`         | text                                   | NOT NULL, UNIQUE(owner_id, name, kind)                  | e.g., "Groceries", "Salary"                                     |
 | `kind`         | enum (`expense`, `income`, `transfer`) | NOT NULL, UNIQUE(owner_id, name, kind)                  | Determines which transaction direction this category applies to |
 | `parent_id`    | uuid                                   | FK → `categories.id`      | Null = top-level; non-null = subcategory                        |
 | `created_at`   | timestamptz                            | NOT NULL                  |                                                                 |
+
+**Unique constraint:** `(owner_id, name, kind)` — no duplicate personal categories per user. `(household_id, name, kind)` — no duplicate categories within a household (NULLs are distinct so personal categories are unaffected).
 
 **Hierarchy behavior:** Categories support one level of nesting via `parent_id`. A category with `parent_id = null` is top-level; setting `parent_id` to another category's ID makes it a subcategory.
 
