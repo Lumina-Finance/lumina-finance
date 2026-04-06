@@ -180,25 +180,25 @@ async def delete_account(
 async def _get_household_account_or_404(
     db: AsyncSession, account_id: uuid.UUID,
 ) -> Account:
-    """Fetch a household account or raise 404 if not found or not household-scoped.
+    """Fetch an account that belongs to a household, or raise 404.
+
+    Personal accounts also return 404 (not 422) so that unauthorized
+    callers cannot distinguish between nonexistent and personal accounts.
 
     Args:
         db: Async database session.
         account_id: UUID of the account.
 
     Returns:
-        The Account row (must have household_id set).
+        The Account row with household_id set.
 
     Raises:
-        HTTPException 404: Account not found.
-        HTTPException 422: Account is not a household account.
+        HTTPException 404: Account not found or is a personal account.
     """
     result = await db.execute(select(Account).where(Account.id == account_id))
     account = result.scalar_one_or_none()
-    if not account:
+    if not account or not account.household_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    if not account.household_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Only household accounts support permissions")
     return account
 
 

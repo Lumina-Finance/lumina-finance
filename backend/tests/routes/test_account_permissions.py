@@ -223,8 +223,8 @@ async def test_grant_account_permission_to_non_member_returns_422(client):
     assert resp.json()["detail"] == "User is not a member of this household"
 
 
-async def test_grant_account_permission_personal_account_returns_422(client):
-    """Cannot grant permission on a personal account (not household-scoped)."""
+async def test_grant_account_permission_personal_account_returns_404(client):
+    """Granting permission on a personal account returns 404 to avoid leaking existence."""
     admin_headers, _, member_user_id, _, _ = await _setup_household_with_member_and_account(client)
 
     personal_resp = await client.post("/accounts", json={
@@ -238,8 +238,8 @@ async def test_grant_account_permission_personal_account_returns_422(client):
         headers=admin_headers,
     )
 
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Only household accounts support permissions"
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Account not found"
 
 
 async def test_grant_account_permission_nonexistent_account_returns_404(client):
