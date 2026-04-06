@@ -520,8 +520,8 @@ async def test_delete_household_budget_as_admin(client):
     assert resp.status_code == 204
 
 
-async def test_delete_household_budget_as_non_admin_returns_403(client):
-    """Non-admin member cannot delete a household budget."""
+async def test_delete_household_budget_as_non_admin_without_permission_returns_404(client):
+    """Non-admin member without permission cannot see or delete a household budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -538,7 +538,37 @@ async def test_delete_household_budget_as_non_admin_returns_403(client):
 
     resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
 
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_delete_household_budget_with_write_permission_returns_403(client):
+    """Non-admin with WRITE permission cannot delete (requires ADMIN)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+
+    create_resp = await _create_budget(client, headers, household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    # Grant WRITE — still insufficient for delete
+    await client.post(
+        f"/budgets/{budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "write"},
+        headers=headers,
+    )
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
+
     assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
 
 
 async def test_delete_budget_unauthenticated_returns_401(client):
