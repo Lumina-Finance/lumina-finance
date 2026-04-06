@@ -33,6 +33,11 @@ DB_USER = _require("DB_USER")
 DB_PASSWORD = _require("DB_PASSWORD")
 APP_ENV = _require("APP_ENV")
 
+# --- CORS ---
+
+# Comma-separated list of allowed origins (e.g., "https://domain.com")
+ALLOWED_ORIGINS = [o.strip() for o in _require("ALLOWED_ORIGINS").split(",")]
+
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # --- JWT ---

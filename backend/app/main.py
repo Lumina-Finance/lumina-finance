@@ -1,6 +1,8 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
+from app.config import ALLOWED_ORIGINS, APP_ENV
 from app.routes.account import router as account_router
 from app.routes.auth import router as auth_router
 from app.routes.budget import router as budget_router
@@ -14,6 +16,20 @@ from app.routes.transaction import router as transaction_router
 from app.routes.user import router as user_router
 
 app = FastAPI(title="Lumina Finance API")
+
+# CORS — origins from env; dev origin added automatically in development
+_allowed_origins = list(ALLOWED_ORIGINS)
+if APP_ENV == "development":
+    _allowed_origins.append("http://localhost:5173")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(currency_router)
