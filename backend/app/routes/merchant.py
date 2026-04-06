@@ -126,24 +126,47 @@ async def update_merchant(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a merchant. Only provided fields are changed."""
+    """Update a merchant. Household merchants require admin role."""
+    household_ids = (
+        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    ).scalar_subquery()
+
     result = await db.execute(
-        select(Merchant).where(Merchant.id == merchant_id, Merchant.owner_id == user.id),
+        select(Merchant).where(
+            Merchant.id == merchant_id,
+            (Merchant.owner_id == user.id) | (Merchant.household_id.in_(household_ids)),
+        ),
     )
     merchant = result.scalar_one_or_none()
     if not merchant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
 
+    # Only admins can update household merchants
+    if merchant.household_id:
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == merchant.household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        member = member_result.scalar_one_or_none()
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return merchant
 
-    # Validate default_category_id if being updated
+    # Validate default_category_id (accept personal or same household categories)
     if "default_category_id" in updates and updates["default_category_id"] is not None:
-        result = await db.execute(
-            select(Category).where(Category.id == updates["default_category_id"], Category.owner_id == user.id),
-        )
-        if not result.scalar_one_or_none():
+        cat_query = select(Category).where(Category.id == updates["default_category_id"])
+        if merchant.household_id:
+            cat_query = cat_query.where(
+                (Category.owner_id == user.id) | (Category.household_id == merchant.household_id),
+            )
+        else:
+            cat_query = cat_query.where(Category.owner_id == user.id)
+        if not (await db.execute(cat_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 
     for field, value in updates.items():
