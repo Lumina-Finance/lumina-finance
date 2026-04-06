@@ -304,13 +304,8 @@ async def delete_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a transaction. Must belong to the authenticated user."""
-    txn_query = await db.execute(
-        select(Transaction).where(Transaction.id == transaction_id, Transaction.created_by_user_id == user.id),
-    )
-    txn = txn_query.scalar_one_or_none()
-    if not txn:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    """Delete a transaction. Requires write access on the parent account."""
+    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
 
     # Delete junction rows before the transaction itself
     await db.execute(
