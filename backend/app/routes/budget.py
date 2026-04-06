@@ -303,13 +303,19 @@ async def list_budgets(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return all budgets the user owns or has access to via household membership."""
-    # Personal budgets + household budgets where the user is a member
+    """Return all budgets the user owns or has access to via permissions."""
+    # Personal budgets + household budgets where user is admin or has explicit permission
     query = (
         select(Budget)
         .outerjoin(HouseholdMember, Budget.household_id == HouseholdMember.household_id)
+        .outerjoin(
+            BudgetPermission,
+            (BudgetPermission.budget_id == Budget.id) & (BudgetPermission.user_id == user.id),
+        )
         .where(
-            (Budget.owner_id == user.id) | (HouseholdMember.user_id == user.id),
+            (Budget.owner_id == user.id)
+            | ((HouseholdMember.user_id == user.id) & (HouseholdMember.is_admin.is_(True)))
+            | (BudgetPermission.user_id == user.id),
         )
         .order_by(Budget.period_end.desc(), Budget.name)
     )
