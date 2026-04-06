@@ -518,3 +518,121 @@ async def test_list_budget_permissions_unauthenticated_returns_401(client):
     resp = await client.get(f"/budgets/{NONEXISTENT_ID}/permissions")
 
     assert resp.status_code == 401
+
+
+# --- Permission enforcement on budget endpoints ---
+
+
+async def _grant_budget_permission(client, admin_headers, budget_id, member_user_id, level):
+    """Grant a budget permission to a member via POST /budgets/{id}/permissions.
+
+    Args:
+        client: The async test client.
+        admin_headers: Auth headers for a household admin.
+        budget_id: UUID of the budget.
+        member_user_id: UUID of the member receiving permission.
+        level: Permission level ("read", "write", or "admin").
+    """
+    await client.post(
+        f"/budgets/{budget_id}/permissions",
+        json={"user_id": member_user_id, "level": level},
+        headers=admin_headers,
+    )
+
+
+async def test_read_permission_allows_get_budget(client):
+    """Member with READ permission can retrieve the budget."""
+    admin_headers, member_headers, member_user_id, _, budget_id = await _setup_household_with_member_and_budget(client)
+    await _grant_budget_permission(client, admin_headers, budget_id, member_user_id, "read")
+
+    resp = await client.get(f"/budgets/{budget_id}", headers=member_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == budget_id
+
+
+async def test_read_permission_blocks_patch_budget(client):
+    """Member with READ permission cannot update the budget (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, budget_id = await _setup_household_with_member_and_budget(client)
+    await _grant_budget_permission(client, admin_headers, budget_id, member_user_id, "read")
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Hacked"},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_read_permission_blocks_delete_budget(client):
+    """Member with READ permission cannot delete the budget (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, budget_id = await _setup_household_with_member_and_budget(client)
+    await _grant_budget_permission(client, admin_headers, budget_id, member_user_id, "read")
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_write_permission_blocks_patch_budget(client):
+    """Member with WRITE permission cannot update the budget (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, budget_id = await _setup_household_with_member_and_budget(client)
+    await _grant_budget_permission(client, admin_headers, budget_id, member_user_id, "write")
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Hacked"},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_write_permission_blocks_delete_budget(client):
+    """Member with WRITE permission cannot delete the budget (requires ADMIN)."""
+    admin_headers, member_headers, member_user_id, _, budget_id = await _setup_household_with_member_and_budget(client)
+    await _grant_budget_permission(client, admin_headers, budget_id, member_user_id, "write")
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_admin_permission_allows_patch_budget(client):
+    """Member with ADMIN permission can update the budget."""
+    admin_headers, member_headers, member_user_id, _, budget_id = await _setup_household_with_member_and_budget(client)
+    await _grant_budget_permission(client, admin_headers, budget_id, member_user_id, "admin")
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"name": "Renamed by member"},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Renamed by member"
+
+
+async def test_admin_permission_allows_delete_budget(client):
+    """Member with ADMIN permission can delete the budget."""
+    admin_headers, member_headers, member_user_id, _, budget_id = await _setup_household_with_member_and_budget(client)
+    await _grant_budget_permission(client, admin_headers, budget_id, member_user_id, "admin")
+
+    resp = await client.delete(f"/budgets/{budget_id}", headers=member_headers)
+
+    assert resp.status_code == 204
+
+
+async def test_no_permission_returns_404_on_get_budget(client):
+    """Household member without any explicit permission gets 404 on GET."""
+    _, member_headers, _, _, budget_id = await _setup_household_with_member_and_budget(client)
+
+    resp = await client.get(f"/budgets/{budget_id}", headers=member_headers)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
