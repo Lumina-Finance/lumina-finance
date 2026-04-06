@@ -68,8 +68,11 @@ async def check_account_access(
             ),
         )
         perm = perm_result.scalar_one_or_none()
-        if perm and _LEVEL_RANK[perm.level] >= _LEVEL_RANK[required_level]:
-            return account
+        if perm:
+            if _LEVEL_RANK[perm.level] >= _LEVEL_RANK[required_level]:
+                return account
+            # User has some access but not enough — 403 since they know it exists
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 
