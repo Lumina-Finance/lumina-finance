@@ -149,7 +149,7 @@ async def update_category(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
     # Household categories require admin
-    if category.household_id:
+    if category.household_id is not None:
         member_result = await db.execute(
             select(HouseholdMember).where(
                 HouseholdMember.household_id == category.household_id,
@@ -167,7 +167,7 @@ async def update_category(
     # Validate parent exists and is accessible (personal or same household)
     if "parent_id" in updates and updates["parent_id"] is not None:
         parent_query = select(Category).where(Category.id == updates["parent_id"])
-        if category.household_id:
+        if category.household_id is not None:
             parent_query = parent_query.where(
                 (Category.owner_id == user.id) | (Category.household_id == category.household_id),
             )
@@ -207,7 +207,7 @@ async def delete_category(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
     # Only admins can delete household categories
-    if category.household_id:
+    if category.household_id is not None:
         member_result = await db.execute(
             select(HouseholdMember).where(
                 HouseholdMember.household_id == category.household_id,
