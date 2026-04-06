@@ -18,7 +18,7 @@ from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.permissions import check_transaction_access
+from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -49,6 +49,32 @@ async def _require_owned(db: AsyncSession, model, record_id: uuid.UUID, user_id:
     if not record:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
     return record
+
+
+async def _check_category_access_or_422(
+    db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, household_id: uuid.UUID | None = None,
+) -> None:
+    """Validate a category exists and is accessible (personal or same household)."""
+    query = select(Category).where(Category.id == category_id)
+    if household_id is not None:
+        query = query.where((Category.owner_id == user_id) | (Category.household_id == household_id))
+    else:
+        query = query.where(Category.owner_id == user_id)
+    if not (await db.execute(query)).scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
+
+
+async def _check_merchant_access_or_422(
+    db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID, household_id: uuid.UUID | None = None,
+) -> None:
+    """Validate a merchant exists and is accessible (personal or same household)."""
+    query = select(Merchant).where(Merchant.id == merchant_id)
+    if household_id is not None:
+        query = query.where((Merchant.owner_id == user_id) | (Merchant.household_id == household_id))
+    else:
+        query = query.where(Merchant.owner_id == user_id)
+    if not (await db.execute(query)).scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
 
 
 async def _validate_tag_ids(db: AsyncSession, user_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> list[uuid.UUID]:
@@ -175,8 +201,8 @@ async def create_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new transaction for the authenticated user."""
-    account = await _require_owned(db, Account, data.account_id, user.id, "Account not found")
+    """Create a new transaction. Requires write access on the target account."""
+    account = await check_account_access(db, data.account_id, user.id, PermissionLevel.WRITE)
 
     currency_lookup = await db.execute(select(Currency).where(Currency.id == data.currency))
     if not currency_lookup.scalar_one_or_none():
@@ -188,9 +214,9 @@ async def create_transaction(
             detail="fx_rate is required when transaction currency differs from account currency",
         )
 
-    await _require_owned(db, Category, data.category_id, user.id, "Category not found")
+    await _check_category_access_or_422(db, data.category_id, user.id, account.household_id)
     if data.merchant_id:
-        await _require_owned(db, Merchant, data.merchant_id, user.id, "Merchant not found")
+        await _check_merchant_access_or_422(db, data.merchant_id, user.id, account.household_id)
     validated_tag_ids = []
     if data.tag_ids:
         validated_tag_ids = await _validate_tag_ids(db, user.id, data.tag_ids)

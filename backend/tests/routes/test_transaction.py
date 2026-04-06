@@ -200,13 +200,13 @@ async def test_create_transaction_with_all_optional_fields(client):
     assert set(data["tag_ids"]) == {tag1_resp.json()["id"], tag2_resp.json()["id"]}
 
 
-async def test_create_transaction_invalid_account_returns_422(client):
-    """Non-existent account_id returns 422."""
+async def test_create_transaction_invalid_account_returns_404(client):
+    """Non-existent account_id returns 404."""
     headers, _, category_id = await _setup_user_with_deps(client)
 
     resp = await _create_transaction(client, headers, NONEXISTENT_ID, category_id)
 
-    assert resp.status_code == 422
+    assert resp.status_code == 404
     assert resp.json()["detail"] == "Account not found"
 
 
@@ -284,14 +284,14 @@ async def test_create_transaction_duplicate_tags_deduplicated(client):
     assert resp.json()["tag_ids"] == [tag_id]
 
 
-async def test_create_transaction_other_users_account_returns_422(client):
+async def test_create_transaction_other_users_account_returns_404(client):
     """Cannot create a transaction referencing another user's account."""
     headers, _, category_id = await _setup_user_with_deps(client)
     _, other_account_id, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
 
     resp = await _create_transaction(client, headers, other_account_id, category_id)
 
-    assert resp.status_code == 422
+    assert resp.status_code == 404
     assert resp.json()["detail"] == "Account not found"
 
 
