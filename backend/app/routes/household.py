@@ -176,12 +176,12 @@ async def add_member(
     """Add a user to a household. Only admins can add members. New members join as non-admin."""
     await _check_admin_or_403(db, household_id, user.id)
 
-    # Verify target user exists
+    # Verify target user exists (generic message to avoid leaking user existence)
     target_user = await db.execute(
         select(User).where(User.id == data.user_id),
     )
     if not target_user.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid user")
 
     # Check if already a member
     existing = await db.execute(

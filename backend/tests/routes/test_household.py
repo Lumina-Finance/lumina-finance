@@ -514,7 +514,7 @@ async def test_add_member_nonexistent_user_id_returns_422(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "User not found"
+    assert resp.json()["detail"] == "Invalid user"
 
 
 async def test_add_member_by_non_owner_admin_returns_201(client):
