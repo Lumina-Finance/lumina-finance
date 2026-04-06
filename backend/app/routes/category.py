@@ -81,18 +81,15 @@ async def create_category(
 
     household_id = data.household_id
     if household_id:
-        # Only admins can create household categories
+        # Any household member can create household categories
         member_result = await db.execute(
             select(HouseholdMember).where(
                 HouseholdMember.household_id == household_id,
                 HouseholdMember.user_id == user.id,
             ),
         )
-        member = member_result.scalar_one_or_none()
-        if not member:
+        if not member_result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
-        if not member.is_admin:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
     # Reject duplicate name + kind within the scope (household or personal)
     dup_query = select(Category).where(Category.name == data.name, Category.kind == data.kind)
