@@ -200,5 +200,273 @@ async def test_household_member_cannot_create_transaction_on_other_members_accou
     _, acct1, _, h2, _, cat2, _ = await _setup_household_with_two_members(client)
 
     resp = await _create_transaction(client, h2, acct1, cat2)
-    assert resp.status_code == 422
+    assert resp.status_code == 404
     assert resp.json()["detail"] == "Account not found"
+
+
+# --- Household account transactions with permissions ---
+
+
+async def _create_merchant(client, headers, **overrides):
+    """Create a merchant via POST /merchants.
+
+    Defaults: name="Costco".
+
+    Args:
+        client: The async test client.
+        headers: Auth headers for the requesting user.
+        **overrides: Fields to override in the default payload.
+
+    Returns:
+        The HTTP response from the API.
+    """
+    payload = {"name": "Costco", **overrides}
+    return await client.post("/merchants", json=payload, headers=headers)
+
+
+async def _setup_household_with_shared_account(client):
+    """Create a household with admin, member, household account, category, and merchant.
+
+    Args:
+        client: The async test client.
+
+    Returns:
+        Tuple of (admin_headers, member_headers, member_user_id,
+                  household_id, account_id, category_id, merchant_id).
+    """
+    signup1 = await _create_user(client)
+    admin_headers = _get_auth_header(signup1)
+
+    household_resp = await _create_household(client, admin_headers)
+    household_id = household_resp.json()["id"]
+
+    signup2 = await client.post("/auth/signup", json={
+        "email": "member@example.com", "password": "securepassword123",
+        "first_name": "Member", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    member_headers = _get_auth_header(signup2)
+    member_user_id = signup2.json()["user"]["id"]
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+
+    acct_resp = await _create_account(client, admin_headers, name="Joint Checking", household_id=household_id)
+    account_id = acct_resp.json()["id"]
+
+    cat_resp = await _create_category(client, admin_headers, name="Household Groceries", household_id=household_id)
+    category_id = cat_resp.json()["id"]
+
+    merchant_resp = await _create_merchant(client, admin_headers, name="Household Costco", household_id=household_id)
+    merchant_id = merchant_resp.json()["id"]
+
+    return admin_headers, member_headers, member_user_id, household_id, account_id, category_id, merchant_id
+
+
+async def _grant_account_permission(client, admin_headers, account_id, user_id, level):
+    """Grant an account permission to a user.
+
+    Args:
+        client: The async test client.
+        admin_headers: Auth headers for a household admin.
+        account_id: UUID of the account.
+        user_id: UUID of the target user.
+        level: Permission level ("read", "write", "admin").
+    """
+    await client.post(
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": user_id, "level": level},
+        headers=admin_headers,
+    )
+
+
+async def test_create_transaction_on_household_account_as_admin(client):
+    """Admin can create a transaction on a household account with household category and merchant."""
+    admin_headers, _, _, _, account_id, category_id, merchant_id = (
+        await _setup_household_with_shared_account(client)
+    )
+
+    resp = await _create_transaction(
+        client, admin_headers, account_id, category_id, merchant_id=merchant_id,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["account_id"] == account_id
+    assert resp.json()["category_id"] == category_id
+    assert resp.json()["merchant_id"] == merchant_id
+
+
+async def test_create_transaction_on_household_account_with_write_permission(client):
+    """Member with write permission can create a transaction on a household account."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, merchant_id = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    resp = await _create_transaction(
+        client, member_headers, account_id, category_id, merchant_id=merchant_id,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["account_id"] == account_id
+
+
+async def test_create_transaction_on_household_account_read_only_returns_403(client):
+    """Member with read-only permission cannot create a transaction."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    resp = await _create_transaction(client, member_headers, account_id, category_id)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_create_transaction_on_household_account_no_permission_returns_404(client):
+    """Member with no permission cannot create a transaction on a household account."""
+    _, member_headers, _, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+
+    resp = await _create_transaction(client, member_headers, account_id, category_id)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Account not found"
+
+
+async def test_create_transaction_with_household_category(client):
+    """Transaction on a household account accepts household-scoped categories."""
+    admin_headers, member_headers, member_user_id, household_id, account_id, _, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    # Create a different household category as the member
+    cat_resp = await _create_category(client, member_headers, name="Games", kind="expense", household_id=household_id)
+    category_id = cat_resp.json()["id"]
+
+    resp = await _create_transaction(client, member_headers, account_id, category_id)
+
+    assert resp.status_code == 201
+    assert resp.json()["category_id"] == category_id
+
+
+async def test_create_transaction_with_household_merchant(client):
+    """Transaction on a household account accepts household-scoped merchants."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, merchant_id = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    resp = await _create_transaction(
+        client, member_headers, account_id, category_id, merchant_id=merchant_id,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["merchant_id"] == merchant_id
+
+
+async def test_list_transactions_includes_household_account_transactions(client):
+    """Member with read permission sees transactions on household accounts."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    # Admin creates a transaction on the household account
+    await _create_transaction(client, admin_headers, account_id, category_id, amount=-3000)
+
+    # Member should see it
+    resp = await client.get("/transactions", headers=member_headers)
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["amount"] == -3000
+    assert resp.json()[0]["account_id"] == account_id
+
+
+async def test_update_transaction_on_household_account_requires_write(client):
+    """Member with read-only permission cannot update a household transaction."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/transactions/{txn_id}", json={"amount": -9999}, headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_delete_transaction_on_household_account_requires_write(client):
+    """Member with read-only permission cannot delete a household transaction."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/transactions/{txn_id}", headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_update_transaction_on_household_account_with_write_permission(client):
+    """Member with write permission can update a household transaction."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/transactions/{txn_id}", json={"amount": -9999}, headers=member_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["amount"] == -9999
+
+
+async def test_delete_transaction_on_household_account_with_write_permission(client):
+    """Member with write permission can delete a household transaction."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/transactions/{txn_id}", headers=member_headers)
+
+    assert resp.status_code == 204
+
+    get_resp = await client.get(f"/transactions/{txn_id}", headers=admin_headers)
+    assert get_resp.status_code == 404
+
+
+async def test_create_transaction_with_other_users_personal_category_returns_422(client):
+    """Cannot use another member's personal category on a household account."""
+    admin_headers, member_headers, member_user_id, _, account_id, _, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    # Admin's personal category (not household-scoped)
+    admin_personal_cat = await _create_category(client, admin_headers, name="Admin Personal", kind="expense")
+    admin_cat_id = admin_personal_cat.json()["id"]
+
+    # Member tries to use admin's personal category
+    resp = await _create_transaction(client, member_headers, account_id, admin_cat_id)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Category not found"
