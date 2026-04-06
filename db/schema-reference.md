@@ -236,16 +236,19 @@ Hierarchical transaction categories. App seeds a default "Uncategorized" categor
 
 ### `merchants`
 
-Per-user registry of entities that send or receive money (stores, employers, people, etc.).
+Per-user registry of entities that send or receive money (stores, employers, people, etc.). Any household member can create a household merchant; only admins can edit or delete them.
 
 
-| Column                | Type         | Constraints               | Description                                                                                                                                         |
-| --------------------- | ------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                  | uuid         | PK                        |                                                                                                                                                     |
-| `owner_id`            | uuid         | NOT NULL, FK → `users.id` |                                                                                                                                                     |
-| `name`                | varchar(256) | NOT NULL                  | e.g., "Costco", "Employer Inc."                                                                                                                     |
-| `default_category_id` | uuid         | FK → `categories.id`      | Auto-categorization hint: new transactions with this merchant default to this category (used for manully created merchants not imported from Plaid) |
-| `created_at`          | timestamptz  | NOT NULL                  |                                                                                                                                                     |
+| Column                | Type         | Constraints                            | Description                                                                                                                                         |
+| --------------------- | ------------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                  | uuid         | PK                                     |                                                                                                                                                     |
+| `owner_id`            | uuid         | NOT NULL, FK → `users.id`              | Creator of the merchant                                                                                                                             |
+| `household_id`        | uuid         | FK → `households.id` ON DELETE CASCADE | Non-null for household-shared merchants                                                                                                             |
+| `name`                | varchar(256) | NOT NULL                               | e.g., "Costco", "Employer Inc."                                                                                                                     |
+| `default_category_id` | uuid         | FK → `categories.id`                   | Auto-categorization hint: new transactions with this merchant default to this category (used for manually created merchants not imported from Plaid) |
+| `created_at`          | timestamptz  | NOT NULL                               |                                                                                                                                                     |
+
+**Unique constraint:** `(owner_id, name)` where `household_id IS NULL` — no duplicate personal merchants per user. `(household_id, name)` — no duplicate merchants within a household.
 
 
 ### `transactions`
@@ -339,16 +342,6 @@ Tracks which categories a budget monitors and when. Enables historical budget ut
 | `removed_at`  | timestamptz |                                 | Null = still active; set when unlinked     |
 
 
-### `budget_members`
-
-Scopes a household budget to specific members. When no rows exist for a given budget, all household members are implicitly included.
-
-
-| Column      | Type | Constraints           | Description |
-| ----------- | ---- | --------------------- | ----------- |
-| `budget_id` | uuid | PK, FK → `budgets.id` ON DELETE CASCADE |             |
-| `user_id`   | uuid | PK, FK → `users.id`   |             |
-
-**Data lifecycle:** Budgets use hard delete. Expired budgets are naturally preserved as historical records (they remain queryable by period), so a delete means the user intentionally wants the budget removed. Cascading delete removes associated `budget_tracked_categories` and `budget_members` rows.
+**Data lifecycle:** Budgets use hard delete. Expired budgets are naturally preserved as historical records (they remain queryable by period), so a delete means the user intentionally wants the budget removed. Cascading delete removes associated `budget_tracked_categories` and `budget_permissions` rows.
 
 
