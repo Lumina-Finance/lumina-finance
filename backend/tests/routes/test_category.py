@@ -45,6 +45,53 @@ async def _create_second_user(client):
     })
 
 
+async def _create_household(client, headers):
+    """Create a household and return its ID.
+
+    Args:
+        client: The async test client.
+        headers: Auth headers for the requesting user.
+
+    Returns:
+        The created household's ID.
+    """
+    resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
+    return resp.json()["id"]
+
+
+async def _setup_household_with_member(client):
+    """Create a household with an admin (owner) and a regular member.
+
+    Args:
+        client: The async test client.
+
+    Returns:
+        Tuple of (admin_headers, member_headers, member_user_id, household_id).
+    """
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, admin_headers)
+
+    member_resp = await client.post("/auth/signup", json={
+        "email": "member@example.com",
+        "password": "securepassword123",
+        "first_name": "Member",
+        "tz": "America/Toronto",
+        "base_currency": "CAD",
+    })
+    member_headers = _get_auth_header(member_resp)
+    member_user_id = member_resp.json()["user"]["id"]
+
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+
+    return admin_headers, member_headers, member_user_id, household_id
+
+
 # --- GET /categories ---
 
 
@@ -389,3 +436,300 @@ async def test_double_delete_returns_404_on_second(client):
 
     assert resp1.status_code == 204
     assert resp2.status_code == 404
+
+
+# --- Household categories: POST /categories ---
+
+
+async def test_create_household_category_as_member_returns_201(client):
+    """Any household member can create a household category."""
+    _, member_headers, _, household_id = await _setup_household_with_member(client)
+
+    resp = await _create_category(client, member_headers, name="Games", household_id=household_id)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "Games"
+    assert data["household_id"] == household_id
+
+
+async def test_create_household_category_as_admin_returns_201(client):
+    """Admin can create a household category."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    resp = await _create_category(client, admin_headers, name="Utilities", household_id=household_id)
+
+    assert resp.status_code == 201
+    assert resp.json()["household_id"] == household_id
+
+
+async def test_create_household_category_non_member_returns_404(client):
+    """Non-member cannot create a category in a household."""
+    _, _, _, household_id = await _setup_household_with_member(client)
+
+    outsider_resp = await client.post("/auth/signup", json={
+        "email": "outsider@example.com", "password": "securepassword123",
+        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    outsider_headers = _get_auth_header(outsider_resp)
+
+    resp = await _create_category(client, outsider_headers, household_id=household_id)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Household not found"
+
+
+async def test_create_household_category_duplicate_returns_409(client):
+    """Duplicate name+kind within the same household returns 409."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    await _create_category(client, admin_headers, name="Food", kind="expense", household_id=household_id)
+    resp = await _create_category(client, admin_headers, name="Food", kind="expense", household_id=household_id)
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+async def test_create_household_category_same_name_as_personal_allowed(client):
+    """Personal and household categories with the same name+kind can coexist."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    personal = await _create_category(client, admin_headers, name="Food", kind="expense")
+    household = await _create_category(client, admin_headers, name="Food", kind="expense", household_id=household_id)
+
+    assert personal.status_code == 201
+    assert household.status_code == 201
+    assert personal.json()["id"] != household.json()["id"]
+
+
+async def test_create_household_category_with_household_parent(client):
+    """Household category can use another household category as parent."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    parent = await _create_category(client, admin_headers, name="Food", household_id=household_id)
+    parent_id = parent.json()["id"]
+
+    child = await _create_category(client, admin_headers, name="Takeout", household_id=household_id, parent_id=parent_id)
+
+    assert child.status_code == 201
+    assert child.json()["parent_id"] == parent_id
+
+
+async def test_create_household_category_nonexistent_household_returns_404(client):
+    """Creating a category with a fake household_id returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_category(client, headers, household_id=NONEXISTENT_ID)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Household not found"
+
+
+# --- Household categories: GET /categories ---
+
+
+async def test_list_categories_with_household_filter_as_admin(client):
+    """Admin passing household_id returns personal + that household's categories."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    await _create_category(client, admin_headers, name="Personal Cat", kind="expense")
+    await _create_category(client, admin_headers, name="Shared Cat", kind="expense", household_id=household_id)
+
+    resp = await client.get(f"/categories?household_id={household_id}", headers=admin_headers)
+
+    assert resp.status_code == 200
+    names = {c["name"] for c in resp.json()}
+    assert "Personal Cat" in names
+    assert "Shared Cat" in names
+
+
+async def test_list_categories_with_household_filter_as_member(client):
+    """Non-admin member passing household_id also sees household categories."""
+    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+
+    await _create_category(client, admin_headers, name="Shared Cat", kind="expense", household_id=household_id)
+
+    resp = await client.get(f"/categories?household_id={household_id}", headers=member_headers)
+
+    assert resp.status_code == 200
+    names = {c["name"] for c in resp.json()}
+    assert "Shared Cat" in names
+
+
+async def test_list_categories_without_household_filter_excludes_household(client):
+    """Without household_id filter, only personal categories are returned."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    await _create_category(client, admin_headers, name="Personal Cat", kind="expense")
+    await _create_category(client, admin_headers, name="Shared Cat", kind="expense", household_id=household_id)
+
+    resp = await client.get("/categories", headers=admin_headers)
+
+    assert resp.status_code == 200
+    names = {c["name"] for c in resp.json()}
+    assert "Personal Cat" in names
+    assert "Shared Cat" not in names
+
+
+async def test_list_categories_household_filter_non_member_returns_404(client):
+    """Non-member passing household_id filter returns 404."""
+    _, _, _, household_id = await _setup_household_with_member(client)
+
+    outsider_resp = await client.post("/auth/signup", json={
+        "email": "outsider@example.com", "password": "securepassword123",
+        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    outsider_headers = _get_auth_header(outsider_resp)
+
+    resp = await client.get(f"/categories?household_id={household_id}", headers=outsider_headers)
+
+    assert resp.status_code == 404
+
+
+async def test_get_household_category_as_member(client):
+    """Non-admin member can view a household category."""
+    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="Shared", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/categories/{category_id}", headers=member_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Shared"
+    assert resp.json()["household_id"] == household_id
+
+
+async def test_get_household_category_non_member_returns_404(client):
+    """Non-member cannot view a household category."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="Shared", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    outsider_resp = await client.post("/auth/signup", json={
+        "email": "outsider@example.com", "password": "securepassword123",
+        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    outsider_headers = _get_auth_header(outsider_resp)
+
+    resp = await client.get(f"/categories/{category_id}", headers=outsider_headers)
+
+    assert resp.status_code == 404
+
+
+# --- Household categories: PATCH /categories ---
+
+
+async def test_patch_household_category_as_admin(client):
+    """Admin can update a household category."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="Old Name", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "New Name"}, headers=admin_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "New Name"
+
+
+async def test_patch_household_category_as_non_admin_returns_403(client):
+    """Non-admin member cannot update a household category."""
+    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="Shared", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "Hacked"}, headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Admin role required"
+
+
+async def test_patch_household_category_non_member_returns_404(client):
+    """Non-member cannot see or update a household category."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="Shared", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    outsider_resp = await client.post("/auth/signup", json={
+        "email": "outsider@example.com", "password": "securepassword123",
+        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    outsider_headers = _get_auth_header(outsider_resp)
+
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "Hacked"}, headers=outsider_headers)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Category not found"
+
+
+async def test_patch_personal_category_invalid_parent_returns_422(client):
+    """Updating a personal category with a nonexistent parent returns 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_category(client, headers)
+    category_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/categories/{category_id}",
+        json={"parent_id": NONEXISTENT_ID},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Parent category not found"
+
+
+# --- Household categories: DELETE /categories ---
+
+
+async def test_delete_household_category_as_admin(client):
+    """Admin can delete a household category."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="ToDelete", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/categories/{category_id}", headers=admin_headers)
+
+    assert resp.status_code == 204
+
+    get_resp = await client.get(f"/categories/{category_id}", headers=admin_headers)
+    assert get_resp.status_code == 404
+
+
+async def test_delete_household_category_as_non_admin_returns_403(client):
+    """Non-admin member cannot delete a household category."""
+    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="Shared", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    resp = await client.delete(f"/categories/{category_id}", headers=member_headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Admin role required"
+
+
+async def test_delete_household_category_non_member_returns_404(client):
+    """Non-member cannot see or delete a household category."""
+    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+
+    create_resp = await _create_category(client, admin_headers, name="Shared", household_id=household_id)
+    category_id = create_resp.json()["id"]
+
+    outsider_resp = await client.post("/auth/signup", json={
+        "email": "outsider@example.com", "password": "securepassword123",
+        "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
+    })
+    outsider_headers = _get_auth_header(outsider_resp)
+
+    resp = await client.delete(f"/categories/{category_id}", headers=outsider_headers)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Category not found"
