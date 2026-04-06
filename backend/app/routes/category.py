@@ -189,22 +189,33 @@ async def delete_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a category. Must belong to the authenticated user.
+    """Delete a category. Household categories require admin role."""
+    # Fetch category if the user owns it or is a member of its household
+    household_ids = (
+        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    ).scalar_subquery()
 
-    Args:
-        category_id: UUID of the category.
-        user: The authenticated user.
-        db: Async database session.
-
-    Raises:
-        HTTPException 404: Category not found or not owned by the user.
-    """
     result = await db.execute(
-        select(Category).where(Category.id == category_id, Category.owner_id == user.id),
+        select(Category).where(
+            Category.id == category_id,
+            (Category.owner_id == user.id) | (Category.household_id.in_(household_ids)),
+        ),
     )
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    # Only admins can delete household categories
+    if category.household_id:
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == category.household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        member = member_result.scalar_one_or_none()
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
     await db.delete(category)
     await db.commit()
