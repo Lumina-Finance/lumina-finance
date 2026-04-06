@@ -1229,8 +1229,8 @@ async def test_list_budgets_includes_household_budgets(client):
     assert names == {"Personal Budget", "Family Budget"}
 
 
-async def test_list_budgets_household_member_sees_household_budgets(client):
-    """Non-admin household member sees household budgets in their list."""
+async def test_list_budgets_household_member_without_permission_excluded(client):
+    """Non-admin household member without permission does not see household budgets."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -1242,6 +1242,34 @@ async def test_list_budgets_household_member_sees_household_budgets(client):
         headers=headers,
     )
     await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+
+    resp = await client.get("/budgets", headers=other_headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_list_budgets_household_member_with_permission(client):
+    """Non-admin household member with READ permission sees household budgets."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    household_id = await _create_household(client, headers)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+    create_resp = await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+    budget_id = create_resp.json()["id"]
+
+    # Grant READ permission
+    await client.post(
+        f"/budgets/{budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "read"},
+        headers=headers,
+    )
 
     resp = await client.get("/budgets", headers=other_headers)
 
