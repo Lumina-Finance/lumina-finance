@@ -183,13 +183,33 @@ async def delete_merchant(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a merchant. Must belong to the authenticated user."""
+    """Delete a merchant. Household merchants require admin role."""
+    # Fetch merchant if the user owns it or is a member of its household
+    household_ids = (
+        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    ).scalar_subquery()
+
     result = await db.execute(
-        select(Merchant).where(Merchant.id == merchant_id, Merchant.owner_id == user.id),
+        select(Merchant).where(
+            Merchant.id == merchant_id,
+            (Merchant.owner_id == user.id) | (Merchant.household_id.in_(household_ids)),
+        ),
     )
     merchant = result.scalar_one_or_none()
     if not merchant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Merchant not found")
+
+    # Only admins can delete household merchants
+    if merchant.household_id is not None:
+        member_result = await db.execute(
+            select(HouseholdMember).where(
+                HouseholdMember.household_id == merchant.household_id,
+                HouseholdMember.user_id == user.id,
+            ),
+        )
+        member = member_result.scalar_one_or_none()
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
     await db.delete(merchant)
     await db.commit()
