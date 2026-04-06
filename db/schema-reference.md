@@ -260,7 +260,7 @@ Core ledger table. Positive amount = money in (income/transfer received), negati
 | -------------------- | ----------- | ------------------------------ | ----------------------------------------------------------------- |
 | `id`                 | uuid        | PK                             |                                                                   |
 | `created_by_user_id` | uuid        | NOT NULL, FK → `users.id`      | Who recorded this transaction (audit trail for shared accounts)   |
-| `account_id`         | uuid        | NOT NULL, FK → `accounts.id`   | Which account this transaction belongs to                         |
+| `account_id`         | uuid        | NOT NULL, FK → `accounts.id` ON DELETE CASCADE | Which account this transaction belongs to                         |
 | `ts`                 | timestamptz | NOT NULL                       | When the transaction occurred                                     |
 | `merchant_id`        | uuid        | FK → `merchants.id`            | Null for transfers between own accounts                           |
 | `category_id`        | uuid        | NOT NULL, FK → `categories.id` | Never null due to seeded "Uncategorized" defaults                 |

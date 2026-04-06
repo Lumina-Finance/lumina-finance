@@ -187,7 +187,7 @@ Table merchants [headercolor: #F59E0B, note: "per-user merchant registry; any ho
 Table transactions [headercolor: #F59E0B, note: "acts as a ledger: positive amount = money in, negative = money out; transfers are two independent rows"] {
   id uuid pk
   created_by_user_id uuid [not null, ref: > users.id]
-  account_id uuid [not null, ref: > accounts.id]
+  account_id uuid [not null, ref: > accounts.id, note: "ON DELETE CASCADE"]
   ts timestamptz [not null]
   merchant_id uuid [ref: > merchants.id, note: "null for transfers between own accounts"]
   category_id uuid [not null, ref: > categories.id]
