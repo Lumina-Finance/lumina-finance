@@ -273,6 +273,10 @@ async def update_transaction(
         tag_ids = await _get_tag_ids(db, txn.id)
         return _build_response(txn, tag_ids)
 
+    # Capture pre-change values needed to recompute balance snapshots
+    old_account_id = txn.account_id
+    old_ts = txn.ts
+
     # Resolve the account's household_id for category/merchant validation
     account_household_id = None
     if "account_id" in changed_fields:
@@ -296,6 +300,9 @@ async def update_transaction(
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
         await _check_merchant_access_or_422(db, changed_fields["merchant_id"], user.id, account_household_id)
 
+    # Snapshot recomputation is only needed when balance-affecting fields change
+    recompute_needed = bool({"account_id", "ts", "amount"} & changed_fields.keys())
+
     # Handle tags separately — validate and replace in bulk
     new_tag_ids = changed_fields.pop("tag_ids", None)
 
@@ -305,6 +312,16 @@ async def update_transaction(
     if new_tag_ids is not None:
         validated = await _validate_tag_ids(db, user.id, new_tag_ids) if new_tag_ids else []
         await _replace_tags(db, txn.id, validated)
+
+    if recompute_needed:
+        await db.flush()
+        if txn.account_id != old_account_id:
+            # Account moved — recompute both sides from their respective affected days
+            await recompute_snapshots_from(db, old_account_id, old_ts)
+            await recompute_snapshots_from(db, txn.account_id, txn.ts)
+        else:
+            # Same account — recompute from the earliest affected day
+            await recompute_snapshots_from(db, txn.account_id, min(old_ts, txn.ts))
 
     await db.commit()
     await db.refresh(txn)
