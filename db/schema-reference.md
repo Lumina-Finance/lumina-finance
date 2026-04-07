@@ -188,14 +188,16 @@ Represents a real-world financial account. Owned by either a user (personal) or 
 
 ### `account_balance_snapshots`
 
-End-of-day balance records used for historical balance charts and net worth tracking. Backend-maintained: one row per `(account, date)` where a transaction occurred. Snapshots are derived from transactions and recomputed automatically on any transaction mutation affecting that account. They are never written to directly by users.
+End-of-day balance records used for historical balance charts and net worth tracking. Backend-maintained: one row per `(account, day)` where a transaction occurred. Snapshots are derived from transactions and recomputed automatically on any transaction mutation affecting that account. They are never written to directly by users.
+
+**Convention:** `ts` is always stored as midnight UTC of the snapshot's day (e.g., `2026-03-15 00:00:00+00`). The midnight-UTC convention is enforced in the snapshot service layer, keeping the column type consistent with the rest of the schema while still expressing daily granularity.
 
 
-| Column       | Type   | Constraints                              | Description                               |
-| ------------ | ------ | ---------------------------------------- | ----------------------------------------- |
-| `account_id` | uuid   | PK, FK → `accounts.id` ON DELETE CASCADE |                                           |
-| `balance`    | bigint | NOT NULL                                 | End-of-day balance in currency base units |
-| `date`       | date   | PK, NOT NULL                             | Date this snapshot represents             |
+| Column       | Type        | Constraints                              | Description                                     |
+| ------------ | ----------- | ---------------------------------------- | ----------------------------------------------- |
+| `account_id` | uuid        | PK, FK → `accounts.id` ON DELETE CASCADE |                                                 |
+| `balance`    | bigint      | NOT NULL                                 | End-of-day balance in currency base units       |
+| `ts`         | timestamptz | PK, NOT NULL                             | Midnight UTC of the day this snapshot represents |
 
 
 ### `tax_advantaged_configs`

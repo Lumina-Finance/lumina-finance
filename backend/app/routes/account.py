@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime, time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -127,13 +128,14 @@ async def create_account(
     db.add(account)
     await db.flush()
 
-    # Anchor balance history with a zero-balance snapshot on the creation date.
+    # Anchor balance history with a zero-balance snapshot on the creation day.
     # This gives the frontend a stable starting point for charts without needing
     # to join against account.created_at. Retroactively imported transactions
     # may later replace this snapshot via recompute_snapshots_from.
+    created_day_utc = datetime.combine(account.created_at.astimezone(UTC).date(), time.min, tzinfo=UTC)
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
-        date=account.created_at.date(),
+        ts=created_day_utc,
         balance=0,
     ))
 

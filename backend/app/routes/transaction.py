@@ -248,8 +248,8 @@ async def create_transaction(
     if validated_tag_ids:
         await _replace_tags(db, txn.id, validated_tag_ids)
 
-    # Rebuild balance snapshots from this transaction's date forward
-    await recompute_snapshots_from(db, data.account_id, data.ts.date())
+    # Rebuild balance snapshots from this transaction's day forward
+    await recompute_snapshots_from(db, data.account_id, data.ts)
 
     await db.commit()
     await db.refresh(txn)
