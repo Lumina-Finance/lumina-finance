@@ -1,6 +1,6 @@
 """Route tests for the account balance snapshot endpoints and lifecycle hooks."""
 import uuid
-from datetime import date, datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -11,13 +11,18 @@ from tests.routes.conftest import _create_account, _create_user, _get_auth_heade
 # --- Helpers ---
 
 
+def _midnight(y, m, d):
+    """Build a midnight-UTC datetime for snapshot ts comparisons."""
+    return datetime(y, m, d, tzinfo=UTC)
+
+
 async def _get_snapshots_for(account_id):
-    """Query the DB directly for an account's balance snapshots ordered by date."""
+    """Query the DB directly for an account's balance snapshots ordered by ts."""
     async with TestSession() as session:
         result = await session.execute(
             select(AccountBalanceSnapshot)
             .where(AccountBalanceSnapshot.account_id == account_id)
-            .order_by(AccountBalanceSnapshot.date),
+            .order_by(AccountBalanceSnapshot.ts),
         )
         return list(result.scalars().all())
 
@@ -52,11 +57,12 @@ async def test_create_account_seeds_zero_balance_snapshot(client):
     resp = await _create_account(client, headers)
     account_id = resp.json()["id"]
     created_at = datetime.fromisoformat(resp.json()["created_at"])
+    expected_ts = datetime.combine(created_at.astimezone(UTC).date(), datetime.min.time(), tzinfo=UTC)
 
     snapshots = await _get_snapshots_for(account_id)
     assert len(snapshots) == 1
     assert snapshots[0].balance == 0
-    assert snapshots[0].date == created_at.date()
+    assert snapshots[0].ts == expected_ts
 
 
 async def test_create_household_account_seeds_zero_balance_snapshot(client):
@@ -70,11 +76,12 @@ async def test_create_household_account_seeds_zero_balance_snapshot(client):
     resp = await _create_account(client, headers, household_id=household_id)
     account_id = resp.json()["id"]
     created_at = datetime.fromisoformat(resp.json()["created_at"])
+    expected_ts = datetime.combine(created_at.astimezone(UTC).date(), datetime.min.time(), tzinfo=UTC)
 
     snapshots = await _get_snapshots_for(account_id)
     assert len(snapshots) == 1
     assert snapshots[0].balance == 0
-    assert snapshots[0].date == created_at.date()
+    assert snapshots[0].ts == expected_ts
 
 
 async def test_create_two_accounts_each_gets_its_own_snapshot(client):
@@ -132,9 +139,8 @@ async def test_create_transaction_writes_snapshot_for_its_date(client):
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    # Zero anchor from account creation + 3/15 snapshot from the transaction
-    snapshot_map = {s.date: s.balance for s in snapshots}
-    assert snapshot_map[date(2026, 3, 15)] == -5000
+    snapshot_map = {s.ts: s.balance for s in snapshots}
+    assert snapshot_map[_midnight(2026, 3, 15)] == -5000
 
 
 async def test_create_multiple_transactions_same_day_accumulates_balance(client):
@@ -158,7 +164,7 @@ async def test_create_multiple_transactions_same_day_accumulates_balance(client)
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    day_snapshots = [s for s in snapshots if s.date == date(2026, 3, 15)]
+    day_snapshots = [s for s in snapshots if s.ts == _midnight(2026, 3, 15)]
     assert len(day_snapshots) == 1
     assert day_snapshots[0].balance == 7000
 
@@ -188,7 +194,7 @@ async def test_create_transactions_across_multiple_days_builds_running_balance(c
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.date: s.balance for s in snapshots}
-    assert snapshot_map[date(2026, 3, 1)] == 10000
-    assert snapshot_map[date(2026, 3, 2)] == 8000
-    assert snapshot_map[date(2026, 3, 3)] == 5000
+    snapshot_map = {s.ts: s.balance for s in snapshots}
+    assert snapshot_map[_midnight(2026, 3, 1)] == 10000
+    assert snapshot_map[_midnight(2026, 3, 2)] == 8000
+    assert snapshot_map[_midnight(2026, 3, 3)] == 5000
