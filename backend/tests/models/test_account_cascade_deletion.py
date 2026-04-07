@@ -3,7 +3,7 @@
 Verifies that deleting an account removes its transactions at the DB level.
 Covers both personal and household-scoped accounts.
 """
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import select
@@ -127,11 +127,10 @@ async def test_delete_account_cascades_to_balance_snapshots(
 ):
     """Deleting an account removes all of its balance snapshots."""
     s1 = AccountBalanceSnapshot(
-        account_id=personal_account.id, balance=10000, ts=datetime.now(UTC),
+        account_id=personal_account.id, balance=10000, date=date(2026, 3, 1),
     )
     s2 = AccountBalanceSnapshot(
-        account_id=personal_account.id, balance=15000,
-        ts=datetime(2026, 3, 1, tzinfo=UTC),
+        account_id=personal_account.id, balance=15000, date=date(2026, 3, 2),
     )
     db.add_all([s1, s2])
     await db.flush()
