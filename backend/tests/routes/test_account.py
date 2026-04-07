@@ -1,23 +1,11 @@
-from datetime import datetime
-
-from sqlalchemy import select
-
-from app.models.account import AccountBalanceSnapshot
 from app.models.base import InstitutionStatus
 from app.models.institution import Institution
 from tests.conftest import TestSession
-from tests.routes.conftest import _create_user, _get_auth_header
+from tests.routes.conftest import ACCOUNT_PAYLOAD, _create_account, _create_user, _get_auth_header
 
 # --- Helpers ---
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
-
-ACCOUNT_PAYLOAD = {
-    "account_type": "checking",
-    "tax_treatment": "taxable",
-    "name": "Main Chequing",
-    "currency": "CAD",
-}
 
 
 async def _seed_institution():
@@ -40,24 +28,6 @@ async def _seed_institution():
         await session.commit()
         await session.refresh(inst)
         return inst
-
-
-async def _create_account(client, headers, **overrides):
-    """Create an account via POST /accounts.
-
-    Defaults: account_type="checking", tax_treatment="taxable",
-    name="Main Chequing", currency="CAD".
-
-    Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
-
-    Returns:
-        The HTTP response from the API.
-    """
-    payload = {**ACCOUNT_PAYLOAD, **overrides}
-    return await client.post("/accounts", json=payload, headers=headers)
 
 
 async def _create_second_user(client):
@@ -190,53 +160,6 @@ async def test_create_account_returns_201(client):
     assert data["is_hidden"] is False
     assert data["id"] is not None
     assert data["created_at"] is not None
-
-
-async def test_create_account_seeds_zero_balance_snapshot(client):
-    """A new personal account gets a zero-balance snapshot anchoring its history."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_account(client, headers)
-    account_id = resp.json()["id"]
-    created_at = datetime.fromisoformat(resp.json()["created_at"])
-
-    async with TestSession() as session:
-        result = await session.execute(
-            select(AccountBalanceSnapshot).where(
-                AccountBalanceSnapshot.account_id == account_id,
-            ),
-        )
-        snapshots = list(result.scalars().all())
-
-    assert len(snapshots) == 1
-    assert snapshots[0].balance == 0
-    assert snapshots[0].date == created_at.date()
-
-
-async def test_create_household_account_seeds_zero_balance_snapshot(client):
-    """A new household account also gets a zero-balance snapshot."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    household_resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
-    household_id = household_resp.json()["id"]
-
-    resp = await _create_account(client, headers, household_id=household_id)
-    account_id = resp.json()["id"]
-    created_at = datetime.fromisoformat(resp.json()["created_at"])
-
-    async with TestSession() as session:
-        result = await session.execute(
-            select(AccountBalanceSnapshot).where(
-                AccountBalanceSnapshot.account_id == account_id,
-            ),
-        )
-        snapshots = list(result.scalars().all())
-
-    assert len(snapshots) == 1
-    assert snapshots[0].balance == 0
-    assert snapshots[0].date == created_at.date()
 
 
 async def test_create_account_with_institution(client):

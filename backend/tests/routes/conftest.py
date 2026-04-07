@@ -66,6 +66,32 @@ async def _create_user(client):
     return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
 
 
+ACCOUNT_PAYLOAD = {
+    "account_type": "checking",
+    "tax_treatment": "taxable",
+    "name": "Main Chequing",
+    "currency": "CAD",
+}
+
+
+async def _create_account(client, headers, **overrides):
+    """Create an account via POST /accounts.
+
+    Defaults: account_type="checking", tax_treatment="taxable",
+    name="Main Chequing", currency="CAD".
+
+    Args:
+        client: The async test client.
+        headers: Auth headers for the requesting user.
+        **overrides: Fields to override in the default payload.
+
+    Returns:
+        The HTTP response from the API.
+    """
+    payload = {**ACCOUNT_PAYLOAD, **overrides}
+    return await client.post("/accounts", json=payload, headers=headers)
+
+
 def _get_auth_header(resp):
     """Extract a Bearer Authorization header dict from a signup/login response.
 
