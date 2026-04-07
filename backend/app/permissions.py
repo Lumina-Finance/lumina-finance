@@ -15,7 +15,12 @@ _LEVEL_RANK = {PermissionLevel.READ: 0, PermissionLevel.WRITE: 1, PermissionLeve
 
 
 async def check_account_access(
-    db: AsyncSession, account_id: uuid.UUID, user_id: uuid.UUID, required_level: PermissionLevel,
+    db: AsyncSession,
+    account_id: uuid.UUID,
+    user_id: uuid.UUID,
+    required_level: PermissionLevel,
+    *,
+    require_open: bool = False,
 ) -> Account:
     """Verify the user can access an account at the required permission level.
 
@@ -29,12 +34,16 @@ async def check_account_access(
         account_id: UUID of the account.
         user_id: UUID of the requesting user.
         required_level: Minimum permission level needed.
+        require_open: If True, raise 422 when the account is closed. Should be set
+            on write paths (create/update transactions, move to a new account).
 
     Returns:
         The Account row.
 
     Raises:
         HTTPException 404: Account not found or user lacks access.
+        HTTPException 403: User has some access but insufficient level.
+        HTTPException 422: Account is closed and require_open=True.
     """
     result = await db.execute(select(Account).where(Account.id == account_id))
     account = result.scalar_one_or_none()
@@ -42,11 +51,10 @@ async def check_account_access(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 
     # Personal account — owner has full access
-    if account.owner_id == user_id:
-        return account
+    authorized = account.owner_id == user_id
 
-    # Household account — check membership
-    if account.household_id:
+    # Household account — check membership then admin/permission
+    if not authorized and account.household_id:
         member_result = await db.execute(
             select(HouseholdMember).where(
                 HouseholdMember.household_id == account.household_id,
@@ -57,25 +65,31 @@ async def check_account_access(
         if not member:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 
-        # Admins have implicit full access
         if member.is_admin:
-            return account
+            # Admins have implicit full access
+            authorized = True
+        else:
+            perm_result = await db.execute(
+                select(AccountPermission).where(
+                    AccountPermission.account_id == account_id,
+                    AccountPermission.user_id == user_id,
+                ),
+            )
+            perm = perm_result.scalar_one_or_none()
+            if perm:
+                if _LEVEL_RANK[perm.level] >= _LEVEL_RANK[required_level]:
+                    authorized = True
+                else:
+                    # User has some access but not enough — 403 since they know it exists
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
-        # Check explicit permission row
-        perm_result = await db.execute(
-            select(AccountPermission).where(
-                AccountPermission.account_id == account_id,
-                AccountPermission.user_id == user_id,
-            ),
-        )
-        perm = perm_result.scalar_one_or_none()
-        if perm:
-            if _LEVEL_RANK[perm.level] >= _LEVEL_RANK[required_level]:
-                return account
-            # User has some access but not enough — 403 since they know it exists
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    if not authorized:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    if require_open and account.closed_at is not None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is closed")
+
+    return account
 
 
 async def check_transaction_access(

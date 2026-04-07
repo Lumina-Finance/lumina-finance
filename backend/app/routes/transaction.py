@@ -209,7 +209,9 @@ async def create_transaction(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Create a new transaction. Requires write access on the target account."""
-    account = await check_account_access(db, data.account_id, user.id, PermissionLevel.WRITE)
+    account = await check_account_access(
+        db, data.account_id, user.id, PermissionLevel.WRITE, require_open=True,
+    )
 
     currency_lookup = await db.execute(select(Currency).where(Currency.id == data.currency))
     if not currency_lookup.scalar_one_or_none():
@@ -270,8 +272,10 @@ async def update_transaction(
     # Resolve the account's household_id for category/merchant validation
     account_household_id = None
     if "account_id" in changed_fields:
-        # Moving to a new account — check write access on the target
-        new_account = await check_account_access(db, changed_fields["account_id"], user.id, PermissionLevel.WRITE)
+        # Moving to a new account — check write access and reject closed targets
+        new_account = await check_account_access(
+            db, changed_fields["account_id"], user.id, PermissionLevel.WRITE, require_open=True,
+        )
         account_household_id = new_account.household_id
         if txn.currency != new_account.currency and txn.fx_rate is None and "fx_rate" not in changed_fields:
             raise HTTPException(
