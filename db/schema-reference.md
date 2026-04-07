@@ -275,7 +275,7 @@ Core ledger table. Positive amount = money in (income/transfer received), negati
 
 **Immutable after creation:** `created_by_user_id`, `currency`, `created_at`.
 
-**Currency handling:** `amount` is always stored in the parent **account's** currency (in minor units, e.g. cents). The `currency` and `fx_rate` columns are metadata about the original receipt — the frontend pre-converts foreign-currency transactions before posting, then stores `currency` as the receipt currency and `fx_rate` as the rate from the account currency back to the original. The backend never re-applies `fx_rate`: snapshot balances, totals, and reports all sum `amount` directly.
+**Currency handling:** `amount` is always stored in the parent **account's** currency (in minor units, e.g. cents). The `currency` and `fx_rate` columns are metadata about the original receipt: `currency` is the receipt's currency, and `fx_rate` is the exchange rate **between that currency and the parent account's currency** at the time of the transaction — *not* the user's base currency, since the user may hold accounts in currencies other than their own base. The frontend pre-converts foreign-currency receipts before posting; the backend never re-applies `fx_rate` (snapshot balances, totals, and reports all sum `amount` directly).
 
 ### `tags`
 

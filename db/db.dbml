@@ -193,7 +193,7 @@ Table transactions [headercolor: #F59E0B, note: "acts as a ledger: positive amou
   category_id uuid [not null, ref: > categories.id]
   amount bigint [not null, note: "minor units of the parent account's currency (e.g. cents); positive = inflow, negative = outflow. The frontend pre-converts foreign-currency receipts before posting"]
   currency char(3) [not null, ref: > currencies.id, note: "the original receipt currency, kept as metadata; defaults to the account's currency"]
-  fx_rate numeric [default: null, note: "metadata: rate from `currency` back to the original receipt amount, used only for displaying the original foreign-currency value. The backend never re-applies it (snapshots, totals, and reports use `amount` as-is). Frontend defaults to 1.0"]
+  fx_rate numeric [default: null, note: "metadata: exchange rate between `currency` and the **parent account's** currency at the time of the transaction (NOT the user's base currency — these may differ when the user holds accounts in other currencies). Used only by the frontend to display the original foreign-currency value. The backend never re-applies it (snapshots, totals, and reports use `amount` as-is). Frontend defaults to 1.0"]
   notes text [note: "user-provided notes for context or analysis"]
   created_at timestamptz [not null, note: "when the transaction was entered into the system"]
   updated_at timestamptz [not null, note: "tracks last modification; useful for sync and conflict resolution"]
