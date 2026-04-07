@@ -339,9 +339,18 @@ async def delete_transaction(
     """Delete a transaction. Requires write access on the parent account."""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
 
+    # Capture pre-delete values for snapshot recomputation
+    account_id = txn.account_id
+    deleted_ts = txn.ts
+
     # Delete junction rows before the transaction itself
     await db.execute(
         sa.delete(TransactionTag).where(TransactionTag.transaction_id == transaction_id),
     )
     await db.delete(txn)
+    await db.flush()
+
+    # Rebuild balance snapshots from this transaction's day forward
+    await recompute_snapshots_from(db, account_id, deleted_ts)
+
     await db.commit()
