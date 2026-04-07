@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -45,3 +45,13 @@ class UpdateAccountRequest(BaseModel):
     lifetime_contribution_limit: int | None = None
     is_hidden: bool | None = None
     closed_at: datetime | None = None
+
+
+class AccountBalanceSnapshotResponse(BaseModel):
+    """End-of-day balance record. Backend-maintained, derived from transactions."""
+
+    account_id: uuid.UUID
+    balance: int  # In currency base units
+    date: date
+
+    model_config = {"from_attributes": True}

@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     VARCHAR,
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -65,13 +66,18 @@ class AccountPermission(Base):
 
 
 class AccountBalanceSnapshot(Base):
-    """Point-in-time balance record for historical balance charts and net worth tracking."""
+    """End-of-day balance record for historical balance charts and net worth tracking.
+
+    Snapshots are derived from transactions: one row per (account, date) where a
+    transaction occurred. The backend maintains these automatically on transaction
+    mutations — never written to directly by users.
+    """
 
     __tablename__ = "account_balance_snapshots"
 
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
     balance: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True, nullable=False)
+    date: Mapped[date] = mapped_column(Date, primary_key=True, nullable=False)
 
 
 class TaxAdvantagedConfig(Base):
