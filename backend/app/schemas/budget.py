@@ -51,3 +51,26 @@ class BudgetResponse(BaseModel):
     category_ids: list[uuid.UUID] = []
 
     model_config = {"from_attributes": True}
+
+
+class BudgetCategoryUtilization(BaseModel):
+    """Per-category spend total for a budget's period."""
+
+    category_id: uuid.UUID
+    spent: int  # Positive = net outflow in the budget's currency (minor units)
+
+
+class BudgetUtilizationResponse(BaseModel):
+    """Aggregated spending for a budget, grouped by tracked category.
+
+    `spent` values are positive when the net is an outflow. Currently-active
+    tracked categories are always included even with zero spend so the
+    frontend can render all of them.
+    """
+
+    budget_id: uuid.UUID
+    period_start: date
+    period_end: date
+    overall_limit: int | None
+    total_spent: int
+    categories: list[BudgetCategoryUtilization]
