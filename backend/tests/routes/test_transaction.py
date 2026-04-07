@@ -1131,6 +1131,118 @@ async def test_move_transaction_to_closed_account_returns_422(client):
     assert resp.json()["detail"] == "Account is closed"
 
 
+async def test_create_transaction_negative_fx_rate_different_currency_returns_422(client):
+    """Creating a cross-currency transaction with a negative fx_rate is rejected."""
+    await _seed_usd_currency()
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _create_transaction(
+        client, headers, account_id, category_id, fx_rate=-1.5, currency="USD",
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_transaction_zero_fx_rate_different_currency_returns_422(client):
+    """Creating a cross-currency transaction with fx_rate=0 is rejected."""
+    await _seed_usd_currency()
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _create_transaction(
+        client, headers, account_id, category_id, fx_rate=0, currency="USD",
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_transaction_negative_fx_rate_same_currency_returns_422(client):
+    """Creating a same-currency transaction with a negative fx_rate is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _create_transaction(
+        client, headers, account_id, category_id, fx_rate=-1.5,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_transaction_zero_fx_rate_same_currency_returns_422(client):
+    """Creating a same-currency transaction with fx_rate=0 is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _create_transaction(
+        client, headers, account_id, category_id, fx_rate=0,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_transaction_negative_fx_rate_same_currency_returns_422(client):
+    """Updating a same-currency transaction to a negative fx_rate is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(client, headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"fx_rate": -1.0},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_transaction_zero_fx_rate_same_currency_returns_422(client):
+    """Updating a same-currency transaction to fx_rate=0 is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(client, headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"fx_rate": 0},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_transaction_negative_fx_rate_different_currency_returns_422(client):
+    """Updating a cross-currency transaction to a negative fx_rate is rejected."""
+    await _seed_usd_currency()
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(
+        client, headers, account_id, category_id, currency="USD", fx_rate=1.35,
+    )
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"fx_rate": -1.0},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_transaction_zero_fx_rate_different_currency_returns_422(client):
+    """Updating a cross-currency transaction to fx_rate=0 is rejected."""
+    await _seed_usd_currency()
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(
+        client, headers, account_id, category_id, currency="USD", fx_rate=1.35,
+    )
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"fx_rate": 0},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
 async def test_update_transaction_on_closed_account_allows_non_move_edits(client):
     """Closing an account after a transaction exists does not block edits that stay on it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
