@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime, time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +15,12 @@ from app.models.household import HouseholdMember
 from app.models.institution import Institution
 from app.models.user import User
 from app.permissions import check_account_access
-from app.schemas.account import AccountResponse, CreateAccountRequest, UpdateAccountRequest
+from app.schemas.account import (
+    AccountBalanceSnapshotResponse,
+    AccountResponse,
+    CreateAccountRequest,
+    UpdateAccountRequest,
+)
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -58,6 +63,39 @@ async def get_account(
 ):
     """Return a single account by ID. Requires read access."""
     return await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+
+
+@router.get("/{account_id}/snapshots", response_model=list[AccountBalanceSnapshotResponse])
+async def list_account_balance_snapshots(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_date: Annotated[datetime | None, Query()] = None,
+    to_date: Annotated[datetime | None, Query()] = None,
+):
+    """Return the account's daily balance snapshots, ordered ascending by ts.
+
+    Snapshots back the historical balance chart on the account detail page and
+    feed the household net-worth aggregation. Requires read access on the
+    account.
+    """
+    await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+
+    if from_date is not None and to_date is not None and from_date > to_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Start date must be before end date",
+        )
+
+    query = select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id)
+    if from_date is not None:
+        query = query.where(AccountBalanceSnapshot.ts >= from_date)
+    if to_date is not None:
+        query = query.where(AccountBalanceSnapshot.ts <= to_date)
+    query = query.order_by(AccountBalanceSnapshot.ts)
+
+    result = await db.execute(query)
+    return result.scalars().all()
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
