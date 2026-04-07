@@ -761,3 +761,37 @@ async def test_delete_household_merchant_non_member_returns_404(client):
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Merchant not found"
+
+
+async def test_delete_merchant_referenced_by_transaction_returns_409(client):
+    """Deleting a merchant that has transactions referencing it returns 409."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    # Set up category, merchant, account, and a transaction referencing the merchant
+    cat_resp = await client.post("/categories", json={
+        "name": "Groceries", "kind": "expense",
+    }, headers=headers)
+    category_id = cat_resp.json()["id"]
+
+    merchant_resp = await _create_merchant(client, headers, name="Costco")
+    merchant_id = merchant_resp.json()["id"]
+
+    acct_resp = await client.post("/accounts", json={
+        "account_type": "checking", "name": "Chequing", "currency": "CAD",
+    }, headers=headers)
+    account_id = acct_resp.json()["id"]
+
+    await client.post("/transactions", json={
+        "account_id": account_id,
+        "category_id": category_id,
+        "merchant_id": merchant_id,
+        "ts": "2026-03-15T12:00:00Z",
+        "amount": -5000,
+        "currency": "CAD",
+    }, headers=headers)
+
+    resp = await client.delete(f"/merchants/{merchant_id}", headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Merchant is referenced by existing transactions"
