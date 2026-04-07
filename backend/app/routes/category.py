@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -219,4 +220,13 @@ async def delete_category(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
     await db.delete(category)
-    await db.commit()
+    # The FK from transactions.category_id uses RESTRICT; catch the violation
+    # and surface it as 409 instead of a 500 from the raw IntegrityError.
+    try:
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Category is referenced by existing transactions",
+        ) from e
