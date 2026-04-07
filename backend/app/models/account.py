@@ -69,7 +69,7 @@ class AccountBalanceSnapshot(Base):
 
     __tablename__ = "account_balance_snapshots"
 
-    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id"), primary_key=True)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
     balance: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True, nullable=False)
 

@@ -193,7 +193,7 @@ Point-in-time balance records for an account. Used for historical balance charts
 
 | Column       | Type        | Constraints            | Description                          |
 | ------------ | ----------- | ---------------------- | ------------------------------------ |
-| `account_id` | uuid        | PK, FK → `accounts.id` |                                      |
+| `account_id` | uuid        | PK, FK → `accounts.id` ON DELETE CASCADE |                                      |
 | `balance`    | bigint      | NOT NULL               | Balance in the currency's base units |
 | `ts`         | timestamptz | PK, NOT NULL           | Snapshot timestamp                   |
 

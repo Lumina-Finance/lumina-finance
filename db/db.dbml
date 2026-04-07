@@ -137,7 +137,7 @@ Table accounts [headercolor: #10B981, note: "check constraint: exactly one of ow
 }
 
 Table account_balance_snapshots [headercolor: #10B981] {
-  account_id uuid pk [ref: > accounts.id]
+  account_id uuid pk [ref: > accounts.id, note: "ON DELETE CASCADE"]
   balance bigint [not null, note: "stored in the base unit of the currency (e.g., cents for CAD/USD, 1 JPY, etc.)"]
   ts timestamptz pk [not null]
 }
