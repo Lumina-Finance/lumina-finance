@@ -136,10 +136,10 @@ Table accounts [headercolor: #10B981, note: "check constraint: exactly one of ow
   created_at timestamptz [not null]
 }
 
-Table account_balance_snapshots [headercolor: #10B981] {
+Table account_balance_snapshots [headercolor: #10B981, note: "end-of-day balance records; backend-maintained from transactions, one row per (account, date) with activity"] {
   account_id uuid pk [ref: > accounts.id, note: "ON DELETE CASCADE"]
-  balance bigint [not null, note: "stored in the base unit of the currency (e.g., cents for CAD/USD, 1 JPY, etc.)"]
-  ts timestamptz pk [not null]
+  balance bigint [not null, note: "end-of-day balance in currency base units"]
+  date date pk [not null]
 }
 
 Table tax_advantaged_configs [headercolor: #10B981, note: "per-account, per-year limits for tax-advantaged accounts; user is responsible for entering limits"] {

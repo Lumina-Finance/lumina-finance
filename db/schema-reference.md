@@ -188,14 +188,14 @@ Represents a real-world financial account. Owned by either a user (personal) or 
 
 ### `account_balance_snapshots`
 
-Point-in-time balance records for an account. Used for historical balance charts and net worth tracking.
+End-of-day balance records used for historical balance charts and net worth tracking. Backend-maintained: one row per `(account, date)` where a transaction occurred. Snapshots are derived from transactions and recomputed automatically on any transaction mutation affecting that account. They are never written to directly by users.
 
 
-| Column       | Type        | Constraints            | Description                          |
-| ------------ | ----------- | ---------------------- | ------------------------------------ |
-| `account_id` | uuid        | PK, FK → `accounts.id` ON DELETE CASCADE |                                      |
-| `balance`    | bigint      | NOT NULL               | Balance in the currency's base units |
-| `ts`         | timestamptz | PK, NOT NULL           | Snapshot timestamp                   |
+| Column       | Type   | Constraints                              | Description                               |
+| ------------ | ------ | ---------------------------------------- | ----------------------------------------- |
+| `account_id` | uuid   | PK, FK → `accounts.id` ON DELETE CASCADE |                                           |
+| `balance`    | bigint | NOT NULL                                 | End-of-day balance in currency base units |
+| `date`       | date   | PK, NOT NULL                             | Date this snapshot represents             |
 
 
 ### `tax_advantaged_configs`
