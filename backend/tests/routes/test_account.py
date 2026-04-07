@@ -1,3 +1,8 @@
+from datetime import datetime
+
+from sqlalchemy import select
+
+from app.models.account import AccountBalanceSnapshot
 from app.models.base import InstitutionStatus
 from app.models.institution import Institution
 from tests.conftest import TestSession
@@ -185,6 +190,53 @@ async def test_create_account_returns_201(client):
     assert data["is_hidden"] is False
     assert data["id"] is not None
     assert data["created_at"] is not None
+
+
+async def test_create_account_seeds_zero_balance_snapshot(client):
+    """A new personal account gets a zero-balance snapshot anchoring its history."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers)
+    account_id = resp.json()["id"]
+    created_at = datetime.fromisoformat(resp.json()["created_at"])
+
+    async with TestSession() as session:
+        result = await session.execute(
+            select(AccountBalanceSnapshot).where(
+                AccountBalanceSnapshot.account_id == account_id,
+            ),
+        )
+        snapshots = list(result.scalars().all())
+
+    assert len(snapshots) == 1
+    assert snapshots[0].balance == 0
+    assert snapshots[0].date == created_at.date()
+
+
+async def test_create_household_account_seeds_zero_balance_snapshot(client):
+    """A new household account also gets a zero-balance snapshot."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    household_resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
+    household_id = household_resp.json()["id"]
+
+    resp = await _create_account(client, headers, household_id=household_id)
+    account_id = resp.json()["id"]
+    created_at = datetime.fromisoformat(resp.json()["created_at"])
+
+    async with TestSession() as session:
+        result = await session.execute(
+            select(AccountBalanceSnapshot).where(
+                AccountBalanceSnapshot.account_id == account_id,
+            ),
+        )
+        snapshots = list(result.scalars().all())
+
+    assert len(snapshots) == 1
+    assert snapshots[0].balance == 0
+    assert snapshots[0].date == created_at.date()
 
 
 async def test_create_account_with_institution(client):
