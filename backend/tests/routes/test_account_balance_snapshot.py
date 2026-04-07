@@ -907,3 +907,448 @@ async def test_delete_household_account_transaction_recomputes_snapshots(client)
     snapshot_map = {s.ts: s.balance for s in snapshots}
     assert _midnight(2026, 3, 15) not in snapshot_map
     assert len(snapshots) == 0
+
+
+# --- Helpers for the snapshots endpoint ---
+
+NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
+
+
+async def _create_second_user(client):
+    """Sign up a second user and return (auth_headers, user_id)."""
+    resp = await client.post("/auth/signup", json={
+        "email": "other@example.com",
+        "password": "securepassword123",
+        "first_name": "Other",
+        "tz": "America/Toronto",
+        "base_currency": "CAD",
+    })
+    return _get_auth_header(resp), resp.json()["user"]["id"]
+
+
+async def _create_household(client, headers):
+    """Create a household and return its id."""
+    resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
+    return resp.json()["id"]
+
+
+async def _grant_account_permission(client, admin_headers, account_id, user_id, level):
+    """Grant a user a permission level on a household account."""
+    return await client.post(
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": user_id, "level": level},
+        headers=admin_headers,
+    )
+
+
+async def _seed_three_day_history(client, headers, account_id):
+    """Create transactions on 3/1, 3/5, and 3/10 so the account has 3 snapshots."""
+    cat_resp = await _create_category(client, headers)
+    category_id = cat_resp.json()["id"]
+    await _create_transaction(
+        client, headers, account_id, category_id,
+        ts="2026-03-01T10:00:00Z", amount=1000,
+    )
+    await _create_transaction(
+        client, headers, account_id, category_id,
+        ts="2026-03-05T10:00:00Z", amount=2000,
+    )
+    await _create_transaction(
+        client, headers, account_id, category_id,
+        ts="2026-03-10T10:00:00Z", amount=3000,
+    )
+
+
+# --- GET /accounts/{account_id}/snapshots — listing and date filters ---
+
+
+async def test_list_snapshots_returns_all_in_ascending_order(client):
+    """The endpoint returns every snapshot for the account ordered ts ascending."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    await _seed_three_day_history(client, headers, account_id)
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
+    assert resp.status_code == 200
+
+    snapshots = resp.json()
+    assert len(snapshots) == 3
+    timestamps = [s["ts"] for s in snapshots]
+    assert timestamps == sorted(timestamps)
+    assert snapshots[0]["balance"] == 1000
+    assert snapshots[1]["balance"] == 3000
+    assert snapshots[2]["balance"] == 6000
+
+
+async def test_list_snapshots_filters_by_from_date(client):
+    """from_date excludes snapshots strictly before the bound (inclusive boundary).
+
+    Passing from_date equal to a snapshot's ts includes that snapshot.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    await _seed_three_day_history(client, headers, account_id)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/snapshots",
+        params={"from_date": "2026-03-05T00:00:00Z"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    snapshots = resp.json()
+    assert len(snapshots) == 2
+    assert snapshots[0]["balance"] == 3000
+    assert snapshots[1]["balance"] == 6000
+
+
+async def test_list_snapshots_filters_by_to_date(client):
+    """to_date excludes snapshots strictly after the bound (inclusive boundary).
+
+    Passing to_date equal to a snapshot's ts includes that snapshot.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    await _seed_three_day_history(client, headers, account_id)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/snapshots",
+        params={"to_date": "2026-03-05T00:00:00Z"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    snapshots = resp.json()
+    assert len(snapshots) == 2
+    assert snapshots[0]["balance"] == 1000
+    assert snapshots[1]["balance"] == 3000
+
+
+async def test_list_snapshots_filters_by_both_date_bounds(client):
+    """Both bounds combined return only snapshots inside the inclusive range."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    await _seed_three_day_history(client, headers, account_id)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/snapshots",
+        params={
+            "from_date": "2026-03-04T00:00:00Z",
+            "to_date": "2026-03-06T00:00:00Z",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    snapshots = resp.json()
+    assert len(snapshots) == 1
+    assert snapshots[0]["balance"] == 3000
+
+
+async def test_list_snapshots_with_zero_width_date_range_returns_only_that_day(client):
+    """from_date == to_date covering one snapshot's day returns exactly that snapshot."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    await _seed_three_day_history(client, headers, account_id)
+
+    # Both bounds at midnight UTC of day 5 — the snapshot's ts is exactly that
+    resp = await client.get(
+        f"/accounts/{account_id}/snapshots",
+        params={
+            "from_date": "2026-03-05T00:00:00Z",
+            "to_date": "2026-03-05T00:00:00Z",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    snapshots = resp.json()
+    assert len(snapshots) == 1
+    assert snapshots[0]["balance"] == 3000
+
+
+async def test_list_snapshots_returns_empty_when_no_snapshots_in_range(client):
+    """A date range that excludes all snapshots returns an empty list, not 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    await _seed_three_day_history(client, headers, account_id)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/snapshots",
+        params={
+            "from_date": "2027-01-01T00:00:00Z",
+            "to_date": "2027-12-31T00:00:00Z",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_list_snapshots_returns_zero_anchor_for_new_account(client):
+    """A brand-new account with no transactions returns just the zero anchor on its creation day."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    expected_anchor_ts = _creation_day_midnight(account_resp)
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
+    assert resp.status_code == 200
+
+    snapshots = resp.json()
+    assert len(snapshots) == 1
+    assert snapshots[0]["balance"] == 0
+    assert datetime.fromisoformat(snapshots[0]["ts"]) == expected_anchor_ts
+
+
+async def test_list_snapshots_on_closed_account_still_returns_history(client):
+    """Read-only endpoint must return snapshots even after the account is closed.
+
+    Closed accounts are still meaningful for historical balance charts; the
+    handler intentionally does NOT pass require_open=True to check_account_access.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+    await _seed_three_day_history(client, headers, account_id)
+
+    # Close the account
+    close_resp = await client.patch(
+        f"/accounts/{account_id}",
+        json={"closed_at": "2026-04-01T00:00:00Z"},
+        headers=headers,
+    )
+    assert close_resp.status_code == 200
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 3
+
+
+# --- GET /accounts/{account_id}/snapshots — validation ---
+
+
+async def test_list_snapshots_with_inverted_date_range_returns_422(client):
+    """from_date later than to_date is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+
+    resp = await client.get(
+        f"/accounts/{account_id}/snapshots",
+        params={
+            "from_date": "2026-04-01T00:00:00Z",
+            "to_date": "2026-03-01T00:00:00Z",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_list_snapshots_with_invalid_date_format_returns_422(client):
+    """A malformed date string is rejected by FastAPI's query validation."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+
+    resp = await client.get(
+        f"/accounts/{account_id}/snapshots",
+        params={"from_date": "not-a-date"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+# --- GET /accounts/{account_id}/snapshots — auth and permissions ---
+
+
+async def test_list_snapshots_unauthenticated_returns_401(client):
+    """Anonymous requests are rejected before reaching the handler."""
+    resp = await client.get(f"/accounts/{NONEXISTENT_ID}/snapshots")
+    assert resp.status_code == 401
+
+
+async def test_list_snapshots_unknown_account_returns_404(client):
+    """A nonexistent account UUID returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get(f"/accounts/{NONEXISTENT_ID}/snapshots", headers=headers)
+    assert resp.status_code == 404
+
+
+async def test_list_snapshots_other_users_personal_account_returns_404(client):
+    """A second user cannot enumerate the existence of a personal account they don't own."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+
+    other_headers, _ = await _create_second_user(client)
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=other_headers)
+    assert resp.status_code == 404
+
+
+async def test_list_snapshots_personal_owner_can_read_own_account(client):
+    """A personal account owner can read their own snapshots."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["balance"] == 0
+
+
+async def test_list_snapshots_household_admin_can_read_household_account(client):
+    """A household admin has implicit access to read household account snapshots."""
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    account_id = account_resp.json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=admin_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["balance"] == 0
+
+
+async def test_list_snapshots_non_household_user_returns_404(client):
+    """A user who is not a member of the account's household at all gets 404.
+
+    Distinct code path from "household member without permission": this user
+    fails the membership lookup before any AccountPermission check.
+    """
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    account_id = account_resp.json()["id"]
+
+    # Other user is intentionally NOT added to the household
+    other_headers, _ = await _create_second_user(client)
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=other_headers)
+    assert resp.status_code == 404
+
+
+async def test_list_snapshots_household_member_with_read_permission_can_access(client):
+    """A household member granted explicit READ on the account can read its snapshots."""
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    account_id = account_resp.json()["id"]
+
+    member_headers, member_user_id = await _create_second_user(client)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=member_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["balance"] == 0
+
+
+async def test_list_snapshots_household_member_without_permission_returns_404(client):
+    """A household member with no explicit permission on the account gets 404, not 403."""
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    account_id = account_resp.json()["id"]
+
+    member_headers, member_user_id = await _create_second_user(client)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=member_headers)
+    assert resp.status_code == 404
+
+
+async def test_list_snapshots_household_member_with_write_permission_can_read(client):
+    """WRITE access implies READ — a member with WRITE can read snapshots."""
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    account_id = account_resp.json()["id"]
+
+    member_headers, member_user_id = await _create_second_user(client)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=member_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["balance"] == 0
+
+
+async def test_list_snapshots_household_member_with_admin_permission_can_read(client):
+    """ADMIN access also implies READ — locks in the WRITE < ADMIN ladder ordering."""
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    household_id = await _create_household(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    account_id = account_resp.json()["id"]
+
+    member_headers, member_user_id = await _create_second_user(client)
+    await client.post(
+        f"/households/{household_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "admin")
+
+    resp = await client.get(f"/accounts/{account_id}/snapshots", headers=member_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["balance"] == 0
