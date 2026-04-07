@@ -33,7 +33,7 @@ class CreateTransactionRequest(BaseModel):
     amount: int
     currency: str = Field(min_length=3, max_length=3)
     merchant_id: uuid.UUID | None = None
-    fx_rate: float | None = None
+    fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] = []
 
@@ -46,6 +46,6 @@ class UpdateTransactionRequest(BaseModel):
     merchant_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None
     amount: int | None = None
-    fx_rate: float | None = None
+    fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] | None = None
