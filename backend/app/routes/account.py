@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account, AccountPermission
+from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
 from app.models.base import AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.household import HouseholdMember
@@ -125,6 +125,18 @@ async def create_account(
         is_hidden=data.is_hidden,
     )
     db.add(account)
+    await db.flush()
+
+    # Anchor balance history with a zero-balance snapshot on the creation date.
+    # This gives the frontend a stable starting point for charts without needing
+    # to join against account.created_at. Retroactively imported transactions
+    # may later replace this snapshot via recompute_snapshots_from.
+    db.add(AccountBalanceSnapshot(
+        account_id=account.id,
+        date=account.created_at.date(),
+        balance=0,
+    ))
+
     await db.commit()
     await db.refresh(account)
     return account
