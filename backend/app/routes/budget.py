@@ -3,7 +3,7 @@ from typing import Annotated
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -12,9 +12,16 @@ from app.models.base import PermissionLevel
 from app.models.budget import Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.household import HouseholdMember
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_budget_access
-from app.schemas.budget import BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest
+from app.schemas.budget import (
+    BudgetCategoryUtilization,
+    BudgetResponse,
+    BudgetUtilizationResponse,
+    CreateBudgetRequest,
+    UpdateBudgetRequest,
+)
 from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
@@ -129,6 +136,71 @@ async def get_budget(
     """Return a single budget. Requires READ access."""
     budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
     return await _build_budget_response(db, budget)
+
+
+@router.get("/{budget_id}/utilization", response_model=BudgetUtilizationResponse)
+async def get_budget_utilization(
+    budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return per-category spending totals for the budget's period.
+
+    Requires READ on the budget; access to the underlying accounts is not
+    required. This enables privacy-respecting monitoring (e.g., a household
+    admin sees category totals without individual transactions on accounts
+    they don't have read permission on).
+
+    Currently-active tracked categories are always included, even with zero
+    spend, so the frontend can render every tracked category.
+    """
+    budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
+
+    # Currently-tracked categories (soft-deleted ones are excluded)
+    tracked_result = await db.execute(
+        select(BudgetTrackedCategory.category_id).where(
+            BudgetTrackedCategory.budget_id == budget_id,
+            BudgetTrackedCategory.removed_at.is_(None),
+        ),
+    )
+    tracked_category_ids = list(tracked_result.scalars().all())
+
+    # Sum amounts per category for transactions whose UTC date falls in the period.
+    # Note: Transaction.amount is in the parent account's currency. The snapshot
+    # service treats it the same way; cross-currency aggregation is intentionally
+    # left to the user (multi-currency budgets are an edge case for now).
+    spend_map: dict[uuid.UUID, int] = {}
+    if tracked_category_ids:
+        ts_day = cast(func.timezone("UTC", Transaction.ts), Date)
+        spend_result = await db.execute(
+            select(
+                Transaction.category_id,
+                func.sum(Transaction.amount).label("amount_sum"),
+            )
+            .where(
+                Transaction.category_id.in_(tracked_category_ids),
+                ts_day >= budget.period_start,
+                ts_day <= budget.period_end,
+            )
+            .group_by(Transaction.category_id),
+        )
+        spend_map = {row.category_id: row.amount_sum for row in spend_result}
+
+    # Build per-category utilization (positive = net outflow)
+    categories = [
+        BudgetCategoryUtilization(category_id=cat_id, spent=-spend_map.get(cat_id, 0))
+        for cat_id in tracked_category_ids
+    ]
+    total_spent = sum(c.spent for c in categories)
+
+    return BudgetUtilizationResponse(
+        budget_id=budget.id,
+        period_start=budget.period_start,
+        period_end=budget.period_end,
+        overall_limit=budget.overall_limit,
+        total_spent=total_spent,
+        categories=categories,
+    )
 
 
 @router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
