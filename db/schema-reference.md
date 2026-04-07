@@ -266,14 +266,16 @@ Core ledger table. Positive amount = money in (income/transfer received), negati
 | `ts`                 | timestamptz | NOT NULL                       | When the transaction occurred                                     |
 | `merchant_id`        | uuid        | FK → `merchants.id`            | Null for transfers between own accounts                           |
 | `category_id`        | uuid        | NOT NULL, FK → `categories.id` | Never null due to seeded "Uncategorized" defaults                 |
-| `amount`             | bigint      | NOT NULL                       | In currency base units; positive = inflow, negative = outflow     |
-| `currency`           | char(3)     | NOT NULL, FK → `currencies.id` | Defaults to the account's currency                                |
-| `fx_rate`            | numeric     | default `null`                 | Exchange rate to account currency; frontend shows 1.0 as default  |
+| `amount`             | bigint      | NOT NULL                       | Account-currency minor units; positive = inflow, negative = outflow |
+| `currency`           | char(3)     | NOT NULL, FK → `currencies.id` | Original receipt currency; defaults to the account's currency     |
+| `fx_rate`            | numeric     | default `null`                 | Metadata only; frontend default is 1.0                            |
 | `notes`              | text        |                                | User-provided context for analysis                                |
 | `created_at`         | timestamptz | NOT NULL                       | When the transaction was entered into the system                  |
 | `updated_at`         | timestamptz | NOT NULL                       | Tracks last modification; useful for sync and conflict resolution |
 
 **Immutable after creation:** `created_by_user_id`, `currency`, `created_at`.
+
+**Currency handling:** `amount` is always stored in the parent **account's** currency (in minor units, e.g. cents). The `currency` and `fx_rate` columns are metadata about the original receipt — the frontend pre-converts foreign-currency transactions before posting, then stores `currency` as the receipt currency and `fx_rate` as the rate from the account currency back to the original. The backend never re-applies `fx_rate`: snapshot balances, totals, and reports all sum `amount` directly.
 
 ### `tags`
 
