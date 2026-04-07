@@ -470,3 +470,74 @@ async def test_create_transaction_with_other_users_personal_category_returns_422
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Category not found"
+
+
+# --- Transactions on closed household accounts ---
+
+
+async def test_create_transaction_on_closed_household_account_returns_422(client):
+    """Admin cannot create a transaction on a closed household account."""
+    admin_headers, _, _, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+
+    await client.patch(
+        f"/accounts/{account_id}",
+        json={"closed_at": "2026-03-01T00:00:00Z"},
+        headers=admin_headers,
+    )
+
+    resp = await _create_transaction(client, admin_headers, account_id, category_id)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is closed"
+
+
+async def test_create_transaction_on_closed_household_account_with_write_permission_returns_422(client):
+    """Member with write permission cannot create on a closed household account."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    await client.patch(
+        f"/accounts/{account_id}",
+        json={"closed_at": "2026-03-01T00:00:00Z"},
+        headers=admin_headers,
+    )
+
+    resp = await _create_transaction(client, member_headers, account_id, category_id)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is closed"
+
+
+async def test_move_transaction_to_closed_household_account_returns_422(client):
+    """Moving a transaction onto a closed household account is rejected."""
+    admin_headers, _, _, household_id, account_id, category_id, _ = (
+        await _setup_household_with_shared_account(client)
+    )
+
+    # Create a second household account and close it
+    second_acct = await _create_account(
+        client, admin_headers, name="Joint Savings", household_id=household_id,
+    )
+    closed_account_id = second_acct.json()["id"]
+    await client.patch(
+        f"/accounts/{closed_account_id}",
+        json={"closed_at": "2026-03-01T00:00:00Z"},
+        headers=admin_headers,
+    )
+
+    # Create a transaction on the open household account
+    create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"account_id": closed_account_id},
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is closed"
