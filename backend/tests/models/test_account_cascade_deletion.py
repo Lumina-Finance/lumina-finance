@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
-from app.models.account import Account
+from app.models.account import Account, AccountBalanceSnapshot
 from app.models.base import AccountType, CategoryKind, TaxTreatment
 from app.models.category import Category
 from app.models.currency import Currency
@@ -119,4 +119,29 @@ async def test_delete_household_account_cascades_to_transactions(
     db.expire_all()
 
     result = await db.execute(select(Transaction).where(Transaction.id.in_(txn_ids)))
+    assert result.scalars().all() == []
+
+
+async def test_delete_account_cascades_to_balance_snapshots(
+    db, personal_account,
+):
+    """Deleting an account removes all of its balance snapshots."""
+    s1 = AccountBalanceSnapshot(
+        account_id=personal_account.id, balance=10000, ts=datetime.now(UTC),
+    )
+    s2 = AccountBalanceSnapshot(
+        account_id=personal_account.id, balance=15000,
+        ts=datetime(2026, 3, 1, tzinfo=UTC),
+    )
+    db.add_all([s1, s2])
+    await db.flush()
+    account_id = personal_account.id
+
+    await db.delete(personal_account)
+    await db.flush()
+    db.expire_all()
+
+    result = await db.execute(
+        select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id),
+    )
     assert result.scalars().all() == []
