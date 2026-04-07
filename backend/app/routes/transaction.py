@@ -21,6 +21,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
+from app.services.snapshots import recompute_snapshots_from
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -246,6 +247,9 @@ async def create_transaction(
 
     if validated_tag_ids:
         await _replace_tags(db, txn.id, validated_tag_ids)
+
+    # Rebuild balance snapshots from this transaction's date forward
+    await recompute_snapshots_from(db, data.account_id, data.ts.date())
 
     await db.commit()
     await db.refresh(txn)
