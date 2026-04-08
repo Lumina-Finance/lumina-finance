@@ -96,12 +96,14 @@ async def test_create_base_budget(db, base_budget, user):
 
 
 async def test_update_base_budget(db, base_budget):
-    """Update a base budget's name."""
+    """Update a base budget's name; created_at stays pinned so history isn't rewritten."""
+    original_created_at = base_budget.created_at
     base_budget.name = "Updated Budget"
     await db.flush()
 
     result = await db.get(BaseBudget, base_budget.id)
     assert result.name == "Updated Budget"
+    assert result.created_at == original_created_at
 
 
 async def test_delete_base_budget(db, base_budget):
@@ -209,14 +211,56 @@ async def test_invalid_currency_rejected(db, user):
         await db.flush()
 
 
-async def test_recurrence_interval_must_be_positive(db, user):
-    """recurrence_interval must be > 0 when set."""
+async def test_recurrence_interval_zero_rejected(db, user):
+    """recurrence_interval must be > 0 when set (zero boundary)."""
     db.add(BaseBudget(
         owner_id=user.id, name="Bad", currency="CAD",
         recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_interval=0,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+async def test_recurrence_interval_negative_rejected(db, user):
+    """recurrence_interval must be > 0 when set (rejects negatives)."""
+    db.add(BaseBudget(
+        owner_id=user.id, name="Bad", currency="CAD",
+        recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_interval=-3,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_invalid_owner_rejected(db, currency):
+    """owner_id must reference a valid user."""
+    db.add(BaseBudget(owner_id=NONEXISTENT_ID, name="Bad", currency="CAD"))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_invalid_group_rejected(db, currency):
+    """group_id must reference a valid group."""
+    db.add(BaseBudget(group_id=NONEXISTENT_ID, name="Bad", currency="CAD"))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- BaseBudget: Cascades ---
+
+
+async def test_base_budget_cascades_on_group_deletion(db, group):
+    """Deleting a group cascades to its group-owned base budgets."""
+    b = BaseBudget(group_id=group.id, name="Family Budget", currency="CAD")
+    db.add(b)
+    await db.flush()
+    bid = b.id
+
+    await db.delete(group)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(BaseBudget, bid)
+    assert result is None
 
 
 # --- Budget instance: Basic CRUD ---
