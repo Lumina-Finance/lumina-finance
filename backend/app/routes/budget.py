@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.budget import Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
@@ -166,9 +167,10 @@ async def get_budget_utilization(
     tracked_category_ids = list(tracked_result.scalars().all())
 
     # Sum amounts per category for transactions whose UTC date falls in the period.
-    # Note: Transaction.amount is in the parent account's currency. The snapshot
-    # service treats it the same way; cross-currency aggregation is intentionally
-    # left to the user (multi-currency budgets are an edge case for now).
+    # Transaction.amount is stored in the parent account's currency, so we restrict
+    # the join to accounts whose currency matches the budget's. This prevents a
+    # multi-currency user from silently mixing e.g. USD and CAD totals when the
+    # same category is used across accounts of different currencies.
     spend_map: dict[uuid.UUID, int] = {}
     if tracked_category_ids:
         ts_day = cast(func.timezone("UTC", Transaction.ts), Date)
@@ -177,10 +179,12 @@ async def get_budget_utilization(
                 Transaction.category_id,
                 func.sum(Transaction.amount).label("amount_sum"),
             )
+            .join(Account, Transaction.account_id == Account.id)
             .where(
                 Transaction.category_id.in_(tracked_category_ids),
                 ts_day >= budget.period_start,
                 ts_day <= budget.period_end,
+                Account.currency == budget.currency,
             )
             .group_by(Transaction.category_id),
         )

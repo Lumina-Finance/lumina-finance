@@ -1,4 +1,6 @@
 """Route tests for GET /budgets/{id}/utilization."""
+from app.models.currency import Currency
+from tests.conftest import TestSession
 from tests.routes.conftest import _create_account, _create_user, _get_auth_header
 
 # --- Helpers ---
@@ -795,3 +797,109 @@ async def test_get_budget_utilization_documents_added_at_is_not_respected(client
     data = resp.json()
     assert data["total_spent"] == 4000
     assert data["categories"][0]["spent"] == 4000
+
+
+# --- Currency and scope filtering ---
+
+
+async def test_get_budget_utilization_excludes_transactions_on_different_currency_account(client):
+    """A CAD budget must not aggregate transactions stored on a USD account.
+
+    `Transaction.amount` is stored in the parent account's currency, so summing
+    a USD-account transaction into a CAD budget would silently mix currencies.
+    This test pins the fix that scopes the utilization query by `Account.currency`.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+
+    cad_account_id = (await _create_account(client, headers)).json()["id"]
+    usd_account_id = (
+        await _create_account(client, headers, name="USD Chequing", currency="USD")
+    ).json()["id"]
+    groceries = await _create_category(client, headers, name="Groceries")
+
+    budget_resp = await _create_budget(client, headers, category_ids=[groceries])
+    budget_id = budget_resp.json()["id"]
+
+    # Same tracked category, two accounts in different currencies — only the CAD
+    # txn should appear in a CAD budget's utilization
+    await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
+    await _create_transaction(client, headers, usd_account_id, groceries, amount=-3000)
+
+    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_spent"] == 5000
+    by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
+    assert by_id[groceries] == 5000
+
+
+async def test_get_budget_utilization_non_base_currency_aggregates_only_matching_currency(client):
+    """A non-base currency budget aggregates only same-currency account transactions.
+
+    End-to-end happy path for the relaxed currency rule on POST /budgets — a
+    CAD-base user can create a USD budget alongside their CAD one, and each
+    aggregates spend only from accounts in the matching currency.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+
+    cad_account_id = (await _create_account(client, headers)).json()["id"]
+    usd_account_id = (
+        await _create_account(client, headers, name="USD Chequing", currency="USD")
+    ).json()["id"]
+    groceries = await _create_category(client, headers, name="Groceries")
+
+    usd_budget_resp = await _create_budget(
+        client, headers, name="USD Groceries", currency="USD", category_ids=[groceries],
+    )
+    usd_budget_id = usd_budget_resp.json()["id"]
+
+    # 4000 CAD on the CAD account, 7000 USD on the USD account — both in the same period
+    await _create_transaction(client, headers, cad_account_id, groceries, amount=-4000)
+    await _create_transaction(client, headers, usd_account_id, groceries, amount=-7000, currency="USD")
+
+    resp = await client.get(f"/budgets/{usd_budget_id}/utilization", headers=headers)
+    data = resp.json()
+    assert data["total_spent"] == 7000
+    assert data["categories"][0]["spent"] == 7000
+
+
+async def test_get_budget_utilization_zero_when_no_account_matches_budget_currency(client):
+    """A budget in a currency the user has no accounts in returns zero spent.
+
+    Useful when a user is planning ahead — e.g., creating a USD vacation budget
+    before they open the USD account. The endpoint should return tracked
+    categories with zero spend rather than erroring.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+
+    # Only a CAD account exists, but the budget is in USD
+    cad_account_id = (await _create_account(client, headers)).json()["id"]
+    groceries = await _create_category(client, headers, name="Groceries")
+
+    budget_resp = await _create_budget(
+        client, headers, name="USD Vacation", currency="USD", category_ids=[groceries],
+    )
+    budget_id = budget_resp.json()["id"]
+
+    # CAD spending exists but should be invisible to a USD budget
+    await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
+
+    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
+    data = resp.json()
+    assert data["total_spent"] == 0
+    assert data["categories"][0]["category_id"] == groceries
+    assert data["categories"][0]["spent"] == 0
+
+
