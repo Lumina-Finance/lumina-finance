@@ -1,7 +1,6 @@
 import uuid
 from typing import Annotated
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -257,12 +256,12 @@ async def update_budget(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a budget. Requires ADMIN access."""
-    budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
+    """Update a budget instance's period or overall_limit. Requires ADMIN access on the base budget."""
+    budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
-        return await _build_budget_response(db, budget)
+        return await _build_budget_response(db, budget, base_budget)
 
     # Validate period if either date is being changed
     if "period_start" in changed_fields or "period_end" in changed_fields:
@@ -271,38 +270,12 @@ async def update_budget(
         if new_start > new_end:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must not be after period end")
 
-    # Handle tracked categories separately
-    new_category_ids = changed_fields.pop("category_ids", None)
-
     for field, value in changed_fields.items():
         setattr(budget, field, value)
 
-    # Update tracked categories if provided — soft-delete removed, insert new
-    if new_category_ids is not None:
-        validated = set(await _validate_category_ids(db, new_category_ids, user.id, budget.group_id))
-        current = set(await _get_active_category_ids(db, budget_id))
-
-        # Soft-delete categories that are no longer tracked
-        removed = current - validated
-        if removed:
-            await db.execute(
-                sa.update(BudgetTrackedCategory)
-                .where(
-                    BudgetTrackedCategory.budget_id == budget_id,
-                    BudgetTrackedCategory.category_id.in_(removed),
-                    BudgetTrackedCategory.removed_at.is_(None),
-                )
-                .values(removed_at=sa.func.now()),
-            )
-
-        # Insert newly added categories
-        added = validated - current
-        for cat_id in added:
-            db.add(BudgetTrackedCategory(budget_id=budget_id, category_id=cat_id))
-
     await db.commit()
     await db.refresh(budget)
-    return await _build_budget_response(db, budget)
+    return await _build_budget_response(db, budget, base_budget)
 
 
 @router.get("", response_model=list[BudgetResponse])
