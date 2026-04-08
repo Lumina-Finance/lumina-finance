@@ -9,12 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
-from app.models.budget import BaseBudget, BudgetPermission, BudgetTrackedCategory
+from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_base_budget_access
-from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest, UpdateBaseBudgetRequest
+from app.schemas.budget import (
+    BaseBudgetResponse,
+    BudgetResponse,
+    CreateBaseBudgetRequest,
+    CreateBudgetRequest,
+    UpdateBaseBudgetRequest,
+)
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 
@@ -221,3 +227,47 @@ async def create_base_budget(
     await db.commit()
     await db.refresh(base_budget)
     return await _build_base_budget_response(db, base_budget)
+
+
+@router.post(
+    "/{base_budget_id}/budgets",
+    response_model=BudgetResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_budget_instance(
+    base_budget_id: uuid.UUID,
+    data: CreateBudgetRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Create a per-period budget instance under a base budget. Requires ADMIN access on the base."""
+    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
+
+    # Validate period
+    if data.period_start > data.period_end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Period start must not be after period end",
+        )
+
+    budget = Budget(
+        base_budget_id=base_budget_id,
+        period_start=data.period_start,
+        period_end=data.period_end,
+        overall_limit=data.overall_limit,
+    )
+    db.add(budget)
+    await db.commit()
+    await db.refresh(budget)
+
+    # Build the instance response with the parent base embedded
+    base_response = await _build_base_budget_response(db, base_budget)
+    return BudgetResponse(
+        id=budget.id,
+        base_budget_id=budget.base_budget_id,
+        period_start=budget.period_start,
+        period_end=budget.period_end,
+        overall_limit=budget.overall_limit,
+        created_at=budget.created_at,
+        base_budget=base_response,
+    )
