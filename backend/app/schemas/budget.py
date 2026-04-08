@@ -6,6 +6,42 @@ from pydantic import BaseModel, Field
 from app.models.base import RecurrenceFreq
 
 
+class CreateBaseBudgetRequest(BaseModel):
+    """Create a new base budget. Either owner_id (inferred from user) or group_id is used."""
+
+    name: str = Field(min_length=1, max_length=256)
+    currency: str = Field(min_length=3, max_length=3)
+    group_id: uuid.UUID | None = None
+    recurrence_freq: RecurrenceFreq | None = None
+    recurrence_interval: int | None = Field(None, ge=1)
+    category_ids: list[uuid.UUID] = []
+
+
+class UpdateBaseBudgetRequest(BaseModel):
+    """Partial update for a base budget. Only provided fields are changed."""
+
+    name: str | None = Field(None, min_length=1, max_length=256)
+    recurrence_freq: RecurrenceFreq | None = None
+    recurrence_interval: int | None = Field(None, ge=1)
+    category_ids: list[uuid.UUID] | None = None
+
+
+class BaseBudgetResponse(BaseModel):
+    """Base budget returned by list and detail endpoints."""
+
+    id: uuid.UUID
+    owner_id: uuid.UUID | None
+    group_id: uuid.UUID | None
+    name: str
+    currency: str
+    recurrence_freq: RecurrenceFreq | None
+    recurrence_interval: int | None
+    created_at: datetime
+    category_ids: list[uuid.UUID] = []  # Currently active tracked categories
+
+    model_config = {"from_attributes": True}
+
+
 class CreateBudgetRequest(BaseModel):
     """Create a new budget. Either owner_id or group_id is set by the route."""
 
