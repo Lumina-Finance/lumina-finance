@@ -10,13 +10,14 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.base import PermissionLevel
-from app.models.budget import Budget, BudgetPermission, BudgetTrackedCategory
+from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_budget_access
 from app.schemas.budget import (
+    BaseBudgetResponse,
     BudgetCategoryUtilization,
     BudgetResponse,
     BudgetUtilizationResponse,
@@ -122,20 +123,28 @@ async def _get_active_category_ids(db: AsyncSession, budget_id: uuid.UUID) -> li
     return list(result.scalars().all())
 
 
-async def _build_budget_response(db: AsyncSession, budget: Budget) -> BudgetResponse:
-    """Build a BudgetResponse with tracked category IDs.
-
-    Args:
-        db: Async database session.
-        budget: The Budget model instance.
-
-    Returns:
-        BudgetResponse with category_ids populated.
-    """
-    category_ids = await _get_active_category_ids(db, budget.id)
-    resp = BudgetResponse.model_validate(budget)
-    resp.category_ids = category_ids
-    return resp
+async def _build_budget_response(
+    db: AsyncSession, budget: Budget, base_budget: BaseBudget,
+) -> BudgetResponse:
+    """Build a BudgetResponse with the parent base and its currently-active tracked categories embedded."""
+    cat_result = await db.execute(
+        select(BudgetTrackedCategory.category_id).where(
+            BudgetTrackedCategory.base_budget_id == base_budget.id,
+            BudgetTrackedCategory.removed_at.is_(None),
+        ),
+    )
+    active_category_ids = list(cat_result.scalars().all())
+    base_response = BaseBudgetResponse.model_validate(base_budget)
+    base_response.category_ids = active_category_ids
+    return BudgetResponse(
+        id=budget.id,
+        base_budget_id=budget.base_budget_id,
+        period_start=budget.period_start,
+        period_end=budget.period_end,
+        overall_limit=budget.overall_limit,
+        created_at=budget.created_at,
+        base_budget=base_response,
+    )
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)
@@ -298,44 +307,26 @@ async def list_budgets(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return all budgets the user owns or has access to via permissions."""
-    # Personal budgets + group budgets where user is admin or has explicit permission
+    """Return all budget instances the user owns or has access to via their base budget."""
     query = (
-        select(Budget)
-        .outerjoin(GroupMember, Budget.group_id == GroupMember.group_id)
+        select(Budget, BaseBudget)
+        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
+        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
         .outerjoin(
             BudgetPermission,
-            (BudgetPermission.budget_id == Budget.id) & (BudgetPermission.user_id == user.id),
+            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user.id),
         )
         .where(
-            (Budget.owner_id == user.id)
+            (BaseBudget.owner_id == user.id)
             | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
             | (BudgetPermission.user_id == user.id),
         )
-        .order_by(Budget.period_end.desc(), Budget.name)
+        .order_by(Budget.period_end.desc(), BaseBudget.name)
     )
     result = await db.execute(query)
-    budgets = result.scalars().unique().all()
+    rows = result.unique().all()
 
-    # Batch fetch active tracked categories for all budgets
-    budget_ids = [b.id for b in budgets]
-    cat_map: dict[uuid.UUID, list[uuid.UUID]] = {b_id: [] for b_id in budget_ids}
-    if budget_ids:
-        cat_result = await db.execute(
-            select(BudgetTrackedCategory).where(
-                BudgetTrackedCategory.budget_id.in_(budget_ids),
-                BudgetTrackedCategory.removed_at.is_(None),
-            ),
-        )
-        for row in cat_result.scalars().all():
-            cat_map[row.budget_id].append(row.category_id)
-
-    responses = []
-    for budget in budgets:
-        resp = BudgetResponse.model_validate(budget)
-        resp.category_ids = cat_map[budget.id]
-        responses.append(resp)
-    return responses
+    return [await _build_budget_response(db, budget, base) for budget, base in rows]
 
 
 @router.post("", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
