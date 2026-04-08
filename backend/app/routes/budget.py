@@ -10,7 +10,6 @@ from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
-from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -20,106 +19,11 @@ from app.schemas.budget import (
     BudgetCategoryUtilization,
     BudgetResponse,
     BudgetUtilizationResponse,
-    CreateBudgetRequest,
     UpdateBudgetRequest,
 )
 from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
-
-
-async def _check_group_admin_or_403(
-    db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID,
-) -> GroupMember:
-    """Return the user's membership or raise 403 if they lack admin access.
-
-    Args:
-        db: Async database session.
-        group_id: UUID of the group.
-        user_id: UUID of the user.
-
-    Returns:
-        The GroupMember row.
-
-    Raises:
-        HTTPException 404: User is not a member of the group.
-        HTTPException 403: User is not an admin.
-    """
-    result = await db.execute(
-        select(GroupMember).where(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == user_id,
-        ),
-    )
-    membership = result.scalar_one_or_none()
-    if not membership:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-    if not membership.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage budgets")
-    return membership
-
-
-async def _validate_category_ids(
-    db: AsyncSession, category_ids: list[uuid.UUID], user_id: uuid.UUID, group_id: uuid.UUID | None,
-) -> list[uuid.UUID]:
-    """Verify all category IDs exist and are in scope for the budget. Returns deduplicated list.
-
-    Scope rules:
-    - Personal budget (group_id is None): only the user's own personal categories
-    - Group budget: only categories owned by the same group
-    Mixing scopes (e.g., a group budget tracking a personal category) is rejected
-    so every group member sees the same tracked-category set and the same totals.
-    Otherwise members would see UUIDs they don't own and their own transactions
-    wouldn't reconcile across the group.
-
-    Note: `Category.owner_id` is the creator and is set even on group categories,
-    so the personal branch must also check `group_id IS NULL` to keep group
-    categories the user happens to have created out of personal budgets.
-
-    Args:
-        db: Async database session.
-        category_ids: List of category UUIDs to validate.
-        user_id: UUID of the requesting user.
-        group_id: UUID of the group, or None for personal budgets.
-
-    Returns:
-        Deduplicated list of valid category IDs.
-
-    Raises:
-        HTTPException 422: One or more categories not found or out of scope.
-    """
-    if not category_ids:
-        return []
-    unique_ids = list(set(category_ids))
-    query = select(Category.id).where(Category.id.in_(unique_ids))
-    if group_id:
-        query = query.where(Category.group_id == group_id)
-    else:
-        query = query.where(Category.owner_id == user_id, Category.group_id.is_(None))
-    result = await db.execute(query)
-    found = set(result.scalars().all())
-    if found != set(unique_ids):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
-    return unique_ids
-
-
-async def _get_active_category_ids(db: AsyncSession, budget_id: uuid.UUID) -> list[uuid.UUID]:
-    """Fetch currently active tracked category IDs for a budget (removed_at is null).
-
-    Args:
-        db: Async database session.
-        budget_id: UUID of the budget.
-
-    Returns:
-        List of active category UUIDs.
-    """
-    result = await db.execute(
-        select(BudgetTrackedCategory.category_id).where(
-            BudgetTrackedCategory.budget_id == budget_id,
-            BudgetTrackedCategory.removed_at.is_(None),
-        ),
-    )
-    return list(result.scalars().all())
 
 
 async def _build_budget_response(
@@ -303,64 +207,6 @@ async def list_budgets(
     rows = result.unique().all()
 
     return [await _build_budget_response(db, budget, base) for budget, base in rows]
-
-
-@router.post("", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
-async def create_budget(
-    data: CreateBudgetRequest,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Create a new budget with optional tracked categories."""
-    # Validate period
-    if data.period_start > data.period_end:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must not be after period end")
-
-    # Determine ownership
-    owner_id = user.id
-    group_id = data.group_id
-    if group_id:
-        await _check_group_admin_or_403(db, group_id, user.id)
-        owner_id = None
-
-    # Validate base budget if this is a recurring instance
-    if data.base_budget_id:
-        base_query = select(Budget).where(Budget.id == data.base_budget_id)
-        if group_id:
-            base_query = base_query.where(Budget.group_id == group_id)
-        else:
-            base_query = base_query.where(Budget.owner_id == user.id)
-        base_result = await db.execute(base_query)
-        if not base_result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Base budget not found")
-
-    # Validate tracked category IDs
-    validated_cat_ids = await _validate_category_ids(db, data.category_ids, user.id, group_id)
-
-    # Generate ID in Python to avoid intermediate flush
-    budget_id = uuid.uuid4()
-    budget = Budget(
-        id=budget_id,
-        owner_id=owner_id,
-        group_id=group_id,
-        base_budget_id=data.base_budget_id,
-        name=data.name,
-        period_start=data.period_start,
-        period_end=data.period_end,
-        recurrence_freq=data.recurrence_freq,
-        recurrence_interval=data.recurrence_interval,
-        overall_limit=data.overall_limit,
-        currency=data.currency,
-    )
-    db.add(budget)
-
-    # Link tracked categories
-    for cat_id in validated_cat_ids:
-        db.add(BudgetTrackedCategory(budget_id=budget_id, category_id=cat_id))
-
-    await db.commit()
-    await db.refresh(budget)
-    return await _build_budget_response(db, budget)
 
 
 # --- Budget permissions ---
