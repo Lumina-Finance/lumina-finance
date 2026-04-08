@@ -3,11 +3,11 @@ from datetime import date
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models.base import CategoryKind, RecurrenceFreq
-from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
+from app.models.base import CategoryKind, PermissionLevel, RecurrenceFreq
+from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.group import Group
+from app.models.group import Group, GroupMember
 from app.models.user import User
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
@@ -28,6 +28,15 @@ async def currency(db):
 async def user(db, currency):
     """Seed a user for FK references."""
     u = User(email="user@example.com", first_name="Test", last_name="User", tz="America/Toronto", base_currency="CAD")
+    db.add(u)
+    await db.flush()
+    return u
+
+
+@pytest.fixture
+async def member(db, currency):
+    """Seed a second user for permission-target scoping."""
+    u = User(email="member@example.com", first_name="Test", last_name="Member", tz="America/Toronto", base_currency="CAD")
     db.add(u)
     await db.flush()
     return u
@@ -442,4 +451,185 @@ async def test_tracked_categories_cascade_on_base_budget_deletion(db, base_budge
 
     db.expire_all()
     result = await db.get(BudgetTrackedCategory, btc_id)
+    assert result is None
+
+
+# --- BudgetPermission fixtures ---
+
+
+@pytest.fixture
+async def group_membership(db, group, member):
+    """Add the second user as a group member for permission scoping."""
+    m = GroupMember(group_id=group.id, user_id=member.id)
+    db.add(m)
+    await db.flush()
+    return m
+
+
+@pytest.fixture
+async def group_base_budget(db, group):
+    """Seed a group-owned base budget for permission scoping."""
+    b = BaseBudget(group_id=group.id, owner_id=None, name="Family Budget", currency="CAD")
+    db.add(b)
+    await db.flush()
+    return b
+
+
+# --- BudgetPermission: Basic CRUD ---
+
+
+async def test_create_budget_permission(db, group, member, group_membership, group_base_budget):
+    """Grant a base-budget permission and verify fields."""
+    perm = BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.READ,
+    )
+    db.add(perm)
+    await db.flush()
+
+    result = await db.get(BudgetPermission, perm.id)
+    assert result is not None
+    assert result.group_id == group.id
+    assert result.user_id == member.id
+    assert result.base_budget_id == group_base_budget.id
+    assert result.level == PermissionLevel.READ
+    assert result.created_at is not None
+
+
+async def test_delete_budget_permission(db, group, member, group_membership, group_base_budget):
+    """Revoke a base-budget permission by deleting the row."""
+    perm = BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.WRITE,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(perm)
+    await db.flush()
+
+    result = await db.get(BudgetPermission, perm_id)
+    assert result is None
+
+
+# --- BudgetPermission: Constraints ---
+
+
+async def test_duplicate_budget_permission_rejected(db, group, member, group_membership, group_base_budget):
+    """Same (group, user, base_budget) combo cannot have two permission rows."""
+    db.add(BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.READ,
+    ))
+    await db.flush()
+
+    db.add(BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.WRITE,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_invalid_base_budget_rejected(db, group, member, group_membership):
+    """base_budget_id must reference a valid base budget."""
+    db.add(BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=NONEXISTENT_ID, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_invalid_group_rejected(db, member, group_base_budget):
+    """group_id must reference a valid group."""
+    db.add(BudgetPermission(
+        group_id=NONEXISTENT_ID, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_invalid_user_rejected(db, group, group_base_budget):
+    """user_id must reference a valid user."""
+    db.add(BudgetPermission(
+        group_id=group.id, user_id=NONEXISTENT_ID,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_budget_permission_non_member_rejected(db, group, member, group_base_budget):
+    """User must be a group member to receive a budget permission."""
+    db.add(BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.READ,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- BudgetPermission: Cascades ---
+
+
+async def test_budget_permission_cascades_on_member_removal(
+    db, group, member, group_membership, group_base_budget,
+):
+    """Removing a group member cascades to their budget permissions."""
+    perm = BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.READ,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(group_membership)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(BudgetPermission, perm_id)
+    assert result is None
+
+
+async def test_budget_permission_cascades_on_base_budget_deletion(
+    db, group, member, group_membership, group_base_budget,
+):
+    """Deleting a base budget cascades to its permissions."""
+    perm = BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.WRITE,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(group_base_budget)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(BudgetPermission, perm_id)
+    assert result is None
+
+
+async def test_budget_permission_cascades_on_group_deletion(
+    db, group, member, group_membership, group_base_budget,
+):
+    """Deleting a group cascades to all its budget permissions."""
+    perm = BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.ADMIN,
+    )
+    db.add(perm)
+    await db.flush()
+    perm_id = perm.id
+
+    await db.delete(group)
+    await db.commit()
+
+    db.expire_all()
+    result = await db.get(BudgetPermission, perm_id)
     assert result is None
