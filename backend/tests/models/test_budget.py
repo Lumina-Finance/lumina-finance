@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.models.base import CategoryKind, PermissionLevel, RecurrenceFreq
@@ -359,8 +360,6 @@ async def test_link_base_budget_to_category(db, base_budget, category):
 
 async def test_soft_delete_tracked_category(db, base_budget, category):
     """Setting removed_at soft-deletes the tracked-category row."""
-    from sqlalchemy import func
-
     btc = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
     db.add(btc)
     await db.flush()
@@ -421,8 +420,6 @@ async def test_duplicate_active_tracked_category_rejected(db, base_budget, categ
 
 async def test_historical_tracked_category_rows_allowed(db, base_budget, category):
     """Re-adding a category after removal is allowed; the partial index ignores removed rows."""
-    from sqlalchemy import func
-
     # First addition — then soft-delete it
     first = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
     db.add(first)
