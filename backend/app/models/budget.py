@@ -18,6 +18,36 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, PermissionLevel, RecurrenceFreq
 
 
+class BaseBudget(Base):
+    """Long-lived spending plan. Holds name, currency, recurrence, tracked categories, and permissions.
+
+    Per-period caps and date ranges live on the child Budget instances so historical
+    periods stay frozen when the base is edited. A non-recurring (one-off) budget is a
+    BaseBudget with recurrence_freq = NULL and a single Budget instance.
+    """
+
+    __tablename__ = "base_budgets"
+    __table_args__ = (
+        CheckConstraint(
+            "(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)",
+            name="ck_base_budgets_owner_xor_group",
+        ),
+        CheckConstraint(
+            "recurrence_interval IS NULL OR recurrence_interval > 0",
+            name="ck_base_budgets_recurrence_interval_positive",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
+    currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
+    recurrence_freq: Mapped[RecurrenceFreq | None] = mapped_column()  # Null = one-off
+    recurrence_interval: Mapped[int | None] = mapped_column(SmallInteger)  # e.g., 1 = every period, 2 = every other
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class Budget(Base):
     """Spending plan for a time period. Recurring budgets use a template/instance pattern."""
 
