@@ -7,10 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.base import PermissionLevel
 from app.models.budget import BaseBudget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.user import User
+from app.permissions import check_base_budget_access
 from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
@@ -79,6 +81,17 @@ async def _build_base_budget_response(
     response = BaseBudgetResponse.model_validate(base_budget)
     response.category_ids = active_category_ids
     return response
+
+
+@router.get("/{base_budget_id}", response_model=BaseBudgetResponse)
+async def get_base_budget(
+    base_budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return a single base budget. Requires READ access."""
+    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.READ)
+    return await _build_base_budget_response(db, base_budget)
 
 
 @router.get("", response_model=list[BaseBudgetResponse])
