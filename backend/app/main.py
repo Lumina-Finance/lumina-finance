@@ -5,6 +5,7 @@ from mangum import Mangum
 from app.config import ALLOWED_ORIGINS, APP_ENV
 from app.routes.account import router as account_router
 from app.routes.auth import router as auth_router
+from app.routes.base_budget import router as base_budget_router
 from app.routes.budget import router as budget_router
 from app.routes.category import router as category_router
 from app.routes.currency import router as currency_router
@@ -40,6 +41,7 @@ app.include_router(merchant_router)
 app.include_router(tag_router)
 app.include_router(transaction_router)
 app.include_router(group_router)
+app.include_router(base_budget_router)
 app.include_router(budget_router)
 
 

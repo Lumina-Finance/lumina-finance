@@ -1,0 +1,118 @@
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.budget import BaseBudget, BudgetTrackedCategory
+from app.models.category import Category
+from app.models.group import GroupMember
+from app.models.user import User
+from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest
+
+router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
+
+
+async def _check_group_admin_or_403(
+    db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID,
+) -> GroupMember:
+    """Return the user's membership or raise 403 if they lack admin access on the group."""
+    result = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user_id,
+        ),
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    if not membership.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage base budgets")
+    return membership
+
+
+async def _validate_category_ids(
+    db: AsyncSession, category_ids: list[uuid.UUID], user_id: uuid.UUID, group_id: uuid.UUID | None,
+) -> list[uuid.UUID]:
+    """Verify all category IDs exist and are in scope for the base budget. Returns deduplicated list.
+
+    Scope rules:
+    - Personal base budget (group_id is None): only the user's own personal categories
+    - Group base budget: only categories owned by the same group
+
+    Mixing scopes (e.g., a group base budget tracking a personal category) is rejected
+    so every group member sees the same tracked-category set and the same totals.
+
+    Note: `Category.owner_id` is the creator and is set even on group categories,
+    so the personal branch also checks `group_id IS NULL` to keep group categories
+    the user happens to have created out of personal base budgets.
+    """
+    if not category_ids:
+        return []
+    unique_ids = list(set(category_ids))
+    query = select(Category.id).where(Category.id.in_(unique_ids))
+    if group_id:
+        query = query.where(Category.group_id == group_id)
+    else:
+        query = query.where(Category.owner_id == user_id, Category.group_id.is_(None))
+    result = await db.execute(query)
+    found = set(result.scalars().all())
+    if found != set(unique_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
+    return unique_ids
+
+
+async def _build_base_budget_response(
+    db: AsyncSession, base_budget: BaseBudget,
+) -> BaseBudgetResponse:
+    """Build a BaseBudgetResponse with currently-active tracked category IDs populated."""
+    cat_result = await db.execute(
+        select(BudgetTrackedCategory.category_id).where(
+            BudgetTrackedCategory.base_budget_id == base_budget.id,
+            BudgetTrackedCategory.removed_at.is_(None),
+        ),
+    )
+    active_category_ids = list(cat_result.scalars().all())
+    response = BaseBudgetResponse.model_validate(base_budget)
+    response.category_ids = active_category_ids
+    return response
+
+
+@router.post("", response_model=BaseBudgetResponse, status_code=status.HTTP_201_CREATED)
+async def create_base_budget(
+    data: CreateBaseBudgetRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Create a new base budget with optional tracked categories."""
+    # Determine ownership
+    owner_id = user.id
+    group_id = data.group_id
+    if group_id:
+        await _check_group_admin_or_403(db, group_id, user.id)
+        owner_id = None
+
+    # Validate tracked category IDs
+    validated_cat_ids = await _validate_category_ids(db, data.category_ids, user.id, group_id)
+
+    base_budget = BaseBudget(
+        owner_id=owner_id,
+        group_id=group_id,
+        name=data.name,
+        currency=data.currency,
+        recurrence_freq=data.recurrence_freq,
+        recurrence_interval=data.recurrence_interval,
+    )
+    db.add(base_budget)
+    await db.flush()
+
+    # Link tracked categories
+    for cat_id in validated_cat_ids:
+        db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat_id))
+
+    await db.commit()
+    await db.refresh(base_budget)
+    return await _build_base_budget_response(db, base_budget)

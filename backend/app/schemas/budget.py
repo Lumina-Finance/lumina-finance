@@ -14,7 +14,7 @@ class CreateBaseBudgetRequest(BaseModel):
     group_id: uuid.UUID | None = None
     recurrence_freq: RecurrenceFreq | None = None
     recurrence_interval: int | None = Field(None, ge=1)
-    category_ids: list[uuid.UUID] = []
+    category_ids: list[uuid.UUID] = Field(min_length=1)
 
 
 class UpdateBaseBudgetRequest(BaseModel):
