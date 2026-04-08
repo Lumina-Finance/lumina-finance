@@ -187,14 +187,10 @@ async def check_budget_access(
 ) -> tuple[Budget, BaseBudget]:
     """Verify the user can access a budget instance at the required permission level.
 
-    Instances inherit scope and permissions from their BaseBudget, so the level check runs
-    against the base. Returns both rows so callers have the period data (instance) and the
-    long-lived metadata (currency, scope, name) without a second query.
-
-    Resolution order (against the base):
-    1. Personal owner → full access
-    2. Group admin → implicit full access
-    3. Explicit BudgetPermission row → check level is sufficient
+    Instances inherit scope and permissions from their BaseBudget. This function looks up
+    the instance, then hands the access check off to check_base_budget_access. Returns both
+    rows so callers have the period data (instance) and the long-lived metadata (currency,
+    scope, name) without a second query.
 
     Args:
         db: Async database session.
@@ -214,42 +210,5 @@ async def check_budget_access(
     if not budget:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
 
-    base_result = await db.execute(select(BaseBudget).where(BaseBudget.id == budget.base_budget_id))
-    base_budget = base_result.scalar_one_or_none()
-    if not base_budget:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
-
-    # Personal base budget — owner has full access
-    if base_budget.owner_id == user_id:
-        return budget, base_budget
-
-    # Group base budget — check membership then admin/permission
-    if base_budget.group_id:
-        member_result = await db.execute(
-            select(GroupMember).where(
-                GroupMember.group_id == base_budget.group_id,
-                GroupMember.user_id == user_id,
-            ),
-        )
-        budget_member = member_result.scalar_one_or_none()
-        if not budget_member:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
-
-        # Admins have implicit full access
-        if budget_member.is_admin:
-            return budget, base_budget
-
-        # Check explicit permission row
-        perm_result = await db.execute(
-            select(BudgetPermission).where(
-                BudgetPermission.base_budget_id == base_budget.id,
-                BudgetPermission.user_id == user_id,
-            ),
-        )
-        perm = perm_result.scalar_one_or_none()
-        if perm:
-            if _LEVEL_RANK[perm.level] >= _LEVEL_RANK[required_level]:
-                return budget, base_budget
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
+    base_budget = await check_base_budget_access(db, budget.base_budget_id, user_id, required_level)
+    return budget, base_budget
