@@ -215,6 +215,46 @@ async def test_create_budget_empty_name_returns_422(client):
     assert resp.status_code == 422
 
 
+async def test_create_budget_missing_overall_limit_returns_422(client):
+    """overall_limit is required — omitting it is rejected by schema validation."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    # Bypass the helper's default to construct a payload without overall_limit
+    resp = await client.post(
+        "/budgets",
+        json={
+            "name": "March Budget",
+            "period_start": "2026-03-01",
+            "period_end": "2026-03-31",
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_budget_zero_overall_limit_returns_422(client):
+    """overall_limit must be strictly positive — zero is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_budget(client, headers, overall_limit=0)
+
+    assert resp.status_code == 422
+
+
+async def test_create_budget_negative_overall_limit_returns_422(client):
+    """overall_limit must be strictly positive — negative values are rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_budget(client, headers, overall_limit=-100)
+
+    assert resp.status_code == 422
+
+
 async def test_create_budget_unauthenticated_returns_401(client):
     """Creating a budget without auth returns 401."""
     resp = await client.post("/budgets", json={
@@ -760,6 +800,23 @@ async def test_update_budget_invalid_category_returns_422(client):
     resp = await client.patch(
         f"/budgets/{budget_id}",
         json={"category_ids": [NONEXISTENT_ID]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_budget_zero_overall_limit_returns_422(client):
+    """PATCH with overall_limit=0 is rejected — the field stays strictly positive."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_budget(client, headers)
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"overall_limit": 0},
         headers=headers,
     )
 
