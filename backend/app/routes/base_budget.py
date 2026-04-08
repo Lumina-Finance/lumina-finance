@@ -138,6 +138,18 @@ async def update_base_budget(
     return await _build_base_budget_response(db, base_budget)
 
 
+@router.delete("/{base_budget_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_base_budget(
+    base_budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete a base budget. Cascades to period instances, tracked categories, and permissions. Requires ADMIN access."""
+    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
+    await db.delete(base_budget)
+    await db.commit()
+
+
 @router.get("/{base_budget_id}", response_model=BaseBudgetResponse)
 async def get_base_budget(
     base_budget_id: uuid.UUID,
