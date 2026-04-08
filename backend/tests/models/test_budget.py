@@ -326,12 +326,56 @@ async def test_instance_invalid_base_budget_rejected(db):
         await db.flush()
 
 
-async def test_instance_overall_limit_must_be_positive(db, base_budget):
-    """overall_limit must be > 0."""
+async def test_instance_overall_limit_zero_rejected(db, base_budget):
+    """overall_limit must be > 0 (zero boundary)."""
     db.add(Budget(
         base_budget_id=base_budget.id,
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31),
         overall_limit=0,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_instance_overall_limit_negative_rejected(db, base_budget):
+    """overall_limit must be > 0 (rejects negatives)."""
+    db.add(Budget(
+        base_budget_id=base_budget.id,
+        period_start=date(2026, 3, 1), period_end=date(2026, 3, 31),
+        overall_limit=-500,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_instance_null_period_start_rejected(db, base_budget):
+    """period_start is NOT NULL."""
+    db.add(Budget(
+        base_budget_id=base_budget.id,
+        period_start=None, period_end=date(2026, 3, 31),
+        overall_limit=10000,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_instance_null_period_end_rejected(db, base_budget):
+    """period_end is NOT NULL."""
+    db.add(Budget(
+        base_budget_id=base_budget.id,
+        period_start=date(2026, 3, 1), period_end=None,
+        overall_limit=10000,
+    ))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_instance_null_overall_limit_rejected(db, base_budget):
+    """overall_limit is NOT NULL."""
+    db.add(Budget(
+        base_budget_id=base_budget.id,
+        period_start=date(2026, 3, 1), period_end=date(2026, 3, 31),
+        overall_limit=None,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -369,6 +413,24 @@ async def test_instance_duplicate_base_period_rejected(db, base_budget, instance
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+async def test_instance_duplicate_period_across_bases_accepted(db, user, instance):
+    """The uniqueness is per-base: two different bases may both hold the same period."""
+    other_base = BaseBudget(owner_id=user.id, name="Other Budget", currency="CAD")
+    db.add(other_base)
+    await db.flush()
+
+    b = Budget(
+        base_budget_id=other_base.id,
+        period_start=instance.period_start, period_end=instance.period_end,
+        overall_limit=5000,
+    )
+    db.add(b)
+    await db.flush()
+
+    assert b.id is not None
+    assert b.id != instance.id
 
 
 # --- Budget instance: Cascades ---
