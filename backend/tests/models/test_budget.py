@@ -638,6 +638,22 @@ async def test_delete_budget_permission(db, group, member, group_membership, gro
     assert result is None
 
 
+async def test_update_budget_permission_level(db, group, member, group_membership, group_base_budget):
+    """Permission level is mutable in place — the route layer relies on this for regrants."""
+    perm = BudgetPermission(
+        group_id=group.id, user_id=member.id,
+        base_budget_id=group_base_budget.id, level=PermissionLevel.READ,
+    )
+    db.add(perm)
+    await db.flush()
+
+    perm.level = PermissionLevel.WRITE
+    await db.flush()
+    await db.refresh(perm)
+
+    assert perm.level == PermissionLevel.WRITE
+
+
 # --- BudgetPermission: Constraints ---
 
 
