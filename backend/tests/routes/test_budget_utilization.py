@@ -1,5 +1,9 @@
 """Route tests for GET /budgets/{id}/utilization."""
+import uuid
+from datetime import UTC, datetime
+
 from app.models.currency import Currency
+from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.conftest import _create_account, _create_user, _get_auth_header
 
@@ -835,6 +839,97 @@ async def test_get_budget_utilization_excludes_transactions_on_different_currenc
     assert data["total_spent"] == 5000
     by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
     assert by_id[groceries] == 5000
+
+
+async def test_get_budget_utilization_personal_budget_excludes_group_account_transactions(client):
+    """A personal budget must not pick up transactions made on a group account.
+
+    The transaction route allows a user's personal category to be used on a group
+    account (an `OR` branch in `_check_category_access_or_422`), so without a
+    scope filter a personal budget tracking that category would include group
+    spending. The utilization query now constrains accounts to those owned by
+    the budget's owner, blocking the leak.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    personal_account_id = (await _create_account(client, headers)).json()["id"]
+    group_id = await _create_group(client, headers)
+    group_account_id = (
+        await _create_account(client, headers, name="Joint Chequing", group_id=group_id)
+    ).json()["id"]
+
+    # Personal category, used on both the personal account and the group account
+    groceries = await _create_category(client, headers, name="Groceries")
+
+    budget_resp = await _create_budget(client, headers, category_ids=[groceries])
+    budget_id = budget_resp.json()["id"]
+
+    await _create_transaction(client, headers, personal_account_id, groceries, amount=-5000)
+    await _create_transaction(client, headers, group_account_id, groceries, amount=-3000)
+
+    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
+    data = resp.json()
+    assert data["total_spent"] == 5000
+    by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
+    assert by_id[groceries] == 5000
+
+
+async def test_get_budget_utilization_group_budget_excludes_personal_account_transactions(client):
+    """The utilization query must keep personal-account spend out of a group budget even if upstream validators are bypassed.
+
+    Two checks normally make this impossible to construct via the public API:
+    `_validate_category_ids` rejects personal categories on group budgets, and
+    `_check_category_access_or_422` rejects group categories on personal-account
+    txns. If either ever loosens — say, a future bulk-import endpoint skips the
+    validators — the `Account.group_id == budget.group_id` filter on the
+    utilization query is the backstop. This test bypasses both validators by
+    inserting the row directly via TestSession and asserts the query still
+    filters it out.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = uuid.UUID(signup_resp.json()["user"]["id"])
+
+    group_id = await _create_group(client, headers)
+    group_account_id = uuid.UUID(
+        (await _create_account(client, headers, name="Joint", group_id=group_id)).json()["id"],
+    )
+    personal_account_id = uuid.UUID(
+        (await _create_account(client, headers, name="Personal Chequing")).json()["id"],
+    )
+    group_groceries = uuid.UUID(
+        await _create_category(client, headers, name="Groceries", group_id=group_id),
+    )
+
+    budget_resp = await _create_budget(
+        client, headers, group_id=group_id, category_ids=[str(group_groceries)],
+    )
+    budget_id = budget_resp.json()["id"]
+
+    # Legitimate group account txn — should be counted
+    await _create_transaction(
+        client, headers, str(group_account_id), str(group_groceries), amount=-3000,
+    )
+
+    # Direct DB insert: personal-account txn referencing the group category.
+    # Bypasses _check_category_access_or_422 which would normally block it.
+    async with TestSession() as session:
+        session.add(Transaction(
+            created_by_user_id=user_id,
+            account_id=personal_account_id,
+            category_id=group_groceries,
+            ts=datetime(2026, 3, 15, 12, 0, 0, tzinfo=UTC),
+            amount=-9999,
+            currency="CAD",
+        ))
+        await session.commit()
+
+    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
+    data = resp.json()
+    # 3000 from the group account, NOT 12999 — the personal-account row is filtered out
+    assert data["total_spent"] == 3000
+    assert data["categories"][0]["spent"] == 3000
 
 
 async def test_get_budget_utilization_non_base_currency_aggregates_only_matching_currency(client):

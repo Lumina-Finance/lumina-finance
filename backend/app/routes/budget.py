@@ -168,12 +168,20 @@ async def get_budget_utilization(
 
     # Sum amounts per category for transactions whose UTC date falls in the period.
     # Transaction.amount is stored in the parent account's currency, so we restrict
-    # the join to accounts whose currency matches the budget's. This prevents a
-    # multi-currency user from silently mixing e.g. USD and CAD totals when the
-    # same category is used across accounts of different currencies.
+    # the join to accounts whose currency matches the budget's, which prevents a
+    # multi-currency user from mixing e.g. USD and CAD totals when the same
+    # category is used across accounts of different currencies.
+    # Scope is also constrained to accounts the budget actually owns (the user's
+    # personal accounts for personal budgets, the group's accounts for group
+    # budgets) so cross-scope spending never bleeds in.
     spend_map: dict[uuid.UUID, int] = {}
     if tracked_category_ids:
         ts_day = cast(func.timezone("UTC", Transaction.ts), Date)
+        scope_filter = (
+            Account.group_id == budget.group_id
+            if budget.group_id
+            else Account.owner_id == budget.owner_id
+        )
         spend_result = await db.execute(
             select(
                 Transaction.category_id,
@@ -185,6 +193,7 @@ async def get_budget_utilization(
                 ts_day >= budget.period_start,
                 ts_day <= budget.period_end,
                 Account.currency == budget.currency,
+                scope_filter,
             )
             .group_by(Transaction.category_id),
         )
