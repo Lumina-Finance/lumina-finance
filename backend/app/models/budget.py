@@ -49,32 +49,32 @@ class BaseBudget(Base):
 
 
 class Budget(Base):
-    """Spending plan for a time period. Recurring budgets use a template/instance pattern."""
+    """Per-period instance of a BaseBudget.
+
+    Frozen after creation — editing fields on a past instance does not retroactively affect historical
+    utilization because utilization reads the BaseBudget's category set as of this instance's period_end.
+    """
 
     __tablename__ = "budgets"
     __table_args__ = (
         CheckConstraint(
-            "(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)",
-            name="ck_budgets_owner_xor_group",
-        ),
-        CheckConstraint(
             "overall_limit > 0",
             name="ck_budgets_overall_limit_positive",
         ),
+        CheckConstraint(
+            "period_end >= period_start",
+            name="ck_budgets_period_end_after_start",
+        ),
+        UniqueConstraint("base_budget_id", "period_start", "period_end", name="uq_budget_base_period"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
-    group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
-    # Null = standalone or base budget; non-null = recurring instance derived from the base
-    base_budget_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("budgets.id"))
-    name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
+    base_budget_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("base_budgets.id", ondelete="CASCADE"), nullable=False,
+    )
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
     period_end: Mapped[date] = mapped_column(Date, nullable=False)
-    recurrence_freq: Mapped[RecurrenceFreq | None] = mapped_column()  # Null = one-off; only set on template
-    recurrence_interval: Mapped[int | None] = mapped_column(SmallInteger)  # e.g., 1 = every period, 2 = every other
     overall_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Required positive cap
-    currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
