@@ -244,8 +244,8 @@ async def delete_budget(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a budget. Requires ADMIN access."""
-    budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
+    """Delete a budget instance. Requires ADMIN access on the base budget."""
+    budget, _ = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
     await db.delete(budget)
     await db.commit()
 
