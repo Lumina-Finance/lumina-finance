@@ -153,9 +153,9 @@ async def get_budget(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single budget. Requires READ access."""
-    budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
-    return await _build_budget_response(db, budget)
+    """Return a single budget instance. Requires READ access on the base budget."""
+    budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
+    return await _build_budget_response(db, budget, base_budget)
 
 
 @router.get("/{budget_id}/utilization", response_model=BudgetUtilizationResponse)
