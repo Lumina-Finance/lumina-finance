@@ -9,9 +9,11 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     SmallInteger,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -79,19 +81,33 @@ class Budget(Base):
 
 
 class BudgetTrackedCategory(Base):
-    """Tracks which categories a budget monitors and when. Enables historical budget utilization."""
+    """Tracks which categories a base budget monitors and when.
+
+    The added_at/removed_at pair lets the utilization query reconstruct the tracked set as of any
+    period_end, so mutating the base does not rewrite historical period totals.
+    """
 
     __tablename__ = "budget_tracked_categories"
+    __table_args__ = (
+        # At most one active row per (base_budget, category); multiple historical rows allowed so
+        # re-adds after removal keep a clean audit trail.
+        Index(
+            "uq_budget_tracked_category_active", "base_budget_id", "category_id",
+            unique=True, postgresql_where=text("removed_at IS NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
+    base_budget_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("base_budgets.id", ondelete="CASCADE"), nullable=False,
+    )
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class BudgetPermission(Base):
-    """Per-budget permission for a group member. Admins have implicit full access."""
+    """Per-base-budget permission for a group member. Admins have implicit full access."""
 
     __tablename__ = "budget_permissions"
     __table_args__ = (
@@ -100,12 +116,14 @@ class BudgetPermission(Base):
             ["group_members.group_id", "group_members.user_id"],
             ondelete="CASCADE",
         ),
-        UniqueConstraint("group_id", "user_id", "budget_id", name="uq_budget_perm_member_budget"),
+        UniqueConstraint("group_id", "user_id", "base_budget_id", name="uq_budget_perm_member_base_budget"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
+    base_budget_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("base_budgets.id", ondelete="CASCADE"), nullable=False,
+    )
     level: Mapped[PermissionLevel] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
