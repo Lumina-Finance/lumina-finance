@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
-from app.models.budget import Budget, BudgetPermission
+from app.models.budget import BaseBudget, Budget, BudgetPermission
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 
@@ -120,22 +120,26 @@ async def check_transaction_access(
 
 async def check_budget_access(
     db: AsyncSession, budget_id: uuid.UUID, user_id: uuid.UUID, required_level: PermissionLevel,
-) -> Budget:
-    """Verify the user can access a budget at the required permission level.
+) -> tuple[Budget, BaseBudget]:
+    """Verify the user can access a budget instance at the required permission level.
 
-    Resolution order:
+    Instances inherit scope and permissions from their BaseBudget, so the level check runs
+    against the base. Returns both rows so callers have the period data (instance) and the
+    long-lived metadata (currency, scope, name) without a second query.
+
+    Resolution order (against the base):
     1. Personal owner → full access
     2. Group admin → implicit full access
     3. Explicit BudgetPermission row → check level is sufficient
 
     Args:
         db: Async database session.
-        budget_id: UUID of the budget.
+        budget_id: UUID of the budget instance.
         user_id: UUID of the requesting user.
-        required_level: Minimum permission level needed.
+        required_level: Minimum permission level needed on the base budget.
 
     Returns:
-        The Budget row.
+        A tuple of (Budget, BaseBudget).
 
     Raises:
         HTTPException 404: Budget not found or user lacks access.
@@ -146,15 +150,20 @@ async def check_budget_access(
     if not budget:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
 
-    # Personal budget — owner has full access
-    if budget.owner_id == user_id:
-        return budget
+    base_result = await db.execute(select(BaseBudget).where(BaseBudget.id == budget.base_budget_id))
+    base_budget = base_result.scalar_one_or_none()
+    if not base_budget:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
 
-    # Group budget — check membership
-    if budget.group_id:
+    # Personal base budget — owner has full access
+    if base_budget.owner_id == user_id:
+        return budget, base_budget
+
+    # Group base budget — check membership then admin/permission
+    if base_budget.group_id:
         member_result = await db.execute(
             select(GroupMember).where(
-                GroupMember.group_id == budget.group_id,
+                GroupMember.group_id == base_budget.group_id,
                 GroupMember.user_id == user_id,
             ),
         )
@@ -164,19 +173,19 @@ async def check_budget_access(
 
         # Admins have implicit full access
         if budget_member.is_admin:
-            return budget
+            return budget, base_budget
 
         # Check explicit permission row
         perm_result = await db.execute(
             select(BudgetPermission).where(
-                BudgetPermission.budget_id == budget_id,
+                BudgetPermission.base_budget_id == base_budget.id,
                 BudgetPermission.user_id == user_id,
             ),
         )
         perm = perm_result.scalar_one_or_none()
         if perm:
             if _LEVEL_RANK[perm.level] >= _LEVEL_RANK[required_level]:
-                return budget
+                return budget, base_budget
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
