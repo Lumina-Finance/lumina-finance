@@ -465,16 +465,19 @@ async def test_link_base_budget_to_category(db, base_budget, category):
 
 
 async def test_soft_delete_tracked_category(db, base_budget, category):
-    """Setting removed_at soft-deletes the tracked-category row."""
+    """Setting removed_at soft-deletes the row; the PK is still retrievable."""
     btc = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
     db.add(btc)
     await db.flush()
+    btc_id = btc.id
 
     btc.removed_at = func.now()
     await db.flush()
-    await db.refresh(btc)
+    db.expire_all()
 
-    assert btc.removed_at is not None
+    result = await db.get(BudgetTrackedCategory, btc_id)
+    assert result is not None
+    assert result.removed_at is not None
 
 
 async def test_multiple_tracked_categories(db, base_budget, user):
@@ -522,6 +525,25 @@ async def test_duplicate_active_tracked_category_rejected(db, base_budget, categ
     db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id))
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+async def test_active_tracked_category_scoped_per_base(db, user, category):
+    """The partial unique index is per-base: two bases may both track the same category."""
+    base_a = BaseBudget(owner_id=user.id, name="Base A", currency="CAD")
+    base_b = BaseBudget(owner_id=user.id, name="Base B", currency="CAD")
+    db.add(base_a)
+    db.add(base_b)
+    await db.flush()
+
+    btc_a = BudgetTrackedCategory(base_budget_id=base_a.id, category_id=category.id)
+    btc_b = BudgetTrackedCategory(base_budget_id=base_b.id, category_id=category.id)
+    db.add(btc_a)
+    db.add(btc_b)
+    await db.flush()
+
+    assert btc_a.id != btc_b.id
+    assert btc_a.removed_at is None
+    assert btc_b.removed_at is None
 
 
 async def test_historical_tracked_category_rows_allowed(db, base_budget, category):
