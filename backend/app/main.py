@@ -8,7 +8,7 @@ from app.routes.auth import router as auth_router
 from app.routes.budget import router as budget_router
 from app.routes.category import router as category_router
 from app.routes.currency import router as currency_router
-from app.routes.household import router as household_router
+from app.routes.group import router as group_router
 from app.routes.institution import router as institution_router
 from app.routes.merchant import router as merchant_router
 from app.routes.tag import router as tag_router
@@ -39,7 +39,7 @@ app.include_router(category_router)
 app.include_router(merchant_router)
 app.include_router(tag_router)
 app.include_router(transaction_router)
-app.include_router(household_router)
+app.include_router(group_router)
 app.include_router(budget_router)
 
 

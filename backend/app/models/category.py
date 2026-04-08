@@ -12,17 +12,17 @@ class Category(Base):
 
     __tablename__ = "categories"
     __table_args__ = (
-        # Personal categories: unique per user (only when not household-scoped)
+        # Personal categories: unique per user (only when not group-scoped)
         Index(
             "uq_category_owner_name_kind", "owner_id", "name", "kind",
-            unique=True, postgresql_where=text("household_id IS NULL"),
+            unique=True, postgresql_where=text("group_id IS NULL"),
         ),
-        # Household categories: unique per household
-        UniqueConstraint("household_id", "name", "kind", name="uq_category_household_name_kind"),
+        # Group categories: unique per group
+        UniqueConstraint("group_id", "name", "kind", name="uq_category_group_name_kind"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
+    group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)  # Creator/owner
     name: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[CategoryKind] = mapped_column(nullable=False)

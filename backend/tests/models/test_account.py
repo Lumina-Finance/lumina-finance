@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.account import Account
 from app.models.base import AccountType, TaxTreatment
 from app.models.currency import Currency
-from app.models.household import Household
+from app.models.group import Group
 from app.models.user import User
 
 # --- Fixtures ---
@@ -29,12 +29,12 @@ async def user(db, currency):
 
 
 @pytest.fixture
-async def household(db, user):
-    """Seed a household for FK references."""
-    h = Household(owner_id=user.id, name="Doe Family")
-    db.add(h)
+async def group(db, user):
+    """Seed a group for FK references."""
+    g = Group(owner_id=user.id, name="Doe Family")
+    db.add(g)
     await db.flush()
-    return h
+    return g
 
 
 # --- Defaults ---
@@ -82,11 +82,11 @@ async def test_nullable_fields_default_to_null(db, user, currency):
     assert result.closed_at is None
 
 
-# --- Owner XOR Household Check Constraint ---
+# --- Owner XOR Group Check Constraint ---
 
 
 async def test_personal_account_accepted(db, user, currency):
-    """Account with owner_id and no household_id should be valid."""
+    """Account with owner_id and no group_id should be valid."""
     a = Account(owner_id=user.id, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
     db.add(a)
     await db.flush()
@@ -94,33 +94,33 @@ async def test_personal_account_accepted(db, user, currency):
     result = await db.get(Account, a.id)
     assert result is not None
     assert result.owner_id == user.id
-    assert result.household_id is None
+    assert result.group_id is None
 
 
-async def test_household_account_accepted(db, household, currency):
-    """Account with household_id and no owner_id should be valid."""
-    a = Account(household_id=household.id, account_type=AccountType.CHECKING, name="Joint Checking", currency="CAD")
+async def test_group_account_accepted(db, group, currency):
+    """Account with group_id and no owner_id should be valid."""
+    a = Account(group_id=group.id, account_type=AccountType.CHECKING, name="Joint Checking", currency="CAD")
     db.add(a)
     await db.flush()
 
     result = await db.get(Account, a.id)
     assert result is not None
     assert result.owner_id is None
-    assert result.household_id == household.id
+    assert result.group_id == group.id
 
 
-async def test_both_owner_and_household_rejected(db, user, household, currency):
-    """Account with both owner_id and household_id should be rejected."""
+async def test_both_owner_and_group_rejected(db, user, group, currency):
+    """Account with both owner_id and group_id should be rejected."""
     db.add(Account(
-        owner_id=user.id, household_id=household.id,
+        owner_id=user.id, group_id=group.id,
         account_type=AccountType.CHECKING, name="Invalid", currency="CAD",
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
-async def test_neither_owner_nor_household_rejected(db, currency):
-    """Account with neither owner_id nor household_id should be rejected."""
+async def test_neither_owner_nor_group_rejected(db, currency):
+    """Account with neither owner_id nor group_id should be rejected."""
     db.add(Account(account_type=AccountType.CHECKING, name="Orphan", currency="CAD"))
     with pytest.raises(IntegrityError):
         await db.flush()

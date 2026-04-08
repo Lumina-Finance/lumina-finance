@@ -7,24 +7,24 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
 
 
-class Household(Base):
-    """A shared financial group (e.g., a couple, family)."""
+class Group(Base):
+    """A shared financial group (e.g., a couple, family, roommates)."""
 
-    __tablename__ = "households"
+    __tablename__ = "groups"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     name: Mapped[str | None] = mapped_column(Text)
-    profile_pic: Mapped[str | None] = mapped_column(Text)  # Path/URL to household picture
+    profile_pic: Mapped[str | None] = mapped_column(Text)  # Path/URL to group picture
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
-class HouseholdMember(Base):
-    """Junction table linking users to households."""
+class GroupMember(Base):
+    """Junction table linking users to groups."""
 
-    __tablename__ = "household_members"
+    __tablename__ = "group_members"
 
-    household_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), primary_key=True)
+    group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")

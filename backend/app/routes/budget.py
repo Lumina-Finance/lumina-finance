@@ -11,7 +11,7 @@ from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.budget import Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
-from app.models.household import HouseholdMember
+from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_budget_access
@@ -27,47 +27,47 @@ from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissi
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
 
-async def _check_household_admin_or_403(
-    db: AsyncSession, household_id: uuid.UUID, user_id: uuid.UUID,
-) -> HouseholdMember:
+async def _check_group_admin_or_403(
+    db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID,
+) -> GroupMember:
     """Return the user's membership or raise 403 if they lack admin access.
 
     Args:
         db: Async database session.
-        household_id: UUID of the household.
+        group_id: UUID of the group.
         user_id: UUID of the user.
 
     Returns:
-        The HouseholdMember row.
+        The GroupMember row.
 
     Raises:
-        HTTPException 404: User is not a member of the household.
+        HTTPException 404: User is not a member of the group.
         HTTPException 403: User is not an admin.
     """
     result = await db.execute(
-        select(HouseholdMember).where(
-            HouseholdMember.household_id == household_id,
-            HouseholdMember.user_id == user_id,
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user_id,
         ),
     )
     membership = result.scalar_one_or_none()
     if not membership:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
     if not membership.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage budgets")
     return membership
 
 
 async def _validate_category_ids(
-    db: AsyncSession, category_ids: list[uuid.UUID], user_id: uuid.UUID, household_id: uuid.UUID | None,
+    db: AsyncSession, category_ids: list[uuid.UUID], user_id: uuid.UUID, group_id: uuid.UUID | None,
 ) -> list[uuid.UUID]:
-    """Verify all category IDs exist and belong to the user or household. Returns deduplicated list.
+    """Verify all category IDs exist and belong to the user or group. Returns deduplicated list.
 
     Args:
         db: Async database session.
         category_ids: List of category UUIDs to validate.
         user_id: UUID of the requesting user.
-        household_id: UUID of the household, or None for personal budgets.
+        group_id: UUID of the group, or None for personal budgets.
 
     Returns:
         Deduplicated list of valid category IDs.
@@ -79,9 +79,9 @@ async def _validate_category_ids(
         return []
     unique_ids = list(set(category_ids))
     query = select(Category.id).where(Category.id.in_(unique_ids))
-    if household_id:
+    if group_id:
         query = query.where(
-            (Category.owner_id == user_id) | (Category.household_id == household_id),
+            (Category.owner_id == user_id) | (Category.group_id == group_id),
         )
     else:
         query = query.where(Category.owner_id == user_id)
@@ -147,7 +147,7 @@ async def get_budget_utilization(
     """Return per-category spending totals for the budget's period.
 
     Requires READ on the budget; access to the underlying accounts is not
-    required. This enables privacy-respecting monitoring (e.g., a household
+    required. This enables privacy-respecting monitoring (e.g., a group
     admin sees category totals without individual transactions on accounts
     they don't have read permission on).
 
@@ -244,7 +244,7 @@ async def update_budget(
 
     # Update tracked categories if provided — soft-delete removed, insert new
     if new_category_ids is not None:
-        validated = set(await _validate_category_ids(db, new_category_ids, user.id, budget.household_id))
+        validated = set(await _validate_category_ids(db, new_category_ids, user.id, budget.group_id))
         current = set(await _get_active_category_ids(db, budget_id))
 
         # Soft-delete categories that are no longer tracked
@@ -276,17 +276,17 @@ async def list_budgets(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Return all budgets the user owns or has access to via permissions."""
-    # Personal budgets + household budgets where user is admin or has explicit permission
+    # Personal budgets + group budgets where user is admin or has explicit permission
     query = (
         select(Budget)
-        .outerjoin(HouseholdMember, Budget.household_id == HouseholdMember.household_id)
+        .outerjoin(GroupMember, Budget.group_id == GroupMember.group_id)
         .outerjoin(
             BudgetPermission,
             (BudgetPermission.budget_id == Budget.id) & (BudgetPermission.user_id == user.id),
         )
         .where(
             (Budget.owner_id == user.id)
-            | ((HouseholdMember.user_id == user.id) & (HouseholdMember.is_admin.is_(True)))
+            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
             | (BudgetPermission.user_id == user.id),
         )
         .order_by(Budget.period_end.desc(), Budget.name)
@@ -332,16 +332,16 @@ async def create_budget(
 
     # Determine ownership
     owner_id = user.id
-    household_id = data.household_id
-    if household_id:
-        await _check_household_admin_or_403(db, household_id, user.id)
+    group_id = data.group_id
+    if group_id:
+        await _check_group_admin_or_403(db, group_id, user.id)
         owner_id = None
 
     # Validate base budget if this is a recurring instance
     if data.base_budget_id:
         base_query = select(Budget).where(Budget.id == data.base_budget_id)
-        if household_id:
-            base_query = base_query.where(Budget.household_id == household_id)
+        if group_id:
+            base_query = base_query.where(Budget.group_id == group_id)
         else:
             base_query = base_query.where(Budget.owner_id == user.id)
         base_result = await db.execute(base_query)
@@ -349,14 +349,14 @@ async def create_budget(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Base budget not found")
 
     # Validate tracked category IDs
-    validated_cat_ids = await _validate_category_ids(db, data.category_ids, user.id, household_id)
+    validated_cat_ids = await _validate_category_ids(db, data.category_ids, user.id, group_id)
 
     # Generate ID in Python to avoid intermediate flush
     budget_id = uuid.uuid4()
     budget = Budget(
         id=budget_id,
         owner_id=owner_id,
-        household_id=household_id,
+        group_id=group_id,
         base_budget_id=data.base_budget_id,
         name=data.name,
         period_start=data.period_start,
@@ -380,10 +380,10 @@ async def create_budget(
 # --- Budget permissions ---
 
 
-async def _get_household_budget_or_404(
+async def _get_group_budget_or_404(
     db: AsyncSession, budget_id: uuid.UUID,
 ) -> Budget:
-    """Fetch a budget that belongs to a household, or raise 404.
+    """Fetch a budget that belongs to a group, or raise 404.
 
     Personal budgets also return 404 (not 422) so that unauthorized
     callers cannot distinguish between nonexistent and personal budgets.
@@ -393,39 +393,39 @@ async def _get_household_budget_or_404(
         budget_id: UUID of the budget.
 
     Returns:
-        The Budget row with household_id set.
+        The Budget row with group_id set.
 
     Raises:
         HTTPException 404: Budget not found or is a personal budget.
     """
     result = await db.execute(select(Budget).where(Budget.id == budget_id))
     budget = result.scalar_one_or_none()
-    if not budget or not budget.household_id:
+    if not budget or not budget.group_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
     return budget
 
 
 async def _check_budget_admin_or_403(
-    db: AsyncSession, household_id: uuid.UUID, user_id: uuid.UUID,
-) -> HouseholdMember:
-    """Verify the user is an admin of the budget's household.
+    db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID,
+) -> GroupMember:
+    """Verify the user is an admin of the budget's group.
 
     Args:
         db: Async database session.
-        household_id: UUID of the household.
+        group_id: UUID of the group.
         user_id: UUID of the user.
 
     Returns:
-        The HouseholdMember row.
+        The GroupMember row.
 
     Raises:
-        HTTPException 404: User is not a member of the household.
+        HTTPException 404: User is not a member of the group.
         HTTPException 403: User is not an admin.
     """
     result = await db.execute(
-        select(HouseholdMember).where(
-            HouseholdMember.household_id == household_id,
-            HouseholdMember.user_id == user_id,
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user_id,
         ),
     )
     membership = result.scalar_one_or_none()
@@ -443,27 +443,27 @@ async def grant_budget_permission(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Grant or update a member's access level on a household budget. Requires admin."""
-    budget = await _get_household_budget_or_404(db, budget_id)
-    await _check_budget_admin_or_403(db, budget.household_id, user.id)
+    """Grant or update a member's access level on a group budget. Requires admin."""
+    budget = await _get_group_budget_or_404(db, budget_id)
+    await _check_budget_admin_or_403(db, budget.group_id, user.id)
 
-    # Target must be a non-admin household member (admins have implicit full access)
+    # Target must be a non-admin group member (admins have implicit full access)
     target_result = await db.execute(
-        select(HouseholdMember).where(
-            HouseholdMember.household_id == budget.household_id,
-            HouseholdMember.user_id == data.user_id,
+        select(GroupMember).where(
+            GroupMember.group_id == budget.group_id,
+            GroupMember.user_id == data.user_id,
         ),
     )
     target_member = target_result.scalar_one_or_none()
     if not target_member:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this household")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this group")
     if target_member.is_admin:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Admins have implicit full access")
 
     # Update level if permission already exists, otherwise create a new one
     existing_result = await db.execute(
         select(BudgetPermission).where(
-            BudgetPermission.household_id == budget.household_id,
+            BudgetPermission.group_id == budget.group_id,
             BudgetPermission.user_id == data.user_id,
             BudgetPermission.budget_id == budget_id,
         ),
@@ -476,7 +476,7 @@ async def grant_budget_permission(
         return existing
 
     budget_permission = BudgetPermission(
-        household_id=budget.household_id,
+        group_id=budget.group_id,
         user_id=data.user_id,
         budget_id=budget_id,
         level=data.level,
@@ -494,9 +494,9 @@ async def revoke_budget_permission(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Revoke a member's access to a household budget. Requires admin."""
-    budget = await _get_household_budget_or_404(db, budget_id)
-    await _check_budget_admin_or_403(db, budget.household_id, user.id)
+    """Revoke a member's access to a group budget. Requires admin."""
+    budget = await _get_group_budget_or_404(db, budget_id)
+    await _check_budget_admin_or_403(db, budget.group_id, user.id)
 
     result = await db.execute(
         select(BudgetPermission).where(
@@ -519,9 +519,9 @@ async def list_budget_permissions(
     db: Annotated[AsyncSession, Depends(get_db)],
     user_id: uuid.UUID | None = None,
 ):
-    """List permissions for a household budget. Requires admin."""
-    budget = await _get_household_budget_or_404(db, budget_id)
-    await _check_budget_admin_or_403(db, budget.household_id, user.id)
+    """List permissions for a group budget. Requires admin."""
+    budget = await _get_group_budget_or_404(db, budget_id)
+    await _check_budget_admin_or_403(db, budget.group_id, user.id)
 
     query = select(BudgetPermission).where(BudgetPermission.budget_id == budget_id)
     if user_id:

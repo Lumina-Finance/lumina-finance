@@ -40,8 +40,8 @@ async def _create_category(client, headers, **overrides):
     return resp.json()["id"]
 
 
-async def _create_household(client, headers, **overrides):
-    """Create a household via POST /households.
+async def _create_group(client, headers, **overrides):
+    """Create a group via POST /groups.
 
     Args:
         client: The async test client.
@@ -49,10 +49,10 @@ async def _create_household(client, headers, **overrides):
         **overrides: Fields to override in the default payload.
 
     Returns:
-        The created household's ID.
+        The created group's ID.
     """
     payload = {"name": "Smith Family", **overrides}
-    resp = await client.post("/households", json=payload, headers=headers)
+    resp = await client.post("/groups", json=payload, headers=headers)
     return resp.json()["id"]
 
 
@@ -96,7 +96,7 @@ async def test_create_budget_returns_201(client):
     data = resp.json()
     assert data["name"] == "March Budget"
     assert data["owner_id"] == user_id
-    assert data["household_id"] is None
+    assert data["group_id"] is None
     assert data["period_start"] == "2026-03-01"
     assert data["period_end"] == "2026-03-31"
     assert data["currency"] == "CAD"
@@ -270,62 +270,62 @@ async def test_create_budget_unauthenticated_returns_401(client):
     assert resp.status_code == 401
 
 
-async def test_create_household_budget_as_admin(client):
-    """Admin can create a budget for a household."""
+async def test_create_group_budget_as_admin(client):
+    """Admin can create a budget for a group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
 
-    resp = await _create_budget(client, headers, household_id=household_id)
+    resp = await _create_budget(client, headers, group_id=group_id)
 
     assert resp.status_code == 201
     data = resp.json()
-    assert data["household_id"] == household_id
+    assert data["group_id"] == group_id
     assert data["owner_id"] is None
 
 
-async def test_create_household_budget_as_non_admin_returns_403(client):
-    """Non-admin member cannot create a budget for a household."""
+async def test_create_group_budget_as_non_admin_returns_403(client):
+    """Non-admin member cannot create a budget for a group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
 
-    resp = await _create_budget(client, other_headers, household_id=household_id)
+    resp = await _create_budget(client, other_headers, group_id=group_id)
 
     assert resp.status_code == 403
 
 
 
-async def test_create_household_budget_non_member_returns_404(client):
-    """Non-member of the household cannot create a budget for it."""
+async def test_create_group_budget_non_member_returns_404(client):
+    """Non-member of the group cannot create a budget for it."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, _ = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
 
-    resp = await _create_budget(client, other_headers, household_id=household_id)
+    resp = await _create_budget(client, other_headers, group_id=group_id)
 
     assert resp.status_code == 404
 
 
-async def test_create_household_budget_with_categories(client):
-    """Admin can create a household budget with household categories."""
+async def test_create_group_budget_with_categories(client):
+    """Admin can create a group budget with group categories."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
-    cat_id = await _create_category(client, headers, name="Groceries", household_id=household_id)
+    group_id = await _create_group(client, headers)
+    cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
 
-    resp = await _create_budget(client, headers, household_id=household_id, category_ids=[cat_id])
+    resp = await _create_budget(client, headers, group_id=group_id, category_ids=[cat_id])
 
     assert resp.status_code == 201
     assert resp.json()["category_ids"] == [cat_id]
@@ -351,13 +351,13 @@ async def test_create_budget_with_valid_base_budget_id(client):
     assert resp.json()["base_budget_id"] == base_id
 
 
-async def test_create_household_budget_with_base_budget_id(client):
-    """Household budget can reference another household budget as base."""
+async def test_create_group_budget_with_base_budget_id(client):
+    """Group budget can reference another group budget as base."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
-    base_resp = await _create_budget(client, headers, name="Base Budget", household_id=household_id)
+    group_id = await _create_group(client, headers)
+    base_resp = await _create_budget(client, headers, name="Base Budget", group_id=group_id)
     base_id = base_resp.json()["id"]
 
     resp = await _create_budget(
@@ -365,7 +365,7 @@ async def test_create_household_budget_with_base_budget_id(client):
         name="April Budget",
         period_start="2026-04-01",
         period_end="2026-04-30",
-        household_id=household_id,
+        group_id=group_id,
         base_budget_id=base_id,
     )
 
@@ -418,13 +418,13 @@ async def test_get_budget_other_users_budget_returns_404(client):
     assert resp.status_code == 404
 
 
-async def test_get_household_budget_as_admin(client):
-    """Admin can retrieve a household budget."""
+async def test_get_group_budget_as_admin(client):
+    """Admin can retrieve a group budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    group_id = await _create_group(client, headers)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     resp = await client.get(f"/budgets/{budget_id}", headers=headers)
@@ -433,20 +433,20 @@ async def test_get_household_budget_as_admin(client):
     assert resp.json()["id"] == budget_id
 
 
-async def test_get_household_budget_as_non_admin_without_permission_returns_404(client):
-    """Non-admin member without explicit permission cannot retrieve a household budget."""
+async def test_get_group_budget_as_non_admin_without_permission_returns_404(client):
+    """Non-admin member without explicit permission cannot retrieve a group budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
 
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     resp = await client.get(f"/budgets/{budget_id}", headers=other_headers)
@@ -455,20 +455,20 @@ async def test_get_household_budget_as_non_admin_without_permission_returns_404(
     assert resp.json()["detail"] == "Budget not found"
 
 
-async def test_get_household_budget_with_read_permission(client):
-    """Non-admin member with READ permission can retrieve a household budget."""
+async def test_get_group_budget_with_read_permission(client):
+    """Non-admin member with READ permission can retrieve a group budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
 
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     # Grant READ permission
@@ -551,13 +551,13 @@ async def test_delete_budget_other_users_budget_returns_404(client):
     assert resp.status_code == 404
 
 
-async def test_delete_household_budget_as_admin(client):
-    """Admin can delete a household budget."""
+async def test_delete_group_budget_as_admin(client):
+    """Admin can delete a group budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    group_id = await _create_group(client, headers)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     resp = await client.delete(f"/budgets/{budget_id}", headers=headers)
@@ -565,20 +565,20 @@ async def test_delete_household_budget_as_admin(client):
     assert resp.status_code == 204
 
 
-async def test_delete_household_budget_as_non_admin_without_permission_returns_404(client):
-    """Non-admin member without permission cannot see or delete a household budget."""
+async def test_delete_group_budget_as_non_admin_without_permission_returns_404(client):
+    """Non-admin member without permission cannot see or delete a group budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
 
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
@@ -587,20 +587,20 @@ async def test_delete_household_budget_as_non_admin_without_permission_returns_4
     assert resp.json()["detail"] == "Budget not found"
 
 
-async def test_delete_household_budget_with_write_permission_returns_403(client):
+async def test_delete_group_budget_with_write_permission_returns_403(client):
     """Non-admin with WRITE permission cannot delete (requires ADMIN)."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
 
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     # Grant WRITE — still insufficient for delete
@@ -876,13 +876,13 @@ async def test_update_budget_other_users_budget_returns_404(client):
     assert resp.status_code == 404
 
 
-async def test_update_household_budget_as_admin(client):
-    """Admin can update a household budget."""
+async def test_update_group_budget_as_admin(client):
+    """Admin can update a group budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    group_id = await _create_group(client, headers)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     resp = await client.patch(
@@ -895,20 +895,20 @@ async def test_update_household_budget_as_admin(client):
     assert resp.json()["name"] == "Updated"
 
 
-async def test_update_household_budget_as_non_admin_without_permission_returns_404(client):
-    """Non-admin member without permission cannot see or update a household budget."""
+async def test_update_group_budget_as_non_admin_without_permission_returns_404(client):
+    """Non-admin member without permission cannot see or update a group budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
 
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     resp = await client.patch(
@@ -921,20 +921,20 @@ async def test_update_household_budget_as_non_admin_without_permission_returns_4
     assert resp.json()["detail"] == "Budget not found"
 
 
-async def test_update_household_budget_with_write_permission_returns_403(client):
+async def test_update_group_budget_with_write_permission_returns_403(client):
     """Non-admin with WRITE permission cannot update (requires ADMIN)."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
 
-    create_resp = await _create_budget(client, headers, household_id=household_id)
+    create_resp = await _create_budget(client, headers, group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     # Grant WRITE — still insufficient for update
@@ -1010,14 +1010,14 @@ async def test_list_budgets_includes_category_ids(client):
     assert resp.json()[0]["category_ids"] == [cat_id]
 
 
-async def test_list_budgets_includes_household_budgets(client):
-    """User sees both personal and household budgets."""
+async def test_list_budgets_includes_group_budgets(client):
+    """User sees both personal and group budgets."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await _create_budget(client, headers, name="Personal Budget")
-    await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+    await _create_budget(client, headers, name="Family Budget", group_id=group_id)
 
     resp = await client.get("/budgets", headers=headers)
 
@@ -1026,19 +1026,19 @@ async def test_list_budgets_includes_household_budgets(client):
     assert names == {"Personal Budget", "Family Budget"}
 
 
-async def test_list_budgets_household_member_without_permission_excluded(client):
-    """Non-admin household member without permission does not see household budgets."""
+async def test_list_budgets_group_member_without_permission_excluded(client):
+    """Non-admin group member without permission does not see group budgets."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
-    await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+    await _create_budget(client, headers, name="Family Budget", group_id=group_id)
 
     resp = await client.get("/budgets", headers=other_headers)
 
@@ -1046,19 +1046,19 @@ async def test_list_budgets_household_member_without_permission_excluded(client)
     assert resp.json() == []
 
 
-async def test_list_budgets_household_member_with_permission(client):
-    """Non-admin household member with READ permission sees household budgets."""
+async def test_list_budgets_group_member_with_permission(client):
+    """Non-admin group member with READ permission sees group budgets."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
 
-    household_id = await _create_household(client, headers)
+    group_id = await _create_group(client, headers)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
-    create_resp = await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+    create_resp = await _create_budget(client, headers, name="Family Budget", group_id=group_id)
     budget_id = create_resp.json()["id"]
 
     # Grant READ permission
@@ -1104,13 +1104,13 @@ async def test_list_budgets_secondary_sort_by_name(client):
     assert names == ["Alpha Budget", "Zebra Budget"]
 
 
-async def test_list_budgets_no_duplicates_for_household_budget(client):
-    """Household budget appears exactly once even when user is owner and member."""
+async def test_list_budgets_no_duplicates_for_group_budget(client):
+    """Group budget appears exactly once even when user is owner and member."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, headers)
-    await _create_budget(client, headers, name="Family Budget", household_id=household_id)
+    group_id = await _create_group(client, headers)
+    await _create_budget(client, headers, name="Family Budget", group_id=group_id)
 
     resp = await client.get("/budgets", headers=headers)
 

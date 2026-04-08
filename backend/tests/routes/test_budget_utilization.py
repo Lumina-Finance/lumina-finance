@@ -18,9 +18,9 @@ async def _create_second_user(client):
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
-async def _create_household(client, headers):
-    """Create a household and return its id."""
-    resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
+async def _create_group(client, headers):
+    """Create a group and return its id."""
+    resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     return resp.json()["id"]
 
 
@@ -58,7 +58,7 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
 
 
 async def _grant_budget_permission(client, admin_headers, budget_id, user_id, level):
-    """Grant a household member a permission level on a household budget."""
+    """Grant a group member a permission level on a group budget."""
     return await client.post(
         f"/budgets/{budget_id}/permissions",
         json={"user_id": user_id, "level": level},
@@ -67,7 +67,7 @@ async def _grant_budget_permission(client, admin_headers, budget_id, user_id, le
 
 
 async def _grant_account_permission(client, admin_headers, account_id, user_id, level):
-    """Grant a household member a permission level on a household account."""
+    """Grant a group member a permission level on a group account."""
     return await client.post(
         f"/accounts/{account_id}/permissions",
         json={"user_id": user_id, "level": level},
@@ -459,28 +459,28 @@ async def test_get_budget_utilization_includes_transactions_from_closed_accounts
     assert data["categories"][0]["spent"] == 5000
 
 
-async def test_get_budget_utilization_includes_transactions_created_by_other_household_members(client):
-    """Transactions created by any household member count toward a household budget."""
+async def test_get_budget_utilization_includes_transactions_created_by_other_group_members(client):
+    """Transactions created by any group member count toward a group budget."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id, name="Joint")
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id, name="Joint")
     account_id = account_resp.json()["id"]
-    # Household-scoped category so both admin and member can reference it
-    groceries = await _create_category(client, admin_headers, household_id=household_id)
+    # Group-scoped category so both admin and member can reference it
+    groceries = await _create_category(client, admin_headers, group_id=group_id)
 
     budget_resp = await _create_budget(
         client, admin_headers,
         category_ids=[groceries],
-        household_id=household_id,
+        group_id=group_id,
     )
     budget_id = budget_resp.json()["id"]
 
     # Add a second member with WRITE on the account so they can post a txn
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -540,13 +540,13 @@ async def test_get_budget_utilization_personal_owner_can_read_own(client):
     assert resp.json()["budget_id"] == budget_id
 
 
-async def test_get_budget_utilization_household_admin_can_read_household_budget(client):
-    """A household admin has implicit access to read household budget utilization."""
+async def test_get_budget_utilization_group_admin_can_read_group_budget(client):
+    """A group admin has implicit access to read group budget utilization."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    budget_resp = await _create_budget(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    budget_resp = await _create_budget(client, admin_headers, group_id=group_id)
     budget_id = budget_resp.json()["id"]
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=admin_headers)
@@ -557,18 +557,18 @@ async def test_get_budget_utilization_household_admin_can_read_household_budget(
     assert data["total_spent"] == 0
 
 
-async def test_get_budget_utilization_household_member_with_read_permission_can_access(client):
-    """A household member granted READ on the budget can read its utilization."""
+async def test_get_budget_utilization_group_member_with_read_permission_can_access(client):
+    """A group member granted READ on the budget can read its utilization."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    budget_resp = await _create_budget(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    budget_resp = await _create_budget(client, admin_headers, group_id=group_id)
     budget_id = budget_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -582,18 +582,18 @@ async def test_get_budget_utilization_household_member_with_read_permission_can_
     assert data["total_spent"] == 0
 
 
-async def test_get_budget_utilization_household_member_with_write_permission_can_read(client):
+async def test_get_budget_utilization_group_member_with_write_permission_can_read(client):
     """WRITE on a budget implies READ — utilization is accessible."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    budget_resp = await _create_budget(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    budget_resp = await _create_budget(client, admin_headers, group_id=group_id)
     budget_id = budget_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -607,18 +607,18 @@ async def test_get_budget_utilization_household_member_with_write_permission_can
     assert data["total_spent"] == 0
 
 
-async def test_get_budget_utilization_household_member_with_admin_permission_can_read(client):
+async def test_get_budget_utilization_group_member_with_admin_permission_can_read(client):
     """ADMIN on a budget implies READ — locks in the WRITE < ADMIN ladder ordering."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    budget_resp = await _create_budget(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    budget_resp = await _create_budget(client, admin_headers, group_id=group_id)
     budget_id = budget_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -632,18 +632,18 @@ async def test_get_budget_utilization_household_member_with_admin_permission_can
     assert data["total_spent"] == 0
 
 
-async def test_get_budget_utilization_household_member_without_permission_returns_404(client):
-    """A household member with no explicit permission on the budget gets 404."""
+async def test_get_budget_utilization_group_member_without_permission_returns_404(client):
+    """A group member with no explicit permission on the budget gets 404."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    budget_resp = await _create_budget(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    budget_resp = await _create_budget(client, admin_headers, group_id=group_id)
     budget_id = budget_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -652,13 +652,13 @@ async def test_get_budget_utilization_household_member_without_permission_return
     assert resp.status_code == 404
 
 
-async def test_get_budget_utilization_non_household_user_returns_404(client):
-    """A user who is not a member of the budget's household gets 404."""
+async def test_get_budget_utilization_non_group_user_returns_404(client):
+    """A user who is not a member of the budget's group gets 404."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    budget_resp = await _create_budget(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    budget_resp = await _create_budget(client, admin_headers, group_id=group_id)
     budget_id = budget_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
@@ -676,31 +676,31 @@ async def test_get_budget_utilization_returns_account_data_without_account_acces
     can still see aggregated category totals. This is the headline feature
     of the endpoint: privacy-respecting monitoring. A parent can verify "the
     kids stayed under their grocery budget" without getting access to
-    individual transactions on the household account.
+    individual transactions on the group account.
     """
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id, name="Joint")
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id, name="Joint")
     account_id = account_resp.json()["id"]
-    # Household-scoped category — the conceptually correct pairing for a household budget
-    groceries = await _create_category(client, admin_headers, household_id=household_id)
+    # Group-scoped category — the conceptually correct pairing for a group budget
+    groceries = await _create_category(client, admin_headers, group_id=group_id)
 
     budget_resp = await _create_budget(
         client, admin_headers,
         category_ids=[groceries],
-        household_id=household_id,
+        group_id=group_id,
     )
     budget_id = budget_resp.json()["id"]
 
-    # Admin records spending on the household account
+    # Admin records spending on the group account
     await _create_transaction(client, admin_headers, account_id, groceries, amount=-5000)
 
     # Add a member, grant them READ on the BUDGET only — no account permission
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )

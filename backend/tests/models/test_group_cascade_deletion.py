@@ -1,6 +1,6 @@
-"""Cascade deletion tests for the Household model.
+"""Cascade deletion tests for the Group model.
 
-Verifies that deleting a household cascades through its accounts to their
+Verifies that deleting a group cascades through its accounts to their
 transactions at the DB level.
 """
 from datetime import UTC, datetime
@@ -12,7 +12,7 @@ from app.models.account import Account
 from app.models.base import AccountType, CategoryKind, TaxTreatment
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.household import Household
+from app.models.group import Group
 from app.models.transaction import Transaction
 from app.models.user import User
 
@@ -47,19 +47,19 @@ async def category(db, user):
 
 
 @pytest.fixture
-async def household(db, user):
-    """Seed a household owned by the user."""
-    h = Household(owner_id=user.id, name="Test Household")
-    db.add(h)
+async def group(db, user):
+    """Seed a group owned by the user."""
+    g = Group(owner_id=user.id, name="Test Group")
+    db.add(g)
     await db.flush()
-    return h
+    return g
 
 
 @pytest.fixture
-async def household_account(db, household):
-    """Seed a household-scoped checking account."""
+async def group_account(db, group):
+    """Seed a group-scoped checking account."""
     a = Account(
-        household_id=household.id, owner_id=None,
+        group_id=group.id, owner_id=None,
         account_type=AccountType.CHECKING, tax_treatment=TaxTreatment.TAXABLE,
         name="Joint Chequing", currency="CAD",
     )
@@ -71,28 +71,28 @@ async def household_account(db, household):
 # --- Tests ---
 
 
-async def test_delete_household_cascades_to_accounts_and_transactions(
-    db, user, household, household_account, category,
+async def test_delete_group_cascades_to_accounts_and_transactions(
+    db, user, group, group_account, category,
 ):
-    """Deleting a household cascades through its accounts to their transactions."""
+    """Deleting a group cascades through its accounts to their transactions."""
     t1 = Transaction(
-        created_by_user_id=user.id, account_id=household_account.id, category_id=category.id,
+        created_by_user_id=user.id, account_id=group_account.id, category_id=category.id,
         ts=datetime.now(UTC), amount=-1000, currency="CAD",
     )
     t2 = Transaction(
-        created_by_user_id=user.id, account_id=household_account.id, category_id=category.id,
+        created_by_user_id=user.id, account_id=group_account.id, category_id=category.id,
         ts=datetime.now(UTC), amount=-2000, currency="CAD",
     )
     db.add_all([t1, t2])
     await db.flush()
-    account_id = household_account.id
+    account_id = group_account.id
     txn_ids = [t1.id, t2.id]
 
-    await db.delete(household)
+    await db.delete(group)
     await db.flush()
     db.expire_all()
 
-    # Household account should be gone
+    # Group account should be gone
     assert await db.get(Account, account_id) is None
 
     # Transactions should also be gone

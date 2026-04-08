@@ -24,8 +24,8 @@ class Budget(Base):
     __tablename__ = "budgets"
     __table_args__ = (
         CheckConstraint(
-            "(owner_id IS NOT NULL AND household_id IS NULL) OR (owner_id IS NULL AND household_id IS NOT NULL)",
-            name="ck_budgets_owner_xor_household",
+            "(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)",
+            name="ck_budgets_owner_xor_group",
         ),
         CheckConstraint(
             "overall_limit > 0",
@@ -35,7 +35,7 @@ class Budget(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
-    household_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
+    group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     # Null = standalone or base budget; non-null = recurring instance derived from the base
     base_budget_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("budgets.id"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
@@ -61,20 +61,20 @@ class BudgetTrackedCategory(Base):
 
 
 class BudgetPermission(Base):
-    """Per-budget permission for a household member. Admins have implicit full access."""
+    """Per-budget permission for a group member. Admins have implicit full access."""
 
     __tablename__ = "budget_permissions"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["household_id", "user_id"],
-            ["household_members.household_id", "household_members.user_id"],
+            ["group_id", "user_id"],
+            ["group_members.group_id", "group_members.user_id"],
             ondelete="CASCADE",
         ),
-        UniqueConstraint("household_id", "user_id", "budget_id", name="uq_budget_perm_member_budget"),
+        UniqueConstraint("group_id", "user_id", "budget_id", name="uq_budget_perm_member_budget"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    household_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
     level: Mapped[PermissionLevel] = mapped_column(nullable=False)

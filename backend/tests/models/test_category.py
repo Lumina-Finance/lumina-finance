@@ -99,9 +99,9 @@ async def test_parent_defaults_to_null(db, category):
     assert category.parent_id is None
 
 
-async def test_household_defaults_to_null(db, category):
-    """household_id should default to null for personal categories."""
-    assert category.household_id is None
+async def test_group_defaults_to_null(db, category):
+    """group_id should default to null for personal categories."""
+    assert category.group_id is None
 
 
 # --- Constraints ---

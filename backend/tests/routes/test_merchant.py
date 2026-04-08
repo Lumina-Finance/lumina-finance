@@ -61,33 +61,33 @@ async def _create_second_user(client):
     })
 
 
-async def _create_household(client, headers):
-    """Create a household and return its ID.
+async def _create_group(client, headers):
+    """Create a group and return its ID.
 
     Args:
         client: The async test client.
         headers: Auth headers for the requesting user.
 
     Returns:
-        The created household's ID.
+        The created group's ID.
     """
-    resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
+    resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     return resp.json()["id"]
 
 
-async def _setup_household_with_member(client):
-    """Create a household with an admin (owner) and a regular member.
+async def _setup_group_with_member(client):
+    """Create a group with an admin (owner) and a regular member.
 
     Args:
         client: The async test client.
 
     Returns:
-        Tuple of (admin_headers, member_headers, member_user_id, household_id).
+        Tuple of (admin_headers, member_headers, member_user_id, group_id).
     """
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
+    group_id = await _create_group(client, admin_headers)
 
     member_resp = await client.post("/auth/signup", json={
         "email": "member@example.com",
@@ -100,12 +100,12 @@ async def _setup_household_with_member(client):
     member_user_id = member_resp.json()["user"]["id"]
 
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
 
-    return admin_headers, member_headers, member_user_id, household_id
+    return admin_headers, member_headers, member_user_id, group_id
 
 
 # --- GET /merchants ---
@@ -451,34 +451,34 @@ async def test_delete_merchant_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
-# --- Household merchants: POST /merchants ---
+# --- Group merchants: POST /merchants ---
 
 
-async def test_create_household_merchant_as_member_returns_201(client):
-    """Any household member can create a household merchant."""
-    _, member_headers, _, household_id = await _setup_household_with_member(client)
+async def test_create_group_merchant_as_member_returns_201(client):
+    """Any group member can create a group merchant."""
+    _, member_headers, _, group_id = await _setup_group_with_member(client)
 
-    resp = await _create_merchant(client, member_headers, name="Costco", household_id=household_id)
+    resp = await _create_merchant(client, member_headers, name="Costco", group_id=group_id)
 
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "Costco"
-    assert data["household_id"] == household_id
+    assert data["group_id"] == group_id
 
 
-async def test_create_household_merchant_as_admin_returns_201(client):
-    """Admin can create a household merchant."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_create_group_merchant_as_admin_returns_201(client):
+    """Admin can create a group merchant."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    resp = await _create_merchant(client, admin_headers, name="Walmart", household_id=household_id)
+    resp = await _create_merchant(client, admin_headers, name="Walmart", group_id=group_id)
 
     assert resp.status_code == 201
-    assert resp.json()["household_id"] == household_id
+    assert resp.json()["group_id"] == group_id
 
 
-async def test_create_household_merchant_non_member_returns_404(client):
-    """Non-member cannot create a merchant in a household."""
-    _, _, _, household_id = await _setup_household_with_member(client)
+async def test_create_group_merchant_non_member_returns_404(client):
+    """Non-member cannot create a merchant in a group."""
+    _, _, _, group_id = await _setup_group_with_member(client)
 
     outsider_resp = await client.post("/auth/signup", json={
         "email": "outsider@example.com", "password": "securepassword123",
@@ -486,83 +486,83 @@ async def test_create_household_merchant_non_member_returns_404(client):
     })
     outsider_headers = _get_auth_header(outsider_resp)
 
-    resp = await _create_merchant(client, outsider_headers, household_id=household_id)
+    resp = await _create_merchant(client, outsider_headers, group_id=group_id)
 
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "Household not found"
+    assert resp.json()["detail"] == "Group not found"
 
 
-async def test_create_household_merchant_nonexistent_household_returns_404(client):
-    """Creating a merchant with a fake household_id returns 404."""
+async def test_create_group_merchant_nonexistent_group_returns_404(client):
+    """Creating a merchant with a fake group_id returns 404."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_merchant(client, headers, household_id=NONEXISTENT_ID)
+    resp = await _create_merchant(client, headers, group_id=NONEXISTENT_ID)
 
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "Household not found"
+    assert resp.json()["detail"] == "Group not found"
 
 
-async def test_create_household_merchant_duplicate_returns_409(client):
-    """Duplicate name within the same household returns 409."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_create_group_merchant_duplicate_returns_409(client):
+    """Duplicate name within the same group returns 409."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    await _create_merchant(client, admin_headers, name="Costco", household_id=household_id)
-    resp = await _create_merchant(client, admin_headers, name="Costco", household_id=household_id)
+    await _create_merchant(client, admin_headers, name="Costco", group_id=group_id)
+    resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id)
 
     assert resp.status_code == 409
     assert "already exists" in resp.json()["detail"]
 
 
-async def test_create_household_merchant_same_name_as_personal_allowed(client):
-    """Personal and household merchants with the same name can coexist."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_create_group_merchant_same_name_as_personal_allowed(client):
+    """Personal and group merchants with the same name can coexist."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     personal = await _create_merchant(client, admin_headers, name="Costco")
-    household = await _create_merchant(client, admin_headers, name="Costco", household_id=household_id)
+    group = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id)
 
     assert personal.status_code == 201
-    assert household.status_code == 201
-    assert personal.json()["id"] != household.json()["id"]
+    assert group.status_code == 201
+    assert personal.json()["id"] != group.json()["id"]
 
 
-async def test_create_household_merchant_with_household_category(client):
-    """Household merchant can use a household category as default."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_create_group_merchant_with_group_category(client):
+    """Group merchant can use a group category as default."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    cat_resp = await _create_category(client, admin_headers, name="Groceries", household_id=household_id)
+    cat_resp = await _create_category(client, admin_headers, name="Groceries", group_id=group_id)
     category_id = cat_resp.json()["id"]
 
-    resp = await _create_merchant(client, admin_headers, name="Costco", household_id=household_id, default_category_id=category_id)
+    resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id, default_category_id=category_id)
 
     assert resp.status_code == 201
     assert resp.json()["default_category_id"] == category_id
 
 
-async def test_create_household_merchant_with_personal_category(client):
-    """Household merchant can use the creator's personal category as default."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_create_group_merchant_with_personal_category(client):
+    """Group merchant can use the creator's personal category as default."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     cat_resp = await _create_category(client, admin_headers, name="Groceries")
     category_id = cat_resp.json()["id"]
 
-    resp = await _create_merchant(client, admin_headers, name="Costco", household_id=household_id, default_category_id=category_id)
+    resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id, default_category_id=category_id)
 
     assert resp.status_code == 201
     assert resp.json()["default_category_id"] == category_id
 
 
-# --- Household merchants: GET /merchants ---
+# --- Group merchants: GET /merchants ---
 
 
-async def test_list_merchants_with_household_filter_as_admin(client):
-    """Admin passing household_id returns personal + that household's merchants."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_list_merchants_with_group_filter_as_admin(client):
+    """Admin passing group_id returns personal + that group's merchants."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     await _create_merchant(client, admin_headers, name="Personal Store")
-    await _create_merchant(client, admin_headers, name="Shared Store", household_id=household_id)
+    await _create_merchant(client, admin_headers, name="Shared Store", group_id=group_id)
 
-    resp = await client.get(f"/merchants?household_id={household_id}", headers=admin_headers)
+    resp = await client.get(f"/merchants?group_id={group_id}", headers=admin_headers)
 
     assert resp.status_code == 200
     names = {m["name"] for m in resp.json()}
@@ -570,25 +570,25 @@ async def test_list_merchants_with_household_filter_as_admin(client):
     assert "Shared Store" in names
 
 
-async def test_list_merchants_with_household_filter_as_member(client):
-    """Non-admin member passing household_id also sees household merchants."""
-    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+async def test_list_merchants_with_group_filter_as_member(client):
+    """Non-admin member passing group_id also sees group merchants."""
+    admin_headers, member_headers, _, group_id = await _setup_group_with_member(client)
 
-    await _create_merchant(client, admin_headers, name="Shared Store", household_id=household_id)
+    await _create_merchant(client, admin_headers, name="Shared Store", group_id=group_id)
 
-    resp = await client.get(f"/merchants?household_id={household_id}", headers=member_headers)
+    resp = await client.get(f"/merchants?group_id={group_id}", headers=member_headers)
 
     assert resp.status_code == 200
     names = {m["name"] for m in resp.json()}
     assert "Shared Store" in names
 
 
-async def test_list_merchants_without_household_filter_excludes_household(client):
-    """Without household_id filter, only personal merchants are returned."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_list_merchants_without_group_filter_excludes_group(client):
+    """Without group_id filter, only personal merchants are returned."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     await _create_merchant(client, admin_headers, name="Personal Store")
-    await _create_merchant(client, admin_headers, name="Shared Store", household_id=household_id)
+    await _create_merchant(client, admin_headers, name="Shared Store", group_id=group_id)
 
     resp = await client.get("/merchants", headers=admin_headers)
 
@@ -598,9 +598,9 @@ async def test_list_merchants_without_household_filter_excludes_household(client
     assert "Shared Store" not in names
 
 
-async def test_list_merchants_household_filter_non_member_returns_404(client):
-    """Non-member passing household_id filter returns 404."""
-    _, _, _, household_id = await _setup_household_with_member(client)
+async def test_list_merchants_group_filter_non_member_returns_404(client):
+    """Non-member passing group_id filter returns 404."""
+    _, _, _, group_id = await _setup_group_with_member(client)
 
     outsider_resp = await client.post("/auth/signup", json={
         "email": "outsider@example.com", "password": "securepassword123",
@@ -608,30 +608,30 @@ async def test_list_merchants_household_filter_non_member_returns_404(client):
     })
     outsider_headers = _get_auth_header(outsider_resp)
 
-    resp = await client.get(f"/merchants?household_id={household_id}", headers=outsider_headers)
+    resp = await client.get(f"/merchants?group_id={group_id}", headers=outsider_headers)
 
     assert resp.status_code == 404
 
 
-async def test_get_household_merchant_as_member(client):
-    """Non-admin member can view a household merchant."""
-    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+async def test_get_group_merchant_as_member(client):
+    """Non-admin member can view a group merchant."""
+    admin_headers, member_headers, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="Shared", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     resp = await client.get(f"/merchants/{merchant_id}", headers=member_headers)
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "Shared"
-    assert resp.json()["household_id"] == household_id
+    assert resp.json()["group_id"] == group_id
 
 
-async def test_get_household_merchant_non_member_returns_404(client):
-    """Non-member cannot view a household merchant."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_get_group_merchant_non_member_returns_404(client):
+    """Non-member cannot view a group merchant."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="Shared", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     outsider_resp = await client.post("/auth/signup", json={
@@ -645,14 +645,14 @@ async def test_get_household_merchant_non_member_returns_404(client):
     assert resp.status_code == 404
 
 
-# --- Household merchants: PATCH /merchants ---
+# --- Group merchants: PATCH /merchants ---
 
 
-async def test_patch_household_merchant_as_admin(client):
-    """Admin can update a household merchant."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_patch_group_merchant_as_admin(client):
+    """Admin can update a group merchant."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="Old Name", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Old Name", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     resp = await client.patch(f"/merchants/{merchant_id}", json={"name": "New Name"}, headers=admin_headers)
@@ -661,14 +661,14 @@ async def test_patch_household_merchant_as_admin(client):
     assert resp.json()["name"] == "New Name"
 
 
-async def test_patch_household_merchant_with_household_category(client):
-    """Admin can update a household merchant's default category to a household category."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_patch_group_merchant_with_group_category(client):
+    """Admin can update a group merchant's default category to a group category."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    cat_resp = await _create_category(client, admin_headers, name="Groceries", household_id=household_id)
+    cat_resp = await _create_category(client, admin_headers, name="Groceries", group_id=group_id)
     category_id = cat_resp.json()["id"]
 
-    create_resp = await _create_merchant(client, admin_headers, name="Costco", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     resp = await client.patch(
@@ -681,11 +681,11 @@ async def test_patch_household_merchant_with_household_category(client):
     assert resp.json()["default_category_id"] == category_id
 
 
-async def test_patch_household_merchant_as_non_admin_returns_403(client):
-    """Non-admin member cannot update a household merchant."""
-    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+async def test_patch_group_merchant_as_non_admin_returns_403(client):
+    """Non-admin member cannot update a group merchant."""
+    admin_headers, member_headers, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="Shared", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     resp = await client.patch(f"/merchants/{merchant_id}", json={"name": "Hacked"}, headers=member_headers)
@@ -694,11 +694,11 @@ async def test_patch_household_merchant_as_non_admin_returns_403(client):
     assert resp.json()["detail"] == "Admin role required"
 
 
-async def test_patch_household_merchant_non_member_returns_404(client):
-    """Non-member cannot see or update a household merchant."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_patch_group_merchant_non_member_returns_404(client):
+    """Non-member cannot see or update a group merchant."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="Shared", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     outsider_resp = await client.post("/auth/signup", json={
@@ -713,14 +713,14 @@ async def test_patch_household_merchant_non_member_returns_404(client):
     assert resp.json()["detail"] == "Merchant not found"
 
 
-# --- Household merchants: DELETE /merchants ---
+# --- Group merchants: DELETE /merchants ---
 
 
-async def test_delete_household_merchant_as_admin(client):
-    """Admin can delete a household merchant."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_delete_group_merchant_as_admin(client):
+    """Admin can delete a group merchant."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="ToDelete", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="ToDelete", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     resp = await client.delete(f"/merchants/{merchant_id}", headers=admin_headers)
@@ -731,11 +731,11 @@ async def test_delete_household_merchant_as_admin(client):
     assert get_resp.status_code == 404
 
 
-async def test_delete_household_merchant_as_non_admin_returns_403(client):
-    """Non-admin member cannot delete a household merchant."""
-    admin_headers, member_headers, _, household_id = await _setup_household_with_member(client)
+async def test_delete_group_merchant_as_non_admin_returns_403(client):
+    """Non-admin member cannot delete a group merchant."""
+    admin_headers, member_headers, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="Shared", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     resp = await client.delete(f"/merchants/{merchant_id}", headers=member_headers)
@@ -744,11 +744,11 @@ async def test_delete_household_merchant_as_non_admin_returns_403(client):
     assert resp.json()["detail"] == "Admin role required"
 
 
-async def test_delete_household_merchant_non_member_returns_404(client):
-    """Non-member cannot see or delete a household merchant."""
-    admin_headers, _, _, household_id = await _setup_household_with_member(client)
+async def test_delete_group_merchant_non_member_returns_404(client):
+    """Non-member cannot see or delete a group merchant."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    create_resp = await _create_merchant(client, admin_headers, name="Shared", household_id=household_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Shared", group_id=group_id)
     merchant_id = create_resp.json()["id"]
 
     outsider_resp = await client.post("/auth/signup", json={

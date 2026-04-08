@@ -58,72 +58,72 @@ Stores password hashes. One-to-one with `users` (only exists when auth provider 
 
 ---
 
-## Households
+## Groups
 
-### `households`
+### `groups`
 
-A shared financial group (e.g., a couple, family). A user can own one or more households.
+A shared financial group (e.g., a couple, family, roommates). A user can own one or more groups.
 
-**Data lifecycle:** Deleting a household cascades to all associated accounts, categories, budgets, and their transactions. Members who leave (or are removed from) a household lose access to all shared data — there is no transfer of ownership. Users should archive a household instead of deleting it to preserve historical data.
+**Data lifecycle:** Deleting a group cascades to all associated accounts, categories, budgets, and their transactions. Members who leave (or are removed from) a group lose access to all shared data — there is no transfer of ownership. Users should archive a group instead of deleting it to preserve historical data.
 
 | Column        | Type        | Constraints               | Description                                 |
 | ------------- | ----------- | ------------------------- | ------------------------------------------- |
 | `id`          | uuid        | PK                        |                                             |
-| `owner_id`    | uuid        | NOT NULL, FK → `users.id` | The user who created and owns the household |
+| `owner_id`    | uuid        | NOT NULL, FK → `users.id` | The user who created and owns the group     |
 | `name`        | text        |                           | Display name                                |
-| `profile_pic` | text        |                           | Path/URL to household picture               |
+| `profile_pic` | text        |                           | Path/URL to group picture                   |
 | `is_archived` | boolean     | NOT NULL, default `false` | Hidden from default list but data preserved |
 | `created_at`  | timestamptz | NOT NULL                  |                                             |
 
 
-### `household_members`
+### `group_members`
 
-Junction table linking users to households.
+Junction table linking users to groups.
 
 
 | Column         | Type    | Constraints                                | Description                                                   |
 | -------------- | ------- | ------------------------------------------ | ------------------------------------------------------------- |
-| `household_id` | uuid    | PK, FK → `households.id` ON DELETE CASCADE |                                                               |
+| `group_id`     | uuid    | PK, FK → `groups.id` ON DELETE CASCADE     |                                                               |
 | `user_id`      | uuid    | PK, FK → `users.id`                       |                                                               |
-| `is_admin`     | boolean | NOT NULL, default `false`                  | Admins can manage membership and have implicit full access to all household resources. Only the owner can promote/demote admins. |
+| `is_admin`     | boolean | NOT NULL, default `false`                  | Admins can manage membership and have implicit full access to all group resources. Only the owner can promote/demote admins. |
 
 
 ### `account_permissions`
 
-Per-account access control for household members. Admins have implicit full access and don't need explicit permission rows. Categories are visible to all household members and any member can create new ones, but only admins can edit or delete them. Transactions inherit permissions from their parent account.
+Per-account access control for group members. Admins have implicit full access and don't need explicit permission rows. Categories are visible to all group members and any member can create new ones, but only admins can edit or delete them. Transactions inherit permissions from their parent account.
 
 
 | Column         | Type             | Constraints                                                          | Description                              |
 | -------------- | ---------------- | -------------------------------------------------------------------- | ---------------------------------------- |
 | `id`           | uuid             | PK                                                                   |                                          |
-| `household_id` | uuid             | NOT NULL, FK → `households.id` ON DELETE CASCADE                     |                                          |
+| `group_id`     | uuid             | NOT NULL, FK → `groups.id` ON DELETE CASCADE                         |                                          |
 | `user_id`      | uuid             | NOT NULL, FK → `users.id`                                           |                                          |
 | `account_id`   | uuid             | NOT NULL, FK → `accounts.id` ON DELETE CASCADE                       |                                          |
 | `level`        | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view account + transactions; `write` = also create/edit/delete transactions; `admin` = also edit/delete account |
 | `created_at`   | timestamptz      | NOT NULL                                                             |                                          |
 
-**Unique constraint:** `(household_id, user_id, account_id)` — one permission level per member per account.
+**Unique constraint:** `(group_id, user_id, account_id)` — one permission level per member per account.
 
-**Composite FK:** `(household_id, user_id)` → `household_members(household_id, user_id) ON DELETE CASCADE` — removing a member cleans up all their permissions.
+**Composite FK:** `(group_id, user_id)` → `group_members(group_id, user_id) ON DELETE CASCADE` — removing a member cleans up all their permissions.
 
 
 ### `budget_permissions`
 
-Per-budget access control for household members. Same structure as account_permissions. Budget permissions are independent of account permissions — a user with budget READ can see aggregated spending per category without needing account access. This enables privacy-respecting monitoring (e.g., parents see "Food: $150 / $300" without seeing individual transactions).
+Per-budget access control for group members. Same structure as account_permissions. Budget permissions are independent of account permissions — a user with budget READ can see aggregated spending per category without needing account access. This enables privacy-respecting monitoring (e.g., parents see "Food: $150 / $300" without seeing individual transactions).
 
 
 | Column         | Type             | Constraints                                                          | Description                              |
 | -------------- | ---------------- | -------------------------------------------------------------------- | ---------------------------------------- |
 | `id`           | uuid             | PK                                                                   |                                          |
-| `household_id` | uuid             | NOT NULL, FK → `households.id` ON DELETE CASCADE                     |                                          |
+| `group_id`     | uuid             | NOT NULL, FK → `groups.id` ON DELETE CASCADE                         |                                          |
 | `user_id`      | uuid             | NOT NULL, FK → `users.id`                                           |                                          |
 | `budget_id`    | uuid             | NOT NULL, FK → `budgets.id` ON DELETE CASCADE                        |                                          |
 | `level`        | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view budget config + aggregated utilization; `write` = also edit budget details; `admin` = also delete budget |
 | `created_at`   | timestamptz      | NOT NULL                                                             |                                          |
 
-**Unique constraint:** `(household_id, user_id, budget_id)` — one permission level per member per budget.
+**Unique constraint:** `(group_id, user_id, budget_id)` — one permission level per member per budget.
 
-**Composite FK:** `(household_id, user_id)` → `household_members(household_id, user_id) ON DELETE CASCADE`.
+**Composite FK:** `(group_id, user_id)` → `group_members(group_id, user_id) ON DELETE CASCADE`.
 
 
 ---
@@ -163,14 +163,14 @@ Reference table of supported currencies. Seeded with ISO 4217 data.
 
 ### `accounts`
 
-Represents a real-world financial account. Owned by either a user (personal) or a household (shared/joint), never both.
+Represents a real-world financial account. Owned by either a user (personal) or a group (shared/joint), never both.
 
 
 | Column                        | Type         | Constraints                    | Description                                                                         |
 | ----------------------------- | ------------ | ------------------------------ | ----------------------------------------------------------------------------------- |
 | `id`                          | uuid         | PK                             |                                                                                     |
-| `owner_id`                    | uuid         | FK → `users.id`                | Set for personal accounts; null for household accounts                              |
-| `household_id`                | uuid         | FK → `households.id` ON DELETE CASCADE | Set for shared/joint accounts; null for personal accounts                           |
+| `owner_id`                    | uuid         | FK → `users.id`                | Set for personal accounts; null for group accounts                                  |
+| `group_id`                    | uuid         | FK → `groups.id` ON DELETE CASCADE | Set for shared/joint accounts; null for personal accounts                           |
 | `account_type`                | enum         | NOT NULL                       | `checking`, `savings`, `credit_card`, `cash`, `investment`                          |
 | `tax_treatment`               | enum         | NOT NULL, default `taxable`    | `taxable`, `tax_free`, `tax_deferred`, `tax_assisted`                               |
 | `name`                        | varchar(256) | NOT NULL                       | User-facing display name                                                            |
@@ -182,7 +182,7 @@ Represents a real-world financial account. Owned by either a user (personal) or 
 | `created_at`                  | timestamptz  | NOT NULL                       |                                                                                     |
 
 
-**Check constraint:** exactly one of `owner_id` or `household_id` must be non-null.
+**Check constraint:** exactly one of `owner_id` or `group_id` must be non-null.
 
 **Immutable after creation:** `account_type`, `currency`.
 
@@ -219,38 +219,38 @@ Per-account, per-year contribution and withdrawal limits for tax-advantaged acco
 
 ### `categories`
 
-Hierarchical transaction categories. App seeds a default "Uncategorized" category per kind per user so `category_id` on transactions is never null. Any household member can create household categories, but only admins can edit or delete them. This lets members add categories they need (e.g., a kid adding "Games") without requiring admin intervention.
+Hierarchical transaction categories. App seeds a default "Uncategorized" category per kind per user so `category_id` on transactions is never null. Any group member can create group categories, but only admins can edit or delete them. This lets members add categories they need (e.g., a kid adding "Games") without requiring admin intervention.
 
 
 | Column         | Type                                   | Constraints               | Description                                                     |
 | -------------- | -------------------------------------- | ------------------------- | --------------------------------------------------------------- |
 | `id`           | uuid                                   | PK                        |                                                                 |
-| `household_id` | uuid                                   | FK → `households.id` ON DELETE CASCADE | Non-null for household-shared categories                        |
+| `group_id`     | uuid                                   | FK → `groups.id` ON DELETE CASCADE | Non-null for group-shared categories                            |
 | `owner_id`     | uuid                                   | NOT NULL, FK → `users.id`, UNIQUE(owner_id, name, kind) | Creator of the category                                         |
 | `name`         | text                                   | NOT NULL, UNIQUE(owner_id, name, kind)                  | e.g., "Groceries", "Salary"                                     |
 | `kind`         | enum (`expense`, `income`, `transfer`) | NOT NULL, UNIQUE(owner_id, name, kind)                  | Determines which transaction direction this category applies to |
 | `parent_id`    | uuid                                   | FK → `categories.id`      | Null = top-level; non-null = subcategory                        |
 | `created_at`   | timestamptz                            | NOT NULL                  |                                                                 |
 
-**Unique constraint:** `(owner_id, name, kind)` — no duplicate personal categories per user. `(household_id, name, kind)` — no duplicate categories within a household (NULLs are distinct so personal categories are unaffected).
+**Unique constraint:** `(owner_id, name, kind)` — no duplicate personal categories per user. `(group_id, name, kind)` — no duplicate categories within a group (NULLs are distinct so personal categories are unaffected).
 
 **Hierarchy behavior:** Categories support one level of nesting via `parent_id`. A category with `parent_id = null` is top-level; setting `parent_id` to another category's ID makes it a subcategory.
 
 ### `merchants`
 
-Per-user registry of entities that send or receive money (stores, employers, people, etc.). Any household member can create a household merchant; only admins can edit or delete them.
+Per-user registry of entities that send or receive money (stores, employers, people, etc.). Any group member can create a group merchant; only admins can edit or delete them.
 
 
 | Column                | Type         | Constraints                            | Description                                                                                                                                         |
 | --------------------- | ------------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                  | uuid         | PK                                     |                                                                                                                                                     |
 | `owner_id`            | uuid         | NOT NULL, FK → `users.id`              | Creator of the merchant                                                                                                                             |
-| `household_id`        | uuid         | FK → `households.id` ON DELETE CASCADE | Non-null for household-shared merchants                                                                                                             |
+| `group_id`            | uuid         | FK → `groups.id` ON DELETE CASCADE     | Non-null for group-shared merchants                                                                                                                 |
 | `name`                | varchar(256) | NOT NULL                               | e.g., "Costco", "Employer Inc."                                                                                                                     |
 | `default_category_id` | uuid         | FK → `categories.id`                   | Auto-categorization hint: new transactions with this merchant default to this category (used for manually created merchants not imported from Plaid) |
 | `created_at`          | timestamptz  | NOT NULL                               |                                                                                                                                                     |
 
-**Unique constraint:** `(owner_id, name)` where `household_id IS NULL` — no duplicate personal merchants per user. `(household_id, name)` — no duplicate merchants within a household.
+**Unique constraint:** `(owner_id, name)` where `group_id IS NULL` — no duplicate personal merchants per user. `(group_id, name)` — no duplicate merchants within a group.
 
 
 ### `transactions`
@@ -318,7 +318,7 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 | --------------------- | --------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
 | `id`                  | uuid                                          | PK                             |                                                                                     |
 | `owner_id`            | uuid                                          | FK → `users.id`                | Set for personal budgets                                                            |
-| `household_id`        | uuid                                          | FK → `households.id` ON DELETE CASCADE | Set for household budgets                                                           |
+| `group_id`            | uuid                                          | FK → `groups.id` ON DELETE CASCADE | Set for group budgets                                                               |
 | `base_budget_id`    | uuid                                          | FK → `budgets.id`              | Reserved for per-period overrides; null for most budgets                             |
 | `name`                | varchar(256)                                  | NOT NULL                       | e.g., "March 2026 Budget"                                                           |
 | `period_start`        | date                                          | NOT NULL                       |                                                                                     |
@@ -331,7 +331,7 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 
 
 **Check constraints:**
-- Exactly one of `owner_id` or `household_id` must be non-null.
+- Exactly one of `owner_id` or `group_id` must be non-null.
 - `overall_limit > 0`.
 
 ### `budget_tracked_categories`

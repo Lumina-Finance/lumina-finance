@@ -9,7 +9,7 @@ Table users [headercolor: #3B82F6] {
   created_at timestamptz [not null]
 }
 
-Table households [headercolor: #8B5CF6] {
+Table groups [headercolor: #8B5CF6] {
   id uuid pk
   owner_id uuid [not null, ref: > users.id]
   name text
@@ -18,8 +18,8 @@ Table households [headercolor: #8B5CF6] {
   created_at timestamptz [not null]
 }
 
-Table household_members [headercolor: #8B5CF6] {
-  household_id uuid pk [ref: > households.id, delete: cascade]
+Table group_members [headercolor: #8B5CF6] {
+  group_id uuid pk [ref: > groups.id, delete: cascade]
   user_id uuid pk [ref: > users.id]
   is_admin boolean [not null, default: false, note: "only the owner can promote/demote admins"]
 }
@@ -30,29 +30,29 @@ enum permission_level {
   admin
 }
 
-Table account_permissions [headercolor: #8B5CF6, note: "per-account access for household members; admins have implicit full access"] {
+Table account_permissions [headercolor: #8B5CF6, note: "per-account access for group members; admins have implicit full access"] {
   id uuid pk
-  household_id uuid [not null, ref: > households.id, note: "ON DELETE CASCADE"]
+  group_id uuid [not null, ref: > groups.id, note: "ON DELETE CASCADE"]
   user_id uuid [not null, ref: > users.id]
   account_id uuid [not null, ref: > accounts.id, note: "ON DELETE CASCADE"]
   level permission_level [not null]
   created_at timestamptz [not null]
 
   indexes {
-    (household_id, user_id, account_id) [unique, name: "uq_account_perm_member_account"]
+    (group_id, user_id, account_id) [unique, name: "uq_account_perm_member_account"]
   }
 }
 
-Table budget_permissions [headercolor: #F43F5E, note: "per-budget access for household members; admins have implicit full access; independent of account permissions — read grants aggregated utilization without exposing individual transactions"] {
+Table budget_permissions [headercolor: #F43F5E, note: "per-budget access for group members; admins have implicit full access; independent of account permissions — read grants aggregated utilization without exposing individual transactions"] {
   id uuid pk
-  household_id uuid [not null, ref: > households.id, note: "ON DELETE CASCADE"]
+  group_id uuid [not null, ref: > groups.id, note: "ON DELETE CASCADE"]
   user_id uuid [not null, ref: > users.id]
   budget_id uuid [not null, ref: > budgets.id, note: "ON DELETE CASCADE"]
   level permission_level [not null]
   created_at timestamptz [not null]
 
   indexes {
-    (household_id, user_id, budget_id) [unique, name: "uq_budget_perm_member_budget"]
+    (group_id, user_id, budget_id) [unique, name: "uq_budget_perm_member_budget"]
   }
 }
 
@@ -121,10 +121,10 @@ enum account_type {
   investment
 }
 
-Table accounts [headercolor: #10B981, note: "check constraint: exactly one of owner_id or household_id must be non-null"] {
+Table accounts [headercolor: #10B981, note: "check constraint: exactly one of owner_id or group_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
-  household_id uuid [ref: > households.id, delete: cascade]
+  group_id uuid [ref: > groups.id, delete: cascade]
   account_type account_type [not null]
   tax_treatment tax_treatment [not null, default: "taxable"]
   name varchar(256) [not null]
@@ -155,9 +155,9 @@ enum category_kind {
   transfer
 }
 
-Table categories [headercolor: #F59E0B, note: "any household member can create; only admins can edit/delete. App seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
+Table categories [headercolor: #F59E0B, note: "any group member can create; only admins can edit/delete. App seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
   id uuid pk
-  household_id uuid [ref: > households.id, delete: cascade]
+  group_id uuid [ref: > groups.id, delete: cascade]
   owner_id uuid [not null, ref: > users.id, note: "creator of the category"]
   name text [not null]
   kind category_kind [not null]
@@ -166,21 +166,21 @@ Table categories [headercolor: #F59E0B, note: "any household member can create; 
 
   indexes {
     (owner_id, name, kind) [unique, name: "uq_category_owner_name_kind"]
-    (household_id, name, kind) [unique, name: "uq_category_household_name_kind"]
+    (group_id, name, kind) [unique, name: "uq_category_group_name_kind"]
   }
 }
 
-Table merchants [headercolor: #F59E0B, note: "per-user merchant registry; any household member can create, only admins can edit/delete"] {
+Table merchants [headercolor: #F59E0B, note: "per-user merchant registry; any group member can create, only admins can edit/delete"] {
   id uuid pk
   owner_id uuid [not null, ref: > users.id, note: "creator of the merchant"]
-  household_id uuid [ref: > households.id, note: "ON DELETE CASCADE; non-null for household-shared merchants"]
+  group_id uuid [ref: > groups.id, note: "ON DELETE CASCADE; non-null for group-shared merchants"]
   name varchar(256) [not null]
   default_category_id uuid [ref: > categories.id, note: "auto-categorization hint for new transactions with this merchant"]
   created_at timestamptz [not null]
 
   indexes {
-    (owner_id, name) [unique, note: "partial: WHERE household_id IS NULL"]
-    (household_id, name) [unique, note: "household-level dedup"]
+    (owner_id, name) [unique, note: "partial: WHERE group_id IS NULL"]
+    (group_id, name) [unique, note: "group-level dedup"]
   }
 }
 
@@ -218,10 +218,10 @@ enum recurrence_freq {
   yearly
 }
 
-Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of owner_id or household_id must be non-null"] {
+Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of owner_id or group_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
-  household_id uuid [ref: > households.id, delete: cascade]
+  group_id uuid [ref: > groups.id, delete: cascade]
   base_budget_id uuid [ref: > budgets.id, note: "reserved for per-period overrides; null for most budgets"]
   name varchar(256) [not null]
   period_start date [not null]

@@ -5,8 +5,8 @@ from tests.routes.conftest import _create_user, _get_auth_header
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
-async def _create_household(client, headers, **overrides):
-    """Create a household via POST /households.
+async def _create_group(client, headers, **overrides):
+    """Create a group via POST /groups.
 
     Defaults: name="Smith Family".
 
@@ -19,7 +19,7 @@ async def _create_household(client, headers, **overrides):
         The HTTP response from the API.
     """
     payload = {"name": "Smith Family", **overrides}
-    return await client.post("/households", json=payload, headers=headers)
+    return await client.post("/groups", json=payload, headers=headers)
 
 
 async def _create_second_user(client):
@@ -41,16 +41,16 @@ async def _create_second_user(client):
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
-# --- POST /households ---
+# --- POST /groups ---
 
 
-async def test_create_household_returns_201(client):
-    """Valid payload creates a household with correct fields."""
+async def test_create_group_returns_201(client):
+    """Valid payload creates a group with correct fields."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
 
-    resp = await _create_household(client, headers)
+    resp = await _create_group(client, headers)
 
     assert resp.status_code == 201
     data = resp.json()
@@ -62,16 +62,16 @@ async def test_create_household_returns_201(client):
     assert data["created_at"] is not None
 
 
-async def test_create_household_auto_adds_creator_as_admin(client):
+async def test_create_group_auto_adds_creator_as_admin(client):
     """Creator is auto-added as an admin member."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
 
-    household_resp = await _create_household(client, headers)
-    household_id = household_resp.json()["id"]
+    group_resp = await _create_group(client, headers)
+    group_id = group_resp.json()["id"]
 
-    members_resp = await client.get(f"/households/{household_id}/members", headers=headers)
+    members_resp = await client.get(f"/groups/{group_id}/members", headers=headers)
 
     assert members_resp.status_code == 200
     members = members_resp.json()
@@ -80,361 +80,361 @@ async def test_create_household_auto_adds_creator_as_admin(client):
     assert members[0]["is_admin"] is True
 
 
-async def test_create_household_with_profile_pic(client):
+async def test_create_group_with_profile_pic(client):
     """Profile pic is stored and returned when provided."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_household(client, headers, profile_pic="https://example.com/pic.jpg")
+    resp = await _create_group(client, headers, profile_pic="https://example.com/pic.jpg")
 
     assert resp.status_code == 201
     assert resp.json()["profile_pic"] == "https://example.com/pic.jpg"
 
 
-async def test_create_household_empty_name_returns_422(client):
+async def test_create_group_empty_name_returns_422(client):
     """Empty name violates min_length=1 and returns 422."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_household(client, headers, name="")
+    resp = await _create_group(client, headers, name="")
     assert resp.status_code == 422
 
 
-async def test_create_household_name_too_long_returns_422(client):
+async def test_create_group_name_too_long_returns_422(client):
     """Name exceeding 128 characters returns 422."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_household(client, headers, name="A" * 129)
+    resp = await _create_group(client, headers, name="A" * 129)
     assert resp.status_code == 422
 
 
-async def test_create_household_without_auth_returns_401(client):
-    """POST /households without an Authorization header returns 401."""
-    resp = await client.post("/households", json={"name": "Test"})
+async def test_create_group_without_auth_returns_401(client):
+    """POST /groups without an Authorization header returns 401."""
+    resp = await client.post("/groups", json={"name": "Test"})
     assert resp.status_code == 401
 
 
-# --- GET /households ---
+# --- GET /groups ---
 
 
-async def test_list_households_returns_empty_list(client):
-    """User with no households gets an empty list."""
+async def test_list_groups_returns_empty_list(client):
+    """User with no groups gets an empty list."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.get("/households", headers=headers)
+    resp = await client.get("/groups", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json() == []
 
 
-async def test_list_households_returns_user_households(client):
-    """User sees households they are a member of."""
+async def test_list_groups_returns_user_groups(client):
+    """User sees groups they are a member of."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    await _create_household(client, headers, name="Family")
-    await _create_household(client, headers, name="Roommates")
+    await _create_group(client, headers, name="Family")
+    await _create_group(client, headers, name="Roommates")
 
-    resp = await client.get("/households", headers=headers)
+    resp = await client.get("/groups", headers=headers)
 
     assert resp.status_code == 200
     names = [h["name"] for h in resp.json()]
     assert names == ["Family", "Roommates"]
 
 
-async def test_list_households_excludes_other_users(client):
-    """User does not see households they are not a member of."""
+async def test_list_groups_excludes_other_users(client):
+    """User does not see groups they are not a member of."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    await _create_household(client, headers, name="My Household")
+    await _create_group(client, headers, name="My Group")
 
     other_headers, _ = await _create_second_user(client)
-    await _create_household(client, other_headers, name="Their Household")
+    await _create_group(client, other_headers, name="Their Group")
 
-    resp = await client.get("/households", headers=headers)
+    resp = await client.get("/groups", headers=headers)
 
     assert len(resp.json()) == 1
-    assert resp.json()[0]["name"] == "My Household"
+    assert resp.json()[0]["name"] == "My Group"
 
 
-async def test_list_households_includes_archived_by_default(client):
-    """Archived households are included in the default list."""
+async def test_list_groups_includes_archived_by_default(client):
+    """Archived groups are included in the default list."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    await _create_household(client, headers, name="Active")
-    archived_resp = await _create_household(client, headers, name="Old")
+    await _create_group(client, headers, name="Active")
+    archived_resp = await _create_group(client, headers, name="Old")
     archived_id = archived_resp.json()["id"]
-    await client.patch(f"/households/{archived_id}", json={"is_archived": True}, headers=headers)
+    await client.patch(f"/groups/{archived_id}", json={"is_archived": True}, headers=headers)
 
-    resp = await client.get("/households", headers=headers)
+    resp = await client.get("/groups", headers=headers)
 
     assert len(resp.json()) == 2
     names = {h["name"] for h in resp.json()}
     assert names == {"Active", "Old"}
 
 
-async def test_list_households_exclude_archived(client):
-    """exclude_archived=true hides archived households."""
+async def test_list_groups_exclude_archived(client):
+    """exclude_archived=true hides archived groups."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    await _create_household(client, headers, name="Active")
-    archived_resp = await _create_household(client, headers, name="Old")
+    await _create_group(client, headers, name="Active")
+    archived_resp = await _create_group(client, headers, name="Old")
     archived_id = archived_resp.json()["id"]
-    await client.patch(f"/households/{archived_id}", json={"is_archived": True}, headers=headers)
+    await client.patch(f"/groups/{archived_id}", json={"is_archived": True}, headers=headers)
 
-    resp = await client.get("/households?exclude_archived=true", headers=headers)
+    resp = await client.get("/groups?exclude_archived=true", headers=headers)
 
     assert len(resp.json()) == 1
     assert resp.json()[0]["name"] == "Active"
 
 
-async def test_list_households_without_auth_returns_401(client):
-    """GET /households without an Authorization header returns 401."""
-    resp = await client.get("/households")
+async def test_list_groups_without_auth_returns_401(client):
+    """GET /groups without an Authorization header returns 401."""
+    resp = await client.get("/groups")
     assert resp.status_code == 401
 
 
-# --- GET /households/{id} ---
+# --- GET /groups/{id} ---
 
 
-async def test_get_household_returns_household(client):
-    """Member can retrieve a household by ID."""
+async def test_get_group_returns_group(client):
+    """Member can retrieve a group by ID."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.get(f"/households/{household_id}", headers=headers)
+    resp = await client.get(f"/groups/{group_id}", headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["id"] == household_id
+    assert resp.json()["id"] == group_id
     assert resp.json()["name"] == "Smith Family"
 
 
-async def test_get_household_non_member_returns_404(client):
-    """Non-member cannot see a household."""
+async def test_get_group_non_member_returns_404(client):
+    """Non-member cannot see a group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
 
-    resp = await client.get(f"/households/{household_id}", headers=other_headers)
+    resp = await client.get(f"/groups/{group_id}", headers=other_headers)
     assert resp.status_code == 404
 
 
-async def test_get_household_not_found_returns_404(client):
-    """Nonexistent household ID returns 404."""
+async def test_get_group_not_found_returns_404(client):
+    """Nonexistent group ID returns 404."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.get(f"/households/{NONEXISTENT_ID}", headers=headers)
+    resp = await client.get(f"/groups/{NONEXISTENT_ID}", headers=headers)
     assert resp.status_code == 404
 
 
-async def test_get_household_without_auth_returns_401(client):
-    """GET /households/{id} without auth returns 401."""
-    resp = await client.get(f"/households/{NONEXISTENT_ID}")
+async def test_get_group_without_auth_returns_401(client):
+    """GET /groups/{id} without auth returns 401."""
+    resp = await client.get(f"/groups/{NONEXISTENT_ID}")
     assert resp.status_code == 401
 
 
-# --- PATCH /households/{id} ---
+# --- PATCH /groups/{id} ---
 
 
-async def test_update_household_name(client):
-    """Admin can update household name."""
+async def test_update_group_name(client):
+    """Admin can update group name."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/households/{household_id}", json={"name": "Jones Family"}, headers=headers)
+    resp = await client.patch(f"/groups/{group_id}", json={"name": "Jones Family"}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "Jones Family"
 
 
-async def test_update_household_archives(client):
-    """Admin can archive a household."""
+async def test_update_group_archives(client):
+    """Admin can archive a group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/households/{household_id}", json={"is_archived": True}, headers=headers)
+    resp = await client.patch(f"/groups/{group_id}", json={"is_archived": True}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["is_archived"] is True
 
 
-async def test_update_household_empty_body_returns_unchanged(client):
+async def test_update_group_empty_body_returns_unchanged(client):
     """PATCH with empty body returns 200 with no changes."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/households/{household_id}", json={}, headers=headers)
+    resp = await client.patch(f"/groups/{group_id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "Smith Family"
 
 
-async def test_update_household_by_non_admin_returns_403(client):
-    """Non-admin member cannot update household."""
+async def test_update_group_by_non_admin_returns_403(client):
+    """Non-admin member cannot update group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
-    resp = await client.patch(f"/households/{household_id}", json={"name": "Nope"}, headers=other_headers)
+    resp = await client.patch(f"/groups/{group_id}", json={"name": "Nope"}, headers=other_headers)
     assert resp.status_code == 403
 
 
-async def test_update_household_non_member_returns_404(client):
-    """Non-member cannot update household."""
+async def test_update_group_non_member_returns_404(client):
+    """Non-member cannot update group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
 
-    resp = await client.patch(f"/households/{household_id}", json={"name": "Nope"}, headers=other_headers)
+    resp = await client.patch(f"/groups/{group_id}", json={"name": "Nope"}, headers=other_headers)
     assert resp.status_code == 404
 
 
-async def test_update_household_profile_pic(client):
+async def test_update_group_profile_pic(client):
     """Admin can set and clear profile_pic."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/households/{household_id}", json={"profile_pic": "https://example.com/pic.jpg"}, headers=headers)
+    resp = await client.patch(f"/groups/{group_id}", json={"profile_pic": "https://example.com/pic.jpg"}, headers=headers)
     assert resp.status_code == 200
     assert resp.json()["profile_pic"] == "https://example.com/pic.jpg"
 
-    resp = await client.patch(f"/households/{household_id}", json={"profile_pic": None}, headers=headers)
+    resp = await client.patch(f"/groups/{group_id}", json={"profile_pic": None}, headers=headers)
     assert resp.status_code == 200
     assert resp.json()["profile_pic"] is None
 
 
-async def test_update_household_empty_name_returns_422(client):
+async def test_update_group_empty_name_returns_422(client):
     """Empty name on PATCH violates min_length=1 and returns 422."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/households/{household_id}", json={"name": ""}, headers=headers)
+    resp = await client.patch(f"/groups/{group_id}", json={"name": ""}, headers=headers)
     assert resp.status_code == 422
 
 
-async def test_update_household_without_auth_returns_401(client):
-    """PATCH /households/{id} without auth returns 401."""
-    resp = await client.patch(f"/households/{NONEXISTENT_ID}", json={"name": "Nope"})
+async def test_update_group_without_auth_returns_401(client):
+    """PATCH /groups/{id} without auth returns 401."""
+    resp = await client.patch(f"/groups/{NONEXISTENT_ID}", json={"name": "Nope"})
     assert resp.status_code == 401
 
 
-# --- DELETE /households/{id} ---
+# --- DELETE /groups/{id} ---
 
 
-async def test_delete_household_by_owner_returns_204(client):
-    """Owner can delete a household."""
+async def test_delete_group_by_owner_returns_204(client):
+    """Owner can delete a group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.delete(f"/households/{household_id}", headers=headers)
+    resp = await client.delete(f"/groups/{group_id}", headers=headers)
     assert resp.status_code == 204
 
-    get_resp = await client.get(f"/households/{household_id}", headers=headers)
+    get_resp = await client.get(f"/groups/{group_id}", headers=headers)
     assert get_resp.status_code == 404
 
 
-async def test_delete_household_by_admin_non_owner_returns_403(client):
+async def test_delete_group_by_admin_non_owner_returns_403(client):
     """Admin who is not the owner cannot delete."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
-    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
-    resp = await client.delete(f"/households/{household_id}", headers=other_headers)
+    resp = await client.delete(f"/groups/{group_id}", headers=other_headers)
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "Only the owner can delete this household"
+    assert resp.json()["detail"] == "Only the owner can delete this group"
 
 
-async def test_delete_household_by_non_member_returns_404(client):
-    """Non-member cannot delete household."""
+async def test_delete_group_by_non_member_returns_404(client):
+    """Non-member cannot delete group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
 
-    resp = await client.delete(f"/households/{household_id}", headers=other_headers)
+    resp = await client.delete(f"/groups/{group_id}", headers=other_headers)
     assert resp.status_code == 404
 
 
-async def test_delete_household_nonexistent_id_returns_404(client):
-    """Deleting a nonexistent household returns 404."""
+async def test_delete_group_nonexistent_id_returns_404(client):
+    """Deleting a nonexistent group returns 404."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.delete(f"/households/{NONEXISTENT_ID}", headers=headers)
+    resp = await client.delete(f"/groups/{NONEXISTENT_ID}", headers=headers)
     assert resp.status_code == 404
 
 
-async def test_delete_household_twice_returns_404(client):
-    """Deleting the same household twice returns 204 then 404."""
+async def test_delete_group_twice_returns_404(client):
+    """Deleting the same group twice returns 204 then 404."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp1 = await client.delete(f"/households/{household_id}", headers=headers)
-    resp2 = await client.delete(f"/households/{household_id}", headers=headers)
+    resp1 = await client.delete(f"/groups/{group_id}", headers=headers)
+    resp2 = await client.delete(f"/groups/{group_id}", headers=headers)
 
     assert resp1.status_code == 204
     assert resp2.status_code == 404
 
 
-async def test_delete_household_without_auth_returns_401(client):
-    """DELETE /households/{id} without auth returns 401."""
-    resp = await client.delete(f"/households/{NONEXISTENT_ID}")
+async def test_delete_group_without_auth_returns_401(client):
+    """DELETE /groups/{id} without auth returns 401."""
+    resp = await client.delete(f"/groups/{NONEXISTENT_ID}")
     assert resp.status_code == 401
 
 
-# --- GET /households/{id}/members ---
+# --- GET /groups/{id}/members ---
 
 
 async def test_list_members_returns_all_members(client):
     """Lists all members including creator and added member."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     _, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
-    resp = await client.get(f"/households/{household_id}/members", headers=headers)
+    resp = await client.get(f"/groups/{group_id}/members", headers=headers)
 
     assert resp.status_code == 200
     assert len(resp.json()) == 2
@@ -446,35 +446,35 @@ async def test_list_members_by_non_member_returns_404(client):
     """Non-member cannot list members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
 
-    resp = await client.get(f"/households/{household_id}/members", headers=other_headers)
+    resp = await client.get(f"/groups/{group_id}/members", headers=other_headers)
     assert resp.status_code == 404
 
 
 async def test_list_members_without_auth_returns_401(client):
-    """GET /households/{id}/members without auth returns 401."""
-    resp = await client.get(f"/households/{NONEXISTENT_ID}/members")
+    """GET /groups/{id}/members without auth returns 401."""
+    resp = await client.get(f"/groups/{NONEXISTENT_ID}/members")
     assert resp.status_code == 401
 
 
-# --- POST /households/{id}/members ---
+# --- POST /groups/{id}/members ---
 
 
 async def test_add_member_returns_201(client):
     """Admin adds a member who defaults to non-admin."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     _, other_user_id = await _create_second_user(client)
 
     resp = await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": other_user_id},
         headers=headers,
     )
@@ -488,13 +488,13 @@ async def test_add_member_duplicate_returns_409(client):
     """Adding an existing member returns 409."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     _, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
-    resp = await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    resp = await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "User is already a member"
@@ -504,11 +504,11 @@ async def test_add_member_nonexistent_user_id_returns_422(client):
     """Adding a nonexistent user returns 422."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     resp = await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": NONEXISTENT_ID},
         headers=headers,
     )
@@ -521,12 +521,12 @@ async def test_add_member_by_non_owner_admin_returns_201(client):
     """Non-owner admin can add members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
-    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     third_resp = await client.post("/auth/signup", json={
         "email": "third@example.com", "password": "securepassword123",
@@ -535,7 +535,7 @@ async def test_add_member_by_non_owner_admin_returns_201(client):
     third_user_id = third_resp.json()["user"]["id"]
 
     resp = await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": third_user_id},
         headers=other_headers,
     )
@@ -547,14 +547,14 @@ async def test_add_member_by_non_admin_returns_403(client):
     """Non-admin member cannot add members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     resp = await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": NONEXISTENT_ID},
         headers=other_headers,
     )
@@ -565,13 +565,13 @@ async def test_add_member_by_non_member_returns_404(client):
     """Non-member cannot add members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
 
     resp = await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": NONEXISTENT_ID},
         headers=other_headers,
     )
@@ -579,26 +579,26 @@ async def test_add_member_by_non_member_returns_404(client):
 
 
 async def test_add_member_without_auth_returns_401(client):
-    """POST /households/{id}/members without auth returns 401."""
-    resp = await client.post(f"/households/{NONEXISTENT_ID}/members", json={"user_id": NONEXISTENT_ID})
+    """POST /groups/{id}/members without auth returns 401."""
+    resp = await client.post(f"/groups/{NONEXISTENT_ID}/members", json={"user_id": NONEXISTENT_ID})
     assert resp.status_code == 401
 
 
-# --- PATCH /households/{id}/members/{member_id} ---
+# --- PATCH /groups/{id}/members/{member_id} ---
 
 
 async def test_promote_member_to_admin_returns_200(client):
     """Owner can promote a member to admin."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     _, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     resp = await client.patch(
-        f"/households/{household_id}/members/{other_user_id}",
+        f"/groups/{group_id}/members/{other_user_id}",
         json={"is_admin": True},
         headers=headers,
     )
@@ -611,15 +611,15 @@ async def test_demote_admin_returns_200(client):
     """Owner can demote an admin to regular member."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     _, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
-    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     resp = await client.patch(
-        f"/households/{household_id}/members/{other_user_id}",
+        f"/groups/{group_id}/members/{other_user_id}",
         json={"is_admin": False},
         headers=headers,
     )
@@ -629,15 +629,15 @@ async def test_demote_admin_returns_200(client):
 
 
 async def test_demote_owner_returns_403(client):
-    """Cannot demote the household owner."""
+    """Cannot demote the group owner."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     resp = await client.patch(
-        f"/households/{household_id}/members/{user_id}",
+        f"/groups/{group_id}/members/{user_id}",
         json={"is_admin": False},
         headers=headers,
     )
@@ -650,11 +650,11 @@ async def test_promote_member_nonexistent_returns_404(client):
     """Promoting a nonexistent member returns 404."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     resp = await client.patch(
-        f"/households/{household_id}/members/{NONEXISTENT_ID}",
+        f"/groups/{group_id}/members/{NONEXISTENT_ID}",
         json={"is_admin": True},
         headers=headers,
     )
@@ -666,13 +666,13 @@ async def test_non_owner_admin_cannot_promote_returns_403(client):
     """Admin who is not the owner cannot promote/demote members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
     # Promote other user to admin
-    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+    await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     # Create a third user to be the target
     third_resp = await client.post("/auth/signup", json={
@@ -680,11 +680,11 @@ async def test_non_owner_admin_cannot_promote_returns_403(client):
         "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
     })
     third_user_id = third_resp.json()["user"]["id"]
-    await client.post(f"/households/{household_id}/members", json={"user_id": third_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": third_user_id}, headers=headers)
 
     # Non-owner admin tries to promote third user
     resp = await client.patch(
-        f"/households/{household_id}/members/{third_user_id}",
+        f"/groups/{group_id}/members/{third_user_id}",
         json={"is_admin": True},
         headers=other_headers,
     )
@@ -695,14 +695,14 @@ async def test_regular_member_cannot_promote_returns_403(client):
     """Non-admin member cannot promote/demote."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     resp = await client.patch(
-        f"/households/{household_id}/members/{other_user_id}",
+        f"/groups/{group_id}/members/{other_user_id}",
         json={"is_admin": True},
         headers=other_headers,
     )
@@ -714,13 +714,13 @@ async def test_promote_member_non_member_returns_404(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
 
     resp = await client.patch(
-        f"/households/{household_id}/members/{user_id}",
+        f"/groups/{group_id}/members/{user_id}",
         json={"is_admin": True},
         headers=other_headers,
     )
@@ -728,45 +728,45 @@ async def test_promote_member_non_member_returns_404(client):
 
 
 async def test_promote_member_without_auth_returns_401(client):
-    """PATCH /households/{id}/members/{id} without auth returns 401."""
-    resp = await client.patch(f"/households/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}", json={"is_admin": True})
+    """PATCH /groups/{id}/members/{id} without auth returns 401."""
+    resp = await client.patch(f"/groups/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}", json={"is_admin": True})
     assert resp.status_code == 401
 
 
-# --- DELETE /households/{id}/members/{member_id} ---
+# --- DELETE /groups/{id}/members/{member_id} ---
 
 
 async def test_remove_member_admin_removes_other_returns_204(client):
     """Admin removes another member. Follow-up confirms removal."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     _, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
-    resp = await client.delete(f"/households/{household_id}/members/{other_user_id}", headers=headers)
+    resp = await client.delete(f"/groups/{group_id}/members/{other_user_id}", headers=headers)
     assert resp.status_code == 204
 
-    members_resp = await client.get(f"/households/{household_id}/members", headers=headers)
+    members_resp = await client.get(f"/groups/{group_id}/members", headers=headers)
     assert len(members_resp.json()) == 1
 
 
 async def test_remove_member_self_leave_returns_204(client):
-    """Non-admin member can leave the household."""
+    """Non-admin member can leave the group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
-    resp = await client.delete(f"/households/{household_id}/members/{other_user_id}", headers=other_headers)
+    resp = await client.delete(f"/groups/{group_id}/members/{other_user_id}", headers=other_headers)
     assert resp.status_code == 204
 
-    members_resp = await client.get(f"/households/{household_id}/members", headers=headers)
+    members_resp = await client.get(f"/groups/{group_id}/members", headers=headers)
     assert len(members_resp.json()) == 1
 
 
@@ -775,27 +775,27 @@ async def test_remove_member_owner_cannot_be_removed_returns_403(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
-    await client.patch(f"/households/{household_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
-    resp = await client.delete(f"/households/{household_id}/members/{user_id}", headers=other_headers)
+    resp = await client.delete(f"/groups/{group_id}/members/{user_id}", headers=other_headers)
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Cannot remove the owner"
 
 
 async def test_remove_member_owner_cannot_self_leave_returns_403(client):
-    """Owner cannot leave their own household."""
+    """Owner cannot leave their own group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.delete(f"/households/{household_id}/members/{user_id}", headers=headers)
+    resp = await client.delete(f"/groups/{group_id}/members/{user_id}", headers=headers)
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Cannot remove the owner"
 
@@ -804,11 +804,11 @@ async def test_remove_member_non_admin_cannot_remove_others_returns_403(client):
     """Non-admin member cannot remove other members."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, other_user_id = await _create_second_user(client)
-    await client.post(f"/households/{household_id}/members", json={"user_id": other_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": other_user_id}, headers=headers)
 
     # Create a third user to be the removal target
     third_resp = await client.post("/auth/signup", json={
@@ -819,9 +819,9 @@ async def test_remove_member_non_admin_cannot_remove_others_returns_403(client):
         "base_currency": "CAD",
     })
     third_user_id = third_resp.json()["user"]["id"]
-    await client.post(f"/households/{household_id}/members", json={"user_id": third_user_id}, headers=headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": third_user_id}, headers=headers)
 
-    resp = await client.delete(f"/households/{household_id}/members/{third_user_id}", headers=other_headers)
+    resp = await client.delete(f"/groups/{group_id}/members/{third_user_id}", headers=other_headers)
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Admin role required"
 
@@ -830,10 +830,10 @@ async def test_remove_member_nonexistent_member_returns_404(client):
     """Removing nonexistent member returns 404."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
-    resp = await client.delete(f"/households/{household_id}/members/{NONEXISTENT_ID}", headers=headers)
+    resp = await client.delete(f"/groups/{group_id}/members/{NONEXISTENT_ID}", headers=headers)
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Member not found"
 
@@ -843,16 +843,16 @@ async def test_remove_member_non_member_returns_404(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    create_resp = await _create_household(client, headers)
-    household_id = create_resp.json()["id"]
+    create_resp = await _create_group(client, headers)
+    group_id = create_resp.json()["id"]
 
     other_headers, _ = await _create_second_user(client)
 
-    resp = await client.delete(f"/households/{household_id}/members/{user_id}", headers=other_headers)
+    resp = await client.delete(f"/groups/{group_id}/members/{user_id}", headers=other_headers)
     assert resp.status_code == 404
 
 
 async def test_remove_member_without_auth_returns_401(client):
-    """DELETE /households/{id}/members/{id} without auth returns 401."""
-    resp = await client.delete(f"/households/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}")
+    """DELETE /groups/{id}/members/{id} without auth returns 401."""
+    resp = await client.delete(f"/groups/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}")
     assert resp.status_code == 401

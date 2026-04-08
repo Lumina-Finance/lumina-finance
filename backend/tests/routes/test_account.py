@@ -105,7 +105,7 @@ async def test_get_account_returns_account(client):
     assert data["tax_treatment"] == ACCOUNT_PAYLOAD["tax_treatment"]
     assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
     assert data["owner_id"] is not None
-    assert data["household_id"] is None
+    assert data["group_id"] is None
     assert data["is_hidden"] is False
     assert data["closed_at"] is None
 

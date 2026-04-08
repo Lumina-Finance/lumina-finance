@@ -78,15 +78,15 @@ async def test_create_account_seeds_zero_balance_snapshot(client):
     assert snapshots[0].ts == expected_ts
 
 
-async def test_create_household_account_seeds_zero_balance_snapshot(client):
-    """A new household account also gets a zero-balance snapshot."""
+async def test_create_group_account_seeds_zero_balance_snapshot(client):
+    """A new group account also gets a zero-balance snapshot."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
-    household_id = household_resp.json()["id"]
+    group_resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
+    group_id = group_resp.json()["id"]
 
-    resp = await _create_account(client, headers, household_id=household_id)
+    resp = await _create_account(client, headers, group_id=group_id)
     account_id = uuid.UUID(resp.json()["id"])
     expected_ts = _creation_day_midnight(resp)
 
@@ -764,15 +764,15 @@ async def test_failed_move_to_closed_account_leaves_both_account_snapshots_uncha
     assert dst_before == dst_after
 
 
-async def test_update_household_account_transaction_recomputes_snapshots(client):
-    """Updating a transaction on a household account recomputes that account's snapshots."""
+async def test_update_group_account_transaction_recomputes_snapshots(client):
+    """Updating a transaction on a group account recomputes that account's snapshots."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
-    household_id = household_resp.json()["id"]
+    group_resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
+    group_id = group_resp.json()["id"]
 
-    account_resp = await _create_account(client, headers, household_id=household_id)
+    account_resp = await _create_account(client, headers, group_id=group_id)
     account_id = uuid.UUID(account_resp.json()["id"])
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
@@ -882,15 +882,15 @@ async def test_delete_transaction_with_later_days_adjusts_balances(client):
     assert len(snapshots) == 2
 
 
-async def test_delete_household_account_transaction_recomputes_snapshots(client):
-    """Deleting a transaction on a household account recomputes that account's snapshots."""
+async def test_delete_group_account_transaction_recomputes_snapshots(client):
+    """Deleting a transaction on a group account recomputes that account's snapshots."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    household_resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
-    household_id = household_resp.json()["id"]
+    group_resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
+    group_id = group_resp.json()["id"]
 
-    account_resp = await _create_account(client, headers, household_id=household_id)
+    account_resp = await _create_account(client, headers, group_id=group_id)
     account_id = uuid.UUID(account_resp.json()["id"])
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
@@ -926,14 +926,14 @@ async def _create_second_user(client):
     return _get_auth_header(resp), resp.json()["user"]["id"]
 
 
-async def _create_household(client, headers):
-    """Create a household and return its id."""
-    resp = await client.post("/households", json={"name": "Smith Family"}, headers=headers)
+async def _create_group(client, headers):
+    """Create a group and return its id."""
+    resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     return resp.json()["id"]
 
 
 async def _grant_account_permission(client, admin_headers, account_id, user_id, level):
-    """Grant a user a permission level on a household account."""
+    """Grant a user a permission level on a group account."""
     return await client.post(
         f"/accounts/{account_id}/permissions",
         json={"user_id": user_id, "level": level},
@@ -1230,13 +1230,13 @@ async def test_list_snapshots_personal_owner_can_read_own_account(client):
     assert resp.json()[0]["balance"] == 0
 
 
-async def test_list_snapshots_household_admin_can_read_household_account(client):
-    """A household admin has implicit access to read household account snapshots."""
+async def test_list_snapshots_group_admin_can_read_group_account(client):
+    """A group admin has implicit access to read group account snapshots."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id)
     account_id = account_resp.json()["id"]
 
     resp = await client.get(f"/accounts/{account_id}/snapshots", headers=admin_headers)
@@ -1245,38 +1245,38 @@ async def test_list_snapshots_household_admin_can_read_household_account(client)
     assert resp.json()[0]["balance"] == 0
 
 
-async def test_list_snapshots_non_household_user_returns_404(client):
-    """A user who is not a member of the account's household at all gets 404.
+async def test_list_snapshots_non_group_user_returns_404(client):
+    """A user who is not a member of the account's group at all gets 404.
 
-    Distinct code path from "household member without permission": this user
+    Distinct code path from "group member without permission": this user
     fails the membership lookup before any AccountPermission check.
     """
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id)
     account_id = account_resp.json()["id"]
 
-    # Other user is intentionally NOT added to the household
+    # Other user is intentionally NOT added to the group
     other_headers, _ = await _create_second_user(client)
 
     resp = await client.get(f"/accounts/{account_id}/snapshots", headers=other_headers)
     assert resp.status_code == 404
 
 
-async def test_list_snapshots_household_member_with_read_permission_can_access(client):
-    """A household member granted explicit READ on the account can read its snapshots."""
+async def test_list_snapshots_group_member_with_read_permission_can_access(client):
+    """A group member granted explicit READ on the account can read its snapshots."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id)
     account_id = account_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -1288,18 +1288,18 @@ async def test_list_snapshots_household_member_with_read_permission_can_access(c
     assert resp.json()[0]["balance"] == 0
 
 
-async def test_list_snapshots_household_member_without_permission_returns_404(client):
-    """A household member with no explicit permission on the account gets 404, not 403."""
+async def test_list_snapshots_group_member_without_permission_returns_404(client):
+    """A group member with no explicit permission on the account gets 404, not 403."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id)
     account_id = account_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -1308,18 +1308,18 @@ async def test_list_snapshots_household_member_without_permission_returns_404(cl
     assert resp.status_code == 404
 
 
-async def test_list_snapshots_household_member_with_write_permission_can_read(client):
+async def test_list_snapshots_group_member_with_write_permission_can_read(client):
     """WRITE access implies READ — a member with WRITE can read snapshots."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id)
     account_id = account_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )
@@ -1331,18 +1331,18 @@ async def test_list_snapshots_household_member_with_write_permission_can_read(cl
     assert resp.json()[0]["balance"] == 0
 
 
-async def test_list_snapshots_household_member_with_admin_permission_can_read(client):
+async def test_list_snapshots_group_member_with_admin_permission_can_read(client):
     """ADMIN access also implies READ — locks in the WRITE < ADMIN ladder ordering."""
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
 
-    household_id = await _create_household(client, admin_headers)
-    account_resp = await _create_account(client, admin_headers, household_id=household_id)
+    group_id = await _create_group(client, admin_headers)
+    account_resp = await _create_account(client, admin_headers, group_id=group_id)
     account_id = account_resp.json()["id"]
 
     member_headers, member_user_id = await _create_second_user(client)
     await client.post(
-        f"/households/{household_id}/members",
+        f"/groups/{group_id}/members",
         json={"user_id": member_user_id},
         headers=admin_headers,
     )

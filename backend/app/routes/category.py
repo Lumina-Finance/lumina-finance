@@ -10,7 +10,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.models.household import HouseholdMember
+from app.models.group import GroupMember
 from app.models.user import User
 from app.schemas.category import CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest
 
@@ -23,25 +23,25 @@ _VALID_KINDS = {e.value for e in CategoryKind}
 async def list_categories(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    household_id: Annotated[uuid.UUID | None, Query()] = None,
+    group_id: Annotated[uuid.UUID | None, Query()] = None,
 ):
-    """Return categories the user can access. Personal only by default, or include a household's categories."""
-    # Without a filter, only return personal categories (household_id is null)
-    query = select(Category).where(Category.owner_id == user.id, Category.household_id.is_(None))
+    """Return categories the user can access. Personal only by default, or include a group's categories."""
+    # Without a filter, only return personal categories (group_id is null)
+    query = select(Category).where(Category.owner_id == user.id, Category.group_id.is_(None))
 
-    if household_id:
+    if group_id:
         # Verify membership
         member_result = await db.execute(
-            select(HouseholdMember).where(
-                HouseholdMember.household_id == household_id,
-                HouseholdMember.user_id == user.id,
+            select(GroupMember).where(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user.id,
             ),
         )
         if not member_result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
         query = select(Category).where(
-            (Category.owner_id == user.id) | (Category.household_id == household_id),
+            (Category.owner_id == user.id) | (Category.group_id == group_id),
         )
 
     result = await db.execute(query.order_by(Category.name))
@@ -54,15 +54,15 @@ async def get_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single category. Must be personal or from a household the user belongs to."""
-    household_ids = (
-        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    """Return a single category. Must be personal or from a group the user belongs to."""
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user.id)
     ).scalar_subquery()
 
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,
-            (Category.owner_id == user.id) | (Category.household_id.in_(household_ids)),
+            (Category.owner_id == user.id) | (Category.group_id.in_(group_ids)),
         ),
     )
     category = result.scalar_one_or_none()
@@ -77,37 +77,37 @@ async def create_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new category. Personal by default, or household-scoped if household_id is provided."""
+    """Create a new category. Personal by default, or group-scoped if group_id is provided."""
     if data.kind not in _VALID_KINDS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid category kind")
 
-    household_id = data.household_id
-    if household_id:
-        # Any household member can create household categories
+    group_id = data.group_id
+    if group_id:
+        # Any group member can create group categories
         member_result = await db.execute(
-            select(HouseholdMember).where(
-                HouseholdMember.household_id == household_id,
-                HouseholdMember.user_id == user.id,
+            select(GroupMember).where(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user.id,
             ),
         )
         if not member_result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Household not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
-    # Reject duplicate name + kind within the scope (household or personal)
+    # Reject duplicate name + kind within the scope (group or personal)
     dup_query = select(Category).where(Category.name == data.name, Category.kind == data.kind)
-    if household_id:
-        dup_query = dup_query.where(Category.household_id == household_id)
+    if group_id:
+        dup_query = dup_query.where(Category.group_id == group_id)
     else:
         dup_query = dup_query.where(Category.owner_id == user.id)
     if (await db.execute(dup_query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category with this name and kind already exists")
 
-    # Validate parent exists and is accessible (personal or same household)
+    # Validate parent exists and is accessible (personal or same group)
     if data.parent_id:
         parent_query = select(Category).where(Category.id == data.parent_id)
-        if household_id:
+        if group_id:
             parent_query = parent_query.where(
-                (Category.owner_id == user.id) | (Category.household_id == household_id),
+                (Category.owner_id == user.id) | (Category.group_id == group_id),
             )
         else:
             parent_query = parent_query.where(Category.owner_id == user.id)
@@ -116,7 +116,7 @@ async def create_category(
 
     category = Category(
         owner_id=user.id,
-        household_id=household_id,
+        group_id=group_id,
         name=data.name,
         kind=data.kind,
         parent_id=data.parent_id,
@@ -134,27 +134,27 @@ async def update_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a category. Household categories require admin role."""
-    household_ids = (
-        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    """Update a category. Group categories require admin role."""
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user.id)
     ).scalar_subquery()
 
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,
-            (Category.owner_id == user.id) | (Category.household_id.in_(household_ids)),
+            (Category.owner_id == user.id) | (Category.group_id.in_(group_ids)),
         ),
     )
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
-    # Household categories require admin
-    if category.household_id is not None:
+    # Group categories require admin
+    if category.group_id is not None:
         member_result = await db.execute(
-            select(HouseholdMember).where(
-                HouseholdMember.household_id == category.household_id,
-                HouseholdMember.user_id == user.id,
+            select(GroupMember).where(
+                GroupMember.group_id == category.group_id,
+                GroupMember.user_id == user.id,
             ),
         )
         member = member_result.scalar_one_or_none()
@@ -165,12 +165,12 @@ async def update_category(
     if not updates:
         return category
 
-    # Validate parent exists and is accessible (personal or same household)
+    # Validate parent exists and is accessible (personal or same group)
     if "parent_id" in updates and updates["parent_id"] is not None:
         parent_query = select(Category).where(Category.id == updates["parent_id"])
-        if category.household_id is not None:
+        if category.group_id is not None:
             parent_query = parent_query.where(
-                (Category.owner_id == user.id) | (Category.household_id == category.household_id),
+                (Category.owner_id == user.id) | (Category.group_id == category.group_id),
             )
         else:
             parent_query = parent_query.where(Category.owner_id == user.id)
@@ -191,28 +191,28 @@ async def delete_category(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a category. Household categories require admin role."""
-    # Fetch category if the user owns it or is a member of its household
-    household_ids = (
-        select(HouseholdMember.household_id).where(HouseholdMember.user_id == user.id)
+    """Delete a category. Group categories require admin role."""
+    # Fetch category if the user owns it or is a member of its group
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user.id)
     ).scalar_subquery()
 
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,
-            (Category.owner_id == user.id) | (Category.household_id.in_(household_ids)),
+            (Category.owner_id == user.id) | (Category.group_id.in_(group_ids)),
         ),
     )
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
-    # Only admins can delete household categories
-    if category.household_id is not None:
+    # Only admins can delete group categories
+    if category.group_id is not None:
         member_result = await db.execute(
-            select(HouseholdMember).where(
-                HouseholdMember.household_id == category.household_id,
-                HouseholdMember.user_id == user.id,
+            select(GroupMember).where(
+                GroupMember.group_id == category.group_id,
+                GroupMember.user_id == user.id,
             ),
         )
         member = member_result.scalar_one_or_none()

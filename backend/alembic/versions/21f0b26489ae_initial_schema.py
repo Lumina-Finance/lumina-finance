@@ -59,7 +59,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'auth_provider', name='uq_auth_identity_user_provider')
     )
-    op.create_table('households',
+    op.create_table('groups',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=False),
     sa.Column('name', sa.Text(), nullable=True),
@@ -90,7 +90,7 @@ def upgrade() -> None:
     op.create_table('accounts',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=True),
-    sa.Column('household_id', sa.Uuid(), nullable=True),
+    sa.Column('group_id', sa.Uuid(), nullable=True),
     sa.Column('account_type', sa.Enum('CHECKING', 'SAVINGS', 'CREDIT_CARD', 'CASH', 'INVESTMENT', name='accounttype'), nullable=False),
     sa.Column('tax_treatment', sa.Enum('TAXABLE', 'TAX_FREE', 'TAX_DEFERRED', 'TAX_ASSISTED', name='taxtreatment'), nullable=False),
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
@@ -101,7 +101,7 @@ def upgrade() -> None:
     sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
-    sa.ForeignKeyConstraint(['household_id'], ['households.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
     sa.ForeignKeyConstraint(['institution_id'], ['institutions.id'], ),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -109,7 +109,7 @@ def upgrade() -> None:
     op.create_table('budgets',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=True),
-    sa.Column('household_id', sa.Uuid(), nullable=True),
+    sa.Column('group_id', sa.Uuid(), nullable=True),
     sa.Column('parent_budget_id', sa.Uuid(), nullable=True),
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
     sa.Column('period_start', sa.Date(), nullable=False),
@@ -120,31 +120,31 @@ def upgrade() -> None:
     sa.Column('currency', sa.VARCHAR(length=3), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
-    sa.ForeignKeyConstraint(['household_id'], ['households.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['parent_budget_id'], ['budgets.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('categories',
     sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('household_id', sa.Uuid(), nullable=True),
+    sa.Column('group_id', sa.Uuid(), nullable=True),
     sa.Column('owner_id', sa.Uuid(), nullable=False),
     sa.Column('name', sa.Text(), nullable=False),
     sa.Column('kind', sa.Enum('EXPENSE', 'INCOME', 'TRANSFER', name='categorykind'), nullable=False),
     sa.Column('parent_id', sa.Uuid(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['household_id'], ['households.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['parent_id'], ['categories.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('household_members',
-    sa.Column('household_id', sa.Uuid(), nullable=False),
+    op.create_table('group_members',
+    sa.Column('group_id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
-    sa.Column('role', sa.Enum('ADMIN', 'EDITOR', 'VIEWER', name='householdrole'), nullable=False),
-    sa.ForeignKeyConstraint(['household_id'], ['households.id'], ),
+    sa.Column('role', sa.Enum('ADMIN', 'EDITOR', 'VIEWER', name='grouprole'), nullable=False),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('household_id', 'user_id')
+    sa.PrimaryKeyConstraint('group_id', 'user_id')
     )
     op.create_table('account_balance_snapshots',
     sa.Column('account_id', sa.Uuid(), nullable=False),
@@ -233,13 +233,13 @@ def downgrade() -> None:
     op.drop_table('budget_members')
     op.drop_table('budget_allocations')
     op.drop_table('account_balance_snapshots')
-    op.drop_table('household_members')
+    op.drop_table('group_members')
     op.drop_table('categories')
     op.drop_table('budgets')
     op.drop_table('accounts')
     op.drop_table('tags')
     op.drop_table('password_credentials')
-    op.drop_table('households')
+    op.drop_table('groups')
     op.drop_table('auth_identities')
     op.drop_table('users')
     op.drop_table('institutions')

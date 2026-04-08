@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
 from app.models.budget import Budget, BudgetPermission
-from app.models.household import HouseholdMember
+from app.models.group import GroupMember
 from app.models.transaction import Transaction
 
 # Ordered mapping for level comparison (higher = more access)
@@ -26,7 +26,7 @@ async def check_account_access(
 
     Resolution order:
     1. Personal owner → full access
-    2. Household admin → implicit full access
+    2. Group admin → implicit full access
     3. Explicit permission row → check level is sufficient
 
     Args:
@@ -53,12 +53,12 @@ async def check_account_access(
     # Personal account — owner has full access
     authorized = account.owner_id == user_id
 
-    # Household account — check membership then admin/permission
-    if not authorized and account.household_id:
+    # Group account — check membership then admin/permission
+    if not authorized and account.group_id:
         member_result = await db.execute(
-            select(HouseholdMember).where(
-                HouseholdMember.household_id == account.household_id,
-                HouseholdMember.user_id == user_id,
+            select(GroupMember).where(
+                GroupMember.group_id == account.group_id,
+                GroupMember.user_id == user_id,
             ),
         )
         member = member_result.scalar_one_or_none()
@@ -125,7 +125,7 @@ async def check_budget_access(
 
     Resolution order:
     1. Personal owner → full access
-    2. Household admin → implicit full access
+    2. Group admin → implicit full access
     3. Explicit BudgetPermission row → check level is sufficient
 
     Args:
@@ -150,12 +150,12 @@ async def check_budget_access(
     if budget.owner_id == user_id:
         return budget
 
-    # Household budget — check membership
-    if budget.household_id:
+    # Group budget — check membership
+    if budget.group_id:
         member_result = await db.execute(
-            select(HouseholdMember).where(
-                HouseholdMember.household_id == budget.household_id,
-                HouseholdMember.user_id == user_id,
+            select(GroupMember).where(
+                GroupMember.group_id == budget.group_id,
+                GroupMember.user_id == user_id,
             ),
         )
         budget_member = member_result.scalar_one_or_none()

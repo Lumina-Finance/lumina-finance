@@ -15,7 +15,7 @@ from app.models import (  # noqa: F401
     budget,
     category,
     currency,
-    household,
+    group,
     institution,
     merchant,
     tag,

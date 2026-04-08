@@ -9,7 +9,7 @@ class AccountResponse(BaseModel):
 
     id: uuid.UUID
     owner_id: uuid.UUID | None
-    household_id: uuid.UUID | None
+    group_id: uuid.UUID | None
     account_type: str
     tax_treatment: str
     name: str
@@ -24,7 +24,7 @@ class AccountResponse(BaseModel):
 
 
 class CreateAccountRequest(BaseModel):
-    """Create a new account. Either personal (default) or household-scoped."""
+    """Create a new account. Either personal (default) or group-scoped."""
 
     account_type: str  # AccountType enum value
     tax_treatment: str = "taxable"  # TaxTreatment enum value
@@ -33,7 +33,7 @@ class CreateAccountRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     lifetime_contribution_limit: int | None = None
     is_hidden: bool = False
-    household_id: uuid.UUID | None = None
+    group_id: uuid.UUID | None = None
 
 
 class UpdateAccountRequest(BaseModel):

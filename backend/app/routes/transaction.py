@@ -14,7 +14,7 @@ from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.household import HouseholdMember
+from app.models.group import GroupMember
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
@@ -44,12 +44,12 @@ _FILTER_FIELDS: dict[str, MappedColumn] = {
 
 
 async def _check_category_access_or_422(
-    db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, household_id: uuid.UUID | None = None,
+    db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, group_id: uuid.UUID | None = None,
 ) -> None:
-    """Validate a category exists and is accessible (personal or same household)."""
+    """Validate a category exists and is accessible (personal or same group)."""
     query = select(Category).where(Category.id == category_id)
-    if household_id is not None:
-        query = query.where((Category.owner_id == user_id) | (Category.household_id == household_id))
+    if group_id is not None:
+        query = query.where((Category.owner_id == user_id) | (Category.group_id == group_id))
     else:
         query = query.where(Category.owner_id == user_id)
     if not (await db.execute(query)).scalar_one_or_none():
@@ -57,12 +57,12 @@ async def _check_category_access_or_422(
 
 
 async def _check_merchant_access_or_422(
-    db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID, household_id: uuid.UUID | None = None,
+    db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID, group_id: uuid.UUID | None = None,
 ) -> None:
-    """Validate a merchant exists and is accessible (personal or same household)."""
+    """Validate a merchant exists and is accessible (personal or same group)."""
     query = select(Merchant).where(Merchant.id == merchant_id)
-    if household_id is not None:
-        query = query.where((Merchant.owner_id == user_id) | (Merchant.household_id == household_id))
+    if group_id is not None:
+        query = query.where((Merchant.owner_id == user_id) | (Merchant.group_id == group_id))
     else:
         query = query.where(Merchant.owner_id == user_id)
     if not (await db.execute(query)).scalar_one_or_none():
@@ -146,17 +146,17 @@ async def list_transactions(
 
     sort_column = _SORT_FIELDS[sort_by]
 
-    # Subquery: all account IDs the user can access (personal, household admin, or explicit permission)
+    # Subquery: all account IDs the user can access (personal, group admin, or explicit permission)
     accessible_accounts = (
         select(Account.id)
-        .outerjoin(HouseholdMember, Account.household_id == HouseholdMember.household_id)
+        .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
         .outerjoin(
             AccountPermission,
             (AccountPermission.account_id == Account.id) & (AccountPermission.user_id == user.id),
         )
         .where(
             (Account.owner_id == user.id)
-            | ((HouseholdMember.user_id == user.id) & (HouseholdMember.is_admin.is_(True)))
+            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
             | (AccountPermission.user_id == user.id),
         )
     ).scalar_subquery()
@@ -224,9 +224,9 @@ async def create_transaction(
             detail="fx_rate is required when transaction currency differs from account currency",
         )
 
-    await _check_category_access_or_422(db, data.category_id, user.id, account.household_id)
+    await _check_category_access_or_422(db, data.category_id, user.id, account.group_id)
     if data.merchant_id:
-        await _check_merchant_access_or_422(db, data.merchant_id, user.id, account.household_id)
+        await _check_merchant_access_or_422(db, data.merchant_id, user.id, account.group_id)
     validated_tag_ids = []
     if data.tag_ids:
         validated_tag_ids = await _validate_tag_ids(db, user.id, data.tag_ids)
@@ -277,28 +277,28 @@ async def update_transaction(
     old_account_id = txn.account_id
     old_ts = txn.ts
 
-    # Resolve the account's household_id for category/merchant validation
-    account_household_id = None
+    # Resolve the account's group_id for category/merchant validation
+    account_group_id = None
     if "account_id" in changed_fields:
         # Moving to a new account — check write access and reject closed targets
         new_account = await check_account_access(
             db, changed_fields["account_id"], user.id, PermissionLevel.WRITE, require_open=True,
         )
-        account_household_id = new_account.household_id
+        account_group_id = new_account.group_id
         if txn.currency != new_account.currency and txn.fx_rate is None and "fx_rate" not in changed_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="fx_rate is required when transaction currency differs from account currency",
             )
     else:
-        # Staying on the same account — look up its household_id
+        # Staying on the same account — look up its group_id
         current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
-        account_household_id = current_account.household_id
+        account_group_id = current_account.group_id
 
     if "category_id" in changed_fields:
-        await _check_category_access_or_422(db, changed_fields["category_id"], user.id, account_household_id)
+        await _check_category_access_or_422(db, changed_fields["category_id"], user.id, account_group_id)
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
-        await _check_merchant_access_or_422(db, changed_fields["merchant_id"], user.id, account_household_id)
+        await _check_merchant_access_or_422(db, changed_fields["merchant_id"], user.id, account_group_id)
 
     # Snapshot recomputation is only needed when balance-affecting fields change
     recompute_needed = bool({"account_id", "ts", "amount"} & changed_fields.keys())
