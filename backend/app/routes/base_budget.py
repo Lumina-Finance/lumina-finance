@@ -21,6 +21,7 @@ from app.schemas.budget import (
     CreateBudgetRequest,
     UpdateBaseBudgetRequest,
 )
+from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 
@@ -227,6 +228,94 @@ async def create_base_budget(
     await db.commit()
     await db.refresh(base_budget)
     return await _build_base_budget_response(db, base_budget)
+
+
+async def _get_group_base_budget_or_404(
+    db: AsyncSession, base_budget_id: uuid.UUID,
+) -> BaseBudget:
+    """Fetch a base budget that belongs to a group, or raise 404.
+
+    Personal base budgets also return 404 (not 422) so unauthorized callers cannot
+    distinguish between nonexistent and personal base budgets.
+    """
+    result = await db.execute(select(BaseBudget).where(BaseBudget.id == base_budget_id))
+    base_budget = result.scalar_one_or_none()
+    if not base_budget or not base_budget.group_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Base budget not found")
+    return base_budget
+
+
+async def _check_base_budget_admin_or_403(
+    db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID,
+) -> GroupMember:
+    """Verify the user is an admin of the base budget's group."""
+    result = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user_id,
+        ),
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Base budget not found")
+    if not membership.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    return membership
+
+
+@router.post(
+    "/{base_budget_id}/permissions",
+    response_model=BudgetPermissionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def grant_base_budget_permission(
+    base_budget_id: uuid.UUID,
+    data: GrantBudgetPermissionRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Grant or update a member's access level on a group base budget. Requires admin."""
+    base_budget = await _get_group_base_budget_or_404(db, base_budget_id)
+    await _check_base_budget_admin_or_403(db, base_budget.group_id, user.id)
+
+    # Target must be a non-admin group member (admins have implicit full access)
+    target_result = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == base_budget.group_id,
+            GroupMember.user_id == data.user_id,
+        ),
+    )
+    target_member = target_result.scalar_one_or_none()
+    if not target_member:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this group")
+    if target_member.is_admin:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Admins have implicit full access")
+
+    # Update level if permission already exists, otherwise create a new one
+    existing_result = await db.execute(
+        select(BudgetPermission).where(
+            BudgetPermission.group_id == base_budget.group_id,
+            BudgetPermission.user_id == data.user_id,
+            BudgetPermission.base_budget_id == base_budget_id,
+        ),
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        existing.level = data.level
+        await db.commit()
+        await db.refresh(existing)
+        return existing
+
+    budget_permission = BudgetPermission(
+        group_id=base_budget.group_id,
+        user_id=data.user_id,
+        base_budget_id=base_budget_id,
+        level=data.level,
+    )
+    db.add(budget_permission)
+    await db.commit()
+    await db.refresh(budget_permission)
+    return budget_permission
 
 
 @router.post(

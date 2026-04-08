@@ -44,7 +44,7 @@ class BudgetPermissionResponse(BaseModel):
     id: uuid.UUID
     group_id: uuid.UUID
     user_id: uuid.UUID
-    budget_id: uuid.UUID
+    base_budget_id: uuid.UUID
     level: PermissionLevel
     created_at: datetime
 
