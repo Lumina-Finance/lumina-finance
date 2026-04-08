@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.budget import BaseBudget, BudgetTrackedCategory
+from app.models.budget import BaseBudget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.user import User
@@ -79,6 +79,31 @@ async def _build_base_budget_response(
     response = BaseBudgetResponse.model_validate(base_budget)
     response.category_ids = active_category_ids
     return response
+
+
+@router.get("", response_model=list[BaseBudgetResponse])
+async def list_base_budgets(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return all base budgets the user owns or has access to via permissions."""
+    query = (
+        select(BaseBudget)
+        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
+        .outerjoin(
+            BudgetPermission,
+            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user.id),
+        )
+        .where(
+            (BaseBudget.owner_id == user.id)
+            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
+            | (BudgetPermission.user_id == user.id),
+        )
+        .order_by(BaseBudget.name)
+    )
+    result = await db.execute(query)
+    base_budgets = result.scalars().unique().all()
+    return [await _build_base_budget_response(db, base_budget) for base_budget in base_budgets]
 
 
 @router.post("", response_model=BaseBudgetResponse, status_code=status.HTTP_201_CREATED)
