@@ -326,10 +326,6 @@ async def create_budget(
     if data.period_start > data.period_end:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must not be after period end")
 
-    # Budget currency must match the user's base currency
-    if data.currency != user.base_currency:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Budget currency must match your base currency")
-
     # Determine ownership
     owner_id = user.id
     group_id = data.group_id

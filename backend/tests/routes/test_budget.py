@@ -1,3 +1,5 @@
+from app.models.currency import Currency
+from tests.conftest import TestSession
 from tests.routes.conftest import _create_user, _get_auth_header
 
 # --- Helpers ---
@@ -165,14 +167,23 @@ async def test_create_budget_same_start_end_returns_201(client):
     assert data["period_end"] == "2026-03-15"
 
 
-async def test_create_budget_wrong_currency_returns_422(client):
-    """Currency that doesn't match user's base_currency is rejected."""
+async def test_create_budget_non_base_currency_returns_201(client):
+    """Budgets may be created in any supported currency, not just the user's base.
+
+    The frontend defaults to the user's base currency, but multi-currency users
+    (e.g., a CAD-base user with a USD account) need separate per-currency budgets
+    to track spending against the correct accounts.
+    """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
 
     resp = await _create_budget(client, headers, currency="USD")
 
-    assert resp.status_code == 422
+    assert resp.status_code == 201
+    assert resp.json()["currency"] == "USD"
 
 
 async def test_create_budget_invalid_category_returns_422(client):
