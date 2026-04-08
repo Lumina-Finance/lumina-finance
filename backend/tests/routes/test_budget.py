@@ -342,6 +342,43 @@ async def test_create_group_budget_with_categories(client):
     assert resp.json()["category_ids"] == [cat_id]
 
 
+async def test_create_group_budget_with_personal_category_returns_422(client):
+    """A group budget cannot track a personal category — scopes must match.
+
+    If a group budget tracked a personal category, only the budget creator could
+    see and post to it; other group members would see a tracked-category UUID
+    they don't own and their own transactions wouldn't reconcile against the
+    group totals.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, headers)
+    personal_cat_id = await _create_category(client, headers, name="Groceries")
+
+    resp = await _create_budget(client, headers, group_id=group_id, category_ids=[personal_cat_id])
+
+    assert resp.status_code == 422
+
+
+async def test_create_personal_budget_with_group_category_returns_422(client):
+    """A personal budget cannot track a group category — symmetry of the group rule.
+
+    Even if the user is a member of the group that owns the category, mixing a
+    group category into a personal budget would let them aggregate spend that
+    other group members can also see, blurring the personal/group boundary.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, headers)
+    group_cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
+
+    resp = await _create_budget(client, headers, category_ids=[group_cat_id])
+
+    assert resp.status_code == 422
+
+
 async def test_create_budget_with_valid_base_budget_id(client):
     """Personal budget with a valid base_budget_id stores it correctly."""
     signup_resp = await _create_user(client)
@@ -814,6 +851,34 @@ async def test_update_budget_invalid_category_returns_422(client):
     resp = await client.patch(
         f"/budgets/{budget_id}",
         json={"category_ids": [NONEXISTENT_ID]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_update_group_budget_with_personal_category_returns_422(client):
+    """PATCH cannot smuggle a personal category onto a group budget either.
+
+    The same scope rule that blocks creation must apply to updates — otherwise
+    a malicious or buggy client could create the budget cleanly and then PATCH
+    in a personal category.
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, headers)
+    group_cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
+    personal_cat_id = await _create_category(client, headers, name="Personal Groceries")
+
+    create_resp = await _create_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{budget_id}",
+        json={"category_ids": [personal_cat_id]},
         headers=headers,
     )
 

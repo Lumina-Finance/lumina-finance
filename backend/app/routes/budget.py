@@ -62,7 +62,19 @@ async def _check_group_admin_or_403(
 async def _validate_category_ids(
     db: AsyncSession, category_ids: list[uuid.UUID], user_id: uuid.UUID, group_id: uuid.UUID | None,
 ) -> list[uuid.UUID]:
-    """Verify all category IDs exist and belong to the user or group. Returns deduplicated list.
+    """Verify all category IDs exist and are in scope for the budget. Returns deduplicated list.
+
+    Scope rules:
+    - Personal budget (group_id is None): only the user's own personal categories
+    - Group budget: only categories owned by the same group
+    Mixing scopes (e.g., a group budget tracking a personal category) is rejected
+    so every group member sees the same tracked-category set and the same totals.
+    Otherwise members would see UUIDs they don't own and their own transactions
+    wouldn't reconcile across the group.
+
+    Note: `Category.owner_id` is the creator and is set even on group categories,
+    so the personal branch must also check `group_id IS NULL` to keep group
+    categories the user happens to have created out of personal budgets.
 
     Args:
         db: Async database session.
@@ -74,18 +86,16 @@ async def _validate_category_ids(
         Deduplicated list of valid category IDs.
 
     Raises:
-        HTTPException 422: One or more categories not found.
+        HTTPException 422: One or more categories not found or out of scope.
     """
     if not category_ids:
         return []
     unique_ids = list(set(category_ids))
     query = select(Category.id).where(Category.id.in_(unique_ids))
     if group_id:
-        query = query.where(
-            (Category.owner_id == user_id) | (Category.group_id == group_id),
-        )
+        query = query.where(Category.group_id == group_id)
     else:
-        query = query.where(Category.owner_id == user_id)
+        query = query.where(Category.owner_id == user_id, Category.group_id.is_(None))
     result = await db.execute(query)
     found = set(result.scalars().all())
     if found != set(unique_ids):
