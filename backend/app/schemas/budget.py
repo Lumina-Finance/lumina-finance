@@ -23,7 +23,7 @@ class UpdateBaseBudgetRequest(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=256)
     recurrence_freq: RecurrenceFreq | None = None
     recurrence_interval: int | None = Field(None, ge=1)
-    category_ids: list[uuid.UUID] | None = None
+    category_ids: list[uuid.UUID] | None = Field(None, min_length=1)
 
 
 class BaseBudgetResponse(BaseModel):
