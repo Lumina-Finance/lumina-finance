@@ -346,6 +346,28 @@ async def revoke_base_budget_permission(
     await db.commit()
 
 
+@router.get(
+    "/{base_budget_id}/permissions",
+    response_model=list[BudgetPermissionResponse],
+)
+async def list_base_budget_permissions(
+    base_budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user_id: uuid.UUID | None = None,
+):
+    """List permissions for a group base budget. Requires admin."""
+    base_budget = await _get_group_base_budget_or_404(db, base_budget_id)
+    await _check_base_budget_admin_or_403(db, base_budget.group_id, user.id)
+
+    query = select(BudgetPermission).where(BudgetPermission.base_budget_id == base_budget_id)
+    if user_id:
+        query = query.where(BudgetPermission.user_id == user_id)
+
+    result = await db.execute(query.order_by(BudgetPermission.created_at))
+    return result.scalars().all()
+
+
 @router.post(
     "/{base_budget_id}/budgets",
     response_model=BudgetResponse,
