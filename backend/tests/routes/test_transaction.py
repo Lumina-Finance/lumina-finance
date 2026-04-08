@@ -306,6 +306,30 @@ async def test_create_transaction_other_users_category_returns_422(client):
     assert resp.json()["detail"] == "Category not found"
 
 
+async def test_create_transaction_with_group_category_on_personal_account_returns_422(client):
+    """A group category cannot be used on a personal-account transaction.
+
+    `Category.owner_id` is set to the creator even on group categories, so a
+    user can pass their own group category to POST /transactions on a personal
+    account. Without the explicit `group_id IS NULL` check, the validator would
+    accept it and group spending would land on the user's personal ledger.
+    """
+    headers, personal_account_id, _ = await _setup_user_with_deps(client)
+    group_resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
+    group_id = group_resp.json()["id"]
+    group_category_resp = await client.post(
+        "/categories",
+        json={"name": "Group Groceries", "kind": "expense", "group_id": group_id},
+        headers=headers,
+    )
+    group_category_id = group_category_resp.json()["id"]
+
+    resp = await _create_transaction(client, headers, personal_account_id, group_category_id)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Category not found"
+
+
 async def test_create_transaction_other_users_merchant_returns_422(client):
     """Cannot create a transaction referencing another user's merchant."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
