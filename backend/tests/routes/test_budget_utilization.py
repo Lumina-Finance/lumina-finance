@@ -32,12 +32,13 @@ async def _create_category(client, headers, **overrides):
 
 
 async def _create_budget(client, headers, **overrides):
-    """Create a budget via POST /budgets. Defaults to a March 2026 personal CAD budget."""
+    """Create a budget via POST /budgets. Defaults to a March 2026 personal CAD budget with a 1000 CAD limit."""
     payload = {
         "name": "March Budget",
         "period_start": "2026-03-01",
         "period_end": "2026-03-31",
         "currency": "CAD",
+        "overall_limit": 100000,
         **overrides,
     }
     return await client.post("/budgets", json=payload, headers=headers)
@@ -431,18 +432,6 @@ async def test_get_budget_utilization_echoes_overall_limit_when_set(client):
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     assert resp.json()["overall_limit"] == 200000
-
-
-async def test_get_budget_utilization_echoes_null_overall_limit(client):
-    """A budget without an overall_limit returns null in the response."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    budget_resp = await _create_budget(client, headers)
-    budget_id = budget_resp.json()["id"]
-
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.json()["overall_limit"] is None
 
 
 async def test_get_budget_utilization_includes_transactions_from_closed_accounts(client):

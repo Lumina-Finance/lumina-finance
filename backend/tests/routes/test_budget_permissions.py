@@ -54,6 +54,7 @@ async def _create_household_budget(client, headers, household_id):
         "period_start": "2026-03-01",
         "period_end": "2026-03-31",
         "currency": "CAD",
+        "overall_limit": 100000,
         "household_id": household_id,
     }, headers=headers)
     return resp.json()["id"]
@@ -233,6 +234,7 @@ async def test_grant_permission_on_personal_budget_returns_404(client):
         "period_start": "2026-03-01",
         "period_end": "2026-03-31",
         "currency": "CAD",
+        "overall_limit": 100000,
     }, headers=admin_headers)
     personal_budget_id = personal_resp.json()["id"]
 

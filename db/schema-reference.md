@@ -325,12 +325,14 @@ Spending plan for a time period. Can be one-off or recurring. Recurring budgets 
 | `period_end`          | date                                          | NOT NULL                       |                                                                                     |
 | `recurrence_freq`     | enum (`weekly`, `monthly`, `yearly`)          |                                | Null = one-off; set when the budget recurs                                          |
 | `recurrence_interval` | smallint                                      |                                | e.g., 1 = every period, 2 = every other; null when `recurrence_freq` is null        |
-| `overall_limit`       | bigint                                        | default `null`                 | Optional overall spending cap across all categories, in the budget's currency units |
+| `overall_limit`       | bigint                                        | NOT NULL, CHECK > 0            | Spending cap across all categories, in the budget's currency units                  |
 | `currency`            | char(3)                                       | NOT NULL, FK → `currencies.id` |                                                                                     |
 | `created_at`          | timestamptz                                   | NOT NULL                       |                                                                                     |
 
 
-**Check constraint:** exactly one of `owner_id` or `household_id` must be non-null.
+**Check constraints:**
+- Exactly one of `owner_id` or `household_id` must be non-null.
+- `overall_limit > 0`.
 
 ### `budget_tracked_categories`
 

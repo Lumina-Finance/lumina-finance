@@ -57,6 +57,7 @@ async def budget(db, user):
     b = Budget(
         owner_id=user.id, name="March Budget",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+        overall_limit=10000,
     )
     db.add(b)
     await db.flush()
@@ -137,11 +138,6 @@ async def test_recurrence_defaults_to_null(db, budget):
     assert budget.recurrence_interval is None
 
 
-async def test_overall_limit_defaults_to_null(db, budget):
-    """overall_limit should default to null."""
-    assert budget.overall_limit is None
-
-
 async def test_base_budget_defaults_to_null(db, budget):
     """base_budget_id should default to null for standalone budgets."""
     assert budget.base_budget_id is None
@@ -156,6 +152,7 @@ async def test_recurring_budget_template(db, user):
         owner_id=user.id, name="Monthly Budget",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31),
         recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_interval=1, currency="CAD",
+        overall_limit=10000,
     )
     db.add(b)
     await db.flush()
@@ -171,6 +168,7 @@ async def test_recurring_budget_instance(db, user):
         owner_id=user.id, name="Monthly Budget",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31),
         recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_interval=1, currency="CAD",
+        overall_limit=10000,
     )
     db.add(template)
     await db.flush()
@@ -178,6 +176,7 @@ async def test_recurring_budget_instance(db, user):
     instance = Budget(
         owner_id=user.id, name="April Budget", base_budget_id=template.id,
         period_start=date(2026, 4, 1), period_end=date(2026, 4, 30), currency="CAD",
+        overall_limit=10000,
     )
     db.add(instance)
     await db.flush()
@@ -194,6 +193,7 @@ async def test_personal_budget_accepted(db, user, currency):
     b = Budget(
         owner_id=user.id, name="Personal",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+        overall_limit=10000,
     )
     db.add(b)
     await db.flush()
@@ -208,6 +208,7 @@ async def test_household_budget_accepted(db, household, currency):
     b = Budget(
         household_id=household.id, name="Family Budget",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+        overall_limit=10000,
     )
     db.add(b)
     await db.flush()
@@ -222,6 +223,7 @@ async def test_both_owner_and_household_rejected(db, user, household, currency):
     db.add(Budget(
         owner_id=user.id, household_id=household.id, name="Invalid",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+        overall_limit=10000,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -232,6 +234,7 @@ async def test_neither_owner_nor_household_rejected(db, currency):
     db.add(Budget(
         name="Orphan",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+        overall_limit=10000,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -245,6 +248,7 @@ async def test_null_name_rejected(db, user):
     db.add(Budget(
         owner_id=user.id, name=None,
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+        overall_limit=10000,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -255,6 +259,7 @@ async def test_null_currency_rejected(db, user):
     db.add(Budget(
         owner_id=user.id, name="Bad",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency=None,
+        overall_limit=10000,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -265,6 +270,7 @@ async def test_invalid_currency_rejected(db, user):
     db.add(Budget(
         owner_id=user.id, name="Bad",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="ZZZ",
+        overall_limit=10000,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -357,6 +363,7 @@ async def household_budget(db, household):
     b = Budget(
         household_id=household.id, owner_id=None, name="Family Budget",
         period_start=date(2026, 3, 1), period_end=date(2026, 3, 31), currency="CAD",
+        overall_limit=10000,
     )
     db.add(b)
     await db.flush()

@@ -27,6 +27,10 @@ class Budget(Base):
             "(owner_id IS NOT NULL AND household_id IS NULL) OR (owner_id IS NULL AND household_id IS NOT NULL)",
             name="ck_budgets_owner_xor_household",
         ),
+        CheckConstraint(
+            "overall_limit > 0",
+            name="ck_budgets_overall_limit_positive",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -39,7 +43,7 @@ class Budget(Base):
     period_end: Mapped[date] = mapped_column(Date, nullable=False)
     recurrence_freq: Mapped[RecurrenceFreq | None] = mapped_column()  # Null = one-off; only set on template
     recurrence_interval: Mapped[int | None] = mapped_column(SmallInteger)  # e.g., 1 = every period, 2 = every other
-    overall_limit: Mapped[int | None] = mapped_column(BigInteger)  # Optional spending cap across all categories
+    overall_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Required positive cap
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

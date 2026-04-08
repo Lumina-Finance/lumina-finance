@@ -13,11 +13,11 @@ class CreateBudgetRequest(BaseModel):
     period_start: date
     period_end: date
     currency: str = Field(min_length=3, max_length=3)
+    overall_limit: int = Field(..., gt=0)
     household_id: uuid.UUID | None = None
     base_budget_id: uuid.UUID | None = None
     recurrence_freq: RecurrenceFreq | None = None
     recurrence_interval: int | None = Field(None, ge=1)
-    overall_limit: int | None = None
     category_ids: list[uuid.UUID] = []
 
 
@@ -29,7 +29,7 @@ class UpdateBudgetRequest(BaseModel):
     period_end: date | None = None
     recurrence_freq: RecurrenceFreq | None = None
     recurrence_interval: int | None = Field(None, ge=1)
-    overall_limit: int | None = None
+    overall_limit: int | None = Field(None, gt=0)
     category_ids: list[uuid.UUID] | None = None
 
 
@@ -45,7 +45,7 @@ class BudgetResponse(BaseModel):
     period_end: date
     recurrence_freq: RecurrenceFreq | None
     recurrence_interval: int | None
-    overall_limit: int | None
+    overall_limit: int
     currency: str
     created_at: datetime
     category_ids: list[uuid.UUID] = []
@@ -71,6 +71,6 @@ class BudgetUtilizationResponse(BaseModel):
     budget_id: uuid.UUID
     period_start: date
     period_end: date
-    overall_limit: int | None
+    overall_limit: int
     total_spent: int
     categories: list[BudgetCategoryUtilization]

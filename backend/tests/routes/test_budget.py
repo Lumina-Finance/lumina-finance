@@ -59,7 +59,8 @@ async def _create_household(client, headers, **overrides):
 async def _create_budget(client, headers, **overrides):
     """Create a budget via POST /budgets.
 
-    Defaults: name="March Budget", period 2026-03-01 to 2026-03-31, currency CAD.
+    Defaults: name="March Budget", period 2026-03-01 to 2026-03-31, currency CAD,
+    overall_limit=100000 (1000 CAD).
 
     Args:
         client: The async test client.
@@ -74,6 +75,7 @@ async def _create_budget(client, headers, **overrides):
         "period_start": "2026-03-01",
         "period_end": "2026-03-31",
         "currency": "CAD",
+        "overall_limit": 100000,
         **overrides,
     }
     return await client.post("/budgets", json=payload, headers=headers)
@@ -98,7 +100,7 @@ async def test_create_budget_returns_201(client):
     assert data["period_start"] == "2026-03-01"
     assert data["period_end"] == "2026-03-31"
     assert data["currency"] == "CAD"
-    assert data["overall_limit"] is None
+    assert data["overall_limit"] == 100000
     assert data["recurrence_freq"] is None
     assert data["recurrence_interval"] is None
     assert data["base_budget_id"] is None
