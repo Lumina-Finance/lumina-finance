@@ -233,8 +233,8 @@ async def update_budget(
     if "period_start" in changed_fields or "period_end" in changed_fields:
         new_start = changed_fields.get("period_start", budget.period_start)
         new_end = changed_fields.get("period_end", budget.period_end)
-        if new_start >= new_end:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must be before period end")
+        if new_start > new_end:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must not be after period end")
 
     # Handle tracked categories separately
     new_category_ids = changed_fields.pop("category_ids", None)
@@ -323,8 +323,8 @@ async def create_budget(
 ):
     """Create a new budget with optional tracked categories."""
     # Validate period
-    if data.period_start >= data.period_end:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must be before period end")
+    if data.period_start > data.period_end:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must not be after period end")
 
     # Budget currency must match the user's base currency
     if data.currency != user.base_currency:

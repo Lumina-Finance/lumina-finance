@@ -391,29 +391,26 @@ async def test_get_budget_utilization_total_spent_equals_sum_of_categories(clien
 # --- GET /budgets/{id}/utilization — metadata and edge cases ---
 
 
-async def test_get_budget_utilization_with_two_day_period(client):
-    """A two-day budget window bounds aggregation inclusively on both sides."""
+async def test_get_budget_utilization_with_single_day_period(client):
+    """A single-day budget (period_start == period_end) bounds aggregation to that day only."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
     groceries = await _create_category(client, headers)
 
-    # Note: budget validation currently rejects period_start == period_end
-    # (uses `>=` rather than `>`), so two days is the smallest testable window.
     budget_resp = await _create_budget(
         client, headers,
         category_ids=[groceries],
         period_start="2026-03-15",
-        period_end="2026-03-16",
+        period_end="2026-03-15",
     )
     budget_id = budget_resp.json()["id"]
 
-    # Inside the window (both kept), day before (excluded), day after (excluded)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-15T12:00:00Z", amount=-3000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-16T12:00:00Z", amount=-2000)
+    # Inside the day (kept), day before (excluded), day after (excluded)
+    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-15T12:00:00Z", amount=-5000)
     await _create_transaction(client, headers, account_id, groceries, ts="2026-03-14T23:00:00Z", amount=-9999)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-17T01:00:00Z", amount=-9999)
+    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-16T01:00:00Z", amount=-9999)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()

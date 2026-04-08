@@ -152,14 +152,17 @@ async def test_create_budget_invalid_period_returns_422(client):
     assert resp.status_code == 422
 
 
-async def test_create_budget_same_start_end_returns_422(client):
-    """Period start == period end is rejected."""
+async def test_create_budget_same_start_end_returns_201(client):
+    """Single-day budgets (period_start == period_end) are allowed."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_budget(client, headers, period_start="2026-03-01", period_end="2026-03-01")
+    resp = await _create_budget(client, headers, period_start="2026-03-15", period_end="2026-03-15")
 
-    assert resp.status_code == 422
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["period_start"] == "2026-03-15"
+    assert data["period_end"] == "2026-03-15"
 
 
 async def test_create_budget_wrong_currency_returns_422(client):
