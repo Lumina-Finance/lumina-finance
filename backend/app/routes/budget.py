@@ -164,42 +164,45 @@ async def get_budget_utilization(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return per-category spending totals for the budget's period.
+    """Return per-category spending totals for the budget instance's period.
 
-    Requires READ on the budget; access to the underlying accounts is not
-    required. This enables privacy-respecting monitoring (e.g., a group
-    admin sees category totals without individual transactions on accounts
-    they don't have read permission on).
-
-    Currently-active tracked categories are always included, even with zero
-    spend, so the frontend can render every tracked category.
+    Requires READ on the base budget; access to the underlying accounts is not required.
+    The tracked-category set is reconstructed as of period_end using added_at/removed_at,
+    so past periods stay frozen when the base is edited after they ended. Mid-period
+    additions count for the full period retroactively; mid-period removals exclude the
+    category from the whole period.
     """
-    budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
+    budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
 
-    # Currently-tracked categories (soft-deleted ones are excluded)
+    # Categories active as of period_end — the historical-accuracy predicate. Past
+    # periods stay pinned because period_end is fixed; current periods reduce to
+    # "currently active" because period_end is in the future.
+    added_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.added_at), Date)
+    removed_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.removed_at), Date)
     tracked_result = await db.execute(
-        select(BudgetTrackedCategory.category_id).where(
-            BudgetTrackedCategory.budget_id == budget_id,
-            BudgetTrackedCategory.removed_at.is_(None),
-        ),
+        select(BudgetTrackedCategory.category_id)
+        .where(
+            BudgetTrackedCategory.base_budget_id == base_budget.id,
+            added_at_day <= budget.period_end,
+            (BudgetTrackedCategory.removed_at.is_(None)) | (removed_at_day > budget.period_end),
+        )
+        .distinct(),
     )
     tracked_category_ids = list(tracked_result.scalars().all())
 
     # Sum amounts per category for transactions whose UTC date falls in the period.
-    # Transaction.amount is stored in the parent account's currency, so we restrict
-    # the join to accounts whose currency matches the budget's, which prevents a
-    # multi-currency user from mixing e.g. USD and CAD totals when the same
-    # category is used across accounts of different currencies.
-    # Scope is also constrained to accounts the budget actually owns (the user's
-    # personal accounts for personal budgets, the group's accounts for group
-    # budgets) so cross-scope spending never bleeds in.
+    # Transaction.amount is stored in the parent account's currency, so we restrict the
+    # join to accounts whose currency matches the base's currency — this keeps multi-
+    # currency users from mixing e.g. USD and CAD totals when the same category crosses
+    # accounts. Scope is also constrained to accounts the base budget actually owns
+    # so cross-scope spending never bleeds in.
     spend_map: dict[uuid.UUID, int] = {}
     if tracked_category_ids:
         ts_day = cast(func.timezone("UTC", Transaction.ts), Date)
         scope_filter = (
-            Account.group_id == budget.group_id
-            if budget.group_id
-            else Account.owner_id == budget.owner_id
+            Account.group_id == base_budget.group_id
+            if base_budget.group_id
+            else Account.owner_id == base_budget.owner_id
         )
         spend_result = await db.execute(
             select(
@@ -211,7 +214,7 @@ async def get_budget_utilization(
                 Transaction.category_id.in_(tracked_category_ids),
                 ts_day >= budget.period_start,
                 ts_day <= budget.period_end,
-                Account.currency == budget.currency,
+                Account.currency == base_budget.currency,
                 scope_filter,
             )
             .group_by(Transaction.category_id),
