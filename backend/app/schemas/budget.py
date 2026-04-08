@@ -43,48 +43,31 @@ class BaseBudgetResponse(BaseModel):
 
 
 class CreateBudgetRequest(BaseModel):
-    """Create a new budget. Either owner_id or group_id is set by the route."""
+    """Create a per-period instance under a base budget. base_budget_id comes from the route path."""
 
-    name: str = Field(min_length=1, max_length=256)
     period_start: date
     period_end: date
-    currency: str = Field(min_length=3, max_length=3)
     overall_limit: int = Field(..., gt=0)
-    group_id: uuid.UUID | None = None
-    base_budget_id: uuid.UUID | None = None
-    recurrence_freq: RecurrenceFreq | None = None
-    recurrence_interval: int | None = Field(None, ge=1)
-    category_ids: list[uuid.UUID] = []
 
 
 class UpdateBudgetRequest(BaseModel):
-    """Partial update for a budget. Only provided fields are changed."""
+    """Partial update for a budget instance. Only provided fields are changed."""
 
-    name: str | None = Field(None, min_length=1, max_length=256)
     period_start: date | None = None
     period_end: date | None = None
-    recurrence_freq: RecurrenceFreq | None = None
-    recurrence_interval: int | None = Field(None, ge=1)
     overall_limit: int | None = Field(None, gt=0)
-    category_ids: list[uuid.UUID] | None = None
 
 
 class BudgetResponse(BaseModel):
-    """Budget returned by list and detail endpoints."""
+    """Budget instance returned by list and detail endpoints, with its parent base embedded."""
 
     id: uuid.UUID
-    owner_id: uuid.UUID | None
-    group_id: uuid.UUID | None
-    base_budget_id: uuid.UUID | None
-    name: str
+    base_budget_id: uuid.UUID
     period_start: date
     period_end: date
-    recurrence_freq: RecurrenceFreq | None
-    recurrence_interval: int | None
     overall_limit: int
-    currency: str
     created_at: datetime
-    category_ids: list[uuid.UUID] = []
+    base_budget: BaseBudgetResponse
 
     model_config = {"from_attributes": True}
 
