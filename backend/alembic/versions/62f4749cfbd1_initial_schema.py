@@ -1,21 +1,21 @@
 """initial schema
 
-Revision ID: 21f0b26489ae
+Revision ID: 62f4749cfbd1
 Revises: 
-Create Date: 2026-03-30 13:44:38.813387
+Create Date: 2026-04-09 13:48:02.663481
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '21f0b26489ae'
-down_revision: Union[str, Sequence[str], None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = '62f4749cfbd1'
+down_revision: str | Sequence[str] | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -34,7 +34,8 @@ def upgrade() -> None:
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
     sa.Column('country_code', sa.VARCHAR(length=2), nullable=False),
     sa.Column('website', sa.Text(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name', 'country_code', name='uq_institution_name_country')
     )
     op.create_table('users',
     sa.Column('id', sa.Uuid(), nullable=False),
@@ -48,6 +49,14 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['base_currency'], ['currencies.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
+    )
+    op.create_table('active_tokens',
+    sa.Column('jti', sa.Uuid(), nullable=False),
+    sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('jti')
     )
     op.create_table('auth_identities',
     sa.Column('id', sa.Uuid(), nullable=False),
@@ -64,6 +73,7 @@ def upgrade() -> None:
     sa.Column('owner_id', sa.Uuid(), nullable=False),
     sa.Column('name', sa.Text(), nullable=True),
     sa.Column('profile_pic', sa.Text(), nullable=True),
+    sa.Column('is_archived', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -72,20 +82,11 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Uuid(), nullable=False),
     sa.Column('password_hash', sa.Text(), nullable=False),
     sa.Column('password_algo', sa.VARCHAR(length=32), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('failed_attempt_count', sa.Integer(), nullable=False),
     sa.Column('locked_until', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('user_id')
-    )
-    op.create_table('tags',
-    sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('owner_id', sa.Uuid(), nullable=False),
-    sa.Column('name', sa.VARCHAR(length=64), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('owner_id', 'name', name='uq_tag_owner_name')
     )
     op.create_table('accounts',
     sa.Column('id', sa.Uuid(), nullable=False),
@@ -100,29 +101,34 @@ def upgrade() -> None:
     sa.Column('is_hidden', sa.Boolean(), nullable=False),
     sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint('(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)', name='ck_accounts_owner_xor_group'),
     sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['institution_id'], ['institutions.id'], ),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('budgets',
+    op.create_table('base_budgets',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=True),
     sa.Column('group_id', sa.Uuid(), nullable=True),
-    sa.Column('parent_budget_id', sa.Uuid(), nullable=True),
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
-    sa.Column('period_start', sa.Date(), nullable=False),
-    sa.Column('period_end', sa.Date(), nullable=False),
-    sa.Column('recurrence_freq', sa.Enum('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', name='recurrencefreq'), nullable=True),
-    sa.Column('recurrence_interval', sa.SmallInteger(), nullable=True),
-    sa.Column('overall_limit', sa.BigInteger(), nullable=True),
     sa.Column('currency', sa.VARCHAR(length=3), nullable=False),
+    sa.Column('recurrence_freq', sa.Enum('WEEKLY', 'MONTHLY', 'YEARLY', name='recurrencefreq'), nullable=False),
+    sa.Column('instance_length', sa.SmallInteger(), nullable=False),
+    sa.Column('recurrence_weekday', sa.SmallInteger(), nullable=True),
+    sa.Column('recurrence_dom', sa.SmallInteger(), nullable=True),
+    sa.Column('recurrence_month', sa.SmallInteger(), nullable=True),
+    sa.Column('recurs', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint('(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)', name='ck_base_budgets_owner_xor_group'),
+    sa.CheckConstraint('instance_length > 0', name='ck_base_budgets_instance_length_positive'),
+    sa.CheckConstraint('recurrence_dom IS NULL OR (recurrence_dom >= 1 AND recurrence_dom <= 31)', name='ck_base_budgets_dom_range'),
+    sa.CheckConstraint('recurrence_month IS NULL OR (recurrence_month >= 1 AND recurrence_month <= 12)', name='ck_base_budgets_month_range'),
+    sa.CheckConstraint('recurrence_weekday IS NULL OR (recurrence_weekday >= 0 AND recurrence_weekday <= 6)', name='ck_base_budgets_weekday_range'),
     sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['parent_budget_id'], ['budgets.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('categories',
@@ -133,51 +139,106 @@ def upgrade() -> None:
     sa.Column('kind', sa.Enum('EXPENSE', 'INCOME', 'TRANSFER', name='categorykind'), nullable=False),
     sa.Column('parent_id', sa.Uuid(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['parent_id'], ['categories.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('group_id', 'name', 'kind', name='uq_category_group_name_kind')
     )
+    op.create_index('uq_category_owner_name_kind', 'categories', ['owner_id', 'name', 'kind'], unique=True, postgresql_where=sa.text('group_id IS NULL'))
     op.create_table('group_members',
     sa.Column('group_id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
-    sa.Column('role', sa.Enum('ADMIN', 'EDITOR', 'VIEWER', name='grouprole'), nullable=False),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
+    sa.Column('is_admin', sa.Boolean(), server_default='false', nullable=False),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('group_id', 'user_id')
     )
+    op.create_table('tags',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('owner_id', sa.Uuid(), nullable=False),
+    sa.Column('group_id', sa.Uuid(), nullable=True),
+    sa.Column('name', sa.VARCHAR(length=64), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('group_id', 'name', name='uq_tag_group_name')
+    )
+    op.create_index('uq_tag_owner_name', 'tags', ['owner_id', 'name'], unique=True, postgresql_where=sa.text('group_id IS NULL'))
     op.create_table('account_balance_snapshots',
     sa.Column('account_id', sa.Uuid(), nullable=False),
     sa.Column('balance', sa.BigInteger(), nullable=False),
     sa.Column('ts', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('account_id', 'ts')
     )
-    op.create_table('budget_allocations',
+    op.create_table('account_permissions',
     sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('budget_id', sa.Uuid(), nullable=False),
-    sa.Column('name', sa.VARCHAR(length=256), nullable=False),
-    sa.Column('amount', sa.BigInteger(), nullable=False),
-    sa.ForeignKeyConstraint(['budget_id'], ['budgets.id'], ),
+    sa.Column('group_id', sa.Uuid(), nullable=False),
+    sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('account_id', sa.Uuid(), nullable=False),
+    sa.Column('level', sa.Enum('READ', 'WRITE', 'ADMIN', name='permissionlevel'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['group_id', 'user_id'], ['group_members.group_id', 'group_members.user_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('group_id', 'user_id', 'account_id', name='uq_account_perm_member_account')
+    )
+    op.create_table('budget_permissions',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('group_id', sa.Uuid(), nullable=False),
+    sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('base_budget_id', sa.Uuid(), nullable=False),
+    sa.Column('level', sa.Enum('READ', 'WRITE', 'ADMIN', name='permissionlevel'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['base_budget_id'], ['base_budgets.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['group_id', 'user_id'], ['group_members.group_id', 'group_members.user_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('group_id', 'user_id', 'base_budget_id', name='uq_budget_perm_member_base_budget')
+    )
+    op.create_table('budget_tracked_categories',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('base_budget_id', sa.Uuid(), nullable=False),
+    sa.Column('category_id', sa.Uuid(), nullable=False),
+    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('removed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['base_budget_id'], ['base_budgets.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('budget_members',
-    sa.Column('budget_id', sa.Uuid(), nullable=False),
-    sa.Column('user_id', sa.Uuid(), nullable=False),
-    sa.ForeignKeyConstraint(['budget_id'], ['budgets.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('budget_id', 'user_id')
+    op.create_index('uq_budget_tracked_category_active', 'budget_tracked_categories', ['base_budget_id', 'category_id'], unique=True, postgresql_where=sa.text('removed_at IS NULL'))
+    op.create_table('budgets',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('base_budget_id', sa.Uuid(), nullable=False),
+    sa.Column('period_start', sa.Date(), nullable=False),
+    sa.Column('period_end', sa.Date(), nullable=False),
+    sa.Column('overall_limit', sa.BigInteger(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint('overall_limit > 0', name='ck_budgets_overall_limit_positive'),
+    sa.CheckConstraint('period_end >= period_start', name='ck_budgets_period_end_after_start'),
+    sa.ForeignKeyConstraint(['base_budget_id'], ['base_budgets.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('base_budget_id', 'period_start', 'period_end', name='uq_budget_base_period')
     )
     op.create_table('merchants',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=False),
+    sa.Column('group_id', sa.Uuid(), nullable=True),
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
     sa.Column('default_category_id', sa.Uuid(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['default_category_id'], ['categories.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('group_id', 'name', name='uq_merchant_group_name')
     )
+    op.create_index('uq_merchant_owner_name', 'merchants', ['owner_id', 'name'], unique=True, postgresql_where=sa.text('group_id IS NULL'))
     op.create_table('tax_advantaged_configs',
     sa.Column('account_id', sa.Uuid(), nullable=False),
     sa.Column('year', sa.SmallInteger(), nullable=False),
@@ -185,13 +246,6 @@ def upgrade() -> None:
     sa.Column('withdrawal_limit', sa.BigInteger(), nullable=True),
     sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
     sa.PrimaryKeyConstraint('account_id', 'year')
-    )
-    op.create_table('budget_allocation_categories',
-    sa.Column('allocation_id', sa.Uuid(), nullable=False),
-    sa.Column('category_id', sa.Uuid(), nullable=False),
-    sa.ForeignKeyConstraint(['allocation_id'], ['budget_allocations.id'], ),
-    sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
-    sa.PrimaryKeyConstraint('allocation_id', 'category_id')
     )
     op.create_table('transactions',
     sa.Column('id', sa.Uuid(), nullable=False),
@@ -204,8 +258,9 @@ def upgrade() -> None:
     sa.Column('currency', sa.VARCHAR(length=3), nullable=False),
     sa.Column('fx_rate', sa.Numeric(), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
     sa.ForeignKeyConstraint(['created_by_user_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
@@ -227,20 +282,26 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('transaction_tags')
     op.drop_table('transactions')
-    op.drop_table('budget_allocation_categories')
     op.drop_table('tax_advantaged_configs')
+    op.drop_index('uq_merchant_owner_name', table_name='merchants', postgresql_where=sa.text('group_id IS NULL'))
     op.drop_table('merchants')
-    op.drop_table('budget_members')
-    op.drop_table('budget_allocations')
-    op.drop_table('account_balance_snapshots')
-    op.drop_table('group_members')
-    op.drop_table('categories')
     op.drop_table('budgets')
-    op.drop_table('accounts')
+    op.drop_index('uq_budget_tracked_category_active', table_name='budget_tracked_categories', postgresql_where=sa.text('removed_at IS NULL'))
+    op.drop_table('budget_tracked_categories')
+    op.drop_table('budget_permissions')
+    op.drop_table('account_permissions')
+    op.drop_table('account_balance_snapshots')
+    op.drop_index('uq_tag_owner_name', table_name='tags', postgresql_where=sa.text('group_id IS NULL'))
     op.drop_table('tags')
+    op.drop_table('group_members')
+    op.drop_index('uq_category_owner_name_kind', table_name='categories', postgresql_where=sa.text('group_id IS NULL'))
+    op.drop_table('categories')
+    op.drop_table('base_budgets')
+    op.drop_table('accounts')
     op.drop_table('password_credentials')
     op.drop_table('groups')
     op.drop_table('auth_identities')
+    op.drop_table('active_tokens')
     op.drop_table('users')
     op.drop_table('institutions')
     op.drop_table('currencies')
