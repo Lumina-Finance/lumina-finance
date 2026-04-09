@@ -42,6 +42,8 @@ async def _create_group_base_budget(client, headers, group_id, *, name="Family B
         "name": name,
         "currency": "CAD",
         "group_id": group_id,
+        "recurrence_freq": "monthly",
+        "recurrence_dom": 1,
         "category_ids": [cat_id],
     }, headers=headers)
     return resp.json()["id"]
@@ -53,6 +55,8 @@ async def _create_personal_base_budget(client, headers):
     resp = await client.post("/base-budgets", json={
         "name": "Personal Budget",
         "currency": "CAD",
+        "recurrence_freq": "monthly",
+        "recurrence_dom": 1,
         "category_ids": [cat_id],
     }, headers=headers)
     return resp.json()["id"]
