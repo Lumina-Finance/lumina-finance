@@ -204,13 +204,13 @@ async def test_create_budget_instance_consecutive_periods_accepted(client):
 
     march = await _create_budget_instance(
         client, headers, base_budget_id,
-        period_start="2026-03-01", period_end="2026-03-31",
+        period_start="2026-03-01",
     )
     assert march.status_code == 201
 
     april = await _create_budget_instance(
         client, headers, base_budget_id,
-        period_start="2026-04-01", period_end="2026-04-30",
+        period_start="2026-04-01",
     )
     assert april.status_code == 201
     assert april.json()["id"] != march.json()["id"]
@@ -389,7 +389,7 @@ async def test_create_budget_instance_unauthenticated_returns_401(client):
     """Creating an instance without auth returns 401."""
     resp = await client.post(
         f"/base-budgets/{NONEXISTENT_ID}/budgets",
-        json={"period_start": "2026-03-01", "period_end": "2026-03-31", "overall_limit": 100000},
+        json={"period_start": "2026-03-01", "overall_limit": 100000},
     )
 
     assert resp.status_code == 401
@@ -427,11 +427,11 @@ async def test_list_budgets_returns_200(client):
 
     await _create_budget_instance(
         client, headers, base_budget_id,
-        period_start="2026-03-01", period_end="2026-03-31",
+        period_start="2026-03-01",
     )
     await _create_budget_instance(
         client, headers, base_budget_id,
-        period_start="2026-04-01", period_end="2026-04-30",
+        period_start="2026-04-01",
     )
 
     resp = await client.get("/budgets", headers=headers)
@@ -1500,11 +1500,11 @@ async def test_delete_budget_does_not_delete_sibling_instances(client):
     base_budget_id = base_resp.json()["id"]
     march = await _create_budget_instance(
         client, headers, base_budget_id,
-        period_start="2026-03-01", period_end="2026-03-31",
+        period_start="2026-03-01",
     )
     april = await _create_budget_instance(
         client, headers, base_budget_id,
-        period_start="2026-04-01", period_end="2026-04-30",
+        period_start="2026-04-01",
         overall_limit=200000,
     )
 
