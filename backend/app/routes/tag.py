@@ -37,7 +37,7 @@ async def list_tags(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
         query = select(Tag).where(
-            (Tag.owner_id == user.id) | (Tag.group_id == group_id),
+            ((Tag.owner_id == user.id) & (Tag.group_id.is_(None))) | (Tag.group_id == group_id),
         )
 
     result = await db.execute(query.order_by(Tag.name))
@@ -58,7 +58,7 @@ async def get_tag(
     result = await db.execute(
         select(Tag).where(
             Tag.id == tag_id,
-            (Tag.owner_id == user.id) | (Tag.group_id.in_(group_ids)),
+            ((Tag.owner_id == user.id) & (Tag.group_id.is_(None))) | (Tag.group_id.in_(group_ids)),
         ),
     )
     tag = result.scalar_one_or_none()
@@ -117,7 +117,7 @@ async def update_tag(
     result = await db.execute(
         select(Tag).where(
             Tag.id == tag_id,
-            (Tag.owner_id == user.id) | (Tag.group_id.in_(group_ids)),
+            ((Tag.owner_id == user.id) & (Tag.group_id.is_(None))) | (Tag.group_id.in_(group_ids)),
         ),
     )
     tag = result.scalar_one_or_none()
@@ -169,7 +169,7 @@ async def delete_tag(
     result = await db.execute(
         select(Tag).where(
             Tag.id == tag_id,
-            (Tag.owner_id == user.id) | (Tag.group_id.in_(group_ids)),
+            ((Tag.owner_id == user.id) & (Tag.group_id.is_(None))) | (Tag.group_id.in_(group_ids)),
         ),
     )
     tag = result.scalar_one_or_none()
