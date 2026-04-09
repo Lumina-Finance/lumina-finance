@@ -638,6 +638,29 @@ async def test_get_group_category_non_member_returns_404(client):
     assert resp.status_code == 404
 
 
+async def test_list_categories_with_group_filter_excludes_other_groups(client):
+    """Category created in Group A must not appear when listing with Group B's filter."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_a = await _create_group(client, headers)
+    group_b = await _create_group(client, headers)
+
+    await _create_category(client, headers, name="Personal Cat", kind="expense")
+    await _create_category(client, headers, name="Group A Cat", kind="expense", group_id=group_a)
+    await _create_category(client, headers, name="Group B Cat", kind="expense", group_id=group_b)
+
+    resp = await client.get(f"/categories?group_id={group_b}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    names = {c["name"] for c in data}
+    assert len(data) == 2
+    assert "Personal Cat" in names
+    assert "Group B Cat" in names
+    assert "Group A Cat" not in names
+
+
 # --- Group categories: PATCH /categories ---
 
 
