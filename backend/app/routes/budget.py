@@ -184,6 +184,22 @@ async def update_budget(
         if new_start > new_end:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must not be after period end")
 
+        # Mirror the POST instance pre-check so a period collision returns 409, not 500.
+        if new_start != budget.period_start or new_end != budget.period_end:
+            existing_result = await db.execute(
+                select(Budget).where(
+                    Budget.base_budget_id == budget.base_budget_id,
+                    Budget.period_start == new_start,
+                    Budget.period_end == new_end,
+                    Budget.id != budget.id,
+                ),
+            )
+            if existing_result.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A budget instance already exists for this period",
+                )
+
     for field, value in changed_fields.items():
         setattr(budget, field, value)
 
