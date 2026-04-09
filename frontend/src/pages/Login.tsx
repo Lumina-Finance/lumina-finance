@@ -130,7 +130,7 @@ const Login = () => {
           <AnimatePresence mode="wait" custom={direction}>
             <motion.h1
               key={mode}
-              className="font-serif text-4xl font-light tracking-tight flex"
+              className="font-serif text-4xl font-normal tracking-tight flex"
               initial="initial"
               animate="enter"
               exit="exit"
