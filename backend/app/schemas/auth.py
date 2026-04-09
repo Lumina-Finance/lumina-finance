@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+
+_VALID_TIMEZONES = available_timezones()
 
 
 class SignupRequest(BaseModel):
@@ -11,6 +14,15 @@ class SignupRequest(BaseModel):
     last_name: str | None = None
     tz: str  # IANA timezone (e.g., "America/Toronto")
     base_currency: str  # ISO 4217 code (e.g., "CAD")
+
+    @field_validator("tz")
+    @classmethod
+    def validate_tz(cls, v: str) -> str:
+        """Reject values that are not recognised IANA timezone names."""
+        if v not in _VALID_TIMEZONES:
+            msg = "Invalid IANA timezone"
+            raise ValueError(msg)
+        return v
 
 
 class LoginRequest(BaseModel):
