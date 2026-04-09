@@ -1,12 +1,13 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.group import GroupMember
 from app.models.tag import Tag
 from app.models.user import User
 from app.schemas.tag import CreateTagRequest, TagResponse, UpdateTagRequest
@@ -18,11 +19,27 @@ router = APIRouter(prefix="/tags", tags=["tags"])
 async def list_tags(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    group_id: Annotated[uuid.UUID | None, Query()] = None,
 ):
-    """Return all tags owned by the authenticated user."""
-    result = await db.execute(
-        select(Tag).where(Tag.owner_id == user.id).order_by(Tag.name),
-    )
+    """Return tags the user can access. Personal only by default, or include a group's tags."""
+    query = select(Tag).where(Tag.owner_id == user.id, Tag.group_id.is_(None))
+
+    if group_id:
+        # Verify membership
+        member_result = await db.execute(
+            select(GroupMember).where(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user.id,
+            ),
+        )
+        if not member_result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+
+        query = select(Tag).where(
+            (Tag.owner_id == user.id) | (Tag.group_id == group_id),
+        )
+
+    result = await db.execute(query.order_by(Tag.name))
     return result.scalars().all()
 
 
@@ -32,9 +49,16 @@ async def get_tag(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single tag by ID. Must belong to the authenticated user."""
+    """Return a single tag. Must be personal or from a group the user belongs to."""
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user.id)
+    ).scalar_subquery()
+
     result = await db.execute(
-        select(Tag).where(Tag.id == tag_id, Tag.owner_id == user.id),
+        select(Tag).where(
+            Tag.id == tag_id,
+            (Tag.owner_id == user.id) | (Tag.group_id.in_(group_ids)),
+        ),
     )
     tag = result.scalar_one_or_none()
     if not tag:
@@ -48,15 +72,29 @@ async def create_tag(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new tag for the authenticated user."""
-    # Reject duplicate name for the same user
-    result = await db.execute(
-        select(Tag).where(Tag.owner_id == user.id, Tag.name == data.name),
-    )
-    if result.scalar_one_or_none():
+    """Create a new tag. Personal by default, or group-scoped if group_id is provided."""
+    group_id = data.group_id
+    if group_id:
+        # Any group member can create group tags
+        member_result = await db.execute(
+            select(GroupMember).where(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user.id,
+            ),
+        )
+        if not member_result.scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+
+    # Reject duplicate name within the scope (group or personal)
+    dup_query = select(Tag).where(Tag.name == data.name)
+    if group_id:
+        dup_query = dup_query.where(Tag.group_id == group_id)
+    else:
+        dup_query = dup_query.where(Tag.owner_id == user.id, Tag.group_id.is_(None))
+    if (await db.execute(dup_query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tag with this name already exists")
 
-    tag = Tag(owner_id=user.id, name=data.name)
+    tag = Tag(owner_id=user.id, group_id=group_id, name=data.name)
     db.add(tag)
     await db.commit()
     await db.refresh(tag)
@@ -70,13 +108,32 @@ async def update_tag(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a tag. Only provided fields are changed."""
+    """Update a tag. Group tags require admin role."""
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user.id)
+    ).scalar_subquery()
+
     result = await db.execute(
-        select(Tag).where(Tag.id == tag_id, Tag.owner_id == user.id),
+        select(Tag).where(
+            Tag.id == tag_id,
+            (Tag.owner_id == user.id) | (Tag.group_id.in_(group_ids)),
+        ),
     )
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+
+    # Group tags require admin
+    if tag.group_id is not None:
+        member_result = await db.execute(
+            select(GroupMember).where(
+                GroupMember.group_id == tag.group_id,
+                GroupMember.user_id == user.id,
+            ),
+        )
+        member = member_result.scalar_one_or_none()
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
     updates = data.model_dump(exclude_unset=True)
     if not updates:
@@ -96,13 +153,32 @@ async def delete_tag(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a tag. Must belong to the authenticated user."""
+    """Delete a tag. Group tags require admin role."""
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user.id)
+    ).scalar_subquery()
+
     result = await db.execute(
-        select(Tag).where(Tag.id == tag_id, Tag.owner_id == user.id),
+        select(Tag).where(
+            Tag.id == tag_id,
+            (Tag.owner_id == user.id) | (Tag.group_id.in_(group_ids)),
+        ),
     )
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+
+    # Only admins can delete group tags
+    if tag.group_id is not None:
+        member_result = await db.execute(
+            select(GroupMember).where(
+                GroupMember.group_id == tag.group_id,
+                GroupMember.user_id == user.id,
+            ),
+        )
+        member = member_result.scalar_one_or_none()
+        if not member or not member.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
     await db.delete(tag)
     await db.commit()

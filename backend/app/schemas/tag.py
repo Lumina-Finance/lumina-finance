@@ -8,6 +8,7 @@ class TagResponse(BaseModel):
     """Tag returned by list and detail endpoints."""
 
     id: uuid.UUID
+    group_id: uuid.UUID | None
     owner_id: uuid.UUID
     name: str
     created_at: datetime
@@ -16,9 +17,10 @@ class TagResponse(BaseModel):
 
 
 class CreateTagRequest(BaseModel):
-    """Create a new tag for the authenticated user."""
+    """Create a new tag. Personal by default, or group-scoped if group_id is provided."""
 
     name: str = Field(min_length=1, max_length=64)
+    group_id: uuid.UUID | None = None
 
 
 class UpdateTagRequest(BaseModel):
