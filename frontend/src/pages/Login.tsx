@@ -10,14 +10,30 @@ const FADE_OUT_MS = 300;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const CURRENCIES = [
+  { code: 'CAD', label: 'CAD — Canadian Dollar' },
+  { code: 'USD', label: 'USD — US Dollar' },
+  { code: 'EUR', label: 'EUR — Euro' },
+  { code: 'GBP', label: 'GBP — British Pound' },
+  { code: 'AUD', label: 'AUD — Australian Dollar' },
+  { code: 'JPY', label: 'JPY — Japanese Yen' },
+  { code: 'CHF', label: 'CHF — Swiss Franc' },
+  { code: 'CNY', label: 'CNY — Chinese Yuan' },
+  { code: 'INR', label: 'INR — Indian Rupee' },
+  { code: 'MXN', label: 'MXN — Mexican Peso' },
+  { code: 'BRL', label: 'BRL — Brazilian Real' },
+  { code: 'KRW', label: 'KRW — South Korean Won' },
+];
+
 type Mode = 'login' | 'signup';
 
 interface FieldErrors {
   email?: string;
   password?: string;
+  first_name?: string;
 }
 
-function validateFields(form: { email: string; password: string }): FieldErrors {
+function validateFields(form: { email: string; password: string; first_name: string }, mode: Mode): FieldErrors {
   const errors: FieldErrors = {};
 
   if (!form.email) {
@@ -30,8 +46,20 @@ function validateFields(form: { email: string; password: string }): FieldErrors 
     errors.password = 'Password is required';
   }
 
+  if (mode === 'signup' && !form.first_name.trim()) {
+    errors.first_name = 'First name is required';
+  }
+
   return errors;
 }
+
+// Shared animation props for signup-only fields sliding in/out
+const signupFieldAnimation = {
+  initial: { height: 0, opacity: 0, marginTop: 0 },
+  animate: { height: 'auto', opacity: 1, marginTop: 20 },
+  exit: { height: 0, opacity: 0, marginTop: 0 },
+  transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] as const },
+};
 
 const Login = () => {
   const { login, signup, setSession } = useAuth();
@@ -39,17 +67,24 @@ const Login = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<Mode>('login');
-  // Track scroll direction: 1 = up (login→signup), -1 = down (signup→login)
   const [direction, setDirection] = useState(1);
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    base_currency: 'CAD',
+  });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const isLogin = mode === 'login';
+
   const switchMode = () => {
-    const next = mode === 'login' ? 'signup' : 'login';
+    const next = isLogin ? 'signup' : 'login';
     setDirection(next === 'signup' ? 1 : -1);
     setMode(next);
     setError('');
@@ -59,7 +94,7 @@ const Login = () => {
 
   const handleBlur = (field: keyof FieldErrors) => {
     setTouched((t) => ({ ...t, [field]: true }));
-    const errors = validateFields(form);
+    const errors = validateFields(form, mode);
     setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }));
   };
 
@@ -73,9 +108,11 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const errors = validateFields(form);
+    const errors = validateFields(form, mode);
     setFieldErrors(errors);
-    setTouched({ email: true, password: true });
+    const touchAll: Record<string, boolean> = { email: true, password: true };
+    if (!isLogin) touchAll.first_name = true;
+    setTouched(touchAll);
     if (Object.keys(errors).length > 0) return;
 
     setError('');
@@ -85,14 +122,16 @@ const Login = () => {
     let res: AuthResponse;
 
     try {
-      if (mode === 'login') {
-        res = await login(form);
+      if (isLogin) {
+        res = await login({ email: form.email, password: form.password });
       } else {
         res = await signup({
-          ...form,
-          first_name: '',
+          email: form.email,
+          password: form.password,
+          first_name: form.first_name.trim(),
+          last_name: form.last_name.trim() || undefined,
           tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          base_currency: 'CAD',
+          base_currency: form.base_currency,
         });
       }
     } catch (err) {
@@ -113,19 +152,17 @@ const Login = () => {
     navigate('/', { replace: true });
   };
 
-  const isLogin = mode === 'login';
-
   return (
     <motion.div
       ref={containerRef}
-      className="flex min-h-screen items-center justify-center px-4"
+      className="flex min-h-screen items-start justify-center px-4 pt-[20vh]"
       style={{ backgroundColor: 'var(--app-bg)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5" noValidate>
-        {/* Lottery wheel title — per-letter stagger */}
+        {/* Lottery wheel title */}
         <div className="overflow-hidden" style={{ height: '2.75rem' }}>
           <AnimatePresence mode="wait" custom={direction}>
             <motion.h1
@@ -161,6 +198,55 @@ const Login = () => {
         {error && (
           <p className="text-sm" style={{ color: 'var(--app-negative)' }}>{error}</p>
         )}
+
+        {/* Signup-only: name fields */}
+        <AnimatePresence>
+          {!isLogin && (
+            <motion.div className="space-y-5 overflow-hidden" {...signupFieldAnimation}>
+              <div className="space-y-1.5">
+                <div className="flex items-baseline justify-between">
+                  <label htmlFor="first_name" className="app-label">First name</label>
+                  <AnimatePresence>
+                    {touched.first_name && fieldErrors.first_name && (
+                      <motion.p
+                        key="first_name-error"
+                        className="text-xs"
+                        style={{ color: 'var(--app-negative)' }}
+                        initial={{ opacity: 0, x: 4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 4 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {fieldErrors.first_name}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+                <input
+                  id="first_name"
+                  type="text"
+                  autoComplete="given-name"
+                  className={`app-input ${touched.first_name && fieldErrors.first_name ? 'app-input-error' : ''}`}
+                  value={form.first_name}
+                  onChange={(e) => handleChange('first_name', e.target.value)}
+                  onBlur={() => handleBlur('first_name')}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="last_name" className="app-label block">Last name <span style={{ color: 'var(--app-text-subtle)' }}>(optional)</span></label>
+                <input
+                  id="last_name"
+                  type="text"
+                  autoComplete="family-name"
+                  className="app-input"
+                  value={form.last_name}
+                  onChange={(e) => handleChange('last_name', e.target.value)}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="space-y-1.5">
           <div className="flex items-baseline justify-between">
@@ -221,6 +307,25 @@ const Login = () => {
             onBlur={() => handleBlur('password')}
           />
         </div>
+
+        {/* Signup-only: currency picker */}
+        <AnimatePresence>
+          {!isLogin && (
+            <motion.div className="space-y-1.5 overflow-hidden" {...signupFieldAnimation}>
+              <label htmlFor="base_currency" className="app-label block">Base currency</label>
+              <select
+                id="base_currency"
+                className="app-input"
+                value={form.base_currency}
+                onChange={(e) => handleChange('base_currency', e.target.value)}
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex justify-center">
           <button
