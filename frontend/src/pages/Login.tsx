@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, animate } from 'motion/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/api/auth';
+import type { AuthResponse } from '@/api/auth';
 
 const MIN_LOADING_MS = 1500;
+const FADE_OUT_MS = 300;
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, setSession } = useAuth();
   const navigate = useNavigate();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -19,25 +23,38 @@ const Login = () => {
     setSubmitting(true);
 
     const start = Date.now();
+    let res: AuthResponse;
 
     try {
-      await login(form);
-      // Ensure the spinner shows for at least MIN_LOADING_MS
-      const elapsed = Date.now() - start;
-      if (elapsed < MIN_LOADING_MS) {
-        await new Promise((r) => setTimeout(r, MIN_LOADING_MS - elapsed));
-      }
-      navigate('/', { replace: true });
+      res = await login(form);
     } catch (err) {
       setSubmitting(false);
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
+      return;
     }
+
+    // Ensure the spinner shows for at least MIN_LOADING_MS
+    const elapsed = Date.now() - start;
+    if (elapsed < MIN_LOADING_MS) {
+      await new Promise((r) => setTimeout(r, MIN_LOADING_MS - elapsed));
+    }
+
+    // Fade out, then commit session and navigate
+    if (containerRef.current) {
+      await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 });
+    }
+    setSession(res);
+    navigate('/', { replace: true });
   };
 
   return (
-    <div
+    <motion.div
+      ref={containerRef}
       className="flex min-h-screen items-center justify-center px-4"
       style={{ backgroundColor: 'var(--app-bg)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
     >
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5">
         <h1 className="font-serif text-4xl font-light tracking-tight">Login</h1>
@@ -84,7 +101,7 @@ const Login = () => {
           </button>
         </div>
       </form>
-    </div>
+    </motion.div>
   );
 };
 
