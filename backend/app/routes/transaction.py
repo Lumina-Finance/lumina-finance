@@ -54,7 +54,9 @@ async def _check_category_access_or_422(
     """
     query = select(Category).where(Category.id == category_id)
     if group_id is not None:
-        query = query.where((Category.owner_id == user_id) | (Category.group_id == group_id))
+        query = query.where(
+            ((Category.owner_id == user_id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
+        )
     else:
         query = query.where(Category.owner_id == user_id, Category.group_id.is_(None))
     if not (await db.execute(query)).scalar_one_or_none():
@@ -67,9 +69,11 @@ async def _check_merchant_access_or_422(
     """Validate a merchant exists and is accessible (personal or same group)."""
     query = select(Merchant).where(Merchant.id == merchant_id)
     if group_id is not None:
-        query = query.where((Merchant.owner_id == user_id) | (Merchant.group_id == group_id))
+        query = query.where(
+            ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
+        )
     else:
-        query = query.where(Merchant.owner_id == user_id)
+        query = query.where(Merchant.owner_id == user_id, Merchant.group_id.is_(None))
     if not (await db.execute(query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
 
