@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import * as authApi from '@/api/auth';
-import type { User, LoginPayload, SignupPayload } from '@/api/auth';
+import type { User, LoginPayload, SignupPayload, AuthResponse } from '@/api/auth';
 
 interface AuthState {
   user: User | null;
@@ -11,8 +11,10 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (payload: LoginPayload) => Promise<void>;
-  signup: (payload: SignupPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<AuthResponse>;
+  signup: (payload: SignupPayload) => Promise<AuthResponse>;
+  /** Commit an auth response to state — call after any transition animations */
+  setSession: (res: AuthResponse) => void;
   logout: () => Promise<void>;
 }
 
@@ -51,15 +53,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [hasSession]);
 
+  // Call the API and set the session flag, but don't update React state yet.
+  // The caller controls when to commit via setSession().
   const login = useCallback(async (payload: LoginPayload) => {
     const res = await authApi.login(payload);
     localStorage.setItem(SESSION_KEY, '1');
-    setState({ user: res.user, accessToken: res.access_token, loading: false });
+    return res;
   }, []);
 
   const signup = useCallback(async (payload: SignupPayload) => {
     const res = await authApi.signup(payload);
     localStorage.setItem(SESSION_KEY, '1');
+    return res;
+  }, []);
+
+  const setSession = useCallback((res: AuthResponse) => {
     setState({ user: res.user, accessToken: res.access_token, loading: false });
   }, []);
 
@@ -72,8 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.accessToken]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, signup, logout }),
-    [state, login, signup, logout],
+    () => ({ ...state, login, signup, setSession, logout }),
+    [state, login, signup, setSession, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
