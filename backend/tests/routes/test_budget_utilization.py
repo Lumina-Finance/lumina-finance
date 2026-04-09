@@ -61,6 +61,8 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
     payload = {
         "name": "March Budget",
         "currency": "CAD",
+        "recurrence_freq": "monthly",
+        "recurrence_dom": 1,
         "category_ids": category_ids,
         **overrides,
     }
@@ -70,11 +72,11 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
 async def _create_budget_instance(client, headers, base_budget_id, **overrides):
     """Create a budget instance via POST /base-budgets/{id}/budgets.
 
-    Defaults: period 2026-03-01 to 2026-03-31, overall_limit=100000 (1000 CAD in minor units).
+    Defaults: period_start=2026-03-01, overall_limit=100000. period_end is
+    computed by the backend from the base's cadence.
     """
     payload = {
         "period_start": "2026-03-01",
-        "period_end": "2026-03-31",
         "overall_limit": 100000,
         **overrides,
     }
@@ -475,24 +477,26 @@ async def test_get_budget_utilization_total_spent_equals_sum_of_categories(clien
 # --- GET /budgets/{id}/utilization — metadata and edge cases ---
 
 
-async def test_get_budget_utilization_with_single_day_period(client):
-    """A single-day budget (period_start == period_end) bounds aggregation to that day only."""
+async def test_get_budget_utilization_with_one_week_period(client):
+    """A one-week budget bounds aggregation to exactly 7 days."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
     groceries = await _create_category(client, headers)
 
+    # Weekly budget: Mon Mar 2 → Sun Mar 8
     _, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries],
-        instance_overrides={"period_start": "2026-03-15", "period_end": "2026-03-15"},
+        base_overrides={"recurrence_freq": "weekly", "recurrence_weekday": 0, "recurrence_dom": None},
+        instance_overrides={"period_start": "2026-03-02"},
     )
 
-    # Inside the day (kept), day before (excluded), day after (excluded)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-15T12:00:00Z", amount=-5000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-14T23:00:00Z", amount=-9999)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-16T01:00:00Z", amount=-9999)
+    # Inside the week (kept), day before (excluded), day after (excluded)
+    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-05T12:00:00Z", amount=-5000)
+    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-01T23:00:00Z", amount=-9999)
+    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-09T01:00:00Z", amount=-9999)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
