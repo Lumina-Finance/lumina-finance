@@ -6,8 +6,9 @@ import jwt
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func as sa_func
 
 from app.config import (
     JWT_ACCESS_KID,
@@ -74,6 +75,9 @@ async def _issue_and_store_tokens(
     Returns:
         AuthResponse with user info and access token.
     """
+    # Purge expired tokens to prevent unbounded table growth
+    await db.execute(delete(ActiveToken).where(ActiveToken.expires_at < sa_func.now()))
+
     access_token, access_jti, access_exp = create_access_token(user.id)
     refresh_token, refresh_jti, refresh_exp = create_refresh_token(user.id)
 
@@ -186,8 +190,13 @@ async def refresh_route(
         _clear_refresh_cookie(response)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    # Delete the old refresh token before issuing new pair
-    await db.delete(active)
+    # Revoke the old token pair (refresh + its paired access token, which share created_at)
+    await db.execute(
+        delete(ActiveToken).where(
+            ActiveToken.user_id == user.id,
+            ActiveToken.created_at == active.created_at,
+        ),
+    )
     return await _issue_and_store_tokens(db, response, user)
 
 
