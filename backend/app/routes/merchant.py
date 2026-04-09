@@ -38,7 +38,7 @@ async def list_merchants(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
         query = select(Merchant).where(
-            (Merchant.owner_id == user.id) | (Merchant.group_id == group_id),
+            ((Merchant.owner_id == user.id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
         )
 
     result = await db.execute(query.order_by(Merchant.name))
@@ -59,7 +59,7 @@ async def get_merchant(
     result = await db.execute(
         select(Merchant).where(
             Merchant.id == merchant_id,
-            (Merchant.owner_id == user.id) | (Merchant.group_id.in_(group_ids)),
+            ((Merchant.owner_id == user.id) & (Merchant.group_id.is_(None))) | (Merchant.group_id.in_(group_ids)),
         ),
     )
     merchant = result.scalar_one_or_none()
@@ -101,10 +101,10 @@ async def create_merchant(
         cat_query = select(Category).where(Category.id == data.default_category_id)
         if group_id:
             cat_query = cat_query.where(
-                (Category.owner_id == user.id) | (Category.group_id == group_id),
+                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
             )
         else:
-            cat_query = cat_query.where(Category.owner_id == user.id)
+            cat_query = cat_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
         if not (await db.execute(cat_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 
@@ -135,7 +135,7 @@ async def update_merchant(
     result = await db.execute(
         select(Merchant).where(
             Merchant.id == merchant_id,
-            (Merchant.owner_id == user.id) | (Merchant.group_id.in_(group_ids)),
+            ((Merchant.owner_id == user.id) & (Merchant.group_id.is_(None))) | (Merchant.group_id.in_(group_ids)),
         ),
     )
     merchant = result.scalar_one_or_none()
@@ -163,10 +163,10 @@ async def update_merchant(
         cat_query = select(Category).where(Category.id == updates["default_category_id"])
         if merchant.group_id is not None:
             cat_query = cat_query.where(
-                (Category.owner_id == user.id) | (Category.group_id == merchant.group_id),
+                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == merchant.group_id),
             )
         else:
-            cat_query = cat_query.where(Category.owner_id == user.id)
+            cat_query = cat_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
         if not (await db.execute(cat_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 
@@ -200,7 +200,7 @@ async def delete_merchant(
     result = await db.execute(
         select(Merchant).where(
             Merchant.id == merchant_id,
-            (Merchant.owner_id == user.id) | (Merchant.group_id.in_(group_ids)),
+            ((Merchant.owner_id == user.id) & (Merchant.group_id.is_(None))) | (Merchant.group_id.in_(group_ids)),
         ),
     )
     merchant = result.scalar_one_or_none()
