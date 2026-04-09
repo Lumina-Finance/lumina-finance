@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.models.base import RecurrenceFreq
 from app.models.budget import BaseBudget, Budget
 from app.models.currency import Currency
 from app.models.user import User
@@ -33,7 +34,7 @@ async def user(db, currency):
 @pytest.fixture
 async def base_budget(db, user):
     """Seed a personal one-off base budget to host instances."""
-    b = BaseBudget(owner_id=user.id, name="March Budget", currency="CAD")
+    b = BaseBudget(owner_id=user.id, name="March Budget", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1)
     db.add(b)
     await db.flush()
     return b
@@ -206,7 +207,7 @@ async def test_instance_duplicate_base_period_rejected(db, base_budget, instance
 
 async def test_instance_duplicate_period_across_bases_accepted(db, user, instance):
     """The uniqueness is per-base: two different bases may both hold the same period."""
-    other_base = BaseBudget(owner_id=user.id, name="Other Budget", currency="CAD")
+    other_base = BaseBudget(owner_id=user.id, name="Other Budget", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1)
     db.add(other_base)
     await db.flush()
 
