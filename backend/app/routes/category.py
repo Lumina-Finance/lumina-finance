@@ -180,7 +180,14 @@ async def update_category(
     for field, value in updates.items():
         setattr(category, field, value)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Category with this name and kind already exists",
+        ) from e
     await db.refresh(category)
     return category
 
