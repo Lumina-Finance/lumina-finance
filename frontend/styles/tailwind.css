@@ -7,7 +7,7 @@
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
     --app-surface-soft: rgba(255, 252, 245, 0.72);
-    --app-surface-strong: rgba(255, 254, 248, 0.99);
+
     --app-border: rgba(75, 55, 35, 0.11);
     --app-border-strong: rgba(75, 55, 35, 0.20);
     --app-text: #1C1510;
@@ -29,7 +29,7 @@
     /* Dark — warm charcoal */
     --app-bg: #0F0E0C;
     --app-surface-soft: rgba(20, 17, 14, 0.80);
-    --app-surface-strong: rgba(27, 23, 19, 0.99);
+
     --app-border: rgba(210, 180, 120, 0.09);
     --app-border-strong: rgba(210, 180, 120, 0.17);
     --app-text: #ECE6DA;
