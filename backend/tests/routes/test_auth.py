@@ -1,6 +1,10 @@
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
 from sqlalchemy import select
 
 from app.models.active_token import ActiveToken
+from app.models.user import User
 from tests.conftest import TestSession
 from tests.routes.conftest import SIGNUP_PAYLOAD, _create_user, _seed_currency
 
@@ -245,6 +249,79 @@ async def test_access_token_as_refresh_cookie_returns_401(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid or expired refresh token"
+
+
+async def test_refresh_revokes_old_access_token(client):
+    """After refresh, the old access token is also removed from active_tokens."""
+    signup_resp = await _create_user(client)
+    old_access_token = signup_resp.json()["access_token"]
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    # Record JTIs from the signup pair
+    async with TestSession() as session:
+        result = await session.execute(select(ActiveToken.jti))
+        old_jtis = {row[0] for row in result.all()}
+        assert len(old_jtis) == 2
+
+    client.cookies.set("refresh_token", refresh_cookie)
+    refresh_resp = await client.post("/auth/refresh")
+    assert refresh_resp.status_code == 200
+
+    new_access_token = refresh_resp.json()["access_token"]
+
+    # Old pair replaced by new pair — JTIs should be entirely different
+    async with TestSession() as session:
+        result = await session.execute(select(ActiveToken.jti))
+        new_jtis = {row[0] for row in result.all()}
+        assert len(new_jtis) == 2
+        assert old_jtis.isdisjoint(new_jtis)
+
+    # The old access token should no longer authenticate
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {old_access_token}"})
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Token is not active"
+
+    # The new access token should work
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {new_access_token}"})
+    assert resp.status_code == 200
+
+
+async def test_expired_tokens_purged_on_token_issuance(client):
+    """Expired active_token rows are cleaned up when new tokens are issued."""
+    await _create_user(client)
+
+    # Seed an expired token directly in the DB
+    expired_jti = uuid4()
+    async with TestSession() as session:
+        user_result = await session.execute(select(User))
+        user = user_result.scalars().first()
+
+        session.add(ActiveToken(
+            jti=expired_jti,
+            user_id=user.id,
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
+        ))
+        await session.commit()
+
+    # 2 valid signup tokens + 1 expired = 3 total
+    async with TestSession() as session:
+        result = await session.execute(select(ActiveToken))
+        assert len(result.scalars().all()) == 3
+
+    # Login triggers _issue_and_store_tokens which purges expired rows
+    login_resp = await client.post(
+        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]},
+    )
+    assert login_resp.status_code == 200
+
+    async with TestSession() as session:
+        # The expired token should be gone
+        result = await session.execute(select(ActiveToken).where(ActiveToken.jti == expired_jti))
+        assert result.scalar_one_or_none() is None
+
+        # Valid tokens survive: 2 from signup + 2 from login = 4
+        result = await session.execute(select(ActiveToken))
+        assert len(result.scalars().all()) == 4
 
 
 # --- Logout ---
