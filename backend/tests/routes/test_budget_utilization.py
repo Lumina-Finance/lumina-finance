@@ -1117,7 +1117,7 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
     base_id = base_resp.json()["id"]
     inst_resp = await _create_budget_instance(
         client, headers, base_id,
-        period_start="2026-01-01", period_end="2026-01-31",
+        period_start="2026-01-01",
     )
     budget_id = inst_resp.json()["id"]
 
@@ -1214,7 +1214,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
     base_id, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries],
-        instance_overrides={"period_start": "2026-01-01", "period_end": "2026-01-31"},
+        instance_overrides={"period_start": "2026-01-01"},
     )
 
     # Backdate added_at to before the past period so the base was "tracking"
@@ -1267,7 +1267,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
     base_id, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[original],
-        instance_overrides={"period_start": "2026-01-01", "period_end": "2026-01-31"},
+        instance_overrides={"period_start": "2026-01-01"},
     )
     await _set_tracked_category_timestamps(
         base_id, original, added_at=datetime(2025, 12, 1, 0, 0, 0, tzinfo=UTC),
@@ -1312,7 +1312,7 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
         client, headers,
         category_ids=[groceries],
         # Future period so both old and new rows have added_at/removed_at <= period_end
-        instance_overrides={"period_start": "2099-01-01", "period_end": "2099-01-31"},
+        instance_overrides={"period_start": "2099-01-01"},
     )
 
     # Remove, then re-add
@@ -1374,7 +1374,7 @@ async def test_get_budget_utilization_current_period_uses_currently_active_categ
     _, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries, transit],
-        instance_overrides={"period_start": "2099-01-01", "period_end": "2099-01-31"},
+        instance_overrides={"period_start": "2099-01-01"},
     )
 
     await _create_transaction(
@@ -1559,7 +1559,7 @@ async def test_get_budget_utilization_re_add_past_period_old_row_included_new_ro
     base_id = base_resp.json()["id"]
     inst_resp = await _create_budget_instance(
         client, headers, base_id,
-        period_start="2026-01-01", period_end="2026-01-31",
+        period_start="2026-01-01",
     )
     budget_id = inst_resp.json()["id"]
 
