@@ -81,6 +81,16 @@ async def test_signup_missing_required_field_returns_422(client):
     assert resp.status_code == 422
 
 
+async def test_signup_invalid_base_currency_returns_422(client):
+    """Signup with a non-existent currency code returns 422."""
+    await _seed_currency()
+    payload = {**SIGNUP_PAYLOAD, "base_currency": "XXX"}
+    resp = await client.post("/auth/signup", json=payload)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Invalid currency code"
+
+
 # --- Login ---
 
 
