@@ -45,6 +45,8 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
     payload = {
         "name": "March Budget",
         "currency": "CAD",
+        "recurrence_freq": "monthly",
+        "recurrence_dom": 1,
         "category_ids": category_ids,
         **overrides,
     }
@@ -54,11 +56,11 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
 async def _create_budget_instance(client, headers, base_budget_id, **overrides):
     """Create a budget instance via POST /base-budgets/{id}/budgets.
 
-    Defaults: period 2026-03-01 to 2026-03-31, overall_limit=100000 (1000 CAD in minor units).
+    Defaults: period_start=2026-03-01, overall_limit=100000. period_end is
+    computed by the backend from the base's cadence.
     """
     payload = {
         "period_start": "2026-03-01",
-        "period_end": "2026-03-31",
         "overall_limit": 100000,
         **overrides,
     }
@@ -98,35 +100,17 @@ async def test_create_budget_instance_returns_201(client):
     assert base["category_ids"] == [cat_id]
 
 
-async def test_create_budget_instance_same_day_returns_201(client):
-    """Single-day instance (period_start == period_end) is accepted."""
+async def test_create_budget_instance_misaligned_period_start_returns_422(client):
+    """period_start that doesn't match the base's cadence is rejected."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     base_resp = await _create_base_budget(client, headers)
     base_budget_id = base_resp.json()["id"]
 
+    # Monthly with dom=1 — starting on the 15th is misaligned
     resp = await _create_budget_instance(
         client, headers, base_budget_id,
-        period_start="2026-03-15", period_end="2026-03-15",
-    )
-
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["period_start"] == "2026-03-15"
-    assert data["period_end"] == "2026-03-15"
-    assert data["base_budget"]["id"] == base_budget_id
-
-
-async def test_create_budget_instance_start_after_end_returns_422(client):
-    """period_start after period_end is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    base_resp = await _create_base_budget(client, headers)
-    base_budget_id = base_resp.json()["id"]
-
-    resp = await _create_budget_instance(
-        client, headers, base_budget_id,
-        period_start="2026-03-31", period_end="2026-03-01",
+        period_start="2026-03-15",
     )
 
     assert resp.status_code == 422
@@ -141,23 +125,7 @@ async def test_create_budget_instance_missing_period_start_returns_422(client):
 
     resp = await client.post(
         f"/base-budgets/{base_budget_id}/budgets",
-        json={"period_end": "2026-03-31", "overall_limit": 100000},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-
-
-async def test_create_budget_instance_missing_period_end_returns_422(client):
-    """period_end is required."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    base_resp = await _create_base_budget(client, headers)
-    base_budget_id = base_resp.json()["id"]
-
-    resp = await client.post(
-        f"/base-budgets/{base_budget_id}/budgets",
-        json={"period_start": "2026-03-01", "overall_limit": 100000},
+        json={"overall_limit": 100000},
         headers=headers,
     )
 
@@ -762,7 +730,9 @@ async def test_get_budget_returns_200(client):
     }
     assert set(data["base_budget"].keys()) == {
         "id", "owner_id", "group_id", "name", "currency",
-        "recurrence_freq", "recurrence_interval", "created_at", "category_ids",
+        "recurrence_freq", "instance_length", "recurrence_weekday",
+        "recurrence_dom", "recurrence_month", "recurs",
+        "created_at", "category_ids",
     }
     # Instance fields
     assert data["id"] == instance_id
@@ -777,8 +747,10 @@ async def test_get_budget_returns_200(client):
     assert base["group_id"] is None
     assert base["name"] == "March Budget"
     assert base["currency"] == "CAD"
-    assert base["recurrence_freq"] is None
-    assert base["recurrence_interval"] is None
+    assert base["recurrence_freq"] == "monthly"
+    assert base["instance_length"] == 1
+    assert base["recurrence_dom"] == 1
+    assert base["recurs"] is False
     assert base["category_ids"] == [cat_id]
     # created_at is a real ISO timestamp on both, and the instance is created
     # at-or-after its parent base (the test creates the base first)
@@ -1105,56 +1077,6 @@ async def test_get_budget_unauthenticated_returns_401(client):
 # --- PATCH /budgets/{budget_id} ---
 
 
-async def test_update_budget_period_start_returns_200(client):
-    """Owner can update period_start; created_at stays pinned and the embedded base round-trips."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    base_budget_id = base_resp.json()["id"]
-    instance_resp = await _create_budget_instance(client, headers, base_budget_id)
-    instance_id = instance_resp.json()["id"]
-    original_created_at = instance_resp.json()["created_at"]
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_start": "2026-03-05"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["id"] == instance_id
-    assert data["period_start"] == "2026-03-05"
-    assert data["period_end"] == "2026-03-31"
-    assert data["overall_limit"] == 100000
-    assert data["created_at"] == original_created_at
-    assert data["base_budget"]["id"] == base_budget_id
-
-
-async def test_update_budget_period_end_returns_200(client):
-    """Owner can update period_end alone; created_at stays pinned."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-    original_created_at = instance_resp.json()["created_at"]
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_end": "2026-04-15"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["period_start"] == "2026-03-01"
-    assert data["period_end"] == "2026-04-15"
-    assert data["created_at"] == original_created_at
-
-
 async def test_update_budget_overall_limit_returns_200(client):
     """Owner can update overall_limit alone; created_at stays pinned."""
     signup_resp = await _create_user(client)
@@ -1176,35 +1098,6 @@ async def test_update_budget_overall_limit_returns_200(client):
     assert resp.json()["created_at"] == original_created_at
 
 
-async def test_update_budget_all_fields_returns_200(client):
-    """Owner can update period_start, period_end, and overall_limit in one call."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-    original_created_at = instance_resp.json()["created_at"]
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={
-            "period_start": "2026-04-01",
-            "period_end": "2026-04-30",
-            "overall_limit": 200000,
-        },
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["id"] == instance_id
-    assert data["period_start"] == "2026-04-01"
-    assert data["period_end"] == "2026-04-30"
-    assert data["overall_limit"] == 200000
-    assert data["created_at"] == original_created_at
-
-
 async def test_update_budget_empty_body_returns_200(client):
     """Empty PATCH body returns the stored instance unchanged in every field."""
     signup_resp = await _create_user(client)
@@ -1222,86 +1115,6 @@ async def test_update_budget_empty_body_returns_200(client):
 
     assert resp.status_code == 200
     assert resp.json() == original
-
-
-async def test_update_budget_start_after_end_returns_422(client):
-    """PATCH with period_start > period_end is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_start": "2026-03-31", "period_end": "2026-03-01"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Period start must not be after period end"
-
-
-async def test_update_budget_period_start_after_existing_end_returns_422(client):
-    """PATCH that would push period_start past the existing (unchanged) period_end is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-    # Original period: 2026-03-01 to 2026-03-31
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_start": "2026-04-15"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Period start must not be after period end"
-
-
-async def test_update_budget_period_end_before_existing_start_returns_422(client):
-    """PATCH that would pull period_end before the existing (unchanged) period_start is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-    # Original period: 2026-03-01 to 2026-03-31
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_end": "2026-02-15"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Period start must not be after period end"
-
-
-async def test_update_budget_same_day_period_returns_200(client):
-    """PATCH to a single-day period (period_start == period_end) is accepted."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_start": "2026-03-15", "period_end": "2026-03-15"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["period_start"] == "2026-03-15"
-    assert data["period_end"] == "2026-03-15"
 
 
 async def test_update_budget_zero_overall_limit_returns_422(client):
@@ -1563,44 +1376,6 @@ async def test_update_budget_unauthenticated_returns_401(client):
     assert resp.status_code == 401
 
 
-async def test_update_budget_null_period_start_returns_422(client):
-    """PATCH with explicit null period_start is rejected — non-nullable field."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_start": None},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert "period_start" in resp.json()["detail"]
-
-
-async def test_update_budget_null_period_end_returns_422(client):
-    """PATCH with explicit null period_end is rejected — non-nullable field."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_end": None},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert "period_end" in resp.json()["detail"]
-
-
 async def test_update_budget_null_overall_limit_returns_422(client):
     """PATCH with explicit null overall_limit is rejected — non-nullable field."""
     signup_resp = await _create_user(client)
@@ -1618,64 +1393,6 @@ async def test_update_budget_null_overall_limit_returns_422(client):
 
     assert resp.status_code == 422
     assert "overall_limit" in resp.json()["detail"]
-
-
-async def test_update_budget_duplicate_period_returns_409(client):
-    """PATCHing one instance's period onto another existing period under the same base returns 409."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    base_budget_id = base_resp.json()["id"]
-
-    march = await _create_budget_instance(
-        client, headers, base_budget_id,
-        period_start="2026-03-01", period_end="2026-03-31",
-    )
-    april = await _create_budget_instance(
-        client, headers, base_budget_id,
-        period_start="2026-04-01", period_end="2026-04-30",
-    )
-    april_id = april.json()["id"]
-    march_id = march.json()["id"]
-
-    # Try to PATCH April's period onto March's
-    resp = await client.patch(
-        f"/budgets/{april_id}",
-        json={"period_start": "2026-03-01", "period_end": "2026-03-31"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 409
-    assert resp.json()["detail"] == "A budget instance already exists for this period"
-
-    # March's instance must be untouched
-    march_after = (await client.get(f"/budgets/{march_id}", headers=headers)).json()
-    assert march_after["period_start"] == "2026-03-01"
-    assert march_after["period_end"] == "2026-03-31"
-
-
-async def test_update_budget_preserves_state_on_validation_error(client):
-    """A 422 from period validation must not have mutated the instance."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-    snapshot = instance_resp.json()
-
-    # Send a body with a valid limit but an invalid period — the limit must
-    # not leak through if the period validation rejects the request
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_start": "2026-04-15", "overall_limit": 999999},
-        headers=headers,
-    )
-    assert resp.status_code == 422
-
-    after = (await client.get(f"/budgets/{instance_id}", headers=headers)).json()
-    assert after == snapshot
 
 
 async def test_update_budget_ignores_unknown_fields(client):
@@ -1705,28 +1422,6 @@ async def test_update_budget_ignores_unknown_fields(client):
     assert data["overall_limit"] == 55555
     # Unknown smuggled field had no effect
     assert data["base_budget_id"] == base_budget_id
-
-
-async def test_update_budget_period_start_equals_existing_end_returns_200(client):
-    """Single-day narrowing — period_start may equal period_end (the route uses strict `>`)."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    base_resp = await _create_base_budget(client, headers)
-    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
-    instance_id = instance_resp.json()["id"]
-    # Original period: 2026-03-01 to 2026-03-31
-
-    resp = await client.patch(
-        f"/budgets/{instance_id}",
-        json={"period_start": "2026-03-31"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["period_start"] == "2026-03-31"
-    assert data["period_end"] == "2026-03-31"
 
 
 # --- DELETE /budgets/{budget_id} ---
@@ -1770,7 +1465,8 @@ async def test_delete_budget_does_not_delete_base(client):
     assert base_after["currency"] == original_base["currency"]
     assert base_after["category_ids"] == original_base["category_ids"]
     assert base_after["recurrence_freq"] == original_base["recurrence_freq"]
-    assert base_after["recurrence_interval"] == original_base["recurrence_interval"]
+    assert base_after["instance_length"] == original_base["instance_length"]
+    assert base_after["recurs"] == original_base["recurs"]
     assert base_after["created_at"] == original_base["created_at"]
 
 
