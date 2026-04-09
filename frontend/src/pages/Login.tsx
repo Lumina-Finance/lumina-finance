@@ -10,6 +10,8 @@ const FADE_OUT_MS = 300;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+type Mode = 'login' | 'signup';
+
 interface FieldErrors {
   email?: string;
   password?: string;
@@ -32,15 +34,28 @@ function validateFields(form: { email: string; password: string }): FieldErrors 
 }
 
 const Login = () => {
-  const { login, setSession } = useAuth();
+  const { login, signup, setSession } = useAuth();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const [mode, setMode] = useState<Mode>('login');
+  // Track scroll direction: 1 = up (login→signup), -1 = down (signup→login)
+  const [direction, setDirection] = useState(1);
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const switchMode = () => {
+    const next = mode === 'login' ? 'signup' : 'login';
+    setDirection(next === 'signup' ? 1 : -1);
+    setMode(next);
+    setError('');
+    setFieldErrors({});
+    setTouched({});
+  };
 
   const handleBlur = (field: keyof FieldErrors) => {
     setTouched((t) => ({ ...t, [field]: true }));
@@ -50,7 +65,6 @@ const Login = () => {
 
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
-    // Clear field error as user types
     if (fieldErrors[field as keyof FieldErrors]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -59,7 +73,6 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate all fields on submit
     const errors = validateFields(form);
     setFieldErrors(errors);
     setTouched({ email: true, password: true });
@@ -72,7 +85,16 @@ const Login = () => {
     let res: AuthResponse;
 
     try {
-      res = await login(form);
+      if (mode === 'login') {
+        res = await login(form);
+      } else {
+        res = await signup({
+          ...form,
+          first_name: '',
+          tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          base_currency: 'CAD',
+        });
+      }
     } catch (err) {
       setSubmitting(false);
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
@@ -91,6 +113,8 @@ const Login = () => {
     navigate('/', { replace: true });
   };
 
+  const isLogin = mode === 'login';
+
   return (
     <motion.div
       ref={containerRef}
@@ -101,7 +125,38 @@ const Login = () => {
       transition={{ duration: 0.3 }}
     >
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5" noValidate>
-        <h1 className="font-serif text-4xl font-light tracking-tight">Login</h1>
+        {/* Lottery wheel title — per-letter stagger */}
+        <div className="overflow-hidden" style={{ height: '2.75rem' }}>
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.h1
+              key={mode}
+              className="font-serif text-4xl font-light tracking-tight flex"
+              initial="initial"
+              animate="enter"
+              exit="exit"
+              variants={{
+                initial: { transition: { staggerChildren: 0.03 } },
+                enter: { transition: { staggerChildren: 0.03 } },
+                exit: { transition: { staggerChildren: 0.02, staggerDirection: -1 } },
+              }}
+            >
+              {(isLogin ? 'Login' : 'Sign up').split('').map((char, i) => (
+                <motion.span
+                  key={`${mode}-${i}`}
+                  className={char === ' ' ? 'inline-block w-2' : 'inline-block'}
+                  variants={{
+                    initial: { y: 40, opacity: 0 },
+                    enter: { y: 0, opacity: 1 },
+                    exit: { y: -40, opacity: 0 },
+                  }}
+                  transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1.04] }}
+                >
+                  {char}
+                </motion.span>
+              ))}
+            </motion.h1>
+          </AnimatePresence>
+        </div>
 
         {error && (
           <p className="text-sm" style={{ color: 'var(--app-negative)' }}>{error}</p>
@@ -159,7 +214,7 @@ const Login = () => {
           <input
             id="password"
             type="password"
-            autoComplete="current-password"
+            autoComplete={isLogin ? 'current-password' : 'new-password'}
             className={`app-input ${touched.password && fieldErrors.password ? 'app-input-error' : ''}`}
             value={form.password}
             onChange={(e) => handleChange('password', e.target.value)}
@@ -175,9 +230,21 @@ const Login = () => {
               submitting ? 'app-primary-button-loading' : 'w-full'
             }`}
           >
-            {submitting ? <div className="app-spinner" /> : 'Log in'}
+            {submitting ? <div className="app-spinner" /> : isLogin ? 'Log in' : 'Sign up'}
           </button>
         </div>
+
+        <p className="text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          {isLogin ? "Don't have an account? " : 'Already have an account? '}
+          <button
+            type="button"
+            onClick={switchMode}
+            className="font-medium underline underline-offset-2 transition-colors duration-200"
+            style={{ color: 'var(--app-accent)' }}
+          >
+            {isLogin ? 'Sign up' : 'Log in'}
+          </button>
+        </p>
       </form>
     </motion.div>
   );
