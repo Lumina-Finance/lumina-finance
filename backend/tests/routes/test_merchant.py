@@ -397,6 +397,25 @@ async def test_patch_merchant_other_user_returns_404(client):
     assert resp.status_code == 404
 
 
+async def test_patch_merchant_rename_to_duplicate_returns_409(client):
+    """Renaming a merchant to an existing name returns 409."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_merchant(client, headers, name="Costco")
+    create_resp = await _create_merchant(client, headers, name="Walmart")
+    merchant_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/merchants/{merchant_id}", json={"name": "Costco"}, headers=headers)
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+    # Verify the merchant was not mutated
+    get_resp = await client.get(f"/merchants/{merchant_id}", headers=headers)
+    assert get_resp.json()["name"] == "Walmart"
+
+
 async def test_patch_merchant_without_auth_returns_401(client):
     """PATCH /merchants/{id} without an Authorization header returns 401."""
     resp = await client.patch(f"/merchants/{NONEXISTENT_ID}", json={"name": "X"})
@@ -711,6 +730,24 @@ async def test_patch_group_merchant_non_member_returns_404(client):
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Merchant not found"
+
+
+async def test_patch_group_merchant_rename_to_duplicate_returns_409(client):
+    """Renaming a group merchant to an existing group merchant name returns 409."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+
+    await _create_merchant(client, admin_headers, name="Costco", group_id=group_id)
+    create_resp = await _create_merchant(client, admin_headers, name="Walmart", group_id=group_id)
+    merchant_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/merchants/{merchant_id}", json={"name": "Costco"}, headers=admin_headers)
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+    # Verify the merchant was not mutated
+    get_resp = await client.get(f"/merchants/{merchant_id}", headers=admin_headers)
+    assert get_resp.json()["name"] == "Walmart"
 
 
 # --- Group merchants: DELETE /merchants ---

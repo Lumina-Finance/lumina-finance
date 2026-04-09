@@ -370,6 +370,25 @@ async def test_patch_category_other_user_returns_404(client):
     assert resp.status_code == 404
 
 
+async def test_patch_category_rename_to_duplicate_returns_409(client):
+    """Renaming a category to an existing name+kind returns 409."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_category(client, headers, name="Food", kind="expense")
+    create_resp = await _create_category(client, headers, name="Transport", kind="expense")
+    category_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "Food"}, headers=headers)
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+    # Verify the category was not mutated
+    get_resp = await client.get(f"/categories/{category_id}", headers=headers)
+    assert get_resp.json()["name"] == "Transport"
+
+
 async def test_patch_category_without_auth_returns_401(client):
     """PATCH /categories/{id} without an Authorization header returns 401."""
     resp = await client.patch(f"/categories/{NONEXISTENT_ID}", json={"name": "X"})
@@ -665,6 +684,24 @@ async def test_patch_group_category_non_member_returns_404(client):
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Category not found"
+
+
+async def test_patch_group_category_rename_to_duplicate_returns_409(client):
+    """Renaming a group category to an existing group category name+kind returns 409."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+
+    await _create_category(client, admin_headers, name="Food", kind="expense", group_id=group_id)
+    create_resp = await _create_category(client, admin_headers, name="Transport", kind="expense", group_id=group_id)
+    category_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "Food"}, headers=admin_headers)
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+    # Verify the category was not mutated
+    get_resp = await client.get(f"/categories/{category_id}", headers=admin_headers)
+    assert get_resp.json()["name"] == "Transport"
 
 
 async def test_patch_personal_category_invalid_parent_returns_422(client):
