@@ -24,6 +24,8 @@
     --app-input-bg: rgba(255, 255, 255, 0.90);
     --app-input-border: rgba(75, 55, 35, 0.22);
     --app-negative: #9A3C34;
+    --app-negative-soft: rgba(154, 60, 52, 0.10);
+    --app-negative-border: rgba(154, 60, 52, 0.30);
     --app-nav-bg: rgba(248, 244, 236, 0.97);
     --app-shadow-soft: 0 2px 20px rgba(28, 21, 16, 0.07), 0 1px 4px rgba(28, 21, 16, 0.04);
   }
@@ -45,6 +47,8 @@
     --app-input-bg: rgba(36, 31, 25, 0.97);
     --app-input-border: rgba(210, 180, 120, 0.20);
     --app-negative: #B8584E;
+    --app-negative-soft: rgba(184, 88, 78, 0.12);
+    --app-negative-border: rgba(184, 88, 78, 0.35);
     --app-nav-bg: rgba(18, 16, 13, 0.98);
     --app-shadow-soft: 0 2px 20px rgba(0, 0, 0, 0.38), 0 1px 4px rgba(0, 0, 0, 0.24);
   }
@@ -115,6 +119,16 @@
     border-color: var(--app-accent-border);
     background: var(--app-input-bg);
     box-shadow: 0 0 0 2px var(--app-accent-soft);
+  }
+
+  .app-input-error {
+    border-color: var(--app-negative-border);
+    background: var(--app-negative-soft);
+  }
+
+  .app-input-error:focus {
+    border-color: var(--app-negative-border);
+    box-shadow: 0 0 0 2px var(--app-negative-soft);
   }
 
   .app-primary-button {
