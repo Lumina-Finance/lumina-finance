@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'motion/react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/Navigation'
 import Dashboard from '@/components/Dashboard'
 import Login from '@/pages/Login'
@@ -70,11 +71,16 @@ function AnimatedRoutes() {
   );
 }
 
+function AppShell() {
+  useTheme();
+  return <AnimatedRoutes />;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AnimatedRoutes />
+        <AppShell />
       </AuthProvider>
     </BrowserRouter>
   )

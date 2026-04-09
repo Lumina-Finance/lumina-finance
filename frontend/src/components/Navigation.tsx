@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   BarChart2,
@@ -13,6 +12,7 @@ import {
   Sun,
   type LucideIcon,
 } from 'lucide-react';
+import { useTheme } from '@/hooks/useTheme';
 import type { Theme } from '@/types';
 
 interface NavigationItem {
@@ -29,33 +29,9 @@ const navItems: NavigationItem[] = [
   { to: '/insights', icon: BarChart2, label: 'Insights' },
 ];
 
-const THEME_KEY = 'lumina:settings:theme';
-
 const Navigation = () => {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(THEME_KEY) as Theme) || 'system'
-  );
+  const { theme, setTheme } = useTheme();
 
-  // Resolve theme and apply .dark class + colorScheme to <html>
-  useEffect(() => {
-    const root = document.documentElement;
-    const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    const apply = () => {
-      const isDark = theme === 'dark' || (theme === 'system' && darkQuery.matches);
-      root.classList.toggle('dark', isDark);
-      root.style.colorScheme = isDark ? 'dark' : 'light';
-    };
-
-    apply();
-    localStorage.setItem(THEME_KEY, theme);
-
-    // Re-apply when OS preference changes while in 'system' mode
-    if (theme === 'system') {
-      darkQuery.addEventListener('change', apply);
-      return () => darkQuery.removeEventListener('change', apply);
-    }
-  }, [theme]);
   return (
     <nav
       aria-label="Primary"
