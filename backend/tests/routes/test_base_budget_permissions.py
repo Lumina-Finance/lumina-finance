@@ -330,3 +330,247 @@ async def test_grant_base_budget_permission_unauthenticated_returns_401(client):
 
     assert resp.status_code == 401
 
+
+# --- GET /base-budgets/{base_budget_id}/permissions ---
+
+
+async def test_list_base_budget_permissions_returns_200(client):
+    """Admin can list all permissions on a base budget."""
+    admin_headers, _, member_user_id, group_id, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+
+    grant_resp = await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "write"},
+        headers=admin_headers,
+    )
+    assert grant_resp.status_code == 201
+
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["user_id"] == member_user_id
+    assert data[0]["base_budget_id"] == base_budget_id
+    assert data[0]["group_id"] == group_id
+    assert data[0]["level"] == "write"
+
+
+async def test_list_base_budget_permissions_empty(client):
+    """Listing permissions on a base budget with none returns an empty list."""
+    admin_headers, _, _, _, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_list_base_budget_permissions_filters_by_user_id(client):
+    """The user_id query parameter filters permissions to a single user without dropping the others."""
+    admin_headers, _, member_user_id, group_id, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    _, third_user_id = await _create_second_user(
+        client, email="third@example.com", first_name="Third",
+    )
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": third_user_id},
+        headers=admin_headers,
+    )
+
+    await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": third_user_id, "level": "write"},
+        headers=admin_headers,
+    )
+
+    # Filter to just the third user
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions?user_id={third_user_id}",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["user_id"] == third_user_id
+    assert data[0]["level"] == "write"
+
+    # Sanity-check the unfiltered list still has both rows — a regression that
+    # filtered-by-default would also produce len==1 for the filtered query
+    unfiltered = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=admin_headers,
+    )
+    assert len(unfiltered.json()) == 2
+
+
+async def test_list_base_budget_permissions_filter_by_user_id_no_matches_returns_empty(client):
+    """Filtering by a user with no permission row returns 200 + empty list."""
+    admin_headers, _, member_user_id, _, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+
+    # Filter by a UUID that isn't anywhere in the system
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions?user_id={NONEXISTENT_ID}",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_list_base_budget_permissions_filter_by_group_member_without_permission_returns_empty(client):
+    """Filtering by a real group member who has no permission row returns 200 + empty list."""
+    admin_headers, _, _, group_id, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    # Add a third user to the group but never grant them any permission on the base
+    _, third_user_id = await _create_second_user(
+        client, email="third@example.com", first_name="Third",
+    )
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": third_user_id},
+        headers=admin_headers,
+    )
+
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions?user_id={third_user_id}",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_list_base_budget_permissions_orders_by_created_at(client):
+    """Permissions are ordered by created_at ascending."""
+    admin_headers, _, member_user_id, group_id, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    _, third_user_id = await _create_second_user(
+        client, email="third@example.com", first_name="Third",
+    )
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": third_user_id},
+        headers=admin_headers,
+    )
+
+    first = await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    second = await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": third_user_id, "level": "write"},
+        headers=admin_headers,
+    )
+
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+    assert data[0]["id"] == first.json()["id"]
+    assert data[1]["id"] == second.json()["id"]
+
+
+async def test_list_base_budget_permissions_nonexistent_base_returns_404(client):
+    """Listing permissions on a non-existent base budget returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get(
+        f"/base-budgets/{NONEXISTENT_ID}/permissions",
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
+
+
+async def test_list_base_budget_permissions_personal_base_returns_404(client):
+    """Listing permissions on a personal base budget returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_budget_id = await _create_personal_base_budget(client, headers)
+
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
+
+
+async def test_list_base_budget_permissions_as_non_admin_returns_403(client):
+    """Non-admin group member cannot list permissions on a base budget."""
+    _, member_headers, _, _, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Admin role required"
+
+
+async def test_list_base_budget_permissions_as_outsider_returns_404(client):
+    """A user not in the group cannot list permissions — 404."""
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+    group_id = await _create_group(client, admin_headers)
+    base_budget_id = await _create_group_base_budget(client, admin_headers, group_id)
+
+    outsider_headers, _ = await _create_second_user(client)
+
+    resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=outsider_headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
+
+
+async def test_list_base_budget_permissions_unauthenticated_returns_401(client):
+    """GET /base-budgets/{id}/permissions without auth returns 401."""
+    resp = await client.get(f"/base-budgets/{NONEXISTENT_ID}/permissions")
+
+    assert resp.status_code == 401
+
+
