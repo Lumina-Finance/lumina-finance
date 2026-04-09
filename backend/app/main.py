@@ -17,14 +17,13 @@ from app.routes.user import router as user_router
 
 app = FastAPI(title="Lumina Finance API")
 
-# CORS — origins from env; dev origin added automatically in development
+# CORS — origins from env; allow any origin in development for LAN testing
 _allowed_origins = list(ALLOWED_ORIGINS)
-if APP_ENV == "development":
-    _allowed_origins.append("http://localhost:5173")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
+    allow_origin_regex=r"^https?://(localhost|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$" if APP_ENV == "development" else None,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
