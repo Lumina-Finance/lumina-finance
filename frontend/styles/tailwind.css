@@ -121,13 +121,15 @@
     box-shadow: 0 0 0 2px var(--app-accent-soft);
   }
 
-  .app-input-error {
+  .app-input-error,
+  .app-input-error:hover {
     border-color: var(--app-negative-border);
     background: var(--app-negative-soft);
   }
 
   .app-input-error:focus {
     border-color: var(--app-negative-border);
+    background: var(--app-negative-soft);
     box-shadow: 0 0 0 2px var(--app-negative-soft);
   }
 
