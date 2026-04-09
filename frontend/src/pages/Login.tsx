@@ -155,7 +155,7 @@ const Login = () => {
   return (
     <motion.div
       ref={containerRef}
-      className="flex min-h-screen items-start justify-center px-4 pt-[20vh]"
+      className="flex min-h-screen items-start justify-center px-4 pt-[10vh] lg:pt-[20vh]"
       style={{ backgroundColor: 'var(--app-bg)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
