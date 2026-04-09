@@ -269,6 +269,227 @@ async def test_create_base_budget_instance_length_zero_returns_422(client):
     assert resp.status_code == 422
 
 
+# --- POST /base-budgets — cadence field validation ---
+
+
+async def test_create_base_budget_yearly_returns_201(client):
+    """Yearly base budget stores cadence fields correctly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=7,
+        recurrence_weekday=None,
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["recurrence_freq"] == "yearly"
+    assert data["instance_length"] == 1
+    assert data["recurrence_dom"] == 1
+    assert data["recurrence_month"] == 7
+    assert data["recurrence_weekday"] is None
+    assert data["recurs"] is False
+
+
+async def test_create_base_budget_weekly_missing_weekday_returns_422(client):
+    """Weekly cadence requires recurrence_weekday."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_dom=None,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_weekly_with_dom_returns_422(client):
+    """Weekly cadence rejects recurrence_dom."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_weekday=0,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_weekly_with_month_returns_422(client):
+    """Weekly cadence rejects recurrence_month."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_weekday=0,
+        recurrence_dom=None,
+        recurrence_month=3,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_monthly_missing_dom_returns_422(client):
+    """Monthly cadence requires recurrence_dom."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(client, headers, recurrence_dom=None)
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_monthly_with_weekday_returns_422(client):
+    """Monthly cadence rejects recurrence_weekday."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(client, headers, recurrence_weekday=0)
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_monthly_with_month_returns_422(client):
+    """Monthly cadence rejects recurrence_month."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(client, headers, recurrence_month=3)
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_yearly_missing_dom_returns_422(client):
+    """Yearly cadence requires recurrence_dom."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="yearly",
+        recurrence_dom=None,
+        recurrence_month=7,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_yearly_with_weekday_returns_422(client):
+    """Yearly cadence rejects recurrence_weekday."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=7,
+        recurrence_weekday=0,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_weekday_below_range_returns_422(client):
+    """recurrence_weekday below 0 is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_weekday=-1,
+        recurrence_dom=None,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_weekday_above_range_returns_422(client):
+    """recurrence_weekday above 6 is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_weekday=7,
+        recurrence_dom=None,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_dom_below_range_returns_422(client):
+    """recurrence_dom below 1 is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(client, headers, recurrence_dom=0)
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_dom_above_range_returns_422(client):
+    """recurrence_dom above 31 is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(client, headers, recurrence_dom=32)
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_month_below_range_returns_422(client):
+    """recurrence_month below 1 is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=0,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_month_above_range_returns_422(client):
+    """recurrence_month above 12 is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=13,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_base_budget_negative_instance_length_returns_422(client):
+    """instance_length below 1 is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(client, headers, instance_length=-1)
+
+    assert resp.status_code == 422
+
+
 async def test_create_base_budget_unauthenticated_returns_401(client):
     """Creating a base budget without auth returns 401."""
     resp = await client.post("/base-budgets", json={
