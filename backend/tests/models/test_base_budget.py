@@ -52,8 +52,11 @@ async def group(db, user):
 
 @pytest.fixture
 async def base_budget(db, user):
-    """Seed a personal one-off base budget."""
-    b = BaseBudget(owner_id=user.id, name="March Budget", currency="CAD")
+    """Seed a personal monthly base budget."""
+    b = BaseBudget(
+        owner_id=user.id, name="March Budget", currency="CAD",
+        recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1,
+    )
     db.add(b)
     await db.flush()
     return b
@@ -78,6 +81,12 @@ async def test_create_base_budget(db, base_budget, user):
     assert result.owner_id == user.id
     assert result.name == "March Budget"
     assert result.currency == "CAD"
+    assert result.recurrence_freq == RecurrenceFreq.MONTHLY
+    assert result.instance_length == 1
+    assert result.recurrence_dom == 1
+    assert result.recurrence_weekday is None
+    assert result.recurrence_month is None
+    assert result.recurs is False
 
 
 async def test_update_base_budget(db, base_budget):
@@ -110,10 +119,14 @@ async def test_created_at_auto_set(db, base_budget):
     assert base_budget.created_at is not None
 
 
-async def test_recurrence_defaults_to_null(db, base_budget):
-    """recurrence_freq and recurrence_interval default to null for one-off base budgets."""
-    assert base_budget.recurrence_freq is None
-    assert base_budget.recurrence_interval is None
+async def test_instance_length_defaults_to_one(db, base_budget):
+    """instance_length defaults to 1 when not explicitly set."""
+    assert base_budget.instance_length == 1
+
+
+async def test_recurs_defaults_to_false(db, base_budget):
+    """Recurs defaults to False when not explicitly set."""
+    assert base_budget.recurs is False
 
 
 # --- BaseBudget: Recurring ---
@@ -123,14 +136,17 @@ async def test_recurring_base_budget(db, user):
     """Create a recurring base budget with monthly cadence."""
     b = BaseBudget(
         owner_id=user.id, name="Monthly Budget", currency="CAD",
-        recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_interval=1,
+        recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1,
+        recurrence_dom=1, recurs=True,
     )
     db.add(b)
     await db.flush()
 
     result = await db.get(BaseBudget, b.id)
     assert result.recurrence_freq == RecurrenceFreq.MONTHLY
-    assert result.recurrence_interval == 1
+    assert result.instance_length == 1
+    assert result.recurrence_dom == 1
+    assert result.recurs is True
 
 
 # --- BaseBudget: Owner XOR Group Check Constraint ---
@@ -138,7 +154,7 @@ async def test_recurring_base_budget(db, user):
 
 async def test_personal_base_budget_accepted(db, user):
     """BaseBudget with owner_id and no group_id should be valid."""
-    b = BaseBudget(owner_id=user.id, name="Personal", currency="CAD")
+    b = BaseBudget(owner_id=user.id, name="Personal", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1)
     db.add(b)
     await db.flush()
 
@@ -149,7 +165,7 @@ async def test_personal_base_budget_accepted(db, user):
 
 async def test_group_base_budget_accepted(db, group):
     """BaseBudget with group_id and no owner_id should be valid."""
-    b = BaseBudget(group_id=group.id, name="Family Budget", currency="CAD")
+    b = BaseBudget(group_id=group.id, name="Family Budget", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1)
     db.add(b)
     await db.flush()
 
@@ -160,14 +176,17 @@ async def test_group_base_budget_accepted(db, group):
 
 async def test_both_owner_and_group_rejected(db, user, group):
     """BaseBudget with both owner_id and group_id should be rejected."""
-    db.add(BaseBudget(owner_id=user.id, group_id=group.id, name="Invalid", currency="CAD"))
+    db.add(BaseBudget(
+        owner_id=user.id, group_id=group.id, name="Invalid", currency="CAD",
+        recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1,
+    ))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_neither_owner_nor_group_rejected(db, currency):
     """BaseBudget with neither owner_id nor group_id should be rejected."""
-    db.add(BaseBudget(name="Orphan", currency="CAD"))
+    db.add(BaseBudget(name="Orphan", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1))
     with pytest.raises(IntegrityError):
         await db.flush()
 
@@ -177,40 +196,40 @@ async def test_neither_owner_nor_group_rejected(db, currency):
 
 async def test_null_name_rejected(db, user):
     """Name is NOT NULL."""
-    db.add(BaseBudget(owner_id=user.id, name=None, currency="CAD"))
+    db.add(BaseBudget(owner_id=user.id, name=None, currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_null_currency_rejected(db, user):
     """Currency is NOT NULL."""
-    db.add(BaseBudget(owner_id=user.id, name="Bad", currency=None))
+    db.add(BaseBudget(owner_id=user.id, name="Bad", currency=None, recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_invalid_currency_rejected(db, user):
     """Currency must reference a valid currency."""
-    db.add(BaseBudget(owner_id=user.id, name="Bad", currency="ZZZ"))
+    db.add(BaseBudget(owner_id=user.id, name="Bad", currency="ZZZ", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
-async def test_recurrence_interval_zero_rejected(db, user):
-    """recurrence_interval must be > 0 when set (zero boundary)."""
+async def test_instance_length_zero_rejected(db, user):
+    """instance_length must be > 0 (zero boundary)."""
     db.add(BaseBudget(
         owner_id=user.id, name="Bad", currency="CAD",
-        recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_interval=0,
+        recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=0, recurrence_dom=1,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
-async def test_recurrence_interval_negative_rejected(db, user):
-    """recurrence_interval must be > 0 when set (rejects negatives)."""
+async def test_instance_length_negative_rejected(db, user):
+    """instance_length must be > 0 (rejects negatives)."""
     db.add(BaseBudget(
         owner_id=user.id, name="Bad", currency="CAD",
-        recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_interval=-3,
+        recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=-3, recurrence_dom=1,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -218,14 +237,14 @@ async def test_recurrence_interval_negative_rejected(db, user):
 
 async def test_invalid_owner_rejected(db, currency):
     """owner_id must reference a valid user."""
-    db.add(BaseBudget(owner_id=NONEXISTENT_ID, name="Bad", currency="CAD"))
+    db.add(BaseBudget(owner_id=NONEXISTENT_ID, name="Bad", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_invalid_group_rejected(db, currency):
     """group_id must reference a valid group."""
-    db.add(BaseBudget(group_id=NONEXISTENT_ID, name="Bad", currency="CAD"))
+    db.add(BaseBudget(group_id=NONEXISTENT_ID, name="Bad", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1))
     with pytest.raises(IntegrityError):
         await db.flush()
 
@@ -235,7 +254,7 @@ async def test_invalid_group_rejected(db, currency):
 
 async def test_base_budget_cascades_on_group_deletion(db, group):
     """Deleting a group cascades to its group-owned base budgets."""
-    b = BaseBudget(group_id=group.id, name="Family Budget", currency="CAD")
+    b = BaseBudget(group_id=group.id, name="Family Budget", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1)
     db.add(b)
     await db.flush()
     bid = b.id
@@ -330,8 +349,8 @@ async def test_duplicate_active_tracked_category_rejected(db, base_budget, categ
 
 async def test_active_tracked_category_scoped_per_base(db, user, category):
     """The partial unique index is per-base: two bases may both track the same category."""
-    base_a = BaseBudget(owner_id=user.id, name="Base A", currency="CAD")
-    base_b = BaseBudget(owner_id=user.id, name="Base B", currency="CAD")
+    base_a = BaseBudget(owner_id=user.id, name="Base A", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1)
+    base_b = BaseBudget(owner_id=user.id, name="Base B", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1)
     db.add(base_a)
     db.add(base_b)
     await db.flush()
@@ -395,7 +414,10 @@ async def group_membership(db, group, member):
 @pytest.fixture
 async def group_base_budget(db, group):
     """Seed a group-owned base budget for permission scoping."""
-    b = BaseBudget(group_id=group.id, owner_id=None, name="Family Budget", currency="CAD")
+    b = BaseBudget(
+        group_id=group.id, owner_id=None, name="Family Budget", currency="CAD",
+        recurrence_freq=RecurrenceFreq.MONTHLY, recurrence_dom=1,
+    )
     db.add(b)
     await db.flush()
     return b
