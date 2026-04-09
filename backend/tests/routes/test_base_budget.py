@@ -44,6 +44,8 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
     payload = {
         "name": "March Budget",
         "currency": "CAD",
+        "recurrence_freq": "monthly",
+        "recurrence_dom": 1,
         "category_ids": category_ids,
         **overrides,
     }
@@ -68,8 +70,12 @@ async def test_create_base_budget_returns_201(client):
     assert data["owner_id"] == user_id
     assert data["group_id"] is None
     assert data["currency"] == "CAD"
-    assert data["recurrence_freq"] is None
-    assert data["recurrence_interval"] is None
+    assert data["recurrence_freq"] == "monthly"
+    assert data["instance_length"] == 1
+    assert data["recurrence_dom"] == 1
+    assert data["recurrence_weekday"] is None
+    assert data["recurrence_month"] is None
+    assert data["recurs"] is False
     assert data["category_ids"] == [cat_id]
     assert data["id"] is not None
     assert data["created_at"] is not None
@@ -103,21 +109,28 @@ async def test_create_base_budget_dedupes_category_ids(client):
     assert resp.json()["category_ids"] == [cat_id]
 
 
-async def test_create_base_budget_with_recurrence(client):
-    """Base budget with recurrence fields stores them correctly."""
+async def test_create_base_budget_weekly_with_recurrence(client):
+    """Weekly base budget with weekday anchor stores cadence fields correctly."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_base_budget(
         client, headers,
-        recurrence_freq="monthly",
-        recurrence_interval=1,
+        recurrence_freq="weekly",
+        recurrence_weekday=0,
+        recurrence_dom=None,
+        instance_length=2,
+        recurs=True,
     )
 
     assert resp.status_code == 201
     data = resp.json()
-    assert data["recurrence_freq"] == "monthly"
-    assert data["recurrence_interval"] == 1
+    assert data["recurrence_freq"] == "weekly"
+    assert data["instance_length"] == 2
+    assert data["recurrence_weekday"] == 0
+    assert data["recurrence_dom"] is None
+    assert data["recurrence_month"] is None
+    assert data["recurs"] is True
 
 
 async def test_create_base_budget_non_base_currency_returns_201(client):
@@ -246,14 +259,12 @@ async def test_create_base_budget_invalid_currency_returns_422(client):
     assert resp.status_code == 422
 
 
-async def test_create_base_budget_recurrence_interval_zero_returns_422(client):
-    """recurrence_interval must be >= 1 (Pydantic boundary)."""
+async def test_create_base_budget_instance_length_zero_returns_422(client):
+    """instance_length must be >= 1 (Pydantic boundary)."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_base_budget(
-        client, headers, recurrence_freq="monthly", recurrence_interval=0,
-    )
+    resp = await _create_base_budget(client, headers, instance_length=0)
 
     assert resp.status_code == 422
 
@@ -612,8 +623,10 @@ async def test_get_base_budget_returns_200(client):
     assert data["owner_id"] == user_id
     assert data["group_id"] is None
     assert data["currency"] == "CAD"
-    assert data["recurrence_freq"] is None
-    assert data["recurrence_interval"] is None
+    assert data["recurrence_freq"] == "monthly"
+    assert data["instance_length"] == 1
+    assert data["recurrence_dom"] == 1
+    assert data["recurs"] is False
     assert data["created_at"] is not None
     assert data["category_ids"] == [cat_id]
 
@@ -804,26 +817,22 @@ async def test_update_base_budget_name_returns_200(client):
     assert data["created_at"] == original_created_at
 
 
-async def test_update_base_budget_recurrence_returns_200(client):
-    """Recurrence fields update in place without disturbing the tracked category set."""
+async def test_update_base_budget_recurs_returns_200(client):
+    """The recurs flag is editable via PATCH."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_id = await _create_category(client, headers)
-    create_resp = await _create_base_budget(client, headers, category_ids=[cat_id])
+    create_resp = await _create_base_budget(client, headers)
     base_budget_id = create_resp.json()["id"]
 
     resp = await client.patch(
         f"/base-budgets/{base_budget_id}",
-        json={"recurrence_freq": "monthly", "recurrence_interval": 2},
+        json={"recurs": True},
         headers=headers,
     )
 
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["recurrence_freq"] == "monthly"
-    assert data["recurrence_interval"] == 2
-    assert data["category_ids"] == [cat_id]
+    assert resp.json()["recurs"] is True
 
 
 async def test_update_base_budget_add_categories(client):
@@ -1053,21 +1062,26 @@ async def test_update_base_budget_name_too_long_returns_422(client):
     assert resp.status_code == 422
 
 
-async def test_update_base_budget_recurrence_interval_zero_returns_422(client):
-    """PATCH with recurrence_interval=0 is rejected — the field stays >= 1."""
+async def test_update_base_budget_ignores_immutable_cadence_fields(client):
+    """PATCH with cadence fields silently ignores them — they are not in the update schema."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     create_resp = await _create_base_budget(client, headers)
     base_budget_id = create_resp.json()["id"]
 
+    # Send cadence fields alongside name — name updates, cadence stays unchanged
     resp = await client.patch(
         f"/base-budgets/{base_budget_id}",
-        json={"recurrence_interval": 0},
+        json={"name": "Renamed", "recurrence_freq": "weekly", "instance_length": 5},
         headers=headers,
     )
 
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Renamed"
+    assert data["recurrence_freq"] == "monthly"
+    assert data["instance_length"] == 1
 
 
 async def test_update_base_budget_empty_body_returns_200(client):
@@ -1079,7 +1093,6 @@ async def test_update_base_budget_empty_body_returns_200(client):
     create_resp = await _create_base_budget(
         client, headers,
         category_ids=[cat_id],
-        recurrence_freq="monthly", recurrence_interval=1,
     )
     original = create_resp.json()
 
