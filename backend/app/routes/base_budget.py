@@ -11,6 +11,7 @@ from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_base_budget_access
@@ -200,6 +201,11 @@ async def create_base_budget(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Create a new base budget with optional tracked categories."""
+    # Validate currency exists
+    currency_result = await db.execute(select(Currency).where(Currency.id == data.currency))
+    if not currency_result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
+
     # Determine ownership
     owner_id = user.id
     group_id = data.group_id
