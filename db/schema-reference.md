@@ -109,19 +109,19 @@ Per-account access control for group members. Admins have implicit full access a
 
 ### `budget_permissions`
 
-Per-budget access control for group members. Same structure as account_permissions. Budget permissions are independent of account permissions — a user with budget READ can see aggregated spending per category without needing account access. This enables privacy-respecting monitoring (e.g., parents see "Food: $150 / $300" without seeing individual transactions).
+Per-base-budget access control for group members. Same structure as account_permissions. Permissions live on the long-lived `base_budget` and apply to all child instances under it. Budget permissions are independent of account permissions — a user with READ can see aggregated spending per category without needing account access. This enables privacy-respecting monitoring (e.g., parents see "Food: $150 / $300" without seeing individual transactions).
 
 
-| Column         | Type             | Constraints                                                          | Description                              |
-| -------------- | ---------------- | -------------------------------------------------------------------- | ---------------------------------------- |
-| `id`           | uuid             | PK                                                                   |                                          |
-| `group_id`     | uuid             | NOT NULL, FK → `groups.id` ON DELETE CASCADE                         |                                          |
-| `user_id`      | uuid             | NOT NULL, FK → `users.id`                                           |                                          |
-| `budget_id`    | uuid             | NOT NULL, FK → `budgets.id` ON DELETE CASCADE                        |                                          |
-| `level`        | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view budget config + aggregated utilization; `write` = also edit budget details; `admin` = also delete budget |
-| `created_at`   | timestamptz      | NOT NULL                                                             |                                          |
+| Column            | Type             | Constraints                                                          | Description                              |
+| ----------------- | ---------------- | -------------------------------------------------------------------- | ---------------------------------------- |
+| `id`              | uuid             | PK                                                                   |                                          |
+| `group_id`        | uuid             | NOT NULL, FK → `groups.id` ON DELETE CASCADE                         |                                          |
+| `user_id`         | uuid             | NOT NULL, FK → `users.id`                                           |                                          |
+| `base_budget_id`  | uuid             | NOT NULL, FK → `base_budgets.id` ON DELETE CASCADE                   |                                          |
+| `level`           | enum (`read`, `write`, `admin`) | NOT NULL                                              | `read` = view base + aggregated utilization; `write` = also edit base details; `admin` = also delete base + manage instances |
+| `created_at`      | timestamptz      | NOT NULL                                                             |                                          |
 
-**Unique constraint:** `(group_id, user_id, budget_id)` — one permission level per member per budget.
+**Unique constraint:** `(group_id, user_id, base_budget_id)` — one permission level per member per base budget.
 
 **Composite FK:** `(group_id, user_id)` → `group_members(group_id, user_id) ON DELETE CASCADE`.
 
@@ -307,47 +307,105 @@ Junction table linking transactions to tags. Uses a dedicated table instead of a
 
 ## Budgets
 
-### `budgets`
+Budgets are split into two tables: a long-lived **`base_budget`** that holds the mutable "what" (name, currency, recurrence rule, tracked categories, permissions) and per-period **`budget`** instances that hold the frozen "what for this period" (period dates, overall limit). This split keeps historical utilization accurate when limits or category sets change — past instances stay pinned because the utilization query reconstructs the tracked-category set as of each instance's `period_end`.
 
-Spending plan for a time period. Can be one-off or recurring. Recurring budgets use lazy recurrence: the frontend computes which period the user is currently in by adding `recurrence_interval` × `recurrence_freq` to `period_start` and `period_end`. No instance rows are generated — each budget row is self-contained. `base_budget_id` is reserved for future use when users want to override limits for a specific period (the override row would point back to the original).
+A one-off (non-recurring) budget is a `base_budget` with `recurrence_freq = NULL` plus a single child `budget` instance. There are no standalone instances — every `budget` row has a parent `base_budget`.
 
-**Recurrence:** the frontend computes subsequent periods by adding `recurrence_interval` × `recurrence_freq` to both `period_start` and `period_end`. Recurring budgets must use calendar-aligned dates to avoid drift: weekly = any 7-day span (user picks start day), monthly = 1st to last day of month, yearly = Jan 1 to Dec 31. Custom date ranges are only allowed for one-off budgets. This alignment is enforced by the frontend.
+### `base_budgets`
+
+The long-lived spending plan. Holds name, currency, recurrence, tracked categories, and permissions. Per-period caps and date ranges live on child `budget` instances.
 
 
-| Column                | Type                                          | Constraints                    | Description                                                                         |
-| --------------------- | --------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
-| `id`                  | uuid                                          | PK                             |                                                                                     |
-| `owner_id`            | uuid                                          | FK → `users.id`                | Set for personal budgets                                                            |
-| `group_id`            | uuid                                          | FK → `groups.id` ON DELETE CASCADE | Set for group budgets                                                               |
-| `base_budget_id`    | uuid                                          | FK → `budgets.id`              | Reserved for per-period overrides; null for most budgets                             |
-| `name`                | varchar(256)                                  | NOT NULL                       | e.g., "March 2026 Budget"                                                           |
-| `period_start`        | date                                          | NOT NULL                       |                                                                                     |
-| `period_end`          | date                                          | NOT NULL                       |                                                                                     |
-| `recurrence_freq`     | enum (`weekly`, `monthly`, `yearly`)          |                                | Null = one-off; set when the budget recurs                                          |
-| `recurrence_interval` | smallint                                      |                                | e.g., 1 = every period, 2 = every other; null when `recurrence_freq` is null        |
-| `overall_limit`       | bigint                                        | NOT NULL, CHECK > 0            | Spending cap across all categories, in the budget's currency units                  |
-| `currency`            | char(3)                                       | NOT NULL, FK → `currencies.id` |                                                                                     |
-| `created_at`          | timestamptz                                   | NOT NULL                       |                                                                                     |
+| Column                | Type                                          | Constraints                        | Description                                                                  |
+| --------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
+| `id`                  | uuid                                          | PK                                 |                                                                              |
+| `owner_id`            | uuid                                          | FK → `users.id`                    | Set for personal base budgets                                                |
+| `group_id`            | uuid                                          | FK → `groups.id` ON DELETE CASCADE | Set for group base budgets                                                   |
+| `name`                | varchar(256)                                  | NOT NULL                           | e.g., "Monthly Household"                                                    |
+| `currency`            | char(3)                                       | NOT NULL, FK → `currencies.id`     | All child instances and utilization totals are expressed in this currency    |
+| `recurrence_freq`     | enum (`weekly`, `monthly`, `yearly`)          |                                    | Null = one-off; set when the base recurs                                     |
+| `recurrence_interval` | smallint                                      |                                    | e.g., 1 = every period, 2 = every other; null when `recurrence_freq` is null |
+| `created_at`          | timestamptz                                   | NOT NULL                           |                                                                              |
 
 
 **Check constraints:**
 - Exactly one of `owner_id` or `group_id` must be non-null.
-- `overall_limit > 0`.
+- `recurrence_interval > 0` when set.
+
+
+### `budgets`
+
+Per-period instance of a `base_budget`. Frozen after creation — editing fields on a past instance does not retroactively affect historical utilization because the utilization query reads the parent base's category set as of this instance's `period_end`.
+
+
+| Column            | Type        | Constraints                                 | Description                                                                      |
+| ----------------- | ----------- | ------------------------------------------- | -------------------------------------------------------------------------------- |
+| `id`              | uuid        | PK                                          |                                                                                  |
+| `base_budget_id`  | uuid        | NOT NULL, FK → `base_budgets.id` ON DELETE CASCADE | Parent base; owner/group scope is derived by joining through this FK      |
+| `period_start`    | date        | NOT NULL                                    |                                                                                  |
+| `period_end`      | date        | NOT NULL, CHECK `period_end >= period_start`|                                                                                  |
+| `overall_limit`   | bigint      | NOT NULL, CHECK > 0                         | Spending cap across all categories, in the parent base's currency minor units    |
+| `created_at`      | timestamptz | NOT NULL                                    |                                                                                  |
+
+
+**Unique constraint:** `(base_budget_id, period_start, period_end)` — blocks duplicate instances for the same period under one base.
+
 
 ### `budget_tracked_categories`
 
-Tracks which categories a budget monitors and when. Enables historical budget utilization by preserving a record of when categories were added and removed. A budget tracking "Eating" across Groceries + Takeout would have two active rows (where `removed_at` is null).
+Tracks which categories a base budget monitors and when. The `added_at` / `removed_at` pair lets the utilization query reconstruct the tracked set as of any instance's `period_end`, so editing the base does not rewrite historical period totals.
 
 
-| Column        | Type        | Constraints                     | Description                                |
-| ------------- | ----------- | ------------------------------- | ------------------------------------------ |
-| `id`          | uuid        | PK                              |                                            |
-| `budget_id`   | uuid        | NOT NULL, FK → `budgets.id` ON DELETE CASCADE |                                            |
-| `category_id` | uuid        | NOT NULL, FK → `categories.id`  |                                            |
-| `added_at`    | timestamptz | NOT NULL                        | When this category started being tracked   |
-| `removed_at`  | timestamptz |                                 | Null = still active; set when unlinked     |
+| Column            | Type        | Constraints                                        | Description                              |
+| ----------------- | ----------- | -------------------------------------------------- | ---------------------------------------- |
+| `id`              | uuid        | PK                                                 |                                          |
+| `base_budget_id`  | uuid        | NOT NULL, FK → `base_budgets.id` ON DELETE CASCADE |                                          |
+| `category_id`     | uuid        | NOT NULL, FK → `categories.id`                     |                                          |
+| `added_at`        | timestamptz | NOT NULL                                           | When this category started being tracked |
+| `removed_at`      | timestamptz |                                                    | Null = still active; set when unlinked   |
 
 
-**Data lifecycle:** Budgets use hard delete. Expired budgets are naturally preserved as historical records (they remain queryable by period), so a delete means the user intentionally wants the budget removed. Cascading delete removes associated `budget_tracked_categories` and `budget_permissions` rows.
+**Partial unique index:** `(base_budget_id, category_id) WHERE removed_at IS NULL` — at most one active row per `(base_budget, category)`. Multiple historical rows are allowed so the re-add-after-remove pattern keeps a clean audit trail without collapsing the history.
+
+
+### Utilization query (the `period_end` cutoff)
+
+The `GET /budgets/{id}/utilization` endpoint reconstructs the tracked-category set as of the instance's `period_end` using this predicate:
+
+```sql
+WITH tracked AS (
+  SELECT DISTINCT category_id
+  FROM budget_tracked_categories btc
+  WHERE btc.base_budget_id = :base_budget_id
+    AND btc.added_at <= :period_end
+    AND (btc.removed_at IS NULL OR btc.removed_at > :period_end)
+)
+SELECT t.category_id, SUM(-t.amount) AS spent
+FROM transactions t
+JOIN accounts a ON t.account_id = a.id
+WHERE t.category_id IN (SELECT category_id FROM tracked)
+  AND t.ts::date BETWEEN :period_start AND :period_end
+  AND a.currency = :base_budget_currency
+  AND (
+    (:group_id IS NULL AND a.owner_id = :owner_id)
+    OR (:group_id IS NOT NULL AND a.group_id = :group_id)
+  )
+GROUP BY t.category_id;
+```
+
+`period_end` is the single reference point for category membership. This handles both past and current periods cleanly:
+
+- **Past period:** `period_end` is fixed, so the tracked set is a snapshot of what was active at the moment the period ended. Editing the base afterwards (adding, removing, or re-adding categories) does not touch historical totals.
+- **Current period:** `period_end` is in the future, so `added_at <= period_end` is trivially true for any already-active row and `removed_at > period_end` reduces to `removed_at IS NULL`. The tracked set is just "currently active".
+- **Mid-period addition (`added_at` inside the period):** counts retroactively for the whole period — the predicate is `added_at <= period_end`, not `added_at <= ts_day`.
+- **Mid-period removal (`removed_at` inside the period):** excludes the category for the whole period, including transactions that predate the removal — the row fails `removed_at > period_end` so no in-period spend counts.
+- **Re-add after remove:** produces two historical rows (one removed, one active). For any given `period_end`, at most one of the two satisfies the predicate, so totals are single-counted.
+
+The `DISTINCT` in the tracked CTE is a defensive guard — under the partial unique index and natural timing, at most one historical row for a given category satisfies the predicate anyway.
+
+The currency and scope filters ensure cross-currency and cross-scope spending never leak into a base's totals (see the account/transaction currency discussion in the Transactions section).
+
+
+**Data lifecycle:** Base budgets use hard delete. Deleting a base cascades to all child `budgets`, `budget_tracked_categories`, and `budget_permissions` rows. Expired base budgets and their instances are naturally preserved as historical records (they remain queryable by period), so a delete means the user intentionally wants the budget removed.
 
 

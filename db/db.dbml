@@ -43,16 +43,16 @@ Table account_permissions [headercolor: #8B5CF6, note: "per-account access for g
   }
 }
 
-Table budget_permissions [headercolor: #F43F5E, note: "per-budget access for group members; admins have implicit full access; independent of account permissions — read grants aggregated utilization without exposing individual transactions"] {
+Table budget_permissions [headercolor: #F43F5E, note: "per-base-budget access for group members; admins have implicit full access; independent of account permissions — read grants aggregated utilization without exposing individual transactions"] {
   id uuid pk
   group_id uuid [not null, ref: > groups.id, note: "ON DELETE CASCADE"]
   user_id uuid [not null, ref: > users.id]
-  budget_id uuid [not null, ref: > budgets.id, note: "ON DELETE CASCADE"]
+  base_budget_id uuid [not null, ref: > base_budgets.id, note: "ON DELETE CASCADE"]
   level permission_level [not null]
   created_at timestamptz [not null]
 
   indexes {
-    (group_id, user_id, budget_id) [unique, name: "uq_budget_perm_member_budget"]
+    (group_id, user_id, base_budget_id) [unique, name: "uq_budget_perm_member_base_budget"]
   }
 }
 
@@ -218,25 +218,34 @@ enum recurrence_freq {
   yearly
 }
 
-Table budgets [headercolor: #F43F5E, note: "check constraint: exactly one of owner_id or group_id must be non-null"] {
+Table base_budgets [headercolor: #F43F5E, note: "long-lived spending plan; holds name, currency, recurrence, tracked categories, and permissions. Per-period caps and date ranges live on child budgets so historical periods stay frozen when the base is edited. A one-off budget is a base_budget with recurrence_freq = null plus a single child budget. CHECK: exactly one of owner_id or group_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
   group_id uuid [ref: > groups.id, delete: cascade]
-  base_budget_id uuid [ref: > budgets.id, note: "reserved for per-period overrides; null for most budgets"]
   name varchar(256) [not null]
-  period_start date [not null]
-  period_end date [not null]
-  recurrence_freq recurrence_freq [note: "null = one-off; set when the budget recurs"]
-  recurrence_interval smallint [note: "e.g., 1 = every period, 2 = every other, 11 = every 11th; null when recurrence_freq is null"]
-  overall_limit bigint [not null, note: "spending cap across all categories, stored in the budget's currency units; CHECK > 0"]
   currency char(3) [not null, ref: > currencies.id]
+  recurrence_freq recurrence_freq [note: "null = one-off; set when the budget recurs"]
+  recurrence_interval smallint [note: "e.g., 1 = every period, 2 = every other, 11 = every 11th; null when recurrence_freq is null; CHECK > 0 when set"]
   created_at timestamptz [not null]
 }
 
-Table budget_tracked_categories [headercolor: #F43F5E, note: "tracks which categories a budget monitors and when; enables historical budget utilization"] {
+Table budgets [headercolor: #F43F5E, note: "per-period instance of a base_budget. Frozen after creation — editing a past instance does not retroactively affect historical utilization because utilization reads the base_budget's category set as of this instance's period_end"] {
   id uuid pk
-  budget_id uuid [not null, ref: > budgets.id, note: "ON DELETE CASCADE"]
+  base_budget_id uuid [not null, ref: > base_budgets.id, note: "ON DELETE CASCADE"]
+  period_start date [not null]
+  period_end date [not null, note: "CHECK period_end >= period_start"]
+  overall_limit bigint [not null, note: "spending cap across all categories, stored in the parent base_budget's currency units; CHECK > 0"]
+  created_at timestamptz [not null]
+
+  indexes {
+    (base_budget_id, period_start, period_end) [unique, name: "uq_budget_base_period"]
+  }
+}
+
+Table budget_tracked_categories [headercolor: #F43F5E, note: "tracks which categories a base_budget monitors and when; the added_at/removed_at pair lets the utilization query reconstruct the tracked set as of any instance's period_end, so editing the base does not rewrite historical period totals"] {
+  id uuid pk
+  base_budget_id uuid [not null, ref: > base_budgets.id, note: "ON DELETE CASCADE"]
   category_id uuid [not null, ref: > categories.id]
   added_at timestamptz [not null, note: "when this category started being tracked"]
-  removed_at timestamptz [note: "null = still active; set when unlinked"]
+  removed_at timestamptz [note: "null = still active; set when unlinked. Partial unique index on (base_budget_id, category_id) WHERE removed_at IS NULL allows multiple historical rows but at most one active row per (base, category) — supports re-add after remove with a clean audit trail"]
 }
