@@ -5,6 +5,7 @@ import { AlertCircle, Check, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
+import Dropdown from '@/components/Dropdown';
 
 const MIN_LOADING_MS = 1500;
 const FADE_OUT_MS = 300;
@@ -453,18 +454,14 @@ const Login = () => {
         {/* Signup-only: currency picker */}
         <AnimatePresence>
           {!isLogin && (
-            <motion.div className="space-y-1.5 overflow-hidden" {...signupFieldAnimation}>
+            <motion.div className="space-y-1.5" {...signupFieldAnimation}>
               <label htmlFor="base_currency" className="app-label block">Base currency</label>
-              <select
+              <Dropdown
                 id="base_currency"
-                className="app-input"
+                options={CURRENCIES.map((c) => ({ value: c.code, label: c.label }))}
                 value={form.base_currency}
-                onChange={(e) => handleChange('base_currency', e.target.value)}
-              >
-                {CURRENCIES.map((c) => (
-                  <option key={c.code} value={c.code}>{c.label}</option>
-                ))}
-              </select>
+                onChange={(v) => handleChange('base_currency', v)}
+              />
             </motion.div>
           )}
         </AnimatePresence>
