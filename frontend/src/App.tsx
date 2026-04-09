@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { AnimatePresence } from 'motion/react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import Navigation from '@/components/Navigation'
 import Dashboard from '@/components/Dashboard'
@@ -42,28 +43,38 @@ function PageTitle({ title }: { title: string }) {
   )
 }
 
+function AnimatedRoutes() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        {/* Public routes — login, signup */}
+        <Route element={<PublicRoute />}>
+          <Route path="/login" element={<Login />} />
+        </Route>
+
+        {/* Protected routes — app shell with sidebar */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/accounts" element={<PageTitle title="Accounts" />} />
+          <Route path="/transactions" element={<PageTitle title="Transactions" />} />
+          <Route path="/budgets" element={<PageTitle title="Budgets" />} />
+          <Route path="/insights" element={<PageTitle title="Insights" />} />
+          <Route path="/settings" element={<PageTitle title="Settings" />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AnimatePresence>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          {/* Public routes — login, signup */}
-          <Route element={<PublicRoute />}>
-            <Route path="/login" element={<Login />} />
-          </Route>
-
-          {/* Protected routes — app shell with sidebar */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/accounts" element={<PageTitle title="Accounts" />} />
-            <Route path="/transactions" element={<PageTitle title="Transactions" />} />
-            <Route path="/budgets" element={<PageTitle title="Budgets" />} />
-            <Route path="/insights" element={<PageTitle title="Insights" />} />
-            <Route path="/settings" element={<PageTitle title="Settings" />} />
-          </Route>
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AnimatedRoutes />
       </AuthProvider>
     </BrowserRouter>
   )
