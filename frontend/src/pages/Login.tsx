@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, animate, AnimatePresence } from 'motion/react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Check, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
@@ -12,6 +12,14 @@ const LOCKOUT_MS = 30 * 60 * 1000 + 30 * 1000; // 30 minutes + 30 seconds
 const LOCKOUT_KEY = 'lumina:auth_lockout';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const PASSWORD_RULES = [
+  { label: '12 characters', test: (p: string) => p.length >= 12 },
+  { label: 'Uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+  { label: 'Lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+  { label: 'Number', test: (p: string) => /\d/.test(p) },
+  { label: 'Special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+];
 
 // Map backend error messages to user-friendly copy
 const ERROR_MESSAGES: Record<string, string> = {
@@ -56,6 +64,8 @@ function validateFields(form: { email: string; password: string; confirm_passwor
 
   if (!form.password) {
     errors.password = 'Password is required';
+  } else if (mode === 'signup' && !PASSWORD_RULES.every((r) => r.test(form.password))) {
+    errors.password = 'Password does not meet requirements';
   }
 
   if (mode === 'signup') {
@@ -100,6 +110,7 @@ const Login = () => {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const isLogin = mode === 'login';
 
@@ -369,8 +380,39 @@ const Login = () => {
             className={`app-input ${touched.password && fieldErrors.password ? 'app-input-error' : ''}`}
             value={form.password}
             onChange={(e) => handleChange('password', e.target.value)}
-            onBlur={() => handleBlur('password')}
+            onFocus={() => setPasswordFocused(true)}
+            onBlur={() => { setPasswordFocused(false); handleBlur('password'); }}
           />
+          <AnimatePresence>
+            {!isLogin && (passwordFocused || form.password.length > 0) && !(touched.password && PASSWORD_RULES.every((r) => r.test(form.password))) && (
+              <motion.ul
+                className="mt-2 space-y-1"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                {PASSWORD_RULES.map((rule) => {
+                  const passed = rule.test(form.password);
+                  return (
+                    <li key={rule.label} className="flex items-center gap-2 text-sm transition-colors duration-200">
+                      {passed ? (
+                        <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
+                      ) : (
+                        <X size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
+                      )}
+                      <span
+                        className={passed ? 'line-through' : ''}
+                        style={{ color: passed ? 'var(--app-text-subtle)' : 'var(--app-text-muted)' }}
+                      >
+                        {rule.label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </motion.ul>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Signup-only: confirm password */}
