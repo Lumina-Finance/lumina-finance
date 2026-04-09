@@ -173,7 +173,14 @@ async def update_merchant(
     for field, value in updates.items():
         setattr(merchant, field, value)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Merchant with this name already exists",
+        ) from e
     await db.refresh(merchant)
     return merchant
 
