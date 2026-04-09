@@ -8,6 +8,7 @@ from app.models.account import Account
 from app.models.base import AccountType, CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
+from app.models.group import Group
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -31,6 +32,15 @@ async def user(db, currency):
     db.add(u)
     await db.flush()
     return u
+
+
+@pytest.fixture
+async def group(db, user):
+    """Seed a group owned by the user."""
+    g = Group(owner_id=user.id, name="Smith Family")
+    db.add(g)
+    await db.flush()
+    return g
 
 
 @pytest.fixture
@@ -141,6 +151,77 @@ async def test_invalid_owner_rejected(db):
     db.add(Tag(owner_id=uuid.uuid4(), name="bad"))
     with pytest.raises(IntegrityError):
         await db.flush()
+
+
+# --- Tag: Group scoping ---
+
+
+async def test_group_id_defaults_to_null(db, tag):
+    """group_id should default to null for personal tags."""
+    assert tag.group_id is None
+
+
+async def test_create_group_tag(db, user, group):
+    """Insert a group-scoped tag and verify fields."""
+    t = Tag(owner_id=user.id, group_id=group.id, name="shared-expense")
+    db.add(t)
+    await db.flush()
+
+    result = await db.get(Tag, t.id)
+    assert result is not None
+    assert result.group_id == group.id
+    assert result.name == "shared-expense"
+
+
+async def test_duplicate_group_tag_name_rejected(db, user, group):
+    """Unique constraint on (group_id, name) should prevent duplicates within a group."""
+    db.add(Tag(owner_id=user.id, group_id=group.id, name="shared"))
+    await db.flush()
+
+    db.add(Tag(owner_id=user.id, group_id=group.id, name="shared"))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_same_name_personal_and_group_accepted(db, user, group):
+    """A user can have a personal tag and a group tag with the same name."""
+    db.add(Tag(owner_id=user.id, name="vacation"))
+    db.add(Tag(owner_id=user.id, group_id=group.id, name="vacation"))
+    await db.flush()  # Should not raise
+
+
+async def test_invalid_group_rejected(db, user):
+    """group_id must reference a valid group."""
+    db.add(Tag(owner_id=user.id, group_id=uuid.uuid4(), name="bad"))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_same_tag_name_across_different_groups_accepted(db, user):
+    """Identical tag names in different groups are allowed."""
+    g1 = Group(owner_id=user.id, name="Group A")
+    g2 = Group(owner_id=user.id, name="Group B")
+    db.add_all([g1, g2])
+    await db.flush()
+
+    db.add(Tag(owner_id=user.id, group_id=g1.id, name="shared"))
+    db.add(Tag(owner_id=user.id, group_id=g2.id, name="shared"))
+    await db.flush()  # Should not raise
+
+
+async def test_group_deletion_cascades_to_group_tags(db, user, group):
+    """Deleting a group cascades to its group-scoped tags."""
+    t = Tag(owner_id=user.id, group_id=group.id, name="shared")
+    db.add(t)
+    await db.flush()
+    tag_id = t.id
+
+    await db.delete(group)
+    await db.flush()
+    db.expire_all()
+
+    result = await db.get(Tag, tag_id)
+    assert result is None
 
 
 # --- TransactionTag: Basic CRUD ---
