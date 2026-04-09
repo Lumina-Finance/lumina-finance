@@ -4,6 +4,7 @@ from datetime import date, datetime
 from sqlalchemy import (
     VARCHAR,
     BigInteger,
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -35,8 +36,20 @@ class BaseBudget(Base):
             name="ck_base_budgets_owner_xor_group",
         ),
         CheckConstraint(
-            "recurrence_interval IS NULL OR recurrence_interval > 0",
-            name="ck_base_budgets_recurrence_interval_positive",
+            "instance_length > 0",
+            name="ck_base_budgets_instance_length_positive",
+        ),
+        CheckConstraint(
+            "recurrence_weekday IS NULL OR (recurrence_weekday >= 0 AND recurrence_weekday <= 6)",
+            name="ck_base_budgets_weekday_range",
+        ),
+        CheckConstraint(
+            "recurrence_dom IS NULL OR (recurrence_dom >= 1 AND recurrence_dom <= 31)",
+            name="ck_base_budgets_dom_range",
+        ),
+        CheckConstraint(
+            "recurrence_month IS NULL OR (recurrence_month >= 1 AND recurrence_month <= 12)",
+            name="ck_base_budgets_month_range",
         ),
     )
 
@@ -45,8 +58,13 @@ class BaseBudget(Base):
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
-    recurrence_freq: Mapped[RecurrenceFreq | None] = mapped_column()  # Null = one-off
-    recurrence_interval: Mapped[int | None] = mapped_column(SmallInteger)  # e.g., 1 = every period, 2 = every other
+    recurrence_freq: Mapped[RecurrenceFreq] = mapped_column(nullable=False)
+    # How many freq-units per instance (1 week, 3 months = quarterly, etc.)
+    instance_length: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+    recurrence_weekday: Mapped[int | None] = mapped_column(SmallInteger)  # 0=Mon..6=Sun, required iff freq=weekly
+    recurrence_dom: Mapped[int | None] = mapped_column(SmallInteger)  # 1..31, required iff freq in (monthly, yearly)
+    recurrence_month: Mapped[int | None] = mapped_column(SmallInteger)  # 1..12, required iff freq=yearly
+    recurs: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)  # True = frontend auto-suggests next instance
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

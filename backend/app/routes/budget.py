@@ -159,46 +159,23 @@ async def update_budget(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a budget instance's period or overall_limit. Requires ADMIN access on the base budget."""
+    """Update a budget instance's overall_limit. Requires ADMIN access on the base budget.
+
+    Period dates are derived from the base's cadence and cannot be edited — if
+    the user wants a different period, they create a new instance.
+    """
     budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
         return await _build_budget_response(db, budget, base_budget)
 
-    # Reject explicit nulls — period_start, period_end, and overall_limit are all
-    # non-nullable on the model, so an explicit null in the body is a client error
-    # (422), not a 500 from the DB constraint or a TypeError on date comparison.
-    _non_nullable = {"period_start", "period_end", "overall_limit"}
-    null_fields = [f for f in _non_nullable if f in changed_fields and changed_fields[f] is None]
-    if null_fields:
+    # Reject explicit null — overall_limit is non-nullable on the model
+    if "overall_limit" in changed_fields and changed_fields["overall_limit"] is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Cannot set to null: {', '.join(sorted(null_fields))}",
+            detail="Cannot set to null: overall_limit",
         )
-
-    # Validate period if either date is being changed
-    if "period_start" in changed_fields or "period_end" in changed_fields:
-        new_start = changed_fields.get("period_start", budget.period_start)
-        new_end = changed_fields.get("period_end", budget.period_end)
-        if new_start > new_end:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Period start must not be after period end")
-
-        # Mirror the POST instance pre-check so a period collision returns 409, not 500.
-        if new_start != budget.period_start or new_end != budget.period_end:
-            existing_result = await db.execute(
-                select(Budget).where(
-                    Budget.base_budget_id == budget.base_budget_id,
-                    Budget.period_start == new_start,
-                    Budget.period_end == new_end,
-                    Budget.id != budget.id,
-                ),
-            )
-            if existing_result.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="A budget instance already exists for this period",
-                )
 
     for field, value in changed_fields.items():
         setattr(budget, field, value)

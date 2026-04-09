@@ -23,6 +23,7 @@ from app.schemas.budget import (
     UpdateBaseBudgetRequest,
 )
 from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
+from app.services.budget_periods import compute_period_end, validate_period_start
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 
@@ -222,7 +223,11 @@ async def create_base_budget(
         name=data.name,
         currency=data.currency,
         recurrence_freq=data.recurrence_freq,
-        recurrence_interval=data.recurrence_interval,
+        instance_length=data.instance_length,
+        recurrence_weekday=data.recurrence_weekday,
+        recurrence_dom=data.recurrence_dom,
+        recurrence_month=data.recurrence_month,
+        recurs=data.recurs,
     )
     db.add(base_budget)
     await db.flush()
@@ -388,19 +393,35 @@ async def create_budget_instance(
     """Create a per-period budget instance under a base budget. Requires ADMIN access on the base."""
     base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
 
-    # Validate period
-    if data.period_start > data.period_end:
+    # Validate period_start alignment against the base's cadence
+    alignment_error = validate_period_start(
+        data.period_start,
+        base_budget.recurrence_freq,
+        weekday=base_budget.recurrence_weekday,
+        dom=base_budget.recurrence_dom,
+        month=base_budget.recurrence_month,
+    )
+    if alignment_error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Period start must not be after period end",
+            detail=alignment_error,
         )
+
+    # Compute period_end from the base's cadence
+    period_end = compute_period_end(
+        data.period_start,
+        base_budget.recurrence_freq,
+        base_budget.instance_length,
+        dom=base_budget.recurrence_dom,
+        month=base_budget.recurrence_month,
+    )
 
     # Block duplicate instances — (base_budget_id, period_start, period_end) is unique
     existing_result = await db.execute(
         select(Budget).where(
             Budget.base_budget_id == base_budget_id,
             Budget.period_start == data.period_start,
-            Budget.period_end == data.period_end,
+            Budget.period_end == period_end,
         ),
     )
     if existing_result.scalar_one_or_none():
@@ -412,7 +433,7 @@ async def create_budget_instance(
     budget = Budget(
         base_budget_id=base_budget_id,
         period_start=data.period_start,
-        period_end=data.period_end,
+        period_end=period_end,
         overall_limit=data.overall_limit,
     )
     db.add(budget)

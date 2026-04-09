@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.base import RecurrenceFreq
 
@@ -12,17 +12,47 @@ class CreateBaseBudgetRequest(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     currency: str = Field(min_length=3, max_length=3)
     group_id: uuid.UUID | None = None
-    recurrence_freq: RecurrenceFreq | None = None
-    recurrence_interval: int | None = Field(None, ge=1)
+    recurrence_freq: RecurrenceFreq
+    instance_length: int = Field(1, ge=1)
+    recurrence_weekday: int | None = Field(None, ge=0, le=6)
+    recurrence_dom: int | None = Field(None, ge=1, le=31)
+    recurrence_month: int | None = Field(None, ge=1, le=12)
+    recurs: bool = False
     category_ids: list[uuid.UUID] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_recurrence_field_pairing(self):
+        """Enforce that exactly the right anchor fields are set for the chosen cadence."""
+        freq = self.recurrence_freq
+        if freq == RecurrenceFreq.WEEKLY:
+            if self.recurrence_weekday is None:
+                msg = "recurrence_weekday is required for weekly budgets"
+                raise ValueError(msg)
+            if self.recurrence_dom is not None or self.recurrence_month is not None:
+                msg = "recurrence_dom and recurrence_month must be null for weekly budgets"
+                raise ValueError(msg)
+        elif freq == RecurrenceFreq.MONTHLY:
+            if self.recurrence_dom is None:
+                msg = "recurrence_dom is required for monthly budgets"
+                raise ValueError(msg)
+            if self.recurrence_weekday is not None or self.recurrence_month is not None:
+                msg = "recurrence_weekday and recurrence_month must be null for monthly budgets"
+                raise ValueError(msg)
+        elif freq == RecurrenceFreq.YEARLY:
+            if self.recurrence_dom is None or self.recurrence_month is None:
+                msg = "recurrence_dom and recurrence_month are required for yearly budgets"
+                raise ValueError(msg)
+            if self.recurrence_weekday is not None:
+                msg = "recurrence_weekday must be null for yearly budgets"
+                raise ValueError(msg)
+        return self
 
 
 class UpdateBaseBudgetRequest(BaseModel):
-    """Partial update for a base budget. Only provided fields are changed."""
+    """Partial update for a base budget. Cadence fields are immutable after creation."""
 
     name: str | None = Field(None, min_length=1, max_length=256)
-    recurrence_freq: RecurrenceFreq | None = None
-    recurrence_interval: int | None = Field(None, ge=1)
+    recurs: bool | None = None
     category_ids: list[uuid.UUID] | None = Field(None, min_length=1)
 
 
@@ -34,8 +64,12 @@ class BaseBudgetResponse(BaseModel):
     group_id: uuid.UUID | None
     name: str
     currency: str
-    recurrence_freq: RecurrenceFreq | None
-    recurrence_interval: int | None
+    recurrence_freq: RecurrenceFreq
+    instance_length: int
+    recurrence_weekday: int | None
+    recurrence_dom: int | None
+    recurrence_month: int | None
+    recurs: bool
     created_at: datetime
     category_ids: list[uuid.UUID] = []  # Currently active tracked categories
 
@@ -43,18 +77,19 @@ class BaseBudgetResponse(BaseModel):
 
 
 class CreateBudgetRequest(BaseModel):
-    """Create a per-period instance under a base budget. base_budget_id comes from the route path."""
+    """Create a per-period instance under a base budget.
+
+    Only period_start and overall_limit are user-provided. period_end is
+    computed from the parent base's cadence settings.
+    """
 
     period_start: date
-    period_end: date
     overall_limit: int = Field(..., gt=0)
 
 
 class UpdateBudgetRequest(BaseModel):
-    """Partial update for a budget instance. Only provided fields are changed."""
+    """Partial update for a budget instance. Only overall_limit is editable."""
 
-    period_start: date | None = None
-    period_end: date | None = None
     overall_limit: int | None = Field(None, gt=0)
 
 
