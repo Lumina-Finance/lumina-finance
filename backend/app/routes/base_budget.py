@@ -394,6 +394,19 @@ async def create_budget_instance(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Period start must not be after period end",
         )
+    # Block duplicate instances — (base_budget_id, period_start, period_end) is unique
+    existing_result = await db.execute(
+        select(Budget).where(
+            Budget.base_budget_id == base_budget_id,
+            Budget.period_start == data.period_start,
+            Budget.period_end == data.period_end,
+        ),
+    )
+    if existing_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A budget instance already exists for this period",
+        )
 
     budget = Budget(
         base_budget_id=base_budget_id,
