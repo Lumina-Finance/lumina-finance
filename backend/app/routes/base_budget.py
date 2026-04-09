@@ -415,15 +415,15 @@ async def create_budget_instance(
         month=base_budget.recurrence_month,
     )
 
-    # Block duplicate instances — (base_budget_id, period_start, period_end) is unique
-    existing_result = await db.execute(
+    # Block overlapping instances — two ranges overlap when each starts before the other ends
+    overlap_result = await db.execute(
         select(Budget).where(
             Budget.base_budget_id == base_budget_id,
-            Budget.period_start == data.period_start,
-            Budget.period_end == period_end,
+            Budget.period_start <= period_end,
+            Budget.period_end >= data.period_start,
         ),
     )
-    if existing_result.scalar_one_or_none():
+    if overlap_result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A budget instance already exists for this period",
