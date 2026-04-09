@@ -415,6 +415,245 @@ async def test_create_budget_instance_cascades_on_base_deletion(client):
     assert get_resp.status_code == 404
 
 
+# --- POST /base-budgets/{base_budget_id}/budgets — cadence variants ---
+
+
+async def test_create_budget_instance_monthly_dom_15_returns_201(client):
+    """Monthly budget anchored on day 15 computes period_end correctly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers, recurrence_dom=15,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-15",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-03-15"
+    assert resp.json()["period_end"] == "2026-04-14"
+
+
+async def test_create_budget_instance_monthly_dom_31_fallback_returns_201(client):
+    """Monthly budget with dom=31 on a 30-day month falls back to the last day."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers, recurrence_dom=31,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    # April has 30 days, so dom=31 falls back to 30
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-04-30",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-04-30"
+    assert resp.json()["period_end"] == "2026-05-30"
+
+
+async def test_create_budget_instance_weekly_returns_201(client):
+    """Weekly budget anchored on Monday computes a 7-day period."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_weekday=0,
+        recurrence_dom=None,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    # 2026-03-02 is a Monday
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-02",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-03-02"
+    assert resp.json()["period_end"] == "2026-03-08"
+
+
+async def test_create_budget_instance_yearly_returns_201(client):
+    """Yearly budget anchored on Jul 1 computes a full fiscal-year period."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=7,
+        recurrence_weekday=None,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-07-01",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-07-01"
+    assert resp.json()["period_end"] == "2027-06-30"
+
+
+async def test_create_budget_instance_quarterly_returns_201(client):
+    """Quarterly budget (monthly with instance_length=3) spans three months."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers, instance_length=3,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-01-01",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-01-01"
+    assert resp.json()["period_end"] == "2026-03-31"
+
+
+async def test_create_budget_instance_biweekly_returns_201(client):
+    """Biweekly budget (weekly with instance_length=2) spans 14 days."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_weekday=0,
+        recurrence_dom=None,
+        instance_length=2,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    # 2026-03-02 is a Monday
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-02",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-03-02"
+    assert resp.json()["period_end"] == "2026-03-15"
+
+
+async def test_create_budget_instance_weekly_misaligned_returns_422(client):
+    """Weekly budget rejects a period_start on the wrong weekday."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="weekly",
+        recurrence_weekday=0,
+        recurrence_dom=None,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    # 2026-03-03 is a Tuesday — misaligned for a Monday-anchored budget
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-03",
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_budget_instance_yearly_misaligned_returns_422(client):
+    """Yearly budget rejects a period_start in the wrong month."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(
+        client, headers,
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=7,
+        recurrence_weekday=None,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    # March instead of July — misaligned
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-01",
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_group_budget_instance_weekly_returns_201(client):
+    """Group base budget with weekly cadence creates instances correctly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, headers)
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
+        recurrence_freq="weekly",
+        recurrence_weekday=0,
+        recurrence_dom=None,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-02",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-03-02"
+    assert resp.json()["period_end"] == "2026-03-08"
+    assert resp.json()["base_budget"]["group_id"] == group_id
+
+
+async def test_create_group_budget_instance_yearly_returns_201(client):
+    """Group base budget with yearly cadence creates instances correctly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, headers)
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=7,
+        recurrence_weekday=None,
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-07-01",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["period_start"] == "2026-07-01"
+    assert resp.json()["period_end"] == "2027-06-30"
+    assert resp.json()["base_budget"]["group_id"] == group_id
+
+
 # --- GET /budgets ---
 
 
