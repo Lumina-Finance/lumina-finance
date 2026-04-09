@@ -664,6 +664,29 @@ async def test_get_group_merchant_non_member_returns_404(client):
     assert resp.status_code == 404
 
 
+async def test_list_merchants_with_group_filter_excludes_other_groups(client):
+    """Merchant created in Group A must not appear when listing with Group B's filter."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_a = await _create_group(client, headers)
+    group_b = await _create_group(client, headers)
+
+    await _create_merchant(client, headers, name="Personal Store")
+    await _create_merchant(client, headers, name="Group A Store", group_id=group_a)
+    await _create_merchant(client, headers, name="Group B Store", group_id=group_b)
+
+    resp = await client.get(f"/merchants?group_id={group_b}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    names = {m["name"] for m in data}
+    assert len(data) == 2
+    assert "Personal Store" in names
+    assert "Group B Store" in names
+    assert "Group A Store" not in names
+
+
 # --- Group merchants: PATCH /merchants ---
 
 
