@@ -18,15 +18,21 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const SESSION_KEY = 'lumina:has_session';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const hasSession = localStorage.getItem(SESSION_KEY) === '1';
+
   const [state, setState] = useState<AuthState>({
     user: null,
     accessToken: null,
-    loading: true,
+    loading: hasSession,
   });
 
-  // Attempt silent refresh on mount to restore session from httpOnly cookie
+  // Only attempt refresh if a prior login set the session flag
   useEffect(() => {
+    if (!hasSession) return;
+
     let cancelled = false;
 
     authApi.refresh()
@@ -36,21 +42,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
+        localStorage.removeItem(SESSION_KEY);
         if (!cancelled) {
           setState({ user: null, accessToken: null, loading: false });
         }
       });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [hasSession]);
 
   const login = useCallback(async (payload: LoginPayload) => {
     const res = await authApi.login(payload);
+    localStorage.setItem(SESSION_KEY, '1');
     setState({ user: res.user, accessToken: res.access_token, loading: false });
   }, []);
 
   const signup = useCallback(async (payload: SignupPayload) => {
     const res = await authApi.signup(payload);
+    localStorage.setItem(SESSION_KEY, '1');
     setState({ user: res.user, accessToken: res.access_token, loading: false });
   }, []);
 
@@ -58,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (state.accessToken) {
       await authApi.logout(state.accessToken).catch(() => {});
     }
+    localStorage.removeItem(SESSION_KEY);
     setState({ user: null, accessToken: null, loading: false });
   }, [state.accessToken]);
 
