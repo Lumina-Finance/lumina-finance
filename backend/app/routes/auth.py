@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.config import (
+    APP_ENV,
     JWT_ACCESS_KID,
     JWT_ACCESS_PRIVATE_KEY,
     JWT_ALGORITHM,
@@ -46,7 +47,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         key=_COOKIE_KEY,
         value=token,
         httponly=True,
-        secure=True,
+        secure=APP_ENV != "development",
         samesite="lax",
         max_age=_COOKIE_MAX_AGE,
         path="/auth",  # Only sent to auth endpoints
