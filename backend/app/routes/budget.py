@@ -166,6 +166,17 @@ async def update_budget(
     if not changed_fields:
         return await _build_budget_response(db, budget, base_budget)
 
+    # Reject explicit nulls — period_start, period_end, and overall_limit are all
+    # non-nullable on the model, so an explicit null in the body is a client error
+    # (422), not a 500 from the DB constraint or a TypeError on date comparison.
+    _non_nullable = {"period_start", "period_end", "overall_limit"}
+    null_fields = [f for f in _non_nullable if f in changed_fields and changed_fields[f] is None]
+    if null_fields:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Cannot set to null: {', '.join(sorted(null_fields))}",
+        )
+
     # Validate period if either date is being changed
     if "period_start" in changed_fields or "period_end" in changed_fields:
         new_start = changed_fields.get("period_start", budget.period_start)
