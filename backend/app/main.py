@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
 
-from app.config import ALLOWED_ORIGINS, APP_ENV
+from app.config import ALLOWED_ORIGINS, APP_ENV, RUNTIME
 from app.routes.account import router as account_router
 from app.routes.auth import router as auth_router
 from app.routes.base_budget import router as base_budget_router
@@ -51,5 +50,8 @@ async def health():
     return {"status": "ok"}
 
 
-# Lambda handler
-handler = Mangum(app)
+# Lambda handler — only created when running on Lambda
+if RUNTIME == "lambda":
+    from mangum import Mangum
+
+    handler = Mangum(app)
