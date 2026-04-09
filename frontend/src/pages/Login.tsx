@@ -8,13 +8,16 @@ import type { AuthResponse } from '@/api/auth';
 
 const MIN_LOADING_MS = 1500;
 const FADE_OUT_MS = 300;
+const LOCKOUT_MS = 30 * 60 * 1000 + 30 * 1000; // 30 minutes + 30 seconds
+const LOCKOUT_KEY = 'lumina:auth_lockout';
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Map backend error messages to user-friendly copy
 const ERROR_MESSAGES: Record<string, string> = {
   'Invalid credentials': 'Incorrect email or password. Please try again.',
   'Email already registered': 'An account with this email already exists.',
-  'Account temporarily locked': 'Too many failed attempts. Please try again later.',
+  'Account temporarily locked': 'Too many failed attempts.',
   'Invalid currency code': 'The selected currency is not supported.',
 };
 
@@ -91,6 +94,20 @@ const Login = () => {
 
   const isLogin = mode === 'login';
 
+  /** Check if locked out, and return remaining time as a readable string if so. */
+  const getLockedRemaining = (): string | null => {
+    const stored = localStorage.getItem(LOCKOUT_KEY);
+    if (!stored) return null;
+    const diff = Number(stored) - Date.now();
+    if (diff <= 0) {
+      localStorage.removeItem(LOCKOUT_KEY);
+      return null;
+    }
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
+
   const switchMode = () => {
     const next = isLogin ? 'signup' : 'login';
     setDirection(next === 'signup' ? 1 : -1);
@@ -123,6 +140,13 @@ const Login = () => {
     setTouched(touchAll);
     if (Object.keys(errors).length > 0) return;
 
+    // Check frontend lockout before hitting the backend
+    const remaining = getLockedRemaining();
+    if (remaining) {
+      setError(`Too many failed attempts. Try again in ${remaining}.`);
+      return;
+    }
+
     setError('');
     setSubmitting(true);
 
@@ -145,6 +169,10 @@ const Login = () => {
     } catch (err) {
       setSubmitting(false);
       const msg = err instanceof ApiError ? err.message : '';
+      if (err instanceof ApiError && err.status === 423) {
+        const until = Date.now() + LOCKOUT_MS;
+        localStorage.setItem(LOCKOUT_KEY, String(until));
+      }
       setError(ERROR_MESSAGES[msg] ?? 'Something went wrong. Please try again.');
       return;
     }
