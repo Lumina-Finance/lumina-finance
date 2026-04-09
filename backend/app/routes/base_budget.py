@@ -394,6 +394,7 @@ async def create_budget_instance(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Period start must not be after period end",
         )
+
     # Block duplicate instances — (base_budget_id, period_start, period_end) is unique
     existing_result = await db.execute(
         select(Budget).where(
