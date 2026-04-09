@@ -41,10 +41,11 @@ type Mode = 'login' | 'signup';
 interface FieldErrors {
   email?: string;
   password?: string;
+  confirm_password?: string;
   first_name?: string;
 }
 
-function validateFields(form: { email: string; password: string; first_name: string }, mode: Mode): FieldErrors {
+function validateFields(form: { email: string; password: string; confirm_password: string; first_name: string }, mode: Mode): FieldErrors {
   const errors: FieldErrors = {};
 
   if (!form.email) {
@@ -57,8 +58,15 @@ function validateFields(form: { email: string; password: string; first_name: str
     errors.password = 'Password is required';
   }
 
-  if (mode === 'signup' && !form.first_name.trim()) {
-    errors.first_name = 'First name is required';
+  if (mode === 'signup') {
+    if (!form.first_name.trim()) {
+      errors.first_name = 'First name is required';
+    }
+    if (!form.confirm_password) {
+      errors.confirm_password = 'Please confirm your password';
+    } else if (form.confirm_password !== form.password) {
+      errors.confirm_password = 'Passwords do not match';
+    }
   }
 
   return errors;
@@ -83,6 +91,7 @@ const Login = () => {
   const [form, setForm] = useState({
     email: '',
     password: '',
+    confirm_password: '',
     first_name: '',
     last_name: '',
     base_currency: 'CAD',
@@ -136,7 +145,10 @@ const Login = () => {
     const errors = validateFields(form, mode);
     setFieldErrors(errors);
     const touchAll: Record<string, boolean> = { email: true, password: true };
-    if (!isLogin) touchAll.first_name = true;
+    if (!isLogin) {
+      touchAll.first_name = true;
+      touchAll.confirm_password = true;
+    }
     setTouched(touchAll);
     if (Object.keys(errors).length > 0) return;
 
@@ -360,6 +372,41 @@ const Login = () => {
             onBlur={() => handleBlur('password')}
           />
         </div>
+
+        {/* Signup-only: confirm password */}
+        <AnimatePresence>
+          {!isLogin && (
+            <motion.div className="space-y-1.5 overflow-hidden" {...signupFieldAnimation}>
+              <div className="flex items-baseline justify-between">
+                <label htmlFor="confirm_password" className="app-label">Confirm password</label>
+                <AnimatePresence>
+                  {touched.confirm_password && fieldErrors.confirm_password && (
+                    <motion.p
+                      key="confirm_password-error"
+                      className="text-xs"
+                      style={{ color: 'var(--app-negative)' }}
+                      initial={{ opacity: 0, x: 4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 4 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {fieldErrors.confirm_password}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+              <input
+                id="confirm_password"
+                type="password"
+                autoComplete="new-password"
+                className={`app-input ${touched.confirm_password && fieldErrors.confirm_password ? 'app-input-error' : ''}`}
+                value={form.confirm_password}
+                onChange={(e) => handleChange('confirm_password', e.target.value)}
+                onBlur={() => handleBlur('confirm_password')}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Signup-only: currency picker */}
         <AnimatePresence>
