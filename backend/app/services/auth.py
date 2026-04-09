@@ -20,6 +20,7 @@ from app.config import (
 )
 from app.models.auth import AuthIdentity, PasswordCredential
 from app.models.base import AuthProvider
+from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
 
@@ -124,6 +125,11 @@ async def signup(db: AsyncSession, data: SignupRequest) -> User:
     result = await db.execute(select(User).where(User.email == data.email))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    # Validate base currency exists
+    currency_result = await db.execute(select(Currency).where(Currency.id == data.base_currency))
+    if not currency_result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
 
     user = User(
         email=data.email,
