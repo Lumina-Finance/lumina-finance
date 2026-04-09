@@ -1,5 +1,3 @@
-from app.models.currency import Currency
-from tests.conftest import TestSession
 from tests.routes.conftest import _create_user, _get_auth_header
 
 # --- Helpers ---
@@ -8,14 +6,7 @@ NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _create_second_user(client):
-    """Sign up a second user and return (headers, user_id).
-
-    Args:
-        client: The async test client.
-
-    Returns:
-        Tuple of (auth_headers, user_id).
-    """
+    """Sign up a second user and return (headers, user_id)."""
     resp = await client.post("/auth/signup", json={
         "email": "other@example.com",
         "password": "securepassword123",
@@ -27,952 +18,301 @@ async def _create_second_user(client):
 
 
 async def _create_category(client, headers, **overrides):
-    """Create a category via POST /categories.
-
-    Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
-
-    Returns:
-        The created category's ID.
-    """
+    """Create a category via POST /categories."""
     payload = {"name": "Groceries", "kind": "expense", **overrides}
     resp = await client.post("/categories", json=payload, headers=headers)
     return resp.json()["id"]
 
 
 async def _create_group(client, headers, **overrides):
-    """Create a group via POST /groups.
-
-    Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
-
-    Returns:
-        The created group's ID.
-    """
+    """Create a group via POST /groups."""
     payload = {"name": "Smith Family", **overrides}
     resp = await client.post("/groups", json=payload, headers=headers)
     return resp.json()["id"]
 
 
-async def _create_budget(client, headers, **overrides):
-    """Create a budget via POST /budgets.
+async def _create_base_budget(client, headers, *, category_ids=None, **overrides):
+    """Create a base budget via POST /base-budgets.
 
-    Defaults: name="March Budget", period 2026-03-01 to 2026-03-31, currency CAD,
-    overall_limit=100000 (1000 CAD).
-
-    Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
-
-    Returns:
-        The HTTP response from the API.
+    Defaults: name="March Budget", currency="CAD", one freshly-created tracked category.
+    Pass category_ids explicitly to override.
     """
+    if category_ids is None:
+        category_ids = [await _create_category(client, headers, name="Default Cat")]
     payload = {
         "name": "March Budget",
+        "currency": "CAD",
+        "category_ids": category_ids,
+        **overrides,
+    }
+    return await client.post("/base-budgets", json=payload, headers=headers)
+
+
+async def _create_budget_instance(client, headers, base_budget_id, **overrides):
+    """Create a budget instance via POST /base-budgets/{id}/budgets.
+
+    Defaults: period 2026-03-01 to 2026-03-31, overall_limit=100000 (1000 CAD in minor units).
+    """
+    payload = {
         "period_start": "2026-03-01",
         "period_end": "2026-03-31",
-        "currency": "CAD",
         "overall_limit": 100000,
         **overrides,
     }
-    return await client.post("/budgets", json=payload, headers=headers)
+    return await client.post(
+        f"/base-budgets/{base_budget_id}/budgets", json=payload, headers=headers,
+    )
 
 
-# --- POST /budgets ---
+# --- POST /base-budgets/{base_budget_id}/budgets ---
 
 
-async def test_create_budget_returns_201(client):
-    """Valid payload creates a personal budget with correct fields."""
+async def test_create_budget_instance_returns_201(client):
+    """Valid payload creates a per-period instance with the parent base embedded."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
 
-    resp = await _create_budget(client, headers)
+    cat_id = await _create_category(client, headers)
+    base_resp = await _create_base_budget(client, headers, category_ids=[cat_id])
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(client, headers, base_budget_id)
 
     assert resp.status_code == 201
     data = resp.json()
-    assert data["name"] == "March Budget"
-    assert data["owner_id"] == user_id
-    assert data["group_id"] is None
+    assert data["id"] is not None
+    assert data["base_budget_id"] == base_budget_id
     assert data["period_start"] == "2026-03-01"
     assert data["period_end"] == "2026-03-31"
-    assert data["currency"] == "CAD"
     assert data["overall_limit"] == 100000
-    assert data["recurrence_freq"] is None
-    assert data["recurrence_interval"] is None
-    assert data["base_budget_id"] is None
-    assert data["category_ids"] == []
-    assert data["id"] is not None
     assert data["created_at"] is not None
+    # Parent base embedded with currently-active categories
+    base = data["base_budget"]
+    assert base["id"] == base_budget_id
+    assert base["name"] == "March Budget"
+    assert base["owner_id"] == user_id
+    assert base["category_ids"] == [cat_id]
 
 
-async def test_create_budget_with_categories(client):
-    """Budget created with tracked categories returns those category IDs."""
+async def test_create_budget_instance_same_day_returns_201(client):
+    """Single-day instance (period_start == period_end) is accepted."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    cat_id_1 = await _create_category(client, headers, name="Groceries")
-    cat_id_2 = await _create_category(client, headers, name="Takeout")
-
-    resp = await _create_budget(client, headers, category_ids=[cat_id_1, cat_id_2])
-
-    assert resp.status_code == 201
-    assert set(resp.json()["category_ids"]) == {cat_id_1, cat_id_2}
-
-
-async def test_create_budget_with_recurrence(client):
-    """Budget with recurrence fields stores them correctly."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_budget(
-        client, headers,
-        recurrence_freq="monthly",
-        recurrence_interval=1,
-        overall_limit=50000,
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-15", period_end="2026-03-15",
     )
-
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["recurrence_freq"] == "monthly"
-    assert data["recurrence_interval"] == 1
-    assert data["overall_limit"] == 50000
-
-
-async def test_create_budget_invalid_period_returns_422(client):
-    """Period start >= period end is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_budget(client, headers, period_start="2026-03-31", period_end="2026-03-01")
-
-    assert resp.status_code == 422
-
-
-async def test_create_budget_same_start_end_returns_201(client):
-    """Single-day budgets (period_start == period_end) are allowed."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_budget(client, headers, period_start="2026-03-15", period_end="2026-03-15")
 
     assert resp.status_code == 201
     data = resp.json()
     assert data["period_start"] == "2026-03-15"
     assert data["period_end"] == "2026-03-15"
+    assert data["base_budget"]["id"] == base_budget_id
 
 
-async def test_create_budget_non_base_currency_returns_201(client):
-    """Budgets may be created in any supported currency, not just the user's base.
-
-    The frontend defaults to the user's base currency, but multi-currency users
-    (e.g., a CAD-base user with a USD account) need separate per-currency budgets
-    to track spending against the correct accounts.
-    """
+async def test_create_budget_instance_start_after_end_returns_422(client):
+    """period_start after period_end is rejected."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    async with TestSession() as session:
-        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
-        await session.commit()
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    resp = await _create_budget(client, headers, currency="USD")
-
-    assert resp.status_code == 201
-    assert resp.json()["currency"] == "USD"
-
-
-async def test_create_budget_invalid_category_returns_422(client):
-    """Non-existent category ID is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_budget(client, headers, category_ids=[NONEXISTENT_ID])
+    resp = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-31", period_end="2026-03-01",
+    )
 
     assert resp.status_code == 422
 
 
-async def test_create_budget_other_users_category_returns_422(client):
-    """Category belonging to another user is rejected."""
+async def test_create_budget_instance_missing_period_start_returns_422(client):
+    """period_start is required."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    other_headers, _ = await _create_second_user(client)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    other_cat_id = await _create_category(client, other_headers, name="Other Cat")
-
-    resp = await _create_budget(client, headers, category_ids=[other_cat_id])
-
-    assert resp.status_code == 422
-
-
-async def test_create_budget_invalid_base_budget_returns_422(client):
-    """Non-existent base_budget_id is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_budget(client, headers, base_budget_id=NONEXISTENT_ID)
-
-    assert resp.status_code == 422
-
-
-async def test_create_budget_empty_name_returns_422(client):
-    """Empty name is rejected by schema validation."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_budget(client, headers, name="")
-
-    assert resp.status_code == 422
-
-
-async def test_create_budget_missing_overall_limit_returns_422(client):
-    """overall_limit is required — omitting it is rejected by schema validation."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    # Bypass the helper's default to construct a payload without overall_limit
     resp = await client.post(
-        "/budgets",
-        json={
-            "name": "March Budget",
-            "period_start": "2026-03-01",
-            "period_end": "2026-03-31",
-            "currency": "CAD",
-        },
+        f"/base-budgets/{base_budget_id}/budgets",
+        json={"period_end": "2026-03-31", "overall_limit": 100000},
         headers=headers,
     )
 
     assert resp.status_code == 422
 
 
-async def test_create_budget_zero_overall_limit_returns_422(client):
+async def test_create_budget_instance_missing_period_end_returns_422(client):
+    """period_end is required."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await client.post(
+        f"/base-budgets/{base_budget_id}/budgets",
+        json={"period_start": "2026-03-01", "overall_limit": 100000},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_budget_instance_missing_overall_limit_returns_422(client):
+    """overall_limit is required."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await client.post(
+        f"/base-budgets/{base_budget_id}/budgets",
+        json={"period_start": "2026-03-01", "period_end": "2026-03-31"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_create_budget_instance_zero_overall_limit_returns_422(client):
     """overall_limit must be strictly positive — zero is rejected."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    resp = await _create_budget(client, headers, overall_limit=0)
+    resp = await _create_budget_instance(client, headers, base_budget_id, overall_limit=0)
 
     assert resp.status_code == 422
 
 
-async def test_create_budget_negative_overall_limit_returns_422(client):
+async def test_create_budget_instance_negative_overall_limit_returns_422(client):
     """overall_limit must be strictly positive — negative values are rejected."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    resp = await _create_budget(client, headers, overall_limit=-100)
-
-    assert resp.status_code == 422
-
-
-async def test_create_budget_unauthenticated_returns_401(client):
-    """Creating a budget without auth returns 401."""
-    resp = await client.post("/budgets", json={
-        "name": "Budget",
-        "period_start": "2026-03-01",
-        "period_end": "2026-03-31",
-        "currency": "CAD",
-    })
-
-    assert resp.status_code == 401
-
-
-async def test_create_group_budget_as_admin(client):
-    """Admin can create a budget for a group."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-
-    resp = await _create_budget(client, headers, group_id=group_id)
-
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["group_id"] == group_id
-    assert data["owner_id"] is None
-
-
-async def test_create_group_budget_as_non_admin_returns_403(client):
-    """Non-admin member cannot create a budget for a group."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    group_id = await _create_group(client, headers)
-    await client.post(
-        f"/groups/{group_id}/members",
-        json={"user_id": other_user_id},
-        headers=headers,
-    )
-
-    resp = await _create_budget(client, other_headers, group_id=group_id)
-
-    assert resp.status_code == 403
-
-
-
-async def test_create_group_budget_non_member_returns_404(client):
-    """Non-member of the group cannot create a budget for it."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, _ = await _create_second_user(client)
-
-    group_id = await _create_group(client, headers)
-
-    resp = await _create_budget(client, other_headers, group_id=group_id)
-
-    assert resp.status_code == 404
-
-
-async def test_create_group_budget_with_categories(client):
-    """Admin can create a group budget with group categories."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
-
-    resp = await _create_budget(client, headers, group_id=group_id, category_ids=[cat_id])
-
-    assert resp.status_code == 201
-    assert resp.json()["category_ids"] == [cat_id]
-
-
-async def test_create_group_budget_with_personal_category_returns_422(client):
-    """A group budget cannot track a personal category — scopes must match.
-
-    If a group budget tracked a personal category, only the budget creator could
-    see and post to it; other group members would see a tracked-category UUID
-    they don't own and their own transactions wouldn't reconcile against the
-    group totals.
-    """
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    personal_cat_id = await _create_category(client, headers, name="Groceries")
-
-    resp = await _create_budget(client, headers, group_id=group_id, category_ids=[personal_cat_id])
+    resp = await _create_budget_instance(client, headers, base_budget_id, overall_limit=-100)
 
     assert resp.status_code == 422
 
 
-async def test_create_personal_budget_with_group_category_returns_422(client):
-    """A personal budget cannot track a group category — symmetry of the group rule.
-
-    Even if the user is a member of the group that owns the category, mixing a
-    group category into a personal budget would let them aggregate spend that
-    other group members can also see, blurring the personal/group boundary.
-    """
+async def test_create_budget_instance_duplicate_period_returns_409(client):
+    """A second instance with the same period is rejected; the first stays untouched."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    group_id = await _create_group(client, headers)
-    group_cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
+    first = await _create_budget_instance(client, headers, base_budget_id)
+    assert first.status_code == 201
+    first_id = first.json()["id"]
+    first_limit = first.json()["overall_limit"]
 
-    resp = await _create_budget(client, headers, category_ids=[group_cat_id])
+    second = await _create_budget_instance(client, headers, base_budget_id, overall_limit=50000)
 
-    assert resp.status_code == 422
+    assert second.status_code == 409
+    assert second.json()["detail"] == "A budget instance already exists for this period"
+
+    # The rejected attempt must not have mutated the existing instance
+    get_resp = await client.get(f"/budgets/{first_id}", headers=headers)
+    assert get_resp.status_code == 200
+    assert get_resp.json()["overall_limit"] == first_limit
 
 
-async def test_create_budget_with_valid_base_budget_id(client):
-    """Personal budget with a valid base_budget_id stores it correctly."""
+async def test_create_budget_instance_consecutive_periods_accepted(client):
+    """Two instances with non-overlapping periods under the same base both succeed."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    base_resp = await _create_budget(client, headers, name="Base Budget")
-    base_id = base_resp.json()["id"]
-
-    resp = await _create_budget(
-        client, headers,
-        name="April Budget",
-        period_start="2026-04-01",
-        period_end="2026-04-30",
-        base_budget_id=base_id,
+    march = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-01", period_end="2026-03-31",
     )
+    assert march.status_code == 201
 
-    assert resp.status_code == 201
-    assert resp.json()["base_budget_id"] == base_id
-
-
-async def test_create_group_budget_with_base_budget_id(client):
-    """Group budget can reference another group budget as base."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    base_resp = await _create_budget(client, headers, name="Base Budget", group_id=group_id)
-    base_id = base_resp.json()["id"]
-
-    resp = await _create_budget(
-        client, headers,
-        name="April Budget",
-        period_start="2026-04-01",
-        period_end="2026-04-30",
-        group_id=group_id,
-        base_budget_id=base_id,
+    april = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-04-01", period_end="2026-04-30",
     )
-
-    assert resp.status_code == 201
-    assert resp.json()["base_budget_id"] == base_id
-
-
-# --- GET /budgets/{budget_id} ---
+    assert april.status_code == 201
+    assert april.json()["id"] != march.json()["id"]
 
 
-async def test_get_budget_returns_200(client):
-    """Owner can retrieve their personal budget."""
+async def test_create_budget_instance_same_period_different_base_accepted(client):
+    """The same period under a different base budget is accepted — uniqueness is per base."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     cat_id = await _create_category(client, headers)
-    create_resp = await _create_budget(client, headers, category_ids=[cat_id])
-    budget_id = create_resp.json()["id"]
+    base_a = (await _create_base_budget(
+        client, headers, name="Budget A", category_ids=[cat_id],
+    )).json()["id"]
+    base_b = (await _create_base_budget(
+        client, headers, name="Budget B", category_ids=[cat_id],
+    )).json()["id"]
 
-    resp = await client.get(f"/budgets/{budget_id}", headers=headers)
+    first = await _create_budget_instance(client, headers, base_a)
+    assert first.status_code == 201
 
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["id"] == budget_id
-    assert data["name"] == "March Budget"
-    assert data["category_ids"] == [cat_id]
+    second = await _create_budget_instance(client, headers, base_b)
+    assert second.status_code == 201
 
 
-async def test_get_budget_nonexistent_returns_404(client):
-    """Non-existent budget ID returns 404."""
+async def test_create_budget_instance_nonexistent_base_returns_404(client):
+    """POST with a non-existent base_budget_id returns 404."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.get(f"/budgets/{NONEXISTENT_ID}", headers=headers)
-
-    assert resp.status_code == 404
-
-
-async def test_get_budget_other_users_budget_returns_404(client):
-    """User cannot retrieve another user's personal budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, _ = await _create_second_user(client)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.get(f"/budgets/{budget_id}", headers=other_headers)
-
-    assert resp.status_code == 404
-
-
-async def test_get_group_budget_as_admin(client):
-    """Admin can retrieve a group budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.get(f"/budgets/{budget_id}", headers=headers)
-
-    assert resp.status_code == 200
-    assert resp.json()["id"] == budget_id
-
-
-async def test_get_group_budget_as_non_admin_without_permission_returns_404(client):
-    """Non-admin member without explicit permission cannot retrieve a group budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    group_id = await _create_group(client, headers)
-    await client.post(
-        f"/groups/{group_id}/members",
-        json={"user_id": other_user_id},
-        headers=headers,
-    )
-
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.get(f"/budgets/{budget_id}", headers=other_headers)
+    resp = await _create_budget_instance(client, headers, NONEXISTENT_ID)
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Budget not found"
 
 
-async def test_get_group_budget_with_read_permission(client):
-    """Non-admin member with READ permission can retrieve a group budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    group_id = await _create_group(client, headers)
-    await client.post(
-        f"/groups/{group_id}/members",
-        json={"user_id": other_user_id},
-        headers=headers,
-    )
-
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    # Grant READ permission
-    await client.post(
-        f"/budgets/{budget_id}/permissions",
-        json={"user_id": other_user_id, "level": "read"},
-        headers=headers,
-    )
-
-    resp = await client.get(f"/budgets/{budget_id}", headers=other_headers)
-
-    assert resp.status_code == 200
-    assert resp.json()["id"] == budget_id
-
-
-async def test_get_budget_unauthenticated_returns_401(client):
-    """Getting a budget without auth returns 401."""
-    resp = await client.get(f"/budgets/{NONEXISTENT_ID}")
-
-    assert resp.status_code == 401
-
-
-# --- DELETE /budgets/{budget_id} ---
-
-
-async def test_delete_budget_returns_204(client):
-    """Owner can delete their personal budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.delete(f"/budgets/{budget_id}", headers=headers)
-
-    assert resp.status_code == 204
-
-    get_resp = await client.get(f"/budgets/{budget_id}", headers=headers)
-    assert get_resp.status_code == 404
-
-
-async def test_delete_budget_with_categories_returns_204(client):
-    """Deleting a budget with tracked categories succeeds (DB cascade)."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    cat_id = await _create_category(client, headers)
-    create_resp = await _create_budget(client, headers, category_ids=[cat_id])
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.delete(f"/budgets/{budget_id}", headers=headers)
-
-    assert resp.status_code == 204
-
-    get_resp = await client.get(f"/budgets/{budget_id}", headers=headers)
-    assert get_resp.status_code == 404
-
-
-async def test_delete_budget_nonexistent_returns_404(client):
-    """Non-existent budget ID returns 404."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await client.delete(f"/budgets/{NONEXISTENT_ID}", headers=headers)
-
-    assert resp.status_code == 404
-
-
-async def test_delete_budget_other_users_budget_returns_404(client):
-    """User cannot delete another user's personal budget."""
+async def test_create_budget_instance_other_users_base_returns_404(client):
+    """User cannot create an instance under another user's personal base budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, _ = await _create_second_user(client)
 
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
 
-    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
-
-    assert resp.status_code == 404
-
-
-async def test_delete_group_budget_as_admin(client):
-    """Admin can delete a group budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.delete(f"/budgets/{budget_id}", headers=headers)
-
-    assert resp.status_code == 204
-
-
-async def test_delete_group_budget_as_non_admin_without_permission_returns_404(client):
-    """Non-admin member without permission cannot see or delete a group budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    group_id = await _create_group(client, headers)
-    await client.post(
-        f"/groups/{group_id}/members",
-        json={"user_id": other_user_id},
-        headers=headers,
-    )
-
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
+    resp = await _create_budget_instance(client, other_headers, base_budget_id)
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Budget not found"
 
 
-async def test_delete_group_budget_with_write_permission_returns_403(client):
-    """Non-admin with WRITE permission cannot delete (requires ADMIN)."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    group_id = await _create_group(client, headers)
-    await client.post(
-        f"/groups/{group_id}/members",
-        json={"user_id": other_user_id},
-        headers=headers,
-    )
-
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    # Grant WRITE — still insufficient for delete
-    await client.post(
-        f"/budgets/{budget_id}/permissions",
-        json={"user_id": other_user_id, "level": "write"},
-        headers=headers,
-    )
-
-    resp = await client.delete(f"/budgets/{budget_id}", headers=other_headers)
-
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == "Insufficient permissions"
-
-
-async def test_delete_budget_unauthenticated_returns_401(client):
-    """Deleting a budget without auth returns 401."""
-    resp = await client.delete(f"/budgets/{NONEXISTENT_ID}")
-
-    assert resp.status_code == 401
-
-
-# --- PATCH /budgets/{budget_id} ---
-
-
-async def test_update_budget_name_returns_200(client):
-    """Owner can update budget name."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"name": "April Budget"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["name"] == "April Budget"
-
-
-async def test_update_budget_limit_returns_200(client):
-    """Owner can update budget overall_limit."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers, overall_limit=50000)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"overall_limit": 75000},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["overall_limit"] == 75000
-
-
-async def test_update_budget_period_returns_200(client):
-    """Owner can update budget period dates."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"period_start": "2026-04-01", "period_end": "2026-04-30"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["period_start"] == "2026-04-01"
-    assert resp.json()["period_end"] == "2026-04-30"
-
-
-async def test_update_budget_start_only_returns_200(client):
-    """Updating only period_start is valid if it stays before existing period_end."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"period_start": "2026-03-15"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["period_start"] == "2026-03-15"
-
-
-async def test_update_budget_end_only_returns_200(client):
-    """Updating only period_end is valid if it stays after existing period_start."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"period_end": "2026-04-15"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["period_end"] == "2026-04-15"
-
-
-async def test_update_budget_start_after_end_returns_422(client):
-    """Updating period_start to >= period_end is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"period_start": "2026-04-01"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-
-
-async def test_update_budget_add_categories(client):
-    """Adding tracked categories via PATCH returns updated category_ids."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    cat_id = await _create_category(client, headers)
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"category_ids": [cat_id]},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["category_ids"] == [cat_id]
-
-
-async def test_update_budget_remove_categories(client):
-    """Sending empty category_ids soft-deletes all tracked categories."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    cat_id = await _create_category(client, headers)
-    create_resp = await _create_budget(client, headers, category_ids=[cat_id])
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"category_ids": []},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["category_ids"] == []
-
-
-async def test_update_budget_swap_categories(client):
-    """Replacing one tracked category with another works correctly."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    cat_id_1 = await _create_category(client, headers, name="Groceries")
-    cat_id_2 = await _create_category(client, headers, name="Takeout")
-    create_resp = await _create_budget(client, headers, category_ids=[cat_id_1])
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"category_ids": [cat_id_2]},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["category_ids"] == [cat_id_2]
-
-
-async def test_update_budget_invalid_category_returns_422(client):
-    """Non-existent category ID in PATCH is rejected."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"category_ids": [NONEXISTENT_ID]},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-
-
-async def test_update_group_budget_with_personal_category_returns_422(client):
-    """PATCH cannot smuggle a personal category onto a group budget either.
-
-    The same scope rule that blocks creation must apply to updates — otherwise
-    a malicious or buggy client could create the budget cleanly and then PATCH
-    in a personal category.
-    """
+async def test_create_group_budget_instance_as_admin(client):
+    """Admin can create an instance under a group base budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     group_id = await _create_group(client, headers)
-    group_cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
-    personal_cat_id = await _create_category(client, headers, name="Personal Groceries")
-
-    create_resp = await _create_budget(
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
         client, headers, group_id=group_id, category_ids=[group_cat_id],
     )
-    budget_id = create_resp.json()["id"]
+    base_budget_id = base_resp.json()["id"]
 
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"category_ids": [personal_cat_id]},
-        headers=headers,
-    )
+    resp = await _create_budget_instance(client, headers, base_budget_id)
 
-    assert resp.status_code == 422
-
-
-async def test_update_budget_zero_overall_limit_returns_422(client):
-    """PATCH with overall_limit=0 is rejected — the field stays strictly positive."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"overall_limit": 0},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["base_budget_id"] == base_budget_id
+    assert data["base_budget"]["group_id"] == group_id
 
 
-async def test_update_budget_empty_body_returns_200(client):
-    """Empty PATCH body returns current budget unchanged."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["name"] == "March Budget"
-
-
-async def test_update_budget_nonexistent_returns_404(client):
-    """Non-existent budget ID returns 404."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await client.patch(
-        f"/budgets/{NONEXISTENT_ID}",
-        json={"name": "New Name"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 404
-
-
-async def test_update_budget_other_users_budget_returns_404(client):
-    """User cannot update another user's personal budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, _ = await _create_second_user(client)
-
-    create_resp = await _create_budget(client, headers)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"name": "Hacked"},
-        headers=other_headers,
-    )
-
-    assert resp.status_code == 404
-
-
-async def test_update_group_budget_as_admin(client):
-    """Admin can update a group budget."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"name": "Updated"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["name"] == "Updated"
-
-
-async def test_update_group_budget_as_non_admin_without_permission_returns_404(client):
-    """Non-admin member without permission cannot see or update a group budget."""
+async def test_create_group_budget_instance_as_non_admin_without_permission_returns_404(client):
+    """Non-admin group member without a permission row cannot create an instance."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -983,22 +323,39 @@ async def test_update_group_budget_as_non_admin_without_permission_returns_404(c
         json={"user_id": other_user_id},
         headers=headers,
     )
-
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"name": "Hacked"},
-        headers=other_headers,
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
     )
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(client, other_headers, base_budget_id)
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Budget not found"
 
 
-async def test_update_group_budget_with_write_permission_returns_403(client):
-    """Non-admin with WRITE permission cannot update (requires ADMIN)."""
+async def test_create_group_budget_instance_as_non_member_returns_404(client):
+    """A user who is not a group member cannot create an instance — 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    group_id = await _create_group(client, headers)
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    base_budget_id = base_resp.json()["id"]
+
+    resp = await _create_budget_instance(client, other_headers, base_budget_id)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_create_group_budget_instance_with_read_permission_returns_403(client):
+    """Non-admin with READ permission cannot create an instance (requires ADMIN)."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -1009,101 +366,26 @@ async def test_update_group_budget_with_write_permission_returns_403(client):
         json={"user_id": other_user_id},
         headers=headers,
     )
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    base_budget_id = base_resp.json()["id"]
 
-    create_resp = await _create_budget(client, headers, group_id=group_id)
-    budget_id = create_resp.json()["id"]
-
-    # Grant WRITE — still insufficient for update
     await client.post(
-        f"/budgets/{budget_id}/permissions",
-        json={"user_id": other_user_id, "level": "write"},
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "read"},
         headers=headers,
     )
 
-    resp = await client.patch(
-        f"/budgets/{budget_id}",
-        json={"name": "Hacked"},
-        headers=other_headers,
-    )
+    resp = await _create_budget_instance(client, other_headers, base_budget_id)
 
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Insufficient permissions"
 
 
-async def test_update_budget_unauthenticated_returns_401(client):
-    """Updating a budget without auth returns 401."""
-    resp = await client.patch(
-        f"/budgets/{NONEXISTENT_ID}",
-        json={"name": "Hacked"},
-    )
-
-    assert resp.status_code == 401
-
-
-# --- GET /budgets ---
-
-
-async def test_list_budgets_returns_200(client):
-    """User with budgets gets them in a list."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    await _create_budget(client, headers, name="March Budget")
-    await _create_budget(client, headers, name="April Budget", period_start="2026-04-01", period_end="2026-04-30")
-
-    resp = await client.get("/budgets", headers=headers)
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 2
-    # Ordered by period_end desc, then name
-    assert data[0]["name"] == "April Budget"
-    assert data[1]["name"] == "March Budget"
-
-
-async def test_list_budgets_empty(client):
-    """User with no budgets gets an empty list."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await client.get("/budgets", headers=headers)
-
-    assert resp.status_code == 200
-    assert resp.json() == []
-
-
-async def test_list_budgets_includes_category_ids(client):
-    """Listed budgets include their tracked category IDs."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    cat_id = await _create_category(client, headers)
-    await _create_budget(client, headers, category_ids=[cat_id])
-
-    resp = await client.get("/budgets", headers=headers)
-
-    assert resp.status_code == 200
-    assert resp.json()[0]["category_ids"] == [cat_id]
-
-
-async def test_list_budgets_includes_group_budgets(client):
-    """User sees both personal and group budgets."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    await _create_budget(client, headers, name="Personal Budget")
-    await _create_budget(client, headers, name="Family Budget", group_id=group_id)
-
-    resp = await client.get("/budgets", headers=headers)
-
-    assert resp.status_code == 200
-    names = {b["name"] for b in resp.json()}
-    assert names == {"Personal Budget", "Family Budget"}
-
-
-async def test_list_budgets_group_member_without_permission_excluded(client):
-    """Non-admin group member without permission does not see group budgets."""
+async def test_create_group_budget_instance_with_write_permission_returns_403(client):
+    """Non-admin with WRITE permission cannot create an instance (requires ADMIN)."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers, other_user_id = await _create_second_user(client)
@@ -1114,89 +396,49 @@ async def test_list_budgets_group_member_without_permission_excluded(client):
         json={"user_id": other_user_id},
         headers=headers,
     )
-    await _create_budget(client, headers, name="Family Budget", group_id=group_id)
-
-    resp = await client.get("/budgets", headers=other_headers)
-
-    assert resp.status_code == 200
-    assert resp.json() == []
-
-
-async def test_list_budgets_group_member_with_permission(client):
-    """Non-admin group member with READ permission sees group budgets."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, other_user_id = await _create_second_user(client)
-
-    group_id = await _create_group(client, headers)
-    await client.post(
-        f"/groups/{group_id}/members",
-        json={"user_id": other_user_id},
-        headers=headers,
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
     )
-    create_resp = await _create_budget(client, headers, name="Family Budget", group_id=group_id)
-    budget_id = create_resp.json()["id"]
+    base_budget_id = base_resp.json()["id"]
 
-    # Grant READ permission
     await client.post(
-        f"/budgets/{budget_id}/permissions",
-        json={"user_id": other_user_id, "level": "read"},
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "write"},
         headers=headers,
     )
 
-    resp = await client.get("/budgets", headers=other_headers)
+    resp = await _create_budget_instance(client, other_headers, base_budget_id)
 
-    assert resp.status_code == 200
-    assert len(resp.json()) == 1
-    assert resp.json()[0]["name"] == "Family Budget"
-
-
-async def test_list_budgets_excludes_other_users_budgets(client):
-    """User does not see another user's personal budgets."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    other_headers, _ = await _create_second_user(client)
-
-    await _create_budget(client, headers, name="My Budget")
-
-    resp = await client.get("/budgets", headers=other_headers)
-
-    assert resp.status_code == 200
-    assert resp.json() == []
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
 
 
-async def test_list_budgets_secondary_sort_by_name(client):
-    """Budgets with same period_end are sorted alphabetically by name."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    await _create_budget(client, headers, name="Zebra Budget")
-    await _create_budget(client, headers, name="Alpha Budget")
-
-    resp = await client.get("/budgets", headers=headers)
-
-    assert resp.status_code == 200
-    names = [b["name"] for b in resp.json()]
-    assert names == ["Alpha Budget", "Zebra Budget"]
-
-
-async def test_list_budgets_no_duplicates_for_group_budget(client):
-    """Group budget appears exactly once even when user is owner and member."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    group_id = await _create_group(client, headers)
-    await _create_budget(client, headers, name="Family Budget", group_id=group_id)
-
-    resp = await client.get("/budgets", headers=headers)
-
-    assert resp.status_code == 200
-    assert len(resp.json()) == 1
-    assert resp.json()[0]["name"] == "Family Budget"
-
-
-async def test_list_budgets_unauthenticated_returns_401(client):
-    """Listing budgets without auth returns 401."""
-    resp = await client.get("/budgets")
+async def test_create_budget_instance_unauthenticated_returns_401(client):
+    """Creating an instance without auth returns 401."""
+    resp = await client.post(
+        f"/base-budgets/{NONEXISTENT_ID}/budgets",
+        json={"period_start": "2026-03-01", "period_end": "2026-03-31", "overall_limit": 100000},
+    )
 
     assert resp.status_code == 401
+
+
+async def test_create_budget_instance_cascades_on_base_deletion(client):
+    """Deleting the parent base budget cascades to its instances."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+
+    instance_resp = await _create_budget_instance(client, headers, base_budget_id)
+    instance_id = instance_resp.json()["id"]
+
+    # Delete the parent base — should cascade to the instance
+    del_resp = await client.delete(f"/base-budgets/{base_budget_id}", headers=headers)
+    assert del_resp.status_code == 204
+
+    # The instance should be gone via GET /budgets/{id}
+    get_resp = await client.get(f"/budgets/{instance_id}", headers=headers)
+    assert get_resp.status_code == 404
