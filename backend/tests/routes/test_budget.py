@@ -1100,3 +1100,630 @@ async def test_get_budget_unauthenticated_returns_401(client):
     resp = await client.get(f"/budgets/{instance_id}")
 
     assert resp.status_code == 401
+
+
+# --- PATCH /budgets/{budget_id} ---
+
+
+async def test_update_budget_period_start_returns_200(client):
+    """Owner can update period_start; created_at stays pinned and the embedded base round-trips."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+    instance_resp = await _create_budget_instance(client, headers, base_budget_id)
+    instance_id = instance_resp.json()["id"]
+    original_created_at = instance_resp.json()["created_at"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_start": "2026-03-05"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == instance_id
+    assert data["period_start"] == "2026-03-05"
+    assert data["period_end"] == "2026-03-31"
+    assert data["overall_limit"] == 100000
+    assert data["created_at"] == original_created_at
+    assert data["base_budget"]["id"] == base_budget_id
+
+
+async def test_update_budget_period_end_returns_200(client):
+    """Owner can update period_end alone; created_at stays pinned."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+    original_created_at = instance_resp.json()["created_at"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_end": "2026-04-15"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["period_start"] == "2026-03-01"
+    assert data["period_end"] == "2026-04-15"
+    assert data["created_at"] == original_created_at
+
+
+async def test_update_budget_overall_limit_returns_200(client):
+    """Owner can update overall_limit alone; created_at stays pinned."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+    original_created_at = instance_resp.json()["created_at"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 250000},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["overall_limit"] == 250000
+    assert resp.json()["created_at"] == original_created_at
+
+
+async def test_update_budget_all_fields_returns_200(client):
+    """Owner can update period_start, period_end, and overall_limit in one call."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+    original_created_at = instance_resp.json()["created_at"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={
+            "period_start": "2026-04-01",
+            "period_end": "2026-04-30",
+            "overall_limit": 200000,
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == instance_id
+    assert data["period_start"] == "2026-04-01"
+    assert data["period_end"] == "2026-04-30"
+    assert data["overall_limit"] == 200000
+    assert data["created_at"] == original_created_at
+
+
+async def test_update_budget_empty_body_returns_200(client):
+    """Empty PATCH body returns the stored instance unchanged in every field."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    original = instance_resp.json()
+
+    resp = await client.patch(
+        f"/budgets/{original['id']}",
+        json={},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == original
+
+
+async def test_update_budget_start_after_end_returns_422(client):
+    """PATCH with period_start > period_end is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_start": "2026-03-31", "period_end": "2026-03-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Period start must not be after period end"
+
+
+async def test_update_budget_period_start_after_existing_end_returns_422(client):
+    """PATCH that would push period_start past the existing (unchanged) period_end is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+    # Original period: 2026-03-01 to 2026-03-31
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_start": "2026-04-15"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Period start must not be after period end"
+
+
+async def test_update_budget_period_end_before_existing_start_returns_422(client):
+    """PATCH that would pull period_end before the existing (unchanged) period_start is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+    # Original period: 2026-03-01 to 2026-03-31
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_end": "2026-02-15"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Period start must not be after period end"
+
+
+async def test_update_budget_same_day_period_returns_200(client):
+    """PATCH to a single-day period (period_start == period_end) is accepted."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_start": "2026-03-15", "period_end": "2026-03-15"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["period_start"] == "2026-03-15"
+    assert data["period_end"] == "2026-03-15"
+
+
+async def test_update_budget_zero_overall_limit_returns_422(client):
+    """PATCH with overall_limit=0 is rejected at the Pydantic layer (gt=0)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 0},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    # Pydantic 422 — detail is a list of errors, with `loc` pointing at the field
+    detail = resp.json()["detail"]
+    assert isinstance(detail, list)
+    assert any("overall_limit" in err["loc"] for err in detail)
+
+
+async def test_update_budget_negative_overall_limit_returns_422(client):
+    """PATCH with a negative overall_limit is rejected at the Pydantic layer (gt=0)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": -100},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert isinstance(detail, list)
+    assert any("overall_limit" in err["loc"] for err in detail)
+
+
+async def test_update_budget_does_not_mutate_base_budget(client):
+    """PATCHing an instance leaves the parent base budget untouched."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+    original_base = base_resp.json()
+    instance_resp = await _create_budget_instance(client, headers, base_budget_id)
+    instance_id = instance_resp.json()["id"]
+
+    patch_resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 999999},
+        headers=headers,
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["overall_limit"] == 999999
+
+    base_after = (await client.get(f"/base-budgets/{base_budget_id}", headers=headers)).json()
+    assert base_after == original_base
+
+
+async def test_update_budget_nonexistent_returns_404(client):
+    """PATCH with a non-existent budget ID returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/budgets/{NONEXISTENT_ID}",
+        json={"overall_limit": 50000},
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_update_budget_other_users_returns_404(client):
+    """User cannot PATCH another user's personal instance."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 99},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_update_group_budget_as_admin(client):
+    """Admin can PATCH a group instance."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, headers)
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 250000},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["overall_limit"] == 250000
+
+
+async def test_update_group_budget_as_non_admin_without_permission_returns_404(client):
+    """Non-admin group member without a permission row cannot PATCH the instance."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    group_id = await _create_group(client, headers)
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 99},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_update_group_budget_as_non_member_returns_404(client):
+    """A user who is not a group member cannot PATCH the instance."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    group_id = await _create_group(client, headers)
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 99},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Budget not found"
+
+
+async def test_update_group_budget_with_read_permission_returns_403(client):
+    """Non-admin with READ permission cannot PATCH (requires ADMIN)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    group_id = await _create_group(client, headers)
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    base_budget_id = base_resp.json()["id"]
+    instance_resp = await _create_budget_instance(client, headers, base_budget_id)
+    instance_id = instance_resp.json()["id"]
+
+    await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "read"},
+        headers=headers,
+    )
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 99},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_update_group_budget_with_write_permission_returns_403(client):
+    """Non-admin with WRITE permission cannot PATCH (requires ADMIN)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, other_user_id = await _create_second_user(client)
+
+    group_id = await _create_group(client, headers)
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": other_user_id},
+        headers=headers,
+    )
+    group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
+    base_resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[group_cat_id],
+    )
+    base_budget_id = base_resp.json()["id"]
+    instance_resp = await _create_budget_instance(client, headers, base_budget_id)
+    instance_id = instance_resp.json()["id"]
+
+    await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": other_user_id, "level": "write"},
+        headers=headers,
+    )
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": 99},
+        headers=other_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_update_budget_unauthenticated_returns_401(client):
+    """PATCH without auth returns 401."""
+    resp = await client.patch(
+        f"/budgets/{NONEXISTENT_ID}",
+        json={"overall_limit": 99},
+    )
+
+    assert resp.status_code == 401
+
+
+async def test_update_budget_null_period_start_returns_422(client):
+    """PATCH with explicit null period_start is rejected — non-nullable field."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_start": None},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert "period_start" in resp.json()["detail"]
+
+
+async def test_update_budget_null_period_end_returns_422(client):
+    """PATCH with explicit null period_end is rejected — non-nullable field."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_end": None},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert "period_end" in resp.json()["detail"]
+
+
+async def test_update_budget_null_overall_limit_returns_422(client):
+    """PATCH with explicit null overall_limit is rejected — non-nullable field."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"overall_limit": None},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert "overall_limit" in resp.json()["detail"]
+
+
+async def test_update_budget_duplicate_period_returns_409(client):
+    """PATCHing one instance's period onto another existing period under the same base returns 409."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+
+    march = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-03-01", period_end="2026-03-31",
+    )
+    april = await _create_budget_instance(
+        client, headers, base_budget_id,
+        period_start="2026-04-01", period_end="2026-04-30",
+    )
+    april_id = april.json()["id"]
+    march_id = march.json()["id"]
+
+    # Try to PATCH April's period onto March's
+    resp = await client.patch(
+        f"/budgets/{april_id}",
+        json={"period_start": "2026-03-01", "period_end": "2026-03-31"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "A budget instance already exists for this period"
+
+    # March's instance must be untouched
+    march_after = (await client.get(f"/budgets/{march_id}", headers=headers)).json()
+    assert march_after["period_start"] == "2026-03-01"
+    assert march_after["period_end"] == "2026-03-31"
+
+
+async def test_update_budget_preserves_state_on_validation_error(client):
+    """A 422 from period validation must not have mutated the instance."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+    snapshot = instance_resp.json()
+
+    # Send a body with a valid limit but an invalid period — the limit must
+    # not leak through if the period validation rejects the request
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_start": "2026-04-15", "overall_limit": 999999},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+    after = (await client.get(f"/budgets/{instance_id}", headers=headers)).json()
+    assert after == snapshot
+
+
+async def test_update_budget_ignores_unknown_fields(client):
+    """Unknown extra fields are dropped by Pydantic — no leakage onto unintended columns."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+    instance_resp = await _create_budget_instance(client, headers, base_budget_id)
+    instance_id = instance_resp.json()["id"]
+
+    # Try to smuggle in base_budget_id and an arbitrary extra field
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={
+            "base_budget_id": NONEXISTENT_ID,
+            "junk_field": "ignored",
+            "overall_limit": 55555,
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    # Known fields applied
+    assert data["overall_limit"] == 55555
+    # Unknown smuggled field had no effect
+    assert data["base_budget_id"] == base_budget_id
+
+
+async def test_update_budget_period_start_equals_existing_end_returns_200(client):
+    """Single-day narrowing — period_start may equal period_end (the route uses strict `>`)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    instance_id = instance_resp.json()["id"]
+    # Original period: 2026-03-01 to 2026-03-31
+
+    resp = await client.patch(
+        f"/budgets/{instance_id}",
+        json={"period_start": "2026-03-31"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["period_start"] == "2026-03-31"
+    assert data["period_end"] == "2026-03-31"
