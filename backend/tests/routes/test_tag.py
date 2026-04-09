@@ -569,6 +569,29 @@ async def test_get_group_tag_non_member_returns_404(client):
     assert resp.status_code == 404
 
 
+async def test_list_tags_with_group_filter_excludes_other_groups(client):
+    """Tag created in Group A must not appear when listing with Group B's filter."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_a = await _create_group(client, headers)
+    group_b = await _create_group(client, headers)
+
+    await _create_tag(client, headers, name="personal-tag")
+    await _create_tag(client, headers, name="group-a-tag", group_id=group_a)
+    await _create_tag(client, headers, name="group-b-tag", group_id=group_b)
+
+    resp = await client.get(f"/tags?group_id={group_b}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    names = {t["name"] for t in data}
+    assert len(data) == 2
+    assert "personal-tag" in names
+    assert "group-b-tag" in names
+    assert "group-a-tag" not in names
+
+
 # --- Group tags: PATCH /tags ---
 
 
