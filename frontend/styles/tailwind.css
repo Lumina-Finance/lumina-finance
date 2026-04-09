@@ -143,9 +143,11 @@
   }
 
   .app-primary-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 28px rgba(201, 169, 106, 0.38);
-    filter: brightness(1.06);
+    filter: brightness(1.08);
+  }
+
+  .app-primary-button:active {
+    transform: scale(0.985);
   }
 
   .app-primary-button:disabled {
