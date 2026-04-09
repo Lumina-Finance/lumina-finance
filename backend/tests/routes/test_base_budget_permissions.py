@@ -574,3 +574,185 @@ async def test_list_base_budget_permissions_unauthenticated_returns_401(client):
     assert resp.status_code == 401
 
 
+# --- DELETE /base-budgets/{base_budget_id}/permissions/{permission_id} ---
+
+
+async def test_revoke_base_budget_permission_returns_204(client):
+    """Admin can revoke a member's permission; a subsequent list does not include it."""
+    admin_headers, _, member_user_id, _, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    grant_resp = await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    permission_id = grant_resp.json()["id"]
+
+    resp = await client.delete(
+        f"/base-budgets/{base_budget_id}/permissions/{permission_id}",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 204
+
+    list_resp = await client.get(
+        f"/base-budgets/{base_budget_id}/permissions",
+        headers=admin_headers,
+    )
+    assert list_resp.json() == []
+
+
+async def test_revoke_base_budget_permission_does_not_remove_member(client):
+    """Revoking a permission does not remove the user from the group."""
+    admin_headers, _, member_user_id, group_id, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    grant_resp = await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    permission_id = grant_resp.json()["id"]
+
+    await client.delete(
+        f"/base-budgets/{base_budget_id}/permissions/{permission_id}",
+        headers=admin_headers,
+    )
+
+    members_resp = await client.get(f"/groups/{group_id}/members", headers=admin_headers)
+    member_ids = {m["user_id"] for m in members_resp.json()}
+    assert member_user_id in member_ids
+
+
+async def test_revoke_base_budget_permission_nonexistent_permission_returns_404(client):
+    """Revoking a non-existent permission returns 404."""
+    admin_headers, _, _, _, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+
+    resp = await client.delete(
+        f"/base-budgets/{base_budget_id}/permissions/{NONEXISTENT_ID}",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Permission not found"
+
+
+async def test_revoke_base_budget_permission_wrong_base_budget_returns_404(client):
+    """A permission belonging to a different base budget cannot be revoked through this one."""
+    admin_headers, _, member_user_id, group_id, base_budget_a = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    base_budget_b = await _create_group_base_budget(
+        client, admin_headers, group_id,
+        name="Second Budget", category_name="Other Shared",
+    )
+
+    grant_resp = await client.post(
+        f"/base-budgets/{base_budget_a}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    permission_id = grant_resp.json()["id"]
+
+    # Attempt to delete via base_budget_b
+    resp = await client.delete(
+        f"/base-budgets/{base_budget_b}/permissions/{permission_id}",
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Permission not found"
+
+    # The permission still exists under base_budget_a
+    list_resp = await client.get(
+        f"/base-budgets/{base_budget_a}/permissions",
+        headers=admin_headers,
+    )
+    assert len(list_resp.json()) == 1
+
+
+async def test_revoke_base_budget_permission_nonexistent_base_returns_404(client):
+    """Revoking a permission on a non-existent base budget returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.delete(
+        f"/base-budgets/{NONEXISTENT_ID}/permissions/{NONEXISTENT_ID}",
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
+
+
+async def test_revoke_base_budget_permission_personal_base_returns_404(client):
+    """Revoking on a personal base budget returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    base_budget_id = await _create_personal_base_budget(client, headers)
+
+    resp = await client.delete(
+        f"/base-budgets/{base_budget_id}/permissions/{NONEXISTENT_ID}",
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
+
+
+async def test_revoke_base_budget_permission_as_non_admin_returns_403(client):
+    """Non-admin group member cannot revoke permissions."""
+    admin_headers, member_headers, member_user_id, _, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    grant_resp = await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    permission_id = grant_resp.json()["id"]
+
+    resp = await client.delete(
+        f"/base-budgets/{base_budget_id}/permissions/{permission_id}",
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Admin role required"
+
+
+async def test_revoke_base_budget_permission_as_outsider_returns_404(client):
+    """A user not in the group cannot revoke — 404."""
+    admin_headers, _, member_user_id, _, base_budget_id = (
+        await _setup_group_with_member_and_base_budget(client)
+    )
+    grant_resp = await client.post(
+        f"/base-budgets/{base_budget_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    permission_id = grant_resp.json()["id"]
+
+    outsider_headers, _ = await _create_second_user(
+        client, email="outsider@example.com", first_name="Outsider",
+    )
+
+    resp = await client.delete(
+        f"/base-budgets/{base_budget_id}/permissions/{permission_id}",
+        headers=outsider_headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
+
+
+async def test_revoke_base_budget_permission_unauthenticated_returns_401(client):
+    """DELETE /base-budgets/{id}/permissions/{permission_id} without auth returns 401."""
+    resp = await client.delete(
+        f"/base-budgets/{NONEXISTENT_ID}/permissions/{NONEXISTENT_ID}",
+    )
+
+    assert resp.status_code == 401
