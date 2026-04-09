@@ -41,7 +41,7 @@ async def list_categories(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
         query = select(Category).where(
-            (Category.owner_id == user.id) | (Category.group_id == group_id),
+            ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
         )
 
     result = await db.execute(query.order_by(Category.name))
@@ -62,7 +62,7 @@ async def get_category(
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,
-            (Category.owner_id == user.id) | (Category.group_id.in_(group_ids)),
+            ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id.in_(group_ids)),
         ),
     )
     category = result.scalar_one_or_none()
@@ -107,10 +107,10 @@ async def create_category(
         parent_query = select(Category).where(Category.id == data.parent_id)
         if group_id:
             parent_query = parent_query.where(
-                (Category.owner_id == user.id) | (Category.group_id == group_id),
+                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
             )
         else:
-            parent_query = parent_query.where(Category.owner_id == user.id)
+            parent_query = parent_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
         if not (await db.execute(parent_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
 
@@ -142,7 +142,7 @@ async def update_category(
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,
-            (Category.owner_id == user.id) | (Category.group_id.in_(group_ids)),
+            ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id.in_(group_ids)),
         ),
     )
     category = result.scalar_one_or_none()
@@ -170,10 +170,10 @@ async def update_category(
         parent_query = select(Category).where(Category.id == updates["parent_id"])
         if category.group_id is not None:
             parent_query = parent_query.where(
-                (Category.owner_id == user.id) | (Category.group_id == category.group_id),
+                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == category.group_id),
             )
         else:
-            parent_query = parent_query.where(Category.owner_id == user.id)
+            parent_query = parent_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
         if not (await db.execute(parent_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
 
@@ -207,7 +207,7 @@ async def delete_category(
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,
-            (Category.owner_id == user.id) | (Category.group_id.in_(group_ids)),
+            ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id.in_(group_ids)),
         ),
     )
     category = result.scalar_one_or_none()
