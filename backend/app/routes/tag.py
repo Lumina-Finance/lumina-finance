@@ -143,7 +143,14 @@ async def update_tag(
     for field, value in updates.items():
         setattr(tag, field, value)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Tag with this name already exists",
+        ) from e
     await db.refresh(tag)
     return tag
 
