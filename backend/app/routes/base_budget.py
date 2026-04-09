@@ -24,6 +24,7 @@ from app.schemas.budget import (
 )
 from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 from app.services.budget_periods import compute_period_end, validate_period_start
+from app.services.budget_responses import build_base_budget_response, build_budget_response, load_tracked_categories
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 
@@ -80,17 +81,9 @@ async def _validate_category_ids(
 async def _build_base_budget_response(
     db: AsyncSession, base_budget: BaseBudget,
 ) -> BaseBudgetResponse:
-    """Build a BaseBudgetResponse with currently-active tracked category IDs populated."""
-    cat_result = await db.execute(
-        select(BudgetTrackedCategory.category_id).where(
-            BudgetTrackedCategory.base_budget_id == base_budget.id,
-            BudgetTrackedCategory.removed_at.is_(None),
-        ),
-    )
-    active_category_ids = list(cat_result.scalars().all())
-    response = BaseBudgetResponse.model_validate(base_budget)
-    response.category_ids = active_category_ids
-    return response
+    """Build a BaseBudgetResponse for a single base budget (convenience wrapper)."""
+    cats = await load_tracked_categories(db, [base_budget.id])
+    return build_base_budget_response(base_budget, cats.get(base_budget.id, []))
 
 
 @router.patch("/{base_budget_id}", response_model=BaseBudgetResponse)
@@ -192,7 +185,13 @@ async def list_base_budgets(
     )
     result = await db.execute(query)
     base_budgets = result.scalars().unique().all()
-    return [await _build_base_budget_response(db, base_budget) for base_budget in base_budgets]
+
+    # Batch-load tracked categories for all base budgets in one query to avoid N+1
+    cats_by_base = await load_tracked_categories(db, [b.id for b in base_budgets])
+    return [
+        build_base_budget_response(b, cats_by_base.get(b.id, []))
+        for b in base_budgets
+    ]
 
 
 @router.post("", response_model=BaseBudgetResponse, status_code=status.HTTP_201_CREATED)
@@ -441,13 +440,5 @@ async def create_budget_instance(
     await db.refresh(budget)
 
     # Build the instance response with the parent base embedded
-    base_response = await _build_base_budget_response(db, base_budget)
-    return BudgetResponse(
-        id=budget.id,
-        base_budget_id=budget.base_budget_id,
-        period_start=budget.period_start,
-        period_end=budget.period_end,
-        overall_limit=budget.overall_limit,
-        created_at=budget.created_at,
-        base_budget=base_response,
-    )
+    cats = await load_tracked_categories(db, [base_budget.id])
+    return build_budget_response(budget, base_budget, cats.get(base_budget.id, []))

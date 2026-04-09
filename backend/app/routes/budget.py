@@ -15,12 +15,12 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_budget_access
 from app.schemas.budget import (
-    BaseBudgetResponse,
     BudgetCategoryUtilization,
     BudgetResponse,
     BudgetUtilizationResponse,
     UpdateBudgetRequest,
 )
+from app.services.budget_responses import build_budget_response, load_tracked_categories
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -28,25 +28,9 @@ router = APIRouter(prefix="/budgets", tags=["budgets"])
 async def _build_budget_response(
     db: AsyncSession, budget: Budget, base_budget: BaseBudget,
 ) -> BudgetResponse:
-    """Build a BudgetResponse with the parent base and its currently-active tracked categories embedded."""
-    cat_result = await db.execute(
-        select(BudgetTrackedCategory.category_id).where(
-            BudgetTrackedCategory.base_budget_id == base_budget.id,
-            BudgetTrackedCategory.removed_at.is_(None),
-        ),
-    )
-    active_category_ids = list(cat_result.scalars().all())
-    base_response = BaseBudgetResponse.model_validate(base_budget)
-    base_response.category_ids = active_category_ids
-    return BudgetResponse(
-        id=budget.id,
-        base_budget_id=budget.base_budget_id,
-        period_start=budget.period_start,
-        period_end=budget.period_end,
-        overall_limit=budget.overall_limit,
-        created_at=budget.created_at,
-        base_budget=base_response,
-    )
+    """Build a BudgetResponse for a single budget instance (convenience wrapper)."""
+    cats = await load_tracked_categories(db, [base_budget.id])
+    return build_budget_response(budget, base_budget, cats.get(base_budget.id, []))
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)
@@ -209,6 +193,11 @@ async def list_budgets(
     result = await db.execute(query)
     rows = result.unique().all()
 
-    return [await _build_budget_response(db, budget, base) for budget, base in rows]
+    # Batch-load tracked categories for all base budgets in one query to avoid N+1
+    cats_by_base = await load_tracked_categories(db, list({base.id for _, base in rows}))
+    return [
+        build_budget_response(budget, base, cats_by_base.get(base.id, []))
+        for budget, base in rows
+    ]
 
 
