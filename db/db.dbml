@@ -218,22 +218,26 @@ enum recurrence_freq {
   yearly
 }
 
-Table base_budgets [headercolor: #F43F5E, note: "long-lived spending plan; holds name, currency, recurrence, tracked categories, and permissions. Per-period caps and date ranges live on child budgets so historical periods stay frozen when the base is edited. A one-off budget is a base_budget with recurrence_freq = null plus a single child budget. CHECK: exactly one of owner_id or group_id must be non-null"] {
+Table base_budgets [headercolor: #F43F5E, note: "long-lived spending plan; holds name, currency, cadence, tracked categories, and permissions. Per-period caps and date ranges live on child budgets so historical periods stay frozen when the base is edited. Cadence fields (recurrence_freq, instance_length, recurrence_weekday, recurrence_dom, recurrence_month) are immutable after creation. CHECK: exactly one of owner_id or group_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
   group_id uuid [ref: > groups.id, delete: cascade]
   name varchar(256) [not null]
   currency char(3) [not null, ref: > currencies.id]
-  recurrence_freq recurrence_freq [note: "null = one-off; set when the budget recurs"]
-  recurrence_interval smallint [note: "e.g., 1 = every period, 2 = every other, 11 = every 11th; null when recurrence_freq is null; CHECK > 0 when set"]
+  recurrence_freq recurrence_freq [not null, note: "weekly, monthly, or yearly — defines the alignment unit"]
+  instance_length smallint [not null, note: "how many freq-units per instance (1 = one week/month/year, 3 = quarterly, etc.); CHECK > 0"]
+  recurrence_weekday smallint [note: "0=Mon..6=Sun; required iff freq=weekly, null otherwise; CHECK 0-6"]
+  recurrence_dom smallint [note: "1..31, day of month the budget rotates on; required iff freq in (monthly, yearly), null otherwise. If the month has fewer days, falls back to last day; CHECK 1-31"]
+  recurrence_month smallint [note: "1..12, month the budget rotates on; required iff freq=yearly, null otherwise; CHECK 1-12"]
+  recurs boolean [not null, note: "true = frontend auto-suggests creating the next instance; false = one-off"]
   created_at timestamptz [not null]
 }
 
-Table budgets [headercolor: #F43F5E, note: "per-period instance of a base_budget. Frozen after creation — editing a past instance does not retroactively affect historical utilization because utilization reads the base_budget's category set as of this instance's period_end"] {
+Table budgets [headercolor: #F43F5E, note: "per-period instance of a base_budget. period_start is user-provided (must align with the base's cadence); period_end is computed from the base's cadence settings. Only overall_limit is editable after creation"] {
   id uuid pk
   base_budget_id uuid [not null, ref: > base_budgets.id, note: "ON DELETE CASCADE"]
-  period_start date [not null]
-  period_end date [not null, note: "CHECK period_end >= period_start"]
+  period_start date [not null, note: "must align with the base's cadence (first of month, matching weekday, etc.)"]
+  period_end date [not null, note: "computed from base cadence; CHECK period_end >= period_start"]
   overall_limit bigint [not null, note: "spending cap across all categories, stored in the parent base_budget's currency units; CHECK > 0"]
   created_at timestamptz [not null]
 

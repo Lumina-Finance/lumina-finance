@@ -313,39 +313,49 @@ A one-off (non-recurring) budget is a `base_budget` with `recurrence_freq = NULL
 
 ### `base_budgets`
 
-The long-lived spending plan. Holds name, currency, recurrence, tracked categories, and permissions. Per-period caps and date ranges live on child `budget` instances.
+The long-lived spending plan. Holds name, currency, cadence, tracked categories, and permissions. Per-period caps and date ranges live on child `budget` instances. Cadence fields are immutable after creation — if the user wants a different shape, they create a new base.
 
 
-| Column                | Type                                          | Constraints                        | Description                                                                  |
-| --------------------- | --------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
-| `id`                  | uuid                                          | PK                                 |                                                                              |
-| `owner_id`            | uuid                                          | FK → `users.id`                    | Set for personal base budgets                                                |
-| `group_id`            | uuid                                          | FK → `groups.id` ON DELETE CASCADE | Set for group base budgets                                                   |
-| `name`                | varchar(256)                                  | NOT NULL                           | e.g., "Monthly Household"                                                    |
-| `currency`            | char(3)                                       | NOT NULL, FK → `currencies.id`     | All child instances and utilization totals are expressed in this currency    |
-| `recurrence_freq`     | enum (`weekly`, `monthly`, `yearly`)          |                                    | Null = one-off; set when the base recurs                                     |
-| `recurrence_interval` | smallint                                      |                                    | e.g., 1 = every period, 2 = every other; null when `recurrence_freq` is null |
-| `created_at`          | timestamptz                                   | NOT NULL                           |                                                                              |
+| Column                | Type                                 | Constraints                        | Description                                                                                         |
+| --------------------- | ------------------------------------ | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `id`                  | uuid                                 | PK                                 |                                                                                                     |
+| `owner_id`            | uuid                                 | FK → `users.id`                    | Set for personal base budgets                                                                       |
+| `group_id`            | uuid                                 | FK → `groups.id` ON DELETE CASCADE | Set for group base budgets                                                                          |
+| `name`                | varchar(256)                         | NOT NULL                           | e.g., "Monthly Household"                                                                           |
+| `currency`            | char(3)                              | NOT NULL, FK → `currencies.id`     | All child instances and utilization totals are expressed in this currency                            |
+| `recurrence_freq`     | enum (`weekly`, `monthly`, `yearly`) | NOT NULL                           | Defines the alignment unit for instance periods                                                     |
+| `instance_length`     | smallint                             | NOT NULL, CHECK > 0                | How many freq-units per instance (1 = one week/month/year, 3 = quarterly, etc.)                     |
+| `recurrence_weekday`  | smallint                             | CHECK 0–6                          | 0=Mon..6=Sun; required iff `freq=weekly`, null otherwise                                            |
+| `recurrence_dom`      | smallint                             | CHECK 1–31                         | Day of month the budget rotates on; required iff `freq` in (`monthly`, `yearly`), null otherwise. Falls back to last day of month when the month is shorter |
+| `recurrence_month`    | smallint                             | CHECK 1–12                         | Month the budget rotates on; required iff `freq=yearly`, null otherwise                             |
+| `recurs`              | boolean                              | NOT NULL                           | True = frontend auto-suggests next instance; false = one-off                                        |
+| `created_at`          | timestamptz                          | NOT NULL                           |                                                                                                     |
 
 
 **Check constraints:**
 - Exactly one of `owner_id` or `group_id` must be non-null.
-- `recurrence_interval > 0` when set.
+- `instance_length > 0`.
+- `recurrence_weekday` in 0–6, `recurrence_dom` in 1–31, `recurrence_month` in 1–12 (all nullable, enforced at the application layer for pairing rules).
+
+**Cadence pairing rules** (enforced at the Pydantic/route layer):
+- `weekly` → `recurrence_weekday` required; `recurrence_dom` and `recurrence_month` must be null.
+- `monthly` → `recurrence_dom` required; `recurrence_weekday` and `recurrence_month` must be null.
+- `yearly` → `recurrence_dom` and `recurrence_month` required; `recurrence_weekday` must be null.
 
 
 ### `budgets`
 
-Per-period instance of a `base_budget`. Frozen after creation — editing fields on a past instance does not retroactively affect historical utilization because the utilization query reads the parent base's category set as of this instance's `period_end`.
+Per-period instance of a `base_budget`. `period_start` is user-provided and must align with the base's cadence. `period_end` is computed by the backend from the base's cadence settings. Only `overall_limit` is editable after creation.
 
 
-| Column            | Type        | Constraints                                 | Description                                                                      |
-| ----------------- | ----------- | ------------------------------------------- | -------------------------------------------------------------------------------- |
-| `id`              | uuid        | PK                                          |                                                                                  |
-| `base_budget_id`  | uuid        | NOT NULL, FK → `base_budgets.id` ON DELETE CASCADE | Parent base; owner/group scope is derived by joining through this FK      |
-| `period_start`    | date        | NOT NULL                                    |                                                                                  |
-| `period_end`      | date        | NOT NULL, CHECK `period_end >= period_start`|                                                                                  |
-| `overall_limit`   | bigint      | NOT NULL, CHECK > 0                         | Spending cap across all categories, in the parent base's currency minor units    |
-| `created_at`      | timestamptz | NOT NULL                                    |                                                                                  |
+| Column            | Type        | Constraints                                        | Description                                                                      |
+| ----------------- | ----------- | -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `id`              | uuid        | PK                                                 |                                                                                  |
+| `base_budget_id`  | uuid        | NOT NULL, FK → `base_budgets.id` ON DELETE CASCADE | Parent base; owner/group scope is derived by joining through this FK             |
+| `period_start`    | date        | NOT NULL                                           | Must align with the base's cadence (1st of month, matching weekday, etc.)        |
+| `period_end`      | date        | NOT NULL, CHECK `period_end >= period_start`       | Computed from the base's cadence; not user-provided                              |
+| `overall_limit`   | bigint      | NOT NULL, CHECK > 0                                | Spending cap across all categories, in the parent base's currency minor units    |
+| `created_at`      | timestamptz | NOT NULL                                           |                                                                                  |
 
 
 **Unique constraint:** `(base_budget_id, period_start, period_end)` — blocks duplicate instances for the same period under one base.
