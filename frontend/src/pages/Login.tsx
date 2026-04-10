@@ -45,6 +45,13 @@ const CURRENCIES = [
   { code: 'KRW', label: 'KRW — South Korean Won' },
 ];
 
+const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
+  value: tz,
+  label: tz.replace(/_/g, ' '),
+}));
+
 type Mode = 'login' | 'signup';
 
 interface FieldErrors {
@@ -106,6 +113,7 @@ const Login = () => {
     first_name: '',
     last_name: '',
     base_currency: 'CAD',
+    tz: DETECTED_TZ,
   });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -186,7 +194,7 @@ const Login = () => {
           password: form.password,
           first_name: form.first_name.trim(),
           last_name: form.last_name.trim() || undefined,
-          tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          tz: form.tz,
           base_currency: form.base_currency,
         });
       }
@@ -461,6 +469,25 @@ const Login = () => {
                 options={CURRENCIES.map((c) => ({ value: c.code, label: c.label }))}
                 value={form.base_currency}
                 onChange={(v) => handleChange('base_currency', v)}
+                searchable
+                searchPlaceholder="Search currencies..."
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Signup-only: timezone */}
+        <AnimatePresence>
+          {!isLogin && (
+            <motion.div className="space-y-1.5" {...signupFieldAnimation}>
+              <label htmlFor="tz" className="app-label block">Timezone</label>
+              <Dropdown
+                id="tz"
+                options={TIMEZONES}
+                value={form.tz}
+                onChange={(v) => handleChange('tz', v)}
+                searchable
+                searchPlaceholder="Search timezones..."
               />
             </motion.div>
           )}
