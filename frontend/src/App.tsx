@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/Navigation'
 import Dashboard from '@/components/Dashboard'
-import Login from '@/pages/Login'
+import Auth from '@/pages/Auth'
 
 /** Redirect to /login if unauthenticated */
 function ProtectedRoute() {
@@ -52,8 +52,8 @@ function AnimatedRoutes() {
       <Routes location={location} key={location.pathname === '/signup' ? '/login' : location.pathname}>
         {/* Public routes — login, signup */}
         <Route element={<PublicRoute />}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Login />} />
+          <Route path="/login" element={<Auth />} />
+          <Route path="/signup" element={<Auth />} />
         </Route>
 
         {/* Protected routes — app shell with sidebar */}

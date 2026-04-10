@@ -99,7 +99,7 @@ const signupFieldAnimation = {
   transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] as const },
 };
 
-const Login = () => {
+const Auth = () => {
   const { login, signup, setSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -520,4 +520,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Auth;
