@@ -13,7 +13,7 @@ export default function Dashboard() {
   return (
     <div>
       <header className="app-page-header">
-        <h1 className="app-page-title font-medium lg:font-normal">
+        <h1 className="app-page-title font-medium lg:font-normal text-[clamp(2.4rem,6vw,3.4rem)]">
           {greeting}
         </h1>
         <p className="app-page-description">{subtitle}</p>
