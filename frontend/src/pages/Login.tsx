@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, animate, AnimatePresence } from 'motion/react';
 import { AlertCircle, Check, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -102,10 +102,10 @@ const signupFieldAnimation = {
 const Login = () => {
   const { login, signup, setSession } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [mode, setMode] = useState<Mode>('login');
-  const [direction, setDirection] = useState(1);
+  const mode: Mode = location.pathname === '/signup' ? 'signup' : 'login';
 
   const [form, setForm] = useState({
     email: '',
@@ -139,9 +139,7 @@ const Login = () => {
   };
 
   const switchMode = () => {
-    const next = isLogin ? 'signup' : 'login';
-    setDirection(next === 'signup' ? 1 : -1);
-    setMode(next);
+    navigate(isLogin ? '/signup' : '/login', { replace: true });
     setError('');
     setFieldErrors({});
     setTouched({});
@@ -234,7 +232,7 @@ const Login = () => {
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5" noValidate>
         {/* Lottery wheel title */}
         <div className="overflow-hidden" style={{ height: '2.75rem' }}>
-          <AnimatePresence mode="wait" custom={direction}>
+          <AnimatePresence mode="wait">
             <motion.h1
               key={mode}
               className="font-serif text-4xl font-normal tracking-tight flex"
