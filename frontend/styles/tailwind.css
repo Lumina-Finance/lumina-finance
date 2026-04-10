@@ -175,4 +175,23 @@
     color: var(--app-text-muted);
   }
 
+  .app-page-header {
+    @apply mb-8 space-y-3;
+  }
+
+  .app-page-title {
+    font-size: clamp(1.6rem, 4vw, 3.4rem);
+    line-height: 1;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--app-text);
+  }
+
+  .app-page-description {
+    @apply max-w-2xl leading-relaxed;
+    font-size: clamp(0.9375rem, 1.3vw, 1.0625rem);
+    color: var(--app-text-muted);
+  }
+
 }
