@@ -15,11 +15,11 @@ const LOCKOUT_KEY = 'lumina:auth_lockout';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const PASSWORD_RULES = [
-  { label: '12 characters', test: (p: string) => p.length >= 12 },
-  { label: 'Uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
-  { label: 'Lowercase letter', test: (p: string) => /[a-z]/.test(p) },
-  { label: 'Number', test: (p: string) => /\d/.test(p) },
-  { label: 'Special character', test: (p: string) => /[^A-Za-z0-9\s]/.test(p) },
+  { label: '12+ characters', test: (p: string) => p.length >= 12 },
+  { label: '1 uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+  { label: '1 lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+  { label: '1 number', test: (p: string) => /\d/.test(p) },
+  { label: '1 special character', test: (p: string) => /[^A-Za-z0-9\s]/.test(p) },
   { label: 'No spaces', test: (p: string) => !/\s/.test(p) },
 ];
 
