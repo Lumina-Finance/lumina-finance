@@ -23,17 +23,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const SESSION_KEY = 'lumina:has_session';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const hasSession = localStorage.getItem(SESSION_KEY) === '1';
+  // Check once on mount — not reactive to later changes
+  const [hadSession] = useState(() => localStorage.getItem(SESSION_KEY) === '1');
 
   const [state, setState] = useState<AuthState>({
     user: null,
     accessToken: null,
-    loading: hasSession,
+    loading: hadSession,
   });
 
-  // Only attempt refresh if a prior login set the session flag
+  // Attempt refresh only on initial mount if a prior session existed
   useEffect(() => {
-    if (!hasSession) return;
+    if (!hadSession) return;
 
     let cancelled = false;
 
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
     return () => { cancelled = true; };
-  }, [hasSession]);
+  }, [hadSession]);
 
   // Call the API and set the session flag, but don't update React state yet.
   // The caller controls when to commit via setSession().
