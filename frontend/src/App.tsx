@@ -49,10 +49,11 @@ function AnimatedRoutes() {
 
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Routes location={location} key={location.pathname === '/signup' ? '/login' : location.pathname}>
         {/* Public routes — login, signup */}
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Login />} />
         </Route>
 
         {/* Protected routes — app shell with sidebar */}
