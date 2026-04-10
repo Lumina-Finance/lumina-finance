@@ -19,7 +19,8 @@ const PASSWORD_RULES = [
   { label: 'Uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
   { label: 'Lowercase letter', test: (p: string) => /[a-z]/.test(p) },
   { label: 'Number', test: (p: string) => /\d/.test(p) },
-  { label: 'Special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  { label: 'Special character', test: (p: string) => /[^A-Za-z0-9\s]/.test(p) },
+  { label: 'No spaces', test: (p: string) => !/\s/.test(p) },
 ];
 
 // Map backend error messages to user-friendly copy
@@ -395,7 +396,7 @@ const Login = () => {
           <AnimatePresence>
             {!isLogin && (passwordFocused || form.password.length > 0) && !(touched.password && PASSWORD_RULES.every((r) => r.test(form.password))) && (
               <motion.ul
-                className="mt-2 space-y-1"
+                className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1"
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
