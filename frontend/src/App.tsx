@@ -1,28 +1,56 @@
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'motion/react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/Navigation'
 import Dashboard from '@/components/Dashboard'
+import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
 
-/** Redirect to /login if unauthenticated */
+const LOADING_SCREEN_MIN_MS = 1000;
+
+// Module-level flag so the loading screen only shows once per app session
+let hasShownLoadingScreen = false;
+
+/** Redirect to /login if unauthenticated. Show loading screen on first visit. */
 function ProtectedRoute() {
   const { user, loading } = useAuth();
+  // Only show loading screen if there's a session being restored or user just authenticated
+  const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
+  const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
 
-  if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  useEffect(() => {
+    if (hasShownLoadingScreen || !shouldShowLoading) return;
+    const timer = setTimeout(() => {
+      hasShownLoadingScreen = true;
+      setMinTimePassed(true);
+    }, LOADING_SCREEN_MIN_MS);
+    return () => clearTimeout(timer);
+  }, [shouldShowLoading]);
+
+  // No session and not loading — go straight to login
+  if (!loading && !user) return <Navigate to="/login" replace />;
+
+  const ready = !loading && minTimePassed;
 
   return (
-    <div
-      className="flex min-h-screen"
-      style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
-    >
-      <Navigation />
-      <main className="flex-1 px-5 pb-8 pt-6 lg:px-8 lg:pb-12 lg:pt-12">
-        <Outlet />
-      </main>
-    </div>
+    <>
+      <AnimatePresence>
+        {!ready && <LoadingScreen />}
+      </AnimatePresence>
+      {ready && (
+        <div
+          className="flex min-h-screen"
+          style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
+        >
+          <Navigation />
+          <main className="flex-1 px-5 pb-8 pt-6 lg:px-8 lg:pb-12 lg:pt-12">
+            <Outlet />
+          </main>
+        </div>
+      )}
+    </>
   );
 }
 
