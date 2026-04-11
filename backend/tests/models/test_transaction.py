@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.account import Account
-from app.models.base import AccountType, CategoryKind
+from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.merchant import Merchant
@@ -36,7 +36,7 @@ async def user(db, currency):
 @pytest.fixture
 async def account(db, user):
     """Seed a checking account."""
-    a = Account(owner_id=user.id, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
+    a = Account(owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
     db.add(a)
     await db.flush()
     return a

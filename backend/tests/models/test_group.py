@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.account import Account, AccountPermission
-from app.models.base import AccountType, PermissionLevel, TaxTreatment
+from app.models.base import AccountKind, AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.user import User
@@ -180,7 +180,7 @@ async def group_account(db, group, currency):
     """Seed a group-scoped account."""
     a = Account(
         group_id=group.id, owner_id=None,
-        account_type=AccountType.CHECKING, tax_treatment=TaxTreatment.TAXABLE,
+        account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, tax_treatment=TaxTreatment.TAXABLE,
         name="Joint Checking", currency="CAD",
     )
     db.add(a)

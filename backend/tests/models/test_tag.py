@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.account import Account
-from app.models.base import AccountType, CategoryKind
+from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group
@@ -55,7 +55,7 @@ async def tag(db, user):
 @pytest.fixture
 async def transaction(db, user, currency):
     """Seed a transaction for tagging."""
-    account = Account(owner_id=user.id, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
+    account = Account(owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
     db.add(account)
     await db.flush()
 

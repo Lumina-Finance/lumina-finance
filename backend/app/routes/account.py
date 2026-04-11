@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
-from app.models.base import AccountType, PermissionLevel, TaxTreatment
+from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.institution import Institution
@@ -155,6 +155,7 @@ async def create_account(
     account = Account(
         owner_id=owner_id,
         group_id=group_id,
+        account_kind=ACCOUNT_KIND_BY_TYPE[AccountType(data.account_type)],
         account_type=data.account_type,
         tax_treatment=data.tax_treatment,
         name=data.name,

@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import AccountType, Base, PermissionLevel, TaxTreatment
+from app.models.base import AccountKind, AccountType, Base, PermissionLevel, TaxTreatment
 
 
 class Account(Base):
@@ -32,6 +32,7 @@ class Account(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
+    account_kind: Mapped[AccountKind] = mapped_column(nullable=False)
     account_type: Mapped[AccountType] = mapped_column(nullable=False)
     tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False, default=TaxTreatment.TAXABLE)
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)

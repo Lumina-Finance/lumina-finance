@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.account import Account, AccountBalanceSnapshot
-from app.models.base import AccountType, CategoryKind, TaxTreatment
+from app.models.base import AccountKind, AccountType, CategoryKind, TaxTreatment
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
@@ -37,7 +37,7 @@ async def user(db, currency):
 async def account(db, user):
     """Seed a personal checking account."""
     a = Account(
-        owner_id=user.id, account_type=AccountType.CHECKING,
+        owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING,
         tax_treatment=TaxTreatment.TAXABLE, name="Chequing", currency="CAD",
     )
     db.add(a)
@@ -49,7 +49,7 @@ async def account(db, user):
 async def second_account(db, user):
     """Seed a second personal account for isolation tests."""
     a = Account(
-        owner_id=user.id, account_type=AccountType.SAVINGS,
+        owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.SAVINGS,
         tax_treatment=TaxTreatment.TAXABLE, name="Savings", currency="CAD",
     )
     db.add(a)

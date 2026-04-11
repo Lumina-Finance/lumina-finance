@@ -10,6 +10,7 @@ class AccountResponse(BaseModel):
     id: uuid.UUID
     owner_id: uuid.UUID | None
     group_id: uuid.UUID | None
+    account_kind: str
     account_type: str
     tax_treatment: str
     name: str
