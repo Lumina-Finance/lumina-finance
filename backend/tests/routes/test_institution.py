@@ -185,7 +185,32 @@ async def test_create_institution_returns_201_with_pending_status(client):
     assert data["country_code"] == INSTITUTION_PAYLOAD["country_code"]
     assert data["website"] == INSTITUTION_PAYLOAD["website"]
     assert data["status"] == "pending"
+    assert data["logo_url"] is None
     assert data["id"] is not None
+
+
+async def test_create_institution_with_logo_url_returns_logo_url(client):
+    """Submitting an institution with logo_url stores and returns it."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    payload = {**INSTITUTION_PAYLOAD, "logo_url": "https://cdn.example.com/testbank.png"}
+    resp = await client.post("/institutions", json=payload, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["logo_url"] == "https://cdn.example.com/testbank.png"
+
+
+async def test_get_institution_returns_logo_url_when_set(client):
+    """Detail endpoint surfaces logo_url for institutions that have one."""
+    inst = await _seed_institution(name="Logo Bank", logo_url="https://cdn.example.com/logo-bank.png")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get(f"/institutions/{inst.id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["logo_url"] == "https://cdn.example.com/logo-bank.png"
 
 
 async def test_create_institution_status_override_ignored(client):

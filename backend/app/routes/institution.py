@@ -102,6 +102,7 @@ async def create_institution(
         name=data.name,
         country_code=data.country_code,
         website=data.website,
+        logo_url=data.logo_url,
         status=InstitutionStatus.PENDING,
     )
     db.add(institution)

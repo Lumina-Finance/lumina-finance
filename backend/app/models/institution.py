@@ -19,3 +19,4 @@ class Institution(Base):
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     country_code: Mapped[str] = mapped_column(VARCHAR(2), nullable=False)  # ISO 3166-1 alpha-2
     website: Mapped[str] = mapped_column(Text, nullable=False)
+    logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)

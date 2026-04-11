@@ -11,6 +11,7 @@ class InstitutionResponse(BaseModel):
     name: str
     country_code: str
     website: str
+    logo_url: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -21,3 +22,4 @@ class CreateInstitutionRequest(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     country_code: str = Field(min_length=2, max_length=2)
     website: str = Field(min_length=1)
+    logo_url: str | None = None
