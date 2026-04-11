@@ -198,4 +198,10 @@
     color: var(--app-text-muted);
   }
 
+  /* Financial figures — currency amounts, balances, percentages */
+  .font-financial {
+    font-family: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
 }

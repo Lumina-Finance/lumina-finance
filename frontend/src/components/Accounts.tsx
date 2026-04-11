@@ -24,6 +24,22 @@ export default function Accounts() {
   const netWorth = totalAssets - totalDebts
   const assetCount = rows.filter((a) => a.account_kind === 'asset').length
   const debtCount = rows.filter((a) => a.account_kind === 'liability').length
+
+  // Credit usage — aggregate over liability accounts that have a credit_limit set.
+  // Loan-style liabilities (mortgages, term loans) have no limit and are excluded.
+  const creditAccounts = rows.filter(
+    (a) => a.account_kind === 'liability' && a.credit_limit !== null,
+  )
+  const totalCreditUsed = creditAccounts.reduce((sum, a) => sum + a.current_balance, 0)
+  const totalCreditLimit = creditAccounts.reduce((sum, a) => sum + (a.credit_limit ?? 0), 0)
+  const creditUtilization =
+    totalCreditLimit > 0 ? Math.round((totalCreditUsed / totalCreditLimit) * 100) : 0
+  const creditUtilColor =
+    creditUtilization <= 30
+      ? 'var(--app-positive)'
+      : creditUtilization <= 70
+        ? 'var(--app-accent)'
+        : 'var(--app-negative)'
   // Use the first account's currency as a display hint until a user
   // base-currency is wired through the auth response.
   const displayCurrency = rows[0]?.currency ?? 'USD'
@@ -96,11 +112,63 @@ export default function Accounts() {
         )}
 
         {/* Metrics band — savings rate / credit usage / cash runway */}
-        <div className="grid grid-cols-1 gap-4 grid-cols-3">
-          <div className="rounded-2xl h-[8.5rem] bg-gray-300" />
-          <div className="rounded-2xl h-[8.5rem] bg-gray-300" />
-          <div className="rounded-2xl h-[8.5rem] bg-gray-300" />
-        </div>
+        <section>
+          {/* Gold top rule */}
+          <div
+            style={{
+              height: 2,
+              background: 'var(--app-accent)',
+              opacity: 0.35,
+              borderRadius: 1,
+            }}
+          />
+          <div
+            className="grid grid-cols-3 py-5"
+            style={{ borderBottom: '1px solid var(--app-border-strong)' }}
+          >
+            {/* Savings Rate — placeholder until transactions API is wired */}
+            <div className="pr-6">
+              <div className="h-20 bg-gray-300 rounded-lg" />
+            </div>
+
+            {/* Credit Usage */}
+            <div className="px-6" style={{ borderInline: '1px solid var(--app-border)' }}>
+              <p className="app-label mb-1">Credit Usage</p>
+              <p
+                className="font-financial font-semibold text-[clamp(1rem,1.7vw,1.5rem)]"
+                style={{ color: creditUtilColor }}
+              >
+                {creditUtilization}%
+              </p>
+              <div className="mt-2 space-y-1">
+                <div
+                  className="h-1 rounded-full overflow-hidden"
+                  style={{ background: 'var(--app-border)' }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      background: creditUtilColor,
+                      width: `${Math.min(creditUtilization, 100)}%`,
+                    }}
+                  />
+                </div>
+                <p
+                  className="font-financial text-[clamp(0.625rem,0.7vw,0.6875rem)]"
+                  style={{ color: 'var(--app-text-subtle)' }}
+                >
+                  {formatCurrency(totalCreditUsed, displayCurrency)} of{' '}
+                  {formatCurrency(totalCreditLimit, displayCurrency)}
+                </p>
+              </div>
+            </div>
+
+            {/* Cash Runway — placeholder until transactions API is wired */}
+            <div className="pl-6">
+              <div className="h-20 bg-gray-300 rounded-lg" />
+            </div>
+          </div>
+        </section>
 
         {/* Filter row — institution / category / type / tax advantaged */}
         <div className="flex flex-wrap gap-4">
