@@ -85,7 +85,7 @@ export default function Accounts() {
                 <div className="text-right">
                   <p className="app-label mb-0.5">Assets</p>
                   <p
-                    className="font-medium text-xl"
+                    className="font-financial font-medium text-xl"
                     style={{ color: 'var(--app-positive)' }}
                   >
                     {formatCurrency(totalAssets, displayCurrency)}
@@ -97,7 +97,7 @@ export default function Accounts() {
                 <div className="text-right">
                   <p className="app-label mb-0.5">Debts</p>
                   <p
-                    className="font-medium text-xl"
+                    className="font-financial font-medium text-xl"
                     style={{ color: 'var(--app-negative)' }}
                   >
                     {formatCurrency(totalDebts, displayCurrency)}
