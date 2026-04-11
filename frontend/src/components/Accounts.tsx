@@ -23,6 +23,7 @@ export default function Accounts() {
   const totalDebts = sumByKind(rows, 'liability')
   const netWorth = totalAssets - totalDebts
   const assetCount = rows.filter((a) => a.account_kind === 'asset').length
+  const debtCount = rows.filter((a) => a.account_kind === 'liability').length
   // Use the first account's currency as a display hint until a user
   // base-currency is wired through the auth response.
   const displayCurrency = rows[0]?.currency ?? 'USD'
@@ -64,17 +65,31 @@ export default function Accounts() {
                 </p>
               </div>
 
-              <div className="pb-1.5 text-right">
-                <p className="app-label mb-0.5">Assets</p>
-                <p
-                  className="font-medium text-xl"
-                  style={{ color: 'var(--app-positive)' }}
-                >
-                  {formatCurrency(totalAssets, displayCurrency)}
-                </p>
-                <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                  {assetCount} account{assetCount !== 1 ? 's' : ''}
-                </p>
+              <div className="flex gap-8 pb-1.5">
+                <div className="text-right">
+                  <p className="app-label mb-0.5">Assets</p>
+                  <p
+                    className="font-medium text-xl"
+                    style={{ color: 'var(--app-positive)' }}
+                  >
+                    {formatCurrency(totalAssets, displayCurrency)}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                    {assetCount} account{assetCount !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="app-label mb-0.5">Debts</p>
+                  <p
+                    className="font-medium text-xl"
+                    style={{ color: 'var(--app-negative)' }}
+                  >
+                    {formatCurrency(totalDebts, displayCurrency)}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                    {debtCount} account{debtCount !== 1 ? 's' : ''}
+                  </p>
+                </div>
               </div>
             </div>
           </section>
