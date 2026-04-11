@@ -47,7 +47,33 @@ TestSession = async_sessionmaker(engine, expire_on_commit=False)
 
 @pytest.fixture(scope="session", autouse=True)
 async def _setup_schema():
-    """Drop and recreate all tables once at the start of the test run."""
+    """Ensure the worker's test DB exists, then drop and recreate all tables.
+
+    Runs once per pytest session (i.e. once per xdist worker). Connects to the
+    ``postgres`` maintenance DB with AUTOCOMMIT isolation to issue
+    ``CREATE DATABASE`` if the worker DB doesn't already exist, then uses the
+    worker engine to reset the schema. Requires the test user to have the
+    ``CREATEDB`` role attribute (``ALTER ROLE <user> CREATEDB;``).
+    """
+    # Sanity-check the worker DB name since it's interpolated into DDL — the
+    # identifier can't be passed as a bind parameter. WORKER_DB_NAME is derived
+    # from env + xdist's own worker id so this is strictly defensive.
+    if not all(c.isalnum() or c == "_" for c in WORKER_DB_NAME):
+        raise RuntimeError(f"Unsafe worker DB name: {WORKER_DB_NAME!r}")
+
+    maintenance_url = f"postgresql+asyncpg://{TEST_DB_USER}:{TEST_DB_PASSWORD}@{TEST_DB_HOST}:{TEST_DB_PORT}/postgres"
+    maintenance_engine = create_async_engine(maintenance_url, poolclass=NullPool, isolation_level="AUTOCOMMIT")
+    try:
+        async with maintenance_engine.connect() as conn:
+            exists = await conn.scalar(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": WORKER_DB_NAME},
+            )
+            if not exists:
+                await conn.execute(text(f'CREATE DATABASE "{WORKER_DB_NAME}"'))
+    finally:
+        await maintenance_engine.dispose()
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
