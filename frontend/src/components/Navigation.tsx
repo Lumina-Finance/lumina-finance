@@ -12,6 +12,7 @@ import {
   Sun,
   type LucideIcon,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
 import type { Theme } from '@/types';
 
@@ -31,6 +32,7 @@ const navItems: NavigationItem[] = [
 
 const Navigation = () => {
   const { theme, setTheme } = useTheme();
+  const { logout } = useAuth();
 
   return (
     <nav
@@ -116,7 +118,7 @@ const Navigation = () => {
       {/* User profile */}
       <div className="pt-3">
         <div
-          className="app-nav-link cursor-pointer"
+          className="app-nav-link"
           style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
         >
           <div
@@ -136,7 +138,15 @@ const Navigation = () => {
               Premium Plan
             </p>
           </div>
-          <LogOut size={14} className="shrink-0" style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
+          <button
+            type="button"
+            onClick={() => { void logout(); }}
+            aria-label="Log out"
+            className="shrink-0 rounded-md p-1 transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+            style={{ color: 'var(--app-text-subtle)' }}
+          >
+            <LogOut size={14} aria-hidden />
+          </button>
         </div>
       </div>
     </nav>
