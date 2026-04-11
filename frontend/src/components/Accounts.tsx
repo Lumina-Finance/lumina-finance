@@ -72,7 +72,7 @@ export default function Accounts() {
               <div>
                 <p className="app-label mb-1.5">Net Worth</p>
                 <p
-                  className="font-semibold tracking-tight leading-none text-4xl lg:text-5xl"
+                  className="font-financial font-semibold tracking-tight leading-none text-6xl"
                   style={{
                     color: netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
                   }}
