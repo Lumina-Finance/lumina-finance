@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+import { authenticatedFetch } from '@/api/client';
 
 export type AccountKind = 'asset' | 'liability';
 
@@ -47,21 +46,11 @@ export interface AccountsOverview {
   closed_at: string | null;
 }
 
-async function fetchAccounts(accessToken: string): Promise<AccountsOverview[]> {
-  const res = await fetch(`${API_BASE}/accounts`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to load accounts (${res.status})`);
-  }
-  return res.json();
-}
-
 export function useAccounts() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: ['accounts'],
-    queryFn: () => fetchAccounts(accessToken!),
+    queryFn: () => authenticatedFetch<AccountsOverview[]>('/accounts'),
     enabled: !!accessToken,
     // Refetch on tab focus, but only if the cache is older than 10 minutes
     refetchOnWindowFocus: true,

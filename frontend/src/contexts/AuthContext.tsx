@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as authApi from '@/api/auth';
 import type { User, LoginPayload, SignupPayload, AuthResponse } from '@/api/auth';
+import { registerAuthBindings } from '@/api/client';
 
 interface AuthState {
   user: User | null;
@@ -46,6 +47,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken: null,
     loading: hadSession,
   });
+
+  // Ref mirrors state so the auth bindings' getAccessToken closure always
+  // reads the latest token without re-registering bindings on every change.
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
+  // Wire authenticatedFetch to our session lifecycle once on mount.
+  useEffect(() => {
+    registerAuthBindings({
+      getAccessToken: () => stateRef.current.accessToken,
+      onSessionRefreshed: (res) => {
+        setState({ user: res.user, accessToken: res.access_token, loading: false });
+      },
+      onSessionLost: () => {
+        localStorage.removeItem(SESSION_KEY);
+        setState({ user: null, accessToken: null, loading: false });
+        queryClient.clear();
+      },
+    });
+  }, [queryClient]);
 
   // Attempt refresh only on initial mount if a prior session existed
   useEffect(() => {
