@@ -22,6 +22,7 @@ export default function Accounts() {
   const totalAssets = sumByKind(rows, 'asset')
   const totalDebts = sumByKind(rows, 'liability')
   const netWorth = totalAssets - totalDebts
+  const assetCount = rows.filter((a) => a.account_kind === 'asset').length
   // Use the first account's currency as a display hint until a user
   // base-currency is wired through the auth response.
   const displayCurrency = rows[0]?.currency ?? 'USD'
@@ -50,16 +51,31 @@ export default function Accounts() {
                   'linear-gradient(to right, var(--app-accent), var(--app-accent-border), transparent)',
               }}
             />
-            <div>
-              <p className="app-label mb-1.5">Net Worth</p>
-              <p
-                className="font-semibold tracking-tight leading-none text-4xl lg:text-5xl"
-                style={{
-                  color: netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
-                }}
-              >
-                {formatCurrency(netWorth, displayCurrency)}
-              </p>
+            <div className="flex items-end justify-between gap-6 flex-wrap">
+              <div>
+                <p className="app-label mb-1.5">Net Worth</p>
+                <p
+                  className="font-semibold tracking-tight leading-none text-4xl lg:text-5xl"
+                  style={{
+                    color: netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
+                  }}
+                >
+                  {formatCurrency(netWorth, displayCurrency)}
+                </p>
+              </div>
+
+              <div className="pb-1.5 text-right">
+                <p className="app-label mb-0.5">Assets</p>
+                <p
+                  className="font-medium text-xl"
+                  style={{ color: 'var(--app-positive)' }}
+                >
+                  {formatCurrency(totalAssets, displayCurrency)}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  {assetCount} account{assetCount !== 1 ? 's' : ''}
+                </p>
+              </div>
             </div>
           </section>
         )}
