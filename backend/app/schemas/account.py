@@ -45,6 +45,12 @@ class AccountResponse(BaseModel):
     current_balance: int
     lifetime_contribution_limit: int | None
     credit_limit: int | None
+    # Tax-advantaged tallies. None when tax_treatment == taxable.
+    # Lifetime tallies are additionally None when lifetime_contribution_limit is unset.
+    ytd_contributions: int | None
+    ytd_withdrawals: int | None
+    lifetime_contributions: int | None
+    lifetime_withdrawals: int | None
     is_hidden: bool
     closed_at: datetime | None
     created_at: datetime

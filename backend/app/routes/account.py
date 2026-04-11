@@ -24,6 +24,7 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
+from app.services.accounts import attach_tax_advantaged_tallies
 from app.services.snapshots import attach_current_balances
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -71,6 +72,7 @@ async def get_account(
     """Return a single account by ID. Requires read access."""
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     await attach_current_balances(db, [account])
+    await attach_tax_advantaged_tallies(db, [account])
     return account
 
 
@@ -207,6 +209,7 @@ async def create_account(
     )
     fresh = result.scalar_one()
     await attach_current_balances(db, [fresh])
+    await attach_tax_advantaged_tallies(db, [fresh])
     return fresh
 
 
@@ -223,6 +226,7 @@ async def update_account(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         await attach_current_balances(db, [account])
+        await attach_tax_advantaged_tallies(db, [account])
         return account
 
     # Validate tax_treatment if being changed
@@ -257,6 +261,7 @@ async def update_account(
     )
     fresh = result.scalar_one()
     await attach_current_balances(db, [fresh])
+    await attach_tax_advantaged_tallies(db, [fresh])
     return fresh
 
 

@@ -1,7 +1,10 @@
+import uuid
 from datetime import UTC, datetime
 
-from app.models.base import InstitutionStatus
+from app.models.base import CategoryKind, InstitutionStatus
+from app.models.category import Category
 from app.models.institution import Institution
+from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.conftest import ACCOUNT_PAYLOAD, _create_account, _create_user, _get_auth_header
 
@@ -31,6 +34,41 @@ async def _seed_institution(logo_url: str | None = None):
         await session.commit()
         await session.refresh(inst)
         return inst
+
+
+async def _seed_category(owner_id: uuid.UUID, kind: CategoryKind, name: str = "Transfer") -> uuid.UUID:
+    """Insert a category of a given kind directly via DB. Returns the id.
+
+    Used by tax-advantaged tally tests to create transfer-kind categories without going
+    through the API (which would otherwise need /categories route setup per test).
+    """
+    async with TestSession() as session:
+        cat = Category(name=name, kind=kind, owner_id=owner_id)
+        session.add(cat)
+        await session.commit()
+        await session.refresh(cat)
+        return cat.id
+
+
+async def _seed_transaction(
+    account_id: uuid.UUID, category_id: uuid.UUID, user_id: uuid.UUID, amount: int, ts: datetime,
+) -> None:
+    """Insert a transaction directly via DB, bypassing validation and snapshot hooks.
+
+    Used by tax-advantaged tally tests to seed historical/current-year transfers without
+    also triggering recompute_snapshots_from (which would add extra AccountBalanceSnapshot
+    rows that these tests don't care about).
+    """
+    async with TestSession() as session:
+        session.add(Transaction(
+            created_by_user_id=user_id,
+            account_id=account_id,
+            category_id=category_id,
+            ts=ts,
+            amount=amount,
+            currency="CAD",
+        ))
+        await session.commit()
 
 
 async def _create_second_user(client):
@@ -158,6 +196,145 @@ async def test_get_account_returns_current_balance(client):
     assert resp.json()["current_balance"] == 0
 
 
+# --- Tax-advantaged tallies (Phase 2.6) ---
+
+
+async def test_get_taxable_account_tax_advantaged_tallies_are_null(client):
+    """Taxable accounts return None for all four tax-advantaged tally fields."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)  # defaults to tax_treatment='taxable'
+    account_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ytd_contributions"] is None
+    assert data["ytd_withdrawals"] is None
+    assert data["lifetime_contributions"] is None
+    assert data["lifetime_withdrawals"] is None
+
+
+async def test_get_tax_free_account_without_lifetime_limit_has_ytd_but_null_lifetime(client):
+    """Tax-free account with no lifetime_contribution_limit: YTD populated (zero), lifetime null."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, tax_treatment="tax_free")
+    account_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ytd_contributions"] == 0
+    assert data["ytd_withdrawals"] == 0
+    assert data["lifetime_contributions"] is None
+    assert data["lifetime_withdrawals"] is None
+
+
+async def test_get_tax_free_account_with_lifetime_limit_populates_all_four(client):
+    """Tax-free account with lifetime_contribution_limit set populates all four tally fields (zero with no activity)."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(
+        client, headers, tax_treatment="tax_free", lifetime_contribution_limit=5_000_000,
+    )
+    account_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ytd_contributions"] == 0
+    assert data["ytd_withdrawals"] == 0
+    assert data["lifetime_contributions"] == 0
+    assert data["lifetime_withdrawals"] == 0
+
+
+async def test_tax_advantaged_tallies_sum_transfer_transactions(client):
+    """YTD tallies sum positive transfers into contributions and absolute negative into withdrawals."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = uuid.UUID(signup_resp.json()["user"]["id"])
+    create_resp = await _create_account(client, headers, tax_treatment="tax_free")
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER)
+
+    # Current-year transfers: two contributions and one withdrawal
+    now = datetime.now(UTC)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 50_000, now)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 30_000, now)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, -10_000, now)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ytd_contributions"] == 80_000
+    assert data["ytd_withdrawals"] == 10_000
+
+
+async def test_tax_advantaged_lifetime_tallies_include_old_years_ytd_excludes_them(client):
+    """Old-year transfers count toward lifetime tallies but not YTD."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = uuid.UUID(signup_resp.json()["user"]["id"])
+    create_resp = await _create_account(
+        client, headers, tax_treatment="tax_free", lifetime_contribution_limit=5_000_000,
+    )
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER)
+
+    # Prior-year activity (2025 — definitely not the current UTC year at time of writing)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 100_000, datetime(2025, 6, 1, tzinfo=UTC))
+    await _seed_transaction(account_id, transfer_cat_id, user_id, -20_000, datetime(2025, 7, 1, tzinfo=UTC))
+    # Current-year activity — use today's timestamp to avoid tz/year-boundary hazards
+    now = datetime.now(UTC)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 50_000, now)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, -5_000, now)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    # YTD only reflects current-year activity
+    assert data["ytd_contributions"] == 50_000
+    assert data["ytd_withdrawals"] == 5_000
+    # Lifetime sums across both years
+    assert data["lifetime_contributions"] == 150_000
+    assert data["lifetime_withdrawals"] == 25_000
+
+
+async def test_tax_advantaged_tallies_ignore_non_transfer_transactions(client):
+    """Expense and income category transactions never contribute to tax-advantaged tallies."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = uuid.UUID(signup_resp.json()["user"]["id"])
+    create_resp = await _create_account(
+        client, headers, tax_treatment="tax_free", lifetime_contribution_limit=5_000_000,
+    )
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER, name="Transfer")
+    expense_cat_id = await _seed_category(user_id, CategoryKind.EXPENSE, name="Groceries")
+
+    now = datetime.now(UTC)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 100_000, now)  # counts
+    await _seed_transaction(account_id, expense_cat_id, user_id, -50_000, now)  # ignored
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ytd_contributions"] == 100_000
+    assert data["ytd_withdrawals"] == 0  # expense didn't contribute
+    assert data["lifetime_contributions"] == 100_000
+    assert data["lifetime_withdrawals"] == 0
+
+
 async def test_create_account_returns_current_balance(client):
     """POST /accounts response includes current_balance from the just-inserted zero anchor."""
     signup_resp = await _create_user(client)
@@ -202,6 +379,10 @@ async def test_get_account_returns_account(client):
     assert data["current_balance"] == 0
     assert data["lifetime_contribution_limit"] is None
     assert data["credit_limit"] is None
+    assert data["ytd_contributions"] is None
+    assert data["ytd_withdrawals"] is None
+    assert data["lifetime_contributions"] is None
+    assert data["lifetime_withdrawals"] is None
     assert data["is_hidden"] is False
     assert data["closed_at"] is None
     assert data["created_at"] is not None
