@@ -6,8 +6,31 @@ from pydantic import BaseModel, Field
 from app.schemas.institution import InstitutionResponse
 
 
+class AccountsOverview(BaseModel):
+    """One row in `GET /accounts` — the trimmed shape used by the /accounts page and dashboard.
+
+    Excludes `lifetime_contribution_limit` and `created_at` (detail-only fields). Tax-advantaged
+    tallies and current-year limits are also detail-only and live on AccountResponse.
+    """
+
+    id: uuid.UUID
+    owner_id: uuid.UUID | None
+    group_id: uuid.UUID | None
+    account_kind: str
+    account_type: str
+    tax_treatment: str
+    name: str
+    institution: InstitutionResponse | None
+    currency: str
+    credit_limit: int | None
+    is_hidden: bool
+    closed_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
 class AccountResponse(BaseModel):
-    """Full account returned by list and detail endpoints."""
+    """Full account detail returned by `GET /accounts/{id}`, `POST /accounts`, and `PATCH /accounts/{id}`."""
 
     id: uuid.UUID
     owner_id: uuid.UUID | None

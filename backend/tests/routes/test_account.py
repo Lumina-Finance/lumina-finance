@@ -80,6 +80,25 @@ async def test_list_accounts_returns_user_accounts(client):
     assert names == {"Account A", "Account B"}
 
 
+async def test_list_accounts_returns_overview_shape(client):
+    """List endpoint returns the trimmed AccountsOverview shape, not the detail shape."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _create_account(client, headers)
+
+    resp = await client.get("/accounts", headers=headers)
+
+    assert resp.status_code == 200
+    row = resp.json()[0]
+    # Detail-only fields are excluded from the overview shape
+    assert "lifetime_contribution_limit" not in row
+    assert "created_at" not in row
+    # Overview fields are present
+    for field in ("id", "owner_id", "group_id", "account_kind", "account_type", "name",
+                  "currency", "institution", "credit_limit", "is_hidden", "closed_at"):
+        assert field in row, f"missing overview field: {field}"
+
+
 async def test_list_accounts_without_auth_returns_401(client):
     """GET /accounts without an Authorization header returns 401."""
     resp = await client.get("/accounts")

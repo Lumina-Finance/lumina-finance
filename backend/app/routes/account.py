@@ -19,6 +19,7 @@ from app.permissions import check_account_access
 from app.schemas.account import (
     AccountBalanceSnapshotResponse,
     AccountResponse,
+    AccountsOverview,
     CreateAccountRequest,
     UpdateAccountRequest,
 )
@@ -32,7 +33,7 @@ _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 _VALID_TAX_TREATMENTS = {e.value for e in TaxTreatment}
 
 
-@router.get("", response_model=list[AccountResponse])
+@router.get("", response_model=list[AccountsOverview])
 async def list_accounts(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
