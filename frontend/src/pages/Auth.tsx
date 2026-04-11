@@ -107,11 +107,20 @@ const Auth = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  const { data: currencies = [] } = useCurrencies();
+  const { data: currencies = [], isError: currenciesError } = useCurrencies();
 
   const isLogin = mode === 'login';
 
-  const currencyPlaceholder = currencies.length === 0 ? 'Loading currencies…' : 'Select...';
+  const currencyPlaceholder = currenciesError
+    ? 'Failed to load currencies'
+    : currencies.length === 0
+      ? 'Loading currencies…'
+      : 'Select...';
+
+  // Surface the currency load failure in the top banner so signup users can't miss it.
+  const displayError = error || (!isLogin && currenciesError && currencies.length === 0
+    ? 'Unable to load currencies. Please refresh and try again.'
+    : '');
 
   /** Check if locked out, and return remaining time as a readable string if so. */
   const getLockedRemaining = (): string | null => {
@@ -164,6 +173,12 @@ const Auth = () => {
     const remaining = getLockedRemaining();
     if (remaining) {
       setError(`Too many failed attempts. Try again in ${remaining}.`);
+      return;
+    }
+
+    // Refuse signup if currencies never loaded — avoids submitting the default CAD blindly
+    if (!isLogin && currencies.length === 0) {
+      setError('Unable to load currencies. Please refresh and try again.');
       return;
     }
 
@@ -253,7 +268,7 @@ const Auth = () => {
         </div>
 
         <AnimatePresence>
-          {error && (
+          {displayError && (
             <motion.div
               key="error-banner"
               className="flex items-start gap-3 rounded-xl px-4 py-3"
@@ -267,7 +282,7 @@ const Auth = () => {
               transition={{ duration: 0.2 }}
             >
               <AlertCircle size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--app-negative)' }} aria-hidden />
-              <p className="text-sm" style={{ color: 'var(--app-negative)' }}>{error}</p>
+              <p className="text-sm" style={{ color: 'var(--app-negative)' }}>{displayError}</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -485,7 +500,7 @@ const Auth = () => {
         <div className="flex justify-center">
           <button
             type="submit"
-            disabled={submitting || Object.values(fieldErrors).some(Boolean)}
+            disabled={submitting || Object.values(fieldErrors).some(Boolean) || (!isLogin && currencies.length === 0)}
             className={`app-primary-button transition-all duration-300 ${
               submitting ? 'app-primary-button-loading' : 'w-full'
             }`}
