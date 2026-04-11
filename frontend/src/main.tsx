@@ -1,10 +1,36 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { QueryClient } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import '../styles/tailwind.css'
 import App from '@/App.tsx'
 
+const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 60 * 60 * 1000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+const persister = createAsyncStoragePersister({
+  storage: window.localStorage,
+  key: 'lumina:query-cache',
+});
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister, maxAge: SIX_MONTHS_MS }}
+    >
+      <App />
+    </PersistQueryClientProvider>
   </StrictMode>,
 )
