@@ -1,21 +1,21 @@
 """initial schema
 
-Revision ID: 62f4749cfbd1
+Revision ID: 2d2c19571eca
 Revises: 
-Create Date: 2026-04-09 13:48:02.663481
+Create Date: 2026-04-11 12:26:59.022296
 
 """
-from collections.abc import Sequence
-
-import sqlalchemy as sa
+from typing import Sequence, Union
 
 from alembic import op
+import sqlalchemy as sa
+
 
 # revision identifiers, used by Alembic.
-revision: str = '62f4749cfbd1'
-down_revision: str | Sequence[str] | None = None
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+revision: str = '2d2c19571eca'
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
@@ -34,6 +34,7 @@ def upgrade() -> None:
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
     sa.Column('country_code', sa.VARCHAR(length=2), nullable=False),
     sa.Column('website', sa.Text(), nullable=False),
+    sa.Column('logo_url', sa.Text(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name', 'country_code', name='uq_institution_name_country')
     )
@@ -53,11 +54,13 @@ def upgrade() -> None:
     op.create_table('active_tokens',
     sa.Column('jti', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('session_id', sa.Uuid(), nullable=False),
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('jti')
     )
+    op.create_index(op.f('ix_active_tokens_session_id'), 'active_tokens', ['session_id'], unique=False)
     op.create_table('auth_identities',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
@@ -92,12 +95,14 @@ def upgrade() -> None:
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=True),
     sa.Column('group_id', sa.Uuid(), nullable=True),
-    sa.Column('account_type', sa.Enum('CHECKING', 'SAVINGS', 'CREDIT_CARD', 'CASH', 'INVESTMENT', name='accounttype'), nullable=False),
+    sa.Column('account_kind', sa.Enum('ASSET', 'LIABILITY', name='accountkind'), nullable=False),
+    sa.Column('account_type', sa.Enum('CHECKING', 'SAVINGS', 'TERM_DEPOSIT', 'CASH', 'INVESTMENT', 'CREDIT_CARD', 'LINE_OF_CREDIT', 'HELOC', 'LOAN', 'MORTGAGE', name='accounttype'), nullable=False),
     sa.Column('tax_treatment', sa.Enum('TAXABLE', 'TAX_FREE', 'TAX_DEFERRED', 'TAX_ASSISTED', name='taxtreatment'), nullable=False),
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
     sa.Column('institution_id', sa.Uuid(), nullable=True),
     sa.Column('currency', sa.VARCHAR(length=3), nullable=False),
     sa.Column('lifetime_contribution_limit', sa.BigInteger(), nullable=True),
+    sa.Column('credit_limit', sa.BigInteger(), nullable=True),
     sa.Column('is_hidden', sa.Boolean(), nullable=False),
     sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -301,6 +306,7 @@ def downgrade() -> None:
     op.drop_table('password_credentials')
     op.drop_table('groups')
     op.drop_table('auth_identities')
+    op.drop_index(op.f('ix_active_tokens_session_id'), table_name='active_tokens')
     op.drop_table('active_tokens')
     op.drop_table('users')
     op.drop_table('institutions')
