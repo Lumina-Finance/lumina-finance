@@ -34,6 +34,9 @@ _VALID_ACCOUNT_KINDS = {e.value for e in AccountKind}
 _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 _VALID_TAX_TREATMENTS = {e.value for e in TaxTreatment}
 
+# UpdateAccountRequest fields that map to NOT NULL columns — explicit null on these is rejected with 422.
+_UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "tax_treatment", "is_hidden"})
+
 
 @router.get("", response_model=list[AccountsOverview])
 async def list_accounts(
@@ -231,6 +234,14 @@ async def update_account(
         await attach_tax_advantaged_tallies(db, [account])
         await attach_current_year_tax_limits(db, [account])
         return account
+
+    # Reject explicit null on fields that map to NOT NULL columns before they reach the DB.
+    for field in _UPDATE_ACCOUNT_NOT_NULL_FIELDS:
+        if field in updates and updates[field] is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"{field} cannot be null",
+            )
 
     # Validate tax_treatment if being changed
     if "tax_treatment" in updates and updates["tax_treatment"] not in _VALID_TAX_TREATMENTS:

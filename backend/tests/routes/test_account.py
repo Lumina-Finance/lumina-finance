@@ -914,6 +914,64 @@ async def test_patch_account_invalid_tax_treatment_returns_422(client):
     assert resp.json()["detail"] == "Invalid tax treatment"
 
 
+async def test_patch_account_explicit_null_name_returns_422(client):
+    """Explicit null on name would violate NOT NULL — reject with 422 before touching the DB."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"name": None}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "name cannot be null"
+
+
+async def test_patch_account_explicit_null_tax_treatment_returns_422(client):
+    """Explicit null on tax_treatment would violate NOT NULL — reject with 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"tax_treatment": None}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "tax_treatment cannot be null"
+
+
+async def test_patch_account_explicit_null_is_hidden_returns_422(client):
+    """Explicit null on is_hidden would violate NOT NULL — reject with 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"is_hidden": None}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "is_hidden cannot be null"
+
+
+async def test_patch_account_explicit_null_closed_at_still_clears_field(client):
+    """Nullable fields (closed_at) can still be cleared with explicit null — the guard only covers NOT NULL columns."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    # Set closed_at first, then clear it
+    await client.patch(
+        f"/accounts/{account_id}",
+        json={"closed_at": "2026-01-01T00:00:00+00:00"},
+        headers=headers,
+    )
+    resp = await client.patch(f"/accounts/{account_id}", json={"closed_at": None}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["closed_at"] is None
+
+
 async def test_patch_account_not_found_returns_404(client):
     """PATCH non-existent account returns 404."""
     signup_resp = await _create_user(client)
