@@ -28,6 +28,38 @@ function humanizeAccountType(type: string): string {
     .join(' ')
 }
 
+// Fixed-size slot for an institution logo. Renders the image when available,
+// otherwise a neutral circle with the first letter of the institution name
+// (or "$" for cashflow-only accounts with no institution).
+function InstitutionLogo({ institution }: { institution: AccountsOverview['institution'] }) {
+  const initial = institution?.name?.[0]?.toUpperCase() ?? '$'
+  return (
+    <div
+      className="w-9 h-9 shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
+      style={{
+        background: 'var(--app-accent-soft)',
+        border: '1px solid var(--app-border)',
+      }}
+    >
+      {institution?.logo_url ? (
+        <img
+          src={institution.logo_url}
+          alt={`${institution.name} logo`}
+          className="w-full h-full object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <span
+          className="text-sm font-semibold select-none"
+          style={{ color: 'var(--app-accent)' }}
+        >
+          {initial}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function Accounts() {
   const { data: accounts, isLoading, error } = useAccounts()
 
@@ -238,6 +270,7 @@ export default function Accounts() {
                     style={{ background: 'var(--app-negative)', opacity: 0.3 }}
                   />
                   <div className="flex-1 flex items-center gap-4 py-3.5 px-4">
+                    <InstitutionLogo institution={account.institution} />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{account.name}</p>
                       <p
