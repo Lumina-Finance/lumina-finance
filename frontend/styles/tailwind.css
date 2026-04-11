@@ -145,7 +145,7 @@
   }
 
   .app-primary-button:active {
-    transform: scale(0.985);
+    transform: scale(0.96);
   }
 
   .app-primary-button:disabled {
