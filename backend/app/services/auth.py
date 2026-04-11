@@ -60,11 +60,13 @@ def _verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
+def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     """Create a short-lived JWT access token signed with the access private key.
 
     Args:
         user_id: The user's UUID to embed as the token subject.
+        session_id: Shared id for the access + refresh pair, embedded as the ``sid`` claim
+            so logout can revoke the whole session from either token.
 
     Returns:
         Tuple of (encoded JWT string, jti, expires_at) for storing in active_tokens.
@@ -75,6 +77,7 @@ def create_access_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     payload = {
         "sub": str(user_id),
         "jti": str(jti),
+        "sid": str(session_id),
         "iat": now,
         "exp": expires_at,
         "iss": JWT_ISSUER,
@@ -83,11 +86,13 @@ def create_access_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     return token, jti, expires_at
 
 
-def create_refresh_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
+def create_refresh_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     """Create a longer-lived JWT refresh token signed with the refresh private key.
 
     Args:
         user_id: The user's UUID to embed as the token subject.
+        session_id: Shared id for the access + refresh pair, embedded as the ``sid`` claim
+            so refresh rotation and logout can act on the whole session.
 
     Returns:
         Tuple of (encoded JWT string, jti, expires_at) for storing in active_tokens.
@@ -98,6 +103,7 @@ def create_refresh_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     payload = {
         "sub": str(user_id),
         "jti": str(jti),
+        "sid": str(session_id),
         "iat": now,
         "exp": expires_at,
         "iss": JWT_ISSUER,

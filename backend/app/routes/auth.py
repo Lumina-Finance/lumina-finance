@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 import jwt
@@ -64,7 +65,7 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 
 async def _issue_and_store_tokens(
-    db: AsyncSession, response: Response, user: User,
+    db: AsyncSession, response: Response, user: User, session_id: uuid.UUID | None = None,
 ) -> AuthResponse:
     """Create a token pair, register them in active_tokens, and set the refresh cookie.
 
@@ -72,6 +73,8 @@ async def _issue_and_store_tokens(
         db: Async database session.
         response: FastAPI response object for setting the refresh cookie.
         user: The authenticated user.
+        session_id: Reuse an existing session id when rotating tokens on refresh so the session
+            identity persists across rotations. ``None`` (signup / login) mints a fresh one.
 
     Returns:
         AuthResponse with user info and access token.
@@ -79,11 +82,14 @@ async def _issue_and_store_tokens(
     # Purge expired tokens to prevent unbounded table growth
     await db.execute(delete(ActiveToken).where(ActiveToken.expires_at < sa_func.now()))
 
-    access_token, access_jti, access_exp = create_access_token(user.id)
-    refresh_token, refresh_jti, refresh_exp = create_refresh_token(user.id)
+    if session_id is None:
+        session_id = uuid.uuid4()
 
-    db.add(ActiveToken(jti=access_jti, user_id=user.id, expires_at=access_exp))
-    db.add(ActiveToken(jti=refresh_jti, user_id=user.id, expires_at=refresh_exp))
+    access_token, access_jti, access_exp = create_access_token(user.id, session_id)
+    refresh_token, refresh_jti, refresh_exp = create_refresh_token(user.id, session_id)
+
+    db.add(ActiveToken(jti=access_jti, user_id=user.id, session_id=session_id, expires_at=access_exp))
+    db.add(ActiveToken(jti=refresh_jti, user_id=user.id, session_id=session_id, expires_at=refresh_exp))
     await db.commit()
 
     _set_refresh_cookie(response, refresh_token)

@@ -299,6 +299,7 @@ async def test_expired_tokens_purged_on_token_issuance(client):
         session.add(ActiveToken(
             jti=expired_jti,
             user_id=user.id,
+            session_id=uuid4(),
             expires_at=datetime.now(UTC) - timedelta(hours=1),
         ))
         await session.commit()
