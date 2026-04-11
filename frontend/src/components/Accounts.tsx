@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
 
 // Format an integer amount in a currency's minor units (e.g. cents) as a
@@ -226,11 +227,15 @@ export default function Accounts() {
         </section>
 
         {/* Filter row — institution / category / type / tax advantaged */}
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
           <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
           <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
           <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
+          <button type="button" className="app-secondary-button ml-auto">
+            <Plus size={18} aria-hidden />
+            Add Account
+          </button>
         </div>
 
         {/* Debts section */}
@@ -362,8 +367,6 @@ export default function Accounts() {
           </div>
         </section>
 
-        {/* Add New Account button */}
-        <div className="rounded-xl h-12 bg-gray-300" />
       </div>
     </div>
   )

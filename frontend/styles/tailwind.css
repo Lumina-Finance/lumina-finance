@@ -153,6 +153,28 @@
     pointer-events: none;
   }
 
+  .app-secondary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold transition-all duration-200 motion-reduce:transition-none;
+    font-size: 0.9375rem;
+    background: var(--app-nav-bg);
+    border: 1px solid var(--app-accent-border);
+    color: var(--app-accent);
+  }
+
+  .app-secondary-button:hover {
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent);
+  }
+
+  .app-secondary-button:active {
+    transform: scale(0.96);
+  }
+
+  .app-secondary-button:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
   .app-primary-button-loading {
     width: 44px;
     height: 44px;
