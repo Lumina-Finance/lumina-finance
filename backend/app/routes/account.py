@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
-from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountType, PermissionLevel, TaxTreatment
+from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.institution import Institution
@@ -26,6 +26,7 @@ from app.schemas.permission import AccountPermissionResponse, GrantAccountPermis
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 # Valid enum values for request validation
+_VALID_ACCOUNT_KINDS = {e.value for e in AccountKind}
 _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 _VALID_TAX_TREATMENTS = {e.value for e in TaxTreatment}
 
@@ -119,8 +120,15 @@ async def create_account(
         HTTPException 403: User is not an admin of the group.
         HTTPException 404: User is not a member of the group.
     """
+    if data.account_kind not in _VALID_ACCOUNT_KINDS:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid account kind")
     if data.account_type not in _VALID_ACCOUNT_TYPES:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid account type")
+    if ACCOUNT_KIND_BY_TYPE[AccountType(data.account_type)] != AccountKind(data.account_kind):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Account kind does not match account type",
+        )
     if data.tax_treatment not in _VALID_TAX_TREATMENTS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
 
@@ -155,7 +163,7 @@ async def create_account(
     account = Account(
         owner_id=owner_id,
         group_id=group_id,
-        account_kind=ACCOUNT_KIND_BY_TYPE[AccountType(data.account_type)],
+        account_kind=data.account_kind,
         account_type=data.account_type,
         tax_treatment=data.tax_treatment,
         name=data.name,

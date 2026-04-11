@@ -67,6 +67,7 @@ async def _create_user(client):
 
 
 ACCOUNT_PAYLOAD = {
+    "account_kind": "asset",
     "account_type": "checking",
     "tax_treatment": "taxable",
     "name": "Main Chequing",

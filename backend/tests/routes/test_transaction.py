@@ -50,6 +50,7 @@ async def _create_account(client, headers, **overrides):
         The HTTP response from the API.
     """
     payload = {
+        "account_kind": "asset",
         "account_type": "checking",
         "tax_treatment": "taxable",
         "name": "Main Chequing",

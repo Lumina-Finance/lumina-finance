@@ -838,7 +838,7 @@ async def test_delete_merchant_referenced_by_transaction_returns_409(client):
     merchant_id = merchant_resp.json()["id"]
 
     acct_resp = await client.post("/accounts", json={
-        "account_type": "checking", "name": "Chequing", "currency": "CAD",
+        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
     }, headers=headers)
     account_id = acct_resp.json()["id"]
 

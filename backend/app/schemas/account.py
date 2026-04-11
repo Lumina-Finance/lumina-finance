@@ -27,6 +27,7 @@ class AccountResponse(BaseModel):
 class CreateAccountRequest(BaseModel):
     """Create a new account. Either personal (default) or group-scoped."""
 
+    account_kind: str  # AccountKind enum value — must be consistent with account_type
     account_type: str  # AccountType enum value
     tax_treatment: str = "taxable"  # TaxTreatment enum value
     name: str = Field(min_length=1, max_length=256)

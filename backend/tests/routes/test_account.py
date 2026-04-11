@@ -185,6 +185,54 @@ async def test_create_account_invalid_account_type_returns_422(client):
     assert resp.json()["detail"] == "Invalid account type"
 
 
+async def test_create_account_invalid_account_kind_returns_422(client):
+    """Invalid account_kind returns 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, account_kind="not_a_real_kind")
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Invalid account kind"
+
+
+async def test_create_account_kind_type_mismatch_returns_422(client):
+    """Submitting kind=asset with a liability type (or vice versa) returns 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, account_kind="asset", account_type="credit_card")
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account kind does not match account type"
+
+
+async def test_create_account_missing_kind_returns_422(client):
+    """Pydantic rejects payloads missing the required account_kind field."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    payload = {k: v for k, v in ACCOUNT_PAYLOAD.items() if k != "account_kind"}
+    resp = await client.post("/accounts", json=payload, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_create_liability_account_succeeds(client):
+    """Creating a liability account (credit_card) with kind=liability is accepted and round-trips."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client, headers, account_kind="liability", account_type="credit_card", name="Visa Infinite",
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["account_kind"] == "liability"
+    assert data["account_type"] == "credit_card"
+
+
 async def test_create_account_invalid_tax_treatment_returns_422(client):
     """Invalid tax_treatment returns 422."""
     signup_resp = await _create_user(client)

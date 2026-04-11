@@ -50,6 +50,7 @@ async def _create_group_account(client, headers, group_id):
         The created account's ID.
     """
     resp = await client.post("/accounts", json={
+        "account_kind": "asset",
         "account_type": "checking",
         "name": "Joint Checking",
         "currency": "CAD",
@@ -228,7 +229,7 @@ async def test_grant_account_permission_personal_account_returns_404(client):
     admin_headers, _, member_user_id, _, _ = await _setup_group_with_member_and_account(client)
 
     personal_resp = await client.post("/accounts", json={
-        "account_type": "checking", "name": "Personal", "currency": "CAD",
+        "account_kind": "asset", "account_type": "checking", "name": "Personal", "currency": "CAD",
     }, headers=admin_headers)
     personal_account_id = personal_resp.json()["id"]
 
