@@ -75,6 +75,11 @@ export default function Accounts() {
     .filter((a) => a.account_kind === 'liability')
     .sort((a, b) => b.current_balance - a.current_balance)
 
+  // Assets ordered by balance descending — largest holding surfaces first.
+  const assetRows = rows
+    .filter((a) => a.account_kind === 'asset')
+    .sort((a, b) => b.current_balance - a.current_balance)
+
   // Credit usage — aggregate over liability accounts that have a credit_limit set.
   // Loan-style liabilities (mortgages, term loans) have no limit and are excluded.
   const creditAccounts = rows.filter(
@@ -295,17 +300,65 @@ export default function Accounts() {
         </section>
 
         {/* Assets section */}
-        <section className="space-y-3">
-          <div className="flex items-center gap-4">
-            <div className="h-7 w-24 rounded bg-gray-300" />
-            <div className="flex-1 h-px bg-gray-300" />
-            <div className="h-7 w-32 rounded bg-gray-300" />
+        <section>
+          {/* Editorial header — title ─── subtotal */}
+          <div className="flex items-center gap-4 mb-2">
+            <h3
+              className="font-serif font-semibold shrink-0 text-2xl"
+              style={{ color: 'var(--app-positive)' }}
+            >
+              Assets
+            </h3>
+            <div
+              className="flex-1 h-px"
+              style={{
+                background:
+                  'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
+              }}
+            />
+            <span
+              className="font-financial font-semibold shrink-0 text-xl"
+              style={{ color: 'var(--app-positive)' }}
+            >
+              {formatCurrency(totalAssets, displayCurrency)}
+            </span>
           </div>
-          <div className="space-y-2">
-            <div className="rounded-xl h-16 bg-gray-300" />
-            <div className="rounded-xl h-16 bg-gray-300" />
-            <div className="rounded-xl h-16 bg-gray-300" />
-            <div className="rounded-xl h-16 bg-gray-300" />
+
+          {/* Rows */}
+          <div>
+            {assetRows.length === 0 ? (
+              <p
+                className="py-3 text-center italic text-sm"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                No asset accounts
+              </p>
+            ) : (
+              assetRows.map((account) => (
+                <div key={account.id} className="flex items-stretch rounded-xl">
+                  <div
+                    className="w-0.5 rounded-full my-3"
+                    style={{ background: 'var(--app-positive)', opacity: 0.3 }}
+                  />
+                  <div className="flex-1 flex items-center gap-4 py-3.5 px-4">
+                    <InstitutionLogo institution={account.institution} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{account.name}</p>
+                      <p
+                        className="text-sm mt-0.5"
+                        style={{ color: 'var(--app-text-muted)' }}
+                      >
+                        {account.institution?.name ?? 'Cash'} ·{' '}
+                        {humanizeAccountType(account.account_type)}
+                      </p>
+                    </div>
+                    <p className="font-financial font-medium shrink-0">
+                      {formatCurrency(account.current_balance, displayCurrency)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </section>
 
