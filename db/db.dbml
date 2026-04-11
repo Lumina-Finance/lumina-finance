@@ -1,4 +1,4 @@
-Table users [headercolor: #3B82F6] {
+Table users {
   id uuid pk
   email varchar(254) [not null, unique, note: "RFC 3696: 254 character practical limit for email addresses"]
   first_name varchar(256) [not null]
@@ -9,7 +9,7 @@ Table users [headercolor: #3B82F6] {
   created_at timestamptz [not null]
 }
 
-Table groups [headercolor: #8B5CF6] {
+Table groups {
   id uuid pk
   owner_id uuid [not null, ref: > users.id]
   name text
@@ -18,7 +18,7 @@ Table groups [headercolor: #8B5CF6] {
   created_at timestamptz [not null]
 }
 
-Table group_members [headercolor: #8B5CF6] {
+Table group_members {
   group_id uuid pk [ref: > groups.id, delete: cascade]
   user_id uuid pk [ref: > users.id]
   is_admin boolean [not null, default: false, note: "only the owner can promote/demote admins"]
@@ -30,7 +30,7 @@ enum permission_level {
   admin
 }
 
-Table account_permissions [headercolor: #8B5CF6, note: "per-account access for group members; admins have implicit full access"] {
+Table account_permissions [note: "per-account access for group members; admins have implicit full access"] {
   id uuid pk
   group_id uuid [not null, ref: > groups.id, note: "ON DELETE CASCADE"]
   user_id uuid [not null, ref: > users.id]
@@ -43,7 +43,7 @@ Table account_permissions [headercolor: #8B5CF6, note: "per-account access for g
   }
 }
 
-Table budget_permissions [headercolor: #F43F5E, note: "per-base-budget access for group members; admins have implicit full access; independent of account permissions — read grants aggregated utilization without exposing individual transactions"] {
+Table budget_permissions [note: "per-base-budget access for group members; admins have implicit full access; independent of account permissions — read grants aggregated utilization without exposing individual transactions"] {
   id uuid pk
   group_id uuid [not null, ref: > groups.id, note: "ON DELETE CASCADE"]
   user_id uuid [not null, ref: > users.id]
@@ -64,7 +64,7 @@ enum auth_provider {
   // generic_oidc [note: "to accomodate self hosted solutions like Authentik, Gitea, etc."]
 }
 
-Table auth_identities [headercolor: #3B82F6] {
+Table auth_identities {
   id uuid pk
   user_id uuid [ref: > users.id]
   auth_provider auth_provider [not null]
@@ -73,10 +73,10 @@ Table auth_identities [headercolor: #3B82F6] {
   // unique constraint: (user_id, auth_provider)
 }
 
-Table password_credentials [headercolor: #3B82F6] {
+Table password_credentials {
   user_id uuid pk [ref: - users.id]
   password_hash text [not null]
-  password_algo text [not null]
+  password_algo varchar(32) [not null]
   updated_at timestamptz [not null]
   failed_attempt_count int [not null, default: 0, note: "should be zeroed out once user successfully authenticate"]
   locked_until timestamptz [default: null, note: "used to lock the user's account after too many failed attempts"]
@@ -87,19 +87,20 @@ enum institution_status {
   pending
 }
 
-Table institutions [headercolor: #64748B, note: "globally available table"] {
+Table institutions [note: "globally available table"] {
   id uuid pk
   status institution_status [not null, default: "pending"]
   name varchar(256) [not null]
   country_code char(2) [not null]
   website text [not null]
+  logo_url text
 
   indexes {
     (name, country_code) [unique, name: "uq_institution_name_country"]
   }
 }
 
-Table currencies [headercolor: #64748B] {
+Table currencies {
   id char(3) pk
   name varchar(64) [not null, note: "spelled out full term in singular (e.g., Canadian Dollar)"]
   symbol varchar(8) [not null]
@@ -113,36 +114,50 @@ enum tax_treatment {
   tax_assisted [note: "e.g., RESP — grants/matching, taxed on withdrawal in beneficiary's hands"]
 }
 
-enum account_type {
-  checking
-  savings
-  credit_card
-  cash
-  investment
+enum account_kind {
+  asset
+  liability
 }
 
-Table accounts [headercolor: #10B981, note: "check constraint: exactly one of owner_id or group_id must be non-null"] {
+enum account_type {
+  // Asset subtypes
+  checking
+  savings
+  term_deposit
+  cash
+  investment
+  // Liability subtypes
+  credit_card
+  line_of_credit
+  heloc
+  loan
+  mortgage
+}
+
+Table accounts [note: "check constraint: exactly one of owner_id or group_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
   group_id uuid [ref: > groups.id, delete: cascade]
+  account_kind account_kind [not null, note: "validated against account_type"]
   account_type account_type [not null]
   tax_treatment tax_treatment [not null, default: "taxable"]
   name varchar(256) [not null]
   institution_id uuid [ref: > institutions.id]
   currency char(3) [not null, ref: > currencies.id]
-  lifetime_contribution_limit bigint [note: "lifetime cap in account currency base units; null if not applicable (e.g., FHSA=4000000, RESP=5000000)"]
+  lifetime_contribution_limit bigint [note: "lifetime cap in minor units; null if not applicable"]
+  credit_limit bigint [note: "liability accounts only; null on assets"]
   is_hidden boolean [not null, default: false]
   closed_at timestamptz [note: "null = active; non-null = closed on this date"]
   created_at timestamptz [not null]
 }
 
-Table account_balance_snapshots [headercolor: #10B981, note: "end-of-day balance records; backend-maintained from transactions, one row per (account, day) with activity; ts is always midnight UTC of the day"] {
+Table account_balance_snapshots [note: "end-of-day balance records; backend-maintained from transactions, one row per (account, day) with activity; ts is always midnight UTC of the day"] {
   account_id uuid pk [ref: > accounts.id, note: "ON DELETE CASCADE"]
   balance bigint [not null, note: "end-of-day balance in currency base units"]
   ts timestamptz pk [not null, note: "midnight UTC of the snapshot's day"]
 }
 
-Table tax_advantaged_configs [headercolor: #10B981, note: "per-account, per-year limits for tax-advantaged accounts; user is responsible for entering limits"] {
+Table tax_advantaged_configs [note: "per-account, per-year limits for tax-advantaged accounts; user is responsible for entering limits"] {
   account_id uuid pk [not null, ref: > accounts.id]
   year smallint pk [not null]
   contribution_limit bigint [not null, note: "annual contribution limit in account currency base units"]
@@ -155,7 +170,7 @@ enum category_kind {
   transfer
 }
 
-Table categories [headercolor: #F59E0B, note: "any group member can create; only admins can edit/delete. App seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
+Table categories [note: "any group member can create; only admins can edit/delete. App seeds a default 'Uncategorized' category per kind per user so category_id on transactions is never null"] {
   id uuid pk
   group_id uuid [ref: > groups.id, delete: cascade]
   owner_id uuid [not null, ref: > users.id, note: "creator of the category"]
@@ -170,7 +185,7 @@ Table categories [headercolor: #F59E0B, note: "any group member can create; only
   }
 }
 
-Table merchants [headercolor: #F59E0B, note: "per-user merchant registry; any group member can create, only admins can edit/delete"] {
+Table merchants [note: "per-user merchant registry; any group member can create, only admins can edit/delete"] {
   id uuid pk
   owner_id uuid [not null, ref: > users.id, note: "creator of the merchant"]
   group_id uuid [ref: > groups.id, note: "ON DELETE CASCADE; non-null for group-shared merchants"]
@@ -184,7 +199,7 @@ Table merchants [headercolor: #F59E0B, note: "per-user merchant registry; any gr
   }
 }
 
-Table transactions [headercolor: #F59E0B, note: "acts as a ledger: positive amount = money in, negative = money out; transfers are two independent rows"] {
+Table transactions [note: "acts as a ledger: positive amount = money in, negative = money out; transfers are two independent rows"] {
   id uuid pk
   created_by_user_id uuid [not null, ref: > users.id]
   account_id uuid [not null, ref: > accounts.id, note: "ON DELETE CASCADE"]
@@ -199,15 +214,20 @@ Table transactions [headercolor: #F59E0B, note: "acts as a ledger: positive amou
   updated_at timestamptz [not null, note: "tracks last modification; useful for sync and conflict resolution"]
 }
 
-Table tags [headercolor: #F59E0B, note: "per-user tag registry for cross-cutting transaction analysis beyond categories"] {
+Table tags [note: "tag registry for cross-cutting transaction analysis beyond categories; supports personal and group scopes"] {
   id uuid pk
-  owner_id uuid [not null, ref: > users.id]
+  owner_id uuid [not null, ref: > users.id, note: "creator"]
+  group_id uuid [ref: > groups.id, note: "ON DELETE CASCADE; non-null for group tags"]
   name varchar(64) [not null]
   created_at timestamptz [not null]
-  // unique constraint: (owner_id, name)
+
+  indexes {
+    (owner_id, name) [unique, note: "partial: WHERE group_id IS NULL"]
+    (group_id, name) [unique, name: "uq_tag_group_name"]
+  }
 }
 
-Table transaction_tags [headercolor: #F59E0B, note: "junction table instead of a tags column on transactions — enables indexed joins for tag queries, single-row renames, and consistent tag naming across transactions"] {
+Table transaction_tags [note: "junction table instead of a tags column on transactions — enables indexed joins for tag queries, single-row renames, and consistent tag naming across transactions"] {
   transaction_id uuid pk [ref: > transactions.id]
   tag_id uuid pk [ref: > tags.id]
 }
@@ -218,22 +238,22 @@ enum recurrence_freq {
   yearly
 }
 
-Table base_budgets [headercolor: #F43F5E, note: "long-lived spending plan; holds name, currency, cadence, tracked categories, and permissions. Per-period caps and date ranges live on child budgets so historical periods stay frozen when the base is edited. Cadence fields (recurrence_freq, instance_length, recurrence_weekday, recurrence_dom, recurrence_month) are immutable after creation. CHECK: exactly one of owner_id or group_id must be non-null"] {
+Table base_budgets [note: "long-lived spending plan; holds name, currency, cadence, tracked categories, and permissions. Per-period caps and date ranges live on child budgets so historical periods stay frozen when the base is edited. Cadence fields (recurrence_freq, instance_length, recurrence_weekday, recurrence_dom, recurrence_month) are immutable after creation. CHECK: exactly one of owner_id or group_id must be non-null"] {
   id uuid pk
   owner_id uuid [ref: > users.id]
   group_id uuid [ref: > groups.id, delete: cascade]
   name varchar(256) [not null]
   currency char(3) [not null, ref: > currencies.id]
   recurrence_freq recurrence_freq [not null, note: "weekly, monthly, or yearly — defines the alignment unit"]
-  instance_length smallint [not null, note: "how many freq-units per instance (1 = one week/month/year, 3 = quarterly, etc.); CHECK > 0"]
+  instance_length smallint [not null, default: 1, note: "how many freq-units per instance (1 = one week/month/year, 3 = quarterly, etc.); CHECK > 0"]
   recurrence_weekday smallint [note: "0=Mon..6=Sun; required iff freq=weekly, null otherwise; CHECK 0-6"]
   recurrence_dom smallint [note: "1..31, day of month the budget rotates on; required iff freq in (monthly, yearly), null otherwise. If the month has fewer days, falls back to last day; CHECK 1-31"]
   recurrence_month smallint [note: "1..12, month the budget rotates on; required iff freq=yearly, null otherwise; CHECK 1-12"]
-  recurs boolean [not null, note: "true = frontend auto-suggests creating the next instance; false = one-off"]
+  recurs boolean [not null, default: false, note: "true = frontend auto-suggests creating the next instance; false = one-off"]
   created_at timestamptz [not null]
 }
 
-Table budgets [headercolor: #F43F5E, note: "per-period instance of a base_budget. period_start is user-provided (must align with the base's cadence); period_end is computed from the base's cadence settings. Only overall_limit is editable after creation"] {
+Table budgets [note: "per-period instance of a base_budget. period_start is user-provided (must align with the base's cadence); period_end is computed from the base's cadence settings. Only overall_limit is editable after creation"] {
   id uuid pk
   base_budget_id uuid [not null, ref: > base_budgets.id, note: "ON DELETE CASCADE"]
   period_start date [not null, note: "must align with the base's cadence (first of month, matching weekday, etc.)"]
@@ -246,7 +266,7 @@ Table budgets [headercolor: #F43F5E, note: "per-period instance of a base_budget
   }
 }
 
-Table budget_tracked_categories [headercolor: #F43F5E, note: "tracks which categories a base_budget monitors and when; the added_at/removed_at pair lets the utilization query reconstruct the tracked set as of any instance's period_end, so editing the base does not rewrite historical period totals"] {
+Table budget_tracked_categories [note: "tracks which categories a base_budget monitors and when; the added_at/removed_at pair lets the utilization query reconstruct the tracked set as of any instance's period_end, so editing the base does not rewrite historical period totals"] {
   id uuid pk
   base_budget_id uuid [not null, ref: > base_budgets.id, note: "ON DELETE CASCADE"]
   category_id uuid [not null, ref: > categories.id]
