@@ -51,6 +51,10 @@ class AccountResponse(BaseModel):
     ytd_withdrawals: int | None
     lifetime_contributions: int | None
     lifetime_withdrawals: int | None
+    # Current-year tax-advantaged limits sourced from TaxAdvantagedConfig.
+    # None when no config row exists for the current UTC year (or for taxable accounts).
+    current_year_contribution_limit: int | None
+    current_year_withdrawal_limit: int | None
     is_hidden: bool
     closed_at: datetime | None
     created_at: datetime

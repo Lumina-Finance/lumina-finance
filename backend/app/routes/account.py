@@ -24,7 +24,7 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
-from app.services.accounts import attach_tax_advantaged_tallies
+from app.services.accounts import attach_current_year_tax_limits, attach_tax_advantaged_tallies
 from app.services.snapshots import attach_current_balances
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -73,6 +73,7 @@ async def get_account(
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     await attach_current_balances(db, [account])
     await attach_tax_advantaged_tallies(db, [account])
+    await attach_current_year_tax_limits(db, [account])
     return account
 
 
@@ -210,6 +211,7 @@ async def create_account(
     fresh = result.scalar_one()
     await attach_current_balances(db, [fresh])
     await attach_tax_advantaged_tallies(db, [fresh])
+    await attach_current_year_tax_limits(db, [fresh])
     return fresh
 
 
@@ -227,6 +229,7 @@ async def update_account(
     if not updates:
         await attach_current_balances(db, [account])
         await attach_tax_advantaged_tallies(db, [account])
+        await attach_current_year_tax_limits(db, [account])
         return account
 
     # Validate tax_treatment if being changed
@@ -262,6 +265,7 @@ async def update_account(
     fresh = result.scalar_one()
     await attach_current_balances(db, [fresh])
     await attach_tax_advantaged_tallies(db, [fresh])
+    await attach_current_year_tax_limits(db, [fresh])
     return fresh
 
 

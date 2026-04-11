@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
+from app.models.account import Account, TaxAdvantagedConfig
 from app.models.base import CategoryKind, TaxTreatment
 from app.models.category import Category
 from app.models.transaction import Transaction
@@ -97,3 +97,47 @@ async def attach_tax_advantaged_tallies(db: AsyncSession, accounts: Sequence[Acc
         else:
             account.lifetime_contributions = None
             account.lifetime_withdrawals = None
+
+
+async def attach_current_year_tax_limits(db: AsyncSession, accounts: Sequence[Account]) -> None:
+    """Set current-year contribution/withdrawal limits on each account in place.
+
+    Sources the limits from ``TaxAdvantagedConfig`` rows whose ``year`` matches
+    the current UTC calendar year. Taxable accounts short-circuit to None without
+    issuing SQL. For tax-advantaged accounts with no config row for the year,
+    both fields are set to None.
+    """
+    if not accounts:
+        return
+
+    tax_advantaged = [a for a in accounts if a.tax_treatment != TaxTreatment.TAXABLE]
+
+    limits: dict[uuid.UUID, tuple[int, int | None]] = {}
+    if tax_advantaged:
+        current_year = datetime.now(UTC).year
+        result = await db.execute(
+            select(
+                TaxAdvantagedConfig.account_id,
+                TaxAdvantagedConfig.contribution_limit,
+                TaxAdvantagedConfig.withdrawal_limit,
+            ).where(
+                TaxAdvantagedConfig.account_id.in_([a.id for a in tax_advantaged]),
+                TaxAdvantagedConfig.year == current_year,
+            ),
+        )
+        for row in result:
+            limits[row.account_id] = (row.contribution_limit, row.withdrawal_limit)
+
+    for account in accounts:
+        if account.tax_treatment == TaxTreatment.TAXABLE:
+            account.current_year_contribution_limit = None
+            account.current_year_withdrawal_limit = None
+            continue
+
+        row = limits.get(account.id)
+        if row is None:
+            account.current_year_contribution_limit = None
+            account.current_year_withdrawal_limit = None
+        else:
+            account.current_year_contribution_limit = row[0]
+            account.current_year_withdrawal_limit = row[1]

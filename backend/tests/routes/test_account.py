@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
+from app.models.account import TaxAdvantagedConfig
 from app.models.base import CategoryKind, InstitutionStatus
 from app.models.category import Category
 from app.models.institution import Institution
@@ -48,6 +49,24 @@ async def _seed_category(owner_id: uuid.UUID, kind: CategoryKind, name: str = "T
         await session.commit()
         await session.refresh(cat)
         return cat.id
+
+
+async def _seed_tax_advantaged_config(
+    account_id: uuid.UUID, year: int, contribution_limit: int, withdrawal_limit: int | None = None,
+) -> None:
+    """Insert a TaxAdvantagedConfig row directly via DB.
+
+    Used by current-year limit tests to attach per-year limits without going
+    through the (not-yet-built) TaxAdvantagedConfig CRUD routes.
+    """
+    async with TestSession() as session:
+        session.add(TaxAdvantagedConfig(
+            account_id=account_id,
+            year=year,
+            contribution_limit=contribution_limit,
+            withdrawal_limit=withdrawal_limit,
+        ))
+        await session.commit()
 
 
 async def _seed_transaction(
@@ -335,6 +354,116 @@ async def test_tax_advantaged_tallies_ignore_non_transfer_transactions(client):
     assert data["lifetime_withdrawals"] == 0
 
 
+# --- Current-year tax-advantaged limits (Phase 2.7) ---
+
+
+async def test_get_taxable_account_current_year_limits_are_null(client):
+    """Taxable accounts return None for both current-year limit fields even if a config row exists."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)  # defaults to tax_treatment='taxable'
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    # Even with a rogue config row for the current year, taxable accounts must report null.
+    await _seed_tax_advantaged_config(account_id, datetime.now(UTC).year, 700_000, 200_000)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_year_contribution_limit"] is None
+    assert data["current_year_withdrawal_limit"] is None
+
+
+async def test_tax_advantaged_account_without_config_returns_null_limits(client):
+    """Tax-advantaged account with no TaxAdvantagedConfig row returns null for both limit fields."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, tax_treatment="tax_free")
+    account_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_year_contribution_limit"] is None
+    assert data["current_year_withdrawal_limit"] is None
+
+
+async def test_tax_advantaged_account_with_current_year_config_echoes_limits(client):
+    """A config row for the current UTC year is echoed on the detail response."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, tax_treatment="tax_free")
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    current_year = datetime.now(UTC).year
+    await _seed_tax_advantaged_config(account_id, current_year, 700_000, 200_000)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_year_contribution_limit"] == 700_000
+    assert data["current_year_withdrawal_limit"] == 200_000
+
+
+async def test_tax_advantaged_account_with_only_wrong_year_config_returns_null(client):
+    """A config row for a year other than the current UTC year does not surface on the response."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, tax_treatment="tax_free")
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    prior_year = datetime.now(UTC).year - 1
+    await _seed_tax_advantaged_config(account_id, prior_year, 500_000, 100_000)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_year_contribution_limit"] is None
+    assert data["current_year_withdrawal_limit"] is None
+
+
+async def test_tax_advantaged_account_with_multi_year_configs_returns_current_year(client):
+    """With configs for multiple years, only the current UTC year's limits are returned."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, tax_treatment="tax_free")
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    current_year = datetime.now(UTC).year
+    await _seed_tax_advantaged_config(account_id, current_year - 1, 500_000, 100_000)
+    await _seed_tax_advantaged_config(account_id, current_year, 700_000, 200_000)
+    await _seed_tax_advantaged_config(account_id, current_year + 1, 800_000, 300_000)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_year_contribution_limit"] == 700_000
+    assert data["current_year_withdrawal_limit"] == 200_000
+
+
+async def test_tax_advantaged_account_current_year_withdrawal_limit_can_be_null(client):
+    """Config rows without a withdrawal_limit surface contribution_limit but null withdrawal."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, tax_treatment="tax_free")
+    account_id = uuid.UUID(create_resp.json()["id"])
+
+    current_year = datetime.now(UTC).year
+    await _seed_tax_advantaged_config(account_id, current_year, 700_000, withdrawal_limit=None)
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_year_contribution_limit"] == 700_000
+    assert data["current_year_withdrawal_limit"] is None
+
+
 async def test_create_account_returns_current_balance(client):
     """POST /accounts response includes current_balance from the just-inserted zero anchor."""
     signup_resp = await _create_user(client)
@@ -383,6 +512,8 @@ async def test_get_account_returns_account(client):
     assert data["ytd_withdrawals"] is None
     assert data["lifetime_contributions"] is None
     assert data["lifetime_withdrawals"] is None
+    assert data["current_year_contribution_limit"] is None
+    assert data["current_year_withdrawal_limit"] is None
     assert data["is_hidden"] is False
     assert data["closed_at"] is None
     assert data["created_at"] is not None
