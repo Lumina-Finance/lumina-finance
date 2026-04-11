@@ -22,6 +22,19 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const SESSION_KEY = 'lumina:has_session';
 
+// Module-scoped so concurrent callers share a single /auth/refresh request.
+// The refresh token is rotated on use, so a second parallel call would race
+// the first, look up a now-deleted jti, and 401 — wiping the just-issued
+// cookie on the way out.
+let pendingSessionRestore: Promise<AuthResponse> | null = null;
+
+function restoreSession(): Promise<AuthResponse> {
+  if (!pendingSessionRestore) {
+    pendingSessionRestore = authApi.refresh().finally(() => { pendingSessionRestore = null; });
+  }
+  return pendingSessionRestore;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Check once on mount — not reactive to later changes
   const [hadSession] = useState(() => localStorage.getItem(SESSION_KEY) === '1');
@@ -38,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
-    authApi.refresh()
+    restoreSession()
       .then((res) => {
         if (!cancelled) {
           setState({ user: res.user, accessToken: res.access_token, loading: false });
