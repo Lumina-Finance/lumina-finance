@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class InstitutionResponse(BaseModel):
-    """Financial institution returned by list and detail endpoints."""
+    """Financial institution returned by list and detail endpoints, and embedded in AccountResponse."""
 
     id: uuid.UUID
     status: str

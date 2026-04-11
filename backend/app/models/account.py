@@ -13,9 +13,10 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import AccountKind, AccountType, Base, PermissionLevel, TaxTreatment
+from app.models.institution import Institution
 
 
 class Account(Base):
@@ -37,6 +38,7 @@ class Account(Base):
     tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False, default=TaxTreatment.TAXABLE)
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("institutions.id"))
+    institution: Mapped[Institution | None] = relationship(lazy="raise")
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     lifetime_contribution_limit: Mapped[int | None] = mapped_column(BigInteger)  # In currency base units; null if N/A
     credit_limit: Mapped[int | None] = mapped_column(BigInteger)  # Liability accounts only; null on assets and unset liabilities

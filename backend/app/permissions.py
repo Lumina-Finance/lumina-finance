@@ -3,6 +3,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
@@ -45,7 +46,11 @@ async def check_account_access(
         HTTPException 403: User has some access but insufficient level.
         HTTPException 422: Account is closed and require_open=True.
     """
-    result = await db.execute(select(Account).where(Account.id == account_id))
+    # Eager-load the institution so AccountResponse callers can serialize it without
+    # triggering a lazy-load (which raises in async context — Account.institution is lazy="raise").
+    result = await db.execute(
+        select(Account).where(Account.id == account_id).options(selectinload(Account.institution)),
+    )
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")

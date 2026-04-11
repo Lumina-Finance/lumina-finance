@@ -8,7 +8,7 @@ from tests.routes.conftest import ACCOUNT_PAYLOAD, _create_account, _create_user
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
-async def _seed_institution():
+async def _seed_institution(logo_url: str | None = None):
     """Insert a canonical institution for FK tests.
 
     Inserts via raw session (not the API) because institutions are seeded data,
@@ -23,6 +23,7 @@ async def _seed_institution():
             name="Test Bank",
             country_code="CA",
             website="https://testbank.example.com",
+            logo_url=logo_url,
         )
         session.add(inst)
         await session.commit()
@@ -163,15 +164,20 @@ async def test_create_account_returns_201(client):
 
 
 async def test_create_account_with_institution(client):
-    """Account can be linked to an existing institution."""
-    inst = await _seed_institution()
+    """Account can be linked to an existing institution; response embeds the summary."""
+    inst = await _seed_institution(logo_url="https://cdn.example.com/testbank.png")
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(client, headers, institution_id=str(inst.id))
 
     assert resp.status_code == 201
-    assert resp.json()["institution_id"] == str(inst.id)
+    institution = resp.json()["institution"]
+    assert institution is not None
+    assert institution["id"] == str(inst.id)
+    assert institution["name"] == inst.name
+    assert institution["website"] == inst.website
+    assert institution["logo_url"] == "https://cdn.example.com/testbank.png"
 
 
 async def test_create_account_invalid_account_type_returns_422(client):
@@ -364,14 +370,14 @@ async def test_create_account_without_auth_returns_401(client):
 
 
 async def test_create_account_null_institution_accepted(client):
-    """Null institution_id is valid — cash or unlinked accounts have no institution."""
+    """Null institution_id is valid — cash or unlinked accounts serialize institution as null."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(client, headers, institution_id=None)
 
     assert resp.status_code == 201
-    assert resp.json()["institution_id"] is None
+    assert resp.json()["institution"] is None
 
 
 async def test_create_account_with_all_optional_fields(client):
@@ -390,7 +396,7 @@ async def test_create_account_with_all_optional_fields(client):
 
     assert resp.status_code == 201
     data = resp.json()
-    assert data["institution_id"] == str(inst.id)
+    assert data["institution"]["id"] == str(inst.id)
     assert data["lifetime_contribution_limit"] == 500000
     assert data["is_hidden"] is True
     assert data["tax_treatment"] == "tax_free"
@@ -526,7 +532,7 @@ async def test_patch_account_clears_institution(client):
     resp = await client.patch(f"/accounts/{account_id}", json={"institution_id": None}, headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["institution_id"] is None
+    assert resp.json()["institution"] is None
 
 
 async def test_patch_account_clears_closed_at(client):

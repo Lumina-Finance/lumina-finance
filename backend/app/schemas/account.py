@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.institution import InstitutionResponse
+
 
 class AccountResponse(BaseModel):
     """Full account returned by list and detail endpoints."""
@@ -14,7 +16,7 @@ class AccountResponse(BaseModel):
     account_type: str
     tax_treatment: str
     name: str
-    institution_id: uuid.UUID | None
+    institution: InstitutionResponse | None
     currency: str
     lifetime_contribution_limit: int | None
     credit_limit: int | None

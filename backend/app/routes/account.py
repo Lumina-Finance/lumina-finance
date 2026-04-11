@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -40,6 +41,7 @@ async def list_accounts(
     # Personal accounts OR group accounts where user is admin OR has explicit permission
     query = (
         select(Account)
+        .options(selectinload(Account.institution))
         .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
         .outerjoin(
             AccountPermission,
@@ -193,8 +195,11 @@ async def create_account(
     ))
 
     await db.commit()
-    await db.refresh(account)
-    return account
+    # Re-fetch with eager loading so the institution relationship is populated for serialization
+    result = await db.execute(
+        select(Account).where(Account.id == account.id).options(selectinload(Account.institution)),
+    )
+    return result.scalar_one()
 
 
 @router.patch("/{account_id}", response_model=AccountResponse)
@@ -232,8 +237,16 @@ async def update_account(
         setattr(account, field, value)
 
     await db.commit()
-    await db.refresh(account)
-    return account
+    # Re-fetch with eager loading so the institution relationship is fresh after a possible institution_id change.
+    # populate_existing forces SQLAlchemy to overwrite the cached instance in the identity map; without it the
+    # session would return the same Account row with its previously eager-loaded (now stale) institution.
+    result = await db.execute(
+        select(Account)
+        .where(Account.id == account_id)
+        .options(selectinload(Account.institution))
+        .execution_options(populate_existing=True),
+    )
+    return result.scalar_one()
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
