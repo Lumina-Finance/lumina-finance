@@ -209,47 +209,31 @@ async def logout_route(
     response: Response,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    refresh_token: str | None = Cookie(None),
 ):
-    """Revoke the current access and refresh tokens by removing them from active_tokens.
+    """Revoke every active token for the caller's session.
+
+    Decodes the access token, reads its ``sid`` claim, and deletes every
+    ``active_tokens`` row sharing that session id — killing both the access
+    and refresh tokens for this device without touching the user's other
+    sessions. The refresh cookie is cleared regardless of outcome.
 
     Args:
         response: FastAPI response object.
         credentials: Bearer token from the Authorization header.
         db: Async database session.
-        refresh_token: Refresh token read from the cookie by FastAPI.
 
     Returns:
         Confirmation message.
     """
-    # Revoke the access token
     try:
         access_payload = jwt.decode(
             credentials.credentials, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER,
         )
-        jti = access_payload.get("jti")
-        if jti:
-            result = await db.execute(select(ActiveToken).where(ActiveToken.jti == jti))
-            token = result.scalar_one_or_none()
-            if token:
-                await db.delete(token)
+        sid = access_payload.get("sid")
+        if sid:
+            await db.execute(delete(ActiveToken).where(ActiveToken.session_id == uuid.UUID(sid)))
     except jwt.PyJWTError:
-        pass  # Best-effort — still proceed with logout
-
-    # Revoke the refresh token
-    if refresh_token:
-        try:
-            refresh_payload = jwt.decode(
-                refresh_token, _refresh_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER,
-            )
-            jti = refresh_payload.get("jti")
-            if jti:
-                result = await db.execute(select(ActiveToken).where(ActiveToken.jti == jti))
-                token = result.scalar_one_or_none()
-                if token:
-                    await db.delete(token)
-        except jwt.PyJWTError:
-            pass  # Best-effort — still proceed with logout
+        pass  # Best-effort — still clear the cookie and return 200
 
     await db.commit()
     _clear_refresh_cookie(response)
