@@ -22,6 +22,11 @@ from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 from app.services.snapshots import recompute_snapshots_from
+from app.services.transaction_responses import (
+    build_transaction_response,
+    get_tag_ids,
+    get_tag_ids_batch,
+)
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -100,36 +105,6 @@ async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: li
         db.add(TransactionTag(transaction_id=transaction_id, tag_id=tag_id))
 
 
-async def _get_tag_ids(db: AsyncSession, transaction_id: uuid.UUID) -> list[uuid.UUID]:
-    """Fetch tag IDs for a single transaction."""
-    result = await db.execute(
-        select(TransactionTag.tag_id).where(TransactionTag.transaction_id == transaction_id),
-    )
-    return list(result.scalars().all())
-
-
-async def _get_tag_ids_batch(
-    db: AsyncSession, transaction_ids: list[uuid.UUID],
-) -> dict[uuid.UUID, list[uuid.UUID]]:
-    """Fetch tag IDs for multiple transactions in a single query."""
-    if not transaction_ids:
-        return {}
-    result = await db.execute(
-        select(TransactionTag).where(TransactionTag.transaction_id.in_(transaction_ids)),
-    )
-    tag_map: dict[uuid.UUID, list[uuid.UUID]] = {tid: [] for tid in transaction_ids}
-    for row in result.scalars().all():
-        tag_map[row.transaction_id].append(row.tag_id)
-    return tag_map
-
-
-def _build_response(txn: Transaction, tag_ids: list[uuid.UUID]) -> TransactionResponse:
-    """Build a TransactionResponse from a Transaction model and its tag IDs."""
-    data = TransactionResponse.model_validate(txn)
-    data.tag_ids = tag_ids
-    return data
-
-
 @router.get("", response_model=list[TransactionResponse])
 async def list_transactions(
     user: Annotated[User, Depends(get_current_user)],
@@ -196,8 +171,8 @@ async def list_transactions(
     result = await db.execute(query)
     transactions = result.scalars().all()
 
-    tag_map = await _get_tag_ids_batch(db, [txn.id for txn in transactions])
-    return [_build_response(txn, tag_map[txn.id]) for txn in transactions]
+    tag_map = await get_tag_ids_batch(db, [txn.id for txn in transactions])
+    return [build_transaction_response(txn, tag_map[txn.id]) for txn in transactions]
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
@@ -208,8 +183,8 @@ async def get_transaction(
 ):
     """Return a single transaction by ID. Requires read access on the parent account."""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
-    tag_ids = await _get_tag_ids(db, txn.id)
-    return _build_response(txn, tag_ids)
+    tag_ids = await get_tag_ids(db, txn.id)
+    return build_transaction_response(txn, tag_ids)
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
@@ -263,8 +238,8 @@ async def create_transaction(
     await db.commit()
     await db.refresh(txn)
 
-    tag_ids = await _get_tag_ids(db, txn.id)
-    return _build_response(txn, tag_ids)
+    tag_ids = await get_tag_ids(db, txn.id)
+    return build_transaction_response(txn, tag_ids)
 
 
 @router.patch("/{transaction_id}", response_model=TransactionResponse)
@@ -279,8 +254,8 @@ async def update_transaction(
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
-        tag_ids = await _get_tag_ids(db, txn.id)
-        return _build_response(txn, tag_ids)
+        tag_ids = await get_tag_ids(db, txn.id)
+        return build_transaction_response(txn, tag_ids)
 
     # Capture pre-change values needed to recompute balance snapshots
     old_account_id = txn.account_id
@@ -335,8 +310,8 @@ async def update_transaction(
     await db.commit()
     await db.refresh(txn)
 
-    tag_ids = await _get_tag_ids(db, txn.id)
-    return _build_response(txn, tag_ids)
+    tag_ids = await get_tag_ids(db, txn.id)
+    return build_transaction_response(txn, tag_ids)
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
