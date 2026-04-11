@@ -1,8 +1,10 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
+from app.main import app
 from app.models.active_token import ActiveToken
 from app.models.user import User
 from tests.conftest import TestSession
@@ -391,22 +393,63 @@ async def test_double_logout_is_idempotent(client):
     assert resp2.status_code == 200
 
 
-async def test_logout_without_refresh_cookie_revokes_access_only(client):
-    """Logout with only an access token still succeeds and revokes the access token."""
+async def test_logout_without_refresh_cookie_still_revokes_session(client):
+    """Logout revokes the whole session (both rows) even if the refresh cookie is missing.
+
+    Session-scoped revocation reads the sid claim from the access token, so the cookie
+    is irrelevant for killing the session. This exercises the cookie-absent edge case.
+    """
     signup_resp = await _create_user(client)
     access_token = signup_resp.json()["access_token"]
 
-    # No refresh cookie set — only pass the access token
+    # httpx auto-stores the Set-Cookie from signup; drop it to exercise the cookie-absent path
+    client.cookies.delete("refresh_token")
     resp = await client.post("/auth/logout", headers={"Authorization": f"Bearer {access_token}"})
 
     assert resp.status_code == 200
     assert resp.json()["detail"] == "Logged out"
 
-    # Only the refresh token should remain in the allowlist
+    # Both rows for the session should be gone even though the cookie was never sent
     async with TestSession() as session:
         result = await session.execute(select(ActiveToken))
         tokens = result.scalars().all()
-        assert len(tokens) == 1
+        assert len(tokens) == 0
+
+
+async def test_logout_only_affects_caller_session(client):
+    """Logging out on one device must not touch other active sessions for the same user."""
+    # Session 1 via signup
+    signup_resp = await _create_user(client)
+    session1_access = signup_resp.json()["access_token"]
+
+    # Session 2 via a separate client (fresh cookie jar) logging in as the same user
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as second_client:
+        login_resp = await second_client.post("/auth/login", json=LOGIN_PAYLOAD)
+        assert login_resp.status_code == 200
+        session2_access = login_resp.json()["access_token"]
+
+        # Two sessions x two rows each = 4 active_tokens rows
+        async with TestSession() as db:
+            result = await db.execute(select(ActiveToken))
+            assert len(result.scalars().all()) == 4
+
+        # Logout session 1
+        resp = await client.post("/auth/logout", headers={"Authorization": f"Bearer {session1_access}"})
+        assert resp.status_code == 200
+
+        # Session 2's rows survive
+        async with TestSession() as db:
+            result = await db.execute(select(ActiveToken))
+            assert len(result.scalars().all()) == 2
+
+        # Session 2's access token still authenticates
+        me_resp = await second_client.get("/test/me", headers={"Authorization": f"Bearer {session2_access}"})
+        assert me_resp.status_code == 200
+
+        # Session 1's access token is dead
+        dead_resp = await client.get("/test/me", headers={"Authorization": f"Bearer {session1_access}"})
+        assert dead_resp.status_code == 401
 
 
 # --- JWKS ---
