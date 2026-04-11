@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import * as authApi from '@/api/auth';
 import type { User, LoginPayload, SignupPayload, AuthResponse } from '@/api/auth';
 
@@ -38,6 +39,7 @@ function restoreSession(): Promise<AuthResponse> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Check once on mount — not reactive to later changes
   const [hadSession] = useState(() => localStorage.getItem(SESSION_KEY) === '1');
+  const queryClient = useQueryClient();
 
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -91,7 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem(SESSION_KEY);
     setState({ user: null, accessToken: null, loading: false });
-  }, [state.accessToken]);
+    // Wipe every cached query so the next user can't see the previous user's
+    // data (accounts, transactions, etc.). The persister is subscribed to the
+    // client, so clearing in-memory also flushes the localStorage copy.
+    queryClient.clear();
+  }, [state.accessToken, queryClient]);
 
   const value = useMemo<AuthContextValue>(
     () => ({ ...state, login, signup, setSession, logout }),
