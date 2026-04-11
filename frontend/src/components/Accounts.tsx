@@ -1,4 +1,31 @@
+import { useAccounts, type AccountsOverview } from '@/api/accounts'
+
+// Format an integer amount in a currency's minor units (e.g. cents) as a
+// localized currency string. Intl.NumberFormat knows the exponent for each
+// ISO 4217 code, so we divide by 10^exponent before formatting.
+function formatCurrency(minorUnits: number, currency: string): string {
+  const fmt = new Intl.NumberFormat(undefined, { style: 'currency', currency })
+  const exponent = fmt.resolvedOptions().maximumFractionDigits ?? 2
+  return fmt.format(minorUnits / Math.pow(10, exponent))
+}
+
+function sumByKind(accounts: AccountsOverview[], kind: 'asset' | 'liability'): number {
+  return accounts
+    .filter((a) => a.account_kind === kind)
+    .reduce((sum, a) => sum + a.current_balance, 0)
+}
+
 export default function Accounts() {
+  const { data: accounts, isLoading, error } = useAccounts()
+
+  const rows = accounts ?? []
+  const totalAssets = sumByKind(rows, 'asset')
+  const totalDebts = sumByKind(rows, 'liability')
+  const netWorth = totalAssets - totalDebts
+  // Use the first account's currency as a display hint until a user
+  // base-currency is wired through the auth response.
+  const displayCurrency = rows[0]?.currency ?? 'USD'
+
   return (
     <div>
       <header className="app-page-header">
@@ -7,7 +34,35 @@ export default function Accounts() {
 
       <div className="space-y-6">
         {/* Net Worth statement — headline + assets/debts breakdown */}
-        <div className="rounded-2xl h-[6.5rem] bg-gray-300" />
+        {isLoading ? (
+          <div className="rounded-2xl h-[6.5rem] bg-gray-300" />
+        ) : error ? (
+          <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
+            Unable to load accounts.
+          </p>
+        ) : (
+          <section>
+            <div
+              className="mb-5"
+              style={{
+                height: 1,
+                background:
+                  'linear-gradient(to right, var(--app-accent), var(--app-accent-border), transparent)',
+              }}
+            />
+            <div>
+              <p className="app-label mb-1.5">Net Worth</p>
+              <p
+                className="font-semibold tracking-tight leading-none text-4xl lg:text-5xl"
+                style={{
+                  color: netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
+                }}
+              >
+                {formatCurrency(netWorth, displayCurrency)}
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* Metrics band — savings rate / credit usage / cash runway */}
         <div className="grid grid-cols-1 gap-4 grid-cols-3">

@@ -18,6 +18,8 @@
     --app-accent-border: rgba(155, 108, 44, 0.22);
     --app-input-bg: rgba(255, 255, 255, 0.90);
     --app-input-border: rgba(75, 55, 35, 0.22);
+    --app-positive: #3A7850;
+    --app-positive-soft: rgba(58, 120, 80, 0.10);
     --app-negative: #9A3C34;
     --app-negative-soft: rgba(154, 60, 52, 0.10);
     --app-negative-border: rgba(154, 60, 52, 0.30);
@@ -40,6 +42,8 @@
     --app-accent-border: rgba(201, 169, 106, 0.22);
     --app-input-bg: rgba(36, 31, 25, 0.97);
     --app-input-border: rgba(210, 180, 120, 0.20);
+    --app-positive: #6CA07B;
+    --app-positive-soft: rgba(108, 160, 123, 0.14);
     --app-negative: #B8584E;
     --app-negative-soft: rgba(184, 88, 78, 0.12);
     --app-negative-border: rgba(184, 88, 78, 0.35);
