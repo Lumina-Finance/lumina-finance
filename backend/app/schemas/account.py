@@ -17,6 +17,7 @@ class AccountResponse(BaseModel):
     institution_id: uuid.UUID | None
     currency: str
     lifetime_contribution_limit: int | None
+    credit_limit: int | None
     is_hidden: bool
     closed_at: datetime | None
     created_at: datetime
@@ -34,6 +35,7 @@ class CreateAccountRequest(BaseModel):
     institution_id: uuid.UUID | None = None
     currency: str = Field(min_length=3, max_length=3)
     lifetime_contribution_limit: int | None = None
+    credit_limit: int | None = None  # Only valid on liability accounts
     is_hidden: bool = False
     group_id: uuid.UUID | None = None
 
@@ -45,6 +47,7 @@ class UpdateAccountRequest(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     lifetime_contribution_limit: int | None = None
+    credit_limit: int | None = None  # Only valid on liability accounts
     is_hidden: bool | None = None
     closed_at: datetime | None = None
 

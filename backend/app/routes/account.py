@@ -129,6 +129,11 @@ async def create_account(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Account kind does not match account type",
         )
+    if data.credit_limit is not None and AccountKind(data.account_kind) != AccountKind.LIABILITY:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="credit_limit is only valid on liability accounts",
+        )
     if data.tax_treatment not in _VALID_TAX_TREATMENTS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
 
@@ -170,6 +175,7 @@ async def create_account(
         institution_id=data.institution_id,
         currency=data.currency,
         lifetime_contribution_limit=data.lifetime_contribution_limit,
+        credit_limit=data.credit_limit,
         is_hidden=data.is_hidden,
     )
     db.add(account)
@@ -214,6 +220,13 @@ async def update_account(
         result = await db.execute(select(Institution).where(Institution.id == updates["institution_id"]))
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
+
+    # credit_limit is only meaningful on liability accounts; account_kind is fixed at creation
+    if updates.get("credit_limit") is not None and account.account_kind != AccountKind.LIABILITY:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="credit_limit is only valid on liability accounts",
+        )
 
     for field, value in updates.items():
         setattr(account, field, value)

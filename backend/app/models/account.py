@@ -39,6 +39,7 @@ class Account(Base):
     institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("institutions.id"))
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     lifetime_contribution_limit: Mapped[int | None] = mapped_column(BigInteger)  # In currency base units; null if N/A
+    credit_limit: Mapped[int | None] = mapped_column(BigInteger)  # Liability accounts only; null on assets and unset liabilities
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

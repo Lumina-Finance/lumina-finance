@@ -233,6 +233,76 @@ async def test_create_liability_account_succeeds(client):
     assert data["account_type"] == "credit_card"
 
 
+async def test_create_liability_with_credit_limit_succeeds(client):
+    """Setting credit_limit on a liability account is accepted and round-trips."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client, headers,
+        account_kind="liability", account_type="credit_card", name="Visa", credit_limit=500_000,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["credit_limit"] == 500_000
+
+
+async def test_create_liability_without_credit_limit_defaults_null(client):
+    """Liability accounts without credit_limit serialize the field as null."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client, headers, account_kind="liability", account_type="credit_card", name="Visa",
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["credit_limit"] is None
+
+
+async def test_create_asset_with_credit_limit_returns_422(client):
+    """Setting credit_limit on an asset account is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, credit_limit=500_000)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "credit_limit is only valid on liability accounts"
+
+
+async def test_update_liability_credit_limit_succeeds(client):
+    """Patching credit_limit on a liability account is accepted."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(
+        client, headers, account_kind="liability", account_type="credit_card", name="Visa",
+    )
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/accounts/{account_id}", json={"credit_limit": 750_000}, headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["credit_limit"] == 750_000
+
+
+async def test_update_asset_credit_limit_returns_422(client):
+    """Patching credit_limit on an asset account is rejected."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/accounts/{account_id}", json={"credit_limit": 500_000}, headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "credit_limit is only valid on liability accounts"
+
+
 async def test_create_account_invalid_tax_treatment_returns_422(client):
     """Invalid tax_treatment returns 422."""
     signup_resp = await _create_user(client)
