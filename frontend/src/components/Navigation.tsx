@@ -32,7 +32,17 @@ const navItems: NavigationItem[] = [
 
 const Navigation = () => {
   const { theme, setTheme } = useTheme();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+
+  // Display name and avatar initials from the authenticated user. Falls back to
+  // sensible placeholders so the nav renders even during the split-second before
+  // user state hydrates from the refresh flow.
+  const displayName = user
+    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
+    : '';
+  const initials = user
+    ? `${user.first_name[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
+    : '';
 
   return (
     <nav
@@ -128,11 +138,11 @@ const Navigation = () => {
               color: '#1C1510',
             }}
           >
-            JD
+            {initials}
           </div>
           <div className="min-w-0 flex-1 overflow-hidden">
             <p className="truncate text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-              Jane Doe
+              {displayName}
             </p>
             <p className="truncate text-[0.6875rem]" style={{ color: 'var(--app-text-subtle)' }}>
               Premium Plan
