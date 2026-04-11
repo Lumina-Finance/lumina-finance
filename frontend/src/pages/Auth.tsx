@@ -5,6 +5,7 @@ import { AlertCircle, Check, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
+import { useCurrencies } from '@/api/currency';
 import Dropdown from '@/components/Dropdown';
 
 const MIN_LOADING_MS = 1500;
@@ -30,21 +31,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   'Account temporarily locked': 'Too many failed attempts.',
   'Invalid currency code': 'The selected currency is not supported.',
 };
-
-const CURRENCIES = [
-  { code: 'CAD', label: 'CAD — Canadian Dollar' },
-  { code: 'USD', label: 'USD — US Dollar' },
-  { code: 'EUR', label: 'EUR — Euro' },
-  { code: 'GBP', label: 'GBP — British Pound' },
-  { code: 'AUD', label: 'AUD — Australian Dollar' },
-  { code: 'JPY', label: 'JPY — Japanese Yen' },
-  { code: 'CHF', label: 'CHF — Swiss Franc' },
-  { code: 'CNY', label: 'CNY — Chinese Yuan' },
-  { code: 'INR', label: 'INR — Indian Rupee' },
-  { code: 'MXN', label: 'MXN — Mexican Peso' },
-  { code: 'BRL', label: 'BRL — Brazilian Real' },
-  { code: 'KRW', label: 'KRW — South Korean Won' },
-];
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -121,8 +107,11 @@ const Auth = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const { data: currencies = [] } = useCurrencies();
 
   const isLogin = mode === 'login';
+
+  const currencyPlaceholder = currencies.length === 0 ? 'Loading currencies…' : 'Select...';
 
   /** Check if locked out, and return remaining time as a readable string if so. */
   const getLockedRemaining = (): string | null => {
@@ -465,9 +454,10 @@ const Auth = () => {
               <label htmlFor="base_currency" className="app-label block">Base currency</label>
               <Dropdown
                 id="base_currency"
-                options={CURRENCIES.map((c) => ({ value: c.code, label: c.label }))}
+                options={currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name}` }))}
                 value={form.base_currency}
                 onChange={(v) => handleChange('base_currency', v)}
+                placeholder={currencyPlaceholder}
                 searchable
                 searchPlaceholder="Search currencies..."
               />
