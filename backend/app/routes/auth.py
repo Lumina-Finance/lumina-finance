@@ -177,7 +177,8 @@ async def refresh_route(
 
     # Only accept tokens registered in the allowlist
     jti = payload.get("jti")
-    if not jti:
+    sid = payload.get("sid")
+    if not jti or not sid:
         _clear_refresh_cookie(response)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
@@ -197,14 +198,10 @@ async def refresh_route(
         _clear_refresh_cookie(response)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    # Revoke the old token pair (refresh + its paired access token, which share created_at)
-    await db.execute(
-        delete(ActiveToken).where(
-            ActiveToken.user_id == user.id,
-            ActiveToken.created_at == active.created_at,
-        ),
-    )
-    return await _issue_and_store_tokens(db, response, user)
+    # Revoke the old access + refresh pair for this session, then mint a fresh pair that keeps the same session id
+    session_id = uuid.UUID(sid)
+    await db.execute(delete(ActiveToken).where(ActiveToken.session_id == session_id))
+    return await _issue_and_store_tokens(db, response, user, session_id=session_id)
 
 
 @router.post("/logout")
