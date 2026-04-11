@@ -93,3 +93,14 @@ JWT_REFRESH_PRIVATE_KEY = _load_key("JWT_REFRESH_PRIVATE_KEY_PATH", _keys_dir / 
 # Key IDs for JWKS matching — bump version and date when rotating keys
 JWT_ACCESS_KID = _require("JWT_ACCESS_KID")
 JWT_REFRESH_KID = _require("JWT_REFRESH_KID")
+
+# --- Dashboard ---
+
+# How many of the user's most recent transactions the dashboard's recent-activity widget returns.
+DASHBOARD_RECENT_TRANSACTIONS_LIMIT = 15
+
+# How many complete prior months the dashboard's spending comparison averages across.
+DASHBOARD_HISTORICAL_MONTHS_TO_AVERAGE = 6
+
+# How many complete prior months the dashboard's savings rate covers.
+DASHBOARD_SAVINGS_RATE_MONTHS = 3

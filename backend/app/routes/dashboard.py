@@ -1,0 +1,72 @@
+"""Dashboard aggregation endpoint.
+
+Thin orchestrator that composes the per-widget service helpers in
+``app/services/dashboard.py`` into the :class:`DashboardResponse` payload.
+The heavy SQL, date math, and widget-specific computation live in the
+service module — this file just wires the results together.
+"""
+from datetime import UTC, datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.user import User
+from app.schemas.dashboard import DashboardResponse
+from app.services.dashboard import (
+    get_accessible_accounts,
+    get_active_budgets,
+    get_credit_widget,
+    get_current_month_cumulative,
+    get_historical_avg_cumulative,
+    get_net_worth_history,
+    get_recent_transactions,
+    get_savings_rate,
+)
+
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+@router.get("", response_model=DashboardResponse)
+async def get_dashboard(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    window_days: Annotated[int, Query(ge=1, le=365)] = 90,
+):
+    """Return the aggregated landing payload for the dashboard."""
+    now = datetime.now(UTC)
+
+    accounts = await get_accessible_accounts(db, user)
+    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
+    all_account_ids = [a.id for a in accounts]
+    base_currency_account_ids = [a.id for a in base_currency_accounts]
+
+    current_net_worth, net_worth_history = await get_net_worth_history(db, base_currency_accounts, window_days, now)
+    credit_limit_total, credit_used = await get_credit_widget(db, base_currency_accounts)
+
+    recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
+    active_budgets = await get_active_budgets(db, user, now)
+
+    current_month_cumulative = await get_current_month_cumulative(db, base_currency_account_ids, now)
+    historical_avg_cumulative, historical_months_averaged = await get_historical_avg_cumulative(db, base_currency_account_ids, now)
+    savings_rate = await get_savings_rate(db, base_currency_account_ids, now)
+
+    return DashboardResponse(
+        current_net_worth=current_net_worth,
+        net_worth_history=net_worth_history,
+        net_worth_window_days=window_days,
+        credit_limit_total=credit_limit_total,
+        credit_used=credit_used,
+        current_month_cumulative=current_month_cumulative,
+        historical_avg_cumulative=historical_avg_cumulative,
+        historical_months_averaged=historical_months_averaged,
+        recurring_expenses_estimate=None,
+        savings_rate=savings_rate,
+        upcoming_bills=None,
+        runway_months=None,
+        recent_transactions=recent_transactions,
+        active_budgets=active_budgets,
+        transaction_window_days=window_days,
+    )
