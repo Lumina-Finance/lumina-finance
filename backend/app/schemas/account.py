@@ -22,6 +22,7 @@ class AccountsOverview(BaseModel):
     name: str
     institution: InstitutionResponse | None
     currency: str
+    current_balance: int
     credit_limit: int | None
     is_hidden: bool
     closed_at: datetime | None
@@ -41,6 +42,7 @@ class AccountResponse(BaseModel):
     name: str
     institution: InstitutionResponse | None
     currency: str
+    current_balance: int
     lifetime_contribution_limit: int | None
     credit_limit: int | None
     is_hidden: bool

@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from app.models.base import InstitutionStatus
 from app.models.institution import Institution
 from tests.conftest import TestSession
@@ -95,8 +97,76 @@ async def test_list_accounts_returns_overview_shape(client):
     assert "created_at" not in row
     # Overview fields are present
     for field in ("id", "owner_id", "group_id", "account_kind", "account_type", "name",
-                  "currency", "institution", "credit_limit", "is_hidden", "closed_at"):
+                  "currency", "institution", "current_balance", "credit_limit", "is_hidden", "closed_at"):
         assert field in row, f"missing overview field: {field}"
+
+
+async def test_list_accounts_current_balance_starts_at_zero(client):
+    """Newly created accounts have a zero anchor snapshot, so current_balance is 0 in the list."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _create_account(client, headers)
+
+    resp = await client.get("/accounts", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["current_balance"] == 0
+
+
+async def test_list_accounts_current_balance_uses_latest_snapshot(client):
+    """When multiple snapshots exist for an account, list returns the most recent balance."""
+    from uuid import UUID
+
+    from app.models.account import AccountBalanceSnapshot
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = UUID(create_resp.json()["id"])
+
+    # Insert two snapshots after the zero anchor (which is at today's UTC midnight): the older
+    # of the two (12345) and the newer (98765). Helper should return the most recent.
+    async with TestSession() as session:
+        session.add(AccountBalanceSnapshot(
+            account_id=account_id,
+            ts=datetime(2027, 1, 1, tzinfo=UTC),
+            balance=12345,
+        ))
+        session.add(AccountBalanceSnapshot(
+            account_id=account_id,
+            ts=datetime(2027, 6, 1, tzinfo=UTC),
+            balance=98765,
+        ))
+        await session.commit()
+
+    resp = await client.get("/accounts", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["current_balance"] == 98765
+
+
+async def test_get_account_returns_current_balance(client):
+    """Single-account fetch also returns current_balance."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["current_balance"] == 0
+
+
+async def test_create_account_returns_current_balance(client):
+    """POST /accounts response includes current_balance from the just-inserted zero anchor."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["current_balance"] == 0
 
 
 async def test_list_accounts_without_auth_returns_401(client):
@@ -120,14 +190,21 @@ async def test_get_account_returns_account(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["name"] == ACCOUNT_PAYLOAD["name"]
-    assert data["account_type"] == ACCOUNT_PAYLOAD["account_type"]
-    assert data["tax_treatment"] == ACCOUNT_PAYLOAD["tax_treatment"]
-    assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
+    assert data["id"] == account_id
     assert data["owner_id"] is not None
     assert data["group_id"] is None
+    assert data["account_kind"] == ACCOUNT_PAYLOAD["account_kind"]
+    assert data["account_type"] == ACCOUNT_PAYLOAD["account_type"]
+    assert data["tax_treatment"] == ACCOUNT_PAYLOAD["tax_treatment"]
+    assert data["name"] == ACCOUNT_PAYLOAD["name"]
+    assert data["institution"] is None
+    assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
+    assert data["current_balance"] == 0
+    assert data["lifetime_contribution_limit"] is None
+    assert data["credit_limit"] is None
     assert data["is_hidden"] is False
     assert data["closed_at"] is None
+    assert data["created_at"] is not None
 
 
 async def test_get_account_not_found_returns_404(client):
@@ -376,7 +453,8 @@ async def test_create_account_missing_field_returns_422(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    payload = {"name": "Test", "account_type": "checking"}  # missing currency
+    # Missing both currency and account_kind — Pydantic rejects either omission
+    payload = {"name": "Test", "account_type": "checking"}
     resp = await client.post("/accounts", json=payload, headers=headers)
 
     assert resp.status_code == 422
@@ -588,7 +666,7 @@ async def test_patch_account_invalid_institution_returns_422(client):
 
 
 async def test_patch_account_immutable_fields_ignored(client):
-    """PATCH cannot change account_type or currency — extra fields are ignored."""
+    """PATCH cannot change account_kind, account_type, or currency — extra fields are ignored."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_account(client, headers)
@@ -596,13 +674,15 @@ async def test_patch_account_immutable_fields_ignored(client):
 
     resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"account_type": "savings", "currency": "USD"},
+        json={"account_kind": "liability", "account_type": "credit_card", "currency": "USD"},
         headers=headers,
     )
 
     assert resp.status_code == 200
-    assert resp.json()["account_type"] == ACCOUNT_PAYLOAD["account_type"]
-    assert resp.json()["currency"] == ACCOUNT_PAYLOAD["currency"]
+    data = resp.json()
+    assert data["account_kind"] == ACCOUNT_PAYLOAD["account_kind"]
+    assert data["account_type"] == ACCOUNT_PAYLOAD["account_type"]
+    assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
 
 
 # --- DELETE /accounts/{account_id} ---

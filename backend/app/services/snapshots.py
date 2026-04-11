@@ -6,13 +6,48 @@ UTC of the snapshot's day. The helpers here are called from the transaction
 routes after any mutation to keep the snapshot table consistent.
 """
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, time
 
 from sqlalchemy import Date, cast, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import AccountBalanceSnapshot
+from app.models.account import Account, AccountBalanceSnapshot
 from app.models.transaction import Transaction
+
+
+async def get_current_balances(
+    db: AsyncSession, account_ids: Sequence[uuid.UUID],
+) -> dict[uuid.UUID, int]:
+    """Return the most recent snapshot balance for each account in one query.
+
+    Uses Postgres ``DISTINCT ON`` to pick the row with the highest ``ts`` per account
+    without a self-join. Trusts that every account has at least one snapshot (the
+    zero anchor inserted at account creation time).
+    """
+    if not account_ids:
+        return {}
+
+    result = await db.execute(
+        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
+        .where(AccountBalanceSnapshot.account_id.in_(account_ids))
+        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.ts.desc())
+        .distinct(AccountBalanceSnapshot.account_id),
+    )
+    return {row.account_id: row.balance for row in result}
+
+
+async def attach_current_balances(db: AsyncSession, accounts: Sequence[Account]) -> None:
+    """Set ``current_balance`` on each account row in-place from the latest snapshot.
+
+    Single query regardless of how many accounts. Used by list_accounts (bulk) and the
+    detail-shape endpoints (single account); both share the same source of truth.
+    """
+    if not accounts:
+        return
+    balances = await get_current_balances(db, [a.id for a in accounts])
+    for account in accounts:
+        account.current_balance = balances[account.id]
 
 
 def _utc_midnight(ts: datetime) -> datetime:

@@ -24,6 +24,7 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
+from app.services.snapshots import attach_current_balances
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -56,7 +57,9 @@ async def list_accounts(
         .order_by(Account.created_at)
     )
     result = await db.execute(query)
-    return result.scalars().unique().all()
+    accounts = result.scalars().unique().all()
+    await attach_current_balances(db, accounts)
+    return accounts
 
 
 @router.get("/{account_id}", response_model=AccountResponse)
@@ -66,7 +69,9 @@ async def get_account(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Return a single account by ID. Requires read access."""
-    return await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    await attach_current_balances(db, [account])
+    return account
 
 
 @router.get("/{account_id}/snapshots", response_model=list[AccountBalanceSnapshotResponse])
@@ -200,7 +205,9 @@ async def create_account(
     result = await db.execute(
         select(Account).where(Account.id == account.id).options(selectinload(Account.institution)),
     )
-    return result.scalar_one()
+    fresh = result.scalar_one()
+    await attach_current_balances(db, [fresh])
+    return fresh
 
 
 @router.patch("/{account_id}", response_model=AccountResponse)
@@ -215,6 +222,7 @@ async def update_account(
 
     updates = data.model_dump(exclude_unset=True)
     if not updates:
+        await attach_current_balances(db, [account])
         return account
 
     # Validate tax_treatment if being changed
@@ -247,7 +255,9 @@ async def update_account(
         .options(selectinload(Account.institution))
         .execution_options(populate_existing=True),
     )
-    return result.scalar_one()
+    fresh = result.scalar_one()
+    await attach_current_balances(db, [fresh])
+    return fresh
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
