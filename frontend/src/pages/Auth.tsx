@@ -454,7 +454,7 @@ const Auth = () => {
               <label htmlFor="base_currency" className="app-label block">Base currency</label>
               <Dropdown
                 id="base_currency"
-                options={currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name}` }))}
+                options={currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name} (${c.symbol})` }))}
                 value={form.base_currency}
                 onChange={(v) => handleChange('base_currency', v)}
                 placeholder={currencyPlaceholder}
