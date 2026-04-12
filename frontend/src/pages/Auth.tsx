@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, animate, AnimatePresence } from 'motion/react';
 import { AlertCircle, Check, X } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { ApiError } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
 import { useCurrencies } from '@/api/currency';

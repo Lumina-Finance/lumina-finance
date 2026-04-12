@@ -13,7 +13,7 @@ import {
   type CreateAccountPayload,
 } from '@/api/accounts';
 import { ApiError } from '@/api/auth';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 /* ── Constants ── */
 
