@@ -55,6 +55,11 @@ _FILTER_FIELDS: dict[str, MappedColumn] = {
 }
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE-special characters so user input is matched literally."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _accessible_account_ids(user_id: uuid.UUID):
     """Scalar subquery returning account IDs the user can access."""
     return (
@@ -236,6 +241,7 @@ async def list_transactions(
     currency: Annotated[str | None, Query()] = None,
     from_date: Annotated[datetime | None, Query()] = None,
     to_date: Annotated[datetime | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
     sort_by: Annotated[str, Query()] = "ts",
     sort_order: Annotated[str, Query()] = "desc",
     limit: Annotated[int, Query(ge=1, le=50)] = 15,
@@ -270,6 +276,15 @@ async def list_transactions(
         query = query.where(Transaction.ts >= from_date)
     if to_date is not None:
         query = query.where(Transaction.ts <= to_date)
+
+    # Text search across merchant name and notes
+    if q is not None:
+        pattern = f"%{_escape_like(q)}%"
+        query = (
+            query
+            .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
+            .where(Transaction.notes.ilike(pattern) | Merchant.name.ilike(pattern))
+        )
 
     # Secondary sort by id for deterministic pagination
     order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
