@@ -65,6 +65,7 @@ function InstitutionLogo({ institution }: { institution: AccountsOverview['insti
 
 export default function Accounts() {
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createModalKey, setCreateModalKey] = useState(0)
   const { data: accounts, isLoading, error } = useAccounts()
 
   const rows = accounts ?? []
@@ -238,7 +239,7 @@ export default function Accounts() {
           <button
             type="button"
             className="app-secondary-button ml-auto"
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => { setCreateModalKey((k) => k + 1); setShowCreateModal(true); }}
           >
             <Plus size={18} aria-hidden />
             Add Account
@@ -387,6 +388,7 @@ export default function Accounts() {
       </div>
 
       <CreateAccountModal
+        key={createModalKey}
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
       />

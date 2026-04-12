@@ -98,7 +98,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const { data: currencies = [] } = useCurrencies();
   const { data: institutions = [] } = useInstitutions();
 
-  const [form, setForm] = useState(INITIAL_FORM);
+  const [form, setForm] = useState(() => ({
+    ...INITIAL_FORM,
+    currency: user?.base_currency ?? '',
+  }));
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitError, setSubmitError] = useState('');
@@ -137,17 +140,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
-
-  // Reset form when modal opens, preselecting the user's base currency
-  useEffect(() => {
-    if (open) {
-      setForm({ ...INITIAL_FORM, currency: user?.base_currency ?? '' });
-      setFieldErrors({});
-      setTouched({});
-      setSubmitError('');
-      mutation.reset();
-    }
-  }, [open]);
 
   const handleChange = (field: keyof typeof INITIAL_FORM, value: string) => {
     setForm((f) => {
