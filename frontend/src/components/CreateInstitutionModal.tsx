@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
+import Dropdown from '@/components/Dropdown';
 import { useCreateInstitution } from '@/api/institutions';
 import { ApiError } from '@/api/auth';
+import { COUNTRY_OPTIONS } from '@/constants/countries';
 import type { Institution } from '@/api/accounts';
 
 const EASE = [0.25, 0.1, 0.25, 1] as const;
@@ -56,7 +58,7 @@ export default function CreateInstitutionModal({
     e.preventDefault();
 
     if (!form.name.trim()) { setError('Name is required'); return; }
-    if (form.country_code.length !== 2) { setError('Country code must be 2 letters (e.g. US, CA)'); return; }
+    if (!form.country_code) { setError('Select a country'); return; }
     if (!form.website.trim()) { setError('Website is required'); return; }
 
     mutation.mutate(
@@ -143,15 +145,14 @@ export default function CreateInstitutionModal({
                 </div>
 
                 <div>
-                  <label htmlFor="inst-country" className="app-label block mb-1.5">Country Code</label>
-                  <input
-                    id="inst-country"
-                    type="text"
-                    className="app-input"
-                    placeholder="e.g. US, CA, GB"
+                  <label className="app-label block mb-1.5">Country</label>
+                  <Dropdown
+                    options={COUNTRY_OPTIONS}
                     value={form.country_code}
-                    onChange={(e) => handleChange('country_code', e.target.value)}
-                    maxLength={2}
+                    onChange={(v) => handleChange('country_code', v)}
+                    placeholder="Select country..."
+                    searchable
+                    searchPlaceholder="Search countries..."
                   />
                 </div>
 
