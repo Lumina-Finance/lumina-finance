@@ -22,7 +22,7 @@ async def list_institutions(
     db: Annotated[AsyncSession, Depends(get_db)],
     country_code: str | None = Query(None, min_length=2, max_length=2),
 ):
-    """Return canonical institutions, optionally filtered by country.
+    """Return all institutions, optionally filtered by country.
 
     Args:
         _user: Authenticated user (enforces auth gate).
@@ -30,9 +30,9 @@ async def list_institutions(
         country_code: Optional ISO 3166-1 alpha-2 filter.
 
     Returns:
-        List of canonical institutions sorted by name.
+        List of institutions sorted by name.
     """
-    query = select(Institution).where(Institution.status == InstitutionStatus.CANONICAL)
+    query = select(Institution)
     if country_code:
         query = query.where(Institution.country_code == country_code)
     result = await db.execute(query.order_by(Institution.name))
