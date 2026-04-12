@@ -20,16 +20,16 @@ import { useAuth } from '@/contexts/AuthContext';
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 
 const ACCOUNT_TYPE_OPTIONS = [
-  { value: 'checking', label: 'Checking' },
-  { value: 'savings', label: 'Savings' },
-  { value: 'term_deposit', label: 'Term Deposit' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'investment', label: 'Investment' },
-  { value: 'credit_card', label: 'Credit Card' },
-  { value: 'line_of_credit', label: 'Line of Credit' },
-  { value: 'heloc', label: 'HELOC' },
-  { value: 'loan', label: 'Loan' },
-  { value: 'mortgage', label: 'Mortgage' },
+  { value: 'checking', label: 'Checking', group: 'Assets' },
+  { value: 'savings', label: 'Savings', group: 'Assets' },
+  { value: 'term_deposit', label: 'Term Deposit', group: 'Assets' },
+  { value: 'cash', label: 'Cash', group: 'Assets' },
+  { value: 'investment', label: 'Investment', group: 'Assets' },
+  { value: 'credit_card', label: 'Credit Card', group: 'Liabilities' },
+  { value: 'line_of_credit', label: 'Line of Credit', group: 'Liabilities' },
+  { value: 'heloc', label: 'HELOC', group: 'Liabilities' },
+  { value: 'loan', label: 'Loan', group: 'Liabilities' },
+  { value: 'mortgage', label: 'Mortgage', group: 'Liabilities' },
 ];
 
 const TAX_TREATMENT_OPTIONS = [
