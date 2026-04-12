@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/Navigation'
 import Dashboard from '@/components/Dashboard'
 import Accounts from '@/components/Accounts'
+import Transactions from '@/components/Transactions'
 import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
 
@@ -91,7 +92,7 @@ function AnimatedRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
-          <Route path="/transactions" element={<PageTitle title="Transactions" description="Every transaction, all in one place." />} />
+          <Route path="/transactions" element={<Transactions />} />
           <Route path="/budgets" element={<PageTitle title="Budgets" />} />
           <Route path="/insights" element={<PageTitle title="Insights" />} />
           <Route path="/settings" element={<PageTitle title="Settings" />} />

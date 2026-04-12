@@ -1,0 +1,509 @@
+import { useMemo, useState } from 'react'
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Search,
+  Plus,
+  SlidersHorizontal,
+  Tag,
+  Briefcase,
+} from 'lucide-react'
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  BarChart,
+  Bar,
+  Cell,
+} from 'recharts'
+import { useAuth } from '@/hooks/useAuth'
+import { useAccounts } from '@/api/accounts'
+import { useCategories, type Category } from '@/api/categories'
+import { useMerchants, type Merchant } from '@/api/merchants'
+import {
+  useTransactions,
+  useTransactionsOverview,
+  type Transaction,
+  type TransactionsOverview,
+} from '@/api/transactions'
+import { formatCurrency } from '@/utils/formatCurrency'
+
+// ── Placeholder data shown when the overview has no real data ──
+
+const PLACEHOLDER_FLOW = { total_inflow: 845000, total_outflow: -623400 }
+
+const PLACEHOLDER_OUTLIERS = [
+  { id: '1', merchant_name: 'Annual Insurance', notes: null, amount: -245000, ts: '' },
+  { id: '2', merchant_name: 'Quarterly Tax', notes: null, amount: -189000, ts: '' },
+  { id: '3', merchant_name: 'Emergency Vet', notes: null, amount: -87500, ts: '' },
+]
+
+const PLACEHOLDER_CATEGORIES = [
+  { name: 'Housing', amount: 1850 },
+  { name: 'Groceries', amount: 620 },
+  { name: 'Transport', amount: 340 },
+]
+
+const PLACEHOLDER_DAILY_FLOW = [
+  { date: 'Day 1', inflow: 320, outflow: -185 },
+  { date: 'Day 2', inflow: 0, outflow: -42 },
+  { date: 'Day 3', inflow: 0, outflow: -2450 },
+  { date: 'Day 4', inflow: 150, outflow: -67 },
+  { date: 'Day 5', inflow: 0, outflow: -23 },
+  { date: 'Day 6', inflow: 0, outflow: -95 },
+  { date: 'Day 7', inflow: 0, outflow: -875 },
+  { date: 'Day 8', inflow: 4200, outflow: -310 },
+  { date: 'Day 9', inflow: 0, outflow: -56 },
+  { date: 'Day 10', inflow: 0, outflow: -128 },
+  { date: 'Day 11', inflow: 0, outflow: -44 },
+  { date: 'Day 12', inflow: 3780, outflow: -159 },
+]
+
+// ── Helpers ──
+
+interface DateGroup {
+  dateLabel: string
+  transactions: Transaction[]
+}
+
+function groupByDate(transactions: Transaction[]): DateGroup[] {
+  const groups: DateGroup[] = []
+  let currentLabel = ''
+
+  for (const txn of transactions) {
+    const label = new Date(txn.ts).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+    if (label !== currentLabel) {
+      groups.push({ dateLabel: label, transactions: [] })
+      currentLabel = label
+    }
+    groups[groups.length - 1].transactions.push(txn)
+  }
+
+  return groups
+}
+
+// ── Component ──
+
+export default function Transactions() {
+  const [search, setSearch] = useState('')
+  const { user } = useAuth()
+  const displayCurrency = user!.base_currency
+
+  const { data: overview } = useTransactionsOverview()
+  const { data: transactions, isLoading: txnLoading, error: txnError } = useTransactions({
+    q: search || undefined,
+    limit: 15,
+  })
+  const { data: categories } = useCategories()
+  const { data: merchants } = useMerchants()
+  const { data: accounts } = useAccounts()
+
+  const hasOverviewData = overview?.total_inflow !== null && overview?.total_inflow !== undefined
+
+  // Lookup maps for resolving IDs → display values
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, Category>()
+    categories?.forEach((c) => map.set(c.id, c))
+    return map
+  }, [categories])
+
+  const merchantMap = useMemo(() => {
+    const map = new Map<string, Merchant>()
+    merchants?.forEach((m) => map.set(m.id, m))
+    return map
+  }, [merchants])
+
+  const accountMap = useMemo(() => {
+    const map = new Map<string, string>()
+    accounts?.forEach((a) => map.set(a.id, a.name))
+    return map
+  }, [accounts])
+
+  const dateGroups = useMemo(
+    () => groupByDate(transactions ?? []),
+    [transactions],
+  )
+
+  // Resolve overview data or fall back to placeholders
+  const inflow = hasOverviewData ? overview!.total_inflow! : PLACEHOLDER_FLOW.total_inflow
+  const outflow = hasOverviewData ? overview!.total_outflow! : PLACEHOLDER_FLOW.total_outflow
+  const netFlow = inflow + outflow
+  const netColor = netFlow >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+
+  const outliers = hasOverviewData
+    ? (overview!.outliers ?? [])
+    : PLACEHOLDER_OUTLIERS
+
+  const categorySpend = hasOverviewData
+    ? (overview!.top_categories ?? []).map((c) => ({
+        name: c.category_name,
+        amount: Math.abs(c.total),
+      }))
+    : PLACEHOLDER_CATEGORIES
+
+  const dailyFlow = hasOverviewData
+    ? (overview!.daily_cash_flow ?? []).map((d) => ({
+        date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        inflow: d.inflow,
+        outflow: d.outflow,
+      }))
+    : PLACEHOLDER_DAILY_FLOW
+
+  return (
+    <div className="space-y-6">
+      <header className="app-page-header">
+        <h1 className="app-page-title">Transactions</h1>
+        <p className="app-page-description">Every transaction, all in one place.</p>
+      </header>
+
+      {/* Metrics & charts section — with overlay when no data */}
+      <section className="relative">
+        {!hasOverviewData && (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md"
+            style={{
+              background: 'color-mix(in srgb, var(--app-bg) 75%, transparent)',
+              boxShadow: 'inset 0 0 40px 20px var(--app-bg)',
+            }}
+          >
+            <p className="text-lg font-medium" style={{ color: 'var(--app-text-muted)' }}>
+              No transaction data this month yet. Add a transaction to get started.
+            </p>
+          </div>
+        )}
+
+        <div
+          style={{
+            height: 2,
+            background: 'var(--app-accent)',
+            opacity: 0.35,
+            borderRadius: 1,
+          }}
+        />
+        <div className="grid grid-cols-3 py-5">
+          {/* Net Flow */}
+          <div className="pr-6">
+            <p className="app-label mb-1.5">Net Flow</p>
+            <p
+              className="font-financial font-semibold tracking-tight leading-none text-6xl"
+              style={{ color: netColor }}
+            >
+              {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow, displayCurrency)}
+            </p>
+            <div className="mt-3 flex items-center gap-4">
+              <span
+                className="inline-flex items-center gap-1 font-financial text-sm font-medium"
+                style={{ color: 'var(--app-positive)' }}
+              >
+                <ArrowDownLeft size={14} aria-hidden />
+                {formatCurrency(inflow, displayCurrency)}
+              </span>
+              <span
+                className="inline-flex items-center gap-1 font-financial text-sm font-medium"
+                style={{ color: 'var(--app-negative)' }}
+              >
+                <ArrowUpRight size={14} aria-hidden />
+                {formatCurrency(Math.abs(outflow), displayCurrency)}
+              </span>
+            </div>
+          </div>
+
+          {/* Unusual Spending */}
+          <div className="px-6" style={{ borderInline: '1px solid var(--app-border)' }}>
+            <p className="app-label mb-1">Most Expensive Transactions</p>
+            <div className="space-y-1 mt-2">
+              {outliers.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between gap-3 rounded-md px-2.5 py-1.5"
+                  style={{
+                    borderLeft: '2px solid var(--app-accent)',
+                    background: 'var(--app-accent-soft)',
+                  }}
+                >
+                  <p className="truncate min-w-0 text-sm font-medium">
+                    {t.merchant_name ?? t.notes ?? 'Unknown'}
+                  </p>
+                  <p
+                    className="font-financial text-sm font-medium shrink-0"
+                    style={{ color: 'var(--app-negative)' }}
+                  >
+                    {formatCurrency(Math.abs(t.amount), displayCurrency)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top Categories */}
+          <div className="pl-6 flex flex-col">
+            <p className="app-label mb-1">Top Categories</p>
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categorySpend} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={70}
+                    tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'var(--app-surface-soft)' }}
+                    formatter={(value: number) => [formatCurrency(value * 100, displayCurrency), 'Spent']}
+                    contentStyle={{
+                      background: 'var(--app-nav-bg)',
+                      border: '1px solid var(--app-border)',
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="amount" radius={[0, 3, 3, 0]} barSize={10}>
+                    {categorySpend.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={i === 0 ? 'var(--app-accent)' : 'var(--app-border-strong)'}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Grey divider with note */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 h-px" style={{ background: 'var(--app-border-strong)' }} />
+          <p className="shrink-0 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+            Showing data for the current month. Deeper analysis coming soon in Insights.
+          </p>
+          <div className="flex-1 h-px" style={{ background: 'var(--app-border-strong)' }} />
+        </div>
+
+        {/* Daily Cash Flow */}
+        <p className="app-label mb-3">Daily Cash Flow</p>
+        <div className="h-44">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={dailyFlow} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--app-positive)" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="var(--app-positive)" stopOpacity={0.02} />
+                </linearGradient>
+                <linearGradient id="outflowGrad" x1="0" y1="1" x2="0" y2="0">
+                  <stop offset="0%" stopColor="var(--app-negative)" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="var(--app-negative)" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide />
+              <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
+              <Tooltip
+                contentStyle={{
+                  background: 'var(--app-nav-bg)',
+                  border: '1px solid var(--app-border)',
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="inflow"
+                stroke="var(--app-positive)"
+                fill="url(#inflowGrad)"
+                strokeWidth={1.5}
+              />
+              <Area
+                type="monotone"
+                dataKey="outflow"
+                stroke="var(--app-negative)"
+                fill="url(#outflowGrad)"
+                strokeWidth={1.5}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* Gold divider */}
+      <div
+        style={{
+          height: 2,
+          background: 'var(--app-accent)',
+          opacity: 0.35,
+          borderRadius: 1,
+        }}
+      />
+
+      {/* Toolbar */}
+      <div
+        className="sticky top-0 z-20 flex items-center gap-3 py-3 -my-3"
+        style={{ background: 'var(--app-bg)' }}
+      >
+        <div className="relative flex-1">
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--app-text-subtle)' }}
+            aria-hidden
+          />
+          <input
+            type="text"
+            placeholder="Search transactions..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="app-input w-full pl-9"
+          />
+        </div>
+        <button type="button" className="app-secondary-button">
+          <SlidersHorizontal size={16} aria-hidden />
+          Filters
+        </button>
+        <button type="button" className="app-primary-button">
+          <Plus size={16} aria-hidden />
+          Add Transaction
+        </button>
+      </div>
+
+      {/* Transaction list */}
+      {txnLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className="rounded-lg h-14 bg-gray-300" />
+          ))}
+        </div>
+      ) : txnError ? (
+        <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
+          Unable to load transactions.
+        </p>
+      ) : dateGroups.length === 0 ? (
+        <p
+          className="py-8 text-center italic text-sm"
+          style={{ color: 'var(--app-text-subtle)' }}
+        >
+          {search ? 'No transactions match your search.' : 'No transactions yet.'}
+        </p>
+      ) : (
+        <section className="space-y-4">
+          {dateGroups.map(({ dateLabel, transactions: txns }) => {
+            const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
+            const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+            return (
+              <div key={dateLabel}>
+                {/* Date header */}
+                <div
+                  className="sticky top-[3.25rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
+                  style={{
+                    background: 'var(--app-input-bg)',
+                    borderBottom: '1px solid var(--app-border)',
+                  }}
+                >
+                  <p
+                    className="text-sm font-semibold uppercase tracking-wide"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                  >
+                    {dateLabel}
+                  </p>
+                  <p
+                    className="font-financial text-sm font-medium"
+                    style={{ color: dailyColor }}
+                  >
+                    {dailyTotal >= 0 ? '+' : ''}{formatCurrency(dailyTotal, displayCurrency)}
+                  </p>
+                </div>
+
+                {/* Rows */}
+                <div>
+                  {txns.map((t) => {
+                    const isIncome = t.amount > 0
+                    const category = categoryMap.get(t.category_id)
+                    const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
+                    const accountName = accountMap.get(t.account_id)
+                    const Icon = category?.kind === 'income' ? Briefcase : Tag
+                    return (
+                      <div
+                        key={t.id}
+                        className="flex items-center gap-4 py-3.5 px-3"
+                        style={{ borderBottom: '1px solid var(--app-border)' }}
+                      >
+                        {/* Category icon */}
+                        <div
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                          style={{
+                            background: isIncome ? 'var(--app-positive-soft)' : 'var(--app-surface-soft)',
+                            border: `1px solid ${isIncome ? 'var(--app-positive)' : 'var(--app-border)'}`,
+                          }}
+                        >
+                          <Icon
+                            size={16}
+                            style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text-muted)' }}
+                            aria-hidden
+                          />
+                        </div>
+
+                        {/* Merchant + account */}
+                        <div className="min-w-0 w-44 shrink-0">
+                          <p className="font-medium truncate">{merchantName ?? 'Transfer'}</p>
+                          <p
+                            className="text-sm mt-0.5 truncate"
+                            style={{ color: 'var(--app-text-muted)' }}
+                          >
+                            {accountName ?? '\u00A0'}
+                          </p>
+                        </div>
+
+                        {/* Notes */}
+                        <p
+                          className="min-w-0 flex-1 truncate"
+                          style={{ color: 'var(--app-text-subtle)' }}
+                        >
+                          {t.notes ?? '\u00A0'}
+                        </p>
+
+                        {/* Category badge */}
+                        <span
+                          className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                          style={{
+                            background: 'var(--app-surface-soft)',
+                            color: 'var(--app-text-muted)',
+                            border: '1px solid var(--app-border)',
+                          }}
+                        >
+                          {category?.name ?? 'Uncategorized'}
+                        </span>
+
+                        {/* Amount */}
+                        <p
+                          className="font-financial font-medium shrink-0 tabular-nums w-28 text-right"
+                          style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
+                        >
+                          {isIncome ? '+' : ''}{formatCurrency(t.amount, displayCurrency)}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      )}
+    </div>
+  )
+}
