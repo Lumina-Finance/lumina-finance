@@ -42,6 +42,7 @@ class UserInfo(BaseModel):
     email: str
     first_name: str
     last_name: str | None
+    base_currency: str
     created_at: datetime
 
     model_config = {"from_attributes": True}
