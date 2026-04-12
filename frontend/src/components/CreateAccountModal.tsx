@@ -196,6 +196,17 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     setTouched({ account_type: true, name: true, currency: true, credit_limit: true, lifetime_contribution_limit: true });
     if (Object.keys(errors).length > 0) return;
 
+    // Convert user-entered major units (e.g. dollars) to minor units (e.g. cents)
+    const selectedCurrency = currencies.find((c) => c.id === form.currency);
+    const minorMultiplier = Math.pow(10, selectedCurrency?.minor_unit_exponent ?? 2);
+
+    const toMinor = (value: string): number | null => {
+      if (!value) return null;
+      const n = parseFloat(value);
+      if (isNaN(n) || n < 0) return null;
+      return Math.round(n * minorMultiplier);
+    };
+
     const payload: CreateAccountPayload = {
       account_kind: ACCOUNT_KIND_BY_TYPE[form.account_type as AccountType],
       account_type: form.account_type as AccountType,
@@ -203,12 +214,8 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       name: form.name.trim(),
       institution_id: form.institution_id || null,
       currency: form.currency,
-      lifetime_contribution_limit: isTaxAdvantaged && form.lifetime_contribution_limit
-        ? parseInt(form.lifetime_contribution_limit, 10)
-        : null,
-      credit_limit: isLiability && form.credit_limit
-        ? parseInt(form.credit_limit, 10)
-        : null,
+      lifetime_contribution_limit: isTaxAdvantaged ? toMinor(form.lifetime_contribution_limit) : null,
+      credit_limit: isLiability ? toMinor(form.credit_limit) : null,
       is_hidden: false,
     };
 
