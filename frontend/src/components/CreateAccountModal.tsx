@@ -288,6 +288,8 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                     value={form.account_type}
                     onChange={(v) => handleChange('account_type', v)}
                     placeholder="Select type..."
+                    searchable
+                    searchPlaceholder="Search types..."
                   />
                   <AnimatePresence>
                     {showError('account_type') && (
