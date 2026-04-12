@@ -72,6 +72,12 @@ const Dropdown = ({
     setListPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
   };
 
+  const close = () => {
+    setOpen(false);
+    setSearch('');
+    setHighlightedIndex(-1);
+  };
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
@@ -96,16 +102,9 @@ const Dropdown = ({
   // Focus search input when dropdown opens
   useEffect(() => {
     if (open && searchable) {
-      // Small delay so the element is rendered before focusing
       requestAnimationFrame(() => searchRef.current?.focus());
     }
   }, [open, searchable]);
-
-  const close = () => {
-    setOpen(false);
-    setSearch('');
-    setHighlightedIndex(-1);
-  };
 
   const handleSelect = (optionValue: string) => {
     onChange(optionValue);
