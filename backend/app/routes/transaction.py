@@ -20,7 +20,15 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
-from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
+from app.schemas.transaction import (
+    CreateTransactionRequest,
+    DailyCashFlow,
+    OutlierTransaction,
+    TopCategorySpend,
+    TransactionResponse,
+    TransactionsOverview,
+    UpdateTransactionRequest,
+)
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_responses import (
     build_transaction_response,
@@ -46,6 +54,22 @@ _FILTER_FIELDS: dict[str, MappedColumn] = {
     "currency": Transaction.currency,
 }
 
+
+def _accessible_account_ids(user_id: uuid.UUID):
+    """Scalar subquery returning account IDs the user can access."""
+    return (
+        select(Account.id)
+        .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
+        .outerjoin(
+            AccountPermission,
+            (AccountPermission.account_id == Account.id) & (AccountPermission.user_id == user_id),
+        )
+        .where(
+            (Account.owner_id == user_id)
+            | ((GroupMember.user_id == user_id) & (GroupMember.is_admin.is_(True)))
+            | (AccountPermission.user_id == user_id),
+        )
+    ).scalar_subquery()
 
 
 async def _check_category_access_or_422(
@@ -105,6 +129,103 @@ async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: li
         db.add(TransactionTag(transaction_id=transaction_id, tag_id=tag_id))
 
 
+@router.get("/overview", response_model=TransactionsOverview)
+async def get_transactions_overview(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_date: Annotated[datetime | None, Query()] = None,
+    to_date: Annotated[datetime | None, Query()] = None,
+    account_id: Annotated[uuid.UUID | None, Query()] = None,
+):
+    """Aggregated transaction metrics for a date range."""
+    if from_date is not None and to_date is not None and from_date > to_date:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
+
+    accessible = _accessible_account_ids(user.id)
+
+    # Base filter shared by all aggregation queries
+    base = select(Transaction).where(Transaction.account_id.in_(accessible))
+    if account_id is not None:
+        base = base.where(Transaction.account_id == account_id)
+    if from_date is not None:
+        base = base.where(Transaction.ts >= from_date)
+    if to_date is not None:
+        base = base.where(Transaction.ts <= to_date)
+
+    base_where = base.whereclause
+
+    # 1. Inflow / outflow totals
+    flow_query = select(
+        sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
+        sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
+    ).where(base_where)
+    flow = (await db.execute(flow_query)).one()
+
+    # 2. Top 3 expense categories by total spend
+    cat_query = (
+        select(
+            Transaction.category_id,
+            Category.name.label("category_name"),
+            sa.func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(base_where)
+        .where(Transaction.amount < 0)
+        .group_by(Transaction.category_id, Category.name)
+        .order_by(sa.func.sum(Transaction.amount).asc())
+        .limit(3)
+    )
+    cat_rows = (await db.execute(cat_query)).all()
+
+    # 3. Daily cash flow
+    day_col = sa.func.date(Transaction.ts).label("date")
+    daily_query = (
+        select(
+            day_col,
+            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
+            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
+        )
+        .where(base_where)
+        .group_by(day_col)
+        .order_by(day_col)
+    )
+    daily_rows = (await db.execute(daily_query)).all()
+
+    # 4. Top 3 largest outflow transactions
+    outlier_query = (
+        select(
+            Transaction.id,
+            Merchant.name.label("merchant_name"),
+            Transaction.notes,
+            Transaction.amount,
+            Transaction.ts,
+        )
+        .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
+        .where(base_where)
+        .where(Transaction.amount < 0)
+        .order_by(Transaction.amount.asc())
+        .limit(3)
+    )
+    outlier_rows = (await db.execute(outlier_query)).all()
+
+    return TransactionsOverview(
+        total_inflow=flow.inflow,
+        total_outflow=flow.outflow,
+        top_categories=[
+            TopCategorySpend(category_id=r.category_id, category_name=r.category_name, total=r.total)
+            for r in cat_rows
+        ],
+        daily_cash_flow=[
+            DailyCashFlow(date=r.date, inflow=r.inflow, outflow=r.outflow)
+            for r in daily_rows
+        ],
+        outliers=[
+            OutlierTransaction(id=r.id, merchant_name=r.merchant_name, notes=r.notes, amount=r.amount, ts=r.ts)
+            for r in outlier_rows
+        ],
+    )
+
+
 @router.get("", response_model=list[TransactionResponse])
 async def list_transactions(
     user: Annotated[User, Depends(get_current_user)],
@@ -130,22 +251,8 @@ async def list_transactions(
 
     sort_column = _SORT_FIELDS[sort_by]
 
-    # Subquery: all account IDs the user can access (personal, group admin, or explicit permission)
-    accessible_accounts = (
-        select(Account.id)
-        .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
-        .outerjoin(
-            AccountPermission,
-            (AccountPermission.account_id == Account.id) & (AccountPermission.user_id == user.id),
-        )
-        .where(
-            (Account.owner_id == user.id)
-            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
-            | (AccountPermission.user_id == user.id),
-        )
-    ).scalar_subquery()
-
-    query = select(Transaction).where(Transaction.account_id.in_(accessible_accounts))
+    accessible = _accessible_account_ids(user.id)
+    query = select(Transaction).where(Transaction.account_id.in_(accessible))
 
     # Apply exact-match filters
     filters = {

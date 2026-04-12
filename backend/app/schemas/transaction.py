@@ -1,7 +1,43 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
+
+
+class TopCategorySpend(BaseModel):
+    """One row in the top-categories breakdown."""
+
+    category_id: uuid.UUID
+    category_name: str
+    total: int
+
+
+class DailyCashFlow(BaseModel):
+    """Inflow and outflow totals for a single day."""
+
+    date: date
+    inflow: int
+    outflow: int
+
+
+class OutlierTransaction(BaseModel):
+    """A single large-spend transaction surfaced as unusual."""
+
+    id: uuid.UUID
+    merchant_name: str | None
+    notes: str | None
+    amount: int
+    ts: datetime
+
+
+class TransactionsOverview(BaseModel):
+    """Aggregated metrics for the transactions page header."""
+
+    total_inflow: int
+    total_outflow: int
+    top_categories: list[TopCategorySpend]
+    daily_cash_flow: list[DailyCashFlow]
+    outliers: list[OutlierTransaction]
 
 
 class TransactionResponse(BaseModel):
