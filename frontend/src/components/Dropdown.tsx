@@ -15,6 +15,8 @@ interface DropdownProps {
   placeholder?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
+  /** Called when search yields no results and the user clicks "Create {query}". */
+  onCreateNew?: (query: string) => void;
 }
 
 const Dropdown = ({
@@ -25,6 +27,7 @@ const Dropdown = ({
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
+  onCreateNew,
 }: DropdownProps) => {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -195,9 +198,20 @@ const Dropdown = ({
               className={`max-h-52 overflow-auto pb-1 ${searchable ? 'pt-1' : ''}`}
             >
               {filtered.length === 0 ? (
-                <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  No results
-                </li>
+                onCreateNew && search.trim() ? (
+                  <li
+                    className="cursor-pointer px-4 py-2 text-sm font-medium transition-colors duration-100"
+                    style={{ color: 'var(--app-accent)' }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { onCreateNew(search.trim()); close(); }}
+                  >
+                    Create "{search.trim()}"
+                  </li>
+                ) : (
+                  <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                    No results
+                  </li>
+                )
               ) : (
                 filtered.map((option, i) => {
                   const isSelected = option.value === value;
