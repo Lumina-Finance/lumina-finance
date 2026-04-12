@@ -298,12 +298,22 @@ export default function Accounts() {
                         {humanizeAccountType(account.account_type)}
                       </p>
                     </div>
-                    <p
-                      className="font-financial font-medium shrink-0"
-                      style={{ color: 'var(--app-negative)' }}
-                    >
-                      {formatCurrency(-account.current_balance, displayCurrency)}
-                    </p>
+                    <div className="text-right shrink-0">
+                      <p
+                        className="font-financial font-medium"
+                        style={{ color: 'var(--app-negative)' }}
+                      >
+                        {formatCurrency(-account.current_balance, displayCurrency)}
+                      </p>
+                      {account.credit_limit !== null && (
+                        <p
+                          className="font-financial mt-0.5 text-xs"
+                          style={{ color: 'var(--app-text-muted)' }}
+                        >
+                          {formatCurrency(account.credit_limit - account.current_balance, displayCurrency)}/{formatCurrency(account.credit_limit, displayCurrency)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
