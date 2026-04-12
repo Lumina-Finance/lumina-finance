@@ -66,11 +66,12 @@ function PublicRoute() {
   return <Outlet />;
 }
 
-function PageTitle({ title }: { title: string }) {
+function PageTitle({ title, description }: { title: string; description?: string }) {
   return (
-    <h1 className="font-serif text-4xl font-light tracking-tight">
-      {title}
-    </h1>
+    <header className="app-page-header">
+      <h1 className="app-page-title">{title}</h1>
+      {description && <p className="app-page-description">{description}</p>}
+    </header>
   )
 }
 
@@ -90,7 +91,7 @@ function AnimatedRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
-          <Route path="/transactions" element={<PageTitle title="Transactions" />} />
+          <Route path="/transactions" element={<PageTitle title="Transactions" description="Every transaction, all in one place." />} />
           <Route path="/budgets" element={<PageTitle title="Budgets" />} />
           <Route path="/insights" element={<PageTitle title="Insights" />} />
           <Route path="/settings" element={<PageTitle title="Settings" />} />
