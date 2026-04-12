@@ -154,7 +154,7 @@ export default function Accounts() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="app-label mb-0.5">Debts</p>
+                  <p className="app-label mb-0.5">Liabilities</p>
                   <p
                     className="font-financial font-medium text-xl"
                     style={{ color: 'var(--app-negative)' }}
@@ -253,7 +253,7 @@ export default function Accounts() {
               className="font-serif font-semibold shrink-0 text-2xl"
               style={{ color: 'var(--app-negative)' }}
             >
-              Debts
+              Liabilities
             </h3>
             <div
               className="flex-1 h-px"
@@ -277,7 +277,7 @@ export default function Accounts() {
                 className="py-3 text-center italic text-sm"
                 style={{ color: 'var(--app-text-subtle)' }}
               >
-                No debt accounts
+                No liability accounts
               </p>
             ) : (
               debtRows.map((account) => (
