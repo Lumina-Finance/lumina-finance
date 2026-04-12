@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import Dropdown from '@/components/Dropdown';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
+import CreateInstitutionModal from '@/components/CreateInstitutionModal';
 import {
   useCreateAccount,
   ACCOUNT_KIND_BY_TYPE,
@@ -167,6 +168,20 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     setSubmitError('');
   };
 
+  // Institution creation sub-modal
+  const [institutionModalName, setInstitutionModalName] = useState('');
+  const [showInstitutionModal, setShowInstitutionModal] = useState(false);
+
+  const handleCreateInstitution = (name: string) => {
+    setInstitutionModalName(name);
+    setShowInstitutionModal(true);
+  };
+
+  const handleInstitutionCreated = (institution: { id: string }) => {
+    handleChange('institution_id', institution.id);
+    setShowInstitutionModal(false);
+  };
+
   const handleBlur = (field: keyof FieldErrors) => {
     setTouched((t) => ({ ...t, [field]: true }));
     const errors = validate(form);
@@ -208,6 +223,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field];
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <>
@@ -363,6 +379,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                     placeholder="Select institution..."
                     searchable
                     searchPlaceholder="Search institutions..."
+                    onCreateNew={handleCreateInstitution}
                   />
                 </div>
 
@@ -493,5 +510,13 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         </>
       )}
     </AnimatePresence>
+
+    <CreateInstitutionModal
+      open={showInstitutionModal}
+      initialName={institutionModalName}
+      onClose={() => setShowInstitutionModal(false)}
+      onCreated={handleInstitutionCreated}
+    />
+    </>
   );
 }
