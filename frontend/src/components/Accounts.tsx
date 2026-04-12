@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateAccountModal from '@/components/CreateAccountModal'
@@ -53,6 +54,7 @@ function InstitutionLogo({ institution }: { institution: AccountsOverview['insti
 export default function Accounts() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
+  const { user } = useAuth()
   const { data: accounts, isLoading, error } = useAccounts()
 
   const rows = accounts ?? []
@@ -87,9 +89,7 @@ export default function Accounts() {
       : creditUtilization <= 70
         ? 'var(--app-accent)'
         : 'var(--app-negative)'
-  // Use the first account's currency as a display hint until a user
-  // base-currency is wired through the auth response.
-  const displayCurrency = rows[0]?.currency ?? 'USD'
+  const displayCurrency = user!.base_currency
 
   return (
     <div>
