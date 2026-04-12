@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { authenticatedFetch } from '@/api/client';
 
@@ -44,6 +44,50 @@ export interface AccountsOverview {
   credit_limit: number | null;
   is_hidden: boolean;
   closed_at: string | null;
+}
+
+// Mirrors the backend's ACCOUNT_KIND_BY_TYPE mapping. When a user picks an
+// account_type, the kind is determined automatically — no separate selector needed.
+export const ACCOUNT_KIND_BY_TYPE: Record<AccountType, AccountKind> = {
+  checking: 'asset',
+  savings: 'asset',
+  term_deposit: 'asset',
+  cash: 'asset',
+  investment: 'asset',
+  credit_card: 'liability',
+  line_of_credit: 'liability',
+  heloc: 'liability',
+  loan: 'liability',
+  mortgage: 'liability',
+};
+
+export interface CreateAccountPayload {
+  account_kind: AccountKind;
+  account_type: AccountType;
+  tax_treatment: TaxTreatment;
+  name: string;
+  institution_id: string | null;
+  currency: string;
+  lifetime_contribution_limit: number | null;
+  credit_limit: number | null;
+  is_hidden: boolean;
+}
+
+function createAccount(payload: CreateAccountPayload) {
+  return authenticatedFetch<AccountsOverview>('/accounts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function useCreateAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createAccount,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    },
+  });
 }
 
 export function useAccounts() {
