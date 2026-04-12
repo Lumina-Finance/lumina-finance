@@ -310,7 +310,7 @@ export default function Accounts() {
                           className="font-financial mt-0.5 text-xs"
                           style={{ color: 'var(--app-text-muted)' }}
                         >
-                          {formatCurrency(account.credit_limit - account.current_balance, displayCurrency)}/{formatCurrency(account.credit_limit, displayCurrency)}
+                          {formatCurrency(account.credit_limit - account.current_balance, displayCurrency)} avail.
                         </p>
                       )}
                     </div>
