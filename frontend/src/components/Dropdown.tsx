@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 export interface DropdownOption {
   value: string;
   label: string;
+  group?: string;
 }
 
 interface DropdownProps {
@@ -46,6 +47,25 @@ const Dropdown = ({
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, search, searchable]);
 
+  // Group filtered options by their `group` field for sectioned rendering.
+  // Each group wraps its options so sticky headers stay pinned for the full section.
+  const groupedFiltered = useMemo(() => {
+    if (!filtered.some((o) => o.group)) return null;
+
+    const groups: { label: string; items: { option: DropdownOption; flatIndex: number }[] }[] = [];
+    let current: string | undefined;
+
+    filtered.forEach((option, i) => {
+      if (option.group !== current) {
+        current = option.group;
+        groups.push({ label: option.group ?? '', items: [] });
+      }
+      groups[groups.length - 1].items.push({ option, flatIndex: i });
+    });
+
+    return groups;
+  }, [filtered]);
+
   const updateListPosition = () => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
@@ -69,7 +89,7 @@ const Dropdown = ({
   // Scroll highlighted option into view
   useEffect(() => {
     if (!open || highlightedIndex < 0 || !listRef.current) return;
-    const item = listRef.current.children[highlightedIndex] as HTMLElement;
+    const item = listRef.current.querySelector(`[data-option-index="${highlightedIndex}"]`) as HTMLElement;
     item?.scrollIntoView({ block: 'nearest' });
   }, [highlightedIndex, open]);
 
@@ -195,7 +215,7 @@ const Dropdown = ({
             <ul
               ref={listRef}
               role="listbox"
-              className={`max-h-52 overflow-auto pb-1 ${searchable ? 'pt-1' : ''}`}
+              className="max-h-52 overflow-auto pb-1"
             >
               {filtered.length === 0 ? (
                 onCreateNew && search.trim() ? (
@@ -212,6 +232,43 @@ const Dropdown = ({
                     No results
                   </li>
                 )
+              ) : groupedFiltered ? (
+                groupedFiltered.map((group) => (
+                  <li key={group.label}>
+                    <div
+                      className="sticky top-0 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide z-10"
+                      style={{
+                        color: 'var(--app-text-subtle)',
+                        background: 'var(--app-input-bg)',
+                        borderBottom: '1px solid var(--app-border)',
+                      }}
+                    >
+                      {group.label}
+                    </div>
+                    {group.items.map(({ option, flatIndex }) => {
+                      const isSelected = option.value === value;
+                      const isHighlighted = flatIndex === highlightedIndex;
+                      return (
+                        <div
+                          key={option.value}
+                          role="option"
+                          aria-selected={isSelected}
+                          data-option-index={flatIndex}
+                          className="cursor-pointer px-4 py-2 text-sm transition-colors duration-100"
+                          style={{
+                            background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
+                            color: isSelected ? 'var(--app-accent)' : 'var(--app-text)',
+                          }}
+                          onMouseEnter={() => setHighlightedIndex(flatIndex)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleSelect(option.value)}
+                        >
+                          {option.label}
+                        </div>
+                      );
+                    })}
+                  </li>
+                ))
               ) : (
                 filtered.map((option, i) => {
                   const isSelected = option.value === value;
@@ -221,6 +278,7 @@ const Dropdown = ({
                       key={option.value}
                       role="option"
                       aria-selected={isSelected}
+                      data-option-index={i}
                       className="cursor-pointer px-4 py-2 text-sm transition-colors duration-100"
                       style={{
                         background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
