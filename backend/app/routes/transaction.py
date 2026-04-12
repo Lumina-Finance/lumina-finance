@@ -159,6 +159,14 @@ async def get_transactions_overview(
 
     base_where = base.whereclause
 
+    # Short-circuit: if no transactions match, return all nulls
+    exists_query = select(sa.literal(1)).where(base_where).limit(1)
+    if (await db.execute(exists_query)).scalar_one_or_none() is None:
+        return TransactionsOverview(
+            total_inflow=None, total_outflow=None,
+            top_categories=None, daily_cash_flow=None, outliers=None,
+        )
+
     # 1. Inflow / outflow totals
     flow_query = select(
         sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),

@@ -31,13 +31,17 @@ class OutlierTransaction(BaseModel):
 
 
 class TransactionsOverview(BaseModel):
-    """Aggregated metrics for the transactions page header."""
+    """Aggregated metrics for the transactions page header.
 
-    total_inflow: int
-    total_outflow: int
-    top_categories: list[TopCategorySpend]
-    daily_cash_flow: list[DailyCashFlow]
-    outliers: list[OutlierTransaction]
+    Nullable fields signal "no data for this period" — the frontend can
+    show a placeholder instead of rendering empty charts.
+    """
+
+    total_inflow: int | None
+    total_outflow: int | None
+    top_categories: list[TopCategorySpend] | None
+    daily_cash_flow: list[DailyCashFlow] | None
+    outliers: list[OutlierTransaction] | None
 
 
 class TransactionResponse(BaseModel):
