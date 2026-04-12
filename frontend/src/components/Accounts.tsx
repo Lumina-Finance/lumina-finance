@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
+import CreateAccountModal from '@/components/CreateAccountModal'
 
 // Format an integer amount in a currency's minor units (e.g. cents) as a
 // localized currency string. Intl.NumberFormat knows the exponent for each
@@ -62,6 +64,7 @@ function InstitutionLogo({ institution }: { institution: AccountsOverview['insti
 }
 
 export default function Accounts() {
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const { data: accounts, isLoading, error } = useAccounts()
 
   const rows = accounts ?? []
@@ -232,7 +235,11 @@ export default function Accounts() {
           <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
           <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
           <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
-          <button type="button" className="app-secondary-button ml-auto">
+          <button
+            type="button"
+            className="app-secondary-button ml-auto"
+            onClick={() => setShowCreateModal(true)}
+          >
             <Plus size={18} aria-hidden />
             Add Account
           </button>
@@ -368,6 +375,11 @@ export default function Accounts() {
         </section>
 
       </div>
+
+      <CreateAccountModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
     </div>
   )
 }
