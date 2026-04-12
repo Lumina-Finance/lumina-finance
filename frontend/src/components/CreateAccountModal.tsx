@@ -163,9 +163,11 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   // Institution creation sub-modal
   const [institutionModalName, setInstitutionModalName] = useState('');
   const [showInstitutionModal, setShowInstitutionModal] = useState(false);
+  const [institutionModalKey, setInstitutionModalKey] = useState(0);
 
   const handleCreateInstitution = (name: string) => {
     setInstitutionModalName(name);
+    setInstitutionModalKey((k) => k + 1);
     setShowInstitutionModal(true);
   };
 
@@ -514,6 +516,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     </AnimatePresence>
 
     <CreateInstitutionModal
+      key={institutionModalKey}
       open={showInstitutionModal}
       initialName={institutionModalName}
       onClose={() => setShowInstitutionModal(false)}

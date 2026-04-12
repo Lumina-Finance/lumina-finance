@@ -25,21 +25,12 @@ export default function CreateInstitutionModal({
 }: CreateInstitutionModalProps) {
   const mutation = useCreateInstitution();
 
-  const [form, setForm] = useState({
-    name: '',
+  const [form, setForm] = useState(() => ({
+    name: initialName,
     country_code: '',
     website: '',
-  });
+  }));
   const [error, setError] = useState('');
-
-  // Reset form when modal opens, pre-filling the name
-  useEffect(() => {
-    if (open) {
-      setForm({ name: initialName, country_code: '', website: '' });
-      setError('');
-      mutation.reset();
-    }
-  }, [open, initialName]);
 
   // Close on Escape
   useEffect(() => {
