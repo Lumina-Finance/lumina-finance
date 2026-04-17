@@ -31,7 +31,7 @@ async def _create_category(client, headers, **overrides):
     Returns:
         The HTTP response from the API.
     """
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Expense", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
 
@@ -503,7 +503,7 @@ async def test_list_transactions_filter_by_account(client):
 async def test_list_transactions_filter_by_category(client):
     """Filtering by category_id returns only that category's transactions."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    other_cat = await _create_category(client, headers, name="Salary", kind="income")
+    other_cat = await _create_category(client, headers, name="Test Income", kind="income")
 
     await _create_transaction(client, headers, account_id, category_id, amount=-1000)
     await _create_transaction(client, headers, account_id, other_cat.json()["id"], amount=5000)
@@ -602,7 +602,7 @@ async def test_list_transactions_filter_by_to_date_only(client):
 async def test_list_transactions_multiple_filters_combined(client):
     """Multiple filters applied together narrow results correctly."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    other_cat = await _create_category(client, headers, name="Salary", kind="income")
+    other_cat = await _create_category(client, headers, name="Test Income", kind="income")
 
     await _create_transaction(client, headers, account_id, category_id, amount=-1000)
     await _create_transaction(client, headers, account_id, other_cat.json()["id"], amount=5000)

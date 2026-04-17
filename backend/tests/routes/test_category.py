@@ -5,7 +5,7 @@ from tests.routes.conftest import _create_user, _get_auth_header
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 CATEGORY_PAYLOAD = {
-    "name": "Groceries",
+    "name": "Custom Test Category",
     "kind": "expense",
 }
 
@@ -95,15 +95,21 @@ async def _setup_group_with_member(client):
 # --- GET /categories ---
 
 
-async def test_list_categories_returns_empty_list(client):
-    """User with no categories gets an empty list."""
+async def test_list_categories_returns_seeded_defaults(client):
+    """New user gets the default seeded categories."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await client.get("/categories", headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json() == []
+    data = resp.json()
+    assert len(data) > 0
+    names = {c["name"] for c in data}
+    assert "Groceries" in names
+    assert "Salary" in names
+    assert "Transfer" in names
+    assert "Debt Payment" in names
 
 
 async def test_list_categories_returns_user_categories(client):
@@ -111,8 +117,11 @@ async def test_list_categories_returns_user_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    await _create_category(client, headers, name="Groceries")
-    await _create_category(client, headers, name="Salary", kind="income")
+    # Count seeded categories, then add a custom one
+    seeded_resp = await client.get("/categories", headers=headers)
+    seeded_count = len(seeded_resp.json())
+
+    await _create_category(client, headers, name="My Custom")
 
     # Second user creates a category that should not appear
     other_headers = _get_auth_header(await _create_second_user(client))
@@ -122,9 +131,10 @@ async def test_list_categories_returns_user_categories(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 2
+    assert len(data) == seeded_count + 1
     names = {c["name"] for c in data}
-    assert names == {"Groceries", "Salary"}
+    assert "My Custom" in names
+    assert "Other Expense" not in names
 
 
 
@@ -149,7 +159,7 @@ async def test_get_category_returns_category(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["name"] == "Groceries"
+    assert data["name"] == "Custom Test Category"
     assert data["kind"] == "expense"
     assert data["parent_id"] is None
     assert data["group_id"] is None
@@ -198,7 +208,7 @@ async def test_create_category_returns_201(client):
 
     assert resp.status_code == 201
     data = resp.json()
-    assert data["name"] == "Groceries"
+    assert data["name"] == "Custom Test Category"
     assert data["kind"] == "expense"
     assert data["parent_id"] is None
     assert data["id"] is not None
@@ -210,10 +220,10 @@ async def test_create_category_with_parent(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    parent_resp = await _create_category(client, headers, name="Food")
+    parent_resp = await _create_category(client, headers, name="Test Parent")
     parent_id = parent_resp.json()["id"]
 
-    child_resp = await _create_category(client, headers, name="Fast Food", parent_id=parent_id)
+    child_resp = await _create_category(client, headers, name="Test Child", parent_id=parent_id)
 
     assert child_resp.status_code == 201
     assert child_resp.json()["parent_id"] == parent_id
@@ -235,8 +245,8 @@ async def test_create_category_duplicate_name_and_kind_returns_409(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    await _create_category(client, headers, name="Groceries", kind="expense")
-    resp = await _create_category(client, headers, name="Groceries", kind="expense")
+    await _create_category(client, headers, name="Duplicate Test", kind="expense")
+    resp = await _create_category(client, headers, name="Duplicate Test", kind="expense")
 
     assert resp.status_code == 409
     assert "already exists" in resp.json()["detail"]
@@ -303,10 +313,10 @@ async def test_patch_category_updates_parent(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    parent_resp = await _create_category(client, headers, name="Food")
+    parent_resp = await _create_category(client, headers, name="Patch Parent")
     parent_id = parent_resp.json()["id"]
 
-    child_resp = await _create_category(client, headers, name="Fast Food")
+    child_resp = await _create_category(client, headers, name="Patch Child")
     child_id = child_resp.json()["id"]
 
     resp = await client.patch(f"/categories/{child_id}", json={"parent_id": parent_id}, headers=headers)
@@ -375,18 +385,18 @@ async def test_patch_category_rename_to_duplicate_returns_409(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    await _create_category(client, headers, name="Food", kind="expense")
-    create_resp = await _create_category(client, headers, name="Transport", kind="expense")
+    await _create_category(client, headers, name="Alpha Unique", kind="expense")
+    create_resp = await _create_category(client, headers, name="Beta Unique", kind="expense")
     category_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/categories/{category_id}", json={"name": "Food"}, headers=headers)
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "Alpha Unique"}, headers=headers)
 
     assert resp.status_code == 409
     assert "already exists" in resp.json()["detail"]
 
     # Verify the category was not mutated
     get_resp = await client.get(f"/categories/{category_id}", headers=headers)
-    assert get_resp.json()["name"] == "Transport"
+    assert get_resp.json()["name"] == "Beta Unique"
 
 
 async def test_patch_category_without_auth_returns_401(client):
@@ -513,8 +523,8 @@ async def test_create_group_category_same_name_as_personal_allowed(client):
     """Personal and group categories with the same name+kind can coexist."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    personal = await _create_category(client, admin_headers, name="Food", kind="expense")
-    group = await _create_category(client, admin_headers, name="Food", kind="expense", group_id=group_id)
+    personal = await _create_category(client, admin_headers, name="Coexist Test", kind="expense")
+    group = await _create_category(client, admin_headers, name="Coexist Test", kind="expense", group_id=group_id)
 
     assert personal.status_code == 201
     assert group.status_code == 201
@@ -655,7 +665,6 @@ async def test_list_categories_with_group_filter_excludes_other_groups(client):
     assert resp.status_code == 200
     data = resp.json()
     names = {c["name"] for c in data}
-    assert len(data) == 2
     assert "Personal Cat" in names
     assert "Group B Cat" in names
     assert "Group A Cat" not in names
@@ -801,7 +810,7 @@ async def test_delete_category_referenced_by_transaction_returns_409(client):
     headers = _get_auth_header(signup_resp)
 
     # Set up a category, account, and a transaction referencing the category
-    cat_resp = await _create_category(client, headers, name="Groceries")
+    cat_resp = await _create_category(client, headers, name="Test Deletable")
     category_id = cat_resp.json()["id"]
 
     acct_resp = await client.post("/accounts", json={
