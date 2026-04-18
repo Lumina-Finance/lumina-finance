@@ -273,7 +273,7 @@ export default function Transactions() {
                   <YAxis
                     type="category"
                     dataKey="name"
-                    width={70}
+                    width={110}
                     tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
                     axisLine={false}
                     tickLine={false}
