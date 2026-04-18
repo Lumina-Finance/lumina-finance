@@ -41,9 +41,9 @@ const PLACEHOLDER_OUTLIERS = [
 ]
 
 const PLACEHOLDER_CATEGORIES = [
-  { name: 'Housing', amount: 1850 },
-  { name: 'Groceries', amount: 620 },
-  { name: 'Transport', amount: 340 },
+  { name: 'Housing', amount: 185000 },
+  { name: 'Groceries', amount: 62000 },
+  { name: 'Transport', amount: 34000 },
 ]
 
 const PLACEHOLDER_DAILY_FLOW = [
@@ -258,7 +258,7 @@ export default function Transactions() {
                   />
                   <Tooltip
                     cursor={{ fill: 'var(--app-surface-soft)' }}
-                    formatter={(value: number) => [formatCurrency(value * 100, displayCurrency), 'Spent']}
+                    formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
                     contentStyle={{
                       background: 'var(--app-nav-bg)',
                       border: '1px solid var(--app-border)',
