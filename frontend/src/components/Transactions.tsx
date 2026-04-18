@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   Search,
   Plus,
-  SlidersHorizontal,
 } from 'lucide-react'
 import { getCategoryIcon } from '@/utils/categoryIcon'
 import {
@@ -30,6 +29,15 @@ import {
 } from '@/api/transactions'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
+import FilterChip from '@/components/FilterChip'
+import FilterOptionList from '@/components/FilterOptionList'
+
+interface TransactionFilterValues {
+  account_id?: string
+  category_id?: string
+  from_date?: string
+  to_date?: string
+}
 
 // ── Placeholder data shown when the overview has no real data ──
 
@@ -95,11 +103,28 @@ export default function Transactions() {
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
+  const [filters, setFilters] = useState<TransactionFilterValues>({})
+
+  const setFilter = (patch: Partial<TransactionFilterValues>) => {
+    setFilters((f) => {
+      const next = { ...f, ...patch }
+      for (const key of Object.keys(next) as (keyof TransactionFilterValues)[]) {
+        if (!next[key]) delete next[key]
+      }
+      return next
+    })
+  }
   const { user } = useAuth()
   const displayCurrency = user!.base_currency
 
-  const { data: overview } = useTransactionsOverview()
+  // Overview only supports account_id + date range; category filter applies to the list only
+  const { data: overview } = useTransactionsOverview({
+    account_id: filters.account_id,
+    from_date: filters.from_date,
+    to_date: filters.to_date,
+  })
   const { data: transactions, isLoading: txnLoading, error: txnError } = useTransactions({
+    ...filters,
     q: search || undefined,
     limit: 15,
   })
@@ -399,10 +424,78 @@ export default function Transactions() {
             className="app-input w-full pl-9"
           />
         </div>
-        <button type="button" className="app-secondary-button">
-          <SlidersHorizontal size={16} aria-hidden />
-          Filters
-        </button>
+        <FilterChip
+          label="Account"
+          selectedLabel={accounts?.find((a) => a.id === filters.account_id)?.name ?? null}
+          onClear={() => setFilter({ account_id: undefined })}
+        >
+          {(close) => (
+            <FilterOptionList
+              options={(accounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
+              selectedValue={filters.account_id}
+              onSelect={(v) => { setFilter({ account_id: v }); close() }}
+              searchPlaceholder="Search accounts..."
+            />
+          )}
+        </FilterChip>
+
+        <FilterChip
+          label="Category"
+          selectedLabel={categories?.find((c) => c.id === filters.category_id)?.name ?? null}
+          onClear={() => setFilter({ category_id: undefined })}
+        >
+          {(close) => {
+            const KIND_LABELS: Record<string, string> = { expense: 'Expense', income: 'Income', transfer: 'Transfer' }
+            const opts = (['expense', 'income', 'transfer'] as const).flatMap((kind) =>
+              (categories ?? [])
+                .filter((c) => c.kind === kind)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((c) => ({ value: c.id, label: c.name, group: KIND_LABELS[kind] })),
+            )
+            return (
+              <FilterOptionList
+                options={opts}
+                selectedValue={filters.category_id}
+                onSelect={(v) => { setFilter({ category_id: v }); close() }}
+                searchPlaceholder="Search categories..."
+              />
+            )
+          }}
+        </FilterChip>
+
+        <FilterChip
+          label="Date range"
+          selectedLabel={
+            filters.from_date || filters.to_date
+              ? `${filters.from_date ?? '…'} → ${filters.to_date ?? '…'}`
+              : null
+          }
+          onClear={() => setFilter({ from_date: undefined, to_date: undefined })}
+          panelClassName="w-72 p-4 space-y-3"
+        >
+          {() => (
+            <>
+              <div>
+                <label className="app-label block mb-1.5">From</label>
+                <input
+                  type="date"
+                  className="app-input w-full"
+                  value={filters.from_date ?? ''}
+                  onChange={(e) => setFilter({ from_date: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="app-label block mb-1.5">To</label>
+                <input
+                  type="date"
+                  className="app-input w-full"
+                  value={filters.to_date ?? ''}
+                  onChange={(e) => setFilter({ to_date: e.target.value })}
+                />
+              </div>
+            </>
+          )}
+        </FilterChip>
         <button
           type="button"
           className="app-primary-button"
