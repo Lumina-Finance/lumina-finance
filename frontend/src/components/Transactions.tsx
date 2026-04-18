@@ -5,9 +5,8 @@ import {
   Search,
   Plus,
   SlidersHorizontal,
-  Tag,
-  Briefcase,
 } from 'lucide-react'
+import { getCategoryIcon } from '@/utils/categoryIcon'
 import {
   AreaChart,
   Area,
@@ -28,7 +27,6 @@ import {
   useTransactions,
   useTransactionsOverview,
   type Transaction,
-  type TransactionsOverview,
 } from '@/api/transactions'
 import { formatCurrency } from '@/utils/formatCurrency'
 
@@ -435,7 +433,7 @@ export default function Transactions() {
                     const category = categoryMap.get(t.category_id)
                     const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
                     const accountName = accountMap.get(t.account_id)
-                    const Icon = category?.kind === 'income' ? Briefcase : Tag
+                    const Icon = getCategoryIcon(category?.icon)
                     return (
                       <div
                         key={t.id}

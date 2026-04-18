@@ -8,7 +8,7 @@ export interface Category {
   owner_id: string;
   name: string;
   kind: 'expense' | 'income' | 'transfer';
-  parent_id: string | null;
+  icon: string | null;
   created_at: string;
 }
 
