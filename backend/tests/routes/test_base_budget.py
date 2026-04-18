@@ -87,7 +87,7 @@ async def test_create_base_budget_with_multiple_categories(client):
     headers = _get_auth_header(signup_resp)
 
     cat_id_1 = await _create_category(client, headers, name="Test Groceries")
-    cat_id_2 = await _create_category(client, headers, name="Takeout")
+    cat_id_2 = await _create_category(client, headers, name="Test Takeout")
 
     resp = await _create_base_budget(client, headers, category_ids=[cat_id_1, cat_id_2])
 
@@ -765,7 +765,7 @@ async def test_list_base_budgets_excludes_soft_deleted_categories(client):
     headers = _get_auth_header(signup_resp)
 
     cat_keep = await _create_category(client, headers, name="Test Groceries")
-    cat_remove = await _create_category(client, headers, name="Takeout")
+    cat_remove = await _create_category(client, headers, name="Test Takeout")
     create_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
     )
@@ -982,7 +982,7 @@ async def test_get_base_budget_excludes_soft_deleted_categories(client):
     headers = _get_auth_header(signup_resp)
 
     cat_keep = await _create_category(client, headers, name="Test Groceries")
-    cat_remove = await _create_category(client, headers, name="Takeout")
+    cat_remove = await _create_category(client, headers, name="Test Takeout")
     create_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
     )
@@ -1062,7 +1062,7 @@ async def test_update_base_budget_add_categories(client):
     headers = _get_auth_header(signup_resp)
 
     cat_id_1 = await _create_category(client, headers, name="Test Groceries")
-    cat_id_2 = await _create_category(client, headers, name="Takeout")
+    cat_id_2 = await _create_category(client, headers, name="Test Takeout")
     create_resp = await _create_base_budget(client, headers, category_ids=[cat_id_1])
     base_budget_id = create_resp.json()["id"]
 
@@ -1083,7 +1083,7 @@ async def test_update_base_budget_remove_categories(client):
     headers = _get_auth_header(signup_resp)
 
     cat_keep = await _create_category(client, headers, name="Test Groceries")
-    cat_remove = await _create_category(client, headers, name="Takeout")
+    cat_remove = await _create_category(client, headers, name="Test Takeout")
     create_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
     )
@@ -1105,7 +1105,7 @@ async def test_update_base_budget_swap_categories(client):
     headers = _get_auth_header(signup_resp)
 
     cat_id_1 = await _create_category(client, headers, name="Test Groceries")
-    cat_id_2 = await _create_category(client, headers, name="Takeout")
+    cat_id_2 = await _create_category(client, headers, name="Test Takeout")
     create_resp = await _create_base_budget(client, headers, category_ids=[cat_id_1])
     base_budget_id = create_resp.json()["id"]
 
@@ -1127,7 +1127,7 @@ async def test_update_base_budget_readd_removed_category(client):
     cat_id = await _create_category(client, headers)
     create_resp = await _create_base_budget(client, headers, category_ids=[cat_id])
     base_budget_id = create_resp.json()["id"]
-    other_cat = await _create_category(client, headers, name="Takeout")
+    other_cat = await _create_category(client, headers, name="Test Takeout")
 
     # Remove then re-add the category
     await client.patch(

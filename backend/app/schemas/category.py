@@ -12,6 +12,7 @@ class CategoryResponse(BaseModel):
     owner_id: uuid.UUID
     name: str
     kind: str
+    icon: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -22,6 +23,7 @@ class CreateCategoryRequest(BaseModel):
 
     name: str = Field(min_length=1)
     kind: str  # CategoryKind enum value
+    icon: str | None = None
     group_id: uuid.UUID | None = None
 
 
@@ -29,3 +31,4 @@ class UpdateCategoryRequest(BaseModel):
     """Partial update for a category. Only provided fields are changed."""
 
     name: str | None = Field(None, min_length=1)
+    icon: str | None = None

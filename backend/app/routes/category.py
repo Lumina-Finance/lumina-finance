@@ -107,6 +107,7 @@ async def create_category(
         group_id=group_id,
         name=data.name,
         kind=data.kind,
+        icon=data.icon,
     )
     db.add(category)
     await db.commit()

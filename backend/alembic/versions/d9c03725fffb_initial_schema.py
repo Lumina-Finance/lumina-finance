@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: e44c40bc8c9e
+Revision ID: d9c03725fffb
 Revises: 
-Create Date: 2026-04-17 19:48:36.290014
+Create Date: 2026-04-18 16:11:03.199626
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e44c40bc8c9e'
+revision: str = 'd9c03725fffb'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -142,6 +142,7 @@ def upgrade() -> None:
     sa.Column('owner_id', sa.Uuid(), nullable=False),
     sa.Column('name', sa.Text(), nullable=False),
     sa.Column('kind', sa.Enum('EXPENSE', 'INCOME', 'TRANSFER', name='categorykind'), nullable=False),
+    sa.Column('icon', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),

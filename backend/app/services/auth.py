@@ -25,43 +25,45 @@ from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
 
-# Default categories seeded for every new user.
-_DEFAULT_CATEGORIES: list[tuple[str, CategoryKind]] = [
-    ("Groceries", CategoryKind.EXPENSE),
-    ("Dining", CategoryKind.EXPENSE),
-    ("Takeout", CategoryKind.EXPENSE),
-    ("Housing", CategoryKind.EXPENSE),
-    ("Gas", CategoryKind.EXPENSE),
-    ("Public Transit", CategoryKind.EXPENSE),
-    ("Utilities", CategoryKind.EXPENSE),
-    ("Health", CategoryKind.EXPENSE),
-    ("Entertainment", CategoryKind.EXPENSE),
-    ("Shopping", CategoryKind.EXPENSE),
-    ("Insurance", CategoryKind.EXPENSE),
-    ("Education", CategoryKind.EXPENSE),
-    ("Personal Care", CategoryKind.EXPENSE),
-    ("Gifts & Donations", CategoryKind.EXPENSE),
-    ("Pets", CategoryKind.EXPENSE),
-    ("Travel", CategoryKind.EXPENSE),
-    ("Taxes", CategoryKind.EXPENSE),
-    ("Salary", CategoryKind.INCOME),
-    ("Freelance", CategoryKind.INCOME),
-    ("Bonus", CategoryKind.INCOME),
-    ("Interest", CategoryKind.INCOME),
-    ("Dividends", CategoryKind.INCOME),
-    ("Capital Gains/Losses", CategoryKind.INCOME),
-    ("Rental Income", CategoryKind.INCOME),
-    ("Other Income", CategoryKind.INCOME),
-    ("Transfer", CategoryKind.TRANSFER),
-    ("Credit Card Payment", CategoryKind.TRANSFER),
-    ("Debt Payment", CategoryKind.TRANSFER),
+# Default categories seeded for every new user. Icons are Lucide icon names (kebab-case).
+_DEFAULT_CATEGORIES: list[tuple[str, CategoryKind, str]] = [
+    ("Groceries", CategoryKind.EXPENSE, "shopping-basket"),
+    ("Dining", CategoryKind.EXPENSE, "utensils"),
+    ("Takeout", CategoryKind.EXPENSE, "utensils-crossed"),
+    ("Housing", CategoryKind.EXPENSE, "house"),
+    ("Gas", CategoryKind.EXPENSE, "fuel"),
+    ("Vehicle Maintenance", CategoryKind.EXPENSE, "wrench"),
+    ("Public Transit", CategoryKind.EXPENSE, "bus"),
+    ("Utilities", CategoryKind.EXPENSE, "lightbulb"),
+    ("Health", CategoryKind.EXPENSE, "heart-pulse"),
+    ("Entertainment", CategoryKind.EXPENSE, "clapperboard"),
+    ("Shopping", CategoryKind.EXPENSE, "shopping-bag"),
+    ("Insurance", CategoryKind.EXPENSE, "shield"),
+    ("Education", CategoryKind.EXPENSE, "graduation-cap"),
+    ("Childcare", CategoryKind.EXPENSE, "baby"),
+    ("Personal Care", CategoryKind.EXPENSE, "scissors"),
+    ("Gifts & Donations", CategoryKind.EXPENSE, "gift"),
+    ("Pets", CategoryKind.EXPENSE, "paw-print"),
+    ("Travel", CategoryKind.EXPENSE, "plane"),
+    ("Taxes", CategoryKind.EXPENSE, "landmark"),
+    ("Salary", CategoryKind.INCOME, "briefcase"),
+    ("Freelance", CategoryKind.INCOME, "laptop"),
+    ("Bonus", CategoryKind.INCOME, "award"),
+    ("Interest", CategoryKind.INCOME, "percent"),
+    ("Dividends", CategoryKind.INCOME, "coins"),
+    ("Capital Gains/Losses", CategoryKind.INCOME, "trending-up"),
+    ("Rental Income", CategoryKind.INCOME, "key-round"),
+    ("Other Income", CategoryKind.INCOME, "circle-dollar-sign"),
+    ("Transfer", CategoryKind.TRANSFER, "arrow-right-left"),
+    ("Credit Card Payment", CategoryKind.TRANSFER, "credit-card"),
+    ("Debt Payment", CategoryKind.TRANSFER, "banknote"),
 ]
 
 
 async def _seed_default_categories(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Create the default set of categories for a newly registered user."""
-    for name, kind in _DEFAULT_CATEGORIES:
-        db.add(Category(owner_id=user_id, name=name, kind=kind))
+    for name, kind, icon in _DEFAULT_CATEGORIES:
+        db.add(Category(owner_id=user_id, name=name, kind=kind, icon=icon))
 
 # Use less secure params in testing to keep the suite fast; production uses defaults
 _ph = (
