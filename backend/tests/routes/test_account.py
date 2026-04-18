@@ -37,7 +37,7 @@ async def _seed_institution(logo_url: str | None = None):
         return inst
 
 
-async def _seed_category(owner_id: uuid.UUID, kind: CategoryKind, name: str = "Transfer") -> uuid.UUID:
+async def _seed_category(owner_id: uuid.UUID, kind: CategoryKind, name: str = "Test Transfer") -> uuid.UUID:
     """Insert a category of a given kind directly via DB. Returns the id.
 
     Used by tax-advantaged tally tests to create transfer-kind categories without going
@@ -337,8 +337,8 @@ async def test_tax_advantaged_tallies_ignore_non_transfer_transactions(client):
     )
     account_id = uuid.UUID(create_resp.json()["id"])
 
-    transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER, name="Transfer")
-    expense_cat_id = await _seed_category(user_id, CategoryKind.EXPENSE, name="Groceries")
+    transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER, name="Test Transfer")
+    expense_cat_id = await _seed_category(user_id, CategoryKind.EXPENSE, name="Test Groceries")
 
     now = datetime.now(UTC)
     await _seed_transaction(account_id, transfer_cat_id, user_id, 100_000, now)  # counts

@@ -26,45 +26,42 @@ from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
 
 # Default categories seeded for every new user.
-# Tuples of (name, kind, children) where children is a list of subcategory names.
-_DEFAULT_CATEGORIES: list[tuple[str, CategoryKind, list[str]]] = [
-    ("Groceries", CategoryKind.EXPENSE, []),
-    ("Dining", CategoryKind.EXPENSE, ["Restaurants", "Coffee Shops", "Takeout", "Food Delivery"]),
-    ("Housing", CategoryKind.EXPENSE, ["Rent", "Mortgage Interest", "Home Maintenance", "Home Improvements"]),
-    ("Transport", CategoryKind.EXPENSE, ["Gas", "Public Transit", "Parking", "Taxi", "Ride Share", "Bike Share"]),
-    ("Utilities", CategoryKind.EXPENSE, ["Electric", "Water", "Internet", "Phone", "Cable", "Satellite"]),
-    ("Health", CategoryKind.EXPENSE, ["Medical", "Pharmacy", "Dental"]),
-    ("Entertainment", CategoryKind.EXPENSE, ["Subscriptions", "Movies & Events", "Gym", "Sports"]),
-    ("Shopping", CategoryKind.EXPENSE, ["Clothing", "Electronics", "Household"]),
-    ("Insurance", CategoryKind.EXPENSE, ["Home Insurance", "Auto Insurance", "Life Insurance"]),
-    ("Education", CategoryKind.EXPENSE, ["Tuition", "Books & Supplies", "Courses", "Certifications"]),
-    ("Personal Care", CategoryKind.EXPENSE, ["Haircuts", "Massages", "Spa", "Personal Training"]),
-    ("Gifts & Donations", CategoryKind.EXPENSE, []),
-    ("Pets", CategoryKind.EXPENSE, ["Pet Food", "Veterinary", "Grooming", "Boarding", "Supplies"]),
-    ("Travel", CategoryKind.EXPENSE, ["Flights", "Accommodations", "Activities"]),
-    ("Taxes", CategoryKind.EXPENSE, ["Property Tax", "Income Tax", "Sales Tax", "Other Taxes"]),
-    ("Salary", CategoryKind.INCOME, []),
-    ("Freelance", CategoryKind.INCOME, []),
-    ("Bonus", CategoryKind.INCOME, []),
-    ("Interest", CategoryKind.INCOME, []),
-    ("Dividends", CategoryKind.INCOME, []),
-    ("Capital Gains/Losses", CategoryKind.INCOME, []),
-    ("Rental Income", CategoryKind.INCOME, []),
-    ("Other Income", CategoryKind.INCOME, []),
-    ("Transfer", CategoryKind.TRANSFER, []),
-    ("Debt Payment", CategoryKind.TRANSFER, ["Credit Card Payment", "Loan Payment", "Line of Credit Payment"]),
+_DEFAULT_CATEGORIES: list[tuple[str, CategoryKind]] = [
+    ("Groceries", CategoryKind.EXPENSE),
+    ("Dining", CategoryKind.EXPENSE),
+    ("Takeout", CategoryKind.EXPENSE),
+    ("Housing", CategoryKind.EXPENSE),
+    ("Gas", CategoryKind.EXPENSE),
+    ("Public Transit", CategoryKind.EXPENSE),
+    ("Utilities", CategoryKind.EXPENSE),
+    ("Health", CategoryKind.EXPENSE),
+    ("Entertainment", CategoryKind.EXPENSE),
+    ("Shopping", CategoryKind.EXPENSE),
+    ("Insurance", CategoryKind.EXPENSE),
+    ("Education", CategoryKind.EXPENSE),
+    ("Personal Care", CategoryKind.EXPENSE),
+    ("Gifts & Donations", CategoryKind.EXPENSE),
+    ("Pets", CategoryKind.EXPENSE),
+    ("Travel", CategoryKind.EXPENSE),
+    ("Taxes", CategoryKind.EXPENSE),
+    ("Salary", CategoryKind.INCOME),
+    ("Freelance", CategoryKind.INCOME),
+    ("Bonus", CategoryKind.INCOME),
+    ("Interest", CategoryKind.INCOME),
+    ("Dividends", CategoryKind.INCOME),
+    ("Capital Gains/Losses", CategoryKind.INCOME),
+    ("Rental Income", CategoryKind.INCOME),
+    ("Other Income", CategoryKind.INCOME),
+    ("Transfer", CategoryKind.TRANSFER),
+    ("Credit Card Payment", CategoryKind.TRANSFER),
+    ("Debt Payment", CategoryKind.TRANSFER),
 ]
 
 
 async def _seed_default_categories(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Create the default set of categories for a newly registered user."""
-    for name, kind, children in _DEFAULT_CATEGORIES:
-        parent = Category(owner_id=user_id, name=name, kind=kind)
-        db.add(parent)
-        if children:
-            await db.flush()
-            for child_name in children:
-                db.add(Category(owner_id=user_id, name=child_name, kind=kind, parent_id=parent.id))
+    for name, kind in _DEFAULT_CATEGORIES:
+        db.add(Category(owner_id=user_id, name=name, kind=kind))
 
 # Use less secure params in testing to keep the suite fast; production uses defaults
 _ph = (

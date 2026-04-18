@@ -35,7 +35,7 @@ async def _create_group(client, headers):
 
 async def _create_category(client, headers, **overrides):
     """Create an expense category and return its id."""
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     resp = await client.post("/categories", json=payload, headers=headers)
     return resp.json()["id"]
 
@@ -187,7 +187,7 @@ async def test_get_budget_utilization_returns_per_category_breakdown(client):
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
     transit = await _create_category(client, headers, name="Transit")
 
     _, budget_id = await _create_base_with_instance(
@@ -219,7 +219,7 @@ async def test_get_budget_utilization_includes_tracked_categories_with_zero_spen
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
     transit = await _create_category(client, headers, name="Transit")
 
     _, budget_id = await _create_base_with_instance(
@@ -360,8 +360,8 @@ async def test_get_budget_utilization_excludes_transactions_in_untracked_categor
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
-    tracked = await _create_category(client, headers, name="Groceries")
-    untracked = await _create_category(client, headers, name="Entertainment")
+    tracked = await _create_category(client, headers, name="Test Groceries")
+    untracked = await _create_category(client, headers, name="Test Entertainment")
 
     _, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[tracked],
@@ -455,7 +455,7 @@ async def test_get_budget_utilization_total_spent_equals_sum_of_categories(clien
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
     transit = await _create_category(client, headers, name="Transit")
     side = await _create_category(client, headers, name="Side Income", kind="income")
 
@@ -913,7 +913,7 @@ async def test_get_budget_utilization_excludes_transactions_on_different_currenc
     usd_account_id = (
         await _create_account(client, headers, name="USD Chequing", currency="USD")
     ).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
 
     _, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
@@ -951,7 +951,7 @@ async def test_get_budget_utilization_personal_budget_excludes_group_account_tra
     ).json()["id"]
 
     # Personal category, used on both the personal account and the group account
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
 
     _, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
@@ -991,7 +991,7 @@ async def test_get_budget_utilization_group_budget_excludes_personal_account_tra
         (await _create_account(client, headers, name="Personal Chequing")).json()["id"],
     )
     group_groceries = uuid.UUID(
-        await _create_category(client, headers, name="Groceries", group_id=group_id),
+        await _create_category(client, headers, name="Test Groceries", group_id=group_id),
     )
 
     _, budget_id = await _create_base_with_instance(
@@ -1040,7 +1040,7 @@ async def test_get_budget_utilization_non_base_currency_aggregates_only_matching
     usd_account_id = (
         await _create_account(client, headers, name="USD Chequing", currency="USD")
     ).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
 
     _, usd_budget_id = await _create_base_with_instance(
         client, headers,
@@ -1071,7 +1071,7 @@ async def test_get_budget_utilization_zero_when_no_account_matches_budget_curren
 
     # Only a CAD account exists, but the budget is in USD
     cad_account_id = (await _create_account(client, headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
 
     _, budget_id = await _create_base_with_instance(
         client, headers,
@@ -1368,7 +1368,7 @@ async def test_get_budget_utilization_current_period_uses_currently_active_categ
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
     transit = await _create_category(client, headers, name="Transit")
 
     _, budget_id = await _create_base_with_instance(
@@ -1604,7 +1604,7 @@ async def test_get_budget_utilization_mixed_active_and_removed_categories_in_sam
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
     transit = await _create_category(client, headers, name="Transit")
 
     base_id, budget_id = await _create_base_with_instance(
@@ -1656,7 +1656,7 @@ async def test_get_budget_utilization_personal_budget_excludes_single_member_gro
         await _create_account(client, headers, name="Joint", group_id=group_id)
     ).json()["id"]
 
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
 
     _, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
@@ -1694,7 +1694,7 @@ async def test_get_budget_utilization_personal_budget_aggregates_multiple_person
         await _create_account(client, headers, name="Joint", group_id=group_id)
     ).json()["id"]
 
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
 
     _, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
@@ -1741,7 +1741,7 @@ async def test_get_budget_utilization_three_currency_user_filters_to_budget_curr
     eur_account_id = (
         await _create_account(client, headers, name="EUR Chequing", currency="EUR")
     ).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers, name="Test Groceries")
 
     _, usd_budget_id = await _create_base_with_instance(
         client, headers,

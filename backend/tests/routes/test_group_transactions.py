@@ -37,7 +37,7 @@ async def _create_account(client, headers, **overrides):
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories.
 
-    Defaults: name="Groceries", kind="expense".
+    Defaults: name="Test Groceries", kind="expense".
 
     Args:
         client: The async test client.
@@ -47,7 +47,7 @@ async def _create_category(client, headers, **overrides):
     Returns:
         The HTTP response from the API.
     """
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
 

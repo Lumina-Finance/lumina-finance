@@ -22,7 +22,7 @@ async def _create_second_user(client):
 
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories."""
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Budget Category", "kind": "expense", **overrides}
     resp = await client.post("/categories", json=payload, headers=headers)
     return resp.json()["id"]
 
@@ -865,8 +865,8 @@ async def test_list_budgets_excludes_soft_deleted_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_keep = await _create_category(client, headers, name="Groceries")
-    cat_remove = await _create_category(client, headers, name="Takeout")
+    cat_keep = await _create_category(client, headers, name="Test Category A")
+    cat_remove = await _create_category(client, headers, name="Test Category B")
     base_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
     )
@@ -1137,8 +1137,8 @@ async def test_get_budget_excludes_soft_deleted_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_keep = await _create_category(client, headers, name="Groceries")
-    cat_remove = await _create_category(client, headers, name="Takeout")
+    cat_keep = await _create_category(client, headers, name="Test Category A")
+    cat_remove = await _create_category(client, headers, name="Test Category B")
     base_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
     )
@@ -1714,8 +1714,8 @@ async def test_delete_budget_preserves_base_tracked_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_a = await _create_category(client, headers, name="Groceries")
-    cat_b = await _create_category(client, headers, name="Takeout")
+    cat_a = await _create_category(client, headers, name="Test Category A")
+    cat_b = await _create_category(client, headers, name="Test Category B")
     base_resp = await _create_base_budget(client, headers, category_ids=[cat_a, cat_b])
     base_budget_id = base_resp.json()["id"]
     original_category_ids = sorted(base_resp.json()["category_ids"])

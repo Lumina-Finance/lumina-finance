@@ -102,24 +102,11 @@ async def create_category(
     if (await db.execute(dup_query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category with this name and kind already exists")
 
-    # Validate parent exists and is accessible (personal or same group)
-    if data.parent_id:
-        parent_query = select(Category).where(Category.id == data.parent_id)
-        if group_id:
-            parent_query = parent_query.where(
-                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
-            )
-        else:
-            parent_query = parent_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
-        if not (await db.execute(parent_query)).scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
-
     category = Category(
         owner_id=user.id,
         group_id=group_id,
         name=data.name,
         kind=data.kind,
-        parent_id=data.parent_id,
     )
     db.add(category)
     await db.commit()
@@ -164,18 +151,6 @@ async def update_category(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return category
-
-    # Validate parent exists and is accessible (personal or same group)
-    if "parent_id" in updates and updates["parent_id"] is not None:
-        parent_query = select(Category).where(Category.id == updates["parent_id"])
-        if category.group_id is not None:
-            parent_query = parent_query.where(
-                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == category.group_id),
-            )
-        else:
-            parent_query = parent_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
-        if not (await db.execute(parent_query)).scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Parent category not found")
 
     for field, value in updates.items():
         setattr(category, field, value)

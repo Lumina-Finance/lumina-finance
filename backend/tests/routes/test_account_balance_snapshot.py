@@ -43,7 +43,7 @@ async def _seed_usd_currency():
 
 async def _create_category(client, headers, **overrides):
     """Create an expense category via POST /categories."""
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
 

@@ -21,7 +21,7 @@ async def _seed_usd_currency():
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories.
 
-    Defaults: name="Groceries", kind="expense".
+    Defaults: name="Test Groceries", kind="expense".
 
     Args:
         client: The async test client.

@@ -29,7 +29,7 @@ async def _create_merchant(client, headers, **overrides):
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories.
 
-    Defaults: name="Groceries", kind="expense".
+    Defaults: name="Test Groceries", kind="expense".
 
     Args:
         client: The async test client.
@@ -39,7 +39,7 @@ async def _create_category(client, headers, **overrides):
     Returns:
         The HTTP response from the API.
     """
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
 
@@ -549,7 +549,7 @@ async def test_create_group_merchant_with_group_category(client):
     """Group merchant can use a group category as default."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    cat_resp = await _create_category(client, admin_headers, name="Groceries", group_id=group_id)
+    cat_resp = await _create_category(client, admin_headers, name="Test Groceries", group_id=group_id)
     category_id = cat_resp.json()["id"]
 
     resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id, default_category_id=category_id)
@@ -562,7 +562,7 @@ async def test_create_group_merchant_with_personal_category(client):
     """Group merchant can use the creator's personal category as default."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    cat_resp = await _create_category(client, admin_headers, name="Groceries")
+    cat_resp = await _create_category(client, admin_headers, name="Test Groceries")
     category_id = cat_resp.json()["id"]
 
     resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id, default_category_id=category_id)
@@ -707,7 +707,7 @@ async def test_patch_group_merchant_with_group_category(client):
     """Admin can update a group merchant's default category to a group category."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    cat_resp = await _create_category(client, admin_headers, name="Groceries", group_id=group_id)
+    cat_resp = await _create_category(client, admin_headers, name="Test Groceries", group_id=group_id)
     category_id = cat_resp.json()["id"]
 
     create_resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id)
@@ -830,7 +830,7 @@ async def test_delete_merchant_referenced_by_transaction_returns_409(client):
 
     # Set up category, merchant, account, and a transaction referencing the merchant
     cat_resp = await client.post("/categories", json={
-        "name": "Groceries", "kind": "expense",
+        "name": "Test Groceries", "kind": "expense",
     }, headers=headers)
     category_id = cat_resp.json()["id"]
 

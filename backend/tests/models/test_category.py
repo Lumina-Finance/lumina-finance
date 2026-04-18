@@ -48,7 +48,6 @@ async def test_create_category(db, category, user):
     assert result.owner_id == user.id
     assert result.name == "Food"
     assert result.kind == CategoryKind.EXPENSE
-    assert result.parent_id is None
     assert result.created_at is not None
 
 
@@ -71,20 +70,6 @@ async def test_delete_category(db, category):
     assert result is None
 
 
-# --- Hierarchy ---
-
-
-async def test_create_subcategory(db, category, user):
-    """Create a subcategory under a parent."""
-    sub = Category(owner_id=user.id, name="Groceries", kind=CategoryKind.EXPENSE, parent_id=category.id)
-    db.add(sub)
-    await db.flush()
-
-    result = await db.get(Category, sub.id)
-    assert result is not None
-    assert result.parent_id == category.id
-
-
 # --- Defaults ---
 
 
@@ -94,24 +79,9 @@ async def test_created_at_auto_set(db, category):
     assert category.created_at is not None
 
 
-async def test_parent_defaults_to_null(db, category):
-    """parent_id should default to null for top-level categories."""
-    assert category.parent_id is None
-
-
 async def test_group_defaults_to_null(db, category):
     """group_id should default to null for personal categories."""
     assert category.group_id is None
-
-
-# --- Constraints ---
-
-
-async def test_invalid_parent_rejected(db, user):
-    """parent_id must reference a valid category."""
-    db.add(Category(owner_id=user.id, name="Orphan", kind=CategoryKind.EXPENSE, parent_id=uuid.uuid4()))
-    with pytest.raises(IntegrityError):
-        await db.flush()
 
 
 # --- Constraints ---

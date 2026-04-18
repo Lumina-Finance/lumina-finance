@@ -21,7 +21,7 @@ async def _create_second_user(client):
 
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories."""
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     resp = await client.post("/categories", json=payload, headers=headers)
     return resp.json()["id"]
 
@@ -86,7 +86,7 @@ async def test_create_base_budget_with_multiple_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_id_1 = await _create_category(client, headers, name="Groceries")
+    cat_id_1 = await _create_category(client, headers, name="Test Groceries")
     cat_id_2 = await _create_category(client, headers, name="Takeout")
 
     resp = await _create_base_budget(client, headers, category_ids=[cat_id_1, cat_id_2])
@@ -507,7 +507,7 @@ async def test_create_group_base_budget_as_admin(client):
     headers = _get_auth_header(signup_resp)
 
     group_id = await _create_group(client, headers)
-    cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
+    cat_id = await _create_category(client, headers, name="Test Groceries", group_id=group_id)
 
     resp = await _create_base_budget(
         client, headers, group_id=group_id, category_ids=[cat_id],
@@ -531,7 +531,7 @@ async def test_create_group_base_budget_as_non_admin_returns_403(client):
         json={"user_id": other_user_id},
         headers=headers,
     )
-    cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
+    cat_id = await _create_category(client, headers, name="Test Groceries", group_id=group_id)
 
     resp = await _create_base_budget(
         client, other_headers, group_id=group_id, category_ids=[cat_id],
@@ -580,7 +580,7 @@ async def test_create_group_base_budget_with_personal_category_returns_422(clien
     headers = _get_auth_header(signup_resp)
 
     group_id = await _create_group(client, headers)
-    personal_cat_id = await _create_category(client, headers, name="Groceries")
+    personal_cat_id = await _create_category(client, headers, name="Test Groceries")
 
     resp = await _create_base_budget(
         client, headers, group_id=group_id, category_ids=[personal_cat_id],
@@ -600,7 +600,7 @@ async def test_create_personal_base_budget_with_group_category_returns_422(clien
     headers = _get_auth_header(signup_resp)
 
     group_id = await _create_group(client, headers)
-    group_cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
+    group_cat_id = await _create_category(client, headers, name="Test Groceries", group_id=group_id)
 
     resp = await _create_base_budget(client, headers, category_ids=[group_cat_id])
 
@@ -764,7 +764,7 @@ async def test_list_base_budgets_excludes_soft_deleted_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_keep = await _create_category(client, headers, name="Groceries")
+    cat_keep = await _create_category(client, headers, name="Test Groceries")
     cat_remove = await _create_category(client, headers, name="Takeout")
     create_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
@@ -981,7 +981,7 @@ async def test_get_base_budget_excludes_soft_deleted_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_keep = await _create_category(client, headers, name="Groceries")
+    cat_keep = await _create_category(client, headers, name="Test Groceries")
     cat_remove = await _create_category(client, headers, name="Takeout")
     create_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
@@ -1061,7 +1061,7 @@ async def test_update_base_budget_add_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_id_1 = await _create_category(client, headers, name="Groceries")
+    cat_id_1 = await _create_category(client, headers, name="Test Groceries")
     cat_id_2 = await _create_category(client, headers, name="Takeout")
     create_resp = await _create_base_budget(client, headers, category_ids=[cat_id_1])
     base_budget_id = create_resp.json()["id"]
@@ -1082,7 +1082,7 @@ async def test_update_base_budget_remove_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_keep = await _create_category(client, headers, name="Groceries")
+    cat_keep = await _create_category(client, headers, name="Test Groceries")
     cat_remove = await _create_category(client, headers, name="Takeout")
     create_resp = await _create_base_budget(
         client, headers, category_ids=[cat_keep, cat_remove],
@@ -1104,7 +1104,7 @@ async def test_update_base_budget_swap_categories(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    cat_id_1 = await _create_category(client, headers, name="Groceries")
+    cat_id_1 = await _create_category(client, headers, name="Test Groceries")
     cat_id_2 = await _create_category(client, headers, name="Takeout")
     create_resp = await _create_base_budget(client, headers, category_ids=[cat_id_1])
     base_budget_id = create_resp.json()["id"]
@@ -1232,7 +1232,7 @@ async def test_update_group_base_budget_with_personal_category_returns_422(clien
     headers = _get_auth_header(signup_resp)
 
     group_id = await _create_group(client, headers)
-    group_cat_id = await _create_category(client, headers, name="Groceries", group_id=group_id)
+    group_cat_id = await _create_category(client, headers, name="Test Groceries", group_id=group_id)
     personal_cat_id = await _create_category(client, headers, name="Personal Groceries")
 
     create_resp = await _create_base_budget(

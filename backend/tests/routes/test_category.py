@@ -13,7 +13,7 @@ CATEGORY_PAYLOAD = {
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories.
 
-    Defaults: name="Groceries", kind="expense".
+    Defaults: name="Custom Test Category", kind="expense".
 
     Args:
         client: The async test client.
@@ -161,7 +161,6 @@ async def test_get_category_returns_category(client):
     data = resp.json()
     assert data["name"] == "Custom Test Category"
     assert data["kind"] == "expense"
-    assert data["parent_id"] is None
     assert data["group_id"] is None
 
 
@@ -210,34 +209,8 @@ async def test_create_category_returns_201(client):
     data = resp.json()
     assert data["name"] == "Custom Test Category"
     assert data["kind"] == "expense"
-    assert data["parent_id"] is None
     assert data["id"] is not None
     assert data["created_at"] is not None
-
-
-async def test_create_category_with_parent(client):
-    """Category can be created with a valid parent_id."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    parent_resp = await _create_category(client, headers, name="Test Parent")
-    parent_id = parent_resp.json()["id"]
-
-    child_resp = await _create_category(client, headers, name="Test Child", parent_id=parent_id)
-
-    assert child_resp.status_code == 201
-    assert child_resp.json()["parent_id"] == parent_id
-
-
-async def test_create_category_invalid_parent_returns_422(client):
-    """Non-existent parent_id returns 422."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _create_category(client, headers, parent_id=NONEXISTENT_ID)
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Parent category not found"
 
 
 async def test_create_category_duplicate_name_and_kind_returns_409(client):
@@ -306,40 +279,6 @@ async def test_patch_category_updates_name(client):
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "Renamed"
-
-
-async def test_patch_category_updates_parent(client):
-    """PATCH can set a parent_id on an existing category."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    parent_resp = await _create_category(client, headers, name="Patch Parent")
-    parent_id = parent_resp.json()["id"]
-
-    child_resp = await _create_category(client, headers, name="Patch Child")
-    child_id = child_resp.json()["id"]
-
-    resp = await client.patch(f"/categories/{child_id}", json={"parent_id": parent_id}, headers=headers)
-
-    assert resp.status_code == 200
-    assert resp.json()["parent_id"] == parent_id
-
-
-async def test_patch_category_invalid_parent_returns_422(client):
-    """PATCH with non-existent parent_id returns 422."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_category(client, headers)
-    category_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/categories/{category_id}",
-        json={"parent_id": NONEXISTENT_ID},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Parent category not found"
 
 
 async def test_patch_category_empty_body_returns_unchanged(client):
@@ -486,7 +425,7 @@ async def test_create_group_category_as_admin_returns_201(client):
     """Admin can create a group category."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
-    resp = await _create_category(client, admin_headers, name="Utilities", group_id=group_id)
+    resp = await _create_category(client, admin_headers, name="Test Utilities", group_id=group_id)
 
     assert resp.status_code == 201
     assert resp.json()["group_id"] == group_id
@@ -529,19 +468,6 @@ async def test_create_group_category_same_name_as_personal_allowed(client):
     assert personal.status_code == 201
     assert group.status_code == 201
     assert personal.json()["id"] != group.json()["id"]
-
-
-async def test_create_group_category_with_group_parent(client):
-    """Group category can use another group category as parent."""
-    admin_headers, _, _, group_id = await _setup_group_with_member(client)
-
-    parent = await _create_category(client, admin_headers, name="Food", group_id=group_id)
-    parent_id = parent.json()["id"]
-
-    child = await _create_category(client, admin_headers, name="Takeout", group_id=group_id, parent_id=parent_id)
-
-    assert child.status_code == 201
-    assert child.json()["parent_id"] == parent_id
 
 
 async def test_create_group_category_nonexistent_group_returns_404(client):
@@ -723,7 +649,7 @@ async def test_patch_group_category_rename_to_duplicate_returns_409(client):
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     await _create_category(client, admin_headers, name="Food", kind="expense", group_id=group_id)
-    create_resp = await _create_category(client, admin_headers, name="Transport", kind="expense", group_id=group_id)
+    create_resp = await _create_category(client, admin_headers, name="Test Transport", kind="expense", group_id=group_id)
     category_id = create_resp.json()["id"]
 
     resp = await client.patch(f"/categories/{category_id}", json={"name": "Food"}, headers=admin_headers)
@@ -733,25 +659,7 @@ async def test_patch_group_category_rename_to_duplicate_returns_409(client):
 
     # Verify the category was not mutated
     get_resp = await client.get(f"/categories/{category_id}", headers=admin_headers)
-    assert get_resp.json()["name"] == "Transport"
-
-
-async def test_patch_personal_category_invalid_parent_returns_422(client):
-    """Updating a personal category with a nonexistent parent returns 422."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    create_resp = await _create_category(client, headers)
-    category_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/categories/{category_id}",
-        json={"parent_id": NONEXISTENT_ID},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Parent category not found"
+    assert get_resp.json()["name"] == "Test Transport"
 
 
 # --- Group categories: DELETE /categories ---

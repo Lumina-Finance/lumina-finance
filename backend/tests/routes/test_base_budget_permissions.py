@@ -25,7 +25,7 @@ async def _create_group(client, headers):
 
 async def _create_category(client, headers, **overrides):
     """Create a category and return its ID."""
-    payload = {"name": "Groceries", "kind": "expense", **overrides}
+    payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     resp = await client.post("/categories", json=payload, headers=headers)
     return resp.json()["id"]
 
