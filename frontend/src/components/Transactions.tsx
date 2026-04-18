@@ -315,7 +315,7 @@ export default function Transactions() {
         <p className="app-label mb-3">Daily Cash Flow</p>
         <div className="h-44">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dailyFlow} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+            <AreaChart data={dailyFlow} margin={{ top: 4, right: 12, bottom: 0, left: 12 }}>
               <defs>
                 <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--app-positive)" stopOpacity={0.25} />
@@ -331,6 +331,7 @@ export default function Transactions() {
                 tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
                 axisLine={false}
                 tickLine={false}
+                interval={Math.max(0, Math.ceil(dailyFlow.length / 10) - 1)}
               />
               <YAxis hide />
               <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
