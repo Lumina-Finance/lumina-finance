@@ -147,13 +147,35 @@ export default function Transactions() {
       }))
     : PLACEHOLDER_CATEGORIES
 
-  const dailyFlow = hasOverviewData
-    ? (overview!.daily_cash_flow ?? []).map((d) => ({
-        date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        inflow: d.inflow,
-        outflow: d.outflow,
-      }))
-    : PLACEHOLDER_DAILY_FLOW
+  const dailyFlow = useMemo(() => {
+    if (!hasOverviewData) return PLACEHOLDER_DAILY_FLOW
+    const raw = overview!.daily_cash_flow ?? []
+    if (raw.length === 0) return []
+
+    // Parse "YYYY-MM-DD" as local time — new Date(str) treats it as UTC and drifts a day in negative offsets
+    const toLocal = (s: string) => {
+      const [y, m, d] = s.split('-').map(Number)
+      return new Date(y, m - 1, d)
+    }
+
+    const byDate = new Map(raw.map((d) => [d.date, d]))
+    const first = toLocal(raw[0].date)
+    const last = toLocal(raw[raw.length - 1].date)
+    const cursor = new Date(first.getFullYear(), first.getMonth(), 1)  // Pad to the 1st of the earliest month
+
+    const result: { date: string; inflow: number; outflow: number }[] = []
+    while (cursor <= last) {
+      const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+      const entry = byDate.get(iso)
+      result.push({
+        date: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        inflow: entry?.inflow ?? 0,
+        outflow: entry?.outflow ?? 0,
+      })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    return result
+  }, [overview, hasOverviewData])
 
   return (
     <div className="space-y-6">
