@@ -29,6 +29,7 @@ import {
   type Transaction,
 } from '@/api/transactions'
 import { formatCurrency } from '@/utils/formatCurrency'
+import CreateTransactionModal from '@/components/CreateTransactionModal'
 
 // ── Placeholder data shown when the overview has no real data ──
 
@@ -92,6 +93,8 @@ function groupByDate(transactions: Transaction[]): DateGroup[] {
 
 export default function Transactions() {
   const [search, setSearch] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
   const displayCurrency = user!.base_currency
 
@@ -400,7 +403,11 @@ export default function Transactions() {
           <SlidersHorizontal size={16} aria-hidden />
           Filters
         </button>
-        <button type="button" className="app-primary-button">
+        <button
+          type="button"
+          className="app-primary-button"
+          onClick={() => { setCreateModalKey((k) => k + 1); setShowCreateModal(true) }}
+        >
           <Plus size={16} aria-hidden />
           Add Transaction
         </button>
@@ -529,6 +536,12 @@ export default function Transactions() {
           })}
         </section>
       )}
+
+      <CreateTransactionModal
+        key={createModalKey}
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
     </div>
   )
 }
