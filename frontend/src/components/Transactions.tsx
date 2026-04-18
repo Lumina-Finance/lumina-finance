@@ -313,6 +313,10 @@ export default function Transactions() {
               <YAxis hide />
               <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
               <Tooltip
+                formatter={(value, name) => [
+                  formatCurrency(Math.abs(Number(value)), displayCurrency),
+                  name === 'inflow' ? 'Inflow' : 'Outflow',
+                ]}
                 contentStyle={{
                   background: 'var(--app-nav-bg)',
                   border: '1px solid var(--app-border)',
