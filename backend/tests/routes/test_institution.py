@@ -29,8 +29,8 @@ async def _seed_institution(status=InstitutionStatus.CANONICAL, **overrides):
 # --- GET /institutions ---
 
 
-async def test_list_institutions_returns_canonical_only(client):
-    """List endpoint returns only CANONICAL institutions, not PENDING."""
+async def test_list_institutions_returns_all_statuses(client):
+    """List endpoint returns both CANONICAL and PENDING institutions."""
     await _seed_institution(status=InstitutionStatus.CANONICAL, name="Canonical Bank")
     await _seed_institution(status=InstitutionStatus.PENDING, name="Pending Bank")
     signup_resp = await _create_user(client)
@@ -39,9 +39,8 @@ async def test_list_institutions_returns_canonical_only(client):
     resp = await client.get("/institutions", headers=headers)
 
     assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 1
-    assert data[0]["name"] == "Canonical Bank"
+    names = {i["name"] for i in resp.json()}
+    assert names == {"Canonical Bank", "Pending Bank"}
 
 
 async def test_list_institutions_sorted_by_name(client):
