@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  useMutation,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 
@@ -177,8 +183,23 @@ export function useUpdateTransaction() {
         method: 'PATCH',
         body: JSON.stringify(patch),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    onSuccess: (updated) => {
+      // Patch the row in-place across cached lists instead of refetching them.
+      // Infinite-query caches hold InfiniteData<Transaction[]>; the plain query holds Transaction[].
+      queryClient.setQueriesData<InfiniteData<Transaction[]>>(
+        { predicate: (q) => q.queryKey[0] === 'transactions' && q.queryKey[1] === 'infinite' },
+        (old) =>
+          old && {
+            ...old,
+            pages: old.pages.map((page) =>
+              page.map((t) => (t.id === updated.id ? updated : t)),
+            ),
+          },
+      );
+      queryClient.setQueriesData<Transaction[]>(
+        { predicate: (q) => q.queryKey[0] === 'transactions' && q.queryKey[1] !== 'infinite' },
+        (old) => old?.map((t) => (t.id === updated.id ? updated : t)),
+      );
       queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
     },
   });
