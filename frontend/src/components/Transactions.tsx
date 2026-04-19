@@ -129,6 +129,17 @@ export default function Transactions() {
     return { monthStart: monthStartStr, today: todayStr }
   }, [user])
 
+  // Human label for whichever date range the metrics currently reflect.
+  const rangeLabel = useMemo(() => {
+    const from = filters.from_date ?? monthStart
+    const to = filters.to_date ?? today
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+    })
+    const parse = (s: string) => new Date(`${s}T00:00:00Z`)
+    return `${fmt.format(parse(from))} – ${fmt.format(parse(to))}`
+  }, [filters.from_date, filters.to_date, monthStart, today])
+
   // Overview only supports account_id + date range; category filter applies to the list only
   const { data: overview } = useTransactionsOverview({
     account_id: filters.account_id,
@@ -274,7 +285,7 @@ export default function Transactions() {
             }}
           >
             <p className="text-lg font-medium" style={{ color: 'var(--app-text-muted)' }}>
-              No transaction data this month yet. Add a transaction to get started.
+              No transaction data for {rangeLabel}.
             </p>
           </div>
         )}
@@ -385,7 +396,7 @@ export default function Transactions() {
         <div className="flex items-center gap-4">
           <div className="flex-1 h-px" style={{ background: 'var(--app-border-strong)' }} />
           <p className="shrink-0 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-            Showing data for the current month. Deeper analysis coming soon in Insights.
+            Showing data for {rangeLabel}
           </p>
           <div className="flex-1 h-px" style={{ background: 'var(--app-border-strong)' }} />
         </div>
