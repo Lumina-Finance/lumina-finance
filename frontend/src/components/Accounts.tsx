@@ -167,7 +167,7 @@ export default function Accounts() {
                   <p className="app-label mb-0.5">Assets</p>
                   <p
                     className="font-financial font-medium text-xl"
-                    style={{ color: totalAssets > 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
+                    style={{ color: totalAssets >= 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
                   >
                     {formatCurrency(totalAssets, displayCurrency)}
                   </p>
@@ -397,7 +397,7 @@ export default function Accounts() {
             />
             <span
               className="font-financial font-semibold shrink-0 text-xl"
-              style={{ color: totalAssets > 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
+              style={{ color: totalAssets >= 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
             >
               {formatCurrency(totalAssets, displayCurrency)}
             </span>
