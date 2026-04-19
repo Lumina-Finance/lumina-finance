@@ -71,5 +71,8 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
     throw new ApiError(message, res.status);
   }
 
+  // 204 No Content responses have an empty body, so calling res.json() would cause an error.
+  if (res.status === 204) return undefined as T;
+
   return res.json() as Promise<T>;
 }
