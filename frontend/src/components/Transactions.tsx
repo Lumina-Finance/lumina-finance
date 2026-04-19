@@ -136,17 +136,36 @@ export default function Transactions() {
   })
   const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
 
-  // Infinite scroll: trigger fetchNextPage when the sentinel becomes visible
+  // Infinite scroll: when the sentinel becomes visible, mark a fetch as
+  // pending so the user sees feedback immediately, then fire fetchNextPage
+  // after 1s of continuous visibility (soft throttle).
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const [pendingFetch, setPendingFetch] = useState(false)
   useEffect(() => {
-    if (!hasNextPage || isFetchingNextPage) return
+    if (!hasNextPage || isFetchingNextPage) {
+      setPendingFetch(false)
+      return
+    }
     const el = sentinelRef.current
     if (!el) return
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) fetchNextPage()
+      if (entries[0].isIntersecting) {
+        if (timeoutId === null) {
+          setPendingFetch(true)
+          timeoutId = setTimeout(() => fetchNextPage(), 1000)
+        }
+      } else if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+        setPendingFetch(false)
+      }
     }, { rootMargin: '200px' })
     observer.observe(el)
-    return () => observer.disconnect()
+    return () => {
+      if (timeoutId !== null) clearTimeout(timeoutId)
+      observer.disconnect()
+    }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
@@ -648,13 +667,17 @@ export default function Transactions() {
             )
           })}
 
-          {/* Sentinel + loading indicator for infinite scroll */}
+          {/* Sentinel + loading / end-of-list indicator for infinite scroll */}
           <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
-          {isFetchingNextPage && (
+          {isFetchingNextPage || pendingFetch ? (
             <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
               Loading more transactions...
             </p>
-          )}
+          ) : hasNextPage === false ? (
+            <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+              You've reached the end.
+            </p>
+          ) : null}
         </section>
       )}
 
