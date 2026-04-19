@@ -79,7 +79,7 @@ class CreateTransactionRequest(BaseModel):
 
 
 class UpdateTransactionRequest(BaseModel):
-    """Partial update for a transaction. account_id and currency are not updatable."""
+    """Partial update for a transaction."""
 
     account_id: uuid.UUID | None = None
     ts: datetime | None = None
