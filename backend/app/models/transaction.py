@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import VARCHAR, BigInteger, DateTime, ForeignKey, Numeric, Text, func
+from sqlalchemy import VARCHAR, BigInteger, Date, DateTime, ForeignKey, Numeric, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -15,7 +15,7 @@ class Transaction(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)  # Audit trail
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    dt: Mapped[date] = mapped_column(Date, nullable=False)
     merchant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("merchants.id"))  # Null for transfers
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units

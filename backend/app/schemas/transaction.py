@@ -27,7 +27,7 @@ class OutlierTransaction(BaseModel):
     merchant_name: str | None
     notes: str | None
     amount: int
-    ts: datetime
+    dt: date
 
 
 class TransactionsOverview(BaseModel):
@@ -50,7 +50,7 @@ class TransactionResponse(BaseModel):
     id: uuid.UUID
     created_by_user_id: uuid.UUID
     account_id: uuid.UUID
-    ts: datetime
+    dt: date
     merchant_id: uuid.UUID | None
     category_id: uuid.UUID
     amount: int
@@ -68,7 +68,7 @@ class CreateTransactionRequest(BaseModel):
     """Create a new transaction for the authenticated user."""
 
     account_id: uuid.UUID
-    ts: datetime
+    dt: date
     category_id: uuid.UUID
     amount: int
     currency: str = Field(min_length=3, max_length=3)
@@ -82,7 +82,7 @@ class UpdateTransactionRequest(BaseModel):
     """Partial update for a transaction."""
 
     account_id: uuid.UUID | None = None
-    ts: datetime | None = None
+    dt: date | None = None
     merchant_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None
     amount: int | None = None
