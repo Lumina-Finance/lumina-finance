@@ -122,7 +122,6 @@ export function useTransactions(filters: TransactionFilters = {}) {
         '/transactions' + buildQueryString(filters as Record<string, string | number | undefined>),
       ),
     enabled: !!accessToken,
-    refetchOnWindowFocus: true,
     staleTime: 10 * 60 * 1000,
   });
 }
@@ -145,7 +144,6 @@ export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < pageSize ? undefined : allPages.length * pageSize,
     enabled: !!accessToken,
-    refetchOnWindowFocus: true,
     staleTime: 10 * 60 * 1000,
   });
 }
@@ -159,7 +157,6 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
         '/transactions/overview' + buildQueryString(filters as Record<string, string | number | undefined>),
       ),
     enabled: !!accessToken,
-    refetchOnWindowFocus: true,
     staleTime: 10 * 60 * 1000,
   });
 }

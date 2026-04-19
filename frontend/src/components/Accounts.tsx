@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
 import { useTransactionsOverview } from '@/api/transactions'
+import { useFocusRefetch } from '@/hooks/useFocusRefetch'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateAccountModal from '@/components/CreateAccountModal'
 
@@ -57,6 +58,7 @@ export default function Accounts() {
   const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
   const { data: accounts, isLoading, error } = useAccounts()
+  useFocusRefetch([['accounts'], ['transactions-overview']])
 
   const rows = accounts ?? []
   const totalAssets = sumByKind(rows, 'asset')

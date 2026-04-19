@@ -27,6 +27,7 @@ import {
   useTransactionsOverview,
   type Transaction,
 } from '@/api/transactions'
+import { useFocusRefetch } from '@/hooks/useFocusRefetch'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
 import FilterChip from '@/components/FilterChip'
@@ -104,6 +105,7 @@ export default function Transactions() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  useFocusRefetch([['transactions'], ['transactions-overview']])
 
   const openCreateModal = () => {
     setEditingTransaction(null)

@@ -96,8 +96,6 @@ export function useAccounts() {
     queryKey: ['accounts'],
     queryFn: () => authenticatedFetch<AccountsOverview[]>('/accounts'),
     enabled: !!accessToken,
-    // Refetch on tab focus, but only if the cache is older than 10 minutes
-    refetchOnWindowFocus: true,
     staleTime: 10 * 60 * 1000,
   });
 }
