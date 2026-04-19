@@ -172,6 +172,8 @@ export function useCreateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
+      // Mark account balances stale so they refetch when the user next visits Accounts.
+      queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
     },
   });
 }
@@ -208,6 +210,7 @@ export function useUpdateTransaction() {
       );
       if (!onlyDisplayFields) {
         queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
+        queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
       }
     },
   });
@@ -221,6 +224,7 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
     },
   });
 }
