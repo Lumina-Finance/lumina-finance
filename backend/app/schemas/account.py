@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -90,13 +90,10 @@ class UpdateAccountRequest(BaseModel):
 
 
 class AccountBalanceSnapshotResponse(BaseModel):
-    """End-of-day balance record. Backend-maintained, derived from transactions.
-
-    `ts` is always midnight UTC of the snapshot's day.
-    """
+    """End-of-day balance record. Backend-maintained, derived from transactions."""
 
     account_id: uuid.UUID
     balance: int  # In currency base units
-    ts: datetime
+    dt: date
 
     model_config = {"from_attributes": True}

@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     VARCHAR,
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -74,18 +75,13 @@ class AccountBalanceSnapshot(Base):
     Snapshots are derived from transactions: one row per (account, day) where a
     transaction occurred. The backend maintains these automatically on transaction
     mutations — never written to directly by users.
-
-    Convention: `ts` is always stored as midnight UTC of the snapshot's day
-    (e.g., 2026-03-15 00:00:00+00). Using timestamptz keeps the column type
-    consistent with transactions while still enforcing daily granularity via the
-    midnight convention enforced in the snapshot service.
     """
 
     __tablename__ = "account_balance_snapshots"
 
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
     balance: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True, nullable=False)
+    dt: Mapped[date] = mapped_column(Date, primary_key=True, nullable=False)
 
 
 class TaxAdvantagedConfig(Base):
