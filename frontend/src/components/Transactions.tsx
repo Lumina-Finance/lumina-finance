@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -23,7 +23,7 @@ import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useMerchants, type Merchant } from '@/api/merchants'
 import {
-  useTransactions,
+  useInfiniteTransactions,
   useTransactionsOverview,
   type Transaction,
 } from '@/api/transactions'
@@ -123,11 +123,31 @@ export default function Transactions() {
     from_date: filters.from_date,
     to_date: filters.to_date,
   })
-  const { data: transactions, isLoading: txnLoading, error: txnError } = useTransactions({
+  const {
+    data: txnPages,
+    isLoading: txnLoading,
+    error: txnError,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteTransactions({
     ...filters,
     q: search || undefined,
-    limit: 15,
   })
+  const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
+
+  // Infinite scroll: trigger fetchNextPage when the sentinel becomes visible
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) fetchNextPage()
+    }, { rootMargin: '200px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
   const { data: accounts } = useAccounts()
@@ -627,6 +647,14 @@ export default function Transactions() {
               </div>
             )
           })}
+
+          {/* Sentinel + loading indicator for infinite scroll */}
+          <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+          {isFetchingNextPage && (
+            <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              Loading more transactions...
+            </p>
+          )}
         </section>
       )}
 

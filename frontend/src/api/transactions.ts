@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 
@@ -100,6 +100,29 @@ export function useTransactions(filters: TransactionFilters = {}) {
       authenticatedFetch<Transaction[]>(
         '/transactions' + buildQueryString(filters as Record<string, string | number | undefined>),
       ),
+    enabled: !!accessToken,
+    refetchOnWindowFocus: true,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit' | 'offset'> = {}, pageSize = 15) {
+  const { accessToken } = useAuth();
+  return useInfiniteQuery({
+    queryKey: ['transactions', 'infinite', filters, pageSize],
+    queryFn: ({ pageParam }) =>
+      authenticatedFetch<Transaction[]>(
+        '/transactions' +
+          buildQueryString({
+            ...(filters as Record<string, string | number | undefined>),
+            limit: pageSize,
+            offset: pageParam,
+          }),
+      ),
+    initialPageParam: 0,
+    // A short page = end of data
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < pageSize ? undefined : allPages.length * pageSize,
     enabled: !!accessToken,
     refetchOnWindowFocus: true,
     staleTime: 10 * 60 * 1000,
