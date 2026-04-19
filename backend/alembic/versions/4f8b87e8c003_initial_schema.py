@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: a54b76d53cf8
+Revision ID: 4f8b87e8c003
 Revises: 
-Create Date: 2026-04-19 18:19:35.770106
+Create Date: 2026-04-19 18:28:58.910119
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a54b76d53cf8'
+revision: str = '4f8b87e8c003'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -209,8 +209,8 @@ def upgrade() -> None:
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('base_budget_id', sa.Uuid(), nullable=False),
     sa.Column('category_id', sa.Uuid(), nullable=False),
-    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('removed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('added_at', sa.Date(), server_default=sa.text('CURRENT_DATE'), nullable=False),
+    sa.Column('removed_at', sa.Date(), nullable=True),
     sa.ForeignKeyConstraint(['base_budget_id'], ['base_budgets.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
     sa.PrimaryKeyConstraint('id')
