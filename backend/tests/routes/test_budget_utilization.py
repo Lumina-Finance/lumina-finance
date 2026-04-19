@@ -1,6 +1,6 @@
 """Route tests for GET /budgets/{id}/utilization."""
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date
 
 import sqlalchemy as sa
 
@@ -113,7 +113,7 @@ async def _create_base_with_instance(
                 BudgetTrackedCategory.base_budget_id == uuid.UUID(base_id),
                 BudgetTrackedCategory.removed_at.is_(None),
             )
-            .values(added_at=datetime(2000, 1, 1, 0, 0, 0, tzinfo=UTC)),
+            .values(added_at=date(2000, 1, 1)),
         )
         await session.commit()
     return base_id, inst_resp.json()["id"]
@@ -253,7 +253,7 @@ async def test_get_budget_utilization_returns_empty_categories_when_all_soft_del
     )
     # Set removed_at well before period_start so the category is excluded from the period
     await _set_tracked_category_timestamps(
-        base_id, groceries, removed_at=datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC),
+        base_id, groceries, removed_at=date(2026, 2, 1),
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1148,7 +1148,7 @@ async def test_get_budget_utilization_mid_period_category_addition_counts_whole_
     # Force added_at to mid-period (Mar 15). Direct DB edit because the public
     # API only sets added_at to server now().
     await _set_tracked_category_timestamps(
-        base_id, groceries, added_at=datetime(2026, 3, 15, 12, 0, 0, tzinfo=UTC),
+        base_id, groceries, added_at=date(2026, 3, 15),
     )
 
     # One txn before added_at (Mar 5) and one after (Mar 20). Both should count.
@@ -1183,8 +1183,8 @@ async def test_get_budget_utilization_mid_period_category_removal_excludes_whole
     # added_at before period_start, removed_at mid-period. Forces the removed branch.
     await _set_tracked_category_timestamps(
         base_id, groceries,
-        added_at=datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC),
-        removed_at=datetime(2026, 3, 15, 0, 0, 0, tzinfo=UTC),
+        added_at=date(2026, 2, 1),
+        removed_at=date(2026, 3, 15),
     )
 
     # Both txns should be excluded — the one before removal AND the one after.
@@ -1221,7 +1221,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
     # groceries during January. Without this, added_at = today > Jan 31 and the
     # category would never enter the tracked set in the first place.
     await _set_tracked_category_timestamps(
-        base_id, groceries, added_at=datetime(2025, 12, 1, 0, 0, 0, tzinfo=UTC),
+        base_id, groceries, added_at=date(2025, 12, 1),
     )
 
     await _create_transaction(
@@ -1270,7 +1270,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
         instance_overrides={"period_start": "2026-01-01"},
     )
     await _set_tracked_category_timestamps(
-        base_id, original, added_at=datetime(2025, 12, 1, 0, 0, 0, tzinfo=UTC),
+        base_id, original, added_at=date(2025, 12, 1),
     )
 
     # One txn in each category, both dated inside the January period
@@ -1416,7 +1416,7 @@ async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(cl
     )
     # Pin added_at to mid-day on period_end itself (2026-03-31)
     await _set_tracked_category_timestamps(
-        base_id, groceries, added_at=datetime(2026, 3, 31, 12, 0, 0, tzinfo=UTC),
+        base_id, groceries, added_at=date(2026, 3, 31),
     )
 
     await _create_transaction(
@@ -1451,7 +1451,7 @@ async def test_get_budget_utilization_added_at_day_after_period_end_is_not_track
     )
     # Pin added_at to the day after period_end
     await _set_tracked_category_timestamps(
-        base_id, groceries, added_at=datetime(2026, 4, 1, 0, 30, 0, tzinfo=UTC),
+        base_id, groceries, added_at=date(2026, 4, 1),
     )
 
     await _create_transaction(
@@ -1485,8 +1485,8 @@ async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_trac
     # added_at well before period, removed_at mid-day on period_end itself
     await _set_tracked_category_timestamps(
         base_id, groceries,
-        added_at=datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC),
-        removed_at=datetime(2026, 3, 31, 12, 0, 0, tzinfo=UTC),
+        added_at=date(2026, 2, 1),
+        removed_at=date(2026, 3, 31),
     )
 
     await _create_transaction(
@@ -1519,8 +1519,8 @@ async def test_get_budget_utilization_removed_at_day_after_period_end_is_tracked
     )
     await _set_tracked_category_timestamps(
         base_id, groceries,
-        added_at=datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC),
-        removed_at=datetime(2026, 4, 1, 0, 30, 0, tzinfo=UTC),
+        added_at=date(2026, 2, 1),
+        removed_at=date(2026, 4, 1),
     )
 
     await _create_transaction(
@@ -1566,15 +1566,15 @@ async def test_get_budget_utilization_re_add_past_period_old_row_included_new_ro
     # Row 1: added Dec 2025, removed Feb 2026 (> period_end Jan 31)
     await _set_tracked_category_timestamps(
         base_id, groceries,
-        added_at=datetime(2025, 12, 1, 0, 0, 0, tzinfo=UTC),
-        removed_at=datetime(2026, 2, 15, 0, 0, 0, tzinfo=UTC),
+        added_at=date(2025, 12, 1),
+        removed_at=date(2026, 2, 15),
     )
     # Row 2: inserted directly with added_at in March — AFTER period_end, BEFORE "now"
     async with TestSession() as session:
         session.add(BudgetTrackedCategory(
             base_budget_id=uuid.UUID(base_id),
             category_id=uuid.UUID(groceries),
-            added_at=datetime(2026, 3, 1, 0, 0, 0, tzinfo=UTC),
+            added_at=date(2026, 3, 1),
         ))
         await session.commit()
 
@@ -1613,8 +1613,8 @@ async def test_get_budget_utilization_mixed_active_and_removed_categories_in_sam
     # Transit removed mid-period, groceries stays active
     await _set_tracked_category_timestamps(
         base_id, transit,
-        added_at=datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC),
-        removed_at=datetime(2026, 3, 15, 0, 0, 0, tzinfo=UTC),
+        added_at=date(2026, 2, 1),
+        removed_at=date(2026, 3, 15),
     )
 
     # Spend in both — only groceries should appear in the response
