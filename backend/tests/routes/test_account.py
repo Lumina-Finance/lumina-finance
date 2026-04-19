@@ -181,17 +181,17 @@ async def test_list_accounts_current_balance_uses_latest_snapshot(client):
     create_resp = await _create_account(client, headers)
     account_id = UUID(create_resp.json()["id"])
 
-    # Insert two snapshots after the zero anchor (which is at today's UTC midnight): the older
-    # of the two (12345) and the newer (98765). Helper should return the most recent.
+    # Insert two snapshots after the zero anchor: the older of the two (12345)
+    # and the newer (98765). Helper should return the most recent.
     async with TestSession() as session:
         session.add(AccountBalanceSnapshot(
             account_id=account_id,
-            ts=datetime(2027, 1, 1, tzinfo=UTC),
+            dt=date(2027, 1, 1),
             balance=12345,
         ))
         session.add(AccountBalanceSnapshot(
             account_id=account_id,
-            ts=datetime(2027, 6, 1, tzinfo=UTC),
+            dt=date(2027, 6, 1),
             balance=98765,
         ))
         await session.commit()

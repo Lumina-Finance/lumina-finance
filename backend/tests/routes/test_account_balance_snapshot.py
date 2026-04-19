@@ -1,6 +1,6 @@
 """Route tests for the account balance snapshot endpoints and lifecycle hooks."""
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 
@@ -12,15 +12,10 @@ from tests.routes.conftest import _create_account, _create_user, _get_auth_heade
 # --- Helpers ---
 
 
-def _midnight(y, m, d):
-    """Build a midnight-UTC datetime for snapshot ts comparisons."""
-    return datetime(y, m, d, tzinfo=UTC)
 
-
-def _creation_day_midnight(account_resp):
-    """Return the midnight-UTC datetime of an account's creation day."""
-    created_at_utc = datetime.fromisoformat(account_resp.json()["created_at"]).astimezone(UTC)
-    return _midnight(created_at_utc.year, created_at_utc.month, created_at_utc.day)
+def _creation_day(account_resp):
+    """Return the date (UTC) of the account's creation day."""
+    return datetime.fromisoformat(account_resp.json()["created_at"]).astimezone(UTC).date()
 
 
 async def _get_snapshots_for(account_id):
@@ -29,7 +24,7 @@ async def _get_snapshots_for(account_id):
         result = await session.execute(
             select(AccountBalanceSnapshot)
             .where(AccountBalanceSnapshot.account_id == account_id)
-            .order_by(AccountBalanceSnapshot.ts),
+            .order_by(AccountBalanceSnapshot.dt),
         )
         return list(result.scalars().all())
 
@@ -70,12 +65,12 @@ async def test_create_account_seeds_zero_balance_snapshot(client):
 
     resp = await _create_account(client, headers)
     account_id = uuid.UUID(resp.json()["id"])
-    expected_ts = _creation_day_midnight(resp)
+    expected_dt = _creation_day(resp)
 
     snapshots = await _get_snapshots_for(account_id)
     assert len(snapshots) == 1
     assert snapshots[0].balance == 0
-    assert snapshots[0].ts == expected_ts
+    assert snapshots[0].dt == expected_dt
 
 
 async def test_create_group_account_seeds_zero_balance_snapshot(client):
@@ -88,12 +83,12 @@ async def test_create_group_account_seeds_zero_balance_snapshot(client):
 
     resp = await _create_account(client, headers, group_id=group_id)
     account_id = uuid.UUID(resp.json()["id"])
-    expected_ts = _creation_day_midnight(resp)
+    expected_dt = _creation_day(resp)
 
     snapshots = await _get_snapshots_for(account_id)
     assert len(snapshots) == 1
     assert snapshots[0].balance == 0
-    assert snapshots[0].ts == expected_ts
+    assert snapshots[0].dt == expected_dt
 
 
 async def test_create_two_accounts_each_gets_its_own_snapshot(client):
@@ -146,7 +141,7 @@ async def test_create_transaction_after_creation_day_keeps_zero_anchor(client):
 
     account_resp = await _create_account(client, headers)
     account_id = uuid.UUID(account_resp.json()["id"])
-    creation_day = _creation_day_midnight(account_resp)
+    creation_day = _creation_day(account_resp)
 
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
@@ -158,11 +153,11 @@ async def test_create_transaction_after_creation_day_keeps_zero_anchor(client):
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
+    snapshot_map = {s.dt: s.balance for s in snapshots}
     # Zero anchor is preserved as the earliest snapshot
     assert snapshot_map[creation_day] == 0
     # New txn day carries the running balance from the anchor (0 + 5000)
-    assert snapshot_map[_midnight(2026, 12, 15)] == 5000
+    assert snapshot_map[date(2026, 12, 15)] == 5000
     assert len(snapshots) == 2
 
 
@@ -178,7 +173,7 @@ async def test_create_transaction_before_creation_day_replaces_zero_anchor(clien
 
     account_resp = await _create_account(client, headers)
     account_id = uuid.UUID(account_resp.json()["id"])
-    creation_day = _creation_day_midnight(account_resp)
+    creation_day = _creation_day(account_resp)
 
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
@@ -190,9 +185,9 @@ async def test_create_transaction_before_creation_day_replaces_zero_anchor(clien
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
+    snapshot_map = {s.dt: s.balance for s in snapshots}
     assert creation_day not in snapshot_map
-    assert snapshot_map[_midnight(2026, 3, 15)] == 5000
+    assert snapshot_map[date(2026, 3, 15)] == 5000
     assert len(snapshots) == 1
 
 
@@ -216,8 +211,8 @@ async def test_create_transaction_writes_snapshot_for_its_date(client):
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert snapshot_map[_midnight(2026, 3, 15)] == -5000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert snapshot_map[date(2026, 3, 15)] == -5000
     assert len(snapshots) == 1
 
 
@@ -243,7 +238,7 @@ async def test_create_multiple_transactions_same_day_accumulates_balance(client)
 
     snapshots = await _get_snapshots_for(account_id)
     assert len(snapshots) == 1
-    assert snapshots[0].ts == _midnight(2026, 3, 15)
+    assert snapshots[0].dt == date(2026, 3, 15)
     assert snapshots[0].balance == 7000
 
 
@@ -272,10 +267,10 @@ async def test_create_transactions_across_multiple_days_builds_running_balance(c
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert snapshot_map[_midnight(2026, 3, 1)] == 10000
-    assert snapshot_map[_midnight(2026, 3, 2)] == 8000
-    assert snapshot_map[_midnight(2026, 3, 3)] == 5000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert snapshot_map[date(2026, 3, 1)] == 10000
+    assert snapshot_map[date(2026, 3, 2)] == 8000
+    assert snapshot_map[date(2026, 3, 3)] == 5000
     assert len(snapshots) == 3
 
 
@@ -290,7 +285,7 @@ async def test_failed_create_transaction_with_invalid_currency_leaves_no_snapsho
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
 
-    before = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    before = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
 
     resp = await _create_transaction(
         client, headers, str(account_id), category_id,
@@ -298,7 +293,7 @@ async def test_failed_create_transaction_with_invalid_currency_leaves_no_snapsho
     )
     assert resp.status_code == 422
 
-    after = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    after = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
     assert before == after
 
 
@@ -329,9 +324,9 @@ async def test_fx_rate_is_metadata_and_does_not_affect_snapshot_balance(client):
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
+    snapshot_map = {s.dt: s.balance for s in snapshots}
     # Snapshot equals the stored amount (14000 CAD cents), NOT 14000 * 1.4
-    assert snapshot_map[_midnight(2026, 3, 15)] == 14000
+    assert snapshot_map[date(2026, 3, 15)] == 14000
 
 
 # --- Snapshot recomputation on transaction update ---
@@ -356,8 +351,8 @@ async def test_update_transaction_amount_recomputes_same_day_balance(client):
     await client.patch(f"/transactions/{txn_id}", json={"amount": -8000}, headers=headers)
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert snapshot_map[_midnight(2026, 3, 15)] == -8000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert snapshot_map[date(2026, 3, 15)] == -8000
     assert len(snapshots) == 1
 
 
@@ -388,14 +383,14 @@ async def test_update_transaction_amount_propagates_to_later_day_snapshots(clien
     await client.patch(f"/transactions/{txn1_id}", json={"amount": 20000}, headers=headers)
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert snapshot_map[_midnight(2026, 3, 1)] == 20000
-    assert snapshot_map[_midnight(2026, 3, 2)] == 18000
-    assert snapshot_map[_midnight(2026, 3, 3)] == 15000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert snapshot_map[date(2026, 3, 1)] == 20000
+    assert snapshot_map[date(2026, 3, 2)] == 18000
+    assert snapshot_map[date(2026, 3, 3)] == 15000
     assert len(snapshots) == 3
 
 
-async def test_update_transaction_ts_to_later_day_moves_snapshot(client):
+async def test_update_transaction_dt_to_later_day_moves_snapshot(client):
     """Moving a transaction's ts to a later day removes the original day's snapshot."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -418,13 +413,13 @@ async def test_update_transaction_ts_to_later_day_moves_snapshot(client):
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert _midnight(2026, 3, 15) not in snapshot_map
-    assert snapshot_map[_midnight(2026, 3, 20)] == -5000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert date(2026, 3, 15) not in snapshot_map
+    assert snapshot_map[date(2026, 3, 20)] == -5000
     assert len(snapshots) == 1
 
 
-async def test_update_transaction_ts_to_earlier_day_recomputes_from_earlier_day(client):
+async def test_update_transaction_dt_to_earlier_day_recomputes_from_earlier_day(client):
     """Moving a transaction's ts backwards rebuilds snapshots from the earlier day forward."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -447,13 +442,13 @@ async def test_update_transaction_ts_to_earlier_day_recomputes_from_earlier_day(
     )
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert _midnight(2026, 3, 20) not in snapshot_map
-    assert snapshot_map[_midnight(2026, 3, 10)] == -5000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert date(2026, 3, 20) not in snapshot_map
+    assert snapshot_map[date(2026, 3, 10)] == -5000
     assert len(snapshots) == 1
 
 
-async def test_update_transaction_ts_within_same_utc_day_keeps_snapshot_unchanged(client):
+async def test_update_transaction_dt_within_same_utc_day_keeps_snapshot_unchanged(client):
     """Changing ts to a different time of the same UTC day re-runs recompute but yields the same snapshot."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -469,7 +464,7 @@ async def test_update_transaction_ts_within_same_utc_day_keeps_snapshot_unchange
     )
     txn_id = txn.json()["id"]
 
-    before = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    before = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
 
     # Same UTC day, different time of day
     await client.patch(
@@ -478,7 +473,7 @@ async def test_update_transaction_ts_within_same_utc_day_keeps_snapshot_unchange
         headers=headers,
     )
 
-    after = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    after = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
     assert before == after
 
 
@@ -508,18 +503,18 @@ async def test_update_transaction_account_id_recomputes_both_accounts(client):
 
     src_snapshots = await _get_snapshots_for(src_id)
     dst_snapshots = await _get_snapshots_for(dst_id)
-    src_map = {s.ts: s.balance for s in src_snapshots}
-    dst_map = {s.ts: s.balance for s in dst_snapshots}
+    src_map = {s.dt: s.balance for s in src_snapshots}
+    dst_map = {s.dt: s.balance for s in dst_snapshots}
 
     # Source loses the moved txn's day; with no other txns it ends up with no snapshots
-    assert _midnight(2026, 3, 15) not in src_map
+    assert date(2026, 3, 15) not in src_map
     assert len(src_snapshots) == 0
     # Destination gains the moved txn's day
-    assert dst_map[_midnight(2026, 3, 15)] == -5000
+    assert dst_map[date(2026, 3, 15)] == -5000
     assert len(dst_snapshots) == 1
 
 
-async def test_update_transaction_account_id_and_ts_recomputes_both_with_correct_anchors(client):
+async def test_update_transaction_account_id_and_dt_recomputes_both_with_correct_anchors(client):
     """Moving a transaction across accounts AND days uses old_ts for source and new_ts for destination."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -550,15 +545,15 @@ async def test_update_transaction_account_id_and_ts_recomputes_both_with_correct
 
     src_snapshots = await _get_snapshots_for(src_id)
     dst_snapshots = await _get_snapshots_for(dst_id)
-    src_map = {s.ts: s.balance for s in src_snapshots}
-    dst_map = {s.ts: s.balance for s in dst_snapshots}
+    src_map = {s.dt: s.balance for s in src_snapshots}
+    dst_map = {s.dt: s.balance for s in dst_snapshots}
 
     # Source: only the un-moved earlier txn remains
-    assert src_map[_midnight(2026, 3, 5)] == 10000
-    assert _midnight(2026, 3, 15) not in src_map
+    assert src_map[date(2026, 3, 5)] == 10000
+    assert date(2026, 3, 15) not in src_map
     assert len(src_snapshots) == 1
     # Destination: the moved txn lands on its new day
-    assert dst_map[_midnight(2026, 3, 20)] == -3000
+    assert dst_map[date(2026, 3, 20)] == -3000
     assert len(dst_snapshots) == 1
 
 
@@ -598,13 +593,13 @@ async def test_update_account_move_into_dst_with_existing_history_recomputes_run
     )
 
     dst_snapshots = await _get_snapshots_for(dst_id)
-    dst_map = {s.ts: s.balance for s in dst_snapshots}
+    dst_map = {s.dt: s.balance for s in dst_snapshots}
 
     # day 10 unchanged, day 15 lands the moved txn (5000 + 2000),
     # day 20 reflects the new running balance forward (7000 - 1000)
-    assert dst_map[_midnight(2026, 3, 10)] == 5000
-    assert dst_map[_midnight(2026, 3, 15)] == 7000
-    assert dst_map[_midnight(2026, 3, 20)] == 6000
+    assert dst_map[date(2026, 3, 10)] == 5000
+    assert dst_map[date(2026, 3, 15)] == 7000
+    assert dst_map[date(2026, 3, 20)] == 6000
     assert len(dst_snapshots) == 3
 
 
@@ -655,9 +650,9 @@ async def test_update_transaction_notes_only_does_not_change_snapshots(client):
     )
     txn_id = txn.json()["id"]
 
-    before = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    before = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
     await client.patch(f"/transactions/{txn_id}", json={"notes": "groceries"}, headers=headers)
-    after = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    after = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
 
     assert before == after
 
@@ -681,9 +676,9 @@ async def test_update_transaction_tags_only_does_not_change_snapshots(client):
     )
     txn_id = txn.json()["id"]
 
-    before = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    before = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
     await client.patch(f"/transactions/{txn_id}", json={"tag_ids": [tag_id]}, headers=headers)
-    after = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    after = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
 
     assert before == after
 
@@ -704,7 +699,7 @@ async def test_failed_update_with_invalid_category_does_not_change_snapshots(cli
     )
     txn_id = txn.json()["id"]
 
-    before = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    before = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
 
     # Send both a valid amount change AND an invalid category — the 422 must
     # short-circuit before recompute, leaving snapshots untouched
@@ -716,7 +711,7 @@ async def test_failed_update_with_invalid_category_does_not_change_snapshots(cli
     )
     assert resp.status_code == 422
 
-    after = [(s.ts, s.balance) for s in await _get_snapshots_for(account_id)]
+    after = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
     assert before == after
 
 
@@ -747,8 +742,8 @@ async def test_failed_move_to_closed_account_leaves_both_account_snapshots_uncha
     )
     txn_id = txn.json()["id"]
 
-    src_before = [(s.ts, s.balance) for s in await _get_snapshots_for(src_id)]
-    dst_before = [(s.ts, s.balance) for s in await _get_snapshots_for(dst_id)]
+    src_before = [(s.dt, s.balance) for s in await _get_snapshots_for(src_id)]
+    dst_before = [(s.dt, s.balance) for s in await _get_snapshots_for(dst_id)]
 
     resp = await client.patch(
         f"/transactions/{txn_id}",
@@ -757,8 +752,8 @@ async def test_failed_move_to_closed_account_leaves_both_account_snapshots_uncha
     )
     assert resp.status_code == 422
 
-    src_after = [(s.ts, s.balance) for s in await _get_snapshots_for(src_id)]
-    dst_after = [(s.ts, s.balance) for s in await _get_snapshots_for(dst_id)]
+    src_after = [(s.dt, s.balance) for s in await _get_snapshots_for(src_id)]
+    dst_after = [(s.dt, s.balance) for s in await _get_snapshots_for(dst_id)]
 
     assert src_before == src_after
     assert dst_before == dst_after
@@ -786,8 +781,8 @@ async def test_update_group_account_transaction_recomputes_snapshots(client):
     await client.patch(f"/transactions/{txn_id}", json={"amount": -7500}, headers=headers)
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert snapshot_map[_midnight(2026, 3, 15)] == -7500
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert snapshot_map[date(2026, 3, 15)] == -7500
     assert len(snapshots) == 1
 
 
@@ -813,8 +808,8 @@ async def test_delete_only_transaction_on_day_removes_snapshot(client):
     await client.delete(f"/transactions/{txn_id}", headers=headers)
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert _midnight(2026, 3, 15) not in snapshot_map
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert date(2026, 3, 15) not in snapshot_map
     # The retroactive create wiped the original creation-day anchor; deleting
     # the only txn now leaves the account with no snapshots at all.
     assert len(snapshots) == 0
@@ -843,8 +838,8 @@ async def test_delete_one_of_multiple_same_day_transactions_adjusts_balance(clie
     await client.delete(f"/transactions/{txn2_id}", headers=headers)
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert snapshot_map[_midnight(2026, 3, 15)] == 10000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert snapshot_map[date(2026, 3, 15)] == 10000
     assert len(snapshots) == 1
 
 
@@ -875,10 +870,10 @@ async def test_delete_transaction_with_later_days_adjusts_balances(client):
     await client.delete(f"/transactions/{txn1_id}", headers=headers)
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert _midnight(2026, 3, 1) not in snapshot_map
-    assert snapshot_map[_midnight(2026, 3, 2)] == -2000
-    assert snapshot_map[_midnight(2026, 3, 3)] == -5000
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert date(2026, 3, 1) not in snapshot_map
+    assert snapshot_map[date(2026, 3, 2)] == -2000
+    assert snapshot_map[date(2026, 3, 3)] == -5000
     assert len(snapshots) == 2
 
 
@@ -904,8 +899,8 @@ async def test_delete_group_account_transaction_recomputes_snapshots(client):
     await client.delete(f"/transactions/{txn_id}", headers=headers)
 
     snapshots = await _get_snapshots_for(account_id)
-    snapshot_map = {s.ts: s.balance for s in snapshots}
-    assert _midnight(2026, 3, 15) not in snapshot_map
+    snapshot_map = {s.dt: s.balance for s in snapshots}
+    assert date(2026, 3, 15) not in snapshot_map
     assert len(snapshots) == 0
 
 
@@ -963,7 +958,7 @@ async def _seed_three_day_history(client, headers, account_id):
 
 
 async def test_list_snapshots_returns_all_in_ascending_order(client):
-    """The endpoint returns every snapshot for the account ordered ts ascending."""
+    """The endpoint returns every snapshot for the account ordered dt ascending."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -976,7 +971,7 @@ async def test_list_snapshots_returns_all_in_ascending_order(client):
 
     snapshots = resp.json()
     assert len(snapshots) == 3
-    timestamps = [s["ts"] for s in snapshots]
+    timestamps = [s["dt"] for s in snapshots]
     assert timestamps == sorted(timestamps)
     assert snapshots[0]["balance"] == 1000
     assert snapshots[1]["balance"] == 3000
@@ -1110,7 +1105,7 @@ async def test_list_snapshots_returns_zero_anchor_for_new_account(client):
 
     account_resp = await _create_account(client, headers)
     account_id = account_resp.json()["id"]
-    expected_anchor_ts = _creation_day_midnight(account_resp)
+    expected_anchor_dt = _creation_day(account_resp)
 
     resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
     assert resp.status_code == 200
@@ -1118,7 +1113,7 @@ async def test_list_snapshots_returns_zero_anchor_for_new_account(client):
     snapshots = resp.json()
     assert len(snapshots) == 1
     assert snapshots[0]["balance"] == 0
-    assert datetime.fromisoformat(snapshots[0]["ts"]) == expected_anchor_ts
+    assert date.fromisoformat(snapshots[0]["dt"]) == expected_anchor_dt
 
 
 async def test_list_snapshots_on_closed_account_still_returns_history(client):

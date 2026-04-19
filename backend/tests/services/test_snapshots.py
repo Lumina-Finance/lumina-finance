@@ -1,5 +1,5 @@
 """Tests for the account balance snapshot recomputation service."""
-from datetime import UTC, date, datetime
+from datetime import date
 
 import pytest
 from sqlalchemy import select
@@ -74,17 +74,13 @@ def _make_transaction(user, account, category, amount, dt):
     )
 
 
-def _midnight(y, m, d):
-    """Build a midnight-UTC datetime for snapshot ts comparisons."""
-    return datetime(y, m, d, tzinfo=UTC)
-
 
 async def _get_snapshots(db, account_id):
     """Return all snapshots for an account ordered by ts."""
     result = await db.execute(
         select(AccountBalanceSnapshot)
         .where(AccountBalanceSnapshot.account_id == account_id)
-        .order_by(AccountBalanceSnapshot.ts),
+        .order_by(AccountBalanceSnapshot.dt),
     )
     return list(result.scalars().all())
 
@@ -111,7 +107,7 @@ async def test_recompute_single_day_writes_one_snapshot(db, user, account, categ
 
     snapshots = await _get_snapshots(db, account.id)
     assert len(snapshots) == 1
-    assert snapshots[0].ts == _midnight(2026, 3, 1)
+    assert snapshots[0].dt == date(2026, 3, 1)
     assert snapshots[0].balance == -1500
 
 
@@ -127,25 +123,25 @@ async def test_recompute_multiple_days_accumulates_running_balance(db, user, acc
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [
-        (_midnight(2026, 3, 1), 10000),
-        (_midnight(2026, 3, 2), 8000),
-        (_midnight(2026, 3, 3), 5000),
+    assert [(s.dt, s.balance) for s in snapshots] == [
+        (date(2026, 3, 1), 10000),
+        (date(2026, 3, 2), 8000),
+        (date(2026, 3, 3), 5000),
     ]
 
 
 async def test_recompute_anchor_carries_forward_from_earlier_snapshot(db, user, account, category):
     """An existing snapshot before from_dt acts as the anchor balance."""
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 2, 28), balance=5000))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 2, 28), balance=5000))
     db.add(_make_transaction(user, account, category, -1000, date(2026, 3, 1)))
     await db.flush()
 
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [
-        (_midnight(2026, 2, 28), 5000),
-        (_midnight(2026, 3, 1), 4000),
+    assert [(s.dt, s.balance) for s in snapshots] == [
+        (date(2026, 2, 28), 5000),
+        (date(2026, 3, 1), 4000),
     ]
 
 
@@ -155,11 +151,11 @@ async def test_recompute_replaces_stale_snapshots_in_range(db, user, account, ca
     Covers the case where a stale snapshot sits between two legitimate
     days — the day with no transactions should end up without any snapshot.
     """
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 2, 28), balance=2000))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 2, 28), balance=2000))
     # Stale snapshots across the recompute window
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 3, 1), balance=99999))
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 3, 2), balance=88888))
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 3, 3), balance=77777))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 3, 1), balance=99999))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 3, 2), balance=88888))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 3, 3), balance=77777))
     # Real transactions on 3/1 and 3/3; 3/2 has no activity
     db.add_all([
         _make_transaction(user, account, category, 1000, date(2026, 3, 1)),
@@ -170,10 +166,10 @@ async def test_recompute_replaces_stale_snapshots_in_range(db, user, account, ca
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [
-        (_midnight(2026, 2, 28), 2000),
-        (_midnight(2026, 3, 1), 3000),
-        (_midnight(2026, 3, 3), 2500),
+    assert [(s.dt, s.balance) for s in snapshots] == [
+        (date(2026, 2, 28), 2000),
+        (date(2026, 3, 1), 3000),
+        (date(2026, 3, 3), 2500),
     ]
 
 
@@ -188,7 +184,7 @@ async def test_recompute_skips_days_without_transactions(db, user, account, cate
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [s.ts for s in snapshots] == [_midnight(2026, 3, 1), _midnight(2026, 3, 3)]
+    assert [s.dt for s in snapshots] == [date(2026, 3, 1), date(2026, 3, 3)]
     assert snapshots[0].balance == 1000
     assert snapshots[1].balance == 500
 
@@ -202,35 +198,35 @@ async def test_recompute_ignores_transactions_on_other_accounts(
         _make_transaction(user, second_account, category, 5000, date(2026, 3, 1)),
     ])
     db.add(AccountBalanceSnapshot(
-        account_id=second_account.id, ts=_midnight(2026, 3, 1), balance=5000,
+        account_id=second_account.id, dt=date(2026, 3, 1), balance=5000,
     ))
     await db.flush()
 
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     target_snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in target_snapshots] == [(_midnight(2026, 3, 1), 1000)]
+    assert [(s.dt, s.balance) for s in target_snapshots] == [(date(2026, 3, 1), 1000)]
 
     sibling_snapshots = await _get_snapshots(db, second_account.id)
-    assert [(s.ts, s.balance) for s in sibling_snapshots] == [(_midnight(2026, 3, 1), 5000)]
+    assert [(s.dt, s.balance) for s in sibling_snapshots] == [(date(2026, 3, 1), 5000)]
 
 
 async def test_recompute_with_no_activity_on_or_after_from_dt_preserves_earlier_snapshots(
     db, account,
 ):
     """Anchor snapshots strictly before from_dt survive when nothing follows them."""
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 2, 28), balance=5000))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 2, 28), balance=5000))
     await db.flush()
 
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [(_midnight(2026, 2, 28), 5000)]
+    assert [(s.dt, s.balance) for s in snapshots] == [(date(2026, 2, 28), 5000)]
 
 
 async def test_recompute_excludes_transactions_before_from_dt(db, user, account, category):
     """Transactions strictly before from_dt must not be summed into the rebuilt window."""
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 3, 1), balance=1000))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 3, 1), balance=1000))
     db.add_all([
         _make_transaction(user, account, category, 1000, date(2026, 3, 1)),
         _make_transaction(user, account, category, -200, date(2026, 3, 3)),
@@ -241,9 +237,9 @@ async def test_recompute_excludes_transactions_before_from_dt(db, user, account,
     await recompute_snapshots_from(db, account.id, date(2026, 3, 2))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [
-        (_midnight(2026, 3, 1), 1000),
-        (_midnight(2026, 3, 3), 800),
+    assert [(s.dt, s.balance) for s in snapshots] == [
+        (date(2026, 3, 1), 1000),
+        (date(2026, 3, 3), 800),
     ]
 
 
@@ -258,23 +254,23 @@ async def test_recompute_writes_snapshot_for_zero_delta_day(db, user, account, c
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [(_midnight(2026, 3, 1), 0)]
+    assert [(s.dt, s.balance) for s in snapshots] == [(date(2026, 3, 1), 0)]
 
 
 async def test_recompute_anchor_balance_of_zero_is_treated_as_anchor(
     db, user, account, category,
 ):
     """A prior snapshot with balance=0 is a valid anchor, not treated as 'no anchor'."""
-    db.add(AccountBalanceSnapshot(account_id=account.id, ts=_midnight(2026, 2, 28), balance=0))
+    db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 2, 28), balance=0))
     db.add(_make_transaction(user, account, category, 500, date(2026, 3, 1)))
     await db.flush()
 
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [
-        (_midnight(2026, 2, 28), 0),
-        (_midnight(2026, 3, 1), 500),
+    assert [(s.dt, s.balance) for s in snapshots] == [
+        (date(2026, 2, 28), 0),
+        (date(2026, 3, 1), 500),
     ]
 
 
@@ -286,4 +282,4 @@ async def test_recompute_from_dt_before_any_transaction(db, user, account, categ
     await recompute_snapshots_from(db, account.id, date(2020, 1, 1))
 
     snapshots = await _get_snapshots(db, account.id)
-    assert [(s.ts, s.balance) for s in snapshots] == [(_midnight(2026, 3, 1), 2000)]
+    assert [(s.dt, s.balance) for s in snapshots] == [(date(2026, 3, 1), 2000)]
