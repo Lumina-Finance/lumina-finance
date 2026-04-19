@@ -7,7 +7,7 @@ module so the SQL stays testable and the route handlers stay lean.
 """
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,8 +38,8 @@ async def attach_tax_advantaged_tallies(db: AsyncSession, accounts: Sequence[Acc
     tallies: dict[uuid.UUID, dict[str, int]] = {}
     if tax_advantaged:
         current_year = datetime.now(UTC).year
-        year_start = datetime(current_year, 1, 1, tzinfo=UTC)
-        year_end = datetime(current_year + 1, 1, 1, tzinfo=UTC)
+        year_start = date(current_year, 1, 1)
+        year_end = date(current_year + 1, 1, 1)
 
         in_year = (Transaction.ts >= year_start) & (Transaction.ts < year_end)
         positive = Transaction.amount > 0

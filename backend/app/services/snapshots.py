@@ -9,7 +9,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, time
 
-from sqlalchemy import Date, cast, delete, func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountBalanceSnapshot
@@ -50,33 +50,29 @@ async def attach_current_balances(db: AsyncSession, accounts: Sequence[Account])
         account.current_balance = balances[account.id]
 
 
-def _utc_midnight(ts: datetime) -> datetime:
-    """Return the midnight-UTC datetime for the UTC day containing ts."""
-    utc_day: date = ts.astimezone(UTC).date() if ts.tzinfo else ts.date()
-    return datetime.combine(utc_day, time.min, tzinfo=UTC)
-
-
 async def recompute_snapshots_from(
-    db: AsyncSession, account_id: uuid.UUID, from_ts: datetime,
+    db: AsyncSession, account_id: uuid.UUID, from_dt: date,
 ) -> None:
-    """Delete and rebuild daily balance snapshots from the UTC day of from_ts forward.
+    """Delete and rebuild daily balance snapshots from ``from_dt`` forward.
 
-    Finds the most recent snapshot strictly before that day to use as an anchor
-    balance, deletes all snapshots from that day onwards, then walks forward
-    through the transactions on this account grouped by UTC day, writing one
-    snapshot per day with activity (stored at midnight UTC of that day).
+    Finds the most recent snapshot strictly before ``from_dt`` to use as an
+    anchor balance, deletes all snapshots from that day onwards, then walks
+    forward through the transactions on this account grouped by day, writing
+    one snapshot per day with activity (stored at midnight UTC of that day).
 
     Call this after any transaction mutation affecting the account:
-    - create: pass the new transaction's ts
-    - update: pass min(old_ts, new_ts); call for both accounts if moved
-    - delete: pass the deleted transaction's ts
+    - create: pass the new transaction's dt
+    - update: pass min(old_dt, new_dt); call for both accounts if moved
+    - delete: pass the deleted transaction's dt
 
     Args:
         db: Async database session.
         account_id: UUID of the account whose snapshots need recomputing.
-        from_ts: Rebuild snapshots for the UTC day of this datetime and forward.
+        from_dt: Rebuild snapshots for this date and forward.
     """
-    window_start = _utc_midnight(from_ts)
+    # Snapshot ts is stored as midnight UTC of the day; build the same anchor here
+    # so the comparison against AccountBalanceSnapshot.ts (DateTime) is exact.
+    window_start = datetime.combine(from_dt, time.min, tzinfo=UTC)
 
     # Anchor balance: most recent snapshot strictly before window_start, or 0
     anchor_result = await db.execute(
@@ -99,23 +95,22 @@ async def recompute_snapshots_from(
         ),
     )
 
-    # Aggregate transaction amounts by UTC day from window_start forward
-    day_col = cast(func.timezone("UTC", Transaction.ts), Date).label("day")
+    # Aggregate transaction amounts by day from from_dt forward
     delta_col = func.sum(Transaction.amount).label("delta")
     deltas_result = await db.execute(
-        select(day_col, delta_col)
+        select(Transaction.dt, delta_col)
         .where(
             Transaction.account_id == account_id,
-            Transaction.ts >= window_start,
+            Transaction.dt >= from_dt,
         )
-        .group_by(day_col)
-        .order_by(day_col),
+        .group_by(Transaction.dt)
+        .order_by(Transaction.dt),
     )
 
     # Walk forward, writing one snapshot per day with activity
     for row in deltas_result:
         running_balance += row.delta
-        day_midnight = datetime.combine(row.day, time.min, tzinfo=UTC)
+        day_midnight = datetime.combine(row.dt, time.min, tzinfo=UTC)
         db.add(AccountBalanceSnapshot(
             account_id=account_id,
             ts=day_midnight,

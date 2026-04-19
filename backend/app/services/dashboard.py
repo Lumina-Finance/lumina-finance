@@ -42,13 +42,13 @@ from app.services.transaction_responses import build_transaction_response, get_t
 # Helpers for dashboard widgets (date & math)
 # ---------------------------------------------------------------------------
 
-def _first_of_current_month(now: datetime) -> datetime:
-    """Return midnight UTC on the first of ``now``'s month."""
-    return datetime(now.year, now.month, 1, tzinfo=UTC)
+def _first_of_current_month(now: datetime) -> date:
+    """Return the first of ``now``'s month as a ``date``."""
+    return date(now.year, now.month, 1)
 
 
-def _months_before(now: datetime, n: int) -> datetime:
-    """Return midnight UTC on the first of the month ``n`` full months before ``now``'s month."""
+def _months_before(now: datetime, n: int) -> date:
+    """Return the first of the month ``n`` full months before ``now``'s month."""
     year, month = now.year, now.month
     for _ in range(n):
         if month == 1:
@@ -56,7 +56,7 @@ def _months_before(now: datetime, n: int) -> datetime:
             month = 12
         else:
             month -= 1
-    return datetime(year, month, 1, tzinfo=UTC)
+    return date(year, month, 1)
 
 
 def _cumsum(values: list[int]) -> list[int]:
@@ -241,14 +241,14 @@ async def get_recent_transactions(
     """Return the last ``DASHBOARD_RECENT_TRANSACTIONS_LIMIT`` transactions inside the window."""
     if not account_ids:
         return []
-    window_start = now - timedelta(days=window_days)
+    window_start = now.date() - timedelta(days=window_days)
     txn_result = await db.execute(
         select(Transaction)
         .where(
             Transaction.account_id.in_(account_ids),
-            Transaction.ts >= window_start,
+            Transaction.dt >= window_start,
         )
-        .order_by(Transaction.ts.desc(), Transaction.id)
+        .order_by(Transaction.dt.desc(), Transaction.id)
         .limit(DASHBOARD_RECENT_TRANSACTIONS_LIMIT),
     )
     transactions = list(txn_result.scalars().all())
@@ -304,7 +304,8 @@ async def _aggregate_spent_per_active_budget(
     if not budget_ids:
         return {}
 
-    ts_day = cast(func.timezone("UTC", Transaction.ts), Date)
+    # added_at / removed_at are still DateTime — cast to the user-facing UTC day so
+    # they compare cleanly against Budget.period_end (Date). Transaction.dt is Date.
     added_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.added_at), Date)
     removed_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.removed_at), Date)
     result = await db.execute(
@@ -317,8 +318,8 @@ async def _aggregate_spent_per_active_budget(
             Budget.id.in_(budget_ids),
             added_at_day <= Budget.period_end,
             (BudgetTrackedCategory.removed_at.is_(None)) | (removed_at_day > Budget.period_end),
-            ts_day >= Budget.period_start,
-            ts_day <= Budget.period_end,
+            Transaction.dt >= Budget.period_start,
+            Transaction.dt <= Budget.period_end,
             Account.currency == BaseBudget.currency,
             (
                 (BaseBudget.group_id.is_not(None) & (Account.group_id == BaseBudget.group_id))
@@ -374,20 +375,20 @@ async def get_current_month_cumulative(
         return daily
 
     month_start = _first_of_current_month(now)
-    day_col = cast(func.timezone("UTC", Transaction.ts), Date).label("day")
+    today = now.date()
     result = await db.execute(
-        select(day_col, func.sum(Transaction.amount).label("total"))
+        select(Transaction.dt, func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(base_currency_account_ids),
             Category.kind == CategoryKind.EXPENSE,
-            Transaction.ts >= month_start,
-            Transaction.ts < now,
+            Transaction.dt >= month_start,
+            Transaction.dt <= today,
         )
-        .group_by(day_col),
+        .group_by(Transaction.dt),
     )
     for row in result:
-        idx = row.day.day - 1
+        idx = row.dt.day - 1
         if 0 <= idx < current_day_of_month:
             daily[idx] = int(row.total)
     return _cumsum(daily)
@@ -408,19 +409,18 @@ async def get_historical_avg_cumulative(
 
     month_start = _first_of_current_month(now)
     history_start = _months_before(now, DASHBOARD_HISTORICAL_MONTHS_TO_AVERAGE)
-    day_col = cast(func.timezone("UTC", Transaction.ts), Date).label("day")
     result = await db.execute(
-        select(day_col, func.sum(Transaction.amount).label("total"))
+        select(Transaction.dt, func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(base_currency_account_ids),
             Category.kind == CategoryKind.EXPENSE,
-            Transaction.ts >= history_start,
-            Transaction.ts < month_start,
+            Transaction.dt >= history_start,
+            Transaction.dt < month_start,
         )
-        .group_by(day_col),
+        .group_by(Transaction.dt),
     )
-    daily_rows = [(row.day, int(row.total)) for row in result]
+    daily_rows = [(row.dt, int(row.total)) for row in result]
     days_in_current_month = calendar.monthrange(now.year, now.month)[1]
     return _average_cumulative_across_months(daily_rows, days_in_current_month)
 
@@ -451,8 +451,8 @@ async def get_savings_rate(
         .where(
             Transaction.account_id.in_(base_currency_account_ids),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
-            Transaction.ts >= savings_window_start,
-            Transaction.ts < month_start,
+            Transaction.dt >= savings_window_start,
+            Transaction.dt < month_start,
         )
         .group_by(Category.kind),
     )
