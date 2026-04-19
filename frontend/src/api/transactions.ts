@@ -14,7 +14,8 @@ export interface Transaction {
   id: string;
   created_by_user_id: string;
   account_id: string;
-  ts: string;
+  // Calendar date in YYYY-MM-DD form (no time, no tz). Backend stores it as a Date column.
+  dt: string;
   merchant_id: string | null;
   category_id: string;
   amount: number;
@@ -43,7 +44,7 @@ export interface OutlierTransaction {
   merchant_name: string | null;
   notes: string | null;
   amount: number;
-  ts: string;
+  dt: string;
 }
 
 export interface TransactionsOverview {
@@ -62,7 +63,7 @@ export interface TransactionFilters {
   from_date?: string;
   to_date?: string;
   q?: string;
-  sort_by?: 'ts' | 'amount' | 'created_at' | 'updated_at';
+  sort_by?: 'dt' | 'amount' | 'created_at' | 'updated_at';
   sort_order?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
@@ -76,7 +77,8 @@ export interface OverviewFilters {
 
 export interface CreateTransactionPayload {
   account_id: string;
-  ts: string;
+  // Calendar date in YYYY-MM-DD form.
+  dt: string;
   category_id: string;
   amount: number;
   currency: string;
@@ -88,7 +90,7 @@ export interface CreateTransactionPayload {
 
 export interface UpdateTransactionPayload {
   account_id?: string;
-  ts?: string;
+  dt?: string;
   category_id?: string;
   amount?: number;
   merchant_id?: string | null;

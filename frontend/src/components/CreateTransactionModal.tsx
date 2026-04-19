@@ -2,7 +2,6 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Check, Trash2, X } from 'lucide-react'
 import Dropdown from '@/components/Dropdown'
-import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useMerchants, useCreateMerchant } from '@/api/merchants'
@@ -47,14 +46,6 @@ function todayLocalString(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-// Convert an ISO timestamp to "YYYY-MM-DD" interpreted in the user's timezone.
-function tsToDateInputValue(isoTs: string, tz: string): string {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz,
-  })
-  return fmt.format(new Date(isoTs))
 }
 
 // Convert minor units (signed) to a fixed-decimal positive string for the amount input.
@@ -125,7 +116,6 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
   const updateMutation = useUpdateTransaction()
   const deleteMutation = useDeleteTransaction()
   const createMerchant = useCreateMerchant()
-  const { user } = useAuth()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: merchants = [] } = useMerchants()
@@ -144,9 +134,9 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
       amount: amountToInputString(transaction.amount, exp),
       currency: transaction.currency,
       notes: transaction.notes ?? '',
-      date: tsToDateInputValue(transaction.ts, user?.tz ?? 'UTC'),
+      date: transaction.dt,
     }
-  }, [transaction, categories, currencies, user])
+  }, [transaction, categories, currencies])
 
   const [form, setForm] = useState(initialForm)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -298,8 +288,6 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
     const minorMultiplier = Math.pow(10, selectedCurrency?.minor_unit_exponent ?? 2)
     const magnitude = Math.round(parseFloat(form.amount) * minorMultiplier)
     const signedAmount = form.kind === 'income' ? magnitude : -magnitude
-    const [yr, mo, day] = form.date.split('-').map(Number)
-    const ts = new Date(yr, mo - 1, day).toISOString()
     const notes = form.notes.trim() || null
 
     if (editing && transaction) {
@@ -309,7 +297,7 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
       if (form.category_id !== transaction.category_id) patch.category_id = form.category_id
       if (form.merchant_id !== (transaction.merchant_id ?? '')) patch.merchant_id = form.merchant_id || null
       if (signedAmount !== transaction.amount) patch.amount = signedAmount
-      if (form.date !== initialForm.date) patch.ts = ts
+      if (form.date !== initialForm.date) patch.dt = form.date
       if (notes !== (transaction.notes ?? null)) patch.notes = notes
 
       if (Object.keys(patch).length === 0) {
@@ -331,7 +319,7 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
 
     const payload: CreateTransactionPayload = {
       account_id: form.account_id,
-      ts,
+      dt: form.date,
       category_id: form.category_id,
       merchant_id: form.merchant_id,
       amount: signedAmount,

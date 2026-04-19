@@ -78,12 +78,20 @@ interface DateGroup {
   transactions: Transaction[]
 }
 
+// Parse a "YYYY-MM-DD" calendar date as local midnight so toLocaleDateString
+// doesn't shift the day in negative-offset timezones (which `new Date("YYYY-MM-DD")`
+// would, since the spec parses bare dates as UTC).
+function parseYmdLocal(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 function groupByDate(transactions: Transaction[]): DateGroup[] {
   const groups: DateGroup[] = []
   let currentLabel = ''
 
   for (const txn of transactions) {
-    const label = new Date(txn.ts).toLocaleDateString('en-US', {
+    const label = parseYmdLocal(txn.dt).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
