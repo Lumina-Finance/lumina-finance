@@ -48,7 +48,7 @@ export default function Dashboard() {
   }, [dashboard])
 
   const netWorth = dashboard?.current_net_worth ?? 0
-  const netWorthColor = netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+  const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
   const netWorthTrendUp =
     netWorthData.length >= 2 &&
     netWorthData[netWorthData.length - 1].value >= netWorthData[0].value
