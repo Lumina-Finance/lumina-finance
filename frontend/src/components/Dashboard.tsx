@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { CreditCard, Repeat } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CreditCard, Repeat, Wallet } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuth } from '@/hooks/useAuth'
 import { useDashboard } from '@/api/dashboard'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -29,6 +30,29 @@ export default function Dashboard() {
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
 
   const displayCurrency = user!.base_currency
+
+  // Net worth history — backend returns a forward-filled day-by-day series
+  // over the trailing window_days. We attach dates client-side for the x-axis.
+  const netWorthData = useMemo(() => {
+    const history = dashboard?.net_worth_history ?? []
+    if (history.length === 0) return []
+    const today = new Date()
+    return history.map((value, i) => {
+      const d = new Date(today)
+      d.setDate(today.getDate() - (history.length - 1 - i))
+      return {
+        date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value,
+      }
+    })
+  }, [dashboard])
+
+  const netWorth = dashboard?.current_net_worth ?? 0
+  const netWorthColor = netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+  const netWorthTrendUp =
+    netWorthData.length >= 2 &&
+    netWorthData[netWorthData.length - 1].value >= netWorthData[0].value
+  const netWorthLineColor = netWorthTrendUp ? 'var(--app-positive)' : 'var(--app-negative)'
 
   // Credit data — backend returns base-currency-scoped totals.
   const creditLimit = dashboard?.credit_limit_total ?? 0
@@ -67,6 +91,65 @@ export default function Dashboard() {
       <div className="space-y-6">
         {/* Row 1 — Hero metric strip */}
         <div className="grid grid-cols-1 gap-4 grid-cols-4">
+          {/* Net Worth — current value + sparkline over trailing window */}
+          <div
+            className="rounded-2xl h-[13.5rem] p-5 flex flex-col"
+            style={{
+              background: 'var(--app-surface-soft)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+                <Wallet size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+              </div>
+              <span className="app-label">Net Worth</span>
+            </div>
+            <p
+              className="font-financial font-medium tracking-tight leading-none text-2xl"
+              style={{ color: netWorthColor }}
+            >
+              {formatCurrency(netWorth, displayCurrency)}
+            </p>
+            {netWorthData.length >= 2 && (
+              <div className="mt-3 flex-1 min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={netWorthData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                    <XAxis
+                      dataKey="date"
+                      axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={40}
+                      tick={{ fill: 'var(--app-text-subtle)', fontSize: 9 }}
+                      tickMargin={3}
+                    />
+                    <YAxis hide domain={['dataMin', 'dataMax']} />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'var(--app-surface-soft)',
+                        border: '1px solid var(--app-border-strong)',
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                      labelStyle={{ color: 'var(--app-text-subtle)' }}
+                      itemStyle={{ color: 'var(--app-text)' }}
+                      formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Net Worth']}
+                      cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke={netWorthLineColor}
+                      strokeWidth={1.5}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
           {/* Credit Used / Available donut */}
           <div
             className="rounded-2xl h-[13.5rem] p-5 flex flex-col"
@@ -145,7 +228,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="rounded-2xl h-[13.5rem] bg-gray-300" />
           <div className="rounded-2xl h-[13.5rem] bg-gray-300" />
           <div className="rounded-2xl h-[13.5rem] bg-gray-300" />
         </div>
