@@ -18,7 +18,7 @@ import calendar
 import uuid
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import Date, cast, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
@@ -300,10 +300,6 @@ async def _aggregate_spent_per_active_budget(
     if not budget_ids:
         return {}
 
-    # added_at / removed_at are still DateTime — cast to the user-facing UTC day so
-    # they compare cleanly against Budget.period_end (Date). Transaction.dt is Date.
-    added_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.added_at), Date)
-    removed_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.removed_at), Date)
     result = await db.execute(
         select(Budget.id, func.sum(Transaction.amount).label("amount_sum"))
         .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
@@ -312,8 +308,8 @@ async def _aggregate_spent_per_active_budget(
         .join(Account, Transaction.account_id == Account.id)
         .where(
             Budget.id.in_(budget_ids),
-            added_at_day <= Budget.period_end,
-            (BudgetTrackedCategory.removed_at.is_(None)) | (removed_at_day > Budget.period_end),
+            BudgetTrackedCategory.added_at <= Budget.period_end,
+            (BudgetTrackedCategory.removed_at.is_(None)) | (BudgetTrackedCategory.removed_at > Budget.period_end),
             Transaction.dt >= Budget.period_start,
             Transaction.dt <= Budget.period_end,
             Account.currency == BaseBudget.currency,

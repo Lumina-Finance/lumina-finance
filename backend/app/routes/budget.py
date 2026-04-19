@@ -2,7 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import Date, cast, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -63,14 +63,12 @@ async def get_budget_utilization(
     # Categories active as of period_end — the historical-accuracy predicate. Past
     # periods stay pinned because period_end is fixed; current periods reduce to
     # "currently active" because period_end is in the future.
-    added_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.added_at), Date)
-    removed_at_day = cast(func.timezone("UTC", BudgetTrackedCategory.removed_at), Date)
     tracked_result = await db.execute(
         select(BudgetTrackedCategory.category_id)
         .where(
             BudgetTrackedCategory.base_budget_id == base_budget.id,
-            added_at_day <= budget.period_end,
-            (BudgetTrackedCategory.removed_at.is_(None)) | (removed_at_day > budget.period_end),
+            BudgetTrackedCategory.added_at <= budget.period_end,
+            (BudgetTrackedCategory.removed_at.is_(None)) | (BudgetTrackedCategory.removed_at > budget.period_end),
         )
         .distinct(),
     )

@@ -127,7 +127,7 @@ async def update_base_budget(
                     BudgetTrackedCategory.category_id.in_(removed),
                     BudgetTrackedCategory.removed_at.is_(None),
                 )
-                .values(removed_at=sa.func.now()),
+                .values(removed_at=sa.func.current_date()),
             )
 
         # Insert newly added categories
