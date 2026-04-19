@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -103,13 +103,11 @@ async def list_account_balance_snapshots(
         )
 
     query = select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id)
-    # Snapshot ts is stored as midnight UTC of the snapshot's day; convert the
-    # date bounds to matching tz-aware datetimes so the inclusive comparison works.
     if from_date is not None:
-        query = query.where(AccountBalanceSnapshot.ts >= datetime.combine(from_date, time.min, tzinfo=UTC))
+        query = query.where(AccountBalanceSnapshot.dt >= from_date)
     if to_date is not None:
-        query = query.where(AccountBalanceSnapshot.ts <= datetime.combine(to_date, time.min, tzinfo=UTC))
-    query = query.order_by(AccountBalanceSnapshot.ts)
+        query = query.where(AccountBalanceSnapshot.dt <= to_date)
+    query = query.order_by(AccountBalanceSnapshot.dt)
 
     result = await db.execute(query)
     return result.scalars().all()
@@ -201,10 +199,9 @@ async def create_account(
     # This gives the frontend a stable starting point for charts without needing
     # to join against account.created_at. Retroactively imported transactions
     # may later replace this snapshot via recompute_snapshots_from.
-    created_day_utc = datetime.combine(account.created_at.astimezone(UTC).date(), time.min, tzinfo=UTC)
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
-        ts=created_day_utc,
+        dt=account.created_at.astimezone(UTC).date(),
         balance=0,
     ))
 
