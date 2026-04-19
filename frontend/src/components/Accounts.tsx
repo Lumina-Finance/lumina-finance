@@ -214,14 +214,28 @@ export default function Accounts() {
               >
                 {savingsRate === null ? '—' : `${savingsRate}%`}
               </p>
-              <p
-                className="font-financial mt-2 text-[clamp(0.875rem,1vw,0.9375rem)]"
-                style={{ color: 'var(--app-text-subtle)' }}
-              >
-                {savingsRate === null
-                  ? 'No income this month'
-                  : `${formatCurrency((overview?.total_inflow ?? 0) + (overview?.total_outflow ?? 0), displayCurrency)} of ${formatCurrency(overview?.total_inflow ?? 0, displayCurrency)} this month`}
-              </p>
+              <div className="mt-2 space-y-1">
+                <div
+                  className="h-1 rounded-full overflow-hidden"
+                  style={{ background: 'var(--app-border)' }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      background: savingsRateColor,
+                      width: `${Math.max(0, Math.min(savingsRate ?? 0, 100))}%`,
+                    }}
+                  />
+                </div>
+                <p
+                  className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
+                  style={{ color: 'var(--app-text-subtle)' }}
+                >
+                  {savingsRate === null
+                    ? 'No income this month'
+                    : `${formatCurrency((overview?.total_inflow ?? 0) + (overview?.total_outflow ?? 0), displayCurrency)} of ${formatCurrency(overview?.total_inflow ?? 0, displayCurrency)} this month`}
+                </p>
+              </div>
             </div>
 
             {/* Credit Usage */}
