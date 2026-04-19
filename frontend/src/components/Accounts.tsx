@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
+import { useTransactionsOverview } from '@/api/transactions'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateAccountModal from '@/components/CreateAccountModal'
 
@@ -91,6 +92,37 @@ export default function Accounts() {
         : 'var(--app-negative)'
   const displayCurrency = user!.base_currency
 
+  // Current calendar month in user's timezone — drives the savings rate window.
+  const { monthStart, today } = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone: user!.tz,
+    })
+    const todayStr = fmt.format(new Date())
+    return { monthStart: `${todayStr.slice(0, 7)}-01`, today: todayStr }
+  }, [user])
+
+  const { data: overview } = useTransactionsOverview({
+    from_date: monthStart,
+    to_date: today,
+  })
+
+  // Savings rate = (income − expenses) / income. outflow comes back negative,
+  // so adding gives the net. Null when no income to avoid divide-by-zero.
+  const savingsRate = useMemo<number | null>(() => {
+    const inflow = overview?.total_inflow ?? 0
+    const outflow = overview?.total_outflow ?? 0
+    if (inflow <= 0) return null
+    return Math.round(((inflow + outflow) / inflow) * 100)
+  }, [overview])
+
+  const savingsRateColor =
+    savingsRate === null
+      ? 'var(--app-text-subtle)'
+      : savingsRate >= 0
+        ? 'var(--app-positive)'
+        : 'var(--app-negative)'
+
   return (
     <div>
       <header className="app-page-header">
@@ -173,9 +205,23 @@ export default function Accounts() {
             className="grid grid-cols-3 py-5"
             style={{ borderBottom: '1px solid var(--app-border-strong)' }}
           >
-            {/* Savings Rate — placeholder until transactions API is wired */}
+            {/* Savings Rate */}
             <div className="pr-6">
-              <div className="h-20 bg-gray-300 rounded-lg" />
+              <p className="app-label mb-1">Savings Rate</p>
+              <p
+                className="font-financial font-semibold text-[clamp(1rem,1.7vw,1.5rem)]"
+                style={{ color: savingsRateColor }}
+              >
+                {savingsRate === null ? '—' : `${savingsRate}%`}
+              </p>
+              <p
+                className="font-financial mt-2 text-[clamp(0.625rem,0.7vw,0.6875rem)]"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                {savingsRate === null
+                  ? 'No income this month'
+                  : `${formatCurrency((overview?.total_inflow ?? 0) + (overview?.total_outflow ?? 0), displayCurrency)} of ${formatCurrency(overview?.total_inflow ?? 0, displayCurrency)} this month`}
+              </p>
             </div>
 
             {/* Credit Usage */}
