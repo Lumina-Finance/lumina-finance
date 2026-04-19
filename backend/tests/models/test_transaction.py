@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import date
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -65,7 +65,7 @@ async def transaction(db, user, account, category):
     """Seed an expense transaction."""
     t = Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-5000, currency="CAD",
+        dt=date.today(), amount=-5000, currency="CAD",
     )
     db.add(t)
     await db.flush()
@@ -147,7 +147,7 @@ async def test_transaction_with_merchant(db, user, account, category, merchant):
     """Transaction can reference a merchant."""
     t = Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        merchant_id=merchant.id, ts=datetime.now(UTC), amount=-3000, currency="CAD",
+        merchant_id=merchant.id, dt=date.today(), amount=-3000, currency="CAD",
     )
     db.add(t)
     await db.flush()
@@ -163,7 +163,7 @@ async def test_transaction_with_fx_rate(db, user, account, category, currency):
 
     t = Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-10000, currency="USD", fx_rate=1.35,
+        dt=date.today(), amount=-10000, currency="USD", fx_rate=1.35,
     )
     db.add(t)
     await db.flush()
@@ -177,7 +177,7 @@ async def test_transaction_with_notes(db, user, account, category):
     """Transaction can have notes."""
     t = Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-1500, currency="CAD", notes="Weekly groceries",
+        dt=date.today(), amount=-1500, currency="CAD", notes="Weekly groceries",
     )
     db.add(t)
     await db.flush()
@@ -193,7 +193,7 @@ async def test_null_user_rejected(db, account, category):
     """created_by_user_id is NOT NULL."""
     db.add(Transaction(
         created_by_user_id=None, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-1000, currency="CAD",
+        dt=date.today(), amount=-1000, currency="CAD",
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -203,7 +203,7 @@ async def test_null_account_rejected(db, user, category):
     """account_id is NOT NULL."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=None, category_id=category.id,
-        ts=datetime.now(UTC), amount=-1000, currency="CAD",
+        dt=date.today(), amount=-1000, currency="CAD",
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -213,7 +213,7 @@ async def test_null_category_rejected(db, user, account):
     """category_id is NOT NULL."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=None,
-        ts=datetime.now(UTC), amount=-1000, currency="CAD",
+        dt=date.today(), amount=-1000, currency="CAD",
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -223,7 +223,7 @@ async def test_null_amount_rejected(db, user, account, category):
     """Amount is NOT NULL."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=None, currency="CAD",
+        dt=date.today(), amount=None, currency="CAD",
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -233,7 +233,7 @@ async def test_null_currency_rejected(db, user, account, category):
     """Currency is NOT NULL."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-1000, currency=None,
+        dt=date.today(), amount=-1000, currency=None,
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -243,7 +243,7 @@ async def test_invalid_account_rejected(db, user, category):
     """account_id must reference a valid account."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=uuid.uuid4(), category_id=category.id,
-        ts=datetime.now(UTC), amount=-1000, currency="CAD",
+        dt=date.today(), amount=-1000, currency="CAD",
     ))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -253,7 +253,7 @@ async def test_invalid_currency_rejected(db, user, account, category):
     """Currency must reference a valid currency."""
     db.add(Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-1000, currency="ZZZ",
+        dt=date.today(), amount=-1000, currency="ZZZ",
     ))
     with pytest.raises(IntegrityError):
         await db.flush()

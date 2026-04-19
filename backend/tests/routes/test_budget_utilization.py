@@ -1,6 +1,6 @@
 """Route tests for GET /budgets/{id}/utilization."""
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 
@@ -124,7 +124,7 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
     payload = {
         "account_id": account_id,
         "category_id": category_id,
-        "ts": "2026-03-15T12:00:00Z",
+        "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
         **overrides,
@@ -276,8 +276,8 @@ async def test_get_budget_utilization_excludes_transactions_before_period_start(
     )
 
     # Inside the period (kept) and before (excluded)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-15T12:00:00Z", amount=-5000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-02-28T23:00:00Z", amount=-9999)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-15", amount=-5000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-02-28", amount=-9999)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -299,8 +299,8 @@ async def test_get_budget_utilization_excludes_transactions_after_period_end(cli
         client, headers, category_ids=[groceries],
     )
 
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-15T12:00:00Z", amount=-5000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-04-01T01:00:00Z", amount=-9999)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-15", amount=-5000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-04-01", amount=-9999)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -323,7 +323,7 @@ async def test_get_budget_utilization_includes_transaction_at_period_start_bound
     )
 
     # Midnight UTC of period_start — date bucket is exactly period_start
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-01T00:00:00Z", amount=-1000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-01", amount=-1000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -345,7 +345,7 @@ async def test_get_budget_utilization_includes_transaction_at_period_end_boundar
     )
 
     # 23:59 on period_end UTC — still on the period_end day
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-31T23:59:00Z", amount=-1000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-31", amount=-1000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -392,9 +392,9 @@ async def test_get_budget_utilization_sums_multiple_transactions_in_same_categor
         client, headers, category_ids=[groceries],
     )
 
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-05T12:00:00Z", amount=-1000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-15T12:00:00Z", amount=-2000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-25T12:00:00Z", amount=-3000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-1000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-15", amount=-2000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-25", amount=-3000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -417,7 +417,7 @@ async def test_get_budget_utilization_mixed_inflows_and_outflows_net_to_positive
 
     # 5000 expense, 1500 refund — net spent is 3500
     await _create_transaction(client, headers, account_id, groceries, amount=-5000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-20T12:00:00Z", amount=1500)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-20", amount=1500)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -439,7 +439,7 @@ async def test_get_budget_utilization_net_inflow_returns_negative_spent(client):
     )
 
     await _create_transaction(client, headers, account_id, side_income, amount=10000)
-    await _create_transaction(client, headers, account_id, side_income, ts="2026-03-20T12:00:00Z", amount=-2000)
+    await _create_transaction(client, headers, account_id, side_income, dt="2026-03-20", amount=-2000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -494,9 +494,9 @@ async def test_get_budget_utilization_with_one_week_period(client):
     )
 
     # Inside the week (kept), day before (excluded), day after (excluded)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-05T12:00:00Z", amount=-5000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-01T23:00:00Z", amount=-9999)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-09T01:00:00Z", amount=-9999)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-5000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-01", amount=-9999)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-09", amount=-9999)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -536,7 +536,7 @@ async def test_get_budget_utilization_includes_transactions_from_closed_accounts
     # Close the account after the transaction is recorded
     close_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-04-01T00:00:00Z"},
+        json={"closed_at": "2026-04-01"},
         headers=headers,
     )
     assert close_resp.status_code == 200
@@ -860,7 +860,7 @@ async def test_get_budget_utilization_aggregates_across_multiple_accounts_in_sam
     )
 
     await _create_transaction(client, headers, chequing_id, groceries, amount=-3000)
-    await _create_transaction(client, headers, savings_id, groceries, ts="2026-03-20T12:00:00Z", amount=-2500)
+    await _create_transaction(client, headers, savings_id, groceries, dt="2026-03-20", amount=-2500)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -1012,7 +1012,7 @@ async def test_get_budget_utilization_group_budget_excludes_personal_account_tra
             created_by_user_id=user_id,
             account_id=personal_account_id,
             category_id=group_groceries,
-            ts=datetime(2026, 3, 15, 12, 0, 0, tzinfo=UTC),
+            dt=date(2026, 3, 15),
             amount=-9999,
             currency="CAD",
         ))
@@ -1107,7 +1107,7 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
     groceries = await _create_category(client, headers)
 
     # A transaction dated inside the would-be period
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-01-15T12:00:00Z", amount=-4000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-01-15", amount=-4000)
 
     # Create the base budget + past-period instance via low-level helpers so
     # added_at stays at server-side now() (today is well after Jan 31). The
@@ -1152,8 +1152,8 @@ async def test_get_budget_utilization_mid_period_category_addition_counts_whole_
     )
 
     # One txn before added_at (Mar 5) and one after (Mar 20). Both should count.
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-05T12:00:00Z", amount=-1000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-20T12:00:00Z", amount=-2000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-1000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-20", amount=-2000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -1188,8 +1188,8 @@ async def test_get_budget_utilization_mid_period_category_removal_excludes_whole
     )
 
     # Both txns should be excluded — the one before removal AND the one after.
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-05T12:00:00Z", amount=-1000)
-    await _create_transaction(client, headers, account_id, groceries, ts="2026-03-20T12:00:00Z", amount=-2000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-1000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-20", amount=-2000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
@@ -1226,7 +1226,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2026-01-15T12:00:00Z", amount=-5000,
+        dt="2026-01-15", amount=-5000,
     )
 
     # Remove groceries via PATCH. removed_at defaults to server now() — well after Jan 31.
@@ -1274,8 +1274,8 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
     )
 
     # One txn in each category, both dated inside the January period
-    await _create_transaction(client, headers, account_id, original, ts="2026-01-10T12:00:00Z", amount=-3000)
-    await _create_transaction(client, headers, account_id, addon, ts="2026-01-20T12:00:00Z", amount=-7777)
+    await _create_transaction(client, headers, account_id, original, dt="2026-01-10", amount=-3000)
+    await _create_transaction(client, headers, account_id, addon, dt="2026-01-20", amount=-7777)
 
     # PATCH the base today to start tracking `addon` — added_at defaults to now(), well after Jan 31
     patch_resp = await client.patch(
@@ -1345,7 +1345,7 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2099-01-15T12:00:00Z", amount=-5000,
+        dt="2099-01-15", amount=-5000,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1379,11 +1379,11 @@ async def test_get_budget_utilization_current_period_uses_currently_active_categ
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2099-01-10T12:00:00Z", amount=-4000,
+        dt="2099-01-10", amount=-4000,
     )
     await _create_transaction(
         client, headers, account_id, transit,
-        ts="2099-01-20T12:00:00Z", amount=-1500,
+        dt="2099-01-20", amount=-1500,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1421,7 +1421,7 @@ async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(cl
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2026-03-20T12:00:00Z", amount=-4000,
+        dt="2026-03-20", amount=-4000,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1456,7 +1456,7 @@ async def test_get_budget_utilization_added_at_day_after_period_end_is_not_track
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2026-03-20T12:00:00Z", amount=-4000,
+        dt="2026-03-20", amount=-4000,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1491,7 +1491,7 @@ async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_trac
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2026-03-15T12:00:00Z", amount=-4000,
+        dt="2026-03-15", amount=-4000,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1525,7 +1525,7 @@ async def test_get_budget_utilization_removed_at_day_after_period_end_is_tracked
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2026-03-15T12:00:00Z", amount=-4000,
+        dt="2026-03-15", amount=-4000,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1580,7 +1580,7 @@ async def test_get_budget_utilization_re_add_past_period_old_row_included_new_ro
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        ts="2026-01-15T12:00:00Z", amount=-4000,
+        dt="2026-01-15", amount=-4000,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1621,7 +1621,7 @@ async def test_get_budget_utilization_mixed_active_and_removed_categories_in_sam
     await _create_transaction(client, headers, account_id, groceries, amount=-5000)
     await _create_transaction(
         client, headers, account_id, transit,
-        ts="2026-03-05T12:00:00Z", amount=-2500,
+        dt="2026-03-05", amount=-2500,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1703,12 +1703,12 @@ async def test_get_budget_utilization_personal_budget_aggregates_multiple_person
     await _create_transaction(client, headers, chequing_id, groceries, amount=-3000)
     await _create_transaction(
         client, headers, savings_id, groceries,
-        ts="2026-03-20T12:00:00Z", amount=-2500,
+        dt="2026-03-20", amount=-2500,
     )
     # Group-account spend must not leak in
     await _create_transaction(
         client, headers, group_account_id, groceries,
-        ts="2026-03-22T12:00:00Z", amount=-9999,
+        dt="2026-03-22", amount=-9999,
     )
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -1756,7 +1756,7 @@ async def test_get_budget_utilization_three_currency_user_filters_to_budget_curr
     )
     await _create_transaction(
         client, headers, eur_account_id, groceries,
-        ts="2026-03-20T12:00:00Z", amount=-3500, currency="EUR",
+        dt="2026-03-20", amount=-3500, currency="EUR",
     )
 
     resp = await client.get(f"/budgets/{usd_budget_id}/utilization", headers=headers)

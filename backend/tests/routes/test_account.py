@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from app.models.account import TaxAdvantagedConfig
 from app.models.base import CategoryKind, InstitutionStatus
@@ -70,7 +70,7 @@ async def _seed_tax_advantaged_config(
 
 
 async def _seed_transaction(
-    account_id: uuid.UUID, category_id: uuid.UUID, user_id: uuid.UUID, amount: int, ts: datetime,
+    account_id: uuid.UUID, category_id: uuid.UUID, user_id: uuid.UUID, amount: int, dt: date,
 ) -> None:
     """Insert a transaction directly via DB, bypassing validation and snapshot hooks.
 
@@ -83,7 +83,7 @@ async def _seed_transaction(
             created_by_user_id=user_id,
             account_id=account_id,
             category_id=category_id,
-            ts=ts,
+            dt=dt,
             amount=amount,
             currency="CAD",
         ))
@@ -282,10 +282,10 @@ async def test_tax_advantaged_tallies_sum_transfer_transactions(client):
     transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER)
 
     # Current-year transfers: two contributions and one withdrawal
-    now = datetime.now(UTC)
-    await _seed_transaction(account_id, transfer_cat_id, user_id, 50_000, now)
-    await _seed_transaction(account_id, transfer_cat_id, user_id, 30_000, now)
-    await _seed_transaction(account_id, transfer_cat_id, user_id, -10_000, now)
+    today = date.today()
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 50_000, today)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 30_000, today)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, -10_000, today)
 
     resp = await client.get(f"/accounts/{account_id}", headers=headers)
 
@@ -308,12 +308,12 @@ async def test_tax_advantaged_lifetime_tallies_include_old_years_ytd_excludes_th
     transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER)
 
     # Prior-year activity (2025 — definitely not the current UTC year at time of writing)
-    await _seed_transaction(account_id, transfer_cat_id, user_id, 100_000, datetime(2025, 6, 1, tzinfo=UTC))
-    await _seed_transaction(account_id, transfer_cat_id, user_id, -20_000, datetime(2025, 7, 1, tzinfo=UTC))
-    # Current-year activity — use today's timestamp to avoid tz/year-boundary hazards
-    now = datetime.now(UTC)
-    await _seed_transaction(account_id, transfer_cat_id, user_id, 50_000, now)
-    await _seed_transaction(account_id, transfer_cat_id, user_id, -5_000, now)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 100_000, date(2025, 6, 1))
+    await _seed_transaction(account_id, transfer_cat_id, user_id, -20_000, date(2025, 7, 1))
+    # Current-year activity — use today's date to avoid year-boundary hazards
+    today = date.today()
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 50_000, today)
+    await _seed_transaction(account_id, transfer_cat_id, user_id, -5_000, today)
 
     resp = await client.get(f"/accounts/{account_id}", headers=headers)
 
@@ -340,9 +340,9 @@ async def test_tax_advantaged_tallies_ignore_non_transfer_transactions(client):
     transfer_cat_id = await _seed_category(user_id, CategoryKind.TRANSFER, name="Test Transfer")
     expense_cat_id = await _seed_category(user_id, CategoryKind.EXPENSE, name="Test Groceries")
 
-    now = datetime.now(UTC)
-    await _seed_transaction(account_id, transfer_cat_id, user_id, 100_000, now)  # counts
-    await _seed_transaction(account_id, expense_cat_id, user_id, -50_000, now)  # ignored
+    today = date.today()
+    await _seed_transaction(account_id, transfer_cat_id, user_id, 100_000, today)  # counts
+    await _seed_transaction(account_id, expense_cat_id, user_id, -50_000, today)  # ignored
 
     resp = await client.get(f"/accounts/{account_id}", headers=headers)
 

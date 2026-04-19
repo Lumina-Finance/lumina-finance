@@ -3,7 +3,7 @@
 Verifies that deleting an account removes its transactions at the DB level.
 Covers both personal and group-scoped accounts.
 """
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import select
@@ -79,7 +79,7 @@ def _make_transaction(user, account, category, amount):
     """Build a Transaction instance with default fields."""
     return Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=amount, currency="CAD",
+        dt=date.today(), amount=amount, currency="CAD",
     )
 
 

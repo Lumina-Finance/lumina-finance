@@ -97,7 +97,7 @@ async def _create_tag(client, headers, **overrides):
 async def _create_transaction(client, headers, account_id, category_id, **overrides):
     """Create a transaction via POST /transactions.
 
-    Defaults: ts="2026-03-15T12:00:00Z", amount=-5000, currency="CAD".
+    Defaults: dt="2026-03-15", amount=-5000, currency="CAD".
 
     Args:
         client: The async test client.
@@ -112,7 +112,7 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
     payload = {
         "account_id": account_id,
         "category_id": category_id,
-        "ts": "2026-03-15T12:00:00Z",
+        "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
         **overrides,
@@ -402,17 +402,17 @@ async def test_list_transactions_without_auth_returns_401(client):
 # --- Sorting ---
 
 
-async def test_list_transactions_default_sort_ts_desc(client):
+async def test_list_transactions_default_sort_dt_desc(client):
     """Transactions default to most recent first."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-01-01T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-03-01T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-02-01T00:00:00Z")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-01-01")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-03-01")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-02-01")
 
     resp = await client.get("/transactions", headers=headers)
 
-    dates = [t["ts"] for t in resp.json()]
+    dates = [t["dt"] for t in resp.json()]
     assert dates == sorted(dates, reverse=True)
 
 
@@ -434,8 +434,8 @@ async def test_list_transactions_sort_by_created_at(client):
     """Sorting by created_at returns transactions in insertion order."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp1 = await _create_transaction(client, headers, account_id, category_id, amount=-1000, ts="2026-03-01T00:00:00Z")
-    resp2 = await _create_transaction(client, headers, account_id, category_id, amount=-2000, ts="2026-01-01T00:00:00Z")
+    resp1 = await _create_transaction(client, headers, account_id, category_id, amount=-1000, dt="2026-03-01")
+    resp2 = await _create_transaction(client, headers, account_id, category_id, amount=-2000, dt="2026-01-01")
 
     resp = await client.get("/transactions?sort_by=created_at&sort_order=asc", headers=headers)
 
@@ -547,12 +547,12 @@ async def test_list_transactions_filter_by_date_range(client):
     """Filtering by from_date and to_date returns transactions within the range."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-01-15T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-02-15T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-03-15T00:00:00Z")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-01-15")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-02-15")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-03-15")
 
     resp = await client.get(
-        "/transactions?from_date=2026-02-01T00:00:00Z&to_date=2026-02-28T23:59:59Z",
+        "/transactions?from_date=2026-02-01&to_date=2026-02-28",
         headers=headers,
     )
 
@@ -563,12 +563,12 @@ async def test_list_transactions_filter_by_date_range_is_inclusive(client):
     """Transactions exactly on from_date and to_date are included."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-02-01T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-02-15T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-02-28T23:59:59Z")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-02-01")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-02-15")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-02-28")
 
     resp = await client.get(
-        "/transactions?from_date=2026-02-01T00:00:00Z&to_date=2026-02-28T23:59:59Z",
+        "/transactions?from_date=2026-02-01&to_date=2026-02-28",
         headers=headers,
     )
 
@@ -579,10 +579,10 @@ async def test_list_transactions_filter_by_from_date_only(client):
     """Filtering with only from_date returns transactions on or after that date."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-01-15T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-03-15T00:00:00Z")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-01-15")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-03-15")
 
-    resp = await client.get("/transactions?from_date=2026-02-01T00:00:00Z", headers=headers)
+    resp = await client.get("/transactions?from_date=2026-02-01", headers=headers)
 
     assert len(resp.json()) == 1
 
@@ -591,10 +591,10 @@ async def test_list_transactions_filter_by_to_date_only(client):
     """Filtering with only to_date returns transactions on or before that date."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-01-15T00:00:00Z")
-    await _create_transaction(client, headers, account_id, category_id, ts="2026-03-15T00:00:00Z")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-01-15")
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-03-15")
 
-    resp = await client.get("/transactions?to_date=2026-02-01T00:00:00Z", headers=headers)
+    resp = await client.get("/transactions?to_date=2026-02-01", headers=headers)
 
     assert len(resp.json()) == 1
 
@@ -624,7 +624,7 @@ async def test_list_transactions_from_date_after_to_date_returns_422(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await client.get(
-        "/transactions?from_date=2026-04-01T00:00:00Z&to_date=2026-03-01T00:00:00Z",
+        "/transactions?from_date=2026-04-01&to_date=2026-03-01",
         headers=headers,
     )
 
@@ -642,10 +642,10 @@ async def test_list_transactions_pagination_limit(client):
     for i in range(5):
         await _create_transaction(
             client, headers, account_id, category_id,
-            amount=-(i + 1) * 1000, ts=f"2026-03-{i + 1:02d}T00:00:00Z",
+            amount=-(i + 1) * 1000, dt=f"2026-03-{i + 1:02d}",
         )
 
-    # Default sort is ts desc, so we expect the 3 most recent (Mar 5, 4, 3)
+    # Default sort is dt desc, so we expect the 3 most recent (Mar 5, 4, 3)
     resp = await client.get("/transactions?limit=3", headers=headers)
     data = resp.json()
     assert len(data) == 3
@@ -660,10 +660,10 @@ async def test_list_transactions_pagination_offset(client):
     for i in range(5):
         await _create_transaction(
             client, headers, account_id, category_id,
-            amount=-(i + 1) * 1000, ts=f"2026-03-{i + 1:02d}T00:00:00Z",
+            amount=-(i + 1) * 1000, dt=f"2026-03-{i + 1:02d}",
         )
 
-    # Default sort is ts desc: [Mar 5, 4, 3, 2, 1]. Offset 3 skips first 3, leaving Mar 2 and 1.
+    # Default sort is dt desc: [Mar 5, 4, 3, 2, 1]. Offset 3 skips first 3, leaving Mar 2 and 1.
     resp = await client.get("/transactions?limit=3&offset=3", headers=headers)
     data = resp.json()
     assert len(data) == 2
@@ -795,16 +795,16 @@ async def test_patch_transaction_updates_notes(client):
     assert resp.json()["notes"] == "Updated"
 
 
-async def test_patch_transaction_updates_ts(client):
-    """PATCH updates the timestamp field."""
+async def test_patch_transaction_updates_dt(client):
+    """PATCH updates the date field."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     create_resp = await _create_transaction(client, headers, account_id, category_id)
     txn_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/transactions/{txn_id}", json={"ts": "2026-01-01T00:00:00Z"}, headers=headers)
+    resp = await client.patch(f"/transactions/{txn_id}", json={"dt": "2026-01-01"}, headers=headers)
 
     assert resp.status_code == 200
-    assert "2026-01-01" in resp.json()["ts"]
+    assert resp.json()["dt"] == "2026-01-01"
 
 
 async def test_patch_transaction_updates_account(client):
@@ -1118,7 +1118,7 @@ async def test_create_transaction_on_closed_account_returns_422(client):
     # Close the account
     await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
+        json={"closed_at": "2026-03-01"},
         headers=headers,
     )
 
@@ -1137,7 +1137,7 @@ async def test_move_transaction_to_closed_account_returns_422(client):
     closed_account_id = second_acct_resp.json()["id"]
     await client.patch(
         f"/accounts/{closed_account_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
+        json={"closed_at": "2026-03-01"},
         headers=headers,
     )
 
@@ -1277,7 +1277,7 @@ async def test_update_transaction_on_closed_account_allows_non_move_edits(client
     txn_id = create_resp.json()["id"]
     await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
+        json={"closed_at": "2026-03-01"},
         headers=headers,
     )
 

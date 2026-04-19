@@ -846,7 +846,7 @@ async def test_delete_merchant_referenced_by_transaction_returns_409(client):
         "account_id": account_id,
         "category_id": category_id,
         "merchant_id": merchant_id,
-        "ts": "2026-03-15T12:00:00Z",
+        "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
     }, headers=headers)

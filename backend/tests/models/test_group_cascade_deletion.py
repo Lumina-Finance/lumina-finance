@@ -3,7 +3,7 @@
 Verifies that deleting a group cascades through its accounts to their
 transactions at the DB level.
 """
-from datetime import UTC, datetime
+from datetime import date
 
 import pytest
 from sqlalchemy import select
@@ -77,11 +77,11 @@ async def test_delete_group_cascades_to_accounts_and_transactions(
     """Deleting a group cascades through its accounts to their transactions."""
     t1 = Transaction(
         created_by_user_id=user.id, account_id=group_account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-1000, currency="CAD",
+        dt=date.today(), amount=-1000, currency="CAD",
     )
     t2 = Transaction(
         created_by_user_id=user.id, account_id=group_account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-2000, currency="CAD",
+        dt=date.today(), amount=-2000, currency="CAD",
     )
     db.add_all([t1, t2])
     await db.flush()

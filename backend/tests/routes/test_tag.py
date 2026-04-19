@@ -387,7 +387,7 @@ async def test_delete_tag_referenced_by_transaction_returns_409(client):
     txn_resp = await client.post("/transactions", json={
         "account_id": account_id,
         "category_id": category_id,
-        "ts": "2026-03-15T12:00:00Z",
+        "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
         "tag_ids": [tag_id],

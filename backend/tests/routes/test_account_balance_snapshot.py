@@ -52,7 +52,7 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
     payload = {
         "account_id": account_id,
         "category_id": category_id,
-        "ts": "2026-03-15T12:00:00Z",
+        "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
         **overrides,
@@ -154,7 +154,7 @@ async def test_create_transaction_after_creation_day_keeps_zero_anchor(client):
     # Far-future date so the recompute window starts well after the creation day
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-12-15T12:00:00Z", amount=5000,
+        dt="2026-12-15", amount=5000,
     )
 
     snapshots = await _get_snapshots_for(account_id)
@@ -186,7 +186,7 @@ async def test_create_transaction_before_creation_day_replaces_zero_anchor(clien
     # Past date — recompute starts at this day and wipes the creation-day anchor
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=5000,
+        dt="2026-03-15", amount=5000,
     )
 
     snapshots = await _get_snapshots_for(account_id)
@@ -212,7 +212,7 @@ async def test_create_transaction_writes_snapshot_for_its_date(client):
 
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
 
     snapshots = await _get_snapshots_for(account_id)
@@ -234,11 +234,11 @@ async def test_create_multiple_transactions_same_day_accumulates_balance(client)
 
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T09:00:00Z", amount=10000,
+        dt="2026-03-15", amount=10000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T15:00:00Z", amount=-3000,
+        dt="2026-03-15", amount=-3000,
     )
 
     snapshots = await _get_snapshots_for(account_id)
@@ -260,15 +260,15 @@ async def test_create_transactions_across_multiple_days_builds_running_balance(c
 
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-01T10:00:00Z", amount=10000,
+        dt="2026-03-01", amount=10000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-02T10:00:00Z", amount=-2000,
+        dt="2026-03-02", amount=-2000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-03T10:00:00Z", amount=-3000,
+        dt="2026-03-03", amount=-3000,
     )
 
     snapshots = await _get_snapshots_for(account_id)
@@ -294,7 +294,7 @@ async def test_failed_create_transaction_with_invalid_currency_leaves_no_snapsho
 
     resp = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000, currency="ZZZ",
+        dt="2026-03-15", amount=-5000, currency="ZZZ",
     )
     assert resp.status_code == 422
 
@@ -325,7 +325,7 @@ async def test_fx_rate_is_metadata_and_does_not_affect_snapshot_balance(client):
     # preserved as metadata.
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=14000, currency="USD", fx_rate=1.4,
+        dt="2026-03-15", amount=14000, currency="USD", fx_rate=1.4,
     )
 
     snapshots = await _get_snapshots_for(account_id)
@@ -349,7 +349,7 @@ async def test_update_transaction_amount_recomputes_same_day_balance(client):
 
     txn_resp = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn_resp.json()["id"]
 
@@ -373,15 +373,15 @@ async def test_update_transaction_amount_propagates_to_later_day_snapshots(clien
 
     txn1 = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-01T10:00:00Z", amount=10000,
+        dt="2026-03-01", amount=10000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-02T10:00:00Z", amount=-2000,
+        dt="2026-03-02", amount=-2000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-03T10:00:00Z", amount=-3000,
+        dt="2026-03-03", amount=-3000,
     )
 
     txn1_id = txn1.json()["id"]
@@ -407,13 +407,13 @@ async def test_update_transaction_ts_to_later_day_moves_snapshot(client):
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
     await client.patch(
         f"/transactions/{txn_id}",
-        json={"ts": "2026-03-20T12:00:00Z"},
+        json={"dt": "2026-03-20"},
         headers=headers,
     )
 
@@ -436,13 +436,13 @@ async def test_update_transaction_ts_to_earlier_day_recomputes_from_earlier_day(
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-20T12:00:00Z", amount=-5000,
+        dt="2026-03-20", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
     await client.patch(
         f"/transactions/{txn_id}",
-        json={"ts": "2026-03-10T12:00:00Z"},
+        json={"dt": "2026-03-10"},
         headers=headers,
     )
 
@@ -465,7 +465,7 @@ async def test_update_transaction_ts_within_same_utc_day_keeps_snapshot_unchange
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T09:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -474,7 +474,7 @@ async def test_update_transaction_ts_within_same_utc_day_keeps_snapshot_unchange
     # Same UTC day, different time of day
     await client.patch(
         f"/transactions/{txn_id}",
-        json={"ts": "2026-03-15T18:30:00Z"},
+        json={"dt": "2026-03-15"},
         headers=headers,
     )
 
@@ -496,7 +496,7 @@ async def test_update_transaction_account_id_recomputes_both_accounts(client):
 
     txn = await _create_transaction(
         client, headers, str(src_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -534,17 +534,17 @@ async def test_update_transaction_account_id_and_ts_recomputes_both_with_correct
     # Source has a fixed earlier transaction plus the one we'll move
     await _create_transaction(
         client, headers, str(src_id), category_id,
-        ts="2026-03-05T10:00:00Z", amount=10000,
+        dt="2026-03-05", amount=10000,
     )
     moving = await _create_transaction(
         client, headers, str(src_id), category_id,
-        ts="2026-03-15T10:00:00Z", amount=-3000,
+        dt="2026-03-15", amount=-3000,
     )
     moving_id = moving.json()["id"]
 
     await client.patch(
         f"/transactions/{moving_id}",
-        json={"account_id": str(dst_id), "ts": "2026-03-20T10:00:00Z"},
+        json={"account_id": str(dst_id), "dt": "2026-03-20"},
         headers=headers,
     )
 
@@ -577,17 +577,17 @@ async def test_update_account_move_into_dst_with_existing_history_recomputes_run
     # Destination already has activity bracketing the move's target day
     await _create_transaction(
         client, headers, str(dst_id), category_id,
-        ts="2026-03-10T12:00:00Z", amount=5000,
+        dt="2026-03-10", amount=5000,
     )
     await _create_transaction(
         client, headers, str(dst_id), category_id,
-        ts="2026-03-20T12:00:00Z", amount=-1000,
+        dt="2026-03-20", amount=-1000,
     )
 
     # Source has a transaction on day 15 that we'll move into the middle of dst
     moving = await _create_transaction(
         client, headers, str(src_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=2000,
+        dt="2026-03-15", amount=2000,
     )
     moving_id = moving.json()["id"]
 
@@ -620,15 +620,15 @@ async def test_update_amount_does_not_create_snapshots_for_unrelated_days(client
 
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-01T10:00:00Z", amount=10000,
+        dt="2026-03-01", amount=10000,
     )
     txn2 = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-02T10:00:00Z", amount=-2000,
+        dt="2026-03-02", amount=-2000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-03T10:00:00Z", amount=-3000,
+        dt="2026-03-03", amount=-3000,
     )
 
     txn2_id = txn2.json()["id"]
@@ -651,7 +651,7 @@ async def test_update_transaction_notes_only_does_not_change_snapshots(client):
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -677,7 +677,7 @@ async def test_update_transaction_tags_only_does_not_change_snapshots(client):
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -700,7 +700,7 @@ async def test_failed_update_with_invalid_category_does_not_change_snapshots(cli
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -733,7 +733,7 @@ async def test_failed_move_to_closed_account_leaves_both_account_snapshots_uncha
     # Close dst
     close_resp = await client.patch(
         f"/accounts/{dst_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
+        json={"closed_at": "2026-03-01"},
         headers=headers,
     )
     assert close_resp.status_code == 200
@@ -743,7 +743,7 @@ async def test_failed_move_to_closed_account_leaves_both_account_snapshots_uncha
 
     txn = await _create_transaction(
         client, headers, str(src_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -779,7 +779,7 @@ async def test_update_group_account_transaction_recomputes_snapshots(client):
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -806,7 +806,7 @@ async def test_delete_only_transaction_on_day_removes_snapshot(client):
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -832,11 +832,11 @@ async def test_delete_one_of_multiple_same_day_transactions_adjusts_balance(clie
 
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T09:00:00Z", amount=10000,
+        dt="2026-03-15", amount=10000,
     )
     txn2 = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T15:00:00Z", amount=-3000,
+        dt="2026-03-15", amount=-3000,
     )
     txn2_id = txn2.json()["id"]
 
@@ -860,15 +860,15 @@ async def test_delete_transaction_with_later_days_adjusts_balances(client):
 
     txn1 = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-01T10:00:00Z", amount=10000,
+        dt="2026-03-01", amount=10000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-02T10:00:00Z", amount=-2000,
+        dt="2026-03-02", amount=-2000,
     )
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-03T10:00:00Z", amount=-3000,
+        dt="2026-03-03", amount=-3000,
     )
 
     txn1_id = txn1.json()["id"]
@@ -897,7 +897,7 @@ async def test_delete_group_account_transaction_recomputes_snapshots(client):
 
     txn = await _create_transaction(
         client, headers, str(account_id), category_id,
-        ts="2026-03-15T12:00:00Z", amount=-5000,
+        dt="2026-03-15", amount=-5000,
     )
     txn_id = txn.json()["id"]
 
@@ -947,15 +947,15 @@ async def _seed_three_day_history(client, headers, account_id):
     category_id = cat_resp.json()["id"]
     await _create_transaction(
         client, headers, account_id, category_id,
-        ts="2026-03-01T10:00:00Z", amount=1000,
+        dt="2026-03-01", amount=1000,
     )
     await _create_transaction(
         client, headers, account_id, category_id,
-        ts="2026-03-05T10:00:00Z", amount=2000,
+        dt="2026-03-05", amount=2000,
     )
     await _create_transaction(
         client, headers, account_id, category_id,
-        ts="2026-03-10T10:00:00Z", amount=3000,
+        dt="2026-03-10", amount=3000,
     )
 
 
@@ -997,7 +997,7 @@ async def test_list_snapshots_filters_by_from_date(client):
 
     resp = await client.get(
         f"/accounts/{account_id}/snapshots",
-        params={"from_date": "2026-03-05T00:00:00Z"},
+        params={"from_date": "2026-03-05"},
         headers=headers,
     )
     assert resp.status_code == 200
@@ -1022,7 +1022,7 @@ async def test_list_snapshots_filters_by_to_date(client):
 
     resp = await client.get(
         f"/accounts/{account_id}/snapshots",
-        params={"to_date": "2026-03-05T00:00:00Z"},
+        params={"to_date": "2026-03-05"},
         headers=headers,
     )
     assert resp.status_code == 200
@@ -1045,8 +1045,8 @@ async def test_list_snapshots_filters_by_both_date_bounds(client):
     resp = await client.get(
         f"/accounts/{account_id}/snapshots",
         params={
-            "from_date": "2026-03-04T00:00:00Z",
-            "to_date": "2026-03-06T00:00:00Z",
+            "from_date": "2026-03-04",
+            "to_date": "2026-03-06",
         },
         headers=headers,
     )
@@ -1070,8 +1070,8 @@ async def test_list_snapshots_with_zero_width_date_range_returns_only_that_day(c
     resp = await client.get(
         f"/accounts/{account_id}/snapshots",
         params={
-            "from_date": "2026-03-05T00:00:00Z",
-            "to_date": "2026-03-05T00:00:00Z",
+            "from_date": "2026-03-05",
+            "to_date": "2026-03-05",
         },
         headers=headers,
     )
@@ -1094,8 +1094,8 @@ async def test_list_snapshots_returns_empty_when_no_snapshots_in_range(client):
     resp = await client.get(
         f"/accounts/{account_id}/snapshots",
         params={
-            "from_date": "2027-01-01T00:00:00Z",
-            "to_date": "2027-12-31T00:00:00Z",
+            "from_date": "2027-01-01",
+            "to_date": "2027-12-31",
         },
         headers=headers,
     )
@@ -1137,7 +1137,7 @@ async def test_list_snapshots_on_closed_account_still_returns_history(client):
     # Close the account
     close_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-04-01T00:00:00Z"},
+        json={"closed_at": "2026-04-01"},
         headers=headers,
     )
     assert close_resp.status_code == 200
@@ -1161,8 +1161,8 @@ async def test_list_snapshots_with_inverted_date_range_returns_422(client):
     resp = await client.get(
         f"/accounts/{account_id}/snapshots",
         params={
-            "from_date": "2026-04-01T00:00:00Z",
-            "to_date": "2026-03-01T00:00:00Z",
+            "from_date": "2026-04-01",
+            "to_date": "2026-03-01",
         },
         headers=headers,
     )

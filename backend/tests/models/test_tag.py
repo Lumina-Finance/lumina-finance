@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import date
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -65,7 +65,7 @@ async def transaction(db, user, currency):
 
     t = Transaction(
         created_by_user_id=user.id, account_id=account.id, category_id=category.id,
-        ts=datetime.now(UTC), amount=-50000, currency="CAD",
+        dt=date.today(), amount=-50000, currency="CAD",
     )
     db.add(t)
     await db.flush()

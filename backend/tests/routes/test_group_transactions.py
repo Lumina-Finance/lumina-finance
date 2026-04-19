@@ -54,7 +54,7 @@ async def _create_category(client, headers, **overrides):
 async def _create_transaction(client, headers, account_id, category_id, **overrides):
     """Create a transaction via POST /transactions.
 
-    Defaults: ts="2026-03-15T12:00:00Z", amount=-5000, currency="CAD".
+    Defaults: dt="2026-03-15", amount=-5000, currency="CAD".
 
     Args:
         client: The async test client.
@@ -69,7 +69,7 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
     payload = {
         "account_id": account_id,
         "category_id": category_id,
-        "ts": "2026-03-15T12:00:00Z",
+        "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
         **overrides,
@@ -484,7 +484,7 @@ async def test_create_transaction_on_closed_group_account_returns_422(client):
 
     await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
+        json={"closed_at": "2026-03-01"},
         headers=admin_headers,
     )
 
@@ -503,7 +503,7 @@ async def test_create_transaction_on_closed_group_account_with_write_permission_
 
     await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
+        json={"closed_at": "2026-03-01"},
         headers=admin_headers,
     )
 
@@ -526,7 +526,7 @@ async def test_move_transaction_to_closed_group_account_returns_422(client):
     closed_account_id = second_acct.json()["id"]
     await client.patch(
         f"/accounts/{closed_account_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
+        json={"closed_at": "2026-03-01"},
         headers=admin_headers,
     )
 
