@@ -93,7 +93,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-4 grid-cols-4">
           {/* Net Worth — current value + sparkline over trailing window */}
           <div
-            className="rounded-2xl h-[13.5rem] p-5 flex flex-col"
+            className="rounded-2xl h-[13.5rem] p-5 pb-2 flex flex-col"
             style={{
               background: 'var(--app-surface-soft)',
               border: '1px solid var(--app-border)',
