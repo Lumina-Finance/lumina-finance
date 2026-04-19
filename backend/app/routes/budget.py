@@ -84,7 +84,6 @@ async def get_budget_utilization(
     # so cross-scope spending never bleeds in.
     spend_map: dict[uuid.UUID, int] = {}
     if tracked_category_ids:
-        ts_day = cast(func.timezone("UTC", Transaction.ts), Date)
         scope_filter = (
             Account.group_id == base_budget.group_id
             if base_budget.group_id
@@ -98,8 +97,8 @@ async def get_budget_utilization(
             .join(Account, Transaction.account_id == Account.id)
             .where(
                 Transaction.category_id.in_(tracked_category_ids),
-                ts_day >= budget.period_start,
-                ts_day <= budget.period_end,
+                Transaction.dt >= budget.period_start,
+                Transaction.dt <= budget.period_end,
                 Account.currency == base_budget.currency,
                 scope_filter,
             )

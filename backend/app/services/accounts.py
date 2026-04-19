@@ -41,7 +41,7 @@ async def attach_tax_advantaged_tallies(db: AsyncSession, accounts: Sequence[Acc
         year_start = date(current_year, 1, 1)
         year_end = date(current_year + 1, 1, 1)
 
-        in_year = (Transaction.ts >= year_start) & (Transaction.ts < year_end)
+        in_year = (Transaction.dt >= year_start) & (Transaction.dt < year_end)
         positive = Transaction.amount > 0
         negative = Transaction.amount < 0
 

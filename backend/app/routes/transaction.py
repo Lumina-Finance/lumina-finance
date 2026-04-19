@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date
 from typing import Annotated
 
 import sqlalchemy as sa
@@ -40,7 +40,7 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 # Sortable fields mapped to their SQLAlchemy column objects
 _SORT_FIELDS: dict[str, MappedColumn] = {
-    "ts": Transaction.ts,
+    "dt": Transaction.dt,
     "amount": Transaction.amount,
     "created_at": Transaction.created_at,
     "updated_at": Transaction.updated_at,
@@ -138,8 +138,8 @@ async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: li
 async def get_transactions_overview(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    from_date: Annotated[datetime | None, Query()] = None,
-    to_date: Annotated[datetime | None, Query()] = None,
+    from_date: Annotated[date | None, Query()] = None,
+    to_date: Annotated[date | None, Query()] = None,
     account_id: Annotated[uuid.UUID | None, Query()] = None,
 ):
     """Aggregated transaction metrics for a date range."""
@@ -153,9 +153,9 @@ async def get_transactions_overview(
     if account_id is not None:
         base = base.where(Transaction.account_id == account_id)
     if from_date is not None:
-        base = base.where(Transaction.ts >= from_date)
+        base = base.where(Transaction.dt >= from_date)
     if to_date is not None:
-        base = base.where(Transaction.ts <= to_date)
+        base = base.where(Transaction.dt <= to_date)
 
     base_where = base.whereclause
 
@@ -191,16 +191,15 @@ async def get_transactions_overview(
     cat_rows = (await db.execute(cat_query)).all()
 
     # 3. Daily cash flow
-    day_col = sa.func.date(Transaction.ts).label("date")
     daily_query = (
         select(
-            day_col,
+            Transaction.dt.label("date"),
             sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
             sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
         )
         .where(base_where)
-        .group_by(day_col)
-        .order_by(day_col)
+        .group_by(Transaction.dt)
+        .order_by(Transaction.dt)
     )
     daily_rows = (await db.execute(daily_query)).all()
 
@@ -211,7 +210,7 @@ async def get_transactions_overview(
             Merchant.name.label("merchant_name"),
             Transaction.notes,
             Transaction.amount,
-            Transaction.ts,
+            Transaction.dt,
         )
         .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
         .where(base_where)
@@ -233,7 +232,7 @@ async def get_transactions_overview(
             for r in daily_rows
         ],
         outliers=[
-            OutlierTransaction(id=r.id, merchant_name=r.merchant_name, notes=r.notes, amount=r.amount, ts=r.ts)
+            OutlierTransaction(id=r.id, merchant_name=r.merchant_name, notes=r.notes, amount=r.amount, dt=r.dt)
             for r in outlier_rows
         ],
     )
@@ -247,10 +246,10 @@ async def list_transactions(
     category_id: Annotated[uuid.UUID | None, Query()] = None,
     merchant_id: Annotated[uuid.UUID | None, Query()] = None,
     currency: Annotated[str | None, Query()] = None,
-    from_date: Annotated[datetime | None, Query()] = None,
-    to_date: Annotated[datetime | None, Query()] = None,
+    from_date: Annotated[date | None, Query()] = None,
+    to_date: Annotated[date | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
-    sort_by: Annotated[str, Query()] = "ts",
+    sort_by: Annotated[str, Query()] = "dt",
     sort_order: Annotated[str, Query()] = "desc",
     limit: Annotated[int, Query(ge=1, le=50)] = 15,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -281,9 +280,9 @@ async def list_transactions(
 
     # Apply date range filters
     if from_date is not None:
-        query = query.where(Transaction.ts >= from_date)
+        query = query.where(Transaction.dt >= from_date)
     if to_date is not None:
-        query = query.where(Transaction.ts <= to_date)
+        query = query.where(Transaction.dt <= to_date)
 
     # Text search across merchant name and notes
     if q is not None:
@@ -348,7 +347,7 @@ async def create_transaction(
     txn = Transaction(
         created_by_user_id=user.id,
         account_id=data.account_id,
-        ts=data.ts,
+        dt=data.dt,
         merchant_id=data.merchant_id,
         category_id=data.category_id,
         amount=data.amount,
@@ -363,7 +362,7 @@ async def create_transaction(
         await _replace_tags(db, txn.id, validated_tag_ids)
 
     # Rebuild balance snapshots from this transaction's day forward
-    await recompute_snapshots_from(db, data.account_id, data.ts)
+    await recompute_snapshots_from(db, data.account_id, data.dt)
 
     await db.commit()
     await db.refresh(txn)
@@ -389,7 +388,7 @@ async def update_transaction(
 
     # Capture pre-change values needed to recompute balance snapshots
     old_account_id = txn.account_id
-    old_ts = txn.ts
+    old_dt = txn.dt
 
     # Resolve the account's group_id for category/merchant validation
     account_group_id = None
@@ -415,7 +414,7 @@ async def update_transaction(
         await _check_merchant_access_or_422(db, changed_fields["merchant_id"], user.id, account_group_id)
 
     # Snapshot recomputation is only needed when balance-affecting fields change
-    recompute_needed = bool({"account_id", "ts", "amount"} & changed_fields.keys())
+    recompute_needed = bool({"account_id", "dt", "amount"} & changed_fields.keys())
 
     # Handle tags separately — validate and replace in bulk
     new_tag_ids = changed_fields.pop("tag_ids", None)
@@ -431,11 +430,11 @@ async def update_transaction(
         await db.flush()
         if txn.account_id != old_account_id:
             # Account moved — recompute both sides from their respective affected days
-            await recompute_snapshots_from(db, old_account_id, old_ts)
-            await recompute_snapshots_from(db, txn.account_id, txn.ts)
+            await recompute_snapshots_from(db, old_account_id, old_dt)
+            await recompute_snapshots_from(db, txn.account_id, txn.dt)
         else:
             # Same account — recompute from the earliest affected day
-            await recompute_snapshots_from(db, txn.account_id, min(old_ts, txn.ts))
+            await recompute_snapshots_from(db, txn.account_id, min(old_dt, txn.dt))
 
     await db.commit()
     await db.refresh(txn)
@@ -455,7 +454,7 @@ async def delete_transaction(
 
     # Capture pre-delete values for snapshot recomputation
     account_id = txn.account_id
-    deleted_ts = txn.ts
+    deleted_dt = txn.dt
 
     # Delete junction rows before the transaction itself
     await db.execute(
@@ -465,6 +464,6 @@ async def delete_transaction(
     await db.flush()
 
     # Rebuild balance snapshots from this transaction's day forward
-    await recompute_snapshots_from(db, account_id, deleted_ts)
+    await recompute_snapshots_from(db, account_id, deleted_dt)
 
     await db.commit()
