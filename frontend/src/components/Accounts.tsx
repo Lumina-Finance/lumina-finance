@@ -151,7 +151,7 @@ export default function Accounts() {
               <div>
                 <p className="app-label mb-1.5">Net Worth</p>
                 <p
-                  className="font-financial font-semibold tracking-tight leading-none text-6xl"
+                  className="font-financial font-semibold tracking-tight leading-none text-[3.375rem]"
                   style={{
                     color: netWorth >= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
                   }}
@@ -169,7 +169,7 @@ export default function Accounts() {
                   >
                     {formatCurrency(totalAssets, displayCurrency)}
                   </p>
-                  <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
                     {assetCount} account{assetCount !== 1 ? 's' : ''}
                   </p>
                 </div>
@@ -181,7 +181,7 @@ export default function Accounts() {
                   >
                     {formatCurrency(totalDebts, displayCurrency)}
                   </p>
-                  <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
                     {debtCount} account{debtCount !== 1 ? 's' : ''}
                   </p>
                 </div>
@@ -215,7 +215,7 @@ export default function Accounts() {
                 {savingsRate === null ? '—' : `${savingsRate}%`}
               </p>
               <p
-                className="font-financial mt-2 text-[clamp(0.625rem,0.7vw,0.6875rem)]"
+                className="font-financial mt-2 text-[clamp(0.875rem,1vw,0.9375rem)]"
                 style={{ color: 'var(--app-text-subtle)' }}
               >
                 {savingsRate === null
@@ -247,7 +247,7 @@ export default function Accounts() {
                   />
                 </div>
                 <p
-                  className="font-financial text-[clamp(0.625rem,0.7vw,0.6875rem)]"
+                  className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
                   style={{ color: 'var(--app-text-subtle)' }}
                 >
                   {formatCurrency(totalCreditUsed, displayCurrency)} of{' '}

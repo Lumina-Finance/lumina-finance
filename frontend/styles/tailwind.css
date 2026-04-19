@@ -197,7 +197,7 @@
 
   .app-label {
     @apply font-semibold lg:font-medium normal-case tracking-[0.04em];
-    font-size: clamp(0.875rem, 1.1vw, 0.9375rem);
+    font-size: clamp(0.9375rem, 1.2vw, 1.0625rem);
     color: var(--app-text-muted);
   }
 
