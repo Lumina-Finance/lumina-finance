@@ -117,11 +117,23 @@ export default function Transactions() {
   const { user } = useAuth()
   const displayCurrency = user!.base_currency
 
+  // Default the overview window to the current calendar month (user's timezone)
+  // unless the user explicitly set a date filter via the chip.
+  const { monthStart, today } = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone: user!.tz,
+    })
+    const todayStr = fmt.format(new Date())  // "YYYY-MM-DD"
+    const monthStartStr = `${todayStr.slice(0, 7)}-01`
+    return { monthStart: monthStartStr, today: todayStr }
+  }, [user])
+
   // Overview only supports account_id + date range; category filter applies to the list only
   const { data: overview } = useTransactionsOverview({
     account_id: filters.account_id,
-    from_date: filters.from_date,
-    to_date: filters.to_date,
+    from_date: filters.from_date ?? monthStart,
+    to_date: filters.to_date ?? today,
   })
   const {
     data: txnPages,
