@@ -99,6 +99,10 @@ export interface UpdateTransactionPayload {
 
 // ── Helpers ──
 
+// Fields whose value never feeds into any TransactionsOverview aggregate, so an
+// edit limited to these can skip the overview refetch.
+const OVERVIEW_INDEPENDENT_FIELDS = new Set<string>(['notes', 'tag_ids']);
+
 function buildQueryString(params: Record<string, string | number | undefined>): string {
   const entries = Object.entries(params).filter(
     (entry): entry is [string, string | number] => entry[1] !== undefined,
@@ -183,7 +187,7 @@ export function useUpdateTransaction() {
         method: 'PATCH',
         body: JSON.stringify(patch),
       }),
-    onSuccess: (updated) => {
+    onSuccess: (updated, { patch }) => {
       // Patch the row in-place across cached lists instead of refetching them.
       // Infinite-query caches hold InfiniteData<Transaction[]>; the plain query holds Transaction[].
       queryClient.setQueriesData<InfiniteData<Transaction[]>>(
@@ -200,7 +204,14 @@ export function useUpdateTransaction() {
         { predicate: (q) => q.queryKey[0] === 'transactions' && q.queryKey[1] !== 'infinite' },
         (old) => old?.map((t) => (t.id === updated.id ? updated : t)),
       );
-      queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
+      // Skip the overview refetch when the patch only touches fields that don't
+      // feed any aggregate (totals, top categories, daily flow, outlier ranks).
+      const onlyDisplayFields = Object.keys(patch).every((k) =>
+        OVERVIEW_INDEPENDENT_FIELDS.has(k),
+      );
+      if (!onlyDisplayFields) {
+        queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
+      }
     },
   });
 }
