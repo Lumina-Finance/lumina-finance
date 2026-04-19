@@ -1,13 +1,12 @@
 """Account balance snapshot maintenance.
 
 Snapshots are derived from transactions: one row per `(account, day)` where a
-transaction occurred. `AccountBalanceSnapshot.ts` is always stored as midnight
-UTC of the snapshot's day. The helpers here are called from the transaction
-routes after any mutation to keep the snapshot table consistent.
+transaction occurred. The helpers here are called from the transaction routes
+after any mutation to keep the snapshot table consistent.
 """
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, date, datetime, time
+from datetime import date
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +20,7 @@ async def get_current_balances(
 ) -> dict[uuid.UUID, int]:
     """Return the most recent snapshot balance for each account in one query.
 
-    Uses Postgres ``DISTINCT ON`` to pick the row with the highest ``ts`` per account
+    Uses Postgres ``DISTINCT ON`` to pick the row with the highest ``dt`` per account
     without a self-join. Trusts that every account has at least one snapshot (the
     zero anchor inserted at account creation time).
     """
@@ -31,7 +30,7 @@ async def get_current_balances(
     result = await db.execute(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
         .where(AccountBalanceSnapshot.account_id.in_(account_ids))
-        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.ts.desc())
+        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
         .distinct(AccountBalanceSnapshot.account_id),
     )
     return {row.account_id: row.balance for row in result}
@@ -58,7 +57,7 @@ async def recompute_snapshots_from(
     Finds the most recent snapshot strictly before ``from_dt`` to use as an
     anchor balance, deletes all snapshots from that day onwards, then walks
     forward through the transactions on this account grouped by day, writing
-    one snapshot per day with activity (stored at midnight UTC of that day).
+    one snapshot per day with activity.
 
     Call this after any transaction mutation affecting the account:
     - create: pass the new transaction's dt
@@ -70,18 +69,14 @@ async def recompute_snapshots_from(
         account_id: UUID of the account whose snapshots need recomputing.
         from_dt: Rebuild snapshots for this date and forward.
     """
-    # Snapshot ts is stored as midnight UTC of the day; build the same anchor here
-    # so the comparison against AccountBalanceSnapshot.ts (DateTime) is exact.
-    window_start = datetime.combine(from_dt, time.min, tzinfo=UTC)
-
-    # Anchor balance: most recent snapshot strictly before window_start, or 0
+    # Anchor balance: most recent snapshot strictly before from_dt, or 0
     anchor_result = await db.execute(
         select(AccountBalanceSnapshot.balance)
         .where(
             AccountBalanceSnapshot.account_id == account_id,
-            AccountBalanceSnapshot.ts < window_start,
+            AccountBalanceSnapshot.dt < from_dt,
         )
-        .order_by(AccountBalanceSnapshot.ts.desc())
+        .order_by(AccountBalanceSnapshot.dt.desc())
         .limit(1),
     )
     anchor = anchor_result.scalar_one_or_none()
@@ -91,7 +86,7 @@ async def recompute_snapshots_from(
     await db.execute(
         delete(AccountBalanceSnapshot).where(
             AccountBalanceSnapshot.account_id == account_id,
-            AccountBalanceSnapshot.ts >= window_start,
+            AccountBalanceSnapshot.dt >= from_dt,
         ),
     )
 
@@ -110,10 +105,9 @@ async def recompute_snapshots_from(
     # Walk forward, writing one snapshot per day with activity
     for row in deltas_result:
         running_balance += row.delta
-        day_midnight = datetime.combine(row.dt, time.min, tzinfo=UTC)
         db.add(AccountBalanceSnapshot(
             account_id=account_id,
-            ts=day_midnight,
+            dt=row.dt,
             balance=running_balance,
         ))
 

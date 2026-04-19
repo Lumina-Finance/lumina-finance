@@ -16,7 +16,7 @@ Foreign-currency rows are excluded until fx conversion lands.
 """
 import calendar
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -148,9 +148,7 @@ async def get_net_worth_history(
         return 0, series
 
     today = now.date()
-    window_start = datetime.combine(
-        today - timedelta(days=window_days - 1), time.min, tzinfo=UTC,
-    )
+    window_start = today - timedelta(days=window_days - 1)
     ids = [a.id for a in base_currency_accounts]
     sign_by_id = {
         a.id: 1 if a.account_kind == AccountKind.ASSET else -1
@@ -162,9 +160,9 @@ async def get_net_worth_history(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
         .where(
             AccountBalanceSnapshot.account_id.in_(ids),
-            AccountBalanceSnapshot.ts < window_start,
+            AccountBalanceSnapshot.dt < window_start,
         )
-        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.ts.desc())
+        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
         .distinct(AccountBalanceSnapshot.account_id),
     )
     running: dict[uuid.UUID, int] = {row.account_id: row.balance for row in anchor_result}
@@ -176,22 +174,20 @@ async def get_net_worth_history(
         select(
             AccountBalanceSnapshot.account_id,
             AccountBalanceSnapshot.balance,
-            AccountBalanceSnapshot.ts,
+            AccountBalanceSnapshot.dt,
         )
         .where(
             AccountBalanceSnapshot.account_id.in_(ids),
-            AccountBalanceSnapshot.ts >= window_start,
+            AccountBalanceSnapshot.dt >= window_start,
         )
-        .order_by(AccountBalanceSnapshot.ts),
+        .order_by(AccountBalanceSnapshot.dt),
     )
     updates_by_day: dict[date, dict[uuid.UUID, int]] = {}
     for row in in_window_result:
-        day = row.ts.astimezone(UTC).date()
-        updates_by_day.setdefault(day, {})[row.account_id] = row.balance
+        updates_by_day.setdefault(row.dt, {})[row.account_id] = row.balance
 
-    window_start_day = window_start.date()
     for day_idx in range(window_days):
-        current_day = window_start_day + timedelta(days=day_idx)
+        current_day = window_start + timedelta(days=day_idx)
         if current_day > today:
             break
         for aid, balance in updates_by_day.get(current_day, {}).items():
