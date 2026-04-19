@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -85,8 +85,8 @@ async def list_account_balance_snapshots(
     account_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    from_date: Annotated[datetime | None, Query()] = None,
-    to_date: Annotated[datetime | None, Query()] = None,
+    from_date: Annotated[date | None, Query()] = None,
+    to_date: Annotated[date | None, Query()] = None,
 ):
     """Return the account's daily balance snapshots, ordered ascending by ts.
 
@@ -103,10 +103,12 @@ async def list_account_balance_snapshots(
         )
 
     query = select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id)
+    # Snapshot ts is stored as midnight UTC of the snapshot's day; convert the
+    # date bounds to matching tz-aware datetimes so the inclusive comparison works.
     if from_date is not None:
-        query = query.where(AccountBalanceSnapshot.ts >= from_date)
+        query = query.where(AccountBalanceSnapshot.ts >= datetime.combine(from_date, time.min, tzinfo=UTC))
     if to_date is not None:
-        query = query.where(AccountBalanceSnapshot.ts <= to_date)
+        query = query.where(AccountBalanceSnapshot.ts <= datetime.combine(to_date, time.min, tzinfo=UTC))
     query = query.order_by(AccountBalanceSnapshot.ts)
 
     result = await db.execute(query)
