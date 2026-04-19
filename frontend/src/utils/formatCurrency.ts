@@ -9,5 +9,7 @@ export function formatCurrency(minorUnits: number, currency: string): string {
     currencySign: 'accounting',
   })
   const exponent = fmt.resolvedOptions().maximumFractionDigits ?? 2
-  return fmt.format(minorUnits / Math.pow(10, exponent))
+  // Normalize -0 to 0 so accounting sign doesn't wrap zero in parentheses.
+  const value = minorUnits / Math.pow(10, exponent) || 0
+  return fmt.format(value)
 }
