@@ -1,12 +1,20 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { X } from 'lucide-react'
+import { Check, Trash2, X } from 'lucide-react'
 import Dropdown from '@/components/Dropdown'
+import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useMerchants, useCreateMerchant } from '@/api/merchants'
 import { useCurrencies } from '@/api/currency'
-import { useCreateTransaction, type CreateTransactionPayload } from '@/api/transactions'
+import {
+  useCreateTransaction,
+  useDeleteTransaction,
+  useUpdateTransaction,
+  type CreateTransactionPayload,
+  type Transaction,
+  type UpdateTransactionPayload,
+} from '@/api/transactions'
 import { ApiError } from '@/api/auth'
 
 /* ── Constants ── */
@@ -39,6 +47,19 @@ function todayLocalString(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// Convert an ISO timestamp to "YYYY-MM-DD" interpreted in the user's timezone.
+function tsToDateInputValue(isoTs: string, tz: string): string {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz,
+  })
+  return fmt.format(new Date(isoTs))
+}
+
+// Convert minor units (signed) to a fixed-decimal positive string for the amount input.
+function amountToInputString(amountMinor: number, exponent: number): string {
+  return (Math.abs(amountMinor) / Math.pow(10, exponent)).toFixed(exponent)
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -94,20 +115,78 @@ function validate(form: typeof INITIAL_FORM): FieldErrors {
 interface CreateTransactionModalProps {
   open: boolean
   onClose: () => void
+  /** When set, the modal opens in edit mode for this transaction. */
+  transaction?: Transaction
 }
 
-export default function CreateTransactionModal({ open, onClose }: CreateTransactionModalProps) {
-  const mutation = useCreateTransaction()
+export default function CreateTransactionModal({ open, onClose, transaction }: CreateTransactionModalProps) {
+  const editing = !!transaction
+  const createMutation = useCreateTransaction()
+  const updateMutation = useUpdateTransaction()
+  const deleteMutation = useDeleteTransaction()
   const createMerchant = useCreateMerchant()
+  const { user } = useAuth()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: merchants = [] } = useMerchants()
   const { data: currencies = [] } = useCurrencies()
 
-  const [form, setForm] = useState(() => ({ ...INITIAL_FORM, date: todayLocalString() }))
+  // Build the initial form from the existing transaction (edit) or sensible defaults (create).
+  const initialForm = useMemo(() => {
+    if (!transaction) return { ...INITIAL_FORM, date: todayLocalString() }
+    const category = categories.find((c) => c.id === transaction.category_id)
+    const exp = currencies.find((c) => c.id === transaction.currency)?.minor_unit_exponent ?? 2
+    return {
+      kind: (category?.kind as Kind) ?? 'expense',
+      account_id: transaction.account_id,
+      category_id: transaction.category_id,
+      merchant_id: transaction.merchant_id ?? '',
+      amount: amountToInputString(transaction.amount, exp),
+      currency: transaction.currency,
+      notes: transaction.notes ?? '',
+      date: tsToDateInputValue(transaction.ts, user?.tz ?? 'UTC'),
+    }
+  }, [transaction, categories, currencies, user])
+
+  const [form, setForm] = useState(initialForm)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitError, setSubmitError] = useState('')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const deleteButtonRef = useRef<HTMLButtonElement>(null)
+  const idleLabelRef = useRef<HTMLSpanElement>(null)
+  const confirmLabelRef = useRef<HTMLSpanElement>(null)
+  const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
+
+  // Measure both label widths once after mount so we can drive a smooth width transition.
+  useLayoutEffect(() => {
+    if (!editing) return
+    if (idleLabelRef.current && confirmLabelRef.current) {
+      setLabelWidths({
+        idle: idleLabelRef.current.offsetWidth,
+        confirm: confirmLabelRef.current.offsetWidth,
+      })
+    }
+  }, [editing])
+
+  // Cancel pending deletion if the user clicks anywhere outside the Delete button.
+  useEffect(() => {
+    if (!confirmingDelete) return
+    const onPointer = (e: PointerEvent) => {
+      if (deleteButtonRef.current && !deleteButtonRef.current.contains(e.target as Node)) {
+        setConfirmingDelete(false)
+      }
+    }
+    // defer to next tick so the click that armed confirmation doesn't immediately undo it
+    const t = setTimeout(() => window.addEventListener('pointerdown', onPointer), 0)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('pointerdown', onPointer)
+    }
+  }, [confirmingDelete])
+
+  const submitMutation = editing ? updateMutation : createMutation
+  const isPending = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
 
   const categoryById = useMemo(() => {
     const map = new Map<string, Category>()
@@ -215,16 +294,40 @@ export default function CreateTransactionModal({ open, onClose }: CreateTransact
     setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true })
     if (Object.keys(errors).length > 0) return
 
-    // Convert major units (e.g. dollars) → minor units (e.g. cents)
     const selectedCurrency = currencies.find((c) => c.id === form.currency)
     const minorMultiplier = Math.pow(10, selectedCurrency?.minor_unit_exponent ?? 2)
     const magnitude = Math.round(parseFloat(form.amount) * minorMultiplier)
-    // Expense and transfer outflows store as negative; income stores as positive.
     const signedAmount = form.kind === 'income' ? magnitude : -magnitude
-
-    // Always store at 00:00 local time on the chosen date
     const [yr, mo, day] = form.date.split('-').map(Number)
     const ts = new Date(yr, mo - 1, day).toISOString()
+    const notes = form.notes.trim() || null
+
+    if (editing && transaction) {
+      // Build a minimal patch from fields that actually changed
+      const patch: UpdateTransactionPayload = {}
+      if (form.account_id !== transaction.account_id) patch.account_id = form.account_id
+      if (form.category_id !== transaction.category_id) patch.category_id = form.category_id
+      if (form.merchant_id !== (transaction.merchant_id ?? '')) patch.merchant_id = form.merchant_id || null
+      if (signedAmount !== transaction.amount) patch.amount = signedAmount
+      if (form.date !== initialForm.date) patch.ts = ts
+      if (notes !== (transaction.notes ?? null)) patch.notes = notes
+
+      if (Object.keys(patch).length === 0) {
+        onClose()
+        return
+      }
+
+      updateMutation.mutate(
+        { id: transaction.id, patch },
+        {
+          onSuccess: () => onClose(),
+          onError: (err) => {
+            setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+          },
+        },
+      )
+      return
+    }
 
     const payload: CreateTransactionPayload = {
       account_id: form.account_id,
@@ -233,13 +336,24 @@ export default function CreateTransactionModal({ open, onClose }: CreateTransact
       merchant_id: form.merchant_id,
       amount: signedAmount,
       currency: form.currency,
-      notes: form.notes.trim() || null,
+      notes,
     }
 
-    mutation.mutate(payload, {
+    createMutation.mutate(payload, {
       onSuccess: () => onClose(),
       onError: (err) => {
         setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+      },
+    })
+  }
+
+  const handleDelete = () => {
+    if (!transaction) return
+    deleteMutation.mutate(transaction.id, {
+      onSuccess: () => onClose(),
+      onError: (err) => {
+        setConfirmingDelete(false)
+        setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
       },
     })
   }
@@ -289,7 +403,7 @@ export default function CreateTransactionModal({ open, onClose }: CreateTransact
                   id="create-txn-title"
                   className="font-serif text-3xl font-light tracking-tight"
                 >
-                  Add Transaction
+                  {editing ? 'Edit Transaction' : 'Add Transaction'}
                 </h2>
                 <button
                   type="button"
@@ -304,7 +418,7 @@ export default function CreateTransactionModal({ open, onClose }: CreateTransact
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-                {/* Kind pills */}
+                {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
                 <div className="flex gap-2">
                   {KIND_OPTIONS.map((opt) => {
                     const selected = form.kind === opt.value
@@ -312,12 +426,15 @@ export default function CreateTransactionModal({ open, onClose }: CreateTransact
                       <button
                         key={opt.value}
                         type="button"
-                        onClick={() => handleKindChange(opt.value)}
-                        className="flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-150"
+                        onClick={() => !editing && handleKindChange(opt.value)}
+                        disabled={editing}
+                        aria-disabled={editing}
+                        className="flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed"
                         style={{
                           background: selected ? 'var(--app-accent-soft)' : 'transparent',
                           color: selected ? 'var(--app-accent)' : 'var(--app-text-muted)',
                           border: `1px solid ${selected ? 'var(--app-accent-border)' : 'var(--app-border)'}`,
+                          opacity: editing && !selected ? 0.4 : 1,
                         }}
                       >
                         {opt.label}
@@ -471,6 +588,7 @@ export default function CreateTransactionModal({ open, onClose }: CreateTransact
                       placeholder={currencies.length === 0 ? 'Loading…' : 'Select…'}
                       searchable
                       searchPlaceholder="Search currencies..."
+                      disabled={editing}
                     />
                   </div>
                 </div>
@@ -518,24 +636,92 @@ export default function CreateTransactionModal({ open, onClose }: CreateTransact
 
                 {/* Footer */}
                 <div
-                  className="flex items-center justify-end gap-3 pt-4"
+                  className="flex items-center gap-3 pt-4"
                   style={{ borderTop: '1px solid var(--app-border)' }}
                 >
-                  <button
-                    type="button"
-                    className="app-secondary-button"
-                    onClick={onClose}
-                    disabled={mutation.isPending}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={mutation.isPending}
-                    className={`app-primary-button ${mutation.isPending ? 'app-primary-button-loading' : ''}`}
-                  >
-                    {mutation.isPending ? <div className="app-spinner" /> : 'Add Transaction'}
-                  </button>
+                  {editing && (
+                    <button
+                      ref={deleteButtonRef}
+                      type="button"
+                      onClick={() => {
+                        if (isPending) return
+                        if (confirmingDelete) handleDelete()
+                        else setConfirmingDelete(true)
+                      }}
+                      disabled={isPending}
+                      className={`app-primary-button ${isPending && confirmingDelete ? 'app-primary-button-loading' : ''}`}
+                      style={{
+                        background: 'var(--app-negative)',
+                        color: 'white',
+                        boxShadow: '0 4px 20px color-mix(in srgb, var(--app-negative) 28%, transparent)',
+                      }}
+                    >
+                      {isPending && confirmingDelete ? (
+                        <div className="app-spinner" />
+                      ) : (
+                        <span
+                          className="relative block"
+                          style={{
+                            width: labelWidths
+                              ? `${confirmingDelete ? labelWidths.confirm : labelWidths.idle}px`
+                              : 'auto',
+                            height: '1.25rem',
+                            transition: 'width 220ms cubic-bezier(0.25, 0.1, 0.25, 1)',
+                          }}
+                        >
+                          {/* Hidden refs measure the natural width of each label once on mount */}
+                          <span
+                            ref={idleLabelRef}
+                            className="invisible absolute inline-flex items-center gap-2 whitespace-nowrap"
+                            aria-hidden
+                          >
+                            <Trash2 size={16} aria-hidden />
+                            Delete
+                          </span>
+                          <span
+                            ref={confirmLabelRef}
+                            className="invisible absolute inline-flex items-center gap-2 whitespace-nowrap"
+                            aria-hidden
+                          >
+                            <Check size={16} aria-hidden />
+                            Yes, delete
+                          </span>
+                          {/* Visible labels stack and crossfade */}
+                          <span
+                            className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                            style={{ opacity: confirmingDelete ? 0 : 1 }}
+                          >
+                            <Trash2 size={16} aria-hidden />
+                            Delete
+                          </span>
+                          <span
+                            className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                            style={{ opacity: confirmingDelete ? 1 : 0 }}
+                          >
+                            <Check size={16} aria-hidden />
+                            Yes, delete
+                          </span>
+                        </span>
+                      )}
+                    </button>
+                  )}
+                  <div className="ml-auto flex items-center gap-3">
+                    <button
+                      type="button"
+                      className="app-secondary-button"
+                      onClick={onClose}
+                      disabled={isPending}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className={`app-primary-button ${submitMutation.isPending ? 'app-primary-button-loading' : ''}`}
+                    >
+                      {submitMutation.isPending ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>

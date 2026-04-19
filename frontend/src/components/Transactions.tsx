@@ -103,6 +103,18 @@ export default function Transactions() {
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+
+  const openCreateModal = () => {
+    setEditingTransaction(null)
+    setCreateModalKey((k) => k + 1)
+    setShowCreateModal(true)
+  }
+  const openEditModal = (txn: Transaction) => {
+    setEditingTransaction(txn)
+    setCreateModalKey((k) => k + 1)
+    setShowCreateModal(true)
+  }
   const [filters, setFilters] = useState<TransactionFilterValues>({})
 
   const setFilter = (patch: Partial<TransactionFilterValues>) => {
@@ -561,7 +573,7 @@ export default function Transactions() {
         <button
           type="button"
           className="app-primary-button"
-          onClick={() => { setCreateModalKey((k) => k + 1); setShowCreateModal(true) }}
+          onClick={openCreateModal}
         >
           <Plus size={16} aria-hidden />
           Add Transaction
@@ -626,7 +638,16 @@ export default function Transactions() {
                     return (
                       <div
                         key={t.id}
-                        className="flex items-center gap-4 py-3.5 px-3"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openEditModal(t)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            openEditModal(t)
+                          }
+                        }}
+                        className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
                         style={{ borderBottom: '1px solid var(--app-border)' }}
                       >
                         {/* Category icon */}
@@ -708,6 +729,7 @@ export default function Transactions() {
         key={createModalKey}
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
+        transaction={editingTransaction ?? undefined}
       />
     </div>
   )

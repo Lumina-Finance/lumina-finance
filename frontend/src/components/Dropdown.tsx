@@ -16,6 +16,7 @@ interface DropdownProps {
   placeholder?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
+  disabled?: boolean;
   /** Called when search yields no results and the user clicks "Create {query}". */
   onCreateNew?: (query: string) => void;
 }
@@ -28,6 +29,7 @@ const Dropdown = ({
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
+  disabled = false,
   onCreateNew,
 }: DropdownProps) => {
   const [open, setOpen] = useState(false);
@@ -152,8 +154,10 @@ const Dropdown = ({
         role="combobox"
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="app-input flex items-center justify-between gap-2 text-left"
+        disabled={disabled}
+        className="app-input flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60"
         onClick={() => {
+          if (disabled) return;
           if (!open) {
             updateListPosition();
             setHighlightedIndex(options.findIndex((o) => o.value === value));
