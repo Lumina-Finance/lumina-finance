@@ -80,6 +80,17 @@ export interface CreateTransactionPayload {
   tag_ids?: string[];
 }
 
+export interface UpdateTransactionPayload {
+  account_id?: string;
+  ts?: string;
+  category_id?: string;
+  amount?: number;
+  merchant_id?: string | null;
+  fx_rate?: number | null;
+  notes?: string | null;
+  tag_ids?: string[];
+}
+
 // ── Helpers ──
 
 function buildQueryString(params: Record<string, string | number | undefined>): string {
@@ -151,6 +162,33 @@ export function useCreateTransaction() {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
+    },
+  });
+}
+
+export function useUpdateTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateTransactionPayload }) =>
+      authenticatedFetch<Transaction>(`/transactions/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
+    },
+  });
+}
+
+export function useDeleteTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
