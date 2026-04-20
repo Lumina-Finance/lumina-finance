@@ -187,7 +187,7 @@ export default function Accounts() {
                   <p className="app-label mb-0.5">Liabilities</p>
                   <p
                     className="font-financial font-medium text-xl"
-                    style={{ color: totalDebts < 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
+                    style={{ color: totalDebts < 0 ? 'var(--app-negative)' : 'var(--app-text)' }}
                   >
                     {formatCurrency(totalDebts, displayCurrency)}
                   </p>
@@ -328,7 +328,7 @@ export default function Accounts() {
             />
             <span
               className="font-financial font-semibold shrink-0 text-xl"
-              style={{ color: totalDebts < 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
+              style={{ color: totalDebts < 0 ? 'var(--app-negative)' : 'var(--app-text)' }}
             >
               {formatCurrency(-totalDebts, displayCurrency)}
             </span>
@@ -367,11 +367,9 @@ export default function Accounts() {
                         className="font-financial font-medium"
                         style={{
                           color:
-                            account.current_balance > 0
+                            account.current_balance < 0
                               ? 'var(--app-negative)'
-                              : account.current_balance < 0
-                                ? 'var(--app-positive)'
-                                : 'var(--app-text)',
+                              : 'var(--app-text)',
                         }}
                       >
                         {formatCurrency(-account.current_balance, displayCurrency)}
