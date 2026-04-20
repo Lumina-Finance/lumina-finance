@@ -31,10 +31,6 @@ export interface DashboardResponse {
   credit_limit_total: number;
   credit_used: number;
 
-  current_month_cumulative: number[];
-  historical_avg_cumulative: number[] | null;
-  historical_months_averaged: number;
-
   recurring_expenses_estimate: number | null;
   savings_rate_history: MonthlyIncomeExpense[];
 

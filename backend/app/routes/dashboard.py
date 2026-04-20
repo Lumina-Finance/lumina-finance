@@ -19,8 +19,6 @@ from app.services.dashboard import (
     get_accessible_accounts,
     get_active_budgets,
     get_credit_widget,
-    get_current_month_cumulative,
-    get_historical_avg_cumulative,
     get_net_worth_history,
     get_recent_transactions,
     get_savings_rate_history,
@@ -50,8 +48,6 @@ async def get_dashboard(
     recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
     active_budgets = await get_active_budgets(db, user, now)
 
-    current_month_cumulative = await get_current_month_cumulative(db, base_currency_account_ids, now)
-    historical_avg_cumulative, historical_months_averaged = await get_historical_avg_cumulative(db, base_currency_account_ids, now)
     savings_rate_history = await get_savings_rate_history(db, base_currency_account_ids, now)
 
     return DashboardResponse(
@@ -60,9 +56,6 @@ async def get_dashboard(
         net_worth_window_days=window_days,
         credit_limit_total=credit_limit_total,
         credit_used=credit_used,
-        current_month_cumulative=current_month_cumulative,
-        historical_avg_cumulative=historical_avg_cumulative,
-        historical_months_averaged=historical_months_averaged,
         recurring_expenses_estimate=None,
         savings_rate_history=savings_rate_history,
         upcoming_bills=None,

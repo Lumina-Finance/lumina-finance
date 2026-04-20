@@ -85,19 +85,6 @@ class DashboardResponse(BaseModel):
     - `credit_used` is the absolute value of the current outstanding balance on
       those same accounts (liability balances are stored as negatives).
 
-    Spending comparison fields:
-    - `current_month_cumulative` is a day-by-day cumulative expense total for
-      the current calendar month (index 0 = day 1). Length = today's
-      day-of-month, so the frontend draws a line from day 1 up to today.
-    - `historical_avg_cumulative` is the average cumulative expense curve
-      across up to six complete prior months (index 0 = day 1). Length = days
-      in the current month, so it aligns on the same x-axis and extends to
-      month-end. `None` when the user has no complete prior months with
-      expenses in their base currency.
-    - `historical_months_averaged` is the number of prior months that
-      contributed to the average (0 when None, else 1-6). Lets the frontend
-      label the comparison line (e.g. "3-month average").
-
     Recurring / savings rate:
     - `recurring_expenses_estimate` is reserved for an estimated monthly total
       of recurring expenses over the trailing three months. Ships as `None`
@@ -120,10 +107,6 @@ class DashboardResponse(BaseModel):
 
     credit_limit_total: int
     credit_used: int
-
-    current_month_cumulative: list[int]
-    historical_avg_cumulative: list[int] | None
-    historical_months_averaged: int
 
     recurring_expenses_estimate: int | None
     savings_rate_history: list[MonthlyIncomeExpense]

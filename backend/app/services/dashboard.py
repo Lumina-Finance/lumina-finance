@@ -22,7 +22,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
-    DASHBOARD_HISTORICAL_MONTHS_TO_AVERAGE,
     DASHBOARD_RECENT_TRANSACTIONS_LIMIT,
     DASHBOARD_SAVINGS_HISTORY_MONTHS,
 )
@@ -79,40 +78,6 @@ def _cumsum(values: list[int]) -> list[int]:
         running += v
         out.append(running)
     return out
-
-
-def _average_cumulative_across_months(
-    daily_rows: list[tuple[date, int]], target_month_length: int,
-) -> tuple[list[int] | None, int]:
-    """Average a flat list of ``(day, total)`` rows across months into a cumulative series.
-
-    Rows are grouped by ``(year, month)`` into per-month daily arrays, each
-    array is cumsummed, and then for each day-of-month in
-    ``target_month_length`` the values are averaged across the months that
-    had that day-of-month. Returns ``(series, months_averaged)``. The series
-    is ``None`` and ``months_averaged`` is ``0`` when no months contributed.
-    """
-    if not daily_rows:
-        return None, 0
-
-    per_month: dict[tuple[int, int], list[int]] = {}
-    for day_value, total in daily_rows:
-        key = (day_value.year, day_value.month)
-        if key not in per_month:
-            per_month[key] = [0] * calendar.monthrange(key[0], key[1])[1]
-        per_month[key][day_value.day - 1] = total
-
-    cumul_per_month = {k: _cumsum(v) for k, v in per_month.items()}
-
-    avg_series: list[int] = []
-    for day_idx in range(target_month_length):
-        values_for_day = [c[day_idx] for c in cumul_per_month.values() if day_idx < len(c)]
-        if values_for_day:
-            avg_series.append(sum(values_for_day) // len(values_for_day))
-        else:
-            avg_series.append(0)
-
-    return avg_series, len(per_month)
 
 
 # ---------------------------------------------------------------------------
@@ -358,75 +323,6 @@ async def get_active_budgets(
         )
         for budget, base in rows
     ]
-
-
-# ---------------------------------------------------------------------------
-# Spending comparison widget
-# ---------------------------------------------------------------------------
-
-async def get_current_month_cumulative(
-    db: AsyncSession, base_currency_account_ids: list[uuid.UUID], now: datetime,
-) -> list[int]:
-    """Return cumulative base-currency expense totals for the current month, day by day.
-
-    Index 0 = day 1 of the month, final index = today's day-of-month. Only
-    EXPENSE-kind rows contribute. Transactions at ``now`` or later are
-    excluded so the series never outruns the request time.
-    """
-    current_day_of_month = now.day
-    daily = [0] * current_day_of_month
-    if not base_currency_account_ids:
-        return daily
-
-    month_start = _first_of_current_month(now)
-    today = now.date()
-    result = await db.execute(
-        select(Transaction.dt, func.sum(Transaction.amount).label("total"))
-        .join(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.account_id.in_(base_currency_account_ids),
-            Category.kind == CategoryKind.EXPENSE,
-            Transaction.dt >= month_start,
-            Transaction.dt <= today,
-        )
-        .group_by(Transaction.dt),
-    )
-    for row in result:
-        idx = row.dt.day - 1
-        if 0 <= idx < current_day_of_month:
-            daily[idx] = int(row.total)
-    return _cumsum(daily)
-
-
-async def get_historical_avg_cumulative(
-    db: AsyncSession, base_currency_account_ids: list[uuid.UUID], now: datetime,
-) -> tuple[list[int] | None, int]:
-    """Return the average cumulative expense curve across up to six prior months.
-
-    The returned series has length equal to the current month's day count so
-    it aligns with ``get_current_month_cumulative`` on the same x-axis and
-    extends to month-end. Returns ``(None, 0)`` when no prior month had any
-    base-currency expenses.
-    """
-    if not base_currency_account_ids:
-        return None, 0
-
-    month_start = _first_of_current_month(now)
-    history_start = _months_before(now, DASHBOARD_HISTORICAL_MONTHS_TO_AVERAGE)
-    result = await db.execute(
-        select(Transaction.dt, func.sum(Transaction.amount).label("total"))
-        .join(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.account_id.in_(base_currency_account_ids),
-            Category.kind == CategoryKind.EXPENSE,
-            Transaction.dt >= history_start,
-            Transaction.dt < month_start,
-        )
-        .group_by(Transaction.dt),
-    )
-    daily_rows = [(row.dt, int(row.total)) for row in result]
-    days_in_current_month = calendar.monthrange(now.year, now.month)[1]
-    return _average_cumulative_across_months(daily_rows, days_in_current_month)
 
 
 # ---------------------------------------------------------------------------
