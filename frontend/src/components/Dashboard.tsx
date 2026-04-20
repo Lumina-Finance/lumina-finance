@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   BarChart3,
   CreditCard,
+  PieChart as PieChartIcon,
   Repeat,
   Wallet,
 } from 'lucide-react'
@@ -15,6 +16,8 @@ import {
   Cell,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -27,9 +30,17 @@ import { useAuth } from '@/hooks/useAuth'
 import {
   type SpendingRange,
   useDashboard,
+  useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard'
 import { formatCurrency } from '@/utils/formatCurrency'
+
+// Palette for the spending breakdown donut. Ordered to harmonize with the
+// warm-earth theme — first two swatches mirror the dark-mode accent and
+// positive tokens, remaining entries fill out the wheel with muted hues.
+const BREAKDOWN_COLORS = [
+  '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
+]
 
 type CreditTier = 'positive' | 'accent' | 'negative'
 
@@ -95,6 +106,9 @@ export default function Dashboard() {
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison } = useSpendingComparison(spendingRange)
+  const [breakdownMode, setBreakdownMode] = useState<'spending' | 'income'>('spending')
+  const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
+  const { data: spendingBreakdown } = useSpendingBreakdown(breakdownRange)
 
   const displayCurrency = user!.base_currency
 
@@ -204,6 +218,14 @@ export default function Dashboard() {
     previousAtSameOffset != null && previousAtSameOffset > 0
       ? ((spentToDate - previousAtSameOffset) / previousAtSameOffset) * 100
       : null
+  // Active breakdown entries for the selected mode. The API always returns
+  // both expense and income buckets so the toggle doesn't need to refetch.
+  const breakdownEntries = useMemo(() => {
+    if (!spendingBreakdown) return []
+    return breakdownMode === 'spending' ? spendingBreakdown.expense : spendingBreakdown.income
+  }, [spendingBreakdown, breakdownMode])
+  const breakdownTotal = breakdownEntries.reduce((sum, e) => sum + e.amount, 0)
+
   const previousLabel: Record<SpendingRange, string> = {
     WTD: 'Last Week',
     MTD: 'Last Month',
@@ -655,7 +677,139 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-2xl h-[420px] bg-gray-300" />
+          {/* Spending / income breakdown — category donut for the selected range.
+              One payload carries both expense and income buckets so the mode
+              toggle flips instantly without refetching. */}
+          <div
+            className="rounded-2xl h-[420px] p-5 flex flex-col"
+            style={{
+              background: 'var(--app-surface-soft)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+                <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+              </div>
+              <span className="app-label">
+                {breakdownMode === 'spending' ? 'Spending' : 'Income'} Breakdown
+              </span>
+              <button
+                type="button"
+                onClick={() => setBreakdownMode((m) => (m === 'spending' ? 'income' : 'spending'))}
+                title={breakdownMode === 'spending' ? 'Show income breakdown' : 'Show spending breakdown'}
+                aria-label={breakdownMode === 'spending' ? 'Show income breakdown' : 'Show spending breakdown'}
+                className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150"
+                style={{
+                  background: 'var(--app-accent-soft)',
+                  color: 'var(--app-text-muted)',
+                }}
+              >
+                <Repeat size={12} />
+              </button>
+              <div
+                className="flex rounded-lg p-0.5"
+                style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
+                role="tablist"
+                aria-label="Breakdown range"
+              >
+                {rangeOptions.map((option) => {
+                  const active = option === breakdownRange
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setBreakdownRange(option)}
+                      className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
+                      style={{
+                        background: active ? 'var(--app-accent-soft)' : 'transparent',
+                        color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
+                      }}
+                    >
+                      {option}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {breakdownEntries.length === 0 ? (
+              <div
+                className="flex-1 flex items-center justify-center text-sm italic"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                No {breakdownMode === 'spending' ? 'expense' : 'income'} activity in this range
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 min-h-0 relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={breakdownEntries}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="68%"
+                        outerRadius="92%"
+                        paddingAngle={3}
+                        dataKey="amount"
+                        nameKey="name"
+                        stroke="none"
+                        isAnimationActive={false}
+                      >
+                        {breakdownEntries.map((_, i) => (
+                          <Cell key={i} fill={BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        cursor={false}
+                        contentStyle={{
+                          background: 'var(--app-bg)',
+                          border: '1px solid var(--app-border-strong)',
+                          borderRadius: 8,
+                          boxShadow: 'var(--app-shadow-soft)',
+                          padding: '6px 10px',
+                          fontSize: 12,
+                        }}
+                        labelStyle={{ color: 'var(--app-text-subtle)' }}
+                        itemStyle={{ color: 'var(--app-text)' }}
+                        formatter={(value, name) => [
+                          formatCurrency(Number(value), displayCurrency),
+                          name,
+                        ]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="app-label" style={{ fontSize: 12 }}>
+                      Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
+                    </span>
+                    <span className="font-financial font-medium tracking-tight text-2xl mt-1">
+                      {formatCurrency(breakdownTotal, displayCurrency)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
+                  {breakdownEntries.slice(0, 6).map((entry, i) => (
+                    <div key={entry.category_id} className="flex items-center gap-1.5">
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full"
+                        style={{ background: BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length] }}
+                      />
+                      <span
+                        className="text-xs font-medium whitespace-nowrap"
+                        style={{ color: 'var(--app-text-muted)' }}
+                      >
+                        {entry.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Row 3 — Quick insight cards */}

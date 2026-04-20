@@ -46,6 +46,18 @@ export interface DashboardResponse {
 
 export type SpendingRange = 'WTD' | 'MTD' | 'QTD' | 'YTD';
 
+export interface CategoryBreakdownEntry {
+  category_id: string;
+  name: string;
+  amount: number;
+}
+
+export interface SpendingBreakdownResponse {
+  range: SpendingRange;
+  expense: CategoryBreakdownEntry[];
+  income: CategoryBreakdownEntry[];
+}
+
 export interface SpendingComparisonResponse {
   range: SpendingRange;
   // X-axis labels covering the full current period.
@@ -77,6 +89,19 @@ export function useSpendingComparison(range: SpendingRange) {
     queryFn: () =>
       authenticatedFetch<SpendingComparisonResponse>(
         `/dashboard/spending-comparison?range=${range}`,
+      ),
+    enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useSpendingBreakdown(range: SpendingRange) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: ['spending-breakdown', range],
+    queryFn: () =>
+      authenticatedFetch<SpendingBreakdownResponse>(
+        `/dashboard/spending-breakdown?range=${range}`,
       ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
