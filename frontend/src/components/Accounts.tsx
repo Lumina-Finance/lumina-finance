@@ -330,7 +330,7 @@ export default function Accounts() {
               className="font-financial font-semibold shrink-0 text-xl"
               style={{ color: totalDebts < 0 ? 'var(--app-negative)' : 'var(--app-text)' }}
             >
-              {formatCurrency(-totalDebts, displayCurrency)}
+              {formatCurrency(totalDebts, displayCurrency)}
             </span>
           </div>
 
@@ -372,7 +372,7 @@ export default function Accounts() {
                               : 'var(--app-text)',
                         }}
                       >
-                        {formatCurrency(-account.current_balance, displayCurrency)}
+                        {formatCurrency(account.current_balance, displayCurrency)}
                       </p>
                       {account.credit_limit !== null && (
                         <p
