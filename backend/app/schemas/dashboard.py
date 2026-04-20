@@ -1,9 +1,34 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
 from app.schemas.transaction import TransactionResponse
+
+RangeKind = Literal["WTD", "MTD", "QTD", "YTD"]
+
+
+class SpendingComparisonResponse(BaseModel):
+    """Current-period vs. prior-period cumulative expense series for the spending widget.
+
+    ``slot_labels`` spans the full current period (7 days for WTD, N days
+    for MTD where N = current month's length, all weeks of the current
+    quarter for QTD, 12 months for YTD) and drives the chart's x-axis.
+
+    ``current`` / ``previous`` are cumulative positive minor-unit totals in
+    the user's base currency (expense-kind transactions on base-currency
+    accounts only). They contain only the slots with real data — ``current``
+    stops at today, and ``previous`` stops at the prior period's last day
+    (so it can be shorter than ``current`` for MTD when the prior month had
+    fewer days, or up to ``len(slot_labels)`` otherwise). The frontend zips
+    by index and treats missing trailing entries as no data.
+    """
+
+    range: RangeKind
+    slot_labels: list[str]
+    current: list[int]
+    previous: list[int]
 
 
 class MonthlyIncomeExpense(BaseModel):

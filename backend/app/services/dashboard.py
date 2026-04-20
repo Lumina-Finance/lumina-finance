@@ -33,7 +33,12 @@ from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.dashboard import ActiveBudgetSummary, MonthlyIncomeExpense
+from app.schemas.dashboard import (
+    ActiveBudgetSummary,
+    MonthlyIncomeExpense,
+    RangeKind,
+    SpendingComparisonResponse,
+)
 from app.schemas.transaction import TransactionResponse
 from app.services.snapshots import get_current_balances
 from app.services.transaction_responses import build_transaction_response, get_tag_ids_batch
@@ -486,3 +491,199 @@ async def get_savings_rate_history(
         )
         for m in months
     ]
+
+
+# ---------------------------------------------------------------------------
+# Spending comparison (range-scoped)
+# ---------------------------------------------------------------------------
+
+_MONTH_ABBR = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+
+def _plan_spending_comparison(
+    range_: RangeKind, today: date,
+) -> tuple[list[str], list[tuple[date, date]], list[tuple[date, date]]]:
+    """Build x-axis slot labels and per-slot date ranges for ``range_``.
+
+    A slot is one spot on the chart's x-axis — a day for WTD/MTD, a week for
+    QTD, a month for YTD. ``labels`` covers the full current period (drives
+    the x-axis). ``current_ranges`` and ``previous_ranges`` only include
+    slots that have real data — ``current`` stops at today, ``previous``
+    stops at the prior period's last day (capped at ``len(labels)``).
+    """
+    if range_ == "WTD":
+        # Full Monday-Sunday week drives the x-axis; current fills up to today.
+        week_start = today - timedelta(days=today.weekday())
+        labels = [(week_start + timedelta(days=i)).strftime("%a") for i in range(7)]
+        elapsed_days = today.weekday() + 1
+        current_ranges = [
+            (week_start + timedelta(days=i), week_start + timedelta(days=i))
+            for i in range(elapsed_days)
+        ]
+        prev_start = week_start - timedelta(days=7)
+        previous_ranges = [
+            (prev_start + timedelta(days=i), prev_start + timedelta(days=i))
+            for i in range(7)
+        ]
+        return labels, current_ranges, previous_ranges
+
+    if range_ == "MTD":
+        month_days = calendar.monthrange(today.year, today.month)[1]
+        labels = [str(i + 1) for i in range(month_days)]
+        current_ranges = [
+            (date(today.year, today.month, day), date(today.year, today.month, day))
+            for day in range(1, today.day + 1)
+        ]
+        if today.month == 1:
+            prev_year, prev_month = today.year - 1, 12
+        else:
+            prev_year, prev_month = today.year, today.month - 1
+        prev_month_days = calendar.monthrange(prev_year, prev_month)[1]
+        # Cap at the x-axis length so previous never extends past the chart.
+        previous_ranges = [
+            (date(prev_year, prev_month, day), date(prev_year, prev_month, day))
+            for day in range(1, min(prev_month_days, month_days) + 1)
+        ]
+        return labels, current_ranges, previous_ranges
+
+    if range_ == "QTD":
+        q_month = ((today.month - 1) // 3) * 3 + 1
+        current_quarter_start = date(today.year, q_month, 1)
+        next_q_start = (
+            date(today.year + 1, 1, 1) if q_month == 10
+            else date(today.year, q_month + 3, 1)
+        )
+        days_in_quarter = (next_q_start - current_quarter_start).days
+        # Weekly slots; the last one may be short (e.g., Q1 non-leap = 90 days, W13 has 6 days).
+        n_weeks = (days_in_quarter + 6) // 7
+        quarter_last_day = next_q_start - timedelta(days=1)
+        labels = [f"W{i + 1}" for i in range(n_weeks)]
+        # Current weeks run from quarter start up to the one containing today.
+        current_weeks_elapsed = (today - current_quarter_start).days // 7 + 1
+        current_ranges = []
+        for i in range(current_weeks_elapsed):
+            slot_start = current_quarter_start + timedelta(days=7 * i)
+            slot_end = min(slot_start + timedelta(days=6), today, quarter_last_day)
+            current_ranges.append((slot_start, slot_end))
+        if q_month == 1:
+            prev_q_year, prev_q_month = today.year - 1, 10
+        else:
+            prev_q_year, prev_q_month = today.year, q_month - 3
+        prev_quarter_start = date(prev_q_year, prev_q_month, 1)
+        prev_next_q_start = (
+            date(prev_q_year + 1, 1, 1) if prev_q_month == 10
+            else date(prev_q_year, prev_q_month + 3, 1)
+        )
+        prev_last_day = prev_next_q_start - timedelta(days=1)
+        prev_days = (prev_next_q_start - prev_quarter_start).days
+        prev_weeks = (prev_days + 6) // 7
+        # Cap at n_weeks so previous never extends past the chart.
+        previous_ranges = []
+        for i in range(min(prev_weeks, n_weeks)):
+            slot_start = prev_quarter_start + timedelta(days=7 * i)
+            slot_end = min(slot_start + timedelta(days=6), prev_last_day)
+            previous_ranges.append((slot_start, slot_end))
+        return labels, current_ranges, previous_ranges
+
+    # YTD — twelve monthly slots; current fills up to today's month.
+    labels = list(_MONTH_ABBR)
+    current_ranges = []
+    for month in range(1, today.month + 1):
+        start = date(today.year, month, 1)
+        end = today if month == today.month else date(today.year, month, calendar.monthrange(today.year, month)[1])
+        current_ranges.append((start, end))
+    prev_year = today.year - 1
+    previous_ranges = [
+        (date(prev_year, m, 1),
+         date(prev_year, m, calendar.monthrange(prev_year, m)[1]))
+        for m in range(1, 13)
+    ]
+    return labels, current_ranges, previous_ranges
+
+
+async def _query_daily_expense(
+    db: AsyncSession,
+    base_currency_account_ids: list[uuid.UUID],
+    start: date,
+    end: date,
+) -> dict[date, int]:
+    """Return ``{dt: positive_expense_minor_units}`` for ``[start, end]`` inclusive.
+
+    Expenses are stored as negative amounts; the mapping flips sign so
+    callers can cumsum into positive display values directly.
+    """
+    result = await db.execute(
+        select(Transaction.dt, func.sum(Transaction.amount).label("total"))
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id.in_(base_currency_account_ids),
+            Category.kind == CategoryKind.EXPENSE,
+            Transaction.dt >= start,
+            Transaction.dt <= end,
+        )
+        .group_by(Transaction.dt),
+    )
+    return {row.dt: -int(row.total) for row in result}
+
+
+def _sum_days(daily: dict[date, int], start: date, end: date) -> int:
+    """Sum ``daily`` totals across every date in ``[start, end]`` inclusive."""
+    total = 0
+    d = start
+    while d <= end:
+        total += daily.get(d, 0)
+        d += timedelta(days=1)
+    return total
+
+
+async def get_spending_comparison(
+    db: AsyncSession,
+    base_currency_account_ids: list[uuid.UUID],
+    range_: RangeKind,
+    now: datetime,
+) -> SpendingComparisonResponse:
+    """Return current-vs-prior cumulative expense series for ``range_``.
+
+    See :class:`SpendingComparisonResponse` for payload shape. ``current``
+    and ``previous`` only include slots with real data — the frontend zips
+    by index and treats missing trailing entries as no data.
+    """
+    labels, current_ranges, previous_ranges = _plan_spending_comparison(range_, now.date())
+
+    if not base_currency_account_ids:
+        return SpendingComparisonResponse(
+            range=range_,
+            slot_labels=labels,
+            current=[0] * len(current_ranges),
+            previous=[0] * len(previous_ranges),
+        )
+
+    current_daily_spend = (
+        await _query_daily_expense(
+            db, base_currency_account_ids,
+            current_ranges[0][0], current_ranges[-1][1],
+        )
+        if current_ranges
+        else {}
+    )
+    previous_daily_spend = (
+        await _query_daily_expense(
+            db, base_currency_account_ids,
+            previous_ranges[0][0], previous_ranges[-1][1],
+        )
+        if previous_ranges
+        else {}
+    )
+
+    current_slot_totals = [_sum_days(current_daily_spend, r[0], r[1]) for r in current_ranges]
+    previous_slot_totals = [_sum_days(previous_daily_spend, r[0], r[1]) for r in previous_ranges]
+
+    return SpendingComparisonResponse(
+        range=range_,
+        slot_labels=labels,
+        current=_cumsum(current_slot_totals),
+        previous=_cumsum(previous_slot_totals),
+    )
