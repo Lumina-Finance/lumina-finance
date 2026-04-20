@@ -86,6 +86,27 @@ function parseYmdLocal(ymd: string): Date {
   return new Date(y, m - 1, d)
 }
 
+// Compact label for the date range filter chip. Drops the duplicate year when
+// both dates share one (e.g. "Jan 1 – Apr 30, 2026") and uses a short 2-digit
+// year otherwise ("Jan 1, '25 – Apr 30, '26"). Returns null when no dates are
+// set so the chip falls back to its placeholder.
+function formatDateRangeLabel(from?: string, to?: string): string | null {
+  if (!from && !to) return null
+  const monthDay = (ymd: string) =>
+    parseYmdLocal(ymd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const fullYear = (ymd: string) => ymd.slice(0, 4)
+  const shortYear = (ymd: string) => `'${ymd.slice(2, 4)}`
+
+  if (from && to) {
+    if (fullYear(from) === fullYear(to)) {
+      return `${monthDay(from)} – ${monthDay(to)}, ${fullYear(to)}`
+    }
+    return `${monthDay(from)}, ${shortYear(from)} – ${monthDay(to)}, ${shortYear(to)}`
+  }
+  if (from) return `From ${monthDay(from)}, ${fullYear(from)}`
+  return `Until ${monthDay(to!)}, ${fullYear(to!)}`
+}
+
 function groupByDate(transactions: Transaction[]): DateGroup[] {
   const groups: DateGroup[] = []
   let currentLabel = ''
@@ -144,6 +165,33 @@ export default function Transactions() {
       }
       return next
     })
+  }
+
+  // Date range chip: the user edits `pendingFrom` / `pendingTo` inside the
+  // popover, and those only become the applied `filters.from_date` /
+  // `filters.to_date` (which is what triggers a refetch) when they click Apply
+  // or close the panel. An invalid range (from > to, mirroring the backend's
+  // 422 rule) gets reverted on close and blocks the Apply button.
+  const [pendingFrom, setPendingFrom] = useState('')
+  const [pendingTo, setPendingTo] = useState('')
+  useEffect(() => {
+    setPendingFrom(filters.from_date ?? '')
+    setPendingTo(filters.to_date ?? '')
+  }, [filters.from_date, filters.to_date])
+  const dateRangeInvalid = !!pendingFrom && !!pendingTo && pendingFrom > pendingTo
+  const dateRangeChanged =
+    (pendingFrom || undefined) !== filters.from_date ||
+    (pendingTo || undefined) !== filters.to_date
+  const commitDateRange = () => {
+    if (dateRangeInvalid) {
+      setPendingFrom(filters.from_date ?? '')
+      setPendingTo(filters.to_date ?? '')
+      return
+    }
+    const nextFrom = pendingFrom || undefined
+    const nextTo = pendingTo || undefined
+    if (nextFrom === filters.from_date && nextTo === filters.to_date) return
+    setFilter({ from_date: nextFrom, to_date: nextTo })
   }
   const { user } = useAuth()
   const displayCurrency = user!.base_currency
@@ -561,23 +609,20 @@ export default function Transactions() {
 
         <FilterChip
           label="Date range"
-          selectedLabel={
-            filters.from_date || filters.to_date
-              ? `${filters.from_date ?? '…'} → ${filters.to_date ?? '…'}`
-              : null
-          }
+          selectedLabel={formatDateRangeLabel(filters.from_date, filters.to_date)}
           onClear={() => setFilter({ from_date: undefined, to_date: undefined })}
+          onClose={commitDateRange}
           panelClassName="w-72 p-4 space-y-3"
         >
-          {() => (
+          {(close) => (
             <>
               <div>
                 <label className="app-label block mb-1.5">From</label>
                 <input
                   type="date"
                   className="app-input w-full"
-                  value={filters.from_date ?? ''}
-                  onChange={(e) => setFilter({ from_date: e.target.value })}
+                  value={pendingFrom}
+                  onChange={(e) => setPendingFrom(e.target.value)}
                 />
               </div>
               <div>
@@ -585,9 +630,35 @@ export default function Transactions() {
                 <input
                   type="date"
                   className="app-input w-full"
-                  value={filters.to_date ?? ''}
-                  onChange={(e) => setFilter({ to_date: e.target.value })}
+                  value={pendingTo}
+                  onChange={(e) => setPendingTo(e.target.value)}
                 />
+              </div>
+              {dateRangeInvalid && (
+                <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                  From date must be on or before To date.
+                </p>
+              )}
+              <div className="!mt-5 flex gap-2">
+                <button
+                  type="button"
+                  className="app-secondary-button flex-1 justify-center"
+                  disabled={!pendingFrom && !pendingTo}
+                  onClick={() => {
+                    setPendingFrom('')
+                    setPendingTo('')
+                  }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="app-primary-button flex-1 justify-center"
+                  disabled={dateRangeInvalid || !dateRangeChanged}
+                  onClick={close}
+                >
+                  Apply
+                </button>
               </div>
             </>
           )}

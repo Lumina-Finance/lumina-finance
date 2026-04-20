@@ -8,22 +8,33 @@ interface Props {
   label: string                                     // shown when no value selected
   selectedLabel?: string | null                     // shown when value is selected
   onClear?: () => void                              // if set + selectedLabel, shows X to clear
+  onClose?: () => void                              // fires whenever the panel closes (click-off, escape, or close())
   children: (close: () => void) => ReactNode        // popover content
   panelClassName?: string                           // override popover sizing/layout
 }
 
-export default function FilterChip({ label, selectedLabel, onClear, children, panelClassName }: Props) {
+export default function FilterChip({ label, selectedLabel, onClear, onClose, children, panelClassName }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const active = !!selectedLabel
 
+  // Keep the latest onClose callback in a ref so the listener effect doesn't
+  // need to re-subscribe when the parent passes a new function each render.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
+
+  const closePanel = () => {
+    setOpen(false)
+    onCloseRef.current?.()
+  }
+
   useEffect(() => {
     if (!open) return
     const onPointer = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) closePanel()
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') closePanel()
     }
     // defer registration so the click that opened doesn't immediately close it
     const t = setTimeout(() => window.addEventListener('pointerdown', onPointer), 0)
@@ -33,6 +44,8 @@ export default function FilterChip({ label, selectedLabel, onClear, children, pa
       window.removeEventListener('pointerdown', onPointer)
       window.removeEventListener('keydown', onKey)
     }
+    // closePanel is stable (reads onCloseRef.current); safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   return (
@@ -83,7 +96,7 @@ export default function FilterChip({ label, selectedLabel, onClear, children, pa
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.15, ease: EASE }}
           >
-            <div>{children(() => setOpen(false))}</div>
+            <div>{children(closePanel)}</div>
           </motion.div>
         )}
       </AnimatePresence>
