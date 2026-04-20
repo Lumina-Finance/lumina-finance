@@ -46,7 +46,22 @@ export interface DashboardResponse {
   transaction_window_days: number;
 }
 
-// ── Hook ──
+// ── Spending comparison ──
+
+export type SpendingRange = 'WTD' | 'MTD' | 'QTD' | 'YTD';
+
+export interface SpendingComparisonResponse {
+  range: SpendingRange;
+  // X-axis labels covering the full current period.
+  slot_labels: string[];
+  // Cumulative positive minor-unit totals; each array contains only the slots
+  // with real data (current stops at today, previous stops at the prior
+  // period's last day). The frontend zips by index against slot_labels.
+  current: number[];
+  previous: number[];
+}
+
+// ── Hooks ──
 
 export function useDashboard(windowDays = 90) {
   const { accessToken } = useAuth();
@@ -54,6 +69,19 @@ export function useDashboard(windowDays = 90) {
     queryKey: ['dashboard', windowDays],
     queryFn: () =>
       authenticatedFetch<DashboardResponse>(`/dashboard?window_days=${windowDays}`),
+    enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useSpendingComparison(range: SpendingRange) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: ['spending-comparison', range],
+    queryFn: () =>
+      authenticatedFetch<SpendingComparisonResponse>(
+        `/dashboard/spending-comparison?range=${range}`,
+      ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });

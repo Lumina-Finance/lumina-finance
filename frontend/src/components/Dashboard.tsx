@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react'
-import { CreditCard, Repeat, Wallet } from 'lucide-react'
 import {
+  ArrowDownRight,
+  ArrowUpRight,
+  BarChart3,
+  CreditCard,
+  Repeat,
+  Wallet,
+} from 'lucide-react'
+import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   Cell,
@@ -15,7 +24,11 @@ import {
   useXAxisScale,
 } from 'recharts'
 import { useAuth } from '@/hooks/useAuth'
-import { useDashboard } from '@/api/dashboard'
+import {
+  type SpendingRange,
+  useDashboard,
+  useSpendingComparison,
+} from '@/api/dashboard'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type CreditTier = 'positive' | 'accent' | 'negative'
@@ -80,6 +93,8 @@ export default function Dashboard() {
   const { user } = useAuth()
   const { data: dashboard } = useDashboard()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
+  const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
+  const { data: spendingComparison } = useSpendingComparison(spendingRange)
 
   const displayCurrency = user!.base_currency
 
@@ -159,6 +174,49 @@ export default function Dashboard() {
       }
     })
   }, [dashboard])
+
+  // Spending comparison — the selected range maps to a cumulative current-vs-prior
+  // series the backend returns in positive minor units. slot_labels drives the
+  // x-axis; current and previous only carry real data, so we zip them by index
+  // and let recharts render undefined entries as gaps.
+  const spendingChartData = useMemo(() => {
+    if (!spendingComparison) return []
+    const { slot_labels, current, previous } = spendingComparison
+    return slot_labels.map((label, i) => ({
+      label,
+      current: i < current.length ? current[i] : null,
+      previous: i < previous.length ? previous[i] : null,
+    }))
+  }, [spendingComparison])
+
+  const currentSeries = spendingComparison?.current ?? []
+  const previousSeries = spendingComparison?.previous ?? []
+  const currentHasData = currentSeries.some((v) => v > 0)
+  const previousHasData = previousSeries.some((v) => v > 0)
+  const spentToDate = currentSeries.at(-1) ?? 0
+  // Compare against the prior period at the same elapsed offset; fall back to
+  // the prior period's final value if it ended earlier (e.g., MTD Mar 30 vs. Feb).
+  const previousAtSameOffset =
+    currentSeries.length === 0
+      ? null
+      : previousSeries[Math.min(currentSeries.length, previousSeries.length) - 1] ?? null
+  const spendingDeltaPct =
+    previousAtSameOffset != null && previousAtSameOffset > 0
+      ? ((spentToDate - previousAtSameOffset) / previousAtSameOffset) * 100
+      : null
+  const previousLabel: Record<SpendingRange, string> = {
+    WTD: 'Last Week',
+    MTD: 'Last Month',
+    QTD: 'Last Quarter',
+    YTD: 'Last Year',
+  }
+  const currentLabel: Record<SpendingRange, string> = {
+    WTD: 'This Week',
+    MTD: 'This Month',
+    QTD: 'This Quarter',
+    YTD: 'This Year',
+  }
+  const rangeOptions: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
 
   return (
     <div>
@@ -427,7 +485,176 @@ export default function Dashboard() {
 
         {/* Row 2 — Charts */}
         <div className="grid grid-cols-1 gap-6 grid-cols-2">
-          <div className="rounded-2xl h-[420px] bg-gray-300" />
+          {/* Spending comparison — cumulative spend in the selected range vs. the
+              matching prior period. Range is user-selectable (WTD/MTD/QTD/YTD). */}
+          <div
+            className="rounded-2xl h-[420px] p-5 flex flex-col"
+            style={{
+              background: 'var(--app-surface-soft)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+                <BarChart3 size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+              </div>
+              <span className="app-label">
+                Spending vs. {previousLabel[spendingRange]}
+              </span>
+              <div
+                className="ml-auto flex rounded-lg p-0.5"
+                style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
+                role="tablist"
+                aria-label="Spending range"
+              >
+                {rangeOptions.map((option) => {
+                  const active = option === spendingRange
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setSpendingRange(option)}
+                      className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
+                      style={{
+                        background: active ? 'var(--app-accent-soft)' : 'transparent',
+                        color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
+                      }}
+                    >
+                      {option}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="font-financial font-medium tracking-tight leading-none text-3xl">
+                {formatCurrency(spentToDate, displayCurrency)}
+              </p>
+              {spendingDeltaPct != null && (
+                <div
+                  className="flex items-center text-sm font-medium"
+                  style={{
+                    color: spendingDeltaPct <= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
+                  }}
+                >
+                  {spendingDeltaPct <= 0 ? (
+                    <ArrowDownRight size={14} aria-hidden />
+                  ) : (
+                    <ArrowUpRight size={14} aria-hidden />
+                  )}
+                  {`${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-4 mt-2 mb-2">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{
+                    background: 'var(--app-accent)',
+                    opacity: currentHasData ? 1 : 0.4,
+                  }}
+                />
+                <span
+                  className="text-xs"
+                  style={{
+                    color: 'var(--app-text-muted)',
+                    fontStyle: currentHasData ? 'normal' : 'italic',
+                  }}
+                >
+                  {currentHasData
+                    ? currentLabel[spendingRange]
+                    : `No data for ${currentLabel[spendingRange].toLowerCase()}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{
+                    background: 'var(--app-text-muted)',
+                    opacity: previousHasData ? 1 : 0.4,
+                  }}
+                />
+                <span
+                  className="text-xs"
+                  style={{
+                    color: 'var(--app-text-muted)',
+                    fontStyle: previousHasData ? 'normal' : 'italic',
+                  }}
+                >
+                  {previousHasData
+                    ? previousLabel[spendingRange]
+                    : `No data for ${previousLabel[spendingRange].toLowerCase()}`}
+                </span>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={spendingChartData}
+                  margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+                >
+                  <defs>
+                    <linearGradient id="spendCurrentFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--app-accent)" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="var(--app-accent)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="spendPreviousFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--app-text-muted)" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={32}
+                    tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+                    tickMargin={4}
+                  />
+                  <YAxis hide />
+                  <Tooltip
+                    cursor={{ stroke: 'var(--app-accent-border)', strokeWidth: 1 }}
+                    contentStyle={{
+                      background: 'var(--app-bg)',
+                      border: '1px solid var(--app-border-strong)',
+                      borderRadius: 8,
+                      boxShadow: 'var(--app-shadow-soft)',
+                      padding: '6px 10px',
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: 'var(--app-text-subtle)' }}
+                    itemStyle={{ color: 'var(--app-text)' }}
+                    formatter={(value, name) => [
+                      formatCurrency(Number(value), displayCurrency),
+                      name === 'current' ? currentLabel[spendingRange] : previousLabel[spendingRange],
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="previous"
+                    stroke="var(--app-text-muted)"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 3"
+                    fill="url(#spendPreviousFill)"
+                    connectNulls={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="current"
+                    stroke="var(--app-accent)"
+                    strokeWidth={2.5}
+                    fill="url(#spendCurrentFill)"
+                    connectNulls={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
           <div className="rounded-2xl h-[420px] bg-gray-300" />
         </div>
 
