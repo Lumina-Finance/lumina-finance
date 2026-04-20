@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
+  Activity,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
@@ -33,6 +35,8 @@ import {
   useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard'
+import { useCategories } from '@/api/categories'
+import { useMerchants } from '@/api/merchants'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 // Palette for the spending breakdown donut. Ordered to harmonize with the
@@ -103,6 +107,8 @@ export default function Dashboard() {
 
   const { user } = useAuth()
   const { data: dashboard } = useDashboard()
+  const { data: categories } = useCategories()
+  const { data: merchants } = useMerchants()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison } = useSpendingComparison(spendingRange)
@@ -218,6 +224,21 @@ export default function Dashboard() {
     previousAtSameOffset != null && previousAtSameOffset > 0
       ? ((spentToDate - previousAtSameOffset) / previousAtSameOffset) * 100
       : null
+  // Recent activity widget — top 5 transactions from the dashboard payload,
+  // with merchant/category names resolved via the list hooks so rows can
+  // render without a second round-trip.
+  const categoryMap = useMemo(() => {
+    const m = new Map<string, { name: string; kind: 'expense' | 'income' | 'transfer' }>()
+    categories?.forEach((c) => m.set(c.id, { name: c.name, kind: c.kind }))
+    return m
+  }, [categories])
+  const merchantMap = useMemo(() => {
+    const m = new Map<string, string>()
+    merchants?.forEach((x) => m.set(x.id, x.name))
+    return m
+  }, [merchants])
+  const recentActivity = (dashboard?.recent_transactions ?? []).slice(0, 5)
+
   // Active breakdown entries for the selected mode. The API always returns
   // both expense and income buckets so the toggle doesn't need to refetch.
   const breakdownEntries = useMemo(() => {
@@ -814,10 +835,98 @@ export default function Dashboard() {
 
         {/* Row 3 — Quick insight cards */}
         <div className="grid grid-cols-1 gap-4 grid-cols-4">
-          <div className="rounded-2xl h-[320px] bg-gray-300" />
-          <div className="rounded-2xl h-[320px] bg-gray-300" />
-          <div className="rounded-2xl h-[320px] bg-gray-300" />
-          <div className="rounded-2xl h-[320px] bg-gray-300" />
+          <div className="rounded-2xl h-[400px] bg-gray-300" />
+          <div className="rounded-2xl h-[400px] bg-gray-300" />
+          <div className="rounded-2xl h-[400px] bg-gray-300" />
+
+          {/* Recent Activity — the 5 most recent transactions inside the
+              dashboard's rolling window. Amount color follows the category
+              kind rather than the signed amount so refunds on expense
+              categories still read as expense-colored. */}
+          <div
+            className="rounded-2xl h-[400px] p-5 flex flex-col"
+            style={{
+              background: 'var(--app-surface-soft)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+                <Activity size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+              </div>
+              <span className="app-label">Recent Activity</span>
+            </div>
+
+            {recentActivity.length === 0 ? (
+              <div
+                className="flex-1 flex items-center justify-center text-sm italic"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                No recent transactions
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 min-h-0">
+                  {recentActivity.map((t, idx) => {
+                    const category = categoryMap.get(t.category_id)
+                    const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id) : null
+                    const isIncome = category?.kind === 'income'
+                    const title = merchantName ?? t.notes ?? category?.name ?? 'Transaction'
+                    return (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between gap-2 py-2"
+                        style={
+                          idx < recentActivity.length - 1
+                            ? { borderBottom: '1px solid var(--app-border)' }
+                            : undefined
+                        }
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">
+                            {title}
+                            {category && (
+                              <>
+                                <span className="mx-1.5" style={{ color: 'var(--app-text-subtle)' }}>·</span>
+                                <span style={{ color: 'var(--app-text-muted)' }}>{category.name}</span>
+                              </>
+                            )}
+                          </p>
+                          <p
+                            className="text-xs mt-0.5"
+                            style={{ color: 'var(--app-text-muted)' }}
+                          >
+                            {new Date(`${t.dt}T00:00:00`).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                        <span
+                          className="font-financial font-medium text-sm shrink-0 tabular-nums"
+                          style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
+                        >
+                          {t.amount >= 0 ? '+' : '-'}
+                          {formatCurrency(Math.abs(t.amount), t.currency)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                <Link
+                  to="/transactions"
+                  className="mt-3 text-center text-xs font-medium py-2 rounded-lg transition-colors duration-150"
+                  style={{
+                    background: 'var(--app-accent-soft)',
+                    color: 'var(--app-accent)',
+                    border: '1px solid var(--app-accent-border)',
+                  }}
+                >
+                  View all transactions
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
