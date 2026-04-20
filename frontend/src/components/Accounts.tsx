@@ -1,11 +1,54 @@
 import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { useAccounts, type AccountsOverview } from '@/api/accounts'
+import {
+  useAccounts,
+  type AccountKind,
+  type AccountType,
+  type AccountsOverview,
+  type TaxTreatment,
+} from '@/api/accounts'
 import { useTransactionsOverview } from '@/api/transactions'
 import { useFocusRefetch } from '@/hooks/useFocusRefetch'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateAccountModal from '@/components/CreateAccountModal'
+import FilterChip from '@/components/FilterChip'
+import FilterOptionList, { type OptionItem } from '@/components/FilterOptionList'
+
+interface AccountFilterValues {
+  institution_id?: string
+  account_kind?: AccountKind
+  account_type?: AccountType
+  tax_treatment?: TaxTreatment
+}
+
+const ACCOUNT_KIND_OPTIONS: OptionItem[] = [
+  { value: 'asset', label: 'Assets' },
+  { value: 'liability', label: 'Liabilities' },
+]
+
+// Grouped by kind so the popover mirrors the Assets/Liabilities split used
+// elsewhere on the page. Labels reuse humanizeAccountType's output shape
+// (HELOC kept as an acronym).
+const ACCOUNT_TYPE_OPTIONS: OptionItem[] = [
+  { value: 'checking', label: 'Checking', group: 'Assets' },
+  { value: 'savings', label: 'Savings', group: 'Assets' },
+  { value: 'term_deposit', label: 'Term Deposit', group: 'Assets' },
+  { value: 'cash', label: 'Cash', group: 'Assets' },
+  { value: 'investment', label: 'Investment', group: 'Assets' },
+  { value: 'credit_card', label: 'Credit Card', group: 'Liabilities' },
+  { value: 'line_of_credit', label: 'Line of Credit', group: 'Liabilities' },
+  { value: 'heloc', label: 'HELOC', group: 'Liabilities' },
+  { value: 'loan', label: 'Loan', group: 'Liabilities' },
+  { value: 'mortgage', label: 'Mortgage', group: 'Liabilities' },
+]
+
+const TAX_TREATMENT_OPTIONS: OptionItem[] = [
+  { value: 'taxable', label: 'Taxable' },
+  { value: 'tax_free', label: 'Tax Free' },
+  { value: 'tax_deferred', label: 'Tax Deferred' },
+  { value: 'tax_assisted', label: 'Tax Assisted' },
+]
 
 function sumByKind(accounts: AccountsOverview[], kind: 'asset' | 'liability'): number {
   return accounts
@@ -60,20 +103,69 @@ export default function Accounts() {
   const { data: accounts, isLoading, error } = useAccounts()
   useFocusRefetch([['accounts'], ['transactions-overview']])
 
-  const rows = accounts ?? []
+  const rows = useMemo(() => accounts ?? [], [accounts])
   const totalAssets = sumByKind(rows, 'asset')
   const totalDebts = sumByKind(rows, 'liability')
   const netWorth = totalAssets - totalDebts
   const assetCount = rows.filter((a) => a.account_kind === 'asset').length
   const debtCount = rows.filter((a) => a.account_kind === 'liability').length
 
+  // Filters apply only to the Assets/Liabilities lists below — the headline
+  // totals and metrics band above always reflect the full picture.
+  const [filters, setFilters] = useState<AccountFilterValues>({})
+  const setFilter = (patch: Partial<AccountFilterValues>) => {
+    setFilters((f) => {
+      const next = { ...f, ...patch }
+      for (const key of Object.keys(next) as (keyof AccountFilterValues)[]) {
+        if (!next[key]) delete next[key]
+      }
+      return next
+    })
+  }
+
+  // Each filter only offers values the user actually has — a kind/type/tax/
+  // institution with zero accounts would be a dead option that filters the
+  // list to empty. Static option arrays drive the display order so grouping
+  // and canonical ordering stay intact.
+  const institutionOptions = useMemo<OptionItem[]>(() => {
+    const seen = new Map<string, string>()
+    for (const a of rows) {
+      if (a.institution) seen.set(a.institution.id, a.institution.name)
+    }
+    return Array.from(seen, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [rows])
+
+  const accountKindOptions = useMemo<OptionItem[]>(() => {
+    const present = new Set(rows.map((a) => a.account_kind))
+    return ACCOUNT_KIND_OPTIONS.filter((o) => present.has(o.value as AccountKind))
+  }, [rows])
+
+  const accountTypeOptions = useMemo<OptionItem[]>(() => {
+    const present = new Set(rows.map((a) => a.account_type))
+    return ACCOUNT_TYPE_OPTIONS.filter((o) => present.has(o.value as AccountType))
+  }, [rows])
+
+  const taxTreatmentOptions = useMemo<OptionItem[]>(() => {
+    const present = new Set(rows.map((a) => a.tax_treatment))
+    return TAX_TREATMENT_OPTIONS.filter((o) => present.has(o.value as TaxTreatment))
+  }, [rows])
+
+  const filteredRows = rows.filter((a) => {
+    if (filters.institution_id && a.institution?.id !== filters.institution_id) return false
+    if (filters.account_kind && a.account_kind !== filters.account_kind) return false
+    if (filters.account_type && a.account_type !== filters.account_type) return false
+    if (filters.tax_treatment && a.tax_treatment !== filters.tax_treatment) return false
+    return true
+  })
+
   // Debts ordered by balance descending — largest liability surfaces first.
-  const debtRows = rows
+  const debtRows = filteredRows
     .filter((a) => a.account_kind === 'liability')
     .sort((a, b) => b.current_balance - a.current_balance)
 
   // Assets ordered by balance descending — largest holding surfaces first.
-  const assetRows = rows
+  const assetRows = filteredRows
     .filter((a) => a.account_kind === 'asset')
     .sort((a, b) => b.current_balance - a.current_balance)
 
@@ -293,12 +385,68 @@ export default function Accounts() {
           </div>
         </section>
 
-        {/* Filter row — institution / category / type / tax advantaged */}
+        {/* Filter row — institution / category / type / tax status */}
         <div className="flex flex-wrap items-center gap-4">
-          <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
-          <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
-          <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
-          <div className="rounded-lg h-[3.25rem] w-40 bg-gray-300" />
+          <FilterChip
+            label="Institution"
+            selectedLabel={institutionOptions.find((o) => o.value === filters.institution_id)?.label ?? null}
+            onClear={() => setFilter({ institution_id: undefined })}
+          >
+            {(close) => (
+              <FilterOptionList
+                options={institutionOptions}
+                selectedValue={filters.institution_id}
+                onSelect={(v) => { setFilter({ institution_id: v }); close() }}
+                searchPlaceholder="Search institutions..."
+              />
+            )}
+          </FilterChip>
+
+          <FilterChip
+            label="Category"
+            selectedLabel={accountKindOptions.find((o) => o.value === filters.account_kind)?.label ?? null}
+            onClear={() => setFilter({ account_kind: undefined })}
+          >
+            {(close) => (
+              <FilterOptionList
+                options={accountKindOptions}
+                selectedValue={filters.account_kind}
+                onSelect={(v) => { setFilter({ account_kind: v as AccountKind }); close() }}
+                searchPlaceholder="Search categories..."
+              />
+            )}
+          </FilterChip>
+
+          <FilterChip
+            label="Type"
+            selectedLabel={accountTypeOptions.find((o) => o.value === filters.account_type)?.label ?? null}
+            onClear={() => setFilter({ account_type: undefined })}
+          >
+            {(close) => (
+              <FilterOptionList
+                options={accountTypeOptions}
+                selectedValue={filters.account_type}
+                onSelect={(v) => { setFilter({ account_type: v as AccountType }); close() }}
+                searchPlaceholder="Search types..."
+              />
+            )}
+          </FilterChip>
+
+          <FilterChip
+            label="Tax Status"
+            selectedLabel={taxTreatmentOptions.find((o) => o.value === filters.tax_treatment)?.label ?? null}
+            onClear={() => setFilter({ tax_treatment: undefined })}
+          >
+            {(close) => (
+              <FilterOptionList
+                options={taxTreatmentOptions}
+                selectedValue={filters.tax_treatment}
+                onSelect={(v) => { setFilter({ tax_treatment: v as TaxTreatment }); close() }}
+                searchPlaceholder="Search tax statuses..."
+              />
+            )}
+          </FilterChip>
+
           <button
             type="button"
             className="app-secondary-button ml-auto"
