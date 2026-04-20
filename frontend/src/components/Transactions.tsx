@@ -633,7 +633,7 @@ export default function Transactions() {
                     className="font-financial text-sm font-medium"
                     style={{ color: dailyColor }}
                   >
-                    {dailyTotal >= 0 ? '+' : ''}{formatCurrency(dailyTotal, displayCurrency)}
+                    {formatCurrency(dailyTotal, displayCurrency)}
                   </p>
                 </div>
 
@@ -711,7 +711,7 @@ export default function Transactions() {
                           className="font-financial font-medium shrink-0 tabular-nums w-28 text-right"
                           style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
                         >
-                          {isIncome ? '+' : ''}{formatCurrency(t.amount, displayCurrency)}
+                          {t.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(t.amount), displayCurrency)}
                         </p>
                       </div>
                     )
