@@ -79,10 +79,12 @@ export default function Accounts() {
 
   // Credit usage — aggregate over liability accounts that have a credit_limit set.
   // Loan-style liabilities (mortgages, term loans) have no limit and are excluded.
+  // Liability balances are stored signed (negative for debt), so flip sign here
+  // so totalCreditUsed reads as a positive "amount currently owed".
   const creditAccounts = rows.filter(
     (a) => a.account_kind === 'liability' && a.credit_limit !== null,
   )
-  const totalCreditUsed = creditAccounts.reduce((sum, a) => sum + a.current_balance, 0)
+  const totalCreditUsed = creditAccounts.reduce((sum, a) => sum - a.current_balance, 0)
   const totalCreditLimit = creditAccounts.reduce((sum, a) => sum + (a.credit_limit ?? 0), 0)
   const creditUtilization =
     totalCreditLimit > 0 ? Math.round((totalCreditUsed / totalCreditLimit) * 100) : 0
@@ -270,7 +272,7 @@ export default function Accounts() {
                     className="h-full rounded-full"
                     style={{
                       background: creditUtilColor,
-                      width: `${Math.min(creditUtilization, 100)}%`,
+                      width: `${Math.max(0, Math.min(creditUtilization, 100))}%`,
                     }}
                   />
                 </div>
@@ -379,7 +381,7 @@ export default function Accounts() {
                           className="font-financial mt-0.5 text-xs"
                           style={{ color: 'var(--app-text-muted)' }}
                         >
-                          {formatCurrency(account.credit_limit - account.current_balance, displayCurrency)} avail.
+                          {formatCurrency(account.credit_limit + account.current_balance, displayCurrency)} avail.
                         </p>
                       )}
                     </div>
