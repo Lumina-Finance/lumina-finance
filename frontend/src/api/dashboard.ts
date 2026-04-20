@@ -5,6 +5,13 @@ import type { Transaction } from '@/api/transactions';
 
 // ── Types (mirror backend schemas) ──
 
+export interface MonthlyIncomeExpense {
+  // First-of-month calendar date (YYYY-MM-DD).
+  month: string;
+  income: number;
+  expenses: number;
+}
+
 export interface ActiveBudgetSummary {
   budget_id: string;
   base_budget_id: string;
@@ -29,7 +36,7 @@ export interface DashboardResponse {
   historical_months_averaged: number;
 
   recurring_expenses_estimate: number | null;
-  savings_rate: number | null;
+  savings_rate_history: MonthlyIncomeExpense[];
 
   upcoming_bills: unknown[] | null;
   runway_months: number | null;

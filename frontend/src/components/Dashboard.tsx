@@ -1,6 +1,19 @@
 import { useMemo, useState } from 'react'
 import { CreditCard, Repeat, Wallet } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  usePlotArea,
+  useXAxisScale,
+} from 'recharts'
 import { useAuth } from '@/hooks/useAuth'
 import { useDashboard } from '@/api/dashboard'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -11,6 +24,45 @@ function getCreditTier(utilization: number): CreditTier {
   if (utilization <= 30) return 'positive'
   if (utilization <= 70) return 'accent'
   return 'negative'
+}
+
+type SavingsTier = 'positive' | 'accent' | 'negative'
+
+// Pick the 3-tier bucket for a savings rate, matching the thresholds used on Accounts.
+// Null means the rate is −∞ (no income, some expenses) — the bar is a gap anyway,
+// so the bucket is only used as a fallback if recharts ever queries it.
+function savingsTier(rate: number | null): SavingsTier {
+  if (rate === null) return 'negative'
+  if (rate >= 20) return 'positive'
+  if (rate >= 10) return 'accent'
+  return 'negative'
+}
+
+// Dashed vertical divider drawn at the left edge of the given category band.
+// Uses the v3 hook APIs to read the plot area + x-axis scale so it stays aligned
+// across chart sizes; recharts 3 retired the `Customized` props we'd normally use.
+function SavingsCurrentBoundary({ currentLabel }: { currentLabel: string }) {
+  const plotArea = usePlotArea()
+  const xScale = useXAxisScale() as ((label: string) => number) & { bandwidth?: () => number }
+  if (!plotArea || !xScale) return null
+  const center = xScale(currentLabel)
+  if (typeof center !== 'number' || !Number.isFinite(center)) return null
+  const bandwidth = xScale.bandwidth ? xScale.bandwidth() : 0
+  // D3 band scales return the band *start* for category c; some recharts builds
+  // adjust to center. Compute the leftmost edge by subtracting half the bandwidth
+  // only if the scale is centered (center is the midpoint), otherwise leave as-is.
+  const leftEdge = center - bandwidth / 2
+  return (
+    <line
+      x1={leftEdge}
+      x2={leftEdge}
+      y1={plotArea.y}
+      y2={plotArea.y + plotArea.height}
+      stroke="var(--app-text-subtle)"
+      strokeDasharray="3 3"
+      strokeWidth={1}
+    />
+  )
 }
 
 export default function Dashboard() {
@@ -78,6 +130,35 @@ export default function Dashboard() {
   const tier = getCreditTier(utilization)
   const tierColor = `var(--app-${tier})`
   const tierSoft = `var(--app-${tier}-soft)`
+
+  // Savings-rate chart data — one entry per calendar month (oldest-first), with
+  // the last entry being the current in-progress month. The `rate` we hand to
+  // recharts is the *plotted* value: null means "don't draw a bar" (no income,
+  // no expenses), -100 anchors the expense-only (−∞) case to the bottom so it
+  // still reads as a negative bar. The tooltip relies on the raw totals to
+  // show the true rate, including −∞%.
+  const savingsData = useMemo(() => {
+    const history = dashboard?.savings_rate_history ?? []
+    return history.map((row, i, arr) => {
+      let rate: number | null
+      if (row.income > 0) {
+        rate = Math.round(((row.income - row.expenses) / row.income) * 100)
+      } else if (row.expenses > 0) {
+        rate = -100
+      } else {
+        rate = null
+      }
+      const monthDate = new Date(`${row.month}T00:00:00`)
+      return {
+        monthLabel: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+        fullLabel: monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        rate,
+        income: row.income,
+        expenses: row.expenses,
+        isCurrent: i === arr.length - 1,
+      }
+    })
+  }, [dashboard])
 
   return (
     <div>
@@ -228,7 +309,119 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="rounded-2xl h-[13.5rem] bg-gray-300" />
+          {/* Savings rate — per-month bars for the last 7 months; current month is lighter. */}
+          <div
+            className="rounded-2xl h-[13.5rem] p-5 pb-2 flex flex-col"
+            style={{
+              background: 'var(--app-surface-soft)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+                <Repeat size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+              </div>
+              <span className="app-label">Savings Rate</span>
+            </div>
+            {savingsData.length > 0 && (
+              <div className="flex-1 min-h-0 relative">
+                {/* 45° diagonal-stripe pattern for the current (in-progress) month bar.
+                    Hosted in a sibling hidden SVG so `url(#id)` resolves regardless
+                    of where recharts inserts children in its own SVG. */}
+                <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
+                  <defs>
+                    {(['positive', 'accent', 'negative'] as const).map((tier) => (
+                      <pattern
+                        key={tier}
+                        id={`savings-stripes-${tier}`}
+                        patternUnits="userSpaceOnUse"
+                        width={6}
+                        height={6}
+                        patternTransform="rotate(45)"
+                      >
+                        <rect
+                          width={3}
+                          height={6}
+                          style={{ fill: `var(--app-${tier})` }}
+                        />
+                      </pattern>
+                    ))}
+                  </defs>
+                </svg>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={savingsData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                    <XAxis
+                      dataKey="monthLabel"
+                      axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
+                      tickLine={false}
+                      interval={0}
+                      tick={{ fill: 'var(--app-text-subtle)', fontSize: 9 }}
+                      tickMargin={3}
+                    />
+                    <YAxis
+                      hide
+                      domain={[
+                        (dataMin: number) => Math.min(0, dataMin),
+                        (dataMax: number) => Math.max(0, dataMax),
+                      ]}
+                    />
+                    <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
+                    <SavingsCurrentBoundary
+                      currentLabel={savingsData[savingsData.length - 1].monthLabel}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'var(--app-border)', opacity: 0.4 }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.[0]) return null
+                        const { fullLabel, income, expenses } = payload[0].payload as {
+                          fullLabel: string
+                          income: number
+                          expenses: number
+                        }
+                        // Months with no activity at all have no bar drawn; skip the tooltip too.
+                        if (income === 0 && expenses === 0) return null
+                        const display =
+                          income > 0
+                            ? `${Math.round(((income - expenses) / income) * 100)}%`
+                            : '−∞%'
+                        return (
+                          <div
+                            style={{
+                              background: 'var(--app-bg)',
+                              border: '1px solid var(--app-border-strong)',
+                              borderRadius: 8,
+                              boxShadow: 'var(--app-shadow-soft)',
+                              padding: '6px 10px',
+                              fontSize: 12,
+                            }}
+                          >
+                            <div style={{ color: 'var(--app-text-subtle)' }}>{fullLabel}</div>
+                            <div style={{ color: 'var(--app-text)' }}>Savings Rate: {display}</div>
+                          </div>
+                        )
+                      }}
+                    />
+                    <Bar dataKey="rate" radius={[3, 3, 0, 0]} maxBarSize={28}>
+                      {savingsData.map((entry, i) => {
+                        const tier = savingsTier(entry.rate)
+                        return (
+                          <Cell
+                            key={i}
+                            fill={
+                              entry.isCurrent
+                                ? `url(#savings-stripes-${tier})`
+                                : `var(--app-${tier})`
+                            }
+                          />
+                        )
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
           <div className="rounded-2xl h-[13.5rem] bg-gray-300" />
         </div>
 
