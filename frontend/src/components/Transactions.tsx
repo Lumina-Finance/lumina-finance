@@ -110,6 +110,15 @@ function groupByDate(transactions: Transaction[]): DateGroup[] {
 
 export default function Transactions() {
   const [search, setSearch] = useState('')
+  // `search` tracks what the user is typing in real time; `activeSearch` is
+  // what actually gets sent to the API. It catches up 1 second after typing
+  // pauses, or right away when the user presses Enter — so the input stays
+  // responsive and the API isn't hit on every keystroke.
+  const [activeSearch, setActiveSearch] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setActiveSearch(search), 1000)
+    return () => clearTimeout(timer)
+  }, [search])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
@@ -177,7 +186,7 @@ export default function Transactions() {
     isFetchingNextPage,
   } = useInfiniteTransactions({
     ...filters,
-    q: search || undefined,
+    q: activeSearch || undefined,
   })
   const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
 
@@ -505,6 +514,9 @@ export default function Transactions() {
             placeholder="Search transactions..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') setActiveSearch(search)
+            }}
             className="app-input w-full pl-9"
           />
         </div>
