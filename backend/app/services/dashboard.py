@@ -34,8 +34,10 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.dashboard import (
     ActiveBudgetSummary,
+    CategoryBreakdownEntry,
     MonthlyIncomeExpense,
     RangeKind,
+    SpendingBreakdownResponse,
     SpendingComparisonResponse,
 )
 from app.schemas.transaction import TransactionResponse
@@ -583,3 +585,75 @@ async def get_spending_comparison(
         current=_cumsum(current_slot_totals),
         previous=_cumsum(previous_slot_totals),
     )
+
+
+# ---------------------------------------------------------------------------
+# Spending / income breakdown (range-scoped)
+# ---------------------------------------------------------------------------
+
+def _current_period_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
+    """Return ``(start, today)`` bounds for the current ``range_``.
+
+    Matches the current-period start used by ``_plan_spending_comparison`` so
+    the breakdown widget's totals agree with the comparison chart's cumulative
+    current-series endpoint.
+    """
+    if range_ == "WTD":
+        return today - timedelta(days=today.weekday()), today
+    if range_ == "MTD":
+        return date(today.year, today.month, 1), today
+    if range_ == "QTD":
+        q_month = ((today.month - 1) // 3) * 3 + 1
+        return date(today.year, q_month, 1), today
+    return date(today.year, 1, 1), today
+
+
+async def get_spending_breakdown(
+    db: AsyncSession,
+    base_currency_account_ids: list[uuid.UUID],
+    range_: RangeKind,
+    now: datetime,
+) -> SpendingBreakdownResponse:
+    """Return category-level expense and income totals for ``range_``.
+
+    Aggregates transactions on base-currency accessible accounts between the
+    range's current-period start and today. Expense amounts are flipped to
+    positive minor units. Categories with zero totals are dropped; entries
+    are sorted largest-first so the frontend can take the top N directly.
+    """
+    start, end = _current_period_bounds(range_, now.date())
+    if not base_currency_account_ids:
+        return SpendingBreakdownResponse(range=range_, expense=[], income=[])
+
+    result = await db.execute(
+        select(
+            Category.id,
+            Category.name,
+            Category.kind,
+            func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id.in_(base_currency_account_ids),
+            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
+            Transaction.dt >= start,
+            Transaction.dt <= end,
+        )
+        .group_by(Category.id, Category.name, Category.kind),
+    )
+
+    expense: list[CategoryBreakdownEntry] = []
+    income: list[CategoryBreakdownEntry] = []
+    for row in result:
+        amount = abs(int(row.total))
+        if amount == 0:
+            continue
+        entry = CategoryBreakdownEntry(category_id=row.id, name=row.name, amount=amount)
+        if row.kind == CategoryKind.EXPENSE:
+            expense.append(entry)
+        else:
+            income.append(entry)
+
+    expense.sort(key=lambda e: e.amount, reverse=True)
+    income.sort(key=lambda e: e.amount, reverse=True)
+    return SpendingBreakdownResponse(range=range_, expense=expense, income=income)

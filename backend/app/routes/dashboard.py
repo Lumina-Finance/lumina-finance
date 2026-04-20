@@ -14,7 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.dashboard import DashboardResponse, RangeKind, SpendingComparisonResponse
+from app.schemas.dashboard import (
+    DashboardResponse,
+    RangeKind,
+    SpendingBreakdownResponse,
+    SpendingComparisonResponse,
+)
 from app.services.dashboard import (
     get_accessible_accounts,
     get_active_budgets,
@@ -22,6 +27,7 @@ from app.services.dashboard import (
     get_net_worth_history,
     get_recent_transactions,
     get_savings_rate_history,
+    get_spending_breakdown,
     get_spending_comparison,
 )
 
@@ -83,3 +89,21 @@ async def get_spending_comparison_route(
     accounts = await get_accessible_accounts(db, user)
     base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
     return await get_spending_comparison(db, base_currency_account_ids, range_, now)
+
+
+@router.get("/spending-breakdown", response_model=SpendingBreakdownResponse)
+async def get_spending_breakdown_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    range_: Annotated[RangeKind, Query(alias="range")] = "MTD",
+):
+    """Return category-level expense and income totals for the breakdown widget.
+
+    Both breakdowns are returned in one payload so the spending/income toggle
+    can flip without refetching. Scoped to base-currency accessible accounts
+    and the same current-period bounds as the spending comparison chart.
+    """
+    now = datetime.now(UTC)
+    accounts = await get_accessible_accounts(db, user)
+    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
+    return await get_spending_breakdown(db, base_currency_account_ids, range_, now)

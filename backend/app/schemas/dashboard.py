@@ -9,6 +9,33 @@ from app.schemas.transaction import TransactionResponse
 RangeKind = Literal["WTD", "MTD", "QTD", "YTD"]
 
 
+class CategoryBreakdownEntry(BaseModel):
+    """One category's contribution to the spending/income breakdown widget.
+
+    ``amount`` is a positive minor-unit total — expense rows are flipped so
+    the frontend can render both kinds with the same tooltip format.
+    """
+
+    category_id: uuid.UUID
+    name: str
+    amount: int
+
+
+class SpendingBreakdownResponse(BaseModel):
+    """Category-level expense and income totals for the given range.
+
+    Both breakdowns are served in one payload so the widget's spending/income
+    toggle can flip instantly without refetching. ``range`` picks the calendar
+    period (WTD / MTD / QTD / YTD) — the boundaries match the spending
+    comparison endpoint's current-period slots. Entries are sorted largest-
+    first and include only categories with non-zero totals in the range.
+    """
+
+    range: RangeKind
+    expense: list[CategoryBreakdownEntry]
+    income: list[CategoryBreakdownEntry]
+
+
 class SpendingComparisonResponse(BaseModel):
     """Current-period vs. prior-period cumulative expense series for the spending widget.
 
