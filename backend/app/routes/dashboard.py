@@ -23,7 +23,7 @@ from app.services.dashboard import (
     get_historical_avg_cumulative,
     get_net_worth_history,
     get_recent_transactions,
-    get_savings_rate,
+    get_savings_rate_history,
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -51,7 +51,7 @@ async def get_dashboard(
 
     current_month_cumulative = await get_current_month_cumulative(db, base_currency_account_ids, now)
     historical_avg_cumulative, historical_months_averaged = await get_historical_avg_cumulative(db, base_currency_account_ids, now)
-    savings_rate = await get_savings_rate(db, base_currency_account_ids, now)
+    savings_rate_history = await get_savings_rate_history(db, base_currency_account_ids, now)
 
     return DashboardResponse(
         current_net_worth=current_net_worth,
@@ -63,7 +63,7 @@ async def get_dashboard(
         historical_avg_cumulative=historical_avg_cumulative,
         historical_months_averaged=historical_months_averaged,
         recurring_expenses_estimate=None,
-        savings_rate=savings_rate,
+        savings_rate_history=savings_rate_history,
         upcoming_bills=None,
         runway_months=None,
         recent_transactions=recent_transactions,

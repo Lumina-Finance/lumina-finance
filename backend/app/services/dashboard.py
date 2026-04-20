@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import (
     DASHBOARD_HISTORICAL_MONTHS_TO_AVERAGE,
     DASHBOARD_RECENT_TRANSACTIONS_LIMIT,
-    DASHBOARD_SAVINGS_RATE_MONTHS,
+    DASHBOARD_SAVINGS_HISTORY_MONTHS,
 )
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
 from app.models.base import AccountKind, CategoryKind
@@ -33,7 +33,7 @@ from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.dashboard import ActiveBudgetSummary
+from app.schemas.dashboard import ActiveBudgetSummary, MonthlyIncomeExpense
 from app.schemas.transaction import TransactionResponse
 from app.services.snapshots import get_current_balances
 from app.services.transaction_responses import build_transaction_response, get_tag_ids_batch
@@ -57,6 +57,13 @@ def _months_before(now: datetime, n: int) -> date:
         else:
             month -= 1
     return date(year, month, 1)
+
+
+def _first_of_next_month(now: datetime) -> date:
+    """Return the first of the month immediately after ``now``'s month."""
+    if now.month == 12:
+        return date(now.year + 1, 1, 1)
+    return date(now.year, now.month + 1, 1)
 
 
 def _cumsum(values: list[int]) -> list[int]:
@@ -421,40 +428,61 @@ async def get_historical_avg_cumulative(
 # Savings rate widget
 # ---------------------------------------------------------------------------
 
-async def get_savings_rate(
+async def get_savings_rate_history(
     db: AsyncSession, base_currency_account_ids: list[uuid.UUID], now: datetime,
-) -> float | None:
-    """Return ``(income - expenses) / income`` over the three complete prior months.
+) -> list[MonthlyIncomeExpense]:
+    """Return per-month income / expense totals for the savings-rate chart.
 
-    Only base-currency accounts contribute. Expenses are stored as negative
-    amounts, so their absolute value is subtracted. Returns ``None`` when
-    there was no income in the window — avoids divide-by-zero and an
-    ambiguous ``0.0`` answer. Negative values are valid and signal
-    overspending.
+    The series covers ``DASHBOARD_SAVINGS_HISTORY_MONTHS`` calendar months
+    ending with the current (in-progress) month, ordered oldest-first. Months
+    with no activity are emitted as zeros so every chart slot has a value.
+    Expenses are stored as negative amounts; the returned ``expenses`` field
+    is the absolute value so the frontend can compute the rate directly.
     """
-    if not base_currency_account_ids:
-        return None
+    months_count = DASHBOARD_SAVINGS_HISTORY_MONTHS
+    first_month = _months_before(now, months_count - 1)
+    window_end = _first_of_next_month(now)
 
-    month_start = _first_of_current_month(now)
-    savings_window_start = _months_before(now, DASHBOARD_SAVINGS_RATE_MONTHS)
+    # Build the month sequence up front so missing months still appear as zeros.
+    months: list[date] = []
+    year, month = first_month.year, first_month.month
+    for _ in range(months_count):
+        months.append(date(year, month, 1))
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+
+    if not base_currency_account_ids:
+        return [MonthlyIncomeExpense(month=m, income=0, expenses=0) for m in months]
+
+    month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
     result = await db.execute(
-        select(Category.kind, func.sum(Transaction.amount))
+        select(month_start_expr, Category.kind, func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(base_currency_account_ids),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
-            Transaction.dt >= savings_window_start,
-            Transaction.dt < month_start,
+            Transaction.dt >= first_month,
+            Transaction.dt < window_end,
         )
-        .group_by(Category.kind),
+        .group_by(month_start_expr, Category.kind),
     )
-    income_total = 0
-    expense_total = 0
-    for kind, total in result:
-        if kind == CategoryKind.INCOME:
-            income_total = int(total)
-        else:
-            expense_total = int(total)
-    if income_total <= 0:
-        return None
-    return (income_total - abs(expense_total)) / income_total
+
+    # Collect row totals keyed by first-of-month, keeping income and expense
+    # buckets separate so we can emit one MonthlyIncomeExpense per month below.
+    totals: dict[date, dict[CategoryKind, int]] = {m: {} for m in months}
+    for row in result:
+        # date_trunc returns a timestamp; coerce to a plain date for the key.
+        key = row.month_start.date() if hasattr(row.month_start, "date") else row.month_start
+        totals[key][row.kind] = int(row.total)
+
+    return [
+        MonthlyIncomeExpense(
+            month=m,
+            income=totals[m].get(CategoryKind.INCOME, 0),
+            expenses=abs(totals[m].get(CategoryKind.EXPENSE, 0)),
+        )
+        for m in months
+    ]

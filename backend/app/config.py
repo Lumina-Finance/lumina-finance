@@ -102,5 +102,7 @@ DASHBOARD_RECENT_TRANSACTIONS_LIMIT = 15
 # How many complete prior months the dashboard's spending comparison averages across.
 DASHBOARD_HISTORICAL_MONTHS_TO_AVERAGE = 6
 
-# How many complete prior months the dashboard's savings rate covers.
-DASHBOARD_SAVINGS_RATE_MONTHS = 3
+# How many calendar months the dashboard's savings rate history returns, inclusive of the
+# current (in-progress) month. With the default of 7 the series covers the current month
+# plus the six prior months.
+DASHBOARD_SAVINGS_HISTORY_MONTHS = 7

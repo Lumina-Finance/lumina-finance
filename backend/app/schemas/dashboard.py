@@ -1,9 +1,22 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
 from app.schemas.transaction import TransactionResponse
+
+
+class MonthlyIncomeExpense(BaseModel):
+    """One entry in the savings-rate history — raw totals for a single calendar month.
+
+    Carries the absolute values of income and expenses so the frontend can
+    derive the rate and distinguish the three zero-income cases (real rate,
+    ``-inf`` when expenses exist without income, ``0`` when both are zero).
+    """
+
+    month: date
+    income: int
+    expenses: int
 
 
 class ActiveBudgetSummary(BaseModel):
@@ -64,10 +77,12 @@ class DashboardResponse(BaseModel):
     - `recurring_expenses_estimate` is reserved for an estimated monthly total
       of recurring expenses over the trailing three months. Ships as `None`
       until the `ScheduledTransaction` model lands.
-    - `savings_rate` is `(income - expenses) / income` across the three
-      complete calendar months preceding the current month, summing over
-      base-currency accounts only. `None` when there was no income in that
-      window. Negative values are valid (overspending).
+    - `savings_rate_history` is a per-month series of raw income and expense
+      totals covering the current (in-progress) calendar month plus the prior
+      six months, ordered oldest-first. Base-currency accounts only. The rate
+      itself is derived on the frontend so it can handle the three zero-income
+      cases (real rate, ``-inf`` when expenses exist without income, ``0``
+      when both are zero) without having to serialize non-finite floats.
 
     Spending, credit, and savings fields sum only activity on accounts whose
     currency matches the user's base currency; foreign-currency activity is
@@ -86,7 +101,7 @@ class DashboardResponse(BaseModel):
     historical_months_averaged: int
 
     recurring_expenses_estimate: int | None
-    savings_rate: float | None
+    savings_rate_history: list[MonthlyIncomeExpense]
 
     upcoming_bills: list[dict] | None = None
     runway_months: float | None = None
