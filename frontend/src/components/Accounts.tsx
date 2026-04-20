@@ -110,20 +110,26 @@ export default function Accounts() {
   })
 
   // Savings rate = (income − expenses) / income. outflow comes back negative,
-  // so adding gives the net. Null when no income to avoid divide-by-zero.
+  // so adding gives the net. Null when there is no income — either the month
+  // had only expenses (treated as −∞%) or no activity at all (displayed as —).
   const savingsRate = useMemo<number | null>(() => {
     const inflow = overview?.total_inflow ?? 0
     const outflow = overview?.total_outflow ?? 0
     if (inflow <= 0) return null
     return Math.round(((inflow + outflow) / inflow) * 100)
   }, [overview])
+  const savingsRateHasExpenses = (overview?.total_outflow ?? 0) < 0
 
   const savingsRateColor =
-    savingsRate === null
-      ? 'var(--app-text-subtle)'
-      : savingsRate >= 0
+    savingsRate !== null
+      ? savingsRate >= 20
         ? 'var(--app-positive)'
-        : 'var(--app-negative)'
+        : savingsRate >= 10
+          ? 'var(--app-accent)'
+          : 'var(--app-negative)'
+      : savingsRateHasExpenses
+        ? 'var(--app-negative)'
+        : 'var(--app-text-subtle)'
 
   return (
     <div>
@@ -214,7 +220,11 @@ export default function Accounts() {
                 className="font-financial font-semibold text-[clamp(1rem,1.7vw,1.5rem)]"
                 style={{ color: savingsRateColor }}
               >
-                {savingsRate === null ? '—' : `${savingsRate}%`}
+                {savingsRate !== null
+                  ? `${savingsRate}%`
+                  : savingsRateHasExpenses
+                    ? '−∞%'
+                    : '—'}
               </p>
               <div className="mt-2 space-y-1">
                 <div
@@ -233,9 +243,11 @@ export default function Accounts() {
                   className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
                   style={{ color: 'var(--app-text-subtle)' }}
                 >
-                  {savingsRate === null
-                    ? 'No income this month'
-                    : `${formatCurrency((overview?.total_inflow ?? 0) + (overview?.total_outflow ?? 0), displayCurrency)} of ${formatCurrency(overview?.total_inflow ?? 0, displayCurrency)} this month`}
+                  {savingsRate !== null
+                    ? `${formatCurrency((overview?.total_inflow ?? 0) + (overview?.total_outflow ?? 0), displayCurrency)} of ${formatCurrency(overview?.total_inflow ?? 0, displayCurrency)} this month`
+                    : savingsRateHasExpenses
+                      ? 'No income this month'
+                      : 'No data this month'}
                 </p>
               </div>
             </div>
