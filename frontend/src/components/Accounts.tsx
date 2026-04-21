@@ -169,19 +169,24 @@ export default function Accounts() {
     .filter((a) => a.account_kind === 'asset')
     .sort((a, b) => b.current_balance - a.current_balance)
 
-  // Credit usage — aggregate over liability accounts that have a credit_limit set.
-  // Loan-style liabilities (mortgages, term loans) have no limit and are excluded.
-  // Liability balances are stored signed (negative for debt), so flip sign here
-  // so totalCreditUsed reads as a positive "amount currently owed".
-  const creditAccounts = rows.filter(
-    (a) => a.account_kind === 'liability' && a.credit_limit !== null,
-  )
-  const totalCreditUsed = creditAccounts.reduce((sum, a) => sum - a.current_balance, 0)
-  const totalCreditLimit = creditAccounts.reduce((sum, a) => sum + (a.credit_limit ?? 0), 0)
+  // Credit usage — aggregates over any liability that has a credit_limit set.
+  // Term debt (loans, mortgages) has no limit and drops out of the sums
+  // naturally. Liability balances are stored signed (negative for debt), so
+  // flip sign so totalCreditUsed reads as a positive "amount currently owed".
+  // Three states drive the widget: no liabilities at all, liabilities but no
+  // limits entered, and fully usable data. Without this split the first two
+  // cases collapse into a misleading green 0%.
+  const liabilityAccounts = rows.filter((a) => a.account_kind === 'liability')
+  const creditAccountsWithLimits = liabilityAccounts.filter((a) => a.credit_limit !== null)
+  const hasCreditAccounts = liabilityAccounts.length > 0
+  const hasCreditData = creditAccountsWithLimits.length > 0
+  const totalCreditUsed = creditAccountsWithLimits.reduce((sum, a) => sum - a.current_balance, 0)
+  const totalCreditLimit = creditAccountsWithLimits.reduce((sum, a) => sum + (a.credit_limit ?? 0), 0)
   const creditUtilization =
     totalCreditLimit > 0 ? Math.round((totalCreditUsed / totalCreditLimit) * 100) : 0
-  const creditUtilColor =
-    creditUtilization <= 30
+  const creditUtilColor = !hasCreditData
+    ? 'var(--app-text-subtle)'
+    : creditUtilization <= 30
       ? 'var(--app-positive)'
       : creditUtilization <= 70
         ? 'var(--app-accent)'
@@ -353,7 +358,7 @@ export default function Accounts() {
                 className="font-financial font-semibold text-[clamp(1rem,1.7vw,1.5rem)]"
                 style={{ color: creditUtilColor }}
               >
-                {creditUtilization}%
+                {hasCreditData ? `${creditUtilization}%` : 'N/A'}
               </p>
               <div className="mt-2 space-y-1">
                 <div
@@ -364,7 +369,7 @@ export default function Accounts() {
                     className="h-full rounded-full"
                     style={{
                       background: creditUtilColor,
-                      width: `${Math.max(0, Math.min(creditUtilization, 100))}%`,
+                      width: `${hasCreditData ? Math.max(0, Math.min(creditUtilization, 100)) : 0}%`,
                     }}
                   />
                 </div>
@@ -372,8 +377,11 @@ export default function Accounts() {
                   className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
                   style={{ color: 'var(--app-text-subtle)' }}
                 >
-                  {formatCurrency(totalCreditUsed, displayCurrency)} of{' '}
-                  {formatCurrency(totalCreditLimit, displayCurrency)}
+                  {hasCreditData
+                    ? `${formatCurrency(totalCreditUsed, displayCurrency)} of ${formatCurrency(totalCreditLimit, displayCurrency)}`
+                    : hasCreditAccounts
+                      ? 'No credit limits set'
+                      : 'No liability accounts found'}
                 </p>
               </div>
             </div>
