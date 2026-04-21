@@ -27,7 +27,7 @@ app.add_middleware(
     allow_origins=_allowed_origins,
     allow_origin_regex=r"^https?://(localhost|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$" if APP_ENV == "development" else None,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
