@@ -1,16 +1,32 @@
 import uuid
+from datetime import date, timedelta
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.base import CategoryKind
+from app.models.category import Category
 from app.models.currency import Currency
+from app.models.transaction import Transaction
 from app.models.user import User, UserRunwayAccount
-from app.schemas.user import RunwayAccountsRequest, UpdateProfileRequest, UserProfile
+from app.schemas.user import (
+    RunwayAccountsRequest,
+    RunwayResponse,
+    UpdateProfileRequest,
+    UserProfile,
+)
 from app.services.dashboard import get_accessible_accounts
+from app.services.snapshots import get_current_balances
+
+# Trailing window the runway average is taken over. 12 months gives enough data
+# to smooth out seasonal spikes (e.g. insurance renewals, holiday spend) while
+# staying current with lifestyle changes.
+_RUNWAY_WINDOW_DAYS = 365
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -105,3 +121,73 @@ async def replace_runway_accounts(
     await db.commit()
 
     return sorted(requested_ids)
+
+
+@router.get("/runway", response_model=RunwayResponse)
+async def get_runway(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Compute the user's cash runway in months.
+
+    Runway = (sum of current balance across selected runway accounts) divided
+    by the trailing 12-month average monthly expense. Transfer-category
+    transactions are excluded from the denominator so inter-account moves and
+    debt payments (which the app models as transfers) don't shorten runway.
+    """
+    accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
+    stored = await db.execute(
+        select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
+    )
+    selected_ids = [aid for aid in stored.scalars().all() if aid in accessible_ids]
+
+    if not selected_ids:
+        return RunwayResponse(
+            months=None, reason="no_accounts",
+            avg_monthly_expense=0, months_covered=0, liquid_balance=0,
+        )
+
+    balances = await get_current_balances(db, selected_ids)
+    liquid_balance = sum(balances.values())
+
+    # Aggregate expense outflow and count distinct months-with-expenses in a
+    # single query. COUNT(DISTINCT … FILTER …) only counts month buckets that
+    # actually contain expenses, so a user with only income activity averages
+    # against zero months (handled as insufficient_history below).
+    window_start = date.today() - timedelta(days=_RUNWAY_WINDOW_DAYS - 1)
+    expense_filter = (Transaction.amount < 0) & (Category.kind == CategoryKind.EXPENSE)
+    agg = (await db.execute(
+        select(
+            sa.func.count(sa.distinct(sa.func.date_trunc("month", Transaction.dt)))
+                .filter(expense_filter).label("months_covered"),
+            sa.func.coalesce(
+                sa.func.sum(sa.case((expense_filter, Transaction.amount), else_=0)), 0,
+            ).label("expense_outflow"),
+        )
+        .select_from(Transaction)
+        .join(Category, Category.id == Transaction.category_id)
+        .where(Transaction.account_id.in_(accessible_ids))
+        .where(Transaction.dt >= window_start),
+    )).one()
+
+    # Cap at 12 — if a user has activity in 13+ month buckets via backdated
+    # entries at the edge of the window, we still only average over the window.
+    months_covered = min(int(agg.months_covered), 12)
+    expense_outflow = int(agg.expense_outflow)
+
+    if months_covered < 1 or expense_outflow >= 0:
+        return RunwayResponse(
+            months=None, reason="insufficient_history",
+            avg_monthly_expense=0, months_covered=months_covered,
+            liquid_balance=liquid_balance,
+        )
+
+    avg_monthly_expense = abs(expense_outflow) // months_covered
+    months = liquid_balance / avg_monthly_expense if avg_monthly_expense > 0 else None
+    return RunwayResponse(
+        months=max(0.0, months) if months is not None else None,
+        reason=None,
+        avg_monthly_expense=avg_monthly_expense,
+        months_covered=months_covered,
+        liquid_balance=liquid_balance,
+    )

@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -33,3 +34,17 @@ class RunwayAccountsRequest(BaseModel):
     """Replacement set for the user's runway account selection."""
 
     account_ids: list[uuid.UUID]
+
+
+class RunwayResponse(BaseModel):
+    """Runway projection in months.
+
+    How many months the user's selected liquid balance covers at their trailing
+    12-month average monthly expense.
+    """
+
+    months: float | None
+    reason: Literal["no_accounts", "insufficient_history"] | None
+    avg_monthly_expense: int
+    months_covered: int
+    liquid_balance: int
