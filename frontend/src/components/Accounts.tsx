@@ -218,7 +218,8 @@ function AccountRow({
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{account.name}</p>
           <p className="text-sm mt-0.5" style={{ color: 'var(--app-text-muted)' }}>
-            {humanizeAccountType(account.account_type)} · {account.institution?.name ?? 'Cash'}
+            {humanizeAccountType(account.account_type)}
+            {account.institution && ` · ${account.institution.name}`}
           </p>
         </div>
         <div className="text-right shrink-0">
