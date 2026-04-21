@@ -8,6 +8,7 @@ import Navigation from '@/components/Navigation'
 import Dashboard from '@/components/Dashboard'
 import Accounts from '@/components/Accounts'
 import Transactions from '@/components/Transactions'
+import Settings from '@/components/Settings'
 import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
 
@@ -95,7 +96,7 @@ function AnimatedRoutes() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/budgets" element={<PageTitle title="Budgets" />} />
           <Route path="/insights" element={<PageTitle title="Insights" />} />
-          <Route path="/settings" element={<PageTitle title="Settings" />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

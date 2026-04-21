@@ -17,6 +17,8 @@ export interface AuthContextValue extends AuthState {
   signup: (payload: SignupPayload) => Promise<AuthResponse>;
   /** Commit an auth response to state — call after any transition animations */
   setSession: (res: AuthResponse) => void;
+  /** Replace just the user profile — used after /me updates to keep the context fresh */
+  setUser: (user: User) => void;
   logout: () => Promise<void>;
 }
 
@@ -108,6 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user: res.user, accessToken: res.access_token, loading: false });
   }, []);
 
+  const setUser = useCallback((user: User) => {
+    setState((prev) => ({ ...prev, user }));
+  }, []);
+
   const logout = useCallback(async () => {
     if (state.accessToken) {
       await authApi.logout(state.accessToken).catch(() => {});
@@ -121,8 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.accessToken, queryClient]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, signup, setSession, logout }),
-    [state, login, signup, setSession, logout],
+    () => ({ ...state, login, signup, setSession, setUser, logout }),
+    [state, login, signup, setSession, setUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
