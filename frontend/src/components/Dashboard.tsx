@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -53,6 +53,14 @@ import {
 const BREAKDOWN_COLORS = [
   '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
 ]
+
+// Shared across every recharts Tooltip on this page so hover position updates
+// slide instead of snap. `transform` catches the translate() recharts applies
+// when the tooltip follows the cursor; `opacity` handles show/hide fades.
+const TOOLTIP_WRAPPER_STYLE = {
+  transition: 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease-out',
+  pointerEvents: 'none' as const,
+}
 
 type CreditTier = 'positive' | 'accent' | 'negative'
 
@@ -118,7 +126,14 @@ export default function Dashboard() {
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
-  const [hoveredRunwaySegment, setHoveredRunwaySegment] = useState<string | null>(null)
+  // Runway tooltip tracks the cursor's position inside the bar (0–100%) so it
+  // can slide smoothly from one segment to another. null means "not hovering."
+  const [runwayHoverXPct, setRunwayHoverXPct] = useState<number | null>(null)
+  const runwayBarRef = useRef<HTMLDivElement>(null)
+  // Pie tooltips don't follow the cursor by default — they anchor to the
+  // hovered slice. We track cursor position manually so the breakdown tooltip
+  // tracks the mouse and the CSS transition on the wrapper smooths motion.
+  const [breakdownTipPos, setBreakdownTipPos] = useState<{ x: number; y: number } | null>(null)
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison } = useSpendingComparison(spendingRange)
   const [breakdownMode, setBreakdownMode] = useState<'spending' | 'income'>('spending')
@@ -295,8 +310,17 @@ export default function Dashboard() {
       }
     })
   }, [accounts, runwayAccountIds, runway])
-  const hoveredSegment =
-    runwaySegments.find((s) => s.id === hoveredRunwaySegment) ?? null
+  // Derive which segment the cursor is over by walking cumulative percents
+  // until we find the one that contains `runwayHoverXPct`.
+  const hoveredSegment = useMemo(() => {
+    if (runwayHoverXPct === null || runwaySegments.length === 0) return null
+    let cursor = 0
+    for (const s of runwaySegments) {
+      cursor += s.pct
+      if (runwayHoverXPct <= cursor) return s
+    }
+    return runwaySegments[runwaySegments.length - 1]
+  }, [runwayHoverXPct, runwaySegments])
 
   // Active breakdown entries for the selected mode. The API always returns
   // both expense and income buckets so the toggle doesn't need to refetch.
@@ -367,6 +391,7 @@ export default function Dashboard() {
                     />
                     <YAxis hide domain={['dataMin', 'dataMax']} />
                     <Tooltip
+                      wrapperStyle={TOOLTIP_WRAPPER_STYLE}
                       contentStyle={{
                         background: 'var(--app-bg)',
                         border: '1px solid var(--app-border-strong)',
@@ -532,6 +557,7 @@ export default function Dashboard() {
                       currentLabel={savingsData[savingsData.length - 1].monthLabel}
                     />
                     <Tooltip
+                      wrapperStyle={TOOLTIP_WRAPPER_STYLE}
                       cursor={{ fill: 'var(--app-border)', opacity: 0.4 }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.[0]) return null
@@ -613,21 +639,28 @@ export default function Dashboard() {
               {formatCompactRunway(runwayMonths)}
             </p>
             {/* Segmented contribution bar — each selected account's share of
-                liquid balance. Tall enough to be the card's visual anchor;
-                hover reveals the account name + amount in a floating tooltip
-                positioned above the segment. */}
+                liquid balance. Hovering anywhere on the bar shows a tooltip
+                anchored to the cursor's X position; `clamp()` keeps it from
+                escaping the bar's bounds, and the CSS transition on `left`
+                smooths the slide when the user moves between segments. */}
             <div className="mt-3 flex-1 min-h-0 flex flex-col">
               <div className="relative flex-1">
-                <div className="flex h-full gap-0.5 rounded-xl overflow-hidden">
+                <div
+                  ref={runwayBarRef}
+                  className="flex h-full gap-0.5 rounded-xl overflow-hidden"
+                  onMouseMove={(e) => {
+                    if (runwaySegments.length === 0) return
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const xPct = ((e.clientX - rect.left) / rect.width) * 100
+                    setRunwayHoverXPct(Math.max(0, Math.min(100, xPct)))
+                  }}
+                  onMouseLeave={() => setRunwayHoverXPct(null)}
+                >
                   {runwaySegments.length > 0 ? (
                     runwaySegments.map((s) => (
                       <div
                         key={s.id}
                         style={{ width: `${s.pct}%`, background: s.color }}
-                        onMouseEnter={() => setHoveredRunwaySegment(s.id)}
-                        onMouseLeave={() =>
-                          setHoveredRunwaySegment((id) => (id === s.id ? null : id))
-                        }
                       />
                     ))
                   ) : (
@@ -642,47 +675,36 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
-                {hoveredSegment && (() => {
-                  // Anchor the tooltip to whichever side of the bar it's
-                  // closest to so it never clips past the card's edges. In the
-                  // outer bands (< 20% / > 80%) we pin to that edge; in the
-                  // middle we center on the segment. Account names are capped
-                  // with `max-w` + `truncate` so a long name can't widen the
-                  // tooltip past the card either.
-                  const pct = hoveredSegment.centerPct
-                  const anchor: 'left' | 'right' | 'center' =
-                    pct < 20 ? 'left' : pct > 80 ? 'right' : 'center'
-                  const positioning =
-                    anchor === 'left'
-                      ? { left: 0 }
-                      : anchor === 'right'
-                        ? { right: 0 }
-                        : { left: `${pct}%`, transform: 'translateX(-50%)' }
-                  return (
+                {hoveredSegment && runwayHoverXPct !== null && (
+                  <div
+                    className="absolute -top-2 -translate-y-full whitespace-nowrap rounded-md px-2.5 py-1.5 pointer-events-none z-10 w-[11rem]"
+                    style={{
+                      // clamp() keeps the tooltip fully inside the bar: never
+                      // less than half-width from the left, never more than
+                      // half-width from the right. Transitioning `left`
+                      // produces a smooth slide across segments.
+                      left: `clamp(5.5rem, ${runwayHoverXPct}%, calc(100% - 5.5rem))`,
+                      transform: 'translateX(-50%)',
+                      transition: 'left 280ms cubic-bezier(0.22, 1, 0.36, 1)',
+                      background: 'var(--app-bg)',
+                      border: '1px solid var(--app-border-strong)',
+                      boxShadow: 'var(--app-shadow-soft)',
+                    }}
+                  >
                     <div
-                      className="absolute -top-2 -translate-y-full whitespace-nowrap rounded-md px-2.5 py-1.5 pointer-events-none z-10 max-w-[11rem]"
-                      style={{
-                        ...positioning,
-                        background: 'var(--app-bg)',
-                        border: '1px solid var(--app-border-strong)',
-                        boxShadow: 'var(--app-shadow-soft)',
-                      }}
+                      className="text-xs font-medium truncate"
+                      style={{ color: 'var(--app-text)' }}
                     >
-                      <div
-                        className="text-xs font-medium truncate"
-                        style={{ color: 'var(--app-text)' }}
-                      >
-                        {hoveredSegment.name}
-                      </div>
-                      <div
-                        className="font-financial text-xs"
-                        style={{ color: 'var(--app-text-muted)' }}
-                      >
-                        {formatCurrency(hoveredSegment.amount, displayCurrency)}
-                      </div>
+                      {hoveredSegment.name}
                     </div>
-                  )
-                })()}
+                    <div
+                      className="font-financial text-xs"
+                      style={{ color: 'var(--app-text-muted)' }}
+                    >
+                      {formatCurrency(hoveredSegment.amount, displayCurrency)}
+                    </div>
+                  </div>
+                )}
               </div>
               {runwaySegments.length > 0 && (
                 <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
@@ -827,6 +849,7 @@ export default function Dashboard() {
                   />
                   <YAxis hide />
                   <Tooltip
+                    wrapperStyle={TOOLTIP_WRAPPER_STYLE}
                     cursor={{ stroke: 'var(--app-accent-border)', strokeWidth: 1 }}
                     contentStyle={{
                       background: 'var(--app-bg)',
@@ -932,7 +955,24 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <div className="flex-1 min-h-0 relative">
+                <div
+                  className="flex-1 min-h-0 relative"
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    // Tooltip anchors at its top-left corner. Offset the cursor
+                    // coords so the box sits centered above the pointer, then
+                    // clamp so it never leaves the widget. Tooltip dims are
+                    // estimated — slight mismatches are cosmetic.
+                    const tw = 160
+                    const th = 44
+                    const rawX = e.clientX - rect.left
+                    const rawY = e.clientY - rect.top
+                    const x = Math.max(0, Math.min(rect.width - tw, rawX - tw / 2))
+                    const y = Math.max(0, Math.min(rect.height - th, rawY - th - 8))
+                    setBreakdownTipPos({ x, y })
+                  }}
+                  onMouseLeave={() => setBreakdownTipPos(null)}
+                >
                   {/* Center overlay rendered BEFORE the chart so recharts'
                       tooltip (appended after) paints on top. Without this the
                       total would cover tooltips for the slices nearest the
@@ -964,7 +1004,9 @@ export default function Dashboard() {
                         ))}
                       </Pie>
                       <Tooltip
+                        wrapperStyle={TOOLTIP_WRAPPER_STYLE}
                         cursor={false}
+                        position={breakdownTipPos ?? undefined}
                         contentStyle={{
                           background: 'var(--app-bg)',
                           border: '1px solid var(--app-border-strong)',
