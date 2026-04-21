@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import {
   User as UserIcon,
-  Milestone,
+  LifeBuoy,
   Check,
   type LucideIcon,
 } from 'lucide-react'
@@ -44,7 +44,7 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { id: 'profile', label: 'Profile', icon: UserIcon },
-  { id: 'runway', label: 'Runway', icon: Milestone },
+  { id: 'runway', label: 'Runway', icon: LifeBuoy },
 ]
 
 /* ── Top-level page ── */
