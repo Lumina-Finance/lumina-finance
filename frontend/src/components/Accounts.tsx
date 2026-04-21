@@ -205,7 +205,7 @@ export default function Accounts() {
 
   // Savings rate = (income − expenses) / income. outflow comes back negative,
   // so adding gives the net. Null when there is no income — either the month
-  // had only expenses (treated as −∞%) or no activity at all (displayed as —).
+  // had only expenses (treated as −∞%) or no activity at all (displayed as N/A).
   const savingsRate = useMemo<number | null>(() => {
     const inflow = overview?.total_inflow ?? 0
     const outflow = overview?.total_outflow ?? 0
@@ -318,7 +318,7 @@ export default function Accounts() {
                   ? `${savingsRate}%`
                   : savingsRateHasExpenses
                     ? '−∞%'
-                    : '—'}
+                    : 'N/A'}
               </p>
               <div className="mt-2 space-y-1">
                 <div
