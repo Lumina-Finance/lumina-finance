@@ -186,13 +186,13 @@ async def get_credit_widget(
 ) -> tuple[int, int]:
     """Return ``(credit_limit_total, credit_used)`` summed across eligible accounts.
 
-    Only base-currency liability accounts with ``credit_limit`` set
+    Only base-currency revolving-credit accounts with ``credit_limit`` set
     contribute. Liability balances are stored as negatives, so ``credit_used``
     takes the absolute value of each balance.
     """
     credit_accounts = [
         a for a in base_currency_accounts
-        if a.account_kind == AccountKind.LIABILITY and a.credit_limit is not None
+        if a.account_kind == AccountKind.REVOLVING and a.credit_limit is not None
     ]
     if not credit_accounts:
         return 0, 0

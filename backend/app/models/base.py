@@ -32,8 +32,14 @@ class TaxTreatment(enum.StrEnum):
 
 
 class AccountKind(enum.StrEnum):
+    # Split liabilities into revolving (credit cards, lines of credit, HELOCs —
+    # purchases already expensed at time of swipe) vs amortizing (loans,
+    # mortgages — payments represent real ongoing cash outflow). The
+    # distinction is load-bearing for the runway calculation and makes the
+    # difference visible to users at account-creation time.
     ASSET = "asset"
-    LIABILITY = "liability"
+    REVOLVING = "revolving"
+    AMORTIZING = "amortizing"
 
 
 class AccountType(enum.StrEnum):
@@ -43,10 +49,11 @@ class AccountType(enum.StrEnum):
     TERM_DEPOSIT = "term_deposit"
     CASH = "cash"
     INVESTMENT = "investment"
-    # Liability subtypes
+    # Revolving-credit subtypes
     CREDIT_CARD = "credit_card"
     LINE_OF_CREDIT = "line_of_credit"
     HELOC = "heloc"
+    # Amortizing-debt subtypes
     LOAN = "loan"
     MORTGAGE = "mortgage"
 
@@ -59,11 +66,11 @@ ACCOUNT_KIND_BY_TYPE: dict[AccountType, AccountKind] = {
     AccountType.TERM_DEPOSIT: AccountKind.ASSET,
     AccountType.CASH: AccountKind.ASSET,
     AccountType.INVESTMENT: AccountKind.ASSET,
-    AccountType.CREDIT_CARD: AccountKind.LIABILITY,
-    AccountType.LINE_OF_CREDIT: AccountKind.LIABILITY,
-    AccountType.HELOC: AccountKind.LIABILITY,
-    AccountType.LOAN: AccountKind.LIABILITY,
-    AccountType.MORTGAGE: AccountKind.LIABILITY,
+    AccountType.CREDIT_CARD: AccountKind.REVOLVING,
+    AccountType.LINE_OF_CREDIT: AccountKind.REVOLVING,
+    AccountType.HELOC: AccountKind.REVOLVING,
+    AccountType.LOAN: AccountKind.AMORTIZING,
+    AccountType.MORTGAGE: AccountKind.AMORTIZING,
 }
 
 # Fail-fast: every AccountType variant must be mapped, so adding a variant without mapping it crashes at import

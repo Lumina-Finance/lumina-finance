@@ -638,12 +638,12 @@ async def test_create_liability_account_succeeds(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers, account_kind="liability", account_type="credit_card", name="Visa Infinite",
+        client, headers, account_kind="revolving", account_type="credit_card", name="Visa Infinite",
     )
 
     assert resp.status_code == 201
     data = resp.json()
-    assert data["account_kind"] == "liability"
+    assert data["account_kind"] == "revolving"
     assert data["account_type"] == "credit_card"
 
 
@@ -654,7 +654,7 @@ async def test_create_liability_with_credit_limit_succeeds(client):
 
     resp = await _create_account(
         client, headers,
-        account_kind="liability", account_type="credit_card", name="Visa", credit_limit=500_000,
+        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=500_000,
     )
 
     assert resp.status_code == 201
@@ -667,7 +667,7 @@ async def test_create_liability_without_credit_limit_defaults_null(client):
     headers = _get_auth_header(signup_resp)
 
     resp = await _create_account(
-        client, headers, account_kind="liability", account_type="credit_card", name="Visa",
+        client, headers, account_kind="revolving", account_type="credit_card", name="Visa",
     )
 
     assert resp.status_code == 201
@@ -682,7 +682,7 @@ async def test_create_asset_with_credit_limit_returns_422(client):
     resp = await _create_account(client, headers, credit_limit=500_000)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "credit_limit is only valid on liability accounts"
+    assert resp.json()["detail"] == "credit_limit is only valid on revolving-credit accounts"
 
 
 async def test_update_liability_credit_limit_succeeds(client):
@@ -690,7 +690,7 @@ async def test_update_liability_credit_limit_succeeds(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_account(
-        client, headers, account_kind="liability", account_type="credit_card", name="Visa",
+        client, headers, account_kind="revolving", account_type="credit_card", name="Visa",
     )
     account_id = create_resp.json()["id"]
 
@@ -714,7 +714,7 @@ async def test_update_asset_credit_limit_returns_422(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "credit_limit is only valid on liability accounts"
+    assert resp.json()["detail"] == "credit_limit is only valid on revolving-credit accounts"
 
 
 async def test_create_account_invalid_tax_treatment_returns_422(client):
@@ -1044,7 +1044,7 @@ async def test_patch_account_immutable_fields_ignored(client):
 
     resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"account_kind": "liability", "account_type": "credit_card", "currency": "USD"},
+        json={"account_kind": "revolving", "account_type": "credit_card", "currency": "USD"},
         headers=headers,
     )
 

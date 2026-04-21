@@ -143,10 +143,10 @@ async def create_account(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Account kind does not match account type",
         )
-    if data.credit_limit is not None and AccountKind(data.account_kind) != AccountKind.LIABILITY:
+    if data.credit_limit is not None and AccountKind(data.account_kind) != AccountKind.REVOLVING:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="credit_limit is only valid on liability accounts",
+            detail="credit_limit is only valid on revolving-credit accounts",
         )
     if data.tax_treatment not in _VALID_TAX_TREATMENTS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
@@ -252,11 +252,13 @@ async def update_account(
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
-    # credit_limit is only meaningful on liability accounts; account_kind is fixed at creation
-    if updates.get("credit_limit") is not None and account.account_kind != AccountKind.LIABILITY:
+    # credit_limit is only meaningful on revolving-credit accounts (credit
+    # cards, LOCs, HELOCs). Amortizing debt has a principal schedule, not a
+    # limit. account_kind is fixed at creation.
+    if updates.get("credit_limit") is not None and account.account_kind != AccountKind.REVOLVING:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="credit_limit is only valid on liability accounts",
+            detail="credit_limit is only valid on revolving-credit accounts",
         )
 
     for field, value in updates.items():

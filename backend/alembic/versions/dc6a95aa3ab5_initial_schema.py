@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 57fa898d8db2
+Revision ID: dc6a95aa3ab5
 Revises: 
-Create Date: 2026-04-21 11:41:02.626351
+Create Date: 2026-04-21 14:04:10.561211
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '57fa898d8db2'
+revision: str = 'dc6a95aa3ab5'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -95,7 +95,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=True),
     sa.Column('group_id', sa.Uuid(), nullable=True),
-    sa.Column('account_kind', sa.Enum('ASSET', 'LIABILITY', name='accountkind'), nullable=False),
+    sa.Column('account_kind', sa.Enum('ASSET', 'REVOLVING', 'AMORTIZING', name='accountkind'), nullable=False),
     sa.Column('account_type', sa.Enum('CHECKING', 'SAVINGS', 'TERM_DEPOSIT', 'CASH', 'INVESTMENT', 'CREDIT_CARD', 'LINE_OF_CREDIT', 'HELOC', 'LOAN', 'MORTGAGE', name='accounttype'), nullable=False),
     sa.Column('tax_treatment', sa.Enum('TAXABLE', 'TAX_FREE', 'TAX_DEFERRED', 'TAX_ASSISTED', name='taxtreatment'), nullable=False),
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
