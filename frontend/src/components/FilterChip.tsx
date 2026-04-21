@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ChevronDown, X } from 'lucide-react'
 
@@ -18,15 +18,10 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
   const ref = useRef<HTMLDivElement>(null)
   const active = !!selectedLabel
 
-  // Keep the latest onClose callback in a ref so the listener effect doesn't
-  // need to re-subscribe when the parent passes a new function each render.
-  const onCloseRef = useRef(onClose)
-  useEffect(() => { onCloseRef.current = onClose }, [onClose])
-
-  const closePanel = () => {
+  const closePanel = useCallback(() => {
     setOpen(false)
-    onCloseRef.current?.()
-  }
+    onClose?.()
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
@@ -44,9 +39,7 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
       window.removeEventListener('pointerdown', onPointer)
       window.removeEventListener('keydown', onKey)
     }
-    // closePanel is stable (reads onCloseRef.current); safe to omit from deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, closePanel])
 
   return (
     <div ref={ref} className="relative">

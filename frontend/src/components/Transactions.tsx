@@ -172,12 +172,21 @@ export default function Transactions() {
   // `filters.to_date` (which is what triggers a refetch) when they click Apply
   // or close the panel. An invalid range (from > to, mirroring the backend's
   // 422 rule) gets reverted on close and blocks the Apply button.
-  const [pendingFrom, setPendingFrom] = useState('')
-  const [pendingTo, setPendingTo] = useState('')
-  useEffect(() => {
+  //
+  // Drafts are reset to the applied values whenever filters change externally
+  // (e.g. a different chip clears the range). The "adjust state while
+  // rendering" pattern avoids the cascading render an effect would cause.
+  const [pendingFrom, setPendingFrom] = useState(filters.from_date ?? '')
+  const [pendingTo, setPendingTo] = useState(filters.to_date ?? '')
+  const [syncedRange, setSyncedRange] = useState({
+    from: filters.from_date,
+    to: filters.to_date,
+  })
+  if (syncedRange.from !== filters.from_date || syncedRange.to !== filters.to_date) {
+    setSyncedRange({ from: filters.from_date, to: filters.to_date })
     setPendingFrom(filters.from_date ?? '')
     setPendingTo(filters.to_date ?? '')
-  }, [filters.from_date, filters.to_date])
+  }
   const dateRangeInvalid = !!pendingFrom && !!pendingTo && pendingFrom > pendingTo
   const dateRangeChanged =
     (pendingFrom || undefined) !== filters.from_date ||
@@ -240,14 +249,14 @@ export default function Transactions() {
 
   // Infinite scroll: when the sentinel becomes visible, mark a fetch as
   // pending so the user sees feedback immediately, then fire fetchNextPage
-  // after 1s of continuous visibility (soft throttle).
+  // after 1s of continuous visibility (soft throttle). The raw `pendingFetch`
+  // flag only tracks the viewport-intersection side; actual visibility in the
+  // UI is derived below so query state (no next page, already fetching) takes
+  // precedence without needing an effect to reset the flag.
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [pendingFetch, setPendingFetch] = useState(false)
   useEffect(() => {
-    if (!hasNextPage || isFetchingNextPage) {
-      setPendingFetch(false)
-      return
-    }
+    if (!hasNextPage || isFetchingNextPage) return
     const el = sentinelRef.current
     if (!el) return
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -255,7 +264,10 @@ export default function Transactions() {
       if (entries[0].isIntersecting) {
         if (timeoutId === null) {
           setPendingFetch(true)
-          timeoutId = setTimeout(() => fetchNextPage(), 1000)
+          timeoutId = setTimeout(() => {
+            setPendingFetch(false)
+            fetchNextPage()
+          }, 1000)
         }
       } else if (timeoutId !== null) {
         clearTimeout(timeoutId)
@@ -269,6 +281,7 @@ export default function Transactions() {
       observer.disconnect()
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  const showPendingFetch = pendingFetch && hasNextPage && !isFetchingNextPage
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
   const { data: accounts } = useAccounts()
@@ -806,7 +819,7 @@ export default function Transactions() {
 
           {/* Sentinel + loading / end-of-list indicator for infinite scroll */}
           <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
-          {isFetchingNextPage || pendingFetch ? (
+          {isFetchingNextPage || showPendingFetch ? (
             <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
               Loading more transactions...
             </p>
