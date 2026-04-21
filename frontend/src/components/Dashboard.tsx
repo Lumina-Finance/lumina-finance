@@ -643,8 +643,8 @@ export default function Dashboard() {
                 anchored to the cursor's X position; `clamp()` keeps it from
                 escaping the bar's bounds, and the CSS transition on `left`
                 smooths the slide when the user moves between segments. */}
-            <div className="mt-3 flex-1 min-h-0 flex flex-col">
-              <div className="relative flex-1">
+            <div className="flex-1 min-h-0 flex items-center">
+              <div className="relative h-14 w-full">
                 <div
                   ref={runwayBarRef}
                   className="flex h-full gap-0.5 rounded-xl overflow-hidden"
@@ -706,12 +706,12 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-              {runwaySegments.length > 0 && (
-                <p className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  {runwayCaption}
-                </p>
-              )}
             </div>
+            {runwaySegments.length > 0 && (
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                {runwayCaption}
+              </p>
+            )}
           </div>
         </div>
 
