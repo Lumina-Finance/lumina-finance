@@ -1,6 +1,11 @@
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.routes.conftest import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.conftest import (
+    SIGNUP_PAYLOAD,
+    _create_account,
+    _create_user,
+    _get_auth_header,
+)
 
 # --- Helpers ---
 
@@ -243,3 +248,59 @@ async def test_patch_persists_across_requests(client):
 
     assert resp.status_code == 200
     assert resp.json()["first_name"] == "Persisted"
+
+
+# --- PUT /me/runway-accounts ---
+
+
+async def _signup_second_user(client):
+    """Sign up a second user (assumes CAD currency is already seeded) and return auth headers."""
+    resp = await client.post("/auth/signup", json={
+        "email": "other@example.com",
+        "password": "securepassword123",
+        "first_name": "Other",
+        "tz": "America/Toronto",
+        "base_currency": "CAD",
+    })
+    return _get_auth_header(resp)
+
+
+async def test_put_runway_accounts_isolates_across_users(client):
+    """Each user's runway selection is scoped to themselves — A's PUT doesn't surface in B's GET."""
+    signup_a = await _create_user(client)
+    headers_a = _get_auth_header(signup_a)
+    headers_b = await _signup_second_user(client)
+
+    account_a_id = (await _create_account(client, headers_a, name="A's account")).json()["id"]
+    account_b_id = (await _create_account(client, headers_b, name="B's account")).json()["id"]
+
+    await client.put("/me/runway-accounts", json={"account_ids": [account_a_id]}, headers=headers_a)
+    await client.put("/me/runway-accounts", json={"account_ids": [account_b_id]}, headers=headers_b)
+
+    resp_a = await client.get("/me/runway-accounts", headers=headers_a)
+    resp_b = await client.get("/me/runway-accounts", headers=headers_b)
+
+    assert resp_a.status_code == 200
+    assert resp_b.status_code == 200
+    assert resp_a.json() == [account_a_id]
+    assert resp_b.json() == [account_b_id]
+
+
+async def test_put_runway_accounts_rejects_other_users_account(client):
+    """User A cannot pin user B's account into their runway — returns 422 and A's selection stays empty."""
+    signup_a = await _create_user(client)
+    headers_a = _get_auth_header(signup_a)
+    headers_b = await _signup_second_user(client)
+
+    account_b_id = (await _create_account(client, headers_b, name="B's account")).json()["id"]
+
+    resp = await client.put(
+        "/me/runway-accounts",
+        json={"account_ids": [account_b_id]},
+        headers=headers_a,
+    )
+
+    assert resp.status_code == 422
+
+    get_resp = await client.get("/me/runway-accounts", headers=headers_a)
+    assert get_resp.json() == []

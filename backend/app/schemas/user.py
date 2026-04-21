@@ -27,3 +27,9 @@ class UpdateProfileRequest(BaseModel):
     profile_pic: str | None = None
     tz: str | None = Field(None, max_length=40)
     base_currency: str | None = Field(None, min_length=3, max_length=3)
+
+
+class RunwayAccountsRequest(BaseModel):
+    """Replacement set for the user's runway account selection."""
+
+    account_ids: list[uuid.UUID]
