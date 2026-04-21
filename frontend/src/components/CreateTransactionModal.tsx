@@ -28,8 +28,15 @@ const KIND_OPTIONS: { value: Kind; label: string }[] = [
   { value: 'transfer', label: 'Transfer' },
 ]
 
+// Transfers can go either way on a single account — pulling money out
+// (e.g. paying a credit card from checking) or bringing it in (receiving a
+// repayment, moving savings back). The sign on `amount` encodes this on the
+// backend; the modal tracks it explicitly via `transfer_direction`.
+type TransferDirection = 'in' | 'out'
+
 const INITIAL_FORM = {
   kind: 'expense' as Kind,
+  transfer_direction: 'out' as TransferDirection,
   account_id: '',
   category_id: '',
   merchant_id: '',
@@ -128,6 +135,8 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
     const exp = currencies.find((c) => c.id === transaction.currency)?.minor_unit_exponent ?? 2
     return {
       kind: (category?.kind as Kind) ?? 'expense',
+      // Recover direction from the stored sign so the toggle reflects reality.
+      transfer_direction: (transaction.amount >= 0 ? 'in' : 'out') as TransferDirection,
       account_id: transaction.account_id,
       category_id: transaction.category_id,
       merchant_id: transaction.merchant_id ?? '',
@@ -287,7 +296,11 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
     const selectedCurrency = currencies.find((c) => c.id === form.currency)
     const minorMultiplier = Math.pow(10, selectedCurrency?.minor_unit_exponent ?? 2)
     const magnitude = Math.round(parseFloat(form.amount) * minorMultiplier)
-    const signedAmount = form.kind === 'income' ? magnitude : -magnitude
+    // Sign comes from kind + (for transfers) direction. Income is always +;
+    // expense is always −; transfers depend on which way money moved.
+    const isInflow =
+      form.kind === 'income' || (form.kind === 'transfer' && form.transfer_direction === 'in')
+    const signedAmount = isInflow ? magnitude : -magnitude
     const notes = form.notes.trim() || null
 
     if (editing && transaction) {
@@ -430,6 +443,48 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
                     )
                   })}
                 </div>
+
+                {/* Transfer direction — only meaningful when the transaction
+                    is a transfer. Stays editable in edit mode so a mis-signed
+                    transfer can be corrected without deleting the row. */}
+                <AnimatePresence initial={false}>
+                  {form.kind === 'transfer' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2, ease: EASE }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <div>
+                        <label className="app-label block mb-1.5">Direction</label>
+                        <div className="flex gap-2">
+                          {([
+                            { value: 'out', label: 'Money Out' },
+                            { value: 'in', label: 'Money In' },
+                          ] as const).map((opt) => {
+                            const selected = form.transfer_direction === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => handleField('transfer_direction', opt.value)}
+                                className="flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-150"
+                                style={{
+                                  background: selected ? 'var(--app-accent-soft)' : 'transparent',
+                                  color: selected ? 'var(--app-accent)' : 'var(--app-text-muted)',
+                                  border: `1px solid ${selected ? 'var(--app-accent-border)' : 'var(--app-border)'}`,
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Account */}
                 <div>
