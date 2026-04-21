@@ -371,7 +371,7 @@ export default function Dashboard() {
               <span className="app-label">Net Worth</span>
             </div>
             <p
-              className="font-financial font-medium tracking-tight leading-none text-2xl"
+              className="font-financial font-normal tracking-tight leading-none text-3xl"
               style={{ color: netWorthColor }}
             >
               {formatCurrency(netWorth, displayCurrency)}
@@ -478,7 +478,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <p className="font-financial font-medium tracking-tight leading-none text-2xl">
+                  <p className="font-financial font-normal tracking-tight leading-none text-3xl">
                     {formatCurrency(displayAmount, displayCurrency)}
                   </p>
                   <p className="font-financial mt-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -633,7 +633,7 @@ export default function Dashboard() {
               )}
             </div>
             <p
-              className="font-financial font-medium tracking-tight leading-none text-2xl"
+              className="font-financial font-normal tracking-tight leading-none text-3xl"
               style={{ color: runwayMonths === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
             >
               {formatCompactRunway(runwayMonths)}
@@ -761,7 +761,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <p className="font-financial font-medium tracking-tight leading-none text-3xl">
+              <p className="font-financial font-normal tracking-tight leading-none text-3xl">
                 {formatCurrency(spentToDate, displayCurrency)}
               </p>
               {spendingDeltaPct != null && (
@@ -981,7 +981,7 @@ export default function Dashboard() {
                     <span className="app-label" style={{ fontSize: 12 }}>
                       Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
                     </span>
-                    <span className="font-financial font-medium tracking-tight text-2xl mt-1">
+                    <span className="font-financial font-normal tracking-tight text-3xl mt-1">
                       {formatCurrency(breakdownTotal, displayCurrency)}
                     </span>
                   </div>
