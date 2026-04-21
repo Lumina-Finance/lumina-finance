@@ -25,11 +25,11 @@ const ACCOUNT_TYPE_OPTIONS = [
   { value: 'term_deposit', label: 'Term Deposit', group: 'Assets' },
   { value: 'cash', label: 'Cash', group: 'Assets' },
   { value: 'investment', label: 'Investment', group: 'Assets' },
-  { value: 'credit_card', label: 'Credit Card', group: 'Liabilities' },
-  { value: 'line_of_credit', label: 'Line of Credit', group: 'Liabilities' },
-  { value: 'heloc', label: 'HELOC', group: 'Liabilities' },
-  { value: 'loan', label: 'Loan', group: 'Liabilities' },
-  { value: 'mortgage', label: 'Mortgage', group: 'Liabilities' },
+  { value: 'credit_card', label: 'Credit Card', group: 'Revolving credit' },
+  { value: 'line_of_credit', label: 'Line of Credit', group: 'Revolving credit' },
+  { value: 'heloc', label: 'HELOC', group: 'Revolving credit' },
+  { value: 'loan', label: 'Loan', group: 'Amortizing debt' },
+  { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
 ];
 
 const TAX_TREATMENT_OPTIONS = [
@@ -110,7 +110,9 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const accountKind = form.account_type
     ? ACCOUNT_KIND_BY_TYPE[form.account_type as AccountType]
     : undefined;
-  const isLiability = accountKind === 'liability';
+  // credit_limit applies only to revolving-credit products (credit cards,
+  // LOCs, HELOCs). Amortizing debt has a fixed principal schedule, not a limit.
+  const isRevolving = accountKind === 'revolving';
   const isTaxAdvantaged = form.tax_treatment !== 'taxable' && form.tax_treatment !== '';
 
   // Dropdown options
@@ -147,7 +149,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       // Reset dependent fields when their controlling field changes
       if (field === 'account_type') {
         const nextKind = value ? ACCOUNT_KIND_BY_TYPE[value as AccountType] : undefined;
-        if (nextKind !== 'liability') next.credit_limit = '';
+        if (nextKind !== 'revolving') next.credit_limit = '';
       }
       if (field === 'tax_treatment' && value === 'taxable') {
         next.lifetime_contribution_limit = '';
@@ -209,7 +211,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       institution_id: form.institution_id || null,
       currency: form.currency,
       lifetime_contribution_limit: isTaxAdvantaged ? toMinor(form.lifetime_contribution_limit) : null,
-      credit_limit: isLiability ? toMinor(form.credit_limit) : null,
+      credit_limit: isRevolving ? toMinor(form.credit_limit) : null,
       is_hidden: false,
     };
 
@@ -436,7 +438,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
                 {/* Conditional: Credit Limit */}
                 <AnimatePresence>
-                  {isLiability && (
+                  {isRevolving && (
                     <motion.div className="overflow-hidden" {...conditionalField}>
                       <div className="pt-1">
                         <label htmlFor="credit-limit" className="app-label block mb-1.5">

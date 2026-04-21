@@ -24,23 +24,24 @@ interface AccountFilterValues {
 
 const ACCOUNT_KIND_OPTIONS: OptionItem[] = [
   { value: 'asset', label: 'Assets' },
-  { value: 'liability', label: 'Liabilities' },
+  { value: 'revolving', label: 'Revolving credit' },
+  { value: 'amortizing', label: 'Amortizing debt' },
 ]
 
-// Grouped by kind so the popover mirrors the Assets/Liabilities split used
-// elsewhere on the page. Labels reuse humanizeAccountType's output shape
-// (HELOC kept as an acronym).
+// Grouped by kind so the popover mirrors the three sections used elsewhere on
+// the page. Labels reuse humanizeAccountType's output shape (HELOC kept as an
+// acronym).
 const ACCOUNT_TYPE_OPTIONS: OptionItem[] = [
   { value: 'checking', label: 'Checking', group: 'Assets' },
   { value: 'savings', label: 'Savings', group: 'Assets' },
   { value: 'term_deposit', label: 'Term Deposit', group: 'Assets' },
   { value: 'cash', label: 'Cash', group: 'Assets' },
   { value: 'investment', label: 'Investment', group: 'Assets' },
-  { value: 'credit_card', label: 'Credit Card', group: 'Liabilities' },
-  { value: 'line_of_credit', label: 'Line of Credit', group: 'Liabilities' },
-  { value: 'heloc', label: 'HELOC', group: 'Liabilities' },
-  { value: 'loan', label: 'Loan', group: 'Liabilities' },
-  { value: 'mortgage', label: 'Mortgage', group: 'Liabilities' },
+  { value: 'credit_card', label: 'Credit Card', group: 'Revolving credit' },
+  { value: 'line_of_credit', label: 'Line of Credit', group: 'Revolving credit' },
+  { value: 'heloc', label: 'HELOC', group: 'Revolving credit' },
+  { value: 'loan', label: 'Loan', group: 'Amortizing debt' },
+  { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
 ]
 
 const TAX_TREATMENT_OPTIONS: OptionItem[] = [
@@ -50,11 +51,16 @@ const TAX_TREATMENT_OPTIONS: OptionItem[] = [
   { value: 'tax_assisted', label: 'Tax Assisted' },
 ]
 
-function sumByKind(accounts: AccountsOverview[], kind: 'asset' | 'liability'): number {
+function sumByKind(accounts: AccountsOverview[], kind: AccountKind): number {
   return accounts
     .filter((a) => a.account_kind === kind)
     .reduce((sum, a) => sum + a.current_balance, 0)
 }
+
+// Anything that isn't an asset counts as a debt for top-line totals (Net
+// Worth, liabilities subtotal). The detail list below splits revolving vs
+// amortizing into separate sections.
+const isDebtAccount = (a: AccountsOverview) => a.account_kind !== 'asset'
 
 // Turn a snake_case account_type enum value into a human label, e.g. "credit_card" → "Credit Card".
 function humanizeAccountType(type: string): string {
@@ -96,6 +102,136 @@ function InstitutionLogo({ institution }: { institution: AccountsOverview['insti
   )
 }
 
+// Each of the three account lists (assets / revolving credit / amortizing
+// debt) shares the same editorial header + row layout. `accent` drives the
+// title color, gutter bar, and (for debt kinds) a simpler balance color rule.
+// `showCreditLimit` turns on the "avail." sub-line for revolving credit.
+function AccountListSection({
+  title,
+  accent,
+  accounts,
+  subtotal,
+  emptyLabel,
+  displayCurrency,
+  showCreditLimit = false,
+}: {
+  title: string
+  accent: 'positive' | 'negative'
+  accounts: AccountsOverview[]
+  subtotal: number
+  emptyLabel: string
+  displayCurrency: string
+  showCreditLimit?: boolean
+}) {
+  const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
+  const subtotalColor = accent === 'positive'
+    ? subtotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+    : subtotal < 0 ? 'var(--app-negative)' : 'var(--app-text)'
+
+  return (
+    <section>
+      {/* Editorial header — title ─── subtotal */}
+      <div className="flex items-center gap-4 mb-2">
+        <h3 className="font-serif font-semibold shrink-0 text-2xl" style={{ color: titleColor }}>
+          {title}
+        </h3>
+        <div
+          className="flex-1 h-px"
+          style={{
+            background:
+              'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
+          }}
+        />
+        <span
+          className="font-financial font-semibold shrink-0 text-xl"
+          style={{ color: subtotalColor }}
+        >
+          {formatCurrency(subtotal, displayCurrency)}
+        </span>
+      </div>
+
+      <div>
+        {accounts.length === 0 ? (
+          <p
+            className="py-3 text-center italic text-sm"
+            style={{ color: 'var(--app-text-subtle)' }}
+          >
+            {emptyLabel}
+          </p>
+        ) : (
+          accounts.map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              accent={accent}
+              showCreditLimit={showCreditLimit}
+              displayCurrency={displayCurrency}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
+function AccountRow({
+  account,
+  accent,
+  showCreditLimit,
+  displayCurrency,
+}: {
+  account: AccountsOverview
+  accent: 'positive' | 'negative'
+  showCreditLimit: boolean
+  displayCurrency: string
+}) {
+  const barColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
+  // Asset balances show green when positive; debt-kind sections stay neutral
+  // when the balance is non-negative (an overpayment credit shouldn't read as
+  // celebratory).
+  const balanceColor =
+    accent === 'positive'
+      ? account.current_balance > 0
+        ? 'var(--app-positive)'
+        : account.current_balance < 0
+          ? 'var(--app-negative)'
+          : 'var(--app-text)'
+      : account.current_balance < 0
+        ? 'var(--app-negative)'
+        : 'var(--app-text)'
+
+  return (
+    <div className="flex items-stretch rounded-xl">
+      <div
+        className="w-0.5 rounded-full my-3"
+        style={{ background: barColor, opacity: 0.3 }}
+      />
+      <div className="flex-1 flex items-center gap-4 py-3.5 px-4">
+        <InstitutionLogo institution={account.institution} />
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{account.name}</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--app-text-muted)' }}>
+            {account.institution?.name ?? 'Cash'} · {humanizeAccountType(account.account_type)}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="font-financial font-medium" style={{ color: balanceColor }}>
+            {formatCurrency(account.current_balance, displayCurrency)}
+          </p>
+          {showCreditLimit && account.credit_limit !== null && (
+            <p
+              className="font-financial mt-0.5 text-xs"
+              style={{ color: 'var(--app-text-muted)' }}
+            >
+              {formatCurrency(account.credit_limit + account.current_balance, displayCurrency)} avail.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Accounts() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
@@ -105,10 +241,12 @@ export default function Accounts() {
 
   const rows = useMemo(() => accounts ?? [], [accounts])
   const totalAssets = sumByKind(rows, 'asset')
-  const totalDebts = sumByKind(rows, 'liability')
+  // Top-line debts aggregate revolving + amortizing — the detail list below
+  // splits them into separate sections.
+  const totalDebts = sumByKind(rows, 'revolving') + sumByKind(rows, 'amortizing')
   const netWorth = totalAssets - totalDebts
   const assetCount = rows.filter((a) => a.account_kind === 'asset').length
-  const debtCount = rows.filter((a) => a.account_kind === 'liability').length
+  const debtCount = rows.filter(isDebtAccount).length
 
   // Filters apply only to the Assets/Liabilities lists below — the headline
   // totals and metrics band above always reflect the full picture.
@@ -159,26 +297,25 @@ export default function Accounts() {
     return true
   })
 
-  // Debts ordered by balance descending — largest liability surfaces first.
-  const debtRows = filteredRows
-    .filter((a) => a.account_kind === 'liability')
-    .sort((a, b) => b.current_balance - a.current_balance)
+  // Assets / revolving credit / amortizing debt each get their own list
+  // section. Within a section rows are ordered by balance descending — largest
+  // holding (or most negative liability) surfaces first.
+  const byBalanceDesc = (a: AccountsOverview, b: AccountsOverview) =>
+    b.current_balance - a.current_balance
+  const assetRows = filteredRows.filter((a) => a.account_kind === 'asset').sort(byBalanceDesc)
+  const revolvingRows = filteredRows.filter((a) => a.account_kind === 'revolving').sort(byBalanceDesc)
+  const amortizingRows = filteredRows.filter((a) => a.account_kind === 'amortizing').sort(byBalanceDesc)
 
-  // Assets ordered by balance descending — largest holding surfaces first.
-  const assetRows = filteredRows
-    .filter((a) => a.account_kind === 'asset')
-    .sort((a, b) => b.current_balance - a.current_balance)
-
-  // Credit usage — aggregates over any liability that has a credit_limit set.
-  // Term debt (loans, mortgages) has no limit and drops out of the sums
-  // naturally. Liability balances are stored signed (negative for debt), so
-  // flip sign so totalCreditUsed reads as a positive "amount currently owed".
-  // Three states drive the widget: no liabilities at all, liabilities but no
-  // limits entered, and fully usable data. Without this split the first two
-  // cases collapse into a misleading green 0%.
-  const liabilityAccounts = rows.filter((a) => a.account_kind === 'liability')
-  const creditAccountsWithLimits = liabilityAccounts.filter((a) => a.credit_limit !== null)
-  const hasCreditAccounts = liabilityAccounts.length > 0
+  // Credit usage — scoped to revolving-credit products (credit cards, LOCs,
+  // HELOCs). Amortizing debt doesn't have a limit concept. Liability balances
+  // are stored signed (negative for debt), so flip sign so totalCreditUsed
+  // reads as a positive "amount currently owed". Three states drive the
+  // widget: no revolving accounts at all, revolving accounts but no limits
+  // entered, and fully usable data — without this split the first two cases
+  // collapse into a misleading green 0%.
+  const revolvingAccounts = rows.filter((a) => a.account_kind === 'revolving')
+  const creditAccountsWithLimits = revolvingAccounts.filter((a) => a.credit_limit !== null)
+  const hasCreditAccounts = revolvingAccounts.length > 0
   const hasCreditData = creditAccountsWithLimits.length > 0
   const totalCreditUsed = creditAccountsWithLimits.reduce((sum, a) => sum - a.current_balance, 0)
   const totalCreditLimit = creditAccountsWithLimits.reduce((sum, a) => sum + (a.credit_limit ?? 0), 0)
@@ -381,7 +518,7 @@ export default function Accounts() {
                     ? `${formatCurrency(totalCreditUsed, displayCurrency)} of ${formatCurrency(totalCreditLimit, displayCurrency)}`
                     : hasCreditAccounts
                       ? 'No credit limits set'
-                      : 'No liability accounts found'}
+                      : 'No revolving credit accounts'}
                 </p>
               </div>
             </div>
@@ -465,159 +602,33 @@ export default function Accounts() {
           </button>
         </div>
 
-        {/* Debts section */}
-        <section>
-          {/* Editorial header — title ─── subtotal */}
-          <div className="flex items-center gap-4 mb-2">
-            <h3
-              className="font-serif font-semibold shrink-0 text-2xl"
-              style={{ color: 'var(--app-negative)' }}
-            >
-              Liabilities
-            </h3>
-            <div
-              className="flex-1 h-px"
-              style={{
-                background:
-                  'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
-              }}
-            />
-            <span
-              className="font-financial font-semibold shrink-0 text-xl"
-              style={{ color: totalDebts < 0 ? 'var(--app-negative)' : 'var(--app-text)' }}
-            >
-              {formatCurrency(totalDebts, displayCurrency)}
-            </span>
-          </div>
+        <AccountListSection
+          title="Assets"
+          accent="positive"
+          accounts={assetRows}
+          subtotal={totalAssets}
+          emptyLabel="No asset accounts"
+          displayCurrency={displayCurrency}
+        />
 
-          {/* Rows */}
-          <div>
-            {debtRows.length === 0 ? (
-              <p
-                className="py-3 text-center italic text-sm"
-                style={{ color: 'var(--app-text-subtle)' }}
-              >
-                No liability accounts
-              </p>
-            ) : (
-              debtRows.map((account) => (
-                <div key={account.id} className="flex items-stretch rounded-xl">
-                  <div
-                    className="w-0.5 rounded-full my-3"
-                    style={{ background: 'var(--app-negative)', opacity: 0.3 }}
-                  />
-                  <div className="flex-1 flex items-center gap-4 py-3.5 px-4">
-                    <InstitutionLogo institution={account.institution} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{account.name}</p>
-                      <p
-                        className="text-sm mt-0.5"
-                        style={{ color: 'var(--app-text-muted)' }}
-                      >
-                        {account.institution?.name ?? 'Cash'} ·{' '}
-                        {humanizeAccountType(account.account_type)}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p
-                        className="font-financial font-medium"
-                        style={{
-                          color:
-                            account.current_balance < 0
-                              ? 'var(--app-negative)'
-                              : 'var(--app-text)',
-                        }}
-                      >
-                        {formatCurrency(account.current_balance, displayCurrency)}
-                      </p>
-                      {account.credit_limit !== null && (
-                        <p
-                          className="font-financial mt-0.5 text-xs"
-                          style={{ color: 'var(--app-text-muted)' }}
-                        >
-                          {formatCurrency(account.credit_limit + account.current_balance, displayCurrency)} avail.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        <AccountListSection
+          title="Revolving credit"
+          accent="negative"
+          accounts={revolvingRows}
+          subtotal={sumByKind(rows, 'revolving')}
+          emptyLabel="No revolving credit accounts"
+          displayCurrency={displayCurrency}
+          showCreditLimit
+        />
 
-        {/* Assets section */}
-        <section>
-          {/* Editorial header — title ─── subtotal */}
-          <div className="flex items-center gap-4 mb-2">
-            <h3
-              className="font-serif font-semibold shrink-0 text-2xl"
-              style={{ color: 'var(--app-positive)' }}
-            >
-              Assets
-            </h3>
-            <div
-              className="flex-1 h-px"
-              style={{
-                background:
-                  'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
-              }}
-            />
-            <span
-              className="font-financial font-semibold shrink-0 text-xl"
-              style={{ color: totalAssets >= 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
-            >
-              {formatCurrency(totalAssets, displayCurrency)}
-            </span>
-          </div>
-
-          {/* Rows */}
-          <div>
-            {assetRows.length === 0 ? (
-              <p
-                className="py-3 text-center italic text-sm"
-                style={{ color: 'var(--app-text-subtle)' }}
-              >
-                No asset accounts
-              </p>
-            ) : (
-              assetRows.map((account) => (
-                <div key={account.id} className="flex items-stretch rounded-xl">
-                  <div
-                    className="w-0.5 rounded-full my-3"
-                    style={{ background: 'var(--app-positive)', opacity: 0.3 }}
-                  />
-                  <div className="flex-1 flex items-center gap-4 py-3.5 px-4">
-                    <InstitutionLogo institution={account.institution} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{account.name}</p>
-                      <p
-                        className="text-sm mt-0.5"
-                        style={{ color: 'var(--app-text-muted)' }}
-                      >
-                        {account.institution?.name ?? 'Cash'} ·{' '}
-                        {humanizeAccountType(account.account_type)}
-                      </p>
-                    </div>
-                    <p
-                      className="font-financial font-medium shrink-0"
-                      style={{
-                        color:
-                          account.current_balance > 0
-                            ? 'var(--app-positive)'
-                            : account.current_balance < 0
-                              ? 'var(--app-negative)'
-                              : 'var(--app-text)',
-                      }}
-                    >
-                      {formatCurrency(account.current_balance, displayCurrency)}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        <AccountListSection
+          title="Amortizing debt"
+          accent="negative"
+          accounts={amortizingRows}
+          subtotal={sumByKind(rows, 'amortizing')}
+          emptyLabel="No amortizing debt accounts"
+          displayCurrency={displayCurrency}
+        />
 
       </div>
 

@@ -2,7 +2,10 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 
-export type AccountKind = 'asset' | 'liability';
+// Split liabilities into revolving (credit cards, lines of credit, HELOCs —
+// purchases already expensed at time of swipe) vs amortizing (loans,
+// mortgages — payments are real ongoing cash outflow).
+export type AccountKind = 'asset' | 'revolving' | 'amortizing';
 
 export type AccountType =
   | 'checking'
@@ -54,11 +57,11 @@ export const ACCOUNT_KIND_BY_TYPE: Record<AccountType, AccountKind> = {
   term_deposit: 'asset',
   cash: 'asset',
   investment: 'asset',
-  credit_card: 'liability',
-  line_of_credit: 'liability',
-  heloc: 'liability',
-  loan: 'liability',
-  mortgage: 'liability',
+  credit_card: 'revolving',
+  line_of_credit: 'revolving',
+  heloc: 'revolving',
+  loan: 'amortizing',
+  mortgage: 'amortizing',
 };
 
 export interface CreateAccountPayload {
