@@ -622,7 +622,7 @@ export default function Dashboard() {
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
                 <LifeBuoy size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
               </div>
-              <span className="app-label">Cash Runway</span>
+              <span className="app-label">Runway</span>
               {runwayStyle && (
                 <span
                   className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"

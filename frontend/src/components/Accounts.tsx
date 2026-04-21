@@ -549,7 +549,7 @@ export default function Accounts() {
             {/* Cash Runway */}
             <div className="pl-6">
               <div className="flex items-center gap-2 mb-1">
-                <p className="app-label">Cash Runway</p>
+                <p className="app-label">Runway</p>
                 {runwayStyle && (
                   <span
                     className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
