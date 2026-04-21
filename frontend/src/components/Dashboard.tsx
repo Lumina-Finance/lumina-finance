@@ -665,7 +665,7 @@ export default function Dashboard() {
                     ))
                   ) : (
                     <div
-                      className="flex-1 flex items-center justify-center text-xs italic"
+                      className="flex-1 flex items-center justify-center text-sm italic"
                       style={{
                         background: 'var(--app-border)',
                         color: 'var(--app-text-subtle)',
@@ -707,7 +707,7 @@ export default function Dashboard() {
                 )}
               </div>
               {runwaySegments.length > 0 && (
-                <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                <p className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                   {runwayCaption}
                 </p>
               )}
