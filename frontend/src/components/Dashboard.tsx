@@ -398,7 +398,7 @@ export default function Dashboard() {
                         borderRadius: 8,
                         boxShadow: 'var(--app-shadow-soft)',
                         padding: '6px 10px',
-                        fontSize: 12,
+                        fontSize: 13,
                       }}
                       labelStyle={{ color: 'var(--app-text-subtle)' }}
                       itemStyle={{ color: 'var(--app-text)' }}
@@ -580,7 +580,7 @@ export default function Dashboard() {
                               borderRadius: 8,
                               boxShadow: 'var(--app-shadow-soft)',
                               padding: '6px 10px',
-                              fontSize: 12,
+                              fontSize: 13,
                             }}
                           >
                             <div style={{ color: 'var(--app-text-subtle)' }}>{fullLabel}</div>
@@ -692,14 +692,14 @@ export default function Dashboard() {
                     }}
                   >
                     <div
-                      className="text-xs font-medium truncate"
-                      style={{ color: 'var(--app-text)' }}
+                      className="font-medium truncate"
+                      style={{ color: 'var(--app-text)', fontSize: 13 }}
                     >
                       {hoveredSegment.name}
                     </div>
                     <div
-                      className="font-financial text-xs"
-                      style={{ color: 'var(--app-text-muted)' }}
+                      className="font-financial"
+                      style={{ color: 'var(--app-text-muted)', fontSize: 13 }}
                     >
                       {formatCurrency(hoveredSegment.amount, displayCurrency)}
                     </div>
@@ -857,7 +857,7 @@ export default function Dashboard() {
                       borderRadius: 8,
                       boxShadow: 'var(--app-shadow-soft)',
                       padding: '6px 10px',
-                      fontSize: 12,
+                      fontSize: 13,
                     }}
                     labelStyle={{ color: 'var(--app-text-subtle)' }}
                     itemStyle={{ color: 'var(--app-text)' }}
@@ -1013,7 +1013,7 @@ export default function Dashboard() {
                           borderRadius: 8,
                           boxShadow: 'var(--app-shadow-soft)',
                           padding: '6px 10px',
-                          fontSize: 12,
+                          fontSize: 13,
                         }}
                         labelStyle={{ color: 'var(--app-text-subtle)' }}
                         itemStyle={{ color: 'var(--app-text)' }}
