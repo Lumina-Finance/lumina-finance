@@ -42,6 +42,7 @@ class UserInfo(BaseModel):
     email: str
     first_name: str
     last_name: str | None
+    tz: str  # IANA timezone; needed client-side so settings pages can pre-select
     base_currency: str
     created_at: datetime
 
