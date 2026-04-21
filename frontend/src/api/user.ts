@@ -48,6 +48,29 @@ export function useUpdateRunwayAccounts() {
       }),
     onSuccess: (data) => {
       queryClient.setQueryData(['me', 'runway-accounts'], data);
+      // The runway figure depends on the selected accounts; invalidate so the
+      // widget reflects the new selection without a manual refresh.
+      queryClient.invalidateQueries({ queryKey: ['me', 'runway'] });
     },
+  });
+}
+
+// Mirrors backend RunwayResponse. `months` is null when `reason` is set —
+// either the user hasn't chosen accounts or there's not enough expense data.
+export interface RunwayResult {
+  months: number | null;
+  reason: 'no_accounts' | 'insufficient_history' | null;
+  avg_monthly_expense: number;
+  months_covered: number;
+  liquid_balance: number;
+}
+
+export function useRunway() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: ['me', 'runway'],
+    queryFn: () => authenticatedFetch<RunwayResult>('/me/runway'),
+    enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
   });
 }

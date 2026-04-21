@@ -9,8 +9,15 @@ import {
   type TaxTreatment,
 } from '@/api/accounts'
 import { useTransactionsOverview } from '@/api/transactions'
+import { useRunway } from '@/api/user'
 import { useFocusRefetch } from '@/hooks/useFocusRefetch'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  RUNWAY_BAND_STYLE,
+  RUNWAY_TARGET_MONTHS,
+  formatCompactRunway,
+  runwayBand,
+} from '@/utils/runway'
 import CreateAccountModal from '@/components/CreateAccountModal'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList, { type OptionItem } from '@/components/FilterOptionList'
@@ -345,6 +352,21 @@ export default function Accounts() {
     to_date: today,
   })
 
+  const { data: runway } = useRunway()
+  const runwayMonths = runway?.months ?? null
+  const runwayBandKey = runwayBand(runwayMonths)
+  const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
+  const runwayProgress =
+    runwayMonths === null ? 0 : Math.min((runwayMonths / RUNWAY_TARGET_MONTHS) * 100, 100)
+  const runwayCaption =
+    !runway
+      ? ''
+      : runway.reason === 'no_accounts'
+        ? 'Choose accounts in Settings'
+        : runway.reason === 'insufficient_history'
+          ? 'Need 1+ month of expense data'
+          : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo · ${runway.months_covered}mo basis`
+
   // Savings rate = (income − expenses) / income. outflow comes back negative,
   // so adding gives the net. Null when there is no income — either the month
   // had only expenses (treated as −∞%) or no activity at all (displayed as N/A).
@@ -523,9 +545,45 @@ export default function Accounts() {
               </div>
             </div>
 
-            {/* Cash Runway — placeholder until transactions API is wired */}
+            {/* Cash Runway */}
             <div className="pl-6">
-              <div className="h-20 bg-gray-300 rounded-lg" />
+              <div className="flex items-center gap-2 mb-1">
+                <p className="app-label">Cash Runway</p>
+                {runwayStyle && (
+                  <span
+                    className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
+                    style={{ background: runwayStyle.bg, color: runwayStyle.fg }}
+                  >
+                    {runwayStyle.label}
+                  </span>
+                )}
+              </div>
+              <p
+                className="font-financial font-semibold text-[clamp(1rem,1.7vw,1.5rem)]"
+                style={{ color: runwayMonths === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
+              >
+                {formatCompactRunway(runwayMonths)}
+              </p>
+              <div className="mt-2 space-y-1">
+                <div
+                  className="h-1 rounded-full overflow-hidden"
+                  style={{ background: 'var(--app-border)' }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      background: 'linear-gradient(to right, var(--app-positive), var(--app-accent))',
+                      width: `${runwayProgress}%`,
+                    }}
+                  />
+                </div>
+                <p
+                  className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
+                  style={{ color: 'var(--app-text-subtle)' }}
+                >
+                  {runwayCaption}
+                </p>
+              </div>
             </div>
           </div>
         </section>

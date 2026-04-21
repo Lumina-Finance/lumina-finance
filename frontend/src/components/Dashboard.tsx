@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   BarChart3,
   CreditCard,
+  LifeBuoy,
   PieChart as PieChartIcon,
   Repeat,
   Wallet,
@@ -37,7 +38,14 @@ import {
 } from '@/api/dashboard'
 import { useCategories } from '@/api/categories'
 import { useMerchants } from '@/api/merchants'
+import { useRunway } from '@/api/user'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  RUNWAY_BAND_STYLE,
+  RUNWAY_TARGET_MONTHS,
+  formatCompactRunway,
+  runwayBand,
+} from '@/utils/runway'
 
 // Palette for the spending breakdown donut. Ordered to harmonize with the
 // warm-earth theme — first two swatches mirror the dark-mode accent and
@@ -238,6 +246,24 @@ export default function Dashboard() {
     return m
   }, [merchants])
   const recentActivity = (dashboard?.recent_transactions ?? []).slice(0, 5)
+
+  // Runway — months of expense coverage from the user's selected liquid
+  // accounts. Computed server-side so the dashboard card only needs the
+  // summary numbers. Null months with a reason covers the "no accounts picked"
+  // and "not enough expense history" states.
+  const { data: runway } = useRunway()
+  const runwayMonths = runway?.months ?? null
+  const runwayBandKey = runwayBand(runwayMonths)
+  const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
+  const runwayProgress =
+    runwayMonths === null ? 0 : Math.min((runwayMonths / RUNWAY_TARGET_MONTHS) * 100, 100)
+  const runwayCaption = !runway
+    ? ''
+    : runway.reason === 'no_accounts'
+      ? 'Choose accounts in Settings'
+      : runway.reason === 'insufficient_history'
+        ? 'Need 1+ month of expense data'
+        : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo · ${runway.months_covered}mo basis`
 
   // Active breakdown entries for the selected mode. The API always returns
   // both expense and income buckets so the toggle doesn't need to refetch.
@@ -523,7 +549,53 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="rounded-2xl h-[13.5rem] bg-gray-300" />
+          {/* Cash Runway — months of coverage at trailing 12-mo avg expense */}
+          <div
+            className="rounded-2xl h-[13.5rem] p-5 flex flex-col"
+            style={{
+              background: 'var(--app-surface-soft)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+                <LifeBuoy size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+              </div>
+              <span className="app-label">Cash Runway</span>
+              {runwayStyle && (
+                <span
+                  className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
+                  style={{ background: runwayStyle.bg, color: runwayStyle.fg }}
+                >
+                  {runwayStyle.label}
+                </span>
+              )}
+            </div>
+            <p
+              className="font-financial font-medium tracking-tight leading-none text-2xl"
+              style={{ color: runwayMonths === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
+            >
+              {formatCompactRunway(runwayMonths)}
+            </p>
+            <div className="mt-auto space-y-2">
+              <div
+                className="h-1 rounded-full overflow-hidden"
+                style={{ background: 'var(--app-border)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    background: 'linear-gradient(to right, var(--app-positive), var(--app-accent))',
+                    width: `${runwayProgress}%`,
+                    transition: 'width 600ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  }}
+                />
+              </div>
+              <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                {runwayCaption}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Row 2 — Charts */}
