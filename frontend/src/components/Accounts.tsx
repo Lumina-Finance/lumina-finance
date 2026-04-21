@@ -77,11 +77,13 @@ function humanizeAccountType(type: string): string {
     .join(' ')
 }
 
-// Fixed-size slot for an institution logo. Renders the image when available,
-// otherwise a neutral circle with the first letter of the institution name
-// (or "$" for cashflow-only accounts with no institution).
+// Fixed-size slot for an institution logo. When an institution is linked we
+// pull its favicon from Google's faviconV2 service keyed off the institution
+// website; cashflow-only accounts (no institution) get a neutral "$" badge.
 function InstitutionLogo({ institution }: { institution: AccountsOverview['institution'] }) {
-  const initial = institution?.name?.[0]?.toUpperCase() ?? '$'
+  const faviconUrl = institution?.website
+    ? `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(institution.website)}&size=256`
+    : null
   return (
     <div
       className="w-9 h-9 shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
@@ -90,10 +92,10 @@ function InstitutionLogo({ institution }: { institution: AccountsOverview['insti
         border: '1px solid var(--app-border)',
       }}
     >
-      {institution?.logo_url ? (
+      {faviconUrl ? (
         <img
-          src={institution.logo_url}
-          alt={`${institution.name} logo`}
+          src={faviconUrl}
+          alt={`${institution!.name} logo`}
           className="w-full h-full object-contain"
           loading="lazy"
         />
@@ -102,7 +104,7 @@ function InstitutionLogo({ institution }: { institution: AccountsOverview['insti
           className="text-sm font-semibold select-none"
           style={{ color: 'var(--app-accent)' }}
         >
-          {initial}
+          $
         </span>
       )}
     </div>
