@@ -36,13 +36,13 @@ import {
   useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard'
+import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
 import { useMerchants } from '@/api/merchants'
-import { useRunway } from '@/api/user'
+import { useRunway, useRunwayAccounts } from '@/api/user'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   RUNWAY_BAND_STYLE,
-  RUNWAY_TARGET_MONTHS,
   formatCompactRunway,
   runwayBand,
 } from '@/utils/runway'
@@ -118,6 +118,7 @@ export default function Dashboard() {
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
+  const [hoveredRunwaySegment, setHoveredRunwaySegment] = useState<string | null>(null)
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison } = useSpendingComparison(spendingRange)
   const [breakdownMode, setBreakdownMode] = useState<'spending' | 'income'>('spending')
@@ -252,11 +253,11 @@ export default function Dashboard() {
   // summary numbers. Null months with a reason covers the "no accounts picked"
   // and "not enough expense history" states.
   const { data: runway } = useRunway()
+  const { data: runwayAccountIds } = useRunwayAccounts()
+  const { data: accounts } = useAccounts()
   const runwayMonths = runway?.months ?? null
   const runwayBandKey = runwayBand(runwayMonths)
   const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
-  const runwayProgress =
-    runwayMonths === null ? 0 : Math.min((runwayMonths / RUNWAY_TARGET_MONTHS) * 100, 100)
   const runwayCaption = !runway
     ? ''
     : runway.reason === 'no_accounts'
@@ -264,6 +265,38 @@ export default function Dashboard() {
       : runway.reason === 'insufficient_history'
         ? 'Need 1+ month of expense data'
         : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo · ${runway.months_covered}mo basis`
+
+  // Segments for the runway contribution bar. Each selected account with a
+  // positive balance becomes a proportionally-sized slice, colored from the
+  // shared breakdown palette so the same institution lands on the same swatch
+  // as the spending donut when it appears there.
+  const runwaySegments = useMemo(() => {
+    if (!runway || runway.reason !== null) return []
+    const ids = new Set(runwayAccountIds ?? [])
+    const rows = (accounts ?? [])
+      .filter((a) => ids.has(a.id) && a.current_balance > 0)
+      .sort((a, b) => b.current_balance - a.current_balance)
+    const total = rows.reduce((sum, a) => sum + a.current_balance, 0)
+    if (total === 0) return []
+    // `centerPct` lets the hover tooltip anchor itself above the middle of
+    // whatever segment the cursor is over without measuring DOM rects.
+    let cursor = 0
+    return rows.map((a, i) => {
+      const pct = (a.current_balance / total) * 100
+      const centerPct = cursor + pct / 2
+      cursor += pct
+      return {
+        id: a.id,
+        name: a.name,
+        amount: a.current_balance,
+        pct,
+        centerPct,
+        color: BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length],
+      }
+    })
+  }, [accounts, runwayAccountIds, runway])
+  const hoveredSegment =
+    runwaySegments.find((s) => s.id === hoveredRunwaySegment) ?? null
 
   // Active breakdown entries for the selected mode. The API always returns
   // both expense and income buckets so the toggle doesn't need to refetch.
@@ -577,23 +610,83 @@ export default function Dashboard() {
             >
               {formatCompactRunway(runwayMonths)}
             </p>
-            <div className="mt-auto space-y-2">
-              <div
-                className="h-1 rounded-full overflow-hidden"
-                style={{ background: 'var(--app-border)' }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    background: 'linear-gradient(to right, var(--app-positive), var(--app-accent))',
-                    width: `${runwayProgress}%`,
-                    transition: 'width 600ms cubic-bezier(0.22, 1, 0.36, 1)',
-                  }}
-                />
+            {/* Segmented contribution bar — each selected account's share of
+                liquid balance. Tall enough to be the card's visual anchor;
+                hover reveals the account name + amount in a floating tooltip
+                positioned above the segment. */}
+            <div className="mt-3 flex-1 min-h-0 flex flex-col">
+              <div className="relative flex-1">
+                <div className="flex h-full gap-0.5 rounded-xl overflow-hidden">
+                  {runwaySegments.length > 0 ? (
+                    runwaySegments.map((s) => (
+                      <div
+                        key={s.id}
+                        style={{ width: `${s.pct}%`, background: s.color }}
+                        onMouseEnter={() => setHoveredRunwaySegment(s.id)}
+                        onMouseLeave={() =>
+                          setHoveredRunwaySegment((id) => (id === s.id ? null : id))
+                        }
+                      />
+                    ))
+                  ) : (
+                    <div
+                      className="flex-1 flex items-center justify-center text-xs italic"
+                      style={{
+                        background: 'var(--app-border)',
+                        color: 'var(--app-text-subtle)',
+                      }}
+                    >
+                      {runwayCaption}
+                    </div>
+                  )}
+                </div>
+                {hoveredSegment && (() => {
+                  // Anchor the tooltip to whichever side of the bar it's
+                  // closest to so it never clips past the card's edges. In the
+                  // outer bands (< 20% / > 80%) we pin to that edge; in the
+                  // middle we center on the segment. Account names are capped
+                  // with `max-w` + `truncate` so a long name can't widen the
+                  // tooltip past the card either.
+                  const pct = hoveredSegment.centerPct
+                  const anchor: 'left' | 'right' | 'center' =
+                    pct < 20 ? 'left' : pct > 80 ? 'right' : 'center'
+                  const positioning =
+                    anchor === 'left'
+                      ? { left: 0 }
+                      : anchor === 'right'
+                        ? { right: 0 }
+                        : { left: `${pct}%`, transform: 'translateX(-50%)' }
+                  return (
+                    <div
+                      className="absolute -top-2 -translate-y-full whitespace-nowrap rounded-md px-2.5 py-1.5 pointer-events-none z-10 max-w-[11rem]"
+                      style={{
+                        ...positioning,
+                        background: 'var(--app-bg)',
+                        border: '1px solid var(--app-border-strong)',
+                        boxShadow: 'var(--app-shadow-soft)',
+                      }}
+                    >
+                      <div
+                        className="text-xs font-medium truncate"
+                        style={{ color: 'var(--app-text)' }}
+                      >
+                        {hoveredSegment.name}
+                      </div>
+                      <div
+                        className="font-financial text-xs"
+                        style={{ color: 'var(--app-text-muted)' }}
+                      >
+                        {formatCurrency(hoveredSegment.amount, displayCurrency)}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
-              <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                {runwayCaption}
-              </p>
+              {runwaySegments.length > 0 && (
+                <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {runwayCaption}
+                </p>
+              )}
             </div>
           </div>
         </div>
