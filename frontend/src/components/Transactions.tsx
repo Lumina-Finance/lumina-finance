@@ -759,7 +759,7 @@ export default function Transactions() {
                         </div>
 
                         {/* Merchant + account */}
-                        <div className="min-w-0 w-44 shrink-0">
+                        <div className="min-w-0 w-80 shrink-0">
                           <p className="font-medium truncate">{merchantName ?? 'Transfer'}</p>
                           <p
                             className="text-sm mt-0.5 truncate"
