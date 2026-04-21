@@ -368,9 +368,11 @@ export default function Dashboard() {
                     <YAxis hide domain={['dataMin', 'dataMax']} />
                     <Tooltip
                       contentStyle={{
-                        background: 'var(--app-surface-soft)',
+                        background: 'var(--app-bg)',
                         border: '1px solid var(--app-border-strong)',
                         borderRadius: 8,
+                        boxShadow: 'var(--app-shadow-soft)',
+                        padding: '6px 10px',
                         fontSize: 12,
                       }}
                       labelStyle={{ color: 'var(--app-text-subtle)' }}
@@ -931,6 +933,18 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex-1 min-h-0 relative">
+                  {/* Center overlay rendered BEFORE the chart so recharts'
+                      tooltip (appended after) paints on top. Without this the
+                      total would cover tooltips for the slices nearest the
+                      donut's centerline. */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="app-label" style={{ fontSize: 12 }}>
+                      Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
+                    </span>
+                    <span className="font-financial font-medium tracking-tight text-2xl mt-1">
+                      {formatCurrency(breakdownTotal, displayCurrency)}
+                    </span>
+                  </div>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -968,14 +982,6 @@ export default function Dashboard() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="app-label" style={{ fontSize: 12 }}>
-                      Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
-                    </span>
-                    <span className="font-financial font-medium tracking-tight text-2xl mt-1">
-                      {formatCurrency(breakdownTotal, displayCurrency)}
-                    </span>
-                  </div>
                 </div>
                 <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
                   {breakdownEntries.slice(0, 6).map((entry, i) => (
