@@ -372,6 +372,13 @@ function BalanceChartCard({ account }: { account: Account }) {
                 }
                 formatter={(value) => [formatCurrency(Number(value), account.currency), 'Balance']}
               />
+              <ReferenceLine
+                y={0}
+                stroke="var(--app-text-subtle)"
+                strokeDasharray="4 3"
+                strokeWidth={2}
+                ifOverflow="extendDomain"
+              />
               <Area
                 type="monotone"
                 dataKey="balance"
