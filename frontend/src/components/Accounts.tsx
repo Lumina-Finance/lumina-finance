@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -210,7 +211,10 @@ function AccountRow({
         : 'var(--app-text)'
 
   return (
-    <div className="flex items-stretch rounded-xl">
+    <Link
+      to={`/accounts/${account.id}`}
+      className="flex items-stretch rounded-xl transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+    >
       <div
         className="w-0.5 rounded-full my-3"
         style={{ background: barColor, opacity: 0.3 }}
@@ -238,7 +242,7 @@ function AccountRow({
           )}
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
 
