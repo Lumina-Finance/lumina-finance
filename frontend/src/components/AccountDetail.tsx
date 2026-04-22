@@ -18,6 +18,8 @@ import {
   type AccountBalanceSnapshot,
   type SnapshotGranularity,
 } from '@/api/accounts'
+import { useTransactionsOverview } from '@/api/transactions'
+import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 const TAX_TREATMENT_LABEL: Record<string, string> = {
@@ -200,6 +202,189 @@ function DetailInstitutionLogo({ institution }: { institution: Account['institut
         <span className="text-2xl font-semibold select-none" style={{ color: 'var(--app-accent)' }}>$</span>
       )}
     </div>
+  )
+}
+
+// Warm-earth palette matching the dashboard spending breakdown so swatches
+// feel consistent across the app.
+const CATEGORY_COLORS = [
+  '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
+]
+
+// Period-to-date ranges for the spending breakdown. Mirrors the dashboard's
+// SpendingRange so the two reads feel coherent.
+type SpendingRange = 'WTD' | 'MTD' | 'QTD' | 'YTD'
+const SPENDING_RANGES: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
+
+// Compute the [from, to] date window for a period-to-date range in the user's
+// timezone. `to` is always today; `from` snaps to the period's start.
+function rangeToDates(range: SpendingRange, tz: string): { from_date: string; to_date: string } {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz,
+  })
+  const todayStr = fmt.format(new Date())
+  const [y, m, d] = todayStr.split('-').map(Number)
+  const today = new Date(y, m - 1, d)
+
+  let from: Date
+  if (range === 'WTD') {
+    from = new Date(today)
+    const day = from.getDay() // 0=Sunday
+    const toMonday = day === 0 ? -6 : 1 - day
+    from.setDate(from.getDate() + toMonday)
+  } else if (range === 'MTD') {
+    from = new Date(today.getFullYear(), today.getMonth(), 1)
+  } else if (range === 'QTD') {
+    from = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1)
+  } else {
+    from = new Date(today.getFullYear(), 0, 1)
+  }
+
+  return { from_date: toISODate(from), to_date: toISODate(today) }
+}
+
+function SpendingByCategoryCard({ account }: { account: Account }) {
+  const { user } = useAuth()
+  const [range, setRange] = useState<SpendingRange>('MTD')
+
+  const { from_date, to_date } = useMemo(
+    () => rangeToDates(range, user!.tz),
+    [range, user],
+  )
+
+  const { data: overview, isLoading } = useTransactionsOverview({
+    account_id: account.id,
+    from_date,
+    to_date,
+  })
+
+  // Show at most 5 rows total — the card's height is sized to fit exactly
+  // five. When the account has more categories, reserve the last row for
+  // "Other" and roll the tail into it.
+  const MAX_ROWS = 5
+  const categories = overview?.top_categories ?? []
+  const normalized = categories.map((c) => ({
+    key: c.category_id,
+    name: c.category_name,
+    total: c.total,
+    isOther: false,
+  }))
+  const hasOther = normalized.length > MAX_ROWS
+  const visibleCount = hasOther ? MAX_ROWS - 1 : normalized.length
+  const visible = normalized.slice(0, visibleCount)
+  const rest = normalized.slice(visibleCount)
+  const otherTotal = rest.reduce((sum, c) => sum + c.total, 0)
+  const rows = hasOther
+    ? [...visible, { key: 'other', name: `Other (${rest.length})`, total: otherTotal, isOther: true }]
+    : visible
+  const grandTotal = categories.reduce((sum, c) => sum + c.total, 0)
+
+  return (
+    <section
+      className="rounded-2xl p-6 flex flex-col"
+      style={{
+        background: 'var(--app-surface-soft)',
+        border: '1px solid var(--app-border)',
+      }}
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+        <p className="app-label">Spending by category</p>
+        <div
+          className="flex rounded-lg p-0.5"
+          style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
+          role="tablist"
+          aria-label="Spending range"
+        >
+          {SPENDING_RANGES.map((r) => {
+            const active = range === r
+            return (
+              <button
+                key={r}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setRange(r)}
+                className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
+                style={{
+                  background: active ? 'var(--app-accent-soft)' : 'transparent',
+                  color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
+                }}
+              >
+                {r}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex-1" />
+      ) : rows.length === 0 ? (
+        <div
+          className="flex-1 flex items-center justify-center text-sm"
+          style={{ color: 'var(--app-text-subtle)' }}
+        >
+          No spending in this range
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1.5">
+            {rows.map((item, idx) => {
+              // Bar width = this category's share of total spending — so a
+              // category at 50% of total fills the row halfway. 4% minimum
+              // keeps tiny slivers visible. Uses absolute values because
+              // spending totals are stored as signed negatives.
+              const totalAbs = Math.abs(grandTotal)
+              const barPct = totalAbs > 0 ? Math.max((Math.abs(item.total) / totalAbs) * 100, 4) : 0
+              const color = item.isOther ? '#8C8074' : CATEGORY_COLORS[idx % CATEGORY_COLORS.length]
+              return (
+                <div
+                  key={item.key}
+                  className="relative flex items-center gap-3 rounded-xl py-2.5 px-3 overflow-hidden"
+                  style={{ background: 'var(--app-bg)' }}
+                >
+                  <div
+                    className="absolute inset-y-0 left-0"
+                    style={{ width: `${barPct}%`, backgroundColor: color, opacity: 0.35 }}
+                  />
+                  <div
+                    className="w-2 h-2 rounded-full shrink-0 relative"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span
+                    className={`flex-1 truncate relative text-sm font-medium ${item.isOther ? 'italic' : ''}`}
+                  >
+                    {item.name}
+                  </span>
+                  <span className="font-financial font-medium tabular-nums relative text-sm">
+                    {formatCurrency(item.total, account.currency)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Spacer pushes the Total row to the bottom regardless of row count. */}
+          <div className="flex-1" />
+
+          <div
+            className="flex items-center gap-3 pt-3"
+            style={{ borderTop: '1px solid var(--app-border)' }}
+          >
+            <div className="w-2 shrink-0" />
+            <span
+              className="flex-1 text-xs font-semibold uppercase tracking-wide"
+              style={{ color: 'var(--app-text-muted)' }}
+            >
+              Total
+            </span>
+            <span className="font-financial font-semibold tabular-nums text-sm">
+              {formatCurrency(grandTotal, account.currency)}
+            </span>
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -625,6 +810,28 @@ export default function AccountDetail() {
         </section>
 
         <BalanceChartCard account={account} />
+      </div>
+
+      {/* Secondary row: 3 equal columns. Column 1 is the spending breakdown;
+          columns 2 and 3 are placeholders for upcoming widgets. */}
+      <div className="mt-5 grid grid-cols-3 gap-5">
+        <SpendingByCategoryCard account={account} />
+        <div
+          className="rounded-2xl"
+          style={{
+            background: 'var(--app-surface-soft)',
+            border: '1px solid var(--app-border)',
+            minHeight: 364,
+          }}
+        />
+        <div
+          className="rounded-2xl"
+          style={{
+            background: 'var(--app-surface-soft)',
+            border: '1px solid var(--app-border)',
+            minHeight: 364,
+          }}
+        />
       </div>
     </div>
   )
