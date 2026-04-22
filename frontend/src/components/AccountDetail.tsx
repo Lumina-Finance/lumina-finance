@@ -405,7 +405,7 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
   )
 }
 
-function TopMerchantsCard({ account }: { account: Account }) {
+function SpendingByMerchantsCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
   const { data, isLoading } = useAccountSpendingBreakdown(account.id, range)
 
@@ -419,7 +419,7 @@ function TopMerchantsCard({ account }: { account: Account }) {
 
   return (
     <BreakdownCard
-      title="Top Merchants"
+      title="Spending by Merchants"
       rangeLabel="Merchant range"
       range={range}
       onRangeChange={setRange}
@@ -1322,7 +1322,7 @@ export default function AccountDetail() {
       {/* Secondary row: 3 equal columns. */}
       <div className="mt-5 grid grid-cols-3 gap-5">
         <SpendingByCategoryCard account={account} />
-        <TopMerchantsCard account={account} />
+        <SpendingByMerchantsCard account={account} />
         <MonthlyCashFlowCard account={account} />
       </div>
 
