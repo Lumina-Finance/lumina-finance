@@ -64,6 +64,20 @@ export const ACCOUNT_KIND_BY_TYPE: Record<AccountType, AccountKind> = {
   mortgage: 'amortizing',
 };
 
+// Mirrors backend AccountResponse — the full shape returned by GET /accounts/{id},
+// POST /accounts, and PATCH /accounts/{id}. Superset of AccountsOverview with
+// contribution tallies and limits exposed for the detail view.
+export interface Account extends AccountsOverview {
+  lifetime_contribution_limit: number | null;
+  ytd_contributions: number | null;
+  ytd_withdrawals: number | null;
+  lifetime_contributions: number | null;
+  lifetime_withdrawals: number | null;
+  current_year_contribution_limit: number | null;
+  current_year_withdrawal_limit: number | null;
+  created_at: string;
+}
+
 export interface CreateAccountPayload {
   account_kind: AccountKind;
   account_type: AccountType;
@@ -99,6 +113,16 @@ export function useAccounts() {
     queryKey: ['accounts'],
     queryFn: () => authenticatedFetch<AccountsOverview[]>('/accounts'),
     enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useAccount(accountId: string | undefined) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: ['accounts', accountId],
+    queryFn: () => authenticatedFetch<Account>(`/accounts/${accountId}`),
+    enabled: !!accessToken && !!accountId,
     staleTime: 10 * 60 * 1000,
   });
 }
