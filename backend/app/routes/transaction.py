@@ -174,7 +174,7 @@ async def get_transactions_overview(
     ).where(base_where)
     flow = (await db.execute(flow_query)).one()
 
-    # 2. Top 3 expense categories by total spend
+    # 2. Top 5 expense categories by total spend
     cat_query = (
         select(
             Transaction.category_id,
@@ -186,7 +186,7 @@ async def get_transactions_overview(
         .where(Transaction.amount < 0)
         .group_by(Transaction.category_id, Category.name)
         .order_by(sa.func.sum(Transaction.amount).asc())
-        .limit(3)
+        .limit(5)
     )
     cat_rows = (await db.execute(cat_query)).all()
 
