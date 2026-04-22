@@ -392,7 +392,7 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
 
   return (
     <BreakdownCard
-      title="Spending by category"
+      title="Spending by Category"
       rangeLabel="Spending range"
       range={range}
       onRangeChange={setRange}
@@ -419,7 +419,7 @@ function TopMerchantsCard({ account }: { account: Account }) {
 
   return (
     <BreakdownCard
-      title="Top merchants"
+      title="Top Merchants"
       rangeLabel="Merchant range"
       range={range}
       onRangeChange={setRange}
@@ -591,7 +591,7 @@ function MonthlyCashFlowCard({ account }: { account: Account }) {
       }}
     >
       <div className="flex items-center justify-between gap-4 mb-4">
-        <p className="app-label">Monthly cash flow</p>
+        <p className="app-label">Monthly Cash Flow</p>
         <div
           className="flex items-center gap-3 text-xs"
           style={{ color: 'var(--app-text-subtle)' }}
