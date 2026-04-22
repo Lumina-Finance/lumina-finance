@@ -250,7 +250,8 @@ function BalanceChartCard({ account }: { account: Account }) {
   }, [series])
 
   const trendUp = periodDelta !== null && periodDelta.absolute >= 0
-  const lineColor = periodDelta === null
+  const lineColor = account.current_balance < 0 ? 'var(--app-negative)' : 'var(--app-accent)'
+  const deltaColor = periodDelta === null
     ? 'var(--app-text-muted)'
     : trendUp
       ? 'var(--app-positive)'
@@ -304,7 +305,7 @@ function BalanceChartCard({ account }: { account: Account }) {
           {formatCurrency(account.current_balance, account.currency)}
         </p>
         {periodDelta !== null && (
-          <div className="mt-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: lineColor }}>
+          <div className="mt-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: deltaColor }}>
             {trendUp ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
             <span>
               {trendUp ? '+' : '−'}
