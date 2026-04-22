@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Pencil, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Pencil, Plus, TrendingDown, TrendingUp } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Area,
@@ -18,9 +18,17 @@ import {
   type AccountBalanceSnapshot,
   type SnapshotGranularity,
 } from '@/api/accounts'
-import { useTransactionsOverview } from '@/api/transactions'
+import { useCategories } from '@/api/categories'
+import { useMerchants } from '@/api/merchants'
+import {
+  useInfiniteTransactions,
+  useTransactionsOverview,
+  type Transaction,
+} from '@/api/transactions'
 import { useAuth } from '@/hooks/useAuth'
+import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
+import CreateTransactionModal from '@/components/CreateTransactionModal'
 
 const TAX_TREATMENT_LABEL: Record<string, string> = {
   taxable: 'Taxable',
@@ -384,6 +392,253 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
           </div>
         </>
       )}
+    </section>
+  )
+}
+
+// Parse a "YYYY-MM-DD" calendar date as local midnight — new Date("YYYY-MM-DD")
+// treats it as UTC and drifts a day in negative-offset timezones.
+function parseYmdLocal(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+// Group transactions by calendar day, preserving input order within each group.
+function groupByDate(transactions: Transaction[]): { dateLabel: string; transactions: Transaction[] }[] {
+  const groups: { dateLabel: string; transactions: Transaction[] }[] = []
+  let currentLabel = ''
+  for (const txn of transactions) {
+    const label = parseYmdLocal(txn.dt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+    if (label !== currentLabel) {
+      groups.push({ dateLabel: label, transactions: [] })
+      currentLabel = label
+    }
+    groups[groups.length - 1].transactions.push(txn)
+  }
+  return groups
+}
+
+function TransactionListCard({ account }: { account: Account }) {
+  const [showModal, setShowModal] = useState(false)
+  const [modalKey, setModalKey] = useState(0)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+
+  const openCreate = () => {
+    setEditingTransaction(null)
+    setModalKey((k) => k + 1)
+    setShowModal(true)
+  }
+  const openEdit = (t: Transaction) => {
+    setEditingTransaction(t)
+    setModalKey((k) => k + 1)
+    setShowModal(true)
+  }
+
+  const {
+    data: txnPages,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteTransactions({ account_id: account.id })
+  const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
+
+  const { data: categories } = useCategories()
+  const { data: merchants } = useMerchants()
+  const categoryMap = useMemo(
+    () => new Map(categories?.map((c) => [c.id, c]) ?? []),
+    [categories],
+  )
+  const merchantMap = useMemo(
+    () => new Map(merchants?.map((m) => [m.id, m]) ?? []),
+    [merchants],
+  )
+
+  const dateGroups = useMemo(() => groupByDate(transactions), [transactions])
+
+  // Infinite scroll — mark pending 1s before actually fetching so the user
+  // sees immediate feedback when the sentinel enters the viewport. Same
+  // pattern as the main Transactions page.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const [pendingFetch, setPendingFetch] = useState(false)
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage) return
+    const el = sentinelRef.current
+    if (!el) return
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        if (timeoutId === null) {
+          setPendingFetch(true)
+          timeoutId = setTimeout(() => {
+            setPendingFetch(false)
+            fetchNextPage()
+          }, 1000)
+        }
+      } else if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+        setPendingFetch(false)
+      }
+    }, { rootMargin: '200px' })
+    observer.observe(el)
+    return () => {
+      if (timeoutId !== null) clearTimeout(timeoutId)
+      observer.disconnect()
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  const showPendingFetch = pendingFetch && hasNextPage && !isFetchingNextPage
+
+  return (
+    <section
+      className="rounded-2xl p-6 flex flex-col"
+      style={{
+        background: 'var(--app-surface-soft)',
+        border: '1px solid var(--app-border)',
+      }}
+    >
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <p className="app-label">Transactions</p>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="app-secondary-button"
+        >
+          <Plus size={16} aria-hidden />
+          Add transaction
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="py-10" />
+      ) : dateGroups.length === 0 ? (
+        <p className="py-10 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          No transactions yet
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {dateGroups.map(({ dateLabel, transactions: txns }) => {
+            const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
+            const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+            return (
+              <div key={dateLabel}>
+                <div
+                  className="flex items-center justify-between px-3 py-2 rounded-lg"
+                  style={{
+                    background: 'var(--app-input-bg)',
+                    borderBottom: '1px solid var(--app-border)',
+                  }}
+                >
+                  <p
+                    className="text-sm font-semibold uppercase tracking-wide"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                  >
+                    {dateLabel}
+                  </p>
+                  <p
+                    className="font-financial text-sm font-medium"
+                    style={{ color: dailyColor }}
+                  >
+                    {formatCurrency(dailyTotal, account.currency)}
+                  </p>
+                </div>
+
+                <div>
+                  {txns.map((t) => {
+                    const isIncome = t.amount > 0
+                    const category = categoryMap.get(t.category_id)
+                    const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
+                    const Icon = getCategoryIcon(category?.icon)
+                    return (
+                      <div
+                        key={t.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openEdit(t)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            openEdit(t)
+                          }
+                        }}
+                        className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
+                        style={{ borderBottom: '1px solid var(--app-border)' }}
+                      >
+                        <div
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                          style={{
+                            background: isIncome ? 'var(--app-positive-soft)' : 'var(--app-surface-soft)',
+                            border: `1px solid ${isIncome ? 'var(--app-positive)' : 'var(--app-border)'}`,
+                          }}
+                        >
+                          <Icon
+                            size={16}
+                            style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text-muted)' }}
+                            aria-hidden
+                          />
+                        </div>
+                        {/* Merchant cell — second line kept blank (nbsp) so row
+                            height matches the Transactions page, which uses it
+                            for account name. */}
+                        <div className="min-w-0 w-80 shrink-0">
+                          <p className="font-medium truncate">{merchantName ?? 'Transfer'}</p>
+                          <p
+                            className="text-sm mt-0.5 truncate"
+                            style={{ color: 'var(--app-text-muted)' }}
+                          >
+                            {' '}
+                          </p>
+                        </div>
+                        <p
+                          className="min-w-0 flex-1 truncate"
+                          style={{ color: 'var(--app-text-subtle)' }}
+                        >
+                          {t.notes ?? ' '}
+                        </p>
+                        <span
+                          className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                          style={{
+                            background: 'var(--app-surface-soft)',
+                            color: 'var(--app-text-muted)',
+                            border: '1px solid var(--app-border)',
+                          }}
+                        >
+                          {category?.name ?? 'Uncategorized'}
+                        </span>
+                        <p
+                          className="font-financial font-medium shrink-0 tabular-nums w-28 text-right"
+                          style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
+                        >
+                          {t.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(t.amount), account.currency)}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+          {(isFetchingNextPage || showPendingFetch) && (
+            <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              Loading more transactions...
+            </p>
+          )}
+        </div>
+      )}
+
+      <CreateTransactionModal
+        key={modalKey}
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        transaction={editingTransaction ?? undefined}
+        defaultAccountId={account.id}
+      />
     </section>
   )
 }
@@ -832,6 +1087,10 @@ export default function AccountDetail() {
             minHeight: 364,
           }}
         />
+      </div>
+
+      <div className="mt-5">
+        <TransactionListCard account={account} />
       </div>
     </div>
   )
