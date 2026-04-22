@@ -25,11 +25,12 @@ from app.schemas.account import (
     CreateAccountRequest,
     UpdateAccountRequest,
 )
-from app.schemas.dashboard import RangeKind
+from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
 from app.services.accounts import (
     attach_current_year_tax_limits,
     attach_tax_advantaged_tallies,
+    get_account_cash_flow_history,
     get_account_spending_breakdown,
 )
 from app.services.snapshots import attach_current_balances
@@ -165,6 +166,24 @@ async def get_account_spending_breakdown_route(
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     return await get_account_spending_breakdown(db, account_id, range_, datetime.now(UTC))
+
+
+@router.get("/{account_id}/cash-flow", response_model=list[MonthlyIncomeExpense])
+async def get_account_cash_flow_route(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    months: Annotated[int, Query(ge=1, le=24)] = 6,
+):
+    """Return per-month income / expense totals for the account, oldest-first.
+
+    Backs the monthly cash flow widget on the account detail page. Series
+    covers ``months`` calendar months ending with the current (in-progress)
+    month; transfers are excluded so only real cash movement shows. Requires
+    read access on the account.
+    """
+    await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    return await get_account_cash_flow_history(db, account_id, months, datetime.now(UTC))
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)

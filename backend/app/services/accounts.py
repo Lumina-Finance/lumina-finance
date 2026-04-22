@@ -22,7 +22,7 @@ from app.schemas.account import (
     AccountTopCategory,
     AccountTopMerchant,
 )
-from app.schemas.dashboard import RangeKind
+from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
 
 _TOP_N = 5
 
@@ -286,3 +286,86 @@ async def get_account_spending_breakdown(
         other_categories_count=other_categories_count,
         other_merchants_count=other_merchants_count,
     )
+
+
+def _first_of_month(year: int, month: int) -> date:
+    return date(year, month, 1)
+
+
+def _month_sequence_ending_at(now: datetime, months: int) -> list[date]:
+    """Return a list of first-of-month dates spanning the last ``months`` months.
+
+    Ordered oldest-first; the last entry is the first of ``now``'s (in-progress)
+    month. Used to anchor per-month charts so months with no activity still
+    appear as zero-valued slots.
+    """
+    year, month = now.year, now.month
+    # Walk back months-1 steps to find the first month in the window.
+    for _ in range(months - 1):
+        if month == 1:
+            year -= 1
+            month = 12
+        else:
+            month -= 1
+    result: list[date] = []
+    for _ in range(months):
+        result.append(_first_of_month(year, month))
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+    return result
+
+
+async def get_account_cash_flow_history(
+    db: AsyncSession,
+    account_id: uuid.UUID,
+    months: int,
+    now: datetime,
+) -> list[MonthlyIncomeExpense]:
+    """Return per-month income / expense totals for a single account.
+
+    Covers ``months`` calendar months ending with the current (in-progress)
+    month, ordered oldest-first. Transfers are excluded so the series reflects
+    only real cash movement. Months without activity emit zeros so the chart
+    always has the full x-axis. Expense amounts are stored negative in the DB
+    and returned as positive values for direct rendering.
+    """
+    month_starts = _month_sequence_ending_at(now, months)
+    window_start = month_starts[0]
+    # Exclusive upper bound = first of the month after ``now``'s.
+    end_year, end_month = now.year, now.month
+    if end_month == 12:
+        window_end = date(end_year + 1, 1, 1)
+    else:
+        window_end = date(end_year, end_month + 1, 1)
+
+    month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
+    result = await db.execute(
+        select(month_start_expr, Category.kind, func.sum(Transaction.amount).label("total"))
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id == account_id,
+            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
+            Transaction.dt >= window_start,
+            Transaction.dt < window_end,
+        )
+        .group_by(month_start_expr, Category.kind),
+    )
+
+    # Collect totals per month keyed by first-of-month so missing months stay at zero.
+    totals: dict[date, dict[CategoryKind, int]] = {m: {} for m in month_starts}
+    for row in result:
+        # date_trunc may return a timestamp; coerce to plain date for keying.
+        key = row.month_start.date() if hasattr(row.month_start, "date") else row.month_start
+        totals[key][row.kind] = int(row.total)
+
+    return [
+        MonthlyIncomeExpense(
+            month=m,
+            income=totals[m].get(CategoryKind.INCOME, 0),
+            expenses=abs(totals[m].get(CategoryKind.EXPENSE, 0)),
+        )
+        for m in month_starts
+    ]
