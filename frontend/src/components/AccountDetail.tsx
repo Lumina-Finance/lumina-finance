@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   Area,
   AreaChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -227,6 +228,16 @@ function BalanceChartCard({ account }: { account: Account }) {
     [snapshots, fromDate, granularity],
   )
 
+  // First chart point whose year differs from the previous point — drives the
+  // dashed year-boundary marker so the user can tell where one year ends.
+  let yearBoundary: { dateKey: string; year: string } | null = null
+  for (let i = 1; i < series.length; i++) {
+    if (series[i].date.slice(0, 4) !== series[i - 1].date.slice(0, 4)) {
+      yearBoundary = { dateKey: series[i].date, year: series[i].date.slice(0, 4) }
+      break
+    }
+  }
+
   // Period delta — first vs last point in the visible window. Drives the
   // up/down pill and the line color.
   const periodDelta = useMemo(() => {
@@ -323,7 +334,7 @@ function BalanceChartCard({ account }: { account: Account }) {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <AreaChart data={series} margin={{ top: 18, right: 4, bottom: 0, left: 4 }}>
               <defs>
                 <linearGradient id={`balanceFill-${account.id}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={lineColor} stopOpacity={0.22} />
@@ -368,6 +379,20 @@ function BalanceChartCard({ account }: { account: Account }) {
                 strokeWidth={2}
                 fill={`url(#balanceFill-${account.id})`}
               />
+              {yearBoundary && (
+                <ReferenceLine
+                  x={yearBoundary.dateKey}
+                  stroke="var(--app-text-muted)"
+                  strokeDasharray="4 3"
+                  strokeWidth={1}
+                  label={{
+                    value: yearBoundary.year,
+                    position: 'top',
+                    fill: 'var(--app-text-muted)',
+                    fontSize: 11,
+                  }}
+                />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         )}
