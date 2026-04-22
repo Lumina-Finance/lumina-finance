@@ -319,7 +319,7 @@ function BreakdownCard({
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" style={{ minHeight: 224 }}>
             {rows.map((item, idx) => {
               // Bar width = this row's share of total — so a row at 50% of
               // total fills halfway. 4% minimum keeps tiny slivers visible.
