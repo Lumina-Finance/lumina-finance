@@ -1,7 +1,8 @@
 import uuid
 from datetime import UTC, date
-from typing import Annotated
+from typing import Annotated, Literal
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,12 +88,18 @@ async def list_account_balance_snapshots(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date | None, Query()] = None,
     to_date: Annotated[date | None, Query()] = None,
+    granularity: Annotated[Literal["day", "week", "month", "quarter"], Query()] = "day",
+    include_anchor: Annotated[bool, Query()] = False,
 ):
-    """Return the account's daily balance snapshots, ordered ascending by ts.
+    """Return the account's balance snapshots, ordered ascending by dt.
 
     Snapshots back the historical balance chart on the account detail page and
-    feed the group net-worth aggregation. Requires read access on the
-    account.
+    feed the group net-worth aggregation. Requires read access on the account.
+
+    When `granularity` is coarser than `day`, returns the latest snapshot in
+    each bucket — caps payload size for long ranges. When `include_anchor` is
+    true and `from_date` is set, the latest snapshot *before* that date is
+    prepended so the client can seed forward-fill at the start of the window.
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
 
@@ -102,15 +109,38 @@ async def list_account_balance_snapshots(
             detail="Start date must be before end date",
         )
 
-    query = select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id)
+    base = select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id)
     if from_date is not None:
-        query = query.where(AccountBalanceSnapshot.dt >= from_date)
+        base = base.where(AccountBalanceSnapshot.dt >= from_date)
     if to_date is not None:
-        query = query.where(AccountBalanceSnapshot.dt <= to_date)
-    query = query.order_by(AccountBalanceSnapshot.dt)
+        base = base.where(AccountBalanceSnapshot.dt <= to_date)
 
-    result = await db.execute(query)
-    return result.scalars().all()
+    if granularity == "day":
+        query = base.order_by(AccountBalanceSnapshot.dt)
+        result = await db.execute(query)
+        rows = list(result.scalars().all())
+    else:
+        # DISTINCT ON (bucket) ORDER BY bucket, dt DESC → latest row per bucket.
+        bucket = sa.func.date_trunc(granularity, AccountBalanceSnapshot.dt)
+        query = base.distinct(bucket).order_by(bucket, AccountBalanceSnapshot.dt.desc())
+        result = await db.execute(query)
+        rows = sorted(result.scalars().all(), key=lambda r: r.dt)
+
+    if include_anchor and from_date is not None:
+        anchor_query = (
+            select(AccountBalanceSnapshot)
+            .where(
+                AccountBalanceSnapshot.account_id == account_id,
+                AccountBalanceSnapshot.dt < from_date,
+            )
+            .order_by(AccountBalanceSnapshot.dt.desc())
+            .limit(1)
+        )
+        anchor = (await db.execute(anchor_query)).scalar_one_or_none()
+        if anchor is not None:
+            rows.insert(0, anchor)
+
+    return rows
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
