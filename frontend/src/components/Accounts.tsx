@@ -88,10 +88,14 @@ function InstitutionLogo({ institution }: { institution: AccountsOverview['insti
   return (
     <div
       className="w-9 h-9 shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
-      style={{
-        background: 'var(--app-accent-soft)',
-        border: '1px solid var(--app-border)',
-      }}
+      style={
+        faviconUrl
+          ? undefined
+          : {
+              background: 'var(--app-accent-soft)',
+              border: '1px solid var(--app-border)',
+            }
+      }
     >
       {faviconUrl ? (
         <img
