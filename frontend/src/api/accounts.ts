@@ -64,6 +64,14 @@ export const ACCOUNT_KIND_BY_TYPE: Record<AccountType, AccountKind> = {
   mortgage: 'amortizing',
 };
 
+// End-of-day balance record. Backend-maintained — only present for days that
+// had activity, so consumers forward-fill between snapshots client-side.
+export interface AccountBalanceSnapshot {
+  account_id: string;
+  balance: number;
+  dt: string; // ISO date (YYYY-MM-DD)
+}
+
 // Mirrors backend AccountResponse — the full shape returned by GET /accounts/{id},
 // POST /accounts, and PATCH /accounts/{id}. Superset of AccountsOverview with
 // contribution tallies and limits exposed for the detail view.
@@ -124,5 +132,16 @@ export function useAccount(accountId: string | undefined) {
     queryFn: () => authenticatedFetch<Account>(`/accounts/${accountId}`),
     enabled: !!accessToken && !!accountId,
     staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useAccountSnapshots(accountId: string | undefined) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: ['accounts', accountId, 'snapshots'],
+    queryFn: () =>
+      authenticatedFetch<AccountBalanceSnapshot[]>(`/accounts/${accountId}/snapshots`),
+    enabled: !!accessToken && !!accountId,
+    staleTime: 5 * 60 * 1000,
   });
 }
