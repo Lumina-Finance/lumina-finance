@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, date
+from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
 import sqlalchemy as sa
@@ -21,11 +21,17 @@ from app.schemas.account import (
     AccountBalanceSnapshotResponse,
     AccountResponse,
     AccountsOverview,
+    AccountSpendingBreakdown,
     CreateAccountRequest,
     UpdateAccountRequest,
 )
+from app.schemas.dashboard import RangeKind
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
-from app.services.accounts import attach_current_year_tax_limits, attach_tax_advantaged_tallies
+from app.services.accounts import (
+    attach_current_year_tax_limits,
+    attach_tax_advantaged_tallies,
+    get_account_spending_breakdown,
+)
 from app.services.snapshots import attach_current_balances
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -141,6 +147,24 @@ async def list_account_balance_snapshots(
             rows.insert(0, anchor)
 
     return rows
+
+
+@router.get("/{account_id}/spending-breakdown", response_model=AccountSpendingBreakdown)
+async def get_account_spending_breakdown_route(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    range_: Annotated[RangeKind, Query(alias="range")] = "MTD",
+):
+    """Return top-5 spending categories and merchants for the account over ``range``.
+
+    Backs the spending-by-category and top-merchants cards on the account
+    detail page. ``range`` picks the calendar period (WTD/MTD/QTD/YTD); the
+    backend derives the start date so the frontend only sends the range key.
+    Requires read access on the account.
+    """
+    await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    return await get_account_spending_breakdown(db, account_id, range_, datetime.now(UTC))
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)

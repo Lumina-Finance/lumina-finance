@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.dashboard import RangeKind
 from app.schemas.institution import InstitutionResponse
 
 
@@ -97,3 +98,50 @@ class AccountBalanceSnapshotResponse(BaseModel):
     dt: date
 
     model_config = {"from_attributes": True}
+
+
+class AccountTopCategory(BaseModel):
+    """One row in the account's top-spending-categories breakdown.
+
+    ``total`` is a positive minor-unit sum — expense amounts are flipped so the
+    frontend renders both categories and merchants with the same formatter.
+    """
+
+    category_id: uuid.UUID
+    name: str
+    total: int
+
+
+class AccountTopMerchant(BaseModel):
+    """One row in the account's top-spending-merchants breakdown.
+
+    ``total`` is a positive minor-unit sum (see :class:`AccountTopCategory`).
+    """
+
+    merchant_id: uuid.UUID
+    name: str
+    total: int
+
+
+class AccountSpendingBreakdown(BaseModel):
+    """Top-5 category and merchant spend for a single account over a calendar range.
+
+    Backs the spending-by-category and top-merchants cards on the account
+    detail page. Scoped to ``Category.kind == EXPENSE`` so transfers and income
+    don't leak into either breakdown; merchants are further narrowed by an
+    inner join (transactions without a merchant are dropped).
+
+    ``grand_total_spend`` sums every expense transaction in the range — the
+    frontend divides each row's total by it to draw the proportional fills and
+    displays it on the "Total" row. ``other_categories_count`` and
+    ``other_merchants_count`` are the number of distinct categories/merchants
+    with spend *beyond* the top 5, so the frontend can render an "Other (N)"
+    row without a second request. They are ``0`` when ≤ 5 distinct entries exist.
+    """
+
+    range: RangeKind
+    top_categories: list[AccountTopCategory]
+    top_merchants: list[AccountTopMerchant]
+    grand_total_spend: int
+    other_categories_count: int
+    other_merchants_count: int
