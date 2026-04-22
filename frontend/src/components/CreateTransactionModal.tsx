@@ -115,9 +115,16 @@ interface CreateTransactionModalProps {
   onClose: () => void
   /** When set, the modal opens in edit mode for this transaction. */
   transaction?: Transaction
+  /** Pre-select this account in create mode (e.g., opened from an account page). */
+  defaultAccountId?: string
 }
 
-export default function CreateTransactionModal({ open, onClose, transaction }: CreateTransactionModalProps) {
+export default function CreateTransactionModal({
+  open,
+  onClose,
+  transaction,
+  defaultAccountId,
+}: CreateTransactionModalProps) {
   const editing = !!transaction
   const createMutation = useCreateTransaction()
   const updateMutation = useUpdateTransaction()
@@ -130,7 +137,13 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
 
   // Build the initial form from the existing transaction (edit) or sensible defaults (create).
   const initialForm = useMemo(() => {
-    if (!transaction) return { ...INITIAL_FORM, date: todayLocalString() }
+    if (!transaction) {
+      return {
+        ...INITIAL_FORM,
+        account_id: defaultAccountId ?? INITIAL_FORM.account_id,
+        date: todayLocalString(),
+      }
+    }
     const category = categories.find((c) => c.id === transaction.category_id)
     const exp = currencies.find((c) => c.id === transaction.currency)?.minor_unit_exponent ?? 2
     return {
@@ -145,7 +158,7 @@ export default function CreateTransactionModal({ open, onClose, transaction }: C
       notes: transaction.notes ?? '',
       date: transaction.dt,
     }
-  }, [transaction, categories, currencies])
+  }, [transaction, categories, currencies, defaultAccountId])
 
   const [form, setForm] = useState(initialForm)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
