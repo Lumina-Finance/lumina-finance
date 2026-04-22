@@ -14,18 +14,19 @@ import {
 import {
   useAccount,
   useAccountSnapshots,
+  useAccountSpendingBreakdown,
   type Account,
   type AccountBalanceSnapshot,
+  type AccountSpendingBreakdown,
   type SnapshotGranularity,
+  type SpendingRange,
 } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
 import { useMerchants } from '@/api/merchants'
 import {
   useInfiniteTransactions,
-  useTransactionsOverview,
   type Transaction,
 } from '@/api/transactions'
-import { useAuth } from '@/hooks/useAuth'
 import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
@@ -219,74 +220,52 @@ const CATEGORY_COLORS = [
   '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
 ]
 
-// Period-to-date ranges for the spending breakdown. Mirrors the dashboard's
-// SpendingRange so the two reads feel coherent.
-type SpendingRange = 'WTD' | 'MTD' | 'QTD' | 'YTD'
+// Spending range tabs. `SpendingRange` is imported from the API layer so
+// the select options stay in lockstep with the backend's accepted values.
 const SPENDING_RANGES: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
 
-// Compute the [from, to] date window for a period-to-date range in the user's
-// timezone. `to` is always today; `from` snaps to the period's start.
-function rangeToDates(range: SpendingRange, tz: string): { from_date: string; to_date: string } {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz,
-  })
-  const todayStr = fmt.format(new Date())
-  const [y, m, d] = todayStr.split('-').map(Number)
-  const today = new Date(y, m - 1, d)
-
-  let from: Date
-  if (range === 'WTD') {
-    from = new Date(today)
-    const day = from.getDay() // 0=Sunday
-    const toMonday = day === 0 ? -6 : 1 - day
-    from.setDate(from.getDate() + toMonday)
-  } else if (range === 'MTD') {
-    from = new Date(today.getFullYear(), today.getMonth(), 1)
-  } else if (range === 'QTD') {
-    from = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1)
-  } else {
-    from = new Date(today.getFullYear(), 0, 1)
-  }
-
-  return { from_date: toISODate(from), to_date: toISODate(today) }
+interface BreakdownRow {
+  key: string
+  name: string
+  total: number
+  isOther: boolean
 }
 
-function SpendingByCategoryCard({ account }: { account: Account }) {
-  const { user } = useAuth()
-  const [range, setRange] = useState<SpendingRange>('MTD')
+// Append an "Other (N)" row when the backend signals more entries exist
+// beyond the top 5. Its total = grand_total - sum(top 5), which the card
+// also uses to size the row's proportional fill.
+function withOtherRow(rows: BreakdownRow[], otherCount: number, grandTotal: number): BreakdownRow[] {
+  if (otherCount <= 0) return rows
+  const topSum = rows.reduce((sum, r) => sum + r.total, 0)
+  const otherTotal = Math.max(grandTotal - topSum, 0)
+  return [...rows, { key: 'other', name: `Other (${otherCount})`, total: otherTotal, isOther: true }]
+}
 
-  const { from_date, to_date } = useMemo(
-    () => rangeToDates(range, user!.tz),
-    [range, user],
-  )
-
-  const { data: overview, isLoading } = useTransactionsOverview({
-    account_id: account.id,
-    from_date,
-    to_date,
-  })
-
-  // Show at most 5 rows total — the card's height is sized to fit exactly
-  // five. When the account has more categories, reserve the last row for
-  // "Other" and roll the tail into it.
-  const MAX_ROWS = 5
-  const categories = overview?.top_categories ?? []
-  const normalized = categories.map((c) => ({
-    key: c.category_id,
-    name: c.category_name,
-    total: c.total,
-    isOther: false,
-  }))
-  const hasOther = normalized.length > MAX_ROWS
-  const visibleCount = hasOther ? MAX_ROWS - 1 : normalized.length
-  const visible = normalized.slice(0, visibleCount)
-  const rest = normalized.slice(visibleCount)
-  const otherTotal = rest.reduce((sum, c) => sum + c.total, 0)
-  const rows = hasOther
-    ? [...visible, { key: 'other', name: `Other (${rest.length})`, total: otherTotal, isOther: true }]
-    : visible
-  const grandTotal = categories.reduce((sum, c) => sum + c.total, 0)
-
+// Shared presentation for the spending-by-category and top-merchants cards.
+// Each row has a colored fill proportional to its share of grandTotal,
+// with "Other" rendered in neutral gray. The Total row is pinned to the
+// bottom via a flex-1 spacer so sparse cards don't collapse in height.
+function BreakdownCard({
+  title,
+  rangeLabel,
+  range,
+  onRangeChange,
+  rows,
+  grandTotal,
+  currency,
+  emptyLabel,
+  isLoading,
+}: {
+  title: string
+  rangeLabel: string
+  range: SpendingRange
+  onRangeChange: (r: SpendingRange) => void
+  rows: BreakdownRow[]
+  grandTotal: number
+  currency: string
+  emptyLabel: string
+  isLoading: boolean
+}) {
   return (
     <section
       className="rounded-2xl p-6 flex flex-col"
@@ -296,12 +275,12 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
       }}
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-        <p className="app-label">Spending by category</p>
+        <p className="app-label">{title}</p>
         <div
           className="flex rounded-lg p-0.5"
           style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
           role="tablist"
-          aria-label="Spending range"
+          aria-label={rangeLabel}
         >
           {SPENDING_RANGES.map((r) => {
             const active = range === r
@@ -311,7 +290,7 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setRange(r)}
+                onClick={() => onRangeChange(r)}
                 className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
                 style={{
                   background: active ? 'var(--app-accent-soft)' : 'transparent',
@@ -332,16 +311,15 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
           className="flex-1 flex items-center justify-center text-sm"
           style={{ color: 'var(--app-text-subtle)' }}
         >
-          No spending in this range
+          {emptyLabel}
         </div>
       ) : (
         <>
           <div className="flex flex-col gap-1.5">
             {rows.map((item, idx) => {
-              // Bar width = this category's share of total spending — so a
-              // category at 50% of total fills the row halfway. 4% minimum
-              // keeps tiny slivers visible. Uses absolute values because
-              // spending totals are stored as signed negatives.
+              // Bar width = this row's share of total — so a row at 50% of
+              // total fills halfway. 4% minimum keeps tiny slivers visible.
+              // Uses absolute values because totals are signed negatives.
               const totalAbs = Math.abs(grandTotal)
               const barPct = totalAbs > 0 ? Math.max((Math.abs(item.total) / totalAbs) * 100, 4) : 0
               const color = item.isOther ? '#8C8074' : CATEGORY_COLORS[idx % CATEGORY_COLORS.length]
@@ -365,7 +343,7 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
                     {item.name}
                   </span>
                   <span className="font-financial font-medium tabular-nums relative text-sm">
-                    {formatCurrency(item.total, account.currency)}
+                    {formatCurrency(item.total, currency)}
                   </span>
                 </div>
               )
@@ -387,13 +365,79 @@ function SpendingByCategoryCard({ account }: { account: Account }) {
               Total
             </span>
             <span className="font-financial font-semibold tabular-nums text-sm">
-              {formatCurrency(grandTotal, account.currency)}
+              {formatCurrency(grandTotal, currency)}
             </span>
           </div>
         </>
       )}
     </section>
   )
+}
+
+function SpendingByCategoryCard({ account }: { account: Account }) {
+  const [range, setRange] = useState<SpendingRange>('MTD')
+  const { data, isLoading } = useAccountSpendingBreakdown(account.id, range)
+
+  const rows = breakdownToRows(
+    data,
+    (b) => b.top_categories.map((c) => ({
+      key: c.category_id, name: c.name, total: c.total, isOther: false,
+    })),
+    (b) => b.other_categories_count,
+  )
+
+  return (
+    <BreakdownCard
+      title="Spending by category"
+      rangeLabel="Spending range"
+      range={range}
+      onRangeChange={setRange}
+      rows={rows}
+      grandTotal={data?.grand_total_spend ?? 0}
+      currency={account.currency}
+      emptyLabel="No spending in this range"
+      isLoading={isLoading}
+    />
+  )
+}
+
+function TopMerchantsCard({ account }: { account: Account }) {
+  const [range, setRange] = useState<SpendingRange>('MTD')
+  const { data, isLoading } = useAccountSpendingBreakdown(account.id, range)
+
+  const rows = breakdownToRows(
+    data,
+    (b) => b.top_merchants.map((m) => ({
+      key: m.merchant_id, name: m.name, total: m.total, isOther: false,
+    })),
+    (b) => b.other_merchants_count,
+  )
+
+  return (
+    <BreakdownCard
+      title="Top merchants"
+      rangeLabel="Merchant range"
+      range={range}
+      onRangeChange={setRange}
+      rows={rows}
+      grandTotal={data?.grand_total_spend ?? 0}
+      currency={account.currency}
+      emptyLabel="No merchant activity in this range"
+      isLoading={isLoading}
+    />
+  )
+}
+
+// Project the breakdown payload into BreakdownRow[] + the "Other (N)" row
+// when one is needed. Each caller supplies the top-N extractor and the
+// matching other-count accessor so categories and merchants share the shape.
+function breakdownToRows(
+  data: AccountSpendingBreakdown | undefined,
+  toRows: (b: AccountSpendingBreakdown) => BreakdownRow[],
+  otherCount: (b: AccountSpendingBreakdown) => number,
+): BreakdownRow[] {
+  if (!data) return []
+  return withOtherRow(toRows(data), otherCount(data), data.grand_total_spend)
 }
 
 // Parse a "YYYY-MM-DD" calendar date as local midnight — new Date("YYYY-MM-DD")
@@ -1067,18 +1111,11 @@ export default function AccountDetail() {
         <BalanceChartCard account={account} />
       </div>
 
-      {/* Secondary row: 3 equal columns. Column 1 is the spending breakdown;
-          columns 2 and 3 are placeholders for upcoming widgets. */}
+      {/* Secondary row: 3 equal columns. Column 3 is a placeholder for an
+          upcoming widget. */}
       <div className="mt-5 grid grid-cols-3 gap-5">
         <SpendingByCategoryCard account={account} />
-        <div
-          className="rounded-2xl"
-          style={{
-            background: 'var(--app-surface-soft)',
-            border: '1px solid var(--app-border)',
-            minHeight: 364,
-          }}
-        />
+        <TopMerchantsCard account={account} />
         <div
           className="rounded-2xl"
           style={{

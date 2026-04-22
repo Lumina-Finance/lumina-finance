@@ -175,3 +175,49 @@ export function useAccountSnapshots(
     staleTime: 5 * 60 * 1000,
   });
 }
+
+// Calendar period for the spending breakdown endpoint. Backend derives the
+// exact date window from this key so the frontend only sends one string.
+export type SpendingRange = 'WTD' | 'MTD' | 'QTD' | 'YTD';
+
+// Mirrors backend AccountTopCategory — one row of the top-categories breakdown.
+// `total` is a positive minor-unit sum.
+export interface AccountTopCategory {
+  category_id: string;
+  name: string;
+  total: number;
+}
+
+// Mirrors backend AccountTopMerchant — one row of the top-merchants breakdown.
+export interface AccountTopMerchant {
+  merchant_id: string;
+  name: string;
+  total: number;
+}
+
+// Mirrors backend AccountSpendingBreakdown — top-5 category/merchant spend for
+// a single account over a calendar range.
+export interface AccountSpendingBreakdown {
+  range: SpendingRange;
+  top_categories: AccountTopCategory[];
+  top_merchants: AccountTopMerchant[];
+  grand_total_spend: number;
+  other_categories_count: number;
+  other_merchants_count: number;
+}
+
+export function useAccountSpendingBreakdown(
+  accountId: string | undefined,
+  range: SpendingRange,
+) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: ['accounts', accountId, 'spending-breakdown', range],
+    queryFn: () =>
+      authenticatedFetch<AccountSpendingBreakdown>(
+        `/accounts/${accountId}/spending-breakdown?range=${range}`,
+      ),
+    enabled: !!accessToken && !!accountId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
