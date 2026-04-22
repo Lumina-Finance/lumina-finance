@@ -264,11 +264,18 @@ async def test_income_and_expense_land_in_their_respective_fields(client):
     assert current["expenses"] == 4500
 
 
-# --- Transfer exclusion ---
+# --- Transfers: routed by sign just like any other transaction ---
 
 
-async def test_transfer_transactions_do_not_contribute_to_income_or_expenses(client):
-    """Transfer-kind txns are excluded from both income and expenses."""
+async def test_transfer_transactions_contribute_to_cash_flow_by_sign(client):
+    """Transfers are bucketed by amount sign like any other transaction.
+
+    Per-account cash flow reflects real balance movement, so a negative
+    transfer (money leaving the account) lands in ``expenses`` and a
+    positive transfer (money arriving) lands in ``income``. This is the
+    opposite of the household savings-rate widget, which excludes transfers
+    because they net to zero across the user's own accounts.
+    """
     headers, account_id = await _setup_account(client)
     transfer_cat = (await _create_category(
         client, headers, name="Test Internal Transfer", kind="transfer",
@@ -278,12 +285,17 @@ async def test_transfer_transactions_do_not_contribute_to_income_or_expenses(cli
     )).json()
 
     today = _today_utc().isoformat()
-    # Transfer — must not contribute even though it's a negative amount.
+    # Transfer out — money leaving the account → expenses
     await _create_transaction(
         client, headers, account_id, transfer_cat["id"],
-        dt=today, amount=-50_000,
+        dt=today, amount=-5000,
     )
-    # Expense — should be the only row that contributes to the current month.
+    # Transfer in — money arriving at the account → income
+    await _create_transaction(
+        client, headers, account_id, transfer_cat["id"],
+        dt=today, amount=3000,
+    )
+    # Ordinary expense — also in expenses
     await _create_transaction(
         client, headers, account_id, expense_cat["id"],
         dt=today, amount=-2000,
@@ -296,8 +308,10 @@ async def test_transfer_transactions_do_not_contribute_to_income_or_expenses(cli
     )
     assert resp.status_code == 200
     current = resp.json()[-1]
-    assert current["income"] == 0
-    assert current["expenses"] == 2000
+    # income = +3000 transfer in
+    assert current["income"] == 3000
+    # expenses = 5000 transfer out + 2000 expense
+    assert current["expenses"] == 7000
 
 
 # --- Sign handling ---
@@ -323,13 +337,13 @@ async def test_expense_amount_is_returned_as_positive_minor_units(client):
     assert current["expenses"] == 2500
 
 
-async def test_negative_amount_on_income_category_is_returned_as_is(client):
-    """Locks in current behaviour: income SUM is passed through raw.
+async def test_negative_amount_on_income_category_routes_to_expenses_by_sign(client):
+    """Category kind doesn't steer the bucket — sign does.
 
-    A refund on an income-kind category (e.g. a clawback of salary) is stored
-    as a negative amount. The service does not flip income sign, so it surfaces
-    as a negative number. If the behaviour ever changes to always-positive
-    income (abs-val), this test is the tripwire.
+    A clawback on an income-kind category (negative amount) shows up as an
+    outflow because it really did leave the account. The earlier kind-based
+    behaviour would have surfaced a negative number in ``income``; under the
+    sign-based model the bucket is driven by amount direction only.
     """
     headers, account_id = await _setup_account(client)
     income_category = (await _create_category(
@@ -348,8 +362,8 @@ async def test_negative_amount_on_income_category_is_returned_as_is(client):
     )
     assert resp.status_code == 200
     current = resp.json()[-1]
-    assert current["income"] == -500
-    assert current["expenses"] == 0
+    assert current["income"] == 0
+    assert current["expenses"] == 500
 
 
 # --- Cross-account isolation ---

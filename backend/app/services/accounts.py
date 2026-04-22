@@ -324,13 +324,18 @@ async def get_account_cash_flow_history(
     months: int,
     now: datetime,
 ) -> list[MonthlyIncomeExpense]:
-    """Return per-month income / expense totals for a single account.
+    """Return per-month cash-in / cash-out totals for a single account.
+
+    Bucketed by transaction SIGN, not by category kind: positive amounts add
+    to ``income`` and negative amounts add to ``expenses``. That makes the
+    series match the account's actual balance movement — transfers count,
+    refunds count — which is the per-account view the detail page wants.
+    (The household-level savings-rate widget keeps the kind-based split
+    since cross-account transfers net to zero at that scope.)
 
     Covers ``months`` calendar months ending with the current (in-progress)
-    month, ordered oldest-first. Transfers are excluded so the series reflects
-    only real cash movement. Months without activity emit zeros so the chart
-    always has the full x-axis. Expense amounts are stored negative in the DB
-    and returned as positive values for direct rendering.
+    month, ordered oldest-first. Months without activity emit zeros so the
+    chart always has the full x-axis.
     """
     month_starts = _month_sequence_ending_at(now, months)
     window_start = month_starts[0]
@@ -343,29 +348,36 @@ async def get_account_cash_flow_history(
 
     month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
     result = await db.execute(
-        select(month_start_expr, Category.kind, func.sum(Transaction.amount).label("total"))
-        .join(Category, Transaction.category_id == Category.id)
+        select(
+            month_start_expr,
+            func.coalesce(
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)),
+                0,
+            ).label("income"),
+            func.coalesce(
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)),
+                0,
+            ).label("expenses"),
+        )
         .where(
             Transaction.account_id == account_id,
-            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= window_start,
             Transaction.dt < window_end,
         )
-        .group_by(month_start_expr, Category.kind),
+        .group_by(month_start_expr),
     )
 
-    # Collect totals per month keyed by first-of-month so missing months stay at zero.
-    totals: dict[date, dict[CategoryKind, int]] = {m: {} for m in month_starts}
+    totals: dict[date, tuple[int, int]] = {}
     for row in result:
         # date_trunc may return a timestamp; coerce to plain date for keying.
         key = row.month_start.date() if hasattr(row.month_start, "date") else row.month_start
-        totals[key][row.kind] = int(row.total)
+        totals[key] = (int(row.income), abs(int(row.expenses)))
 
     return [
         MonthlyIncomeExpense(
             month=m,
-            income=totals[m].get(CategoryKind.INCOME, 0),
-            expenses=abs(totals[m].get(CategoryKind.EXPENSE, 0)),
+            income=totals.get(m, (0, 0))[0],
+            expenses=totals.get(m, (0, 0))[1],
         )
         for m in month_starts
     ]
