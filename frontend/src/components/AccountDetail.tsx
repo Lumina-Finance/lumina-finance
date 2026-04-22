@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -13,10 +15,12 @@ import {
 } from 'recharts'
 import {
   useAccount,
+  useAccountCashFlow,
   useAccountSnapshots,
   useAccountSpendingBreakdown,
   type Account,
   type AccountBalanceSnapshot,
+  type AccountMonthlyCashFlow,
   type AccountSpendingBreakdown,
   type SnapshotGranularity,
   type SpendingRange,
@@ -438,6 +442,210 @@ function breakdownToRows(
 ): BreakdownRow[] {
   if (!data) return []
   return withOtherRow(toRows(data), otherCount(data), data.grand_total_spend)
+}
+
+// Monthly cash-flow card — a compact "N months avg" summary (left) paired
+// with a grouped bar chart of the recent monthly history (right). Mirrors the
+// old-repo "Monthly Cash Flow" design but swaps the Recurring-vs-One-time
+// sidebar for a simple In/Out average since categories don't yet carry a
+// recurring signal.
+//
+// ``CASH_FLOW_AVG_MONTHS`` completed months are used for the average so a
+// partial in-progress month can't drag it down. One extra month is fetched so
+// the chart still shows the in-progress current month alongside the history.
+const CASH_FLOW_AVG_MONTHS = 6
+const CASH_FLOW_CHART_MONTHS = CASH_FLOW_AVG_MONTHS + 1
+
+// Cash-flow bar chart — one BarChart used twice in the same card. Once for
+// the monthly history, once for the N-month average. Both callers pass the
+// same ``domain`` so bars are visually comparable at a glance.
+interface CashFlowBar {
+  label: string
+  income: number
+  expense: number
+}
+
+function CashFlowBarChart({
+  data,
+  domain,
+  currency,
+  tooltipLabel,
+}: {
+  data: CashFlowBar[]
+  domain: [number, number]
+  currency: string
+  tooltipLabel: (label: string) => string
+}) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={data}
+        margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+        barGap={2}
+        barCategoryGap="18%"
+      >
+        <XAxis
+          dataKey="label"
+          axisLine={false}
+          tickLine={false}
+          tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+          tickMargin={4}
+          interval={0}
+        />
+        <YAxis hide domain={domain} />
+        <Tooltip
+          cursor={{ fill: 'var(--app-accent-soft)', radius: 4 }}
+          wrapperStyle={TOOLTIP_WRAPPER_STYLE}
+          contentStyle={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            borderRadius: 8,
+            boxShadow: 'var(--app-shadow-soft)',
+            padding: '6px 10px',
+            fontSize: 13,
+          }}
+          labelStyle={{ color: 'var(--app-text-subtle)' }}
+          itemStyle={{ color: 'var(--app-text)' }}
+          labelFormatter={(label) => tooltipLabel(String(label))}
+          formatter={(value, name) => [
+            formatCurrency(Number(value), currency),
+            name === 'income' ? 'In' : 'Out',
+          ]}
+        />
+        <Bar
+          dataKey="income"
+          fill="var(--app-positive)"
+          radius={[4, 4, 0, 0]}
+          maxBarSize={24}
+          opacity={0.85}
+        />
+        <Bar
+          dataKey="expense"
+          fill="var(--app-negative)"
+          radius={[4, 4, 0, 0]}
+          maxBarSize={24}
+          opacity={0.85}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function MonthlyCashFlowCard({ account }: { account: Account }) {
+  const { data, isLoading } = useAccountCashFlow(account.id, CASH_FLOW_CHART_MONTHS)
+
+  const chartData = useMemo(
+    () =>
+      (data ?? []).map((row: AccountMonthlyCashFlow) => ({
+        label: parseYmdLocal(row.month).toLocaleDateString('en-US', { month: 'short' }),
+        tooltipLabel: parseYmdLocal(row.month).toLocaleDateString('en-US', {
+          month: 'short',
+          year: 'numeric',
+        }),
+        income: row.income,
+        expense: row.expenses,
+      })),
+    [data],
+  )
+  const hasActivity = chartData.some((m) => m.income > 0 || m.expense > 0)
+
+  // Average the completed prior months only — drop the last entry (the in-
+  // progress current month) so a partial month doesn't drag the stat down.
+  // Dormant months in the window still count as $0 so the number stays stable
+  // across the month rather than jumping each time a new month begins.
+  const { avgIn, avgOut } = useMemo(() => {
+    if (!data || data.length <= 1) return { avgIn: 0, avgOut: 0 }
+    const completed = data.slice(0, -1)
+    const totalIn = completed.reduce((sum, m) => sum + m.income, 0)
+    const totalOut = completed.reduce((sum, m) => sum + m.expenses, 0)
+    return {
+      avgIn: Math.round(totalIn / completed.length),
+      avgOut: Math.round(totalOut / completed.length),
+    }
+  }, [data])
+
+  // Shared Y-axis ceiling so the avg bar's height is directly comparable to
+  // the monthly bars — the whole reason the avg sits inside the same card.
+  const yMax = useMemo(() => {
+    const monthlyPeak = chartData.reduce(
+      (peak, m) => Math.max(peak, m.income, m.expense),
+      0,
+    )
+    // 1 floor keeps Recharts from collapsing to a zero-height domain when
+    // everything is empty (which is mostly defensive — hasActivity gates this
+    // branch anyway).
+    return Math.max(monthlyPeak, avgIn, avgOut, 1)
+  }, [chartData, avgIn, avgOut])
+
+  const avgData: CashFlowBar[] = [
+    { label: `${CASH_FLOW_AVG_MONTHS} Mo Avg`, income: avgIn, expense: avgOut },
+  ]
+  const monthlyLabelByKey = new Map(chartData.map((m) => [m.label, m.tooltipLabel]))
+
+  return (
+    <section
+      className="rounded-2xl p-6 flex flex-col"
+      style={{
+        background: 'var(--app-surface-soft)',
+        border: '1px solid var(--app-border)',
+      }}
+    >
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <p className="app-label">Monthly cash flow</p>
+        <div
+          className="flex items-center gap-3 text-xs"
+          style={{ color: 'var(--app-text-subtle)' }}
+        >
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-sm" style={{ background: 'var(--app-positive)' }} />
+            In
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-sm" style={{ background: 'var(--app-negative)' }} />
+            Out
+          </span>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-[200px] w-full flex gap-4">
+        <div className="flex-1 min-w-0">
+          {isLoading || !hasActivity ? (
+            <div
+              className="h-full w-full flex items-center justify-center text-sm"
+              style={{ color: 'var(--app-text-subtle)' }}
+            >
+              {isLoading ? '' : 'No cash flow yet'}
+            </div>
+          ) : (
+            <CashFlowBarChart
+              data={chartData}
+              domain={[0, yMax]}
+              currency={account.currency}
+              tooltipLabel={(label) => monthlyLabelByKey.get(label) ?? label}
+            />
+          )}
+        </div>
+
+        {!isLoading && hasActivity && (
+          <>
+            <div
+              className="shrink-0 self-stretch"
+              style={{ borderLeft: '1px dashed var(--app-border-strong)' }}
+              aria-hidden
+            />
+            <div className="shrink-0" style={{ width: 72 }}>
+              <CashFlowBarChart
+                data={avgData}
+                domain={[0, yMax]}
+                currency={account.currency}
+                tooltipLabel={() => `${CASH_FLOW_AVG_MONTHS}-month average`}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  )
 }
 
 // Parse a "YYYY-MM-DD" calendar date as local midnight — new Date("YYYY-MM-DD")
@@ -1111,19 +1319,11 @@ export default function AccountDetail() {
         <BalanceChartCard account={account} />
       </div>
 
-      {/* Secondary row: 3 equal columns. Column 3 is a placeholder for an
-          upcoming widget. */}
+      {/* Secondary row: 3 equal columns. */}
       <div className="mt-5 grid grid-cols-3 gap-5">
         <SpendingByCategoryCard account={account} />
         <TopMerchantsCard account={account} />
-        <div
-          className="rounded-2xl"
-          style={{
-            background: 'var(--app-surface-soft)',
-            border: '1px solid var(--app-border)',
-            minHeight: 364,
-          }}
-        />
+        <MonthlyCashFlowCard account={account} />
       </div>
 
       <div className="mt-5">

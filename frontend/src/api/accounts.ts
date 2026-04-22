@@ -221,3 +221,25 @@ export function useAccountSpendingBreakdown(
     staleTime: 5 * 60 * 1000,
   });
 }
+
+// Mirrors backend MonthlyIncomeExpense — one slot in the monthly cash-flow
+// series. `month` is the first-of-month ISO date (YYYY-MM-DD); `income` and
+// `expenses` are positive minor units.
+export interface AccountMonthlyCashFlow {
+  month: string;
+  income: number;
+  expenses: number;
+}
+
+export function useAccountCashFlow(accountId: string | undefined, months: number = 6) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: ['accounts', accountId, 'cash-flow', months],
+    queryFn: () =>
+      authenticatedFetch<AccountMonthlyCashFlow[]>(
+        `/accounts/${accountId}/cash-flow?months=${months}`,
+      ),
+    enabled: !!accessToken && !!accountId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
