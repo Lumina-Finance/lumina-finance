@@ -119,10 +119,14 @@ function DetailInstitutionLogo({ institution }: { institution: Account['institut
   return (
     <div
       className="w-16 h-16 shrink-0 rounded-xl overflow-hidden flex items-center justify-center"
-      style={{
-        background: 'var(--app-accent-soft)',
-        border: '1px solid var(--app-border)',
-      }}
+      style={
+        faviconUrl
+          ? undefined
+          : {
+              background: 'var(--app-accent-soft)',
+              border: '1px solid var(--app-border)',
+            }
+      }
     >
       {faviconUrl ? (
         <img
