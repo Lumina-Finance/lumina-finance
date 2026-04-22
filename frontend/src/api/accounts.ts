@@ -135,12 +135,42 @@ export function useAccount(accountId: string | undefined) {
   });
 }
 
-export function useAccountSnapshots(accountId: string | undefined) {
+export type SnapshotGranularity = 'day' | 'week' | 'month' | 'quarter';
+
+interface SnapshotRange {
+  fromDate?: string; // ISO date (YYYY-MM-DD)
+  toDate?: string;
+  granularity?: SnapshotGranularity;
+  includeAnchor?: boolean;
+}
+
+export function useAccountSnapshots(
+  accountId: string | undefined,
+  range: SnapshotRange = {},
+) {
   const { accessToken } = useAuth();
+  const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range;
   return useQuery({
-    queryKey: ['accounts', accountId, 'snapshots'],
-    queryFn: () =>
-      authenticatedFetch<AccountBalanceSnapshot[]>(`/accounts/${accountId}/snapshots`),
+    queryKey: [
+      'accounts',
+      accountId,
+      'snapshots',
+      fromDate ?? null,
+      toDate ?? null,
+      granularity,
+      includeAnchor,
+    ],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (fromDate) params.set('from_date', fromDate);
+      if (toDate) params.set('to_date', toDate);
+      if (granularity !== 'day') params.set('granularity', granularity);
+      if (includeAnchor) params.set('include_anchor', 'true');
+      const qs = params.toString();
+      return authenticatedFetch<AccountBalanceSnapshot[]>(
+        `/accounts/${accountId}/snapshots${qs ? `?${qs}` : ''}`,
+      );
+    },
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,
   });
