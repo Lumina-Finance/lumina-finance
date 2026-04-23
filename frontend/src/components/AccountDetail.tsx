@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Pencil, Plus, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Pencil, Plus, Search, TrendingDown, TrendingUp } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Area,
@@ -34,6 +34,8 @@ import {
 import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
+import FilterChip from '@/components/FilterChip'
+import FilterOptionList from '@/components/FilterOptionList'
 
 const TAX_TREATMENT_LABEL: Record<string, string> = {
   taxable: 'Taxable',
@@ -655,6 +657,35 @@ function parseYmdLocal(ymd: string): Date {
   return new Date(y, m - 1, d)
 }
 
+// Compact label for the date-range filter chip. Drops the duplicate year when
+// both bounds fall in the same year. Mirrors the Transactions page so the chip
+// reads identically across pages.
+function formatDateRangeLabel(from?: string, to?: string): string | null {
+  if (!from && !to) return null
+  const parse = (s: string) => parseYmdLocal(s)
+  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+    d.toLocaleDateString('en-US', opts)
+  if (from && to) {
+    const fromDate = parse(from)
+    const toDate = parse(to)
+    const sameYear = fromDate.getFullYear() === toDate.getFullYear()
+    return sameYear
+      ? `${fmt(fromDate, { month: 'short', day: 'numeric' })} – ${fmt(toDate, { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : `${fmt(fromDate, { month: 'short', day: 'numeric', year: 'numeric' })} – ${fmt(toDate, { month: 'short', day: 'numeric', year: 'numeric' })}`
+  }
+  if (from) return `From ${fmt(parse(from), { month: 'short', day: 'numeric', year: 'numeric' })}`
+  return `Until ${fmt(parse(to!), { month: 'short', day: 'numeric', year: 'numeric' })}`
+}
+
+// Filter values exposed to the user on the per-account transactions section.
+// account_id is fixed by the route, so it's not part of the chip set — only
+// the rest of the API filter surface that's worth surfacing for browsing.
+interface AccountTransactionFilters {
+  category_id?: string
+  from_date?: string
+  to_date?: string
+}
+
 // Group transactions by calendar day, preserving input order within each group.
 function groupByDate(transactions: Transaction[]): { dateLabel: string; transactions: Transaction[] }[] {
   const groups: { dateLabel: string; transactions: Transaction[] }[] = []
@@ -674,20 +705,80 @@ function groupByDate(transactions: Transaction[]): { dateLabel: string; transact
   return groups
 }
 
-function TransactionListCard({
+function TransactionListSection({
   account,
+  onCreateTransaction,
   onEditTransaction,
 }: {
   account: Account
+  onCreateTransaction: () => void
   onEditTransaction: (t: Transaction) => void
 }) {
+  // `search` mirrors the input in real time; `activeSearch` is what's actually
+  // sent to the API. Catches up 1s after typing pauses (or immediately on
+  // Enter) so the input stays responsive without thrashing the server.
+  const [search, setSearch] = useState('')
+  const [activeSearch, setActiveSearch] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setActiveSearch(search), 1000)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const [filters, setFilters] = useState<AccountTransactionFilters>({})
+  const setFilter = (patch: Partial<AccountTransactionFilters>) => {
+    setFilters((f) => {
+      const next = { ...f, ...patch }
+      for (const key of Object.keys(next) as (keyof AccountTransactionFilters)[]) {
+        if (!next[key]) delete next[key]
+      }
+      return next
+    })
+  }
+
+  // Date-range chip — drafts (`pendingFrom` / `pendingTo`) only become applied
+  // filters when the user clicks Apply or closes the popover. An invalid
+  // range (from > to) is reverted on close and blocks Apply. Drafts re-sync
+  // when filters change externally; the "adjust state during render" pattern
+  // mirrors the main Transactions page.
+  const [pendingFrom, setPendingFrom] = useState(filters.from_date ?? '')
+  const [pendingTo, setPendingTo] = useState(filters.to_date ?? '')
+  const [syncedRange, setSyncedRange] = useState({
+    from: filters.from_date,
+    to: filters.to_date,
+  })
+  if (syncedRange.from !== filters.from_date || syncedRange.to !== filters.to_date) {
+    setSyncedRange({ from: filters.from_date, to: filters.to_date })
+    setPendingFrom(filters.from_date ?? '')
+    setPendingTo(filters.to_date ?? '')
+  }
+  const dateRangeInvalid = !!pendingFrom && !!pendingTo && pendingFrom > pendingTo
+  const dateRangeChanged =
+    (pendingFrom || undefined) !== filters.from_date ||
+    (pendingTo || undefined) !== filters.to_date
+  const commitDateRange = () => {
+    if (dateRangeInvalid) {
+      setPendingFrom(filters.from_date ?? '')
+      setPendingTo(filters.to_date ?? '')
+      return
+    }
+    const nextFrom = pendingFrom || undefined
+    const nextTo = pendingTo || undefined
+    if (nextFrom === filters.from_date && nextTo === filters.to_date) return
+    setFilter({ from_date: nextFrom, to_date: nextTo })
+  }
+
   const {
     data: txnPages,
     isLoading,
+    error,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useInfiniteTransactions({ account_id: account.id })
+  } = useInfiniteTransactions({
+    account_id: account.id,
+    ...filters,
+    q: activeSearch || undefined,
+  })
   const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
 
   const { data: categories } = useCategories()
@@ -737,28 +828,149 @@ function TransactionListCard({
   const showPendingFetch = pendingFetch && hasNextPage && !isFetchingNextPage
 
   return (
-    <section
-      className="rounded-2xl p-6 flex flex-col"
-      style={{
-        background: 'var(--app-surface-soft)',
-        border: '1px solid var(--app-border)',
-      }}
-    >
+    <>
+      {/* Sticky toolbar — mirrors the main Transactions page so search +
+          filter chips behave identically across both surfaces. */}
+      <div
+        className="sticky top-0 z-20 flex items-center gap-3 py-3 mb-2"
+        style={{ background: 'var(--app-bg)' }}
+      >
+        <div className="relative flex-1">
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--app-text-subtle)' }}
+            aria-hidden
+          />
+          <input
+            type="text"
+            placeholder="Search transactions..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') setActiveSearch(search)
+            }}
+            className="app-input w-full pl-9"
+          />
+        </div>
+
+        <FilterChip
+          label="Category"
+          selectedLabel={categories?.find((c) => c.id === filters.category_id)?.name ?? null}
+          onClear={() => setFilter({ category_id: undefined })}
+        >
+          {(close) => {
+            const KIND_LABELS: Record<string, string> = { expense: 'Expense', income: 'Income', transfer: 'Transfer' }
+            const opts = (['expense', 'income', 'transfer'] as const).flatMap((kind) =>
+              (categories ?? [])
+                .filter((c) => c.kind === kind)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((c) => ({ value: c.id, label: c.name, group: KIND_LABELS[kind] })),
+            )
+            return (
+              <FilterOptionList
+                options={opts}
+                selectedValue={filters.category_id}
+                onSelect={(v) => { setFilter({ category_id: v }); close() }}
+                searchPlaceholder="Search categories..."
+              />
+            )
+          }}
+        </FilterChip>
+
+        <FilterChip
+          label="Date range"
+          selectedLabel={formatDateRangeLabel(filters.from_date, filters.to_date)}
+          onClear={() => setFilter({ from_date: undefined, to_date: undefined })}
+          onClose={commitDateRange}
+          panelClassName="w-72 p-4 space-y-3"
+        >
+          {(close) => (
+            <>
+              <div>
+                <label className="app-label block mb-1.5">From</label>
+                <input
+                  type="date"
+                  className="app-input w-full"
+                  value={pendingFrom}
+                  onChange={(e) => setPendingFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="app-label block mb-1.5">To</label>
+                <input
+                  type="date"
+                  className="app-input w-full"
+                  value={pendingTo}
+                  onChange={(e) => setPendingTo(e.target.value)}
+                />
+              </div>
+              {dateRangeInvalid && (
+                <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                  From date must be on or before To date.
+                </p>
+              )}
+              <div className="!mt-5 flex gap-2">
+                <button
+                  type="button"
+                  className="app-secondary-button flex-1 justify-center"
+                  disabled={!pendingFrom && !pendingTo}
+                  onClick={() => {
+                    setPendingFrom('')
+                    setPendingTo('')
+                  }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="app-primary-button flex-1 justify-center"
+                  disabled={dateRangeInvalid || !dateRangeChanged}
+                  onClick={close}
+                >
+                  Apply
+                </button>
+              </div>
+            </>
+          )}
+        </FilterChip>
+
+        <button
+          type="button"
+          className="app-primary-button"
+          onClick={onCreateTransaction}
+        >
+          <Plus size={16} aria-hidden />
+          Add Transaction
+        </button>
+      </div>
+
       {isLoading ? (
-        <div className="py-10" />
+        <div className="space-y-3">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className="rounded-lg h-14 bg-gray-300" />
+          ))}
+        </div>
+      ) : error ? (
+        <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
+          Unable to load transactions.
+        </p>
       ) : dateGroups.length === 0 ? (
-        <p className="py-10 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-          No transactions yet
+        <p
+          className="py-8 text-center italic text-sm"
+          style={{ color: 'var(--app-text-subtle)' }}
+        >
+          {search ? 'No transactions match your search.' : 'No transactions yet.'}
         </p>
       ) : (
-        <div className="space-y-4">
+        <section className="space-y-4">
           {dateGroups.map(({ dateLabel, transactions: txns }) => {
             const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
             const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
             return (
               <div key={dateLabel}>
                 <div
-                  className="flex items-center justify-between px-3 py-2 rounded-lg"
+                  className="sticky top-[6rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
                   style={{
                     background: 'var(--app-input-bg)',
                     borderBottom: '1px solid var(--app-border)',
@@ -855,15 +1067,18 @@ function TransactionListCard({
           })}
 
           <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
-          {(isFetchingNextPage || showPendingFetch) && (
+          {isFetchingNextPage || showPendingFetch ? (
             <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
               Loading more transactions...
             </p>
-          )}
-        </div>
+          ) : hasNextPage === false ? (
+            <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+              You've reached the end.
+            </p>
+          ) : null}
+        </section>
       )}
-
-    </section>
+    </>
   )
 }
 
@@ -1317,18 +1532,12 @@ export default function AccountDetail() {
       </div>
 
       <div className="mt-5">
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-          <h2 className="font-serif font-medium text-4xl leading-none">Transactions</h2>
-          <button
-            type="button"
-            onClick={openCreateTransaction}
-            className="app-secondary-button"
-          >
-            <Plus size={16} aria-hidden />
-            Add transaction
-          </button>
-        </div>
-        <TransactionListCard account={account} onEditTransaction={openEditTransaction} />
+        <h2 className="font-serif font-medium text-4xl leading-none mb-4">Transactions</h2>
+        <TransactionListSection
+          account={account}
+          onCreateTransaction={openCreateTransaction}
+          onEditTransaction={openEditTransaction}
+        />
       </div>
 
       <CreateTransactionModal
