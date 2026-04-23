@@ -560,7 +560,7 @@ export default function Transactions() {
 
       {/* Toolbar */}
       <div
-        className="sticky top-0 z-20 flex items-center gap-3 py-3 -my-3"
+        className="sticky top-0 z-20 flex items-center gap-3 py-3 mb-2"
         style={{ background: 'var(--app-bg)' }}
       >
         <div className="relative flex-1">
@@ -713,7 +713,7 @@ export default function Transactions() {
               <div key={dateLabel}>
                 {/* Date header */}
                 <div
-                  className="sticky top-[3.25rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
+                  className="sticky top-[6rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
                   style={{
                     background: 'var(--app-input-bg)',
                     borderBottom: '1px solid var(--app-border)',
