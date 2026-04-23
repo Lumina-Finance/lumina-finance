@@ -1047,9 +1047,7 @@ export default function Dashboard() {
         </div>
 
         {/* Row 3 — Quick insight cards */}
-        <div className="grid grid-cols-1 gap-4 grid-cols-4">
-          <div className="rounded-2xl h-[400px] bg-gray-300" />
-          <div className="rounded-2xl h-[400px] bg-gray-300" />
+        <div className="grid grid-cols-1 gap-4 grid-cols-2">
           <div className="rounded-2xl h-[400px] bg-gray-300" />
 
           {/* Recent Activity — the 5 most recent transactions inside the
