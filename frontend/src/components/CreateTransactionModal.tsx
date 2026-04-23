@@ -117,6 +117,8 @@ interface CreateTransactionModalProps {
   transaction?: Transaction
   /** Pre-select this account in create mode (e.g., opened from an account page). */
   defaultAccountId?: string
+  /** Pre-select this currency in create mode; typically matches the default account. */
+  defaultCurrency?: string
 }
 
 export default function CreateTransactionModal({
@@ -124,6 +126,7 @@ export default function CreateTransactionModal({
   onClose,
   transaction,
   defaultAccountId,
+  defaultCurrency,
 }: CreateTransactionModalProps) {
   const editing = !!transaction
   const createMutation = useCreateTransaction()
@@ -141,6 +144,7 @@ export default function CreateTransactionModal({
       return {
         ...INITIAL_FORM,
         account_id: defaultAccountId ?? INITIAL_FORM.account_id,
+        currency: defaultCurrency ?? INITIAL_FORM.currency,
         date: todayLocalString(),
       }
     }
@@ -158,7 +162,7 @@ export default function CreateTransactionModal({
       notes: transaction.notes ?? '',
       date: transaction.dt,
     }
-  }, [transaction, categories, currencies, defaultAccountId])
+  }, [transaction, categories, currencies, defaultAccountId, defaultCurrency])
 
   const [form, setForm] = useState(initialForm)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})

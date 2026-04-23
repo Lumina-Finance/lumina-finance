@@ -1546,6 +1546,7 @@ export default function AccountDetail() {
         onClose={() => setShowTxnModal(false)}
         transaction={editingTransaction ?? undefined}
         defaultAccountId={account.id}
+        defaultCurrency={account.currency}
       />
     </div>
   )
