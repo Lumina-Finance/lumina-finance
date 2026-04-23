@@ -590,7 +590,7 @@ function MonthlyCashFlowCard({ account }: { account: Account }) {
         border: '1px solid var(--app-border)',
       }}
     >
-      <div className="flex items-center justify-between gap-4 mb-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Monthly Cash Flow</p>
         <div
           className="flex items-center gap-3 text-xs"
@@ -674,22 +674,13 @@ function groupByDate(transactions: Transaction[]): { dateLabel: string; transact
   return groups
 }
 
-function TransactionListCard({ account }: { account: Account }) {
-  const [showModal, setShowModal] = useState(false)
-  const [modalKey, setModalKey] = useState(0)
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
-
-  const openCreate = () => {
-    setEditingTransaction(null)
-    setModalKey((k) => k + 1)
-    setShowModal(true)
-  }
-  const openEdit = (t: Transaction) => {
-    setEditingTransaction(t)
-    setModalKey((k) => k + 1)
-    setShowModal(true)
-  }
-
+function TransactionListCard({
+  account,
+  onEditTransaction,
+}: {
+  account: Account
+  onEditTransaction: (t: Transaction) => void
+}) {
   const {
     data: txnPages,
     isLoading,
@@ -753,18 +744,6 @@ function TransactionListCard({ account }: { account: Account }) {
         border: '1px solid var(--app-border)',
       }}
     >
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <p className="app-label">Transactions</p>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="app-secondary-button"
-        >
-          <Plus size={16} aria-hidden />
-          Add transaction
-        </button>
-      </div>
-
       {isLoading ? (
         <div className="py-10" />
       ) : dateGroups.length === 0 ? (
@@ -810,11 +789,11 @@ function TransactionListCard({ account }: { account: Account }) {
                         key={t.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => openEdit(t)}
+                        onClick={() => onEditTransaction(t)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
-                            openEdit(t)
+                            onEditTransaction(t)
                           }
                         }}
                         className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
@@ -884,13 +863,6 @@ function TransactionListCard({ account }: { account: Account }) {
         </div>
       )}
 
-      <CreateTransactionModal
-        key={modalKey}
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        transaction={editingTransaction ?? undefined}
-        defaultAccountId={account.id}
-      />
     </section>
   )
 }
@@ -958,7 +930,7 @@ function BalanceChartCard({ account }: { account: Account }) {
       }}
     >
       {/* Header — label + range pills */}
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Balance</p>
         <div
           className="flex rounded-lg p-0.5"
@@ -1124,6 +1096,24 @@ export default function AccountDetail() {
   const [taxOpen, setTaxOpen] = useState(false)
   const taxRowRef = useRef<HTMLDivElement>(null)
   const taxPanelRef = useRef<HTMLDivElement>(null)
+
+  // Transaction modal state — lifted up from TransactionListCard so the
+  // "Add transaction" button can live outside the card next to the section
+  // title, while row-click edits still drive the same modal.
+  const [showTxnModal, setShowTxnModal] = useState(false)
+  const [txnModalKey, setTxnModalKey] = useState(0)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+
+  const openCreateTransaction = () => {
+    setEditingTransaction(null)
+    setTxnModalKey((k) => k + 1)
+    setShowTxnModal(true)
+  }
+  const openEditTransaction = (t: Transaction) => {
+    setEditingTransaction(t)
+    setTxnModalKey((k) => k + 1)
+    setShowTxnModal(true)
+  }
 
   useEffect(() => {
     if (!taxOpen) return
@@ -1327,8 +1317,27 @@ export default function AccountDetail() {
       </div>
 
       <div className="mt-5">
-        <TransactionListCard account={account} />
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+          <h2 className="font-serif font-medium text-4xl leading-none">Transactions</h2>
+          <button
+            type="button"
+            onClick={openCreateTransaction}
+            className="app-secondary-button"
+          >
+            <Plus size={16} aria-hidden />
+            Add transaction
+          </button>
+        </div>
+        <TransactionListCard account={account} onEditTransaction={openEditTransaction} />
       </div>
+
+      <CreateTransactionModal
+        key={txnModalKey}
+        open={showTxnModal}
+        onClose={() => setShowTxnModal(false)}
+        transaction={editingTransaction ?? undefined}
+        defaultAccountId={account.id}
+      />
     </div>
   )
 }
