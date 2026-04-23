@@ -1146,7 +1146,7 @@ function BalanceChartCard({ account }: { account: Account }) {
     >
       {/* Header — label + range pills */}
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-        <p className="app-label">Balance</p>
+        <p className="app-label">Current Balance</p>
         <div
           className="flex rounded-lg p-0.5"
           style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
