@@ -456,6 +456,7 @@ export default function Transactions() {
                     type="category"
                     dataKey="name"
                     width={110}
+                    interval={0}
                     tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
                     axisLine={false}
                     tickLine={false}
