@@ -644,7 +644,7 @@ export default function Dashboard() {
                 escaping the bar's bounds, and the CSS transition on `left`
                 smooths the slide when the user moves between segments. */}
             <div className="flex-1 min-h-0 flex items-center">
-              <div className="relative h-14 w-full">
+              <div className="relative h-12 w-full">
                 <div
                   ref={runwayBarRef}
                   className="flex h-full gap-0.5 rounded-xl overflow-hidden"
