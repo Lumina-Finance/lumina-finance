@@ -1178,7 +1178,7 @@ function BalanceChartCard({ account }: { account: Account }) {
       {/* Current balance + period delta */}
       <div className="mb-4">
         <p
-          className="font-financial font-medium leading-none text-3xl"
+          className="font-financial font-normal leading-none text-3xl"
           style={{ color: account.current_balance < 0 ? 'var(--app-negative)' : 'var(--app-text)' }}
         >
           {formatCurrency(account.current_balance, account.currency)}
