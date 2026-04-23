@@ -176,7 +176,7 @@ const Auth = () => {
       return;
     }
 
-    // Refuse signup if currencies never loaded — avoids submitting the default CAD blindly
+    // Refuse signup if currencies never loaded — otherwise we'd submit the default CAD without the user seeing the options
     if (!isLogin && currencies.length === 0) {
       setError('Unable to load currencies. Please refresh and try again.');
       return;

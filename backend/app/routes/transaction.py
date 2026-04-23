@@ -167,14 +167,14 @@ async def get_transactions_overview(
             top_categories=None, daily_cash_flow=None, outliers=None,
         )
 
-    # 1. Inflow / outflow totals
+    # Inflow / outflow totals
     flow_query = select(
         sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
         sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
     ).where(base_where)
     flow = (await db.execute(flow_query)).one()
 
-    # 2. Top 5 expense categories by total spend
+    # Top 5 expense categories by total spend
     cat_query = (
         select(
             Transaction.category_id,
@@ -190,7 +190,7 @@ async def get_transactions_overview(
     )
     cat_rows = (await db.execute(cat_query)).all()
 
-    # 3. Daily cash flow
+    # Daily cash flow
     daily_query = (
         select(
             Transaction.dt.label("date"),
@@ -203,7 +203,7 @@ async def get_transactions_overview(
     )
     daily_rows = (await db.execute(daily_query)).all()
 
-    # 4. Top 3 largest outflow transactions
+    # Top 3 largest outflow transactions
     outlier_query = (
         select(
             Transaction.id,

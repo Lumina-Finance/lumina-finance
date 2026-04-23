@@ -98,7 +98,7 @@ async def replace_runway_accounts(
 ):
     """Replace the user's runway account selection with the submitted set.
 
-    Dedupes silently. Rejects the whole request with 422 if any submitted
+    Dedupes the submitted set. Rejects the whole request with 422 if any submitted
     account isn't readable by the user (personal, household admin, or explicit
     permission).
     """
