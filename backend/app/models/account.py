@@ -93,3 +93,31 @@ class TaxAdvantagedConfig(Base):
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True, nullable=False)
     contribution_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Annual limit in currency base units
     withdrawal_limit: Mapped[int | None] = mapped_column(BigInteger)  # Null = no limit
+
+
+class TaxAdvantagedPlan(Base):
+    """Individual-owned tax-advantaged limit tracker."""
+
+    __tablename__ = "tax_advantaged_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    plan_owner_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
+    tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False)
+    currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
+    lifetime_contribution_limit: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class TaxAdvantagedPlanLimit(Base):
+    """Per-plan, per-year contribution and withdrawal limits."""
+
+    __tablename__ = "tax_advantaged_plan_limits"
+
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tax_advantaged_plans.id", ondelete="CASCADE"), primary_key=True, nullable=False
+    )
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True, nullable=False)
+    contribution_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Annual limit in currency base units
+    withdrawal_limit: Mapped[int | None] = mapped_column(BigInteger)  # Null = no limit
