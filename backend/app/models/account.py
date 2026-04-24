@@ -36,7 +36,6 @@ class Account(Base):
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     account_kind: Mapped[AccountKind] = mapped_column(nullable=False)
     account_type: Mapped[AccountType] = mapped_column(nullable=False)
-    tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False, default=TaxTreatment.TAXABLE)
     tax_advantaged_plan_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("tax_advantaged_plans.id", ondelete="SET NULL"),
     )
@@ -44,7 +43,6 @@ class Account(Base):
     institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("institutions.id"))
     institution: Mapped[Institution | None] = relationship(lazy="raise")
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
-    lifetime_contribution_limit: Mapped[int | None] = mapped_column(BigInteger)  # In currency base units; null if N/A
     credit_limit: Mapped[int | None] = mapped_column(BigInteger)  # Liability accounts only; null on assets and unset liabilities
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -85,17 +83,6 @@ class AccountBalanceSnapshot(Base):
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
     balance: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units
     dt: Mapped[date] = mapped_column(Date, primary_key=True, nullable=False)
-
-
-class TaxAdvantagedConfig(Base):
-    """Per-account, per-year contribution and withdrawal limits. User is responsible for entering limits."""
-
-    __tablename__ = "tax_advantaged_configs"
-
-    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id"), primary_key=True, nullable=False)
-    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True, nullable=False)
-    contribution_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Annual limit in currency base units
-    withdrawal_limit: Mapped[int | None] = mapped_column(BigInteger)  # Null = no limit
 
 
 class TaxAdvantagedPlan(Base):

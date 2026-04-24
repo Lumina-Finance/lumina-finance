@@ -140,12 +140,10 @@ Table accounts [note: "check constraint: exactly one of owner_id or group_id mus
   group_id uuid [ref: > groups.id, delete: cascade]
   account_kind account_kind [not null, note: "validated against account_type"]
   account_type account_type [not null]
-  tax_treatment tax_treatment [not null, default: "taxable"]
   tax_advantaged_plan_id uuid [ref: > tax_advantaged_plans.id, note: "ON DELETE SET NULL"]
   name varchar(256) [not null]
   institution_id uuid [ref: > institutions.id]
   currency char(3) [not null, ref: > currencies.id]
-  lifetime_contribution_limit bigint [note: "lifetime cap in minor units; null if not applicable"]
   credit_limit bigint [note: "liability accounts only; null on assets"]
   is_hidden boolean [not null, default: false]
   closed_at timestamptz [note: "null = active; non-null = closed on this date"]
@@ -156,13 +154,6 @@ Table account_balance_snapshots [note: "end-of-day balance records; backend-main
   account_id uuid pk [ref: > accounts.id, note: "ON DELETE CASCADE"]
   balance bigint [not null, note: "end-of-day balance in currency base units"]
   ts timestamptz pk [not null, note: "midnight UTC of the snapshot's day"]
-}
-
-Table tax_advantaged_configs [note: "per-account, per-year limits for tax-advantaged accounts; user is responsible for entering limits"] {
-  account_id uuid pk [not null, ref: > accounts.id]
-  year smallint pk [not null]
-  contribution_limit bigint [not null, note: "annual contribution limit in account currency base units"]
-  withdrawal_limit bigint [note: "annual withdrawal limit; null means no limit"]
 }
 
 Table tax_advantaged_plans [note: "individual-owned limit trackers; group_id is household context, not pooled ownership"] {

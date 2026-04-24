@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.account import Account, AccountBalanceSnapshot
-from app.models.base import AccountKind, AccountType, CategoryKind, TaxTreatment
+from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group
@@ -51,7 +51,7 @@ async def personal_account(db, user):
     """Seed a personal checking account."""
     a = Account(
         owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING,
-        tax_treatment=TaxTreatment.TAXABLE, name="Personal Chequing", currency="CAD",
+        name="Personal Chequing", currency="CAD",
     )
     db.add(a)
     await db.flush()
@@ -67,7 +67,7 @@ async def group_account(db, user):
 
     a = Account(
         group_id=g.id, owner_id=None,
-        account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, tax_treatment=TaxTreatment.TAXABLE,
+        account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING,
         name="Joint Chequing", currency="CAD",
     )
     db.add(a)

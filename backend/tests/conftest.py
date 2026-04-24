@@ -51,9 +51,9 @@ async def _setup_schema():
 
     Runs once per pytest session (i.e. once per xdist worker). Connects to the
     ``postgres`` maintenance DB with AUTOCOMMIT isolation to issue
-    ``CREATE DATABASE`` if the worker DB doesn't already exist, then uses the
-    worker engine to reset the schema. Requires the test user to have the
-    ``CREATEDB`` role attribute (``ALTER ROLE <user> CREATEDB;``).
+    ``CREATE DATABASE`` if the worker DB doesn't already exist, then recreates
+    the worker's ``public`` schema from metadata. Requires the test user to
+    have the ``CREATEDB`` role attribute (``ALTER ROLE <user> CREATEDB;``).
     """
     # Sanity-check the worker DB name since it's interpolated into DDL — the
     # identifier can't be passed as a bind parameter. WORKER_DB_NAME is derived
@@ -75,7 +75,8 @@ async def _setup_schema():
         await maintenance_engine.dispose()
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
         await conn.run_sync(Base.metadata.create_all)
 
 

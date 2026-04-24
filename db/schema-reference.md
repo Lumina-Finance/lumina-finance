@@ -159,12 +159,10 @@ A real-world financial account. Owned by either a user (personal) or a group (sh
 | `group_id`                    | uuid         | FK → `groups.id` ON DELETE CASCADE | Group accounts; null for personal                                |
 | `account_kind`                | enum         | NOT NULL                           | `asset`, `liability` — validated against `account_type`          |
 | `account_type`                | enum         | NOT NULL                           | Assets: `checking`, `savings`, `term_deposit`, `cash`, `investment`; Liabilities: `credit_card`, `line_of_credit`, `heloc`, `loan`, `mortgage` |
-| `tax_treatment`               | enum         | NOT NULL, default `taxable`        | `taxable`, `tax_free`, `tax_deferred`, `tax_assisted`            |
 | `tax_advantaged_plan_id`      | uuid         | FK → `tax_advantaged_plans.id` ON DELETE SET NULL | Optional plan whose limits this account activity counts against |
 | `name`                        | varchar(256) | NOT NULL                           |                                                                  |
 | `institution_id`              | uuid         | FK → `institutions.id`             | Null for cash or unlinked accounts                               |
 | `currency`                    | char(3)      | NOT NULL, FK → `currencies.id`     | Account's native currency                                        |
-| `lifetime_contribution_limit` | bigint       |                                    | Lifetime cap in minor units; null if N/A                         |
 | `credit_limit`                | bigint       |                                    | Liability accounts only; null on assets                          |
 | `is_hidden`                   | boolean      | NOT NULL, default `false`          | Excluded from default views                                      |
 | `closed_at`                   | timestamptz  |                                    | Null = active; non-null = closed date                            |
@@ -185,17 +183,6 @@ End-of-day balance records for historical charts and net worth tracking. Backend
 | `account_id` | uuid        | PK, FK → `accounts.id` ON DELETE CASCADE |                                      |
 | `balance`    | bigint      | NOT NULL                                 | End-of-day balance in minor units    |
 | `ts`         | timestamptz | PK, NOT NULL                             | Midnight UTC of the snapshot day     |
-
-### `tax_advantaged_configs`
-
-Per-account, per-year contribution/withdrawal limits. User-entered. Applies to all non-taxable accounts — specific treatment is determined by `accounts.tax_treatment`.
-
-| Column               | Type     | Constraints                       | Description                              |
-| -------------------- | -------- | --------------------------------- | ---------------------------------------- |
-| `account_id`         | uuid     | PK, NOT NULL, FK → `accounts.id`  |                                          |
-| `year`               | smallint | PK, NOT NULL                      | Calendar year                            |
-| `contribution_limit` | bigint   | NOT NULL                          | Annual limit in minor units              |
-| `withdrawal_limit`   | bigint   |                                   | Null = no limit                          |
 
 ### `tax_advantaged_plans`
 

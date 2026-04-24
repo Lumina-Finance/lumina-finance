@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.account import Account
-from app.models.base import AccountKind, AccountType, TaxTreatment
+from app.models.base import AccountKind, AccountType
 from app.models.currency import Currency
 from app.models.group import Group
 from app.models.user import User
@@ -50,16 +50,6 @@ async def test_created_at_auto_set(db, user, currency):
     assert a.created_at is not None
 
 
-async def test_tax_treatment_defaults_to_taxable(db, user, currency):
-    """tax_treatment should default to taxable."""
-    a = Account(owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
-    db.add(a)
-    await db.flush()
-
-    result = await db.get(Account, a.id)
-    assert result.tax_treatment == TaxTreatment.TAXABLE
-
-
 async def test_is_hidden_defaults_to_false(db, user, currency):
     """is_hidden should default to false."""
     a = Account(owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
@@ -71,14 +61,13 @@ async def test_is_hidden_defaults_to_false(db, user, currency):
 
 
 async def test_nullable_fields_default_to_null(db, user, currency):
-    """institution_id, lifetime_contribution_limit, closed_at should default to null."""
+    """institution_id and closed_at should default to null."""
     a = Account(owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
     db.add(a)
     await db.flush()
 
     result = await db.get(Account, a.id)
     assert result.institution_id is None
-    assert result.lifetime_contribution_limit is None
     assert result.closed_at is None
 
 
