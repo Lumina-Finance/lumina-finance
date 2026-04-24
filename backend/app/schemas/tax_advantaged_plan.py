@@ -42,6 +42,10 @@ class TaxAdvantagedPlanResponse(BaseModel):
     lifetime_contribution_limit: int | None
     current_year_contribution_limit: int | None
     current_year_withdrawal_limit: int | None
+    ytd_contributions: int
+    ytd_withdrawals: int
+    lifetime_contributions: int
+    lifetime_withdrawals: int
     created_at: datetime
 
     model_config = {"from_attributes": True}

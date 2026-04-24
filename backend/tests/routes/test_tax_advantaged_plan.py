@@ -1,6 +1,11 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from tests.routes.conftest import _create_user, _get_auth_header
+import app.services.tax_advantaged_plans as plan_services
+from app.models.base import CategoryKind
+from app.models.category import Category
+from app.models.transaction import Transaction
+from tests.conftest import TestSession
+from tests.routes.conftest import _create_account, _create_user, _get_auth_header
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -32,6 +37,47 @@ async def _create_plan(client, headers, **overrides):
     return await client.post("/tax-advantaged-plans", json=payload, headers=headers)
 
 
+async def _seed_category(owner_id, kind: CategoryKind, name: str):
+    """Insert a category directly via DB.
+
+    Args:
+        owner_id: User that owns the category.
+        kind: Category kind.
+        name: Category name.
+
+    Returns:
+        The created category ID.
+    """
+    async with TestSession() as session:
+        category = Category(name=name, kind=kind, owner_id=owner_id)
+        session.add(category)
+        await session.commit()
+        await session.refresh(category)
+        return category.id
+
+
+async def _seed_transaction(account_id, category_id, created_by_user_id, amount: int, dt: date) -> None:
+    """Insert a transaction directly via DB.
+
+    Args:
+        account_id: Account that owns the transaction.
+        category_id: Transaction category.
+        created_by_user_id: User that created the transaction.
+        amount: Signed transaction amount in minor units.
+        dt: Transaction date.
+    """
+    async with TestSession() as session:
+        session.add(Transaction(
+            created_by_user_id=created_by_user_id,
+            account_id=account_id,
+            category_id=category_id,
+            dt=dt,
+            amount=amount,
+            currency="CAD",
+        ))
+        await session.commit()
+
+
 async def test_create_plan_returns_201_with_shape(client):
     """Owner can create a personal plan."""
     signup_resp = await _create_user(client)
@@ -50,6 +96,10 @@ async def test_create_plan_returns_201_with_shape(client):
     assert data["lifetime_contribution_limit"] == 9_500_000
     assert data["current_year_contribution_limit"] is None
     assert data["current_year_withdrawal_limit"] is None
+    assert data["ytd_contributions"] == 0
+    assert data["ytd_withdrawals"] == 0
+    assert data["lifetime_contributions"] == 0
+    assert data["lifetime_withdrawals"] == 0
     assert data["created_at"] is not None
 
 
@@ -181,3 +231,109 @@ async def test_plan_detail_surfaces_current_year_limits(client):
     assert resp.status_code == 200
     assert resp.json()["current_year_contribution_limit"] == 700_000
     assert resp.json()["current_year_withdrawal_limit"] is None
+
+
+async def test_plan_metrics_use_plan_owner_timezone_for_current_year(client, monkeypatch):
+    """Current-year limits and YTD activity follow the plan owner's timezone."""
+
+    class FrozenDateTime:
+        """Clock fixed at Jan 1 UTC while Toronto is still Dec 31."""
+
+        @classmethod
+        def now(cls, tz=None):
+            """Return the fixed instant converted into the requested timezone.
+
+            Args:
+                tz: Optional timezone.
+
+            Returns:
+                The fixed datetime in the requested timezone.
+            """
+            instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(plan_services, "datetime", FrozenDateTime)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    plan_id = (await _create_plan(client, headers)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    transfer_id = await _seed_category(user_id, CategoryKind.TRANSFER, "Timezone Transfer")
+
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": 2025, "contribution_limit": 700_000},
+        headers=headers,
+    )
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": 2026, "contribution_limit": 800_000},
+        headers=headers,
+    )
+    await _seed_transaction(account_id, transfer_id, user_id, 25_000, date(2025, 12, 31))
+    await _seed_transaction(account_id, transfer_id, user_id, 26_000, date(2026, 1, 1))
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["current_year_contribution_limit"] == 700_000
+    assert resp.json()["ytd_contributions"] == 25_000
+    assert resp.json()["lifetime_contributions"] == 51_000
+
+
+async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(client):
+    """Plan detail aggregates transfer activity from all linked accounts."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    plan_id = (await _create_plan(client, headers)).json()["id"]
+    first_account_id = (await _create_account(client, headers, name="TFSA A", tax_advantaged_plan_id=plan_id)).json()["id"]
+    second_account_id = (await _create_account(client, headers, name="TFSA B", tax_advantaged_plan_id=plan_id)).json()["id"]
+    transfer_id = await _seed_category(user_id, CategoryKind.TRANSFER, "Plan Transfer")
+    expense_id = await _seed_category(user_id, CategoryKind.EXPENSE, "Plan Groceries")
+    income_id = await _seed_category(user_id, CategoryKind.INCOME, "Plan Salary")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(first_account_id, transfer_id, user_id, 50_000, date(current_year, 2, 1))
+    await _seed_transaction(second_account_id, transfer_id, user_id, 30_000, date(current_year, 3, 1))
+    await _seed_transaction(first_account_id, transfer_id, user_id, -10_000, date(current_year, 4, 1))
+    await _seed_transaction(first_account_id, transfer_id, user_id, 20_000, date(current_year - 1, 5, 1))
+    await _seed_transaction(first_account_id, transfer_id, user_id, -5_000, date(current_year - 1, 6, 1))
+    await _seed_transaction(first_account_id, expense_id, user_id, -99_000, date(current_year, 7, 1))
+    await _seed_transaction(first_account_id, income_id, user_id, 88_000, date(current_year, 8, 1))
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_contributions"] == 80_000
+    assert resp.json()["ytd_withdrawals"] == 10_000
+    assert resp.json()["lifetime_contributions"] == 100_000
+    assert resp.json()["lifetime_withdrawals"] == 15_000
+
+
+async def test_group_plan_counts_transaction_created_by_non_owner(client):
+    """Group account activity tallies to the linked plan owner, not transaction creator."""
+    owner_resp = await _create_user(client)
+    owner_headers = _get_auth_header(owner_resp)
+    owner_id = owner_resp.json()["user"]["id"]
+    group_id = (await _create_group(client, owner_headers)).json()["id"]
+
+    member_resp = await _create_second_user(client)
+    member_user_id = member_resp.json()["user"]["id"]
+    add_member = await client.post(f"/groups/{group_id}/members", json={"user_id": member_user_id}, headers=owner_headers)
+    assert add_member.status_code == 201
+
+    plan_id = (await _create_plan(client, owner_headers, group_id=group_id)).json()["id"]
+    account_id = (await _create_account(client, owner_headers, group_id=group_id, tax_advantaged_plan_id=plan_id)).json()["id"]
+    transfer_id = await _seed_category(owner_id, CategoryKind.TRANSFER, "Plan Transfer")
+    current_year = datetime.now(UTC).year
+    await _seed_transaction(account_id, transfer_id, member_user_id, 123_000, date(current_year, 2, 1))
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=owner_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["plan_owner_user_id"] == owner_id
+    assert resp.json()["ytd_contributions"] == 123_000
+    assert resp.json()["lifetime_contributions"] == 123_000
+    assert resp.json()["ytd_withdrawals"] == 0
+    assert resp.json()["lifetime_withdrawals"] == 0

@@ -20,7 +20,7 @@ from app.schemas.tax_advantaged_plan import (
     UpdateTaxAdvantagedPlanLimitRequest,
     UpdateTaxAdvantagedPlanRequest,
 )
-from app.services.tax_advantaged_plans import attach_current_year_plan_limits
+from app.services.tax_advantaged_plans import attach_tax_advantaged_plan_metrics
 
 router = APIRouter(prefix="/tax-advantaged-plans", tags=["tax-advantaged-plans"])
 
@@ -113,7 +113,7 @@ async def list_tax_advantaged_plans(
         .order_by(TaxAdvantagedPlan.created_at),
     )
     plans = result.scalars().all()
-    await attach_current_year_plan_limits(db, plans)
+    await attach_tax_advantaged_plan_metrics(db, plans)
     return plans
 
 
@@ -154,7 +154,7 @@ async def create_tax_advantaged_plan(
     db.add(plan)
     await db.commit()
     await db.refresh(plan)
-    await attach_current_year_plan_limits(db, [plan])
+    await attach_tax_advantaged_plan_metrics(db, [plan])
     return plan
 
 
@@ -178,7 +178,7 @@ async def get_tax_advantaged_plan(
         HTTPException: If the plan does not exist or belongs to another user.
     """
     plan = await _get_owned_plan_or_404(db, plan_id, user.id)
-    await attach_current_year_plan_limits(db, [plan])
+    await attach_tax_advantaged_plan_metrics(db, [plan])
     return plan
 
 
@@ -206,7 +206,7 @@ async def update_tax_advantaged_plan(
     plan = await _get_owned_plan_or_404(db, plan_id, user.id)
     updates = data.model_dump(exclude_unset=True)
     if not updates:
-        await attach_current_year_plan_limits(db, [plan])
+        await attach_tax_advantaged_plan_metrics(db, [plan])
         return plan
 
     if "tax_treatment" in updates:
@@ -227,7 +227,7 @@ async def update_tax_advantaged_plan(
 
     await db.commit()
     await db.refresh(plan)
-    await attach_current_year_plan_limits(db, [plan])
+    await attach_tax_advantaged_plan_metrics(db, [plan])
     return plan
 
 
