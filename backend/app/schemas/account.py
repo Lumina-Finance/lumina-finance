@@ -20,6 +20,7 @@ class AccountsOverview(BaseModel):
     account_kind: str
     account_type: str
     tax_treatment: str
+    tax_advantaged_plan_id: uuid.UUID | None
     name: str
     institution: InstitutionResponse | None
     currency: str
@@ -40,6 +41,7 @@ class AccountResponse(BaseModel):
     account_kind: str
     account_type: str
     tax_treatment: str
+    tax_advantaged_plan_id: uuid.UUID | None
     name: str
     institution: InstitutionResponse | None
     currency: str
@@ -69,6 +71,7 @@ class CreateAccountRequest(BaseModel):
     account_kind: str  # AccountKind enum value — must be consistent with account_type
     account_type: str  # AccountType enum value
     tax_treatment: str = "taxable"  # TaxTreatment enum value
+    tax_advantaged_plan_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     currency: str = Field(min_length=3, max_length=3)
@@ -82,6 +85,7 @@ class UpdateAccountRequest(BaseModel):
     """Partial update for an account. Only provided fields are changed."""
 
     tax_treatment: str | None = None
+    tax_advantaged_plan_id: uuid.UUID | None = None
     name: str | None = Field(None, min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     lifetime_contribution_limit: int | None = None

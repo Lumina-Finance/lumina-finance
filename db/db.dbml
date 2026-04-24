@@ -141,6 +141,7 @@ Table accounts [note: "check constraint: exactly one of owner_id or group_id mus
   account_kind account_kind [not null, note: "validated against account_type"]
   account_type account_type [not null]
   tax_treatment tax_treatment [not null, default: "taxable"]
+  tax_advantaged_plan_id uuid [ref: > tax_advantaged_plans.id, note: "ON DELETE SET NULL"]
   name varchar(256) [not null]
   institution_id uuid [ref: > institutions.id]
   currency char(3) [not null, ref: > currencies.id]
@@ -161,6 +162,24 @@ Table tax_advantaged_configs [note: "per-account, per-year limits for tax-advant
   account_id uuid pk [not null, ref: > accounts.id]
   year smallint pk [not null]
   contribution_limit bigint [not null, note: "annual contribution limit in account currency base units"]
+  withdrawal_limit bigint [note: "annual withdrawal limit; null means no limit"]
+}
+
+Table tax_advantaged_plans [note: "individual-owned limit trackers; group_id is household context, not pooled ownership"] {
+  id uuid pk
+  plan_owner_user_id uuid [not null, ref: > users.id, note: "ON DELETE CASCADE"]
+  group_id uuid [ref: > groups.id, note: "ON DELETE CASCADE"]
+  name varchar(256) [not null]
+  tax_treatment tax_treatment [not null, note: "must be non-taxable"]
+  currency char(3) [not null, ref: > currencies.id]
+  lifetime_contribution_limit bigint [note: "lifetime cap in minor units; null if not applicable"]
+  created_at timestamptz [not null]
+}
+
+Table tax_advantaged_plan_limits {
+  plan_id uuid pk [not null, ref: > tax_advantaged_plans.id, note: "ON DELETE CASCADE"]
+  year smallint pk [not null]
+  contribution_limit bigint [not null, note: "annual contribution limit in plan currency base units"]
   withdrawal_limit bigint [note: "annual withdrawal limit; null means no limit"]
 }
 

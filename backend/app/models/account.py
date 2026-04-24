@@ -37,6 +37,9 @@ class Account(Base):
     account_kind: Mapped[AccountKind] = mapped_column(nullable=False)
     account_type: Mapped[AccountType] = mapped_column(nullable=False)
     tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False, default=TaxTreatment.TAXABLE)
+    tax_advantaged_plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tax_advantaged_plans.id", ondelete="SET NULL"),
+    )
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("institutions.id"))
     institution: Mapped[Institution | None] = relationship(lazy="raise")

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
+from app.models.account import Account, AccountBalanceSnapshot, AccountPermission, TaxAdvantagedPlan
 from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
 from app.models.group import GroupMember
@@ -44,6 +44,67 @@ _VALID_TAX_TREATMENTS = {e.value for e in TaxTreatment}
 
 # UpdateAccountRequest fields that map to NOT NULL columns — explicit null on these is rejected with 422.
 _UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "tax_treatment", "is_hidden"})
+
+
+async def _validate_tax_advantaged_plan_link(
+    db: AsyncSession,
+    plan_id: uuid.UUID | None,
+    *,
+    account_kind: AccountKind,
+    currency: str,
+    owner_id: uuid.UUID | None,
+    group_id: uuid.UUID | None,
+    acting_user_id: uuid.UUID,
+) -> None:
+    """Validate that an account can link to a tax-advantaged plan.
+
+    Args:
+        db: Active database session.
+        plan_id: Plan identifier to link, or None to leave the account unlinked.
+        account_kind: Account kind for the account being created or updated.
+        currency: Account currency code.
+        owner_id: Personal account owner, if the account is personal.
+        group_id: Group account owner, if the account is group-scoped.
+        acting_user_id: Authenticated user making the change.
+
+    Raises:
+        HTTPException: If the plan is missing, inaccessible, or incompatible with the account.
+    """
+    if plan_id is None:
+        return
+
+    if account_kind != AccountKind.ASSET:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Tax-advantaged plans can only be linked to asset accounts",
+        )
+
+    plan = await db.get(TaxAdvantagedPlan, plan_id)
+    if not plan or plan.tax_treatment == TaxTreatment.TAXABLE:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax-advantaged plan")
+
+    if plan.currency != currency:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Tax-advantaged plan currency must match account currency",
+        )
+
+    if group_id is None:
+        if plan.group_id is not None or plan.plan_owner_user_id != owner_id:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax-advantaged plan")
+        return
+
+    if plan.group_id != group_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax-advantaged plan")
+    if plan.plan_owner_user_id != acting_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Only the plan owner can link this plan to a group account",
+        )
+
+    owner_membership = await db.get(GroupMember, (group_id, plan.plan_owner_user_id))
+    if not owner_membership:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax-advantaged plan")
 
 
 @router.get("", response_model=list[AccountsOverview])
@@ -252,12 +313,23 @@ async def create_account(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create group accounts")
         owner_id = None
 
+    await _validate_tax_advantaged_plan_link(
+        db,
+        data.tax_advantaged_plan_id,
+        account_kind=AccountKind(data.account_kind),
+        currency=data.currency,
+        owner_id=owner_id,
+        group_id=group_id,
+        acting_user_id=user.id,
+    )
+
     account = Account(
         owner_id=owner_id,
         group_id=group_id,
         account_kind=data.account_kind,
         account_type=data.account_type,
         tax_treatment=data.tax_treatment,
+        tax_advantaged_plan_id=data.tax_advantaged_plan_id,
         name=data.name,
         institution_id=data.institution_id,
         currency=data.currency,
@@ -332,6 +404,17 @@ async def update_account(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="credit_limit is only valid on revolving-credit accounts",
+        )
+
+    if "tax_advantaged_plan_id" in updates:
+        await _validate_tax_advantaged_plan_link(
+            db,
+            updates["tax_advantaged_plan_id"],
+            account_kind=account.account_kind,
+            currency=account.currency,
+            owner_id=account.owner_id,
+            group_id=account.group_id,
+            acting_user_id=user.id,
         )
 
     for field, value in updates.items():
