@@ -550,6 +550,17 @@ async def test_get_account_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
+async def test_legacy_tax_advantaged_config_route_removed(client):
+    """Old account-level tax config routes are no longer part of the API."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    resp = await client.get(f"/accounts/{account_id}/tax-advantaged-configs", headers=headers)
+
+    assert resp.status_code == 404
+
+
 # --- POST /accounts ---
 
 
