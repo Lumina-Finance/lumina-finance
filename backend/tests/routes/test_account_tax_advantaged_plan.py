@@ -94,7 +94,6 @@ async def test_list_accounts_includes_tax_advantaged_plan_id(client):
             "group_id": None,
             "account_kind": "asset",
             "account_type": "checking",
-            "tax_treatment": "taxable",
             "tax_advantaged_plan_id": plan_id,
             "name": "Main Chequing",
             "institution": None,

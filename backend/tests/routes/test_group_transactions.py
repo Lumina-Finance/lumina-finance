@@ -12,8 +12,7 @@ from tests.routes.conftest import _create_user, _get_auth_header
 async def _create_account(client, headers, **overrides):
     """Create an account via POST /accounts.
 
-    Defaults: account_type="checking", tax_treatment="taxable",
-    name="Main Chequing", currency="CAD".
+    Defaults: account_type="checking", name="Main Chequing", currency="CAD".
 
     Args:
         client: The async test client.
@@ -26,7 +25,6 @@ async def _create_account(client, headers, **overrides):
     payload = {
         "account_kind": "asset",
         "account_type": "checking",
-        "tax_treatment": "taxable",
         "name": "Main Chequing",
         "currency": "CAD",
         **overrides,

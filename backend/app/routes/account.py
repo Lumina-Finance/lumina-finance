@@ -28,8 +28,6 @@ from app.schemas.account import (
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
 from app.services.accounts import (
-    attach_current_year_tax_limits,
-    attach_tax_advantaged_tallies,
     get_account_cash_flow_history,
     get_account_spending_breakdown,
 )
@@ -40,10 +38,9 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 # Valid enum values for request validation
 _VALID_ACCOUNT_KINDS = {e.value for e in AccountKind}
 _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
-_VALID_TAX_TREATMENTS = {e.value for e in TaxTreatment}
 
 # UpdateAccountRequest fields that map to NOT NULL columns — explicit null on these is rejected with 422.
-_UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "tax_treatment", "is_hidden"})
+_UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_hidden"})
 
 
 async def _validate_tax_advantaged_plan_link(
@@ -144,8 +141,6 @@ async def get_account(
     """Return a single account by ID. Requires read access."""
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     await attach_current_balances(db, [account])
-    await attach_tax_advantaged_tallies(db, [account])
-    await attach_current_year_tax_limits(db, [account])
     return account
 
 
@@ -264,7 +259,7 @@ async def create_account(
         The created account.
 
     Raises:
-        HTTPException 422: Invalid account_type, tax_treatment, currency, or institution.
+        HTTPException 422: Invalid account_type, currency, or institution.
         HTTPException 403: User is not an admin of the group.
         HTTPException 404: User is not a member of the group.
     """
@@ -282,9 +277,6 @@ async def create_account(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="credit_limit is only valid on revolving-credit accounts",
         )
-    if data.tax_treatment not in _VALID_TAX_TREATMENTS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
-
     # Validate currency exists
     result = await db.execute(select(Currency).where(Currency.id == data.currency))
     if not result.scalar_one_or_none():
@@ -328,12 +320,10 @@ async def create_account(
         group_id=group_id,
         account_kind=data.account_kind,
         account_type=data.account_type,
-        tax_treatment=data.tax_treatment,
         tax_advantaged_plan_id=data.tax_advantaged_plan_id,
         name=data.name,
         institution_id=data.institution_id,
         currency=data.currency,
-        lifetime_contribution_limit=data.lifetime_contribution_limit,
         credit_limit=data.credit_limit,
         is_hidden=data.is_hidden,
     )
@@ -357,8 +347,6 @@ async def create_account(
     )
     fresh = result.scalar_one()
     await attach_current_balances(db, [fresh])
-    await attach_tax_advantaged_tallies(db, [fresh])
-    await attach_current_year_tax_limits(db, [fresh])
     return fresh
 
 
@@ -375,8 +363,6 @@ async def update_account(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         await attach_current_balances(db, [account])
-        await attach_tax_advantaged_tallies(db, [account])
-        await attach_current_year_tax_limits(db, [account])
         return account
 
     # Reject explicit null on fields that map to NOT NULL columns before they reach the DB.
@@ -386,10 +372,6 @@ async def update_account(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"{field} cannot be null",
             )
-
-    # Validate tax_treatment if being changed
-    if "tax_treatment" in updates and updates["tax_treatment"] not in _VALID_TAX_TREATMENTS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
 
     # Validate institution if being changed
     if "institution_id" in updates and updates["institution_id"] is not None:
@@ -432,8 +414,6 @@ async def update_account(
     )
     fresh = result.scalar_one()
     await attach_current_balances(db, [fresh])
-    await attach_tax_advantaged_tallies(db, [fresh])
-    await attach_current_year_tax_limits(db, [fresh])
     return fresh
 
 

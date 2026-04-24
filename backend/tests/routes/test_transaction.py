@@ -38,8 +38,7 @@ async def _create_category(client, headers, **overrides):
 async def _create_account(client, headers, **overrides):
     """Create an account via POST /accounts.
 
-    Defaults: account_type="checking", tax_treatment="taxable",
-    name="Main Chequing", currency="CAD".
+    Defaults: account_type="checking", name="Main Chequing", currency="CAD".
 
     Args:
         client: The async test client.
@@ -52,7 +51,6 @@ async def _create_account(client, headers, **overrides):
     payload = {
         "account_kind": "asset",
         "account_type": "checking",
-        "tax_treatment": "taxable",
         "name": "Main Chequing",
         "currency": "CAD",
         **overrides,
