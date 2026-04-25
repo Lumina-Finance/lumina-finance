@@ -709,12 +709,7 @@ export default function CreateTransactionModal({
                         else setConfirmingDelete(true)
                       }}
                       disabled={isPending}
-                      className={`app-primary-button ${isPending && confirmingDelete ? 'app-primary-button-loading' : ''}`}
-                      style={{
-                        background: 'var(--app-negative)',
-                        color: 'white',
-                        boxShadow: '0 4px 20px color-mix(in srgb, var(--app-negative) 28%, transparent)',
-                      }}
+                      className={`app-danger-button ${isPending && confirmingDelete ? 'app-primary-button-loading' : ''}`}
                     >
                       {isPending && confirmingDelete ? (
                         <div className="app-spinner" />

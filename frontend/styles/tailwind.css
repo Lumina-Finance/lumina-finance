@@ -194,6 +194,32 @@
     box-shadow: 0 0 0 3px var(--app-accent-soft);
   }
 
+  .app-danger-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    background: var(--app-negative);
+    border: 1px solid var(--app-negative-border);
+    color: white;
+  }
+
+  .app-danger-button:hover {
+    background: color-mix(in srgb, var(--app-negative) 92%, var(--app-bg));
+    border-color: var(--app-negative);
+  }
+
+  .app-danger-button:active {
+    transform: translateY(1px);
+  }
+
+  .app-danger-button:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .app-danger-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--app-negative-soft);
+  }
+
   .app-primary-button-loading {
     width: 40px;
     height: 40px;
