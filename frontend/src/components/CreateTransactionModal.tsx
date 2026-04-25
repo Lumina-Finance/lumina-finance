@@ -426,8 +426,7 @@ export default function CreateTransactionModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 rounded-lg p-1.5 transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
-                  style={{ color: 'var(--app-text-subtle)' }}
+                  className="app-icon-button shrink-0"
                   aria-label="Close"
                 >
                   <X size={20} aria-hidden />
