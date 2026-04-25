@@ -19,8 +19,6 @@ export type AccountType =
   | 'loan'
   | 'mortgage';
 
-export type TaxTreatment = 'taxable' | 'tax_free' | 'tax_deferred' | 'tax_assisted';
-
 export interface Institution {
   id: string;
   status: string;
@@ -39,7 +37,7 @@ export interface AccountsOverview {
   group_id: string | null;
   account_kind: AccountKind;
   account_type: AccountType;
-  tax_treatment: TaxTreatment;
+  tax_advantaged_plan_id: string | null;
   name: string;
   institution: Institution | null;
   currency: string;
@@ -74,33 +72,41 @@ export interface AccountBalanceSnapshot {
 
 // Mirrors backend AccountResponse — the full shape returned by GET /accounts/{id},
 // POST /accounts, and PATCH /accounts/{id}. Superset of AccountsOverview with
-// contribution tallies and limits exposed for the detail view.
+// created_at exposed for the detail view.
 export interface Account extends AccountsOverview {
-  lifetime_contribution_limit: number | null;
-  ytd_contributions: number | null;
-  ytd_withdrawals: number | null;
-  lifetime_contributions: number | null;
-  lifetime_withdrawals: number | null;
-  current_year_contribution_limit: number | null;
-  current_year_withdrawal_limit: number | null;
   created_at: string;
 }
 
 export interface CreateAccountPayload {
   account_kind: AccountKind;
   account_type: AccountType;
-  tax_treatment: TaxTreatment;
+  tax_advantaged_plan_id: string | null;
   name: string;
   institution_id: string | null;
   currency: string;
-  lifetime_contribution_limit: number | null;
   credit_limit: number | null;
   is_hidden: boolean;
+}
+
+export interface UpdateAccountPayload {
+  tax_advantaged_plan_id?: string | null;
+  name?: string;
+  institution_id?: string | null;
+  credit_limit?: number | null;
+  is_hidden?: boolean;
+  closed_at?: string | null;
 }
 
 function createAccount(payload: CreateAccountPayload) {
   return authenticatedFetch<AccountsOverview>('/accounts', {
     method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+function updateAccount({ accountId, payload }: { accountId: string; payload: UpdateAccountPayload }) {
+  return authenticatedFetch<Account>(`/accounts/${accountId}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }
@@ -111,6 +117,18 @@ export function useCreateAccount() {
     mutationFn: createAccount,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    },
+  });
+}
+
+export function useUpdateAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateAccount,
+    onSuccess: (account) => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts', account.id] });
+      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
     },
   });
 }

@@ -4,12 +4,12 @@ import { X } from 'lucide-react';
 import Dropdown from '@/components/Dropdown';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
+import { useTaxAdvantagedPlans } from '@/api/taxAdvantagedPlans';
 import CreateInstitutionModal from '@/components/CreateInstitutionModal';
 import {
   useCreateAccount,
   ACCOUNT_KIND_BY_TYPE,
   type AccountType,
-  type TaxTreatment,
   type CreateAccountPayload,
 } from '@/api/accounts';
 import { ApiError } from '@/api/auth';
@@ -32,20 +32,12 @@ const ACCOUNT_TYPE_OPTIONS = [
   { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
 ];
 
-const TAX_TREATMENT_OPTIONS = [
-  { value: 'taxable', label: 'Taxable' },
-  { value: 'tax_free', label: 'Tax-Free' },
-  { value: 'tax_deferred', label: 'Tax-Deferred' },
-  { value: 'tax_assisted', label: 'Tax-Assisted' },
-];
-
 const INITIAL_FORM = {
   account_type: '',
   name: '',
   currency: '',
   institution_id: '',
-  tax_treatment: 'taxable',
-  lifetime_contribution_limit: '',
+  tax_advantaged_plan_id: '',
   credit_limit: '',
 };
 
@@ -64,7 +56,6 @@ interface FieldErrors {
   name?: string;
   currency?: string;
   credit_limit?: string;
-  lifetime_contribution_limit?: string;
 }
 
 function validate(form: typeof INITIAL_FORM): FieldErrors {
@@ -77,10 +68,6 @@ function validate(form: typeof INITIAL_FORM): FieldErrors {
   if (form.credit_limit) {
     const n = parseInt(form.credit_limit, 10);
     if (isNaN(n) || n < 0) errors.credit_limit = 'Must be a positive number';
-  }
-  if (form.lifetime_contribution_limit) {
-    const n = parseInt(form.lifetime_contribution_limit, 10);
-    if (isNaN(n) || n < 0) errors.lifetime_contribution_limit = 'Must be a positive number';
   }
   return errors;
 }
@@ -97,6 +84,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const mutation = useCreateAccount();
   const { data: currencies = [] } = useCurrencies();
   const { data: institutions = [] } = useInstitutions();
+  const { data: taxAdvantagedPlans = [] } = useTaxAdvantagedPlans();
 
   const [form, setForm] = useState(() => ({
     ...INITIAL_FORM,
@@ -113,7 +101,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   // credit_limit applies only to revolving-credit products (credit cards,
   // LOCs, HELOCs). Amortizing debt has a fixed principal schedule, not a limit.
   const isRevolving = accountKind === 'revolving';
-  const isTaxAdvantaged = form.tax_treatment !== 'taxable' && form.tax_treatment !== '';
+  const canLinkTaxPlan = accountKind === 'asset' && !!form.currency;
 
   // Dropdown options
   const currencyOptions = useMemo(
@@ -126,6 +114,15 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       ...institutions.map((i) => ({ value: i.id, label: i.name })),
     ],
     [institutions],
+  );
+  const taxPlanOptions = useMemo(
+    () => [
+      { value: '', label: 'None' },
+      ...taxAdvantagedPlans
+        .filter((plan) => plan.group_id === null && plan.currency === form.currency)
+        .map((plan) => ({ value: plan.id, label: plan.name })),
+    ],
+    [form.currency, taxAdvantagedPlans],
   );
 
   // Scroll lock
@@ -150,9 +147,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       if (field === 'account_type') {
         const nextKind = value ? ACCOUNT_KIND_BY_TYPE[value as AccountType] : undefined;
         if (nextKind !== 'revolving') next.credit_limit = '';
+        if (nextKind !== 'asset') next.tax_advantaged_plan_id = '';
       }
-      if (field === 'tax_treatment' && value === 'taxable') {
-        next.lifetime_contribution_limit = '';
+      if (field === 'currency') {
+        next.tax_advantaged_plan_id = '';
       }
       return next;
     });
@@ -189,7 +187,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
     const errors = validate(form);
     setFieldErrors(errors);
-    setTouched({ account_type: true, name: true, currency: true, credit_limit: true, lifetime_contribution_limit: true });
+    setTouched({ account_type: true, name: true, currency: true, credit_limit: true });
     if (Object.keys(errors).length > 0) return;
 
     // Convert user-entered major units (e.g. dollars) to minor units (e.g. cents)
@@ -206,11 +204,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     const payload: CreateAccountPayload = {
       account_kind: ACCOUNT_KIND_BY_TYPE[form.account_type as AccountType],
       account_type: form.account_type as AccountType,
-      tax_treatment: form.tax_treatment as TaxTreatment,
+      tax_advantaged_plan_id: form.tax_advantaged_plan_id || null,
       name: form.name.trim(),
       institution_id: form.institution_id || null,
       currency: form.currency,
-      lifetime_contribution_limit: isTaxAdvantaged ? toMinor(form.lifetime_contribution_limit) : null,
       credit_limit: isRevolving ? toMinor(form.credit_limit) : null,
       is_hidden: false,
     };
@@ -389,52 +386,19 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   />
                 </div>
 
-                {/* Tax Treatment */}
-                <div>
-                  <label className="app-label block mb-1.5">Tax Treatment</label>
-                  <Dropdown
-                    options={TAX_TREATMENT_OPTIONS}
-                    value={form.tax_treatment}
-                    onChange={(v) => handleChange('tax_treatment', v)}
-                  />
-                </div>
-
-                {/* Conditional: Lifetime Contribution Limit */}
-                <AnimatePresence>
-                  {isTaxAdvantaged && (
-                    <motion.div className="overflow-hidden" {...conditionalField}>
-                      <div className="pt-1">
-                        <label htmlFor="lifetime-limit" className="app-label block mb-1.5">
-                          Lifetime Contribution Limit
-                        </label>
-                        <input
-                          id="lifetime-limit"
-                          type="number"
-                          min="0"
-                          className={`app-input ${showError('lifetime_contribution_limit') ? 'app-input-error' : ''}`}
-                          placeholder="Optional"
-                          value={form.lifetime_contribution_limit}
-                          onChange={(e) => handleChange('lifetime_contribution_limit', e.target.value)}
-                          onBlur={() => handleBlur('lifetime_contribution_limit')}
-                        />
-                        <AnimatePresence>
-                          {showError('lifetime_contribution_limit') && (
-                            <motion.p
-                              className="mt-1 text-xs"
-                              style={{ color: 'var(--app-negative)' }}
-                              initial={{ opacity: 0, x: 4 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: 4 }}
-                              transition={{ duration: 0.15 }}
-                            >
-                              {fieldErrors.lifetime_contribution_limit}
-                            </motion.p>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {canLinkTaxPlan && (
+                  <div>
+                    <label className="app-label block mb-1.5">Tax-Advantaged Plan</label>
+                    <Dropdown
+                      options={taxPlanOptions}
+                      value={form.tax_advantaged_plan_id}
+                      onChange={(v) => handleChange('tax_advantaged_plan_id', v)}
+                      placeholder="Select plan..."
+                      searchable
+                      searchPlaceholder="Search plans..."
+                    />
+                  </div>
+                )}
 
                 {/* Conditional: Credit Limit */}
                 <AnimatePresence>

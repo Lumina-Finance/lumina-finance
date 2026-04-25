@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Pencil, Plus, Search, TrendingDown, TrendingUp } from 'lucide-react'
-import { motion, AnimatePresence } from 'motion/react'
+import { ArrowLeft, Pencil, Plus, Search, TrendingDown, TrendingUp } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -31,18 +30,12 @@ import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
+import { useTaxAdvantagedPlan, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
-
-const TAX_TREATMENT_LABEL: Record<string, string> = {
-  taxable: 'Taxable',
-  tax_free: 'Tax-free',
-  tax_deferred: 'Tax-deferred',
-  tax_assisted: 'Tax-assisted',
-}
 
 const ACCOUNT_KIND_LABEL: Record<string, string> = {
   asset: 'Asset',
@@ -50,11 +43,50 @@ const ACCOUNT_KIND_LABEL: Record<string, string> = {
   amortizing: 'Amortizing debt',
 }
 
+const TAX_TREATMENT_LABEL: Record<string, string> = {
+  tax_free: 'Tax-free',
+  tax_deferred: 'Tax-deferred',
+  tax_assisted: 'Tax-assisted',
+}
+
 function humanizeAccountType(type: string): string {
   return type
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+function TaxPlanRows({ plan }: { plan: TaxAdvantagedPlan }) {
+  const money = (value: number | null) =>
+    value === null ? '—' : formatCurrency(value, plan.currency)
+  const rows = [
+    { label: 'Tax plan', value: plan.name },
+    { label: 'Treatment', value: TAX_TREATMENT_LABEL[plan.tax_treatment] ?? plan.tax_treatment },
+    { label: 'Contribution limit', value: money(plan.current_year_contribution_limit) },
+    { label: 'Lifetime limit', value: money(plan.lifetime_contribution_limit) },
+    { label: 'Withdrawal limit', value: money(plan.current_year_withdrawal_limit) },
+    { label: 'YTD contributions', value: money(plan.ytd_contributions) },
+    { label: 'YTD withdrawals', value: money(plan.ytd_withdrawals) },
+    { label: 'Lifetime contributions', value: money(plan.lifetime_contributions) },
+    { label: 'Lifetime withdrawals', value: money(plan.lifetime_withdrawals) },
+  ]
+
+  return (
+    <>
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          className="flex items-baseline justify-between gap-4 py-2 border-b"
+          style={{ borderColor: 'var(--app-border)' }}
+        >
+          <dt className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            {row.label}
+          </dt>
+          <dd className="text-sm font-medium text-right">{row.value}</dd>
+        </div>
+      ))}
+    </>
+  )
 }
 
 // Balance chart range presets. Each range drives a lookback window + a
@@ -1304,13 +1336,11 @@ function BackLink() {
 export default function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, isLoading, error } = useAccount(accountId)
-
-  // Tax-advantaged details are hidden by default so the card height stays
-  // consistent. Clicking the Tax treatment row opens a floating popover
-  // anchored at that row's top — extends downward without reflowing the grid.
-  const [taxOpen, setTaxOpen] = useState(false)
-  const taxRowRef = useRef<HTMLDivElement>(null)
-  const taxPanelRef = useRef<HTMLDivElement>(null)
+  const {
+    data: taxPlan,
+    isLoading: isTaxPlanLoading,
+    isError: isTaxPlanError,
+  } = useTaxAdvantagedPlan(account?.tax_advantaged_plan_id)
 
   // Transaction modal state — lifted up from TransactionListCard so the
   // "Add transaction" button can live outside the card next to the section
@@ -1329,27 +1359,6 @@ export default function AccountDetail() {
     setTxnModalKey((k) => k + 1)
     setShowTxnModal(true)
   }
-
-  useEffect(() => {
-    if (!taxOpen) return
-    const onPointer = (e: PointerEvent) => {
-      const target = e.target as Node
-      if (taxPanelRef.current?.contains(target)) return
-      if (taxRowRef.current?.contains(target)) return
-      setTaxOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setTaxOpen(false)
-    }
-    // defer registration so the click that opened doesn't immediately close it
-    const t = setTimeout(() => window.addEventListener('pointerdown', onPointer), 0)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      clearTimeout(t)
-      window.removeEventListener('pointerdown', onPointer)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [taxOpen])
 
   if (isLoading) {
     return (
@@ -1376,24 +1385,11 @@ export default function AccountDetail() {
   const money = (value: number | null) =>
     value === null ? '—' : formatCurrency(value, account.currency)
 
-  // Always-visible rows. Tax treatment is handled separately below because it
-  // doubles as the toggle for the tax-advantaged popover.
   const coreRows: { label: string; value: string }[] = [
     { label: 'Kind', value: ACCOUNT_KIND_LABEL[account.account_kind] ?? account.account_kind },
     { label: 'Type', value: humanizeAccountType(account.account_type) },
     { label: 'Currency', value: account.currency },
     { label: 'Credit limit', value: money(account.credit_limit) },
-  ]
-  const taxTreatmentLabel = TAX_TREATMENT_LABEL[account.tax_treatment] ?? account.tax_treatment
-
-  const taxRows: { label: string; value: string }[] = [
-    { label: 'Contribution limit', value: money(account.current_year_contribution_limit) },
-    { label: 'Lifetime limit', value: money(account.lifetime_contribution_limit) },
-    { label: 'Withdrawal limit', value: money(account.current_year_withdrawal_limit) },
-    { label: 'YTD contributions', value: money(account.ytd_contributions) },
-    { label: 'YTD withdrawals', value: money(account.ytd_withdrawals) },
-    { label: 'Lifetime contributions', value: money(account.lifetime_contributions) },
-    { label: 'Lifetime withdrawals', value: money(account.lifetime_withdrawals) },
   ]
 
   return (
@@ -1443,81 +1439,31 @@ export default function AccountDetail() {
               </div>
             ))}
 
-            {/* Tax treatment — clickable, doubles as disclosure trigger. */}
-            <div ref={taxRowRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setTaxOpen((o) => !o)}
-                aria-expanded={taxOpen}
-                className="w-full flex items-baseline justify-between py-2 border-b transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+            {account.tax_advantaged_plan_id && isTaxPlanLoading && (
+              <div
+                className="flex items-baseline justify-between py-2 border-b"
                 style={{ borderColor: 'var(--app-border)' }}
               >
-                <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Tax treatment
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-sm font-medium">{taxTreatmentLabel}</span>
-                  <ChevronDown
-                    size={14}
-                    aria-hidden
-                    style={{
-                      color: 'var(--app-text-muted)',
-                      transform: taxOpen ? 'rotate(180deg)' : 'none',
-                      transition: 'transform 150ms ease',
-                    }}
-                  />
-                </span>
-              </button>
+                <dt className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Tax plan
+                </dt>
+                <dd className="text-sm font-medium">Loading…</dd>
+              </div>
+            )}
 
-              {/* Popover anchored at this row's top, extending downward. Left/
-                  right pulled to cancel the card's p-6 padding so the panel
-                  spans the full card width. Floats over page content below. */}
-              <AnimatePresence>
-                {taxOpen && (
-                  <motion.div
-                    ref={taxPanelRef}
-                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                    transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-                    className="absolute z-30 rounded-2xl px-6 py-4"
-                    style={{
-                      top: 0,
-                      left: -24,
-                      right: -24,
-                      background: 'var(--app-bg)',
-                      border: '1px solid var(--app-border-strong)',
-                      boxShadow: 'var(--app-shadow-soft)',
-                    }}
-                  >
-                    {/* Header repeats "Tax treatment" so the popover stays
-                        grounded where it opens from. */}
-                    <div
-                      className="flex items-baseline justify-between pb-2 border-b"
-                      style={{ borderColor: 'var(--app-border)' }}
-                    >
-                      <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                        Tax treatment
-                      </span>
-                      <span className="text-sm font-medium">{taxTreatmentLabel}</span>
-                    </div>
+            {account.tax_advantaged_plan_id && isTaxPlanError && (
+              <div
+                className="flex items-baseline justify-between py-2 border-b"
+                style={{ borderColor: 'var(--app-border)' }}
+              >
+                <dt className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Tax plan
+                </dt>
+                <dd className="text-sm font-medium">Unavailable</dd>
+              </div>
+            )}
 
-                    {taxRows.map((row, idx) => (
-                      <div
-                        key={row.label}
-                        className={`flex items-baseline justify-between py-1.5 ${idx < taxRows.length - 1 ? 'border-b' : ''}`}
-                        style={{ borderColor: 'var(--app-border)' }}
-                      >
-                        <span className="text-[0.8125rem]" style={{ color: 'var(--app-text-muted)' }}>
-                          {row.label}
-                        </span>
-                        <span className="text-[0.8125rem] font-medium">{row.value}</span>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {taxPlan && <TaxPlanRows plan={taxPlan} />}
           </dl>
         </section>
 

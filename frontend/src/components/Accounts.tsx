@@ -7,7 +7,6 @@ import {
   type AccountKind,
   type AccountType,
   type AccountsOverview,
-  type TaxTreatment,
 } from '@/api/accounts'
 import { useTransactionsOverview } from '@/api/transactions'
 import { useRunway } from '@/api/user'
@@ -27,7 +26,6 @@ interface AccountFilterValues {
   institution_id?: string
   account_kind?: AccountKind
   account_type?: AccountType
-  tax_treatment?: TaxTreatment
 }
 
 const ACCOUNT_KIND_OPTIONS: OptionItem[] = [
@@ -50,13 +48,6 @@ const ACCOUNT_TYPE_OPTIONS: OptionItem[] = [
   { value: 'heloc', label: 'HELOC', group: 'Revolving credit' },
   { value: 'loan', label: 'Loan', group: 'Amortizing debt' },
   { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
-]
-
-const TAX_TREATMENT_OPTIONS: OptionItem[] = [
-  { value: 'taxable', label: 'Taxable' },
-  { value: 'tax_free', label: 'Tax Free' },
-  { value: 'tax_deferred', label: 'Tax Deferred' },
-  { value: 'tax_assisted', label: 'Tax Assisted' },
 ]
 
 function sumByKind(accounts: AccountsOverview[], kind: AccountKind): number {
@@ -279,7 +270,7 @@ export default function Accounts() {
     })
   }
 
-  // Each filter only offers values the user actually has — a kind/type/tax/
+  // Each filter only offers values the user actually has — a kind/type/
   // institution with zero accounts would be a dead option that filters the
   // list to empty. Static option arrays drive the display order so grouping
   // and canonical ordering stay intact.
@@ -302,16 +293,10 @@ export default function Accounts() {
     return ACCOUNT_TYPE_OPTIONS.filter((o) => present.has(o.value as AccountType))
   }, [rows])
 
-  const taxTreatmentOptions = useMemo<OptionItem[]>(() => {
-    const present = new Set(rows.map((a) => a.tax_treatment))
-    return TAX_TREATMENT_OPTIONS.filter((o) => present.has(o.value as TaxTreatment))
-  }, [rows])
-
   const filteredRows = rows.filter((a) => {
     if (filters.institution_id && a.institution?.id !== filters.institution_id) return false
     if (filters.account_kind && a.account_kind !== filters.account_kind) return false
     if (filters.account_type && a.account_type !== filters.account_type) return false
-    if (filters.tax_treatment && a.tax_treatment !== filters.tax_treatment) return false
     return true
   })
 
@@ -599,7 +584,7 @@ export default function Accounts() {
           </div>
         </section>
 
-        {/* Filter row — institution / category / type / tax status */}
+        {/* Filter row — institution / category / type */}
         <div className="flex flex-wrap items-center gap-4">
           <FilterChip
             label="Institution"
@@ -642,21 +627,6 @@ export default function Accounts() {
                 selectedValue={filters.account_type}
                 onSelect={(v) => { setFilter({ account_type: v as AccountType }); close() }}
                 searchPlaceholder="Search types..."
-              />
-            )}
-          </FilterChip>
-
-          <FilterChip
-            label="Tax Status"
-            selectedLabel={taxTreatmentOptions.find((o) => o.value === filters.tax_treatment)?.label ?? null}
-            onClear={() => setFilter({ tax_treatment: undefined })}
-          >
-            {(close) => (
-              <FilterOptionList
-                options={taxTreatmentOptions}
-                selectedValue={filters.tax_treatment}
-                onSelect={(v) => { setFilter({ tax_treatment: v as TaxTreatment }); close() }}
-                searchPlaceholder="Search tax statuses..."
               />
             )}
           </FilterChip>

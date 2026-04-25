@@ -176,6 +176,7 @@ export function useCreateTransaction() {
       queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
       // Mark account balances stale so they refetch when the user next visits Accounts.
       queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
     },
   });
 }
@@ -213,6 +214,7 @@ export function useUpdateTransaction() {
       if (!onlyDisplayFields) {
         queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
         queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
+        queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
       }
     },
   });
@@ -227,6 +229,7 @@ export function useDeleteTransaction() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
     },
   });
 }
