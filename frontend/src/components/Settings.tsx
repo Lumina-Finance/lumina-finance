@@ -2,22 +2,31 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   User as UserIcon,
+  AlertTriangle,
   LifeBuoy,
   Landmark,
   Check,
+  LoaderCircle,
+  Pencil,
   Plus,
   Search,
+  Trash2,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { useAccounts, type AccountsOverview } from '@/api/accounts'
+import { useAccounts, useUpdateAccount, type AccountsOverview } from '@/api/accounts'
 import { useCurrencies, type Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   useCreateTaxAdvantagedPlan,
+  useCreateTaxAdvantagedPlanLimit,
+  useDeleteTaxAdvantagedPlan,
+  useDeleteTaxAdvantagedPlanLimit,
   useTaxAdvantagedPlanLimits,
   useTaxAdvantagedPlans,
+  useUpdateTaxAdvantagedPlan,
+  useUpdateTaxAdvantagedPlanLimit,
   type TaxAdvantagedPlan,
   type TaxTreatment,
 } from '@/api/taxAdvantagedPlans'
@@ -45,6 +54,8 @@ const DISABLED_INPUT_STYLE: React.CSSProperties = {
   cursor: 'not-allowed',
 }
 
+const CATEGORY_SUMMARY_LABEL_CLASS = 'app-label mb-1 block h-5 truncate leading-5'
+const CATEGORY_SUMMARY_VALUE_CLASS = 'flex h-6 items-center truncate text-[0.9375rem] font-medium leading-6'
 
 type SectionId = 'profile' | 'runway' | 'tax-advantaged-categories'
 
@@ -406,6 +417,8 @@ const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [
   { value: 'tax_assisted', label: 'Assisted' },
 ]
 
+const DEFAULT_NEW_LIMIT_YEAR = new Date().getFullYear()
+const MAX_VISIBLE_LIMIT_ROWS = 5
 
 interface TaxPlanFormState {
   name: string
@@ -414,8 +427,18 @@ interface TaxPlanFormState {
   lifetime_contribution_limit: string
 }
 
+interface TaxPlanLimitFormState {
+  year: string
+  contribution_limit: string
+  withdrawal_limit: string
+}
 
+interface AutosaveNotice {
+  status: 'saving' | 'saved' | 'error'
+  message: string
+}
 
+type CategoryModalTab = 'limits' | 'accounts'
 
 function currencyOptions(currencies: Currency[]) {
   return currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name} (${c.symbol})` }))
@@ -459,6 +482,13 @@ function toMinorUnits(value: string, currencies: Currency[], code: string) {
   return Math.round(Number(value) * multiplier)
 }
 
+function fromMinorUnits(value: number | null, currencies: Currency[], code: string) {
+  if (value === null) return ''
+  const exponent = currencyExponent(currencies, code)
+  const major = value / Math.pow(10, exponent)
+  return exponent === 0 ? String(Math.round(major)) : Number(major.toFixed(exponent)).toString()
+}
+
 function formatTaxTreatment(value: TaxTreatment) {
   return TAX_TREATMENT_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
@@ -487,6 +517,33 @@ function formatLimitYears(years: number[]) {
 
   if (!isContiguous && uniqueYears.length > 3) return span
   return `${span} · ${uniqueYears.length} years`
+}
+
+function autosaveNoticeColor(status: AutosaveNotice['status']) {
+  if (status === 'error') return 'var(--app-negative)'
+  if (status === 'saved') return 'var(--app-positive)'
+  return 'var(--app-accent)'
+}
+
+function AutosaveStatusIcon({ status }: { status: AutosaveNotice['status'] }) {
+  const Icon = status === 'error' ? AlertTriangle : status === 'saved' ? Check : LoaderCircle
+
+  return (
+    <span
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+      style={{
+        background: autosaveNoticeColor(status),
+        color: 'var(--app-bg)',
+      }}
+    >
+      <Icon
+        size={16}
+        strokeWidth={status === 'saving' ? 2.4 : 3}
+        className={status === 'saving' ? 'animate-spin' : undefined}
+        aria-hidden
+      />
+    </span>
+  )
 }
 
 function CurrencyInput({
@@ -546,6 +603,142 @@ function CurrencyInput({
   )
 }
 
+function InlineCurrencyInput({
+  ariaLabel,
+  currencies,
+  currency,
+  onBlur,
+  onChange,
+  placeholder,
+  value,
+}: {
+  ariaLabel: string
+  currencies: Currency[]
+  currency: string
+  onBlur?: () => void
+  onChange: (value: string) => void
+  placeholder?: string
+  value: string
+}) {
+  const [focused, setFocused] = useState(false)
+  const symbol = currencySymbol(currencies, currency)
+  const displayValue = focused ? value : formatMoneyInput(value, currencies, currency)
+
+  return (
+    <div
+      className="flex h-6 min-w-0 items-center gap-1"
+      style={{ borderBottom: '1px solid var(--app-border-strong)' }}
+    >
+      {symbol && (
+        <span className="shrink-0 text-[0.9375rem]" style={{ color: 'var(--app-text-subtle)' }} aria-hidden>
+          {symbol}
+        </span>
+      )}
+      <input
+        aria-label={ariaLabel}
+        className="block h-6 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-6 outline-none"
+        inputMode="decimal"
+        onBlur={() => {
+          setFocused(false)
+          onBlur?.()
+        }}
+        onChange={(event) => onChange(sanitizeMoneyInput(event.target.value))}
+        onFocus={() => setFocused(true)}
+        placeholder={placeholder}
+        style={{ color: 'var(--app-text)' }}
+        type="text"
+        value={displayValue}
+      />
+    </div>
+  )
+}
+
+function CompactCurrencyInput({
+  ariaLabel,
+  currencies,
+  currency,
+  onBlur,
+  onChange,
+  placeholder,
+  value,
+}: {
+  ariaLabel: string
+  currencies: Currency[]
+  currency: string
+  onBlur?: () => void
+  onChange: (value: string) => void
+  placeholder?: string
+  value: string
+}) {
+  const [focused, setFocused] = useState(false)
+  const symbol = currencySymbol(currencies, currency)
+  const displayValue = focused ? value : formatMoneyInput(value, currencies, currency)
+
+  return (
+    <div
+      className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+      style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+    >
+      {symbol && (
+        <span className="shrink-0 text-[0.9375rem]" style={{ color: 'var(--app-text-subtle)' }} aria-hidden>
+          {symbol}
+        </span>
+      )}
+      <input
+        aria-label={ariaLabel}
+        className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+        inputMode="decimal"
+        onBlur={() => {
+          setFocused(false)
+          onBlur?.()
+        }}
+        onChange={(event) => onChange(sanitizeMoneyInput(event.target.value))}
+        onFocus={() => setFocused(true)}
+        placeholder={placeholder}
+        style={{ color: 'var(--app-text)' }}
+        type="text"
+        value={displayValue}
+      />
+      <Pencil
+        size={13}
+        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+        style={{ color: 'var(--app-text-subtle)' }}
+        aria-hidden
+      />
+    </div>
+  )
+}
+
+function InlineTaxTreatmentSelect({
+  onBlur,
+  onChange,
+  value,
+}: {
+  onBlur?: () => void
+  onChange: (value: TaxTreatment) => void
+  value: TaxTreatment
+}) {
+  return (
+    <select
+      aria-label="Category type"
+      className="block h-6 w-full appearance-none bg-transparent text-[0.9375rem] font-medium leading-6 outline-none"
+      onBlur={onBlur}
+      onChange={(event) => onChange(event.target.value as TaxTreatment)}
+      style={{
+        borderBottom: '1px solid var(--app-border-strong)',
+        color: 'var(--app-text)',
+      }}
+      value={value}
+    >
+      {TAX_TREATMENT_OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function TaxAdvantagedCategoriesSection({
   accounts,
   userBaseCurrency,
@@ -557,9 +750,11 @@ function TaxAdvantagedCategoriesSection({
 }) {
   const { data: currencies = [] } = useCurrencies()
   const { data: plans = [], isLoading } = useTaxAdvantagedPlans()
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [search, setSearch] = useState('')
+  const openCategory = plans.find((plan) => plan.id === openCategoryId) ?? null
   const currentYear = useMemo(() => currentYearForTimezone(userTimezone), [userTimezone])
   const linkedAccountCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -633,6 +828,7 @@ function TaxAdvantagedCategoriesSection({
             <TaxAdvantagedCategoriesTable
               currentYear={currentYear}
               linkedAccountCounts={linkedAccountCounts}
+              onSelect={setOpenCategoryId}
               plans={filteredPlans}
             />
           )}
@@ -648,6 +844,15 @@ function TaxAdvantagedCategoriesSection({
             userBaseCurrency={userBaseCurrency}
           />
         )}
+        {openCategory && (
+          <TaxAdvantagedCategoryModal
+            key={openCategory.id}
+            accounts={accounts}
+            currencies={currencies}
+            plan={openCategory}
+            onClose={() => setOpenCategoryId(null)}
+          />
+        )}
       </AnimatePresence>
     </section>
   )
@@ -656,10 +861,12 @@ function TaxAdvantagedCategoriesSection({
 function TaxAdvantagedCategoriesTable({
   currentYear,
   linkedAccountCounts,
+  onSelect,
   plans,
 }: {
   currentYear: number
   linkedAccountCounts: Map<string, number>
+  onSelect: (planId: string) => void
   plans: TaxAdvantagedPlan[]
 }) {
   return (
@@ -686,6 +893,7 @@ function TaxAdvantagedCategoriesTable({
               accountCount={linkedAccountCounts.get(plan.id) ?? 0}
               currentYear={currentYear}
               isLast={index === plans.length - 1}
+              onSelect={onSelect}
               plan={plan}
             />
           ))}
@@ -699,11 +907,13 @@ function TaxAdvantagedCategoryRow({
   accountCount,
   currentYear,
   isLast,
+  onSelect,
   plan,
 }: {
   accountCount: number
   currentYear: number
   isLast: boolean
+  onSelect: (planId: string) => void
   plan: TaxAdvantagedPlan
 }) {
   const { data: limits = [], isLoading } = useTaxAdvantagedPlanLimits(plan.id)
@@ -712,9 +922,17 @@ function TaxAdvantagedCategoryRow({
 
   return (
     <tr
-      className="transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+      className="cursor-pointer transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
       style={{
         borderBottom: isLast ? 'none' : '1px solid var(--app-border)',
+      }}
+      tabIndex={0}
+      onClick={() => onSelect(plan.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect(plan.id)
+        }
       }}
     >
       <td className="min-w-0 px-4 py-4">
@@ -935,6 +1153,794 @@ function CreateTaxAdvantagedCategoryModal({
         </div>
       </motion.div>
     </>
+  )
+}
+
+function TaxAdvantagedCategoryModal({
+  accounts,
+  onClose,
+  plan,
+  currencies,
+}: {
+  accounts: AccountsOverview[]
+  onClose: () => void
+  plan: TaxAdvantagedPlan
+  currencies: Currency[]
+}) {
+  const updatePlan = useUpdateTaxAdvantagedPlan(plan.id)
+  const deletePlan = useDeleteTaxAdvantagedPlan()
+  const updateAccount = useUpdateAccount()
+  const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedPlanLimits(plan.id)
+  const createLimit = useCreateTaxAdvantagedPlanLimit()
+  const updateLimit = useUpdateTaxAdvantagedPlanLimit()
+  const deleteLimit = useDeleteTaxAdvantagedPlanLimit()
+  const [activeTab, setActiveTab] = useState<CategoryModalTab>('limits')
+  const [categoryEditOpen, setCategoryEditOpen] = useState(false)
+  const [showAddTaxYear, setShowAddTaxYear] = useState(false)
+  const [taxYearsExpanded, setTaxYearsExpanded] = useState(false)
+  const [accountError, setAccountError] = useState<string | null>(null)
+  const planBase: TaxPlanFormState = {
+    name: plan.name,
+    tax_treatment: plan.tax_treatment,
+    currency: plan.currency,
+    lifetime_contribution_limit: fromMinorUnits(plan.lifetime_contribution_limit, currencies, plan.currency),
+  }
+  const [planOverrides, setPlanOverrides] = useState<Partial<TaxPlanFormState>>({})
+  const planForm: TaxPlanFormState = { ...planBase, ...planOverrides }
+  const [limitDrafts, setLimitDrafts] = useState<Record<number, Partial<Pick<TaxPlanLimitFormState, 'contribution_limit' | 'withdrawal_limit'>>>>({})
+  const [newLimitForm, setNewLimitForm] = useState<TaxPlanLimitFormState>({
+    year: String(DEFAULT_NEW_LIMIT_YEAR),
+    contribution_limit: '',
+    withdrawal_limit: '',
+  })
+  const [deleteConfirmYear, setDeleteConfirmYear] = useState<number | null>(null)
+  const [planError, setPlanError] = useState<string | null>(null)
+  const [limitError, setLimitError] = useState<string | null>(null)
+  const [autosaveNotice, setAutosaveNotice] = useState<AutosaveNotice | null>(null)
+  const autosaveTimerRef = useRef<number | null>(null)
+
+  const showAutosaveNotice = (notice: AutosaveNotice) => {
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+    }
+    setAutosaveNotice(notice)
+    if (notice.status !== 'saving') {
+      autosaveTimerRef.current = window.setTimeout(() => {
+        setAutosaveNotice(null)
+        autosaveTimerRef.current = null
+      }, 2400)
+    }
+  }
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
+
+  useEffect(() => () => {
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+    }
+  }, [])
+
+  const setPlanField = <K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) => {
+    setPlanOverrides((current) => ({ ...current, [key]: value }))
+    setPlanError(null)
+  }
+
+  const setNewLimitField = <K extends keyof TaxPlanLimitFormState>(key: K, value: TaxPlanLimitFormState[K]) => {
+    setNewLimitForm((current) => ({ ...current, [key]: value }))
+    setLimitError(null)
+  }
+
+  const resetNewLimitForm = () => {
+    setNewLimitForm({
+      year: String(DEFAULT_NEW_LIMIT_YEAR),
+      contribution_limit: '',
+      withdrawal_limit: '',
+    })
+    setShowAddTaxYear(false)
+    setLimitError(null)
+  }
+
+  const setLimitField = (
+    year: number,
+    key: keyof Pick<TaxPlanLimitFormState, 'contribution_limit' | 'withdrawal_limit'>,
+    value: string,
+  ) => {
+    setLimitDrafts((current) => ({
+      ...current,
+      [year]: {
+        ...current[year],
+        [key]: value,
+      },
+    }))
+    setLimitError(null)
+    setDeleteConfirmYear(null)
+  }
+
+  const saveWhenFocusLeaves = (event: React.FocusEvent<HTMLElement>, save: () => void) => {
+    const nextFocused = event.relatedTarget
+    if (nextFocused instanceof Node && event.currentTarget.contains(nextFocused)) return
+    save()
+  }
+
+  const savePlan = (form: TaxPlanFormState = planForm) => {
+    const nextLifetimeLimit = toMinorUnits(form.lifetime_contribution_limit, currencies, plan.currency)
+    const dirty = form.name.trim() !== plan.name
+      || form.tax_treatment !== plan.tax_treatment
+      || nextLifetimeLimit !== plan.lifetime_contribution_limit
+    if (!dirty || updatePlan.isPending) return
+
+    if (!form.name.trim()) {
+      setPlanError('Name is required.')
+      showAutosaveNotice({ status: 'error', message: 'Name is required.' })
+      return
+    }
+    if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
+      setPlanError('Lifetime limit must be zero or higher.')
+      showAutosaveNotice({ status: 'error', message: 'Lifetime limit must be zero or higher.' })
+      return
+    }
+
+    showAutosaveNotice({ status: 'saving', message: 'Saving changes...' })
+    updatePlan.mutate(
+      {
+        name: form.name.trim(),
+        tax_treatment: form.tax_treatment,
+        lifetime_contribution_limit: nextLifetimeLimit,
+      },
+      {
+        onSuccess: () => {
+          setPlanOverrides({})
+          setPlanError(null)
+          showAutosaveNotice({ status: 'saved', message: 'Changes saved.' })
+        },
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : 'Failed to update plan.'
+          setPlanError(message)
+          showAutosaveNotice({ status: 'error', message })
+        },
+      },
+    )
+  }
+
+  const toggleCategoryEdit = () => {
+    if (categoryEditOpen) savePlan()
+    setCategoryEditOpen((current) => !current)
+  }
+
+  const handleDeletePlan = () => {
+    if (!window.confirm(`Delete ${plan.name}?`)) return
+    deletePlan.mutate(plan.id, {
+      onSuccess: onClose,
+      onError: (error) => {
+        setPlanError(error instanceof Error ? error.message : 'Failed to delete plan.')
+      },
+    })
+  }
+
+  const sortedLimits = useMemo(
+    () => [...limits].sort((a, b) => b.year - a.year),
+    [limits],
+  )
+  const visibleLimits = taxYearsExpanded ? sortedLimits : sortedLimits.slice(0, MAX_VISIBLE_LIMIT_ROWS)
+  const hasHiddenLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
+  const bindableAccounts = accounts.filter(
+    (account) =>
+      account.closed_at === null
+      && account.account_kind === 'asset'
+      && account.currency === plan.currency,
+  )
+
+  const limitDraft = (year: number) => {
+    const limit = limits.find((row) => row.year === year)
+    return {
+      contribution_limit: limitDrafts[year]?.contribution_limit
+        ?? fromMinorUnits(limit?.contribution_limit ?? null, currencies, plan.currency),
+      withdrawal_limit: limitDrafts[year]?.withdrawal_limit
+        ?? fromMinorUnits(limit?.withdrawal_limit ?? null, currencies, plan.currency),
+    }
+  }
+
+  const limitDirty = (year: number) => {
+    const limit = limits.find((row) => row.year === year)
+    if (!limit) return false
+    const draft = limitDraft(year)
+    return toMinorUnits(draft.contribution_limit, currencies, plan.currency) !== limit.contribution_limit
+      || toMinorUnits(draft.withdrawal_limit, currencies, plan.currency) !== limit.withdrawal_limit
+  }
+
+  const handleSaveLimit = (year: number) => {
+    if (!limitDirty(year) || updateLimit.isPending) return
+    const draft = limitDraft(year)
+    if (!isValidMoneyInput(draft.contribution_limit, true)) {
+      setLimitError(`${year} contribution limit is required.`)
+      showAutosaveNotice({ status: 'error', message: `${year} contribution limit is required.` })
+      return
+    }
+    if (!isValidMoneyInput(draft.withdrawal_limit)) {
+      setLimitError(`${year} withdrawal limit must be zero or higher.`)
+      showAutosaveNotice({ status: 'error', message: `${year} withdrawal limit must be zero or higher.` })
+      return
+    }
+
+    showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
+    updateLimit.mutate(
+      {
+        planId: plan.id,
+        year,
+        contribution_limit: toMinorUnits(draft.contribution_limit, currencies, plan.currency) ?? 0,
+        withdrawal_limit: toMinorUnits(draft.withdrawal_limit, currencies, plan.currency),
+      },
+      {
+        onSuccess: () => {
+          setLimitDrafts((current) => {
+            const next = { ...current }
+            delete next[year]
+            return next
+          })
+          setLimitError(null)
+          showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
+        },
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : `Failed to save ${year} limits.`
+          setLimitError(message)
+          showAutosaveNotice({ status: 'error', message })
+        },
+      },
+    )
+  }
+
+  const handleCreateLimit = () => {
+    if (!showAddTaxYear || createLimit.isPending) return
+    const year = Number.parseInt(newLimitForm.year, 10)
+    if (!Number.isInteger(year) || year < 1900 || year > 2100) {
+      setLimitError('Year must be between 1900 and 2100.')
+      showAutosaveNotice({ status: 'error', message: 'Year must be between 1900 and 2100.' })
+      return
+    }
+    if (limits.some((limit) => limit.year === year)) {
+      setLimitError(`A limit for ${year} already exists.`)
+      showAutosaveNotice({ status: 'error', message: `A limit for ${year} already exists.` })
+      return
+    }
+    if (!isValidMoneyInput(newLimitForm.contribution_limit, true)) {
+      setLimitError('Contribution limit is required.')
+      showAutosaveNotice({ status: 'error', message: 'Contribution limit is required.' })
+      return
+    }
+    if (!isValidMoneyInput(newLimitForm.withdrawal_limit)) {
+      setLimitError('Withdrawal limit must be zero or higher.')
+      showAutosaveNotice({ status: 'error', message: 'Withdrawal limit must be zero or higher.' })
+      return
+    }
+
+    showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
+    createLimit.mutate(
+      {
+        planId: plan.id,
+        year,
+        contribution_limit: toMinorUnits(newLimitForm.contribution_limit, currencies, plan.currency) ?? 0,
+        withdrawal_limit: toMinorUnits(newLimitForm.withdrawal_limit, currencies, plan.currency),
+      },
+      {
+        onSuccess: () => {
+          resetNewLimitForm()
+          setTaxYearsExpanded(true)
+          setLimitError(null)
+          showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
+        },
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : 'Failed to add tax-year limits.'
+          setLimitError(message)
+          showAutosaveNotice({ status: 'error', message })
+        },
+      },
+    )
+  }
+
+  const handleDeleteLimit = (year: number) => {
+    if (deleteConfirmYear !== year) {
+      setDeleteConfirmYear(year)
+      return
+    }
+    deleteLimit.mutate(
+      { planId: plan.id, year },
+      {
+        onSuccess: () => {
+          setDeleteConfirmYear(null)
+          showAutosaveNotice({ status: 'saved', message: 'Limit deleted.' })
+        },
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : 'Failed to delete limit.'
+          setLimitError(message)
+          showAutosaveNotice({ status: 'error', message })
+        },
+      },
+    )
+  }
+
+  const handleToggleAccount = (account: AccountsOverview) => {
+    const isLinked = account.tax_advantaged_plan_id === plan.id
+    showAutosaveNotice({ status: 'saving', message: 'Saving account link...' })
+    updateAccount.mutate(
+      {
+        accountId: account.id,
+        payload: { tax_advantaged_plan_id: isLinked ? null : plan.id },
+      },
+      {
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : 'Failed to update account binding.'
+          setAccountError(message)
+          showAutosaveNotice({ status: 'error', message })
+        },
+        onSuccess: () => {
+          setAccountError(null)
+          showAutosaveNotice({ status: 'saved', message: 'Account link saved.' })
+        },
+      },
+    )
+  }
+
+  return (
+    <>
+      <AnimatePresence>
+        {autosaveNotice && (
+          <motion.div
+            role={autosaveNotice.status === 'error' ? 'alert' : 'status'}
+            aria-live={autosaveNotice.status === 'error' ? 'assertive' : 'polite'}
+            className="fixed bottom-5 right-5 z-[70] flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
+            style={{
+              background: 'var(--app-bg)',
+              border: '1px solid var(--app-border-strong)',
+              color: autosaveNoticeColor(autosaveNotice.status),
+            }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.16 }}
+          >
+            <AutosaveStatusIcon status={autosaveNotice.status} />
+            <span>{autosaveNotice.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={onClose}
+        aria-hidden
+      />
+
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+        onClick={onClose}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tax-advantaged-category-title"
+          className="w-full max-w-[64rem] max-h-[86vh] overflow-y-auto rounded-2xl lg:overflow-hidden"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            boxShadow: 'var(--app-shadow-soft)',
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="lg:grid lg:max-h-[86vh] lg:min-h-[580px] lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside
+              className="flex min-w-0 flex-col gap-6 border-b p-6 sm:p-7 lg:min-h-0 lg:border-b-0 lg:border-r"
+              style={{ borderColor: 'var(--app-border)' }}
+            >
+              <div className="min-w-0">
+                <h3 id="tax-advantaged-category-title" className="font-serif text-3xl font-medium tracking-tight truncate">
+                  {categoryEditOpen ? (
+                    <input
+                      aria-label="Category name"
+                      className="block w-full min-w-0 bg-transparent font-serif text-3xl font-medium tracking-tight outline-none"
+                      maxLength={256}
+                      onBlur={() => savePlan()}
+                      onChange={(event) => setPlanField('name', event.target.value)}
+                      required
+                      style={{
+                        borderBottom: '1px solid var(--app-border-strong)',
+                        color: 'var(--app-text)',
+                      }}
+                      value={planForm.name}
+                    />
+                  ) : (
+                    planForm.name.trim() || plan.name
+                  )}
+                </h3>
+              </div>
+
+              <div className="space-y-4">
+                {categoryEditOpen ? (
+                  <div className="h-14 min-w-0 overflow-hidden">
+                    <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Type</p>
+                    <InlineTaxTreatmentSelect
+                      value={planForm.tax_treatment}
+                      onBlur={() => savePlan()}
+                      onChange={(value) => setPlanField('tax_treatment', value)}
+                    />
+                  </div>
+                ) : (
+                  <InfoItem label="Type" value={formatTaxTreatment(plan.tax_treatment)} />
+                )}
+
+                <InfoItem label="Currency" value={plan.currency} />
+                <InfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
+
+                {categoryEditOpen ? (
+                  <div className="h-14 min-w-0 overflow-hidden">
+                    <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Lifetime limit</p>
+                    <InlineCurrencyInput
+                      ariaLabel="Lifetime contribution limit"
+                      currencies={currencies}
+                      currency={plan.currency}
+                      onBlur={() => savePlan()}
+                      value={planForm.lifetime_contribution_limit}
+                      onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
+                      placeholder="Optional"
+                    />
+                  </div>
+                ) : (
+                  <InfoItem label="Lifetime limit" value={plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)} financial />
+                )}
+              </div>
+
+              {planError && (
+                <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                  {planError}
+                </p>
+              )}
+
+              <div className="mt-auto flex items-center justify-between border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
+                <button
+                  type="button"
+                  className="text-sm font-medium transition-colors duration-150"
+                  onClick={toggleCategoryEdit}
+                  style={{ color: categoryEditOpen ? 'var(--app-accent)' : 'var(--app-text-muted)' }}
+                >
+                  {categoryEditOpen ? 'Done editing' : 'Edit details'}
+                </button>
+                <button
+                  type="button"
+                  className="text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={handleDeletePlan}
+                  disabled={deletePlan.isPending}
+                  style={{ color: 'var(--app-negative)' }}
+                >
+                  Delete
+                </button>
+              </div>
+
+            </aside>
+
+            <div className="flex min-w-0 flex-col lg:min-h-0">
+              <div
+                className="flex items-stretch justify-between gap-3 border-b px-5 sm:px-6"
+                style={{ borderColor: 'var(--app-border)' }}
+              >
+                <div
+                  className="flex items-stretch gap-6"
+                  role="tablist"
+                  aria-label="Category settings"
+                >
+                  {([
+                    ['limits', 'Limits'],
+                    ['accounts', 'Accounts'],
+                  ] as const).map(([tab, label]) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === tab}
+                      className="border-b-2 px-0 py-4 text-sm font-medium transition-colors duration-150"
+                      onClick={() => setActiveTab(tab)}
+                      style={{
+                        color: activeTab === tab ? 'var(--app-text)' : 'var(--app-text-muted)',
+                        borderColor: activeTab === tab ? 'var(--app-accent)' : 'transparent',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="my-3 shrink-0 rounded-lg p-1.5 transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                  style={{ color: 'var(--app-text-subtle)' }}
+                  aria-label="Close"
+                >
+                  <X size={18} aria-hidden />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+                {activeTab === 'limits' ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
+                        Configure annual contribution and withdrawal limits.
+                      </p>
+                      <button
+                        type="button"
+                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors duration-150 hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => setShowAddTaxYear(true)}
+                        disabled={showAddTaxYear}
+                        style={{ color: 'var(--app-accent)' }}
+                      >
+                        <Plus size={15} aria-hidden />
+                        Add year
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-fixed text-left text-[0.9375rem]">
+                        <colgroup>
+                          <col style={{ width: '7rem' }} />
+                          <col />
+                          <col />
+                        </colgroup>
+                        <thead>
+                          <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+                            <th className="py-2 pr-4 font-medium">Year</th>
+                            <th className="py-2 pr-4 font-medium">Contribution limit</th>
+                            <th className="py-2 font-medium">Withdrawal limit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {showAddTaxYear && (
+                            <tr
+                              style={{ borderBottom: '1px solid var(--app-border)' }}
+                              onBlur={(event) => saveWhenFocusLeaves(event, handleCreateLimit)}
+                            >
+                              <td className="min-w-0 py-3 pr-4">
+                                <div
+                                  className="group flex h-9 w-20 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+                                  style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+                                >
+                                  <input
+                                    aria-label="New tax year"
+                                    className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    type="text"
+                                    value={newLimitForm.year}
+                                    onChange={(event) => setNewLimitField('year', event.target.value.replace(/\D/g, '').slice(0, 4))}
+                                    style={{ color: 'var(--app-text)' }}
+                                  />
+                                  <Pencil
+                                    size={13}
+                                    className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                                    style={{ color: 'var(--app-text-subtle)' }}
+                                    aria-hidden
+                                  />
+                                </div>
+                              </td>
+                              <td className="min-w-0 py-3 pr-4">
+                                <CompactCurrencyInput
+                                  ariaLabel="New tax-year contribution limit"
+                                  currencies={currencies}
+                                  currency={plan.currency}
+                                  value={newLimitForm.contribution_limit}
+                                  onChange={(value) => setNewLimitField('contribution_limit', value)}
+                                  placeholder="Contribution limit"
+                                />
+                              </td>
+                              <td className="min-w-0 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <CompactCurrencyInput
+                                      ariaLabel="New tax-year withdrawal limit"
+                                      currencies={currencies}
+                                      currency={plan.currency}
+                                      value={newLimitForm.withdrawal_limit}
+                                      onChange={(value) => setNewLimitField('withdrawal_limit', value)}
+                                      placeholder="Optional"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                                    onClick={resetNewLimitForm}
+                                    style={{ color: 'var(--app-text-subtle)' }}
+                                    aria-label="Cancel new tax year"
+                                  >
+                                    <X size={14} aria-hidden />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {limitsLoading ? (
+                            <tr>
+                              <td className="py-3" colSpan={3}>
+                                <div className="h-10 rounded-lg bg-gray-300" />
+                              </td>
+                            </tr>
+                          ) : sortedLimits.length === 0 && !showAddTaxYear ? (
+                            <tr>
+                              <td className="py-4 text-sm italic" colSpan={3} style={{ color: 'var(--app-text-subtle)' }}>
+                                No limit entries yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            visibleLimits.map((limit) => {
+                              const draft = limitDraft(limit.year)
+                              const confirmingDelete = deleteConfirmYear === limit.year
+                              return (
+                                <tr key={limit.year} style={{ borderBottom: '1px solid var(--app-border)' }}>
+                                  <td className="py-3 pr-4 font-medium">{limit.year}</td>
+                                  <td className="min-w-0 py-3 pr-4">
+                                    <CompactCurrencyInput
+                                      ariaLabel={`${limit.year} contribution limit`}
+                                      currencies={currencies}
+                                      currency={plan.currency}
+                                      onBlur={() => handleSaveLimit(limit.year)}
+                                      value={draft.contribution_limit}
+                                      onChange={(value) => setLimitField(limit.year, 'contribution_limit', value)}
+                                    />
+                                  </td>
+                                  <td className="min-w-0 py-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <CompactCurrencyInput
+                                          ariaLabel={`${limit.year} withdrawal limit`}
+                                          currencies={currencies}
+                                          currency={plan.currency}
+                                          onBlur={() => handleSaveLimit(limit.year)}
+                                          value={draft.withdrawal_limit}
+                                          onChange={(value) => setLimitField(limit.year, 'withdrawal_limit', value)}
+                                          placeholder="Optional"
+                                        />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className={`inline-flex h-7 shrink-0 items-center justify-center rounded-md text-xs font-medium transition-colors duration-150 hover:bg-[var(--app-negative-soft)] ${confirmingDelete ? 'px-2' : 'w-7'}`}
+                                        onClick={() => handleDeleteLimit(limit.year)}
+                                        disabled={deleteLimit.isPending}
+                                        style={{ color: confirmingDelete ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}
+                                        aria-label={confirmingDelete ? `Confirm deleting ${limit.year} limits` : `Delete ${limit.year} limits`}
+                                      >
+                                        {confirmingDelete ? 'Confirm' : <Trash2 size={14} aria-hidden />}
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {hasHiddenLimitRows && !limitsLoading && (
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          className="app-secondary-button"
+                          onClick={() => setTaxYearsExpanded((current) => !current)}
+                        >
+                          {taxYearsExpanded ? 'See less' : 'See more'}
+                        </button>
+                      </div>
+                    )}
+                    {limitError && (
+                      <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                        {limitError}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                      <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
+                        Choose eligible {plan.currency} accounts for this category.
+                      </p>
+                      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                        {bindableAccounts.filter((account) => account.tax_advantaged_plan_id === plan.id).length} of {bindableAccounts.length} linked
+                      </p>
+                    </div>
+
+                    {accountError && (
+                      <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                        {accountError}
+                      </p>
+                    )}
+
+                    {bindableAccounts.length === 0 ? (
+                      <p className="py-3 text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                        No eligible {plan.currency} asset accounts.
+                      </p>
+                    ) : (
+                      <div
+                        className="overflow-hidden rounded-xl border"
+                        style={{ borderColor: 'var(--app-border)' }}
+                      >
+                        {bindableAccounts.map((account, index) => {
+                          const linked = account.tax_advantaged_plan_id === plan.id
+                          const linkedElsewhere = account.tax_advantaged_plan_id !== null && !linked
+                          const pending = updateAccount.isPending && updateAccount.variables?.accountId === account.id
+                          return (
+                            <label
+                              key={account.id}
+                              className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-sm transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                              style={{
+                                borderTop: index === 0 ? 'none' : '1px solid var(--app-border)',
+                                opacity: linkedElsewhere ? 0.55 : 1,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={linked}
+                                onChange={() => handleToggleAccount(account)}
+                                disabled={linkedElsewhere || pending}
+                                aria-label={`${linked ? 'Unlink' : 'Link'} ${account.name}`}
+                                className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
+                                style={{ accentColor: 'var(--app-accent)' }}
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium">{account.name}</span>
+                                <span className="block truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                                  {account.institution?.name ?? 'Cash'}
+                                  {linkedElsewhere ? ' · Linked elsewhere' : ''}
+                                </span>
+                              </span>
+                              <span className="font-financial text-sm">
+                                {formatCurrency(account.current_balance, account.currency)}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  )
+}
+
+function InfoItem({
+  financial = false,
+  label,
+  value,
+}: {
+  financial?: boolean
+  label: string
+  value: string
+}) {
+  return (
+    <div className="h-14 min-w-0 overflow-hidden">
+      <p className={CATEGORY_SUMMARY_LABEL_CLASS}>{label}</p>
+      <p className={`${financial ? 'font-financial' : ''} ${CATEGORY_SUMMARY_VALUE_CLASS}`}>
+        {value}
+      </p>
+    </div>
   )
 }
 
