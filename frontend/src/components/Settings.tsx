@@ -1547,7 +1547,7 @@ function TaxAdvantagedCategoryModal({
           <div className="lg:grid lg:max-h-[86vh] lg:min-h-[580px] lg:grid-cols-[280px_minmax(0,1fr)]">
             <aside
               className="flex min-w-0 flex-col gap-6 border-b p-6 sm:p-7 lg:min-h-0 lg:border-b-0 lg:border-r"
-              style={{ borderColor: 'var(--app-border)' }}
+              style={{ background: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
             >
               <div className="min-w-0">
                 <h3 id="tax-advantaged-category-title" className="font-serif text-3xl font-medium tracking-tight truncate">
