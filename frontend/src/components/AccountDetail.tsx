@@ -315,8 +315,7 @@ function BreakdownCard({
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
         <div
-          className="flex rounded-lg p-0.5"
-          style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
+          className="app-segmented-control"
           role="tablist"
           aria-label={rangeLabel}
         >
@@ -329,11 +328,7 @@ function BreakdownCard({
                 role="tab"
                 aria-selected={active}
                 onClick={() => onRangeChange(r)}
-                className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
-                style={{
-                  background: active ? 'var(--app-accent-soft)' : 'transparent',
-                  color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
-                }}
+                className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
               >
                 {r}
               </button>
@@ -1180,8 +1175,7 @@ function BalanceChartCard({ account }: { account: Account }) {
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Current Balance</p>
         <div
-          className="flex rounded-lg p-0.5"
-          style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
+          className="app-segmented-control"
           role="tablist"
           aria-label="Balance range"
         >
@@ -1194,11 +1188,7 @@ function BalanceChartCard({ account }: { account: Account }) {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setRange(r)}
-                className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
-                style={{
-                  background: active ? 'var(--app-accent-soft)' : 'transparent',
-                  color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
-                }}
+                className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
               >
                 {r}
               </button>
