@@ -1,15 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   User as UserIcon,
   LifeBuoy,
+  Landmark,
   Check,
+  Plus,
+  Search,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
-import { useCurrencies } from '@/api/currency'
+import { useCurrencies, type Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  useCreateTaxAdvantagedPlan,
+  useTaxAdvantagedPlanLimits,
+  useTaxAdvantagedPlans,
+  type TaxAdvantagedPlan,
+  type TaxTreatment,
+} from '@/api/taxAdvantagedPlans'
 import {
   useRunwayAccounts,
   useUpdateProfile,
@@ -34,7 +45,8 @@ const DISABLED_INPUT_STYLE: React.CSSProperties = {
   cursor: 'not-allowed',
 }
 
-type SectionId = 'profile' | 'runway'
+
+type SectionId = 'profile' | 'runway' | 'tax-advantaged-categories'
 
 interface Section {
   id: SectionId
@@ -45,6 +57,7 @@ interface Section {
 const SECTIONS: Section[] = [
   { id: 'profile', label: 'Profile', icon: UserIcon },
   { id: 'runway', label: 'Runway', icon: LifeBuoy },
+  { id: 'tax-advantaged-categories', label: 'Tax-Advantaged Categories', icon: Landmark },
 ]
 
 /* ── Top-level page ── */
@@ -225,11 +238,11 @@ export default function Settings() {
       <header className="app-page-header">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
-          Manage your profile and runway preferences.
+          Manage your profile, runway preferences, and tax-advantaged categories.
         </p>
       </header>
 
-      <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-10 lg:items-start">
+      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 lg:items-start">
         {/* Sidebar — sticky on desktop, hidden on mobile (sections just stack) */}
         <aside className="hidden lg:block sticky top-6">
           <nav className="space-y-0.5" aria-label="Settings sections">
@@ -263,6 +276,12 @@ export default function Settings() {
             accounts={selectableAccounts}
             selection={runwaySelection}
             onToggle={toggleRunwayAccount}
+          />
+
+          <TaxAdvantagedCategoriesSection
+            accounts={accounts ?? []}
+            userBaseCurrency={user?.base_currency}
+            userTimezone={user?.tz}
           />
 
           {/* Unified save bar — covers both profile + runway in parallel */}
@@ -376,6 +395,546 @@ function Field({
         </span>
       )}
     </div>
+  )
+}
+
+/* ── Tax-advantaged categories ── */
+
+const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [
+  { value: 'tax_free', label: 'Exempt' },
+  { value: 'tax_deferred', label: 'Deferred' },
+  { value: 'tax_assisted', label: 'Assisted' },
+]
+
+
+interface TaxPlanFormState {
+  name: string
+  tax_treatment: TaxTreatment
+  currency: string
+  lifetime_contribution_limit: string
+}
+
+
+
+
+function currencyOptions(currencies: Currency[]) {
+  return currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name} (${c.symbol})` }))
+}
+
+function currencyExponent(currencies: Currency[], code: string) {
+  return currencies.find((c) => c.id === code)?.minor_unit_exponent ?? 2
+}
+
+function currencySymbol(currencies: Currency[], code: string) {
+  return currencies.find((c) => c.id === code)?.symbol ?? ''
+}
+
+function sanitizeMoneyInput(value: string) {
+  let sanitized = value.replace(/[^\d.]/g, '')
+  const parts = sanitized.split('.')
+  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
+  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
+  return sanitized
+}
+
+function formatMoneyInput(value: string, currencies: Currency[], code: string) {
+  if (!value.trim() || !isValidMoneyInput(value)) return value
+  const exponent = currencyExponent(currencies, code)
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: exponent,
+    maximumFractionDigits: exponent,
+  }).format(Number(value))
+}
+
+function isValidMoneyInput(value: string, required = false) {
+  const trimmed = value.trim()
+  if (!trimmed) return !required
+  const n = Number(trimmed)
+  return Number.isFinite(n) && n >= 0
+}
+
+function toMinorUnits(value: string, currencies: Currency[], code: string) {
+  if (!value.trim()) return null
+  const multiplier = Math.pow(10, currencyExponent(currencies, code))
+  return Math.round(Number(value) * multiplier)
+}
+
+function formatTaxTreatment(value: TaxTreatment) {
+  return TAX_TREATMENT_OPTIONS.find((option) => option.value === value)?.label ?? value
+}
+
+function currentYearForTimezone(timeZone?: string) {
+  if (!timeZone) return new Date().getFullYear()
+
+  try {
+    return Number(new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric' }).format(new Date()))
+  } catch {
+    return new Date().getFullYear()
+  }
+}
+
+function formatLimitYears(years: number[]) {
+  const uniqueYears = [...new Set(years)].sort((a, b) => a - b)
+  if (uniqueYears.length === 0) return 'None'
+  if (uniqueYears.length === 1) return `${uniqueYears[0]} only`
+
+  const isContiguous = uniqueYears.every((year, index) => index === 0 || year === uniqueYears[index - 1] + 1)
+  const span = isContiguous
+    ? `${uniqueYears[0]}-${uniqueYears[uniqueYears.length - 1]}`
+    : uniqueYears.length <= 3
+      ? uniqueYears.join(', ')
+      : `${uniqueYears.length} years configured`
+
+  if (!isContiguous && uniqueYears.length > 3) return span
+  return `${span} · ${uniqueYears.length} years`
+}
+
+function CurrencyInput({
+  ariaLabel,
+  currencies,
+  currency,
+  onBlur,
+  onChange,
+  placeholder,
+  required = false,
+  value,
+}: {
+  ariaLabel?: string
+  currencies: Currency[]
+  currency: string
+  onBlur?: () => void
+  onChange: (value: string) => void
+  placeholder?: string
+  required?: boolean
+  value: string
+}) {
+  const [focused, setFocused] = useState(false)
+  const symbol = currencySymbol(currencies, currency)
+  const displayValue = focused ? value : formatMoneyInput(value, currencies, currency)
+
+  return (
+    <div className="relative">
+      {symbol && (
+        <span
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+          style={{
+            color: 'var(--app-text-subtle)',
+            fontSize: '0.9375rem',
+            lineHeight: 1,
+          }}
+          aria-hidden
+        >
+          {symbol}
+        </span>
+      )}
+      <input
+        aria-label={ariaLabel}
+        className={`app-input w-full ${symbol ? 'pl-8' : ''}`}
+        inputMode="decimal"
+        onBlur={() => {
+          setFocused(false)
+          onBlur?.()
+        }}
+        onChange={(event) => onChange(sanitizeMoneyInput(event.target.value))}
+        onFocus={() => setFocused(true)}
+        placeholder={placeholder}
+        required={required}
+        type="text"
+        value={displayValue}
+      />
+    </div>
+  )
+}
+
+function TaxAdvantagedCategoriesSection({
+  accounts,
+  userBaseCurrency,
+  userTimezone,
+}: {
+  accounts: AccountsOverview[]
+  userBaseCurrency?: string
+  userTimezone?: string
+}) {
+  const { data: currencies = [] } = useCurrencies()
+  const { data: plans = [], isLoading } = useTaxAdvantagedPlans()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createModalKey, setCreateModalKey] = useState(0)
+  const [search, setSearch] = useState('')
+  const currentYear = useMemo(() => currentYearForTimezone(userTimezone), [userTimezone])
+  const linkedAccountCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const account of accounts) {
+      if (!account.tax_advantaged_plan_id) continue
+      counts.set(account.tax_advantaged_plan_id, (counts.get(account.tax_advantaged_plan_id) ?? 0) + 1)
+    }
+    return counts
+  }, [accounts])
+  const filteredPlans = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return plans
+    return plans.filter((plan) =>
+      plan.name.toLowerCase().includes(q)
+      || plan.currency.toLowerCase().includes(q)
+      || formatTaxTreatment(plan.tax_treatment).toLowerCase().includes(q),
+    )
+  }, [plans, search])
+
+  const openCreateModal = () => {
+    setCreateModalKey((key) => key + 1)
+    setShowCreateModal(true)
+  }
+
+  return (
+    <section id="tax-advantaged-categories" className="scroll-mt-8">
+      <SectionHeader
+        title="Tax-Advantaged Categories"
+        description="Create category-level limits before assigning accounts to them."
+      />
+
+      <SettingsCard>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--app-text-subtle)' }}
+                aria-hidden
+              />
+              <input
+                className="app-input pl-9"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search categories..."
+                disabled={plans.length === 0}
+              />
+            </div>
+            <button
+              type="button"
+              className="app-primary-button shrink-0"
+              onClick={openCreateModal}
+            >
+              <Plus size={16} aria-hidden />
+              Create category
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className="h-24 rounded-lg bg-gray-300" />
+          ) : plans.length === 0 ? (
+            <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              No tax-advantaged categories yet.
+            </p>
+          ) : filteredPlans.length === 0 ? (
+            <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              No categories match your search.
+            </p>
+          ) : (
+            <TaxAdvantagedCategoriesTable
+              currentYear={currentYear}
+              linkedAccountCounts={linkedAccountCounts}
+              plans={filteredPlans}
+            />
+          )}
+        </div>
+      </SettingsCard>
+
+      <AnimatePresence>
+        {showCreateModal && (
+          <CreateTaxAdvantagedCategoryModal
+            key={createModalKey}
+            currencies={currencies}
+            onClose={() => setShowCreateModal(false)}
+            userBaseCurrency={userBaseCurrency}
+          />
+        )}
+      </AnimatePresence>
+    </section>
+  )
+}
+
+function TaxAdvantagedCategoriesTable({
+  currentYear,
+  linkedAccountCounts,
+  plans,
+}: {
+  currentYear: number
+  linkedAccountCounts: Map<string, number>
+  plans: TaxAdvantagedPlan[]
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[660px] table-fixed text-left text-[0.9375rem]">
+        <colgroup>
+          <col />
+          <col style={{ width: '10rem' }} />
+          <col style={{ width: '12rem' }} />
+          <col style={{ width: '7rem' }} />
+        </colgroup>
+        <thead>
+          <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+            <th className="app-label px-4 py-3">Category</th>
+            <th className="app-label py-3 pr-4">Current year</th>
+            <th className="app-label py-3 pr-4">Limit years</th>
+            <th className="app-label py-3 pr-4 text-right">Accounts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {plans.map((plan, index) => (
+            <TaxAdvantagedCategoryRow
+              key={plan.id}
+              accountCount={linkedAccountCounts.get(plan.id) ?? 0}
+              currentYear={currentYear}
+              isLast={index === plans.length - 1}
+              plan={plan}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function TaxAdvantagedCategoryRow({
+  accountCount,
+  currentYear,
+  isLast,
+  plan,
+}: {
+  accountCount: number
+  currentYear: number
+  isLast: boolean
+  plan: TaxAdvantagedPlan
+}) {
+  const { data: limits = [], isLoading } = useTaxAdvantagedPlanLimits(plan.id)
+  const hasCurrentYearLimit = limits.some((limit) => limit.year === currentYear)
+  const limitYearsLabel = formatLimitYears(limits.map((limit) => limit.year))
+
+  return (
+    <tr
+      className="transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+      style={{
+        borderBottom: isLast ? 'none' : '1px solid var(--app-border)',
+      }}
+    >
+      <td className="min-w-0 px-4 py-4">
+        <span className="block truncate font-serif text-xl font-medium tracking-tight">{plan.name}</span>
+        <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          {formatTaxTreatment(plan.tax_treatment)} · {plan.currency}
+        </span>
+      </td>
+      <td className="py-4 pr-4 font-medium">
+        {isLoading ? (
+          <span style={{ color: 'var(--app-text-muted)' }}>Loading</span>
+        ) : hasCurrentYearLimit ? (
+          <span>{currentYear} configured</span>
+        ) : (
+          <span style={{ color: 'var(--app-negative)' }}>Missing {currentYear}</span>
+        )}
+      </td>
+      <td className="py-4 pr-4">
+        <span style={limitYearsLabel === 'None' ? { color: 'var(--app-text-muted)' } : undefined}>
+          {isLoading ? 'Loading' : limitYearsLabel}
+        </span>
+      </td>
+      <td className="py-4 pr-4 text-right">
+        <span className="font-medium">{accountCount}</span>
+        <span className="ml-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          linked
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+function CreateTaxAdvantagedCategoryModal({
+  currencies,
+  onClose,
+  userBaseCurrency,
+}: {
+  currencies: Currency[]
+  onClose: () => void
+  userBaseCurrency?: string
+}) {
+  const createPlan = useCreateTaxAdvantagedPlan()
+  const [form, setForm] = useState<TaxPlanFormState>({
+    name: '',
+    tax_treatment: 'tax_free',
+    currency: userBaseCurrency ?? '',
+    lifetime_contribution_limit: '',
+  })
+  const [createError, setCreateError] = useState<string | null>(null)
+  const selectedCurrency = form.currency || userBaseCurrency || ''
+  const options = useMemo(() => currencyOptions(currencies), [currencies])
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
+
+  const setField = <K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) => {
+    setForm((current) => ({ ...current, [key]: value }))
+    setCreateError(null)
+  }
+
+  const handleCreatePlan = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!form.name.trim()) {
+      setCreateError('Name is required.')
+      return
+    }
+    if (!selectedCurrency) {
+      setCreateError('Currency is required.')
+      return
+    }
+    if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
+      setCreateError('Lifetime limit must be zero or higher.')
+      return
+    }
+
+    createPlan.mutate(
+      {
+        name: form.name.trim(),
+        tax_treatment: form.tax_treatment,
+        currency: selectedCurrency,
+        lifetime_contribution_limit: toMinorUnits(form.lifetime_contribution_limit, currencies, selectedCurrency),
+        group_id: null,
+      },
+      {
+        onSuccess: onClose,
+        onError: (error) => {
+          setCreateError(error instanceof Error ? error.message : 'Failed to create category.')
+        },
+      },
+    )
+  }
+
+  return (
+    <>
+      <motion.div
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={onClose}
+        aria-hidden
+      />
+
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+        onClick={onClose}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-tax-advantaged-category-title"
+          className="w-full max-w-2xl rounded-2xl p-6 sm:p-8"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            boxShadow: 'var(--app-shadow-soft)',
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <form className="space-y-6" onSubmit={handleCreatePlan}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="create-tax-advantaged-category-title" className="font-serif text-2xl font-light tracking-tight">
+                  Create category
+                </h3>
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Define the shared limits before linking accounts.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 rounded-lg p-1.5 transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                style={{ color: 'var(--app-text-subtle)' }}
+                aria-label="Close"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Category name">
+                <input
+                  className="app-input"
+                  value={form.name}
+                  onChange={(event) => setField('name', event.target.value)}
+                  placeholder="TFSA"
+                  maxLength={256}
+                  required
+                />
+              </Field>
+              <Field label="Category type">
+                <Dropdown
+                  options={TAX_TREATMENT_OPTIONS}
+                  value={form.tax_treatment}
+                  onChange={(value) => setField('tax_treatment', value as TaxTreatment)}
+                />
+              </Field>
+              <Field label="Currency">
+                <Dropdown
+                  options={options}
+                  value={selectedCurrency}
+                  onChange={(value) => setField('currency', value)}
+                  placeholder="Select currency"
+                  searchable
+                  searchPlaceholder="Search currencies..."
+                />
+              </Field>
+              <Field label="Lifetime contribution limit">
+                <CurrencyInput
+                  currencies={currencies}
+                  currency={selectedCurrency}
+                  value={form.lifetime_contribution_limit}
+                  onChange={(value) => setField('lifetime_contribution_limit', value)}
+                  placeholder="Optional"
+                />
+              </Field>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              {createError && (
+                <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
+                  {createError}
+                </p>
+              )}
+              <button
+                type="button"
+                className="app-secondary-button"
+                onClick={onClose}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="app-primary-button inline-flex items-center justify-center gap-2"
+                disabled={createPlan.isPending}
+              >
+                {createPlan.isPending ? <div className="app-spinner" aria-label="Creating" /> : <Plus size={16} aria-hidden />}
+                Create category
+              </button>
+            </div>
+          </form>
+        </div>
+      </motion.div>
+    </>
   )
 }
 
