@@ -734,8 +734,7 @@ export default function Dashboard() {
                 Spending vs. {previousLabel[spendingRange]}
               </span>
               <div
-                className="ml-auto flex rounded-lg p-0.5"
-                style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
+                className="app-segmented-control ml-auto"
                 role="tablist"
                 aria-label="Spending range"
               >
@@ -748,11 +747,7 @@ export default function Dashboard() {
                       role="tab"
                       aria-selected={active}
                       onClick={() => setSpendingRange(option)}
-                      className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
-                      style={{
-                        background: active ? 'var(--app-accent-soft)' : 'transparent',
-                        color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
-                      }}
+                      className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
                     >
                       {option}
                     </button>
@@ -919,8 +914,7 @@ export default function Dashboard() {
                 <Repeat size={12} />
               </button>
               <div
-                className="flex rounded-lg p-0.5"
-                style={{ background: 'var(--app-bg)', border: '1px solid var(--app-border)' }}
+                className="app-segmented-control"
                 role="tablist"
                 aria-label="Breakdown range"
               >
@@ -933,11 +927,7 @@ export default function Dashboard() {
                       role="tab"
                       aria-selected={active}
                       onClick={() => setBreakdownRange(option)}
-                      className="px-2.5 py-1 text-xs font-medium rounded-md transition-colors duration-150"
-                      style={{
-                        background: active ? 'var(--app-accent-soft)' : 'transparent',
-                        color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
-                      }}
+                      className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
                     >
                       {option}
                     </button>
