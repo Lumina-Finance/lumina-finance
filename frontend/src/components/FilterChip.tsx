@@ -47,9 +47,9 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 font-medium transition-colors duration-150"
+        className="inline-flex h-11 items-center gap-2 rounded-lg px-4 font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]"
         style={{
-          background: active ? 'var(--app-accent-soft)' : 'transparent',
+          background: active ? 'var(--app-accent-soft)' : 'var(--app-input-bg)',
           color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
           border: `1px solid ${active ? 'var(--app-accent-border)' : 'var(--app-border)'}`,
           fontSize: '0.9375rem',
@@ -65,8 +65,8 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onClear() }
             }}
-            className="ml-0.5 grid place-items-center rounded-full"
-            style={{ width: 16, height: 16 }}
+            className="ml-0.5 grid place-items-center rounded-md transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+            style={{ width: 18, height: 18 }}
           >
             <X size={12} aria-hidden />
           </span>
