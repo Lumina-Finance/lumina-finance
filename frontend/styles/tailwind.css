@@ -227,6 +227,28 @@
     color: var(--app-accent);
   }
 
+  .app-icon-button {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-150 motion-reduce:transition-none;
+    color: var(--app-text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+  }
+
+  .app-icon-button:hover {
+    color: var(--app-text);
+    background: var(--app-surface-soft);
+    border-color: var(--app-border);
+  }
+
+  .app-icon-button:active {
+    transform: translateY(1px);
+  }
+
+  .app-icon-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
+  }
+
   .app-spinner {
     width: 22px;
     height: 22px;

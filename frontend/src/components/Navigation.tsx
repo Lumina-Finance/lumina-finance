@@ -152,8 +152,7 @@ const Navigation = () => {
             type="button"
             onClick={() => { void logout(); }}
             aria-label="Log out"
-            className="shrink-0 rounded-md p-1 transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
-            style={{ color: 'var(--app-text-subtle)' }}
+            className="app-icon-button shrink-0"
           >
             <LogOut size={14} aria-hidden />
           </button>

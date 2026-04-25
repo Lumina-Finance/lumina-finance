@@ -439,11 +439,7 @@ export default function Dashboard() {
                   onClick={() => setCreditMode((m) => (m === 'used' ? 'available' : 'used'))}
                   title={creditMode === 'used' ? 'Show available credit' : 'Show credit used'}
                   aria-label={creditMode === 'used' ? 'Show available credit' : 'Show credit used'}
-                  className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150"
-                  style={{
-                    background: 'var(--app-accent-soft)',
-                    color: 'var(--app-text-muted)',
-                  }}
+                  className="app-icon-button ml-auto"
                 >
                   <Repeat size={12} />
                 </button>
@@ -905,11 +901,7 @@ export default function Dashboard() {
                 onClick={() => setBreakdownMode((m) => (m === 'spending' ? 'income' : 'spending'))}
                 title={breakdownMode === 'spending' ? 'Show income breakdown' : 'Show spending breakdown'}
                 aria-label={breakdownMode === 'spending' ? 'Show income breakdown' : 'Show spending breakdown'}
-                className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150"
-                style={{
-                  background: 'var(--app-accent-soft)',
-                  color: 'var(--app-text-muted)',
-                }}
+                className="app-icon-button ml-auto"
               >
                 <Repeat size={12} />
               </button>
