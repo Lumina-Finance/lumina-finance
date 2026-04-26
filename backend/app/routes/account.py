@@ -236,8 +236,8 @@ async def get_account_cash_flow_route(
 
     Backs the monthly cash flow widget on the account detail page. Series
     covers ``months`` calendar months ending with the current (in-progress)
-    month; transfers are excluded so only real cash movement shows. Requires
-    read access on the account.
+    month; transfers are included so account-level balance movement is
+    visible. Requires read access on the account.
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     return await get_account_cash_flow_history(db, account_id, months, datetime.now(ZoneInfo(user.tz)))

@@ -9,9 +9,9 @@ import {
   type AccountsOverview,
 } from '@/api/accounts'
 import { useTaxAdvantagedPlans, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
-import { useTransactionsOverview } from '@/api/transactions'
+import { useDashboard } from '@/api/dashboard'
 import { useRunway } from '@/api/user'
-import { accountKeys, taxAdvantagedPlanKeys, transactionOverviewKeys } from '@/api/queryKeys'
+import { accountKeys, dashboardKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys'
 import { useFocusRefetch } from '@/hooks/useFocusRefetch'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -476,7 +476,7 @@ export default function Accounts() {
   const { data: taxAdvantagedPlans } = useTaxAdvantagedPlans()
   useFocusRefetch([
     accountKeys.list(),
-    { queryKey: transactionOverviewKeys.all, exact: false },
+    { queryKey: dashboardKeys.all, exact: false },
     taxAdvantagedPlanKeys.list(),
   ])
 
@@ -602,20 +602,7 @@ export default function Accounts() {
         : 'var(--app-negative)'
   const displayCurrency = user!.base_currency
 
-  // Current calendar month in user's timezone — drives the savings rate window.
-  const { monthStart, today } = useMemo(() => {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      timeZone: user!.tz,
-    })
-    const todayStr = fmt.format(new Date())
-    return { monthStart: `${todayStr.slice(0, 7)}-01`, today: todayStr }
-  }, [user])
-
-  const { data: overview } = useTransactionsOverview({
-    from_date: monthStart,
-    to_date: today,
-  })
+  const { data: dashboard } = useDashboard()
 
   const { data: runway } = useRunway()
   const runwayMonths = runway?.months ?? null
@@ -632,16 +619,13 @@ export default function Accounts() {
           ? 'Need 1+ month of expense data'
           : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo · ${runway.months_covered}mo basis`
 
-  // Savings rate = (income − expenses) / income. outflow comes back negative,
-  // so adding gives the net. Null when there is no income — either the month
-  // had only expenses (treated as −∞%) or no activity at all (displayed as N/A).
-  const savingsRate = useMemo<number | null>(() => {
-    const inflow = overview?.total_inflow ?? 0
-    const outflow = overview?.total_outflow ?? 0
-    if (inflow <= 0) return null
-    return Math.round(((inflow + outflow) / inflow) * 100)
-  }, [overview])
-  const savingsRateHasExpenses = (overview?.total_outflow ?? 0) < 0
+  const savingsRatePeriod = dashboard?.savings_rate_history.at(-1)
+  const savingsRateIncome = savingsRatePeriod?.income ?? 0
+  const savingsRateExpenses = savingsRatePeriod?.expenses ?? 0
+  const savingsRateNet = savingsRateIncome - savingsRateExpenses
+  const savingsRate =
+    savingsRateIncome > 0 ? Math.round((savingsRateNet / savingsRateIncome) * 100) : null
+  const savingsRateHasExpenses = savingsRateExpenses > 0
 
   const savingsRateColor =
     savingsRate !== null
@@ -767,7 +751,7 @@ export default function Accounts() {
                   style={{ color: 'var(--app-text-subtle)' }}
                 >
                   {savingsRate !== null
-                    ? `${formatCurrency((overview?.total_inflow ?? 0) + (overview?.total_outflow ?? 0), displayCurrency)} of ${formatCurrency(overview?.total_inflow ?? 0, displayCurrency)} this month`
+                    ? `${formatCurrency(savingsRateNet, displayCurrency)} of ${formatCurrency(savingsRateIncome, displayCurrency)} this month`
                     : savingsRateHasExpenses
                       ? 'No income this month'
                       : 'No data this month'}
