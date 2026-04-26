@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: dc6a95aa3ab5
+Revision ID: 2d6f1aa06f79
 Revises: 
-Create Date: 2026-04-21 14:04:10.561211
+Create Date: 2026-04-25 20:46:28.634422
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'dc6a95aa3ab5'
+revision: str = '2d6f1aa06f79'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -91,28 +91,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('user_id')
     )
-    op.create_table('accounts',
-    sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('owner_id', sa.Uuid(), nullable=True),
-    sa.Column('group_id', sa.Uuid(), nullable=True),
-    sa.Column('account_kind', sa.Enum('ASSET', 'REVOLVING', 'AMORTIZING', name='accountkind'), nullable=False),
-    sa.Column('account_type', sa.Enum('CHECKING', 'SAVINGS', 'TERM_DEPOSIT', 'CASH', 'INVESTMENT', 'CREDIT_CARD', 'LINE_OF_CREDIT', 'HELOC', 'LOAN', 'MORTGAGE', name='accounttype'), nullable=False),
-    sa.Column('tax_treatment', sa.Enum('TAXABLE', 'TAX_FREE', 'TAX_DEFERRED', 'TAX_ASSISTED', name='taxtreatment'), nullable=False),
-    sa.Column('name', sa.VARCHAR(length=256), nullable=False),
-    sa.Column('institution_id', sa.Uuid(), nullable=True),
-    sa.Column('currency', sa.VARCHAR(length=3), nullable=False),
-    sa.Column('lifetime_contribution_limit', sa.BigInteger(), nullable=True),
-    sa.Column('credit_limit', sa.BigInteger(), nullable=True),
-    sa.Column('is_hidden', sa.Boolean(), nullable=False),
-    sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.CheckConstraint('(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)', name='ck_accounts_owner_xor_group'),
-    sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['institution_id'], ['institutions.id'], ),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('base_budgets',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('owner_id', sa.Uuid(), nullable=True),
@@ -170,26 +148,41 @@ def upgrade() -> None:
     sa.UniqueConstraint('group_id', 'name', name='uq_tag_group_name')
     )
     op.create_index('uq_tag_owner_name', 'tags', ['owner_id', 'name'], unique=True, postgresql_where=sa.text('group_id IS NULL'))
-    op.create_table('account_balance_snapshots',
-    sa.Column('account_id', sa.Uuid(), nullable=False),
-    sa.Column('balance', sa.BigInteger(), nullable=False),
-    sa.Column('dt', sa.Date(), nullable=False),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('account_id', 'dt')
-    )
-    op.create_table('account_permissions',
+    op.create_table('tax_advantaged_plans',
     sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('group_id', sa.Uuid(), nullable=False),
-    sa.Column('user_id', sa.Uuid(), nullable=False),
-    sa.Column('account_id', sa.Uuid(), nullable=False),
-    sa.Column('level', sa.Enum('READ', 'WRITE', 'ADMIN', name='permissionlevel'), nullable=False),
+    sa.Column('plan_owner_user_id', sa.Uuid(), nullable=False),
+    sa.Column('group_id', sa.Uuid(), nullable=True),
+    sa.Column('name', sa.VARCHAR(length=256), nullable=False),
+    sa.Column('tax_treatment', sa.Enum('TAXABLE', 'TAX_FREE', 'TAX_DEFERRED', 'TAX_ASSISTED', name='taxtreatment'), nullable=False),
+    sa.Column('currency', sa.VARCHAR(length=3), nullable=False),
+    sa.Column('lifetime_contribution_limit', sa.BigInteger(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['group_id', 'user_id'], ['group_members.group_id', 'group_members.user_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
     sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('group_id', 'user_id', 'account_id', name='uq_account_perm_member_account')
+    sa.ForeignKeyConstraint(['plan_owner_user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('accounts',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('owner_id', sa.Uuid(), nullable=True),
+    sa.Column('group_id', sa.Uuid(), nullable=True),
+    sa.Column('account_kind', sa.Enum('ASSET', 'REVOLVING', 'AMORTIZING', name='accountkind'), nullable=False),
+    sa.Column('account_type', sa.Enum('CHECKING', 'SAVINGS', 'TERM_DEPOSIT', 'CASH', 'INVESTMENT', 'CREDIT_CARD', 'LINE_OF_CREDIT', 'HELOC', 'LOAN', 'MORTGAGE', name='accounttype'), nullable=False),
+    sa.Column('tax_advantaged_plan_id', sa.Uuid(), nullable=True),
+    sa.Column('name', sa.VARCHAR(length=256), nullable=False),
+    sa.Column('institution_id', sa.Uuid(), nullable=True),
+    sa.Column('currency', sa.VARCHAR(length=3), nullable=False),
+    sa.Column('credit_limit', sa.BigInteger(), nullable=True),
+    sa.Column('is_hidden', sa.Boolean(), nullable=False),
+    sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint('(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)', name='ck_accounts_owner_xor_group'),
+    sa.ForeignKeyConstraint(['currency'], ['currencies.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['institution_id'], ['institutions.id'], ),
+    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['tax_advantaged_plan_id'], ['tax_advantaged_plans.id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('budget_permissions',
     sa.Column('id', sa.Uuid(), nullable=False),
@@ -243,20 +236,34 @@ def upgrade() -> None:
     sa.UniqueConstraint('group_id', 'name', name='uq_merchant_group_name')
     )
     op.create_index('uq_merchant_owner_name', 'merchants', ['owner_id', 'name'], unique=True, postgresql_where=sa.text('group_id IS NULL'))
-    op.create_table('tax_advantaged_configs',
-    sa.Column('account_id', sa.Uuid(), nullable=False),
+    op.create_table('tax_advantaged_plan_limits',
+    sa.Column('plan_id', sa.Uuid(), nullable=False),
     sa.Column('year', sa.SmallInteger(), nullable=False),
     sa.Column('contribution_limit', sa.BigInteger(), nullable=False),
     sa.Column('withdrawal_limit', sa.BigInteger(), nullable=True),
-    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ),
-    sa.PrimaryKeyConstraint('account_id', 'year')
+    sa.ForeignKeyConstraint(['plan_id'], ['tax_advantaged_plans.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('plan_id', 'year')
     )
-    op.create_table('user_runway_accounts',
+    op.create_table('account_balance_snapshots',
+    sa.Column('account_id', sa.Uuid(), nullable=False),
+    sa.Column('balance', sa.BigInteger(), nullable=False),
+    sa.Column('dt', sa.Date(), nullable=False),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('account_id', 'dt')
+    )
+    op.create_table('account_permissions',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('group_id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
     sa.Column('account_id', sa.Uuid(), nullable=False),
+    sa.Column('level', sa.Enum('READ', 'WRITE', 'ADMIN', name='permissionlevel'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('user_id', 'account_id')
+    sa.ForeignKeyConstraint(['group_id', 'user_id'], ['group_members.group_id', 'group_members.user_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('group_id', 'user_id', 'account_id', name='uq_account_perm_member_account')
     )
     op.create_table('transactions',
     sa.Column('id', sa.Uuid(), nullable=False),
@@ -278,6 +285,13 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['merchant_id'], ['merchants.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('user_runway_accounts',
+    sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('account_id', sa.Uuid(), nullable=False),
+    sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('user_id', 'account_id')
+    )
     op.create_table('transaction_tags',
     sa.Column('transaction_id', sa.Uuid(), nullable=False),
     sa.Column('tag_id', sa.Uuid(), nullable=False),
@@ -292,24 +306,25 @@ def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('transaction_tags')
-    op.drop_table('transactions')
     op.drop_table('user_runway_accounts')
-    op.drop_table('tax_advantaged_configs')
+    op.drop_table('transactions')
+    op.drop_table('account_permissions')
+    op.drop_table('account_balance_snapshots')
+    op.drop_table('tax_advantaged_plan_limits')
     op.drop_index('uq_merchant_owner_name', table_name='merchants', postgresql_where=sa.text('group_id IS NULL'))
     op.drop_table('merchants')
     op.drop_table('budgets')
     op.drop_index('uq_budget_tracked_category_active', table_name='budget_tracked_categories', postgresql_where=sa.text('removed_at IS NULL'))
     op.drop_table('budget_tracked_categories')
     op.drop_table('budget_permissions')
-    op.drop_table('account_permissions')
-    op.drop_table('account_balance_snapshots')
+    op.drop_table('accounts')
+    op.drop_table('tax_advantaged_plans')
     op.drop_index('uq_tag_owner_name', table_name='tags', postgresql_where=sa.text('group_id IS NULL'))
     op.drop_table('tags')
     op.drop_table('group_members')
     op.drop_index('uq_category_owner_name_kind', table_name='categories', postgresql_where=sa.text('group_id IS NULL'))
     op.drop_table('categories')
     op.drop_table('base_budgets')
-    op.drop_table('accounts')
     op.drop_table('password_credentials')
     op.drop_table('groups')
     op.drop_table('auth_identities')
