@@ -58,6 +58,10 @@ const DISABLED_INPUT_STYLE: React.CSSProperties = {
 
 const CATEGORY_SUMMARY_LABEL_CLASS = 'app-label mb-1 block h-5 truncate leading-5'
 const CATEGORY_SUMMARY_VALUE_CLASS = 'flex h-6 items-center truncate text-[0.9375rem] font-medium leading-6'
+const CATEGORY_FIELD_TRANSITION = {
+  duration: 0.1,
+  ease: 'easeOut' as const,
+}
 
 type SectionId = 'profile' | 'runway' | 'tax-advantaged-categories'
 
@@ -1564,20 +1568,25 @@ function TaxAdvantagedCategoryModal({
               className="flex min-w-0 flex-col gap-6 border-b p-6 sm:p-7 lg:min-h-0 lg:border-b-0 lg:border-r"
               style={{ background: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
             >
-              <div className="min-w-0">
-                <h3 id="tax-advantaged-category-title" className="font-serif text-3xl font-medium tracking-tight truncate">
-                  {categoryEditOpen ? (
-                    <div
-                      className="group flex min-w-0 items-center gap-2"
+              <div className="h-10 min-w-0 overflow-hidden">
+                <h3 id="tax-advantaged-category-title" className="h-10 font-serif text-3xl font-medium leading-10 tracking-tight">
+                  <div className="relative h-10 min-w-0">
+                    <motion.div
+                      className={`absolute inset-0 group flex h-10 min-w-0 items-center gap-2 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
                       style={{ borderBottom: '1px solid var(--app-border-strong)' }}
+                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={!categoryEditOpen}
                     >
                       <input
                         aria-label="Category name"
-                        className="block min-w-0 flex-1 bg-transparent font-serif text-3xl font-medium tracking-tight outline-none"
+                        className="block h-10 min-w-0 flex-1 bg-transparent font-serif text-3xl font-medium leading-10 tracking-tight outline-none"
                         maxLength={256}
                         onChange={(event) => setPlanField('name', event.target.value)}
                         required
                         style={{ color: 'var(--app-text)' }}
+                        tabIndex={categoryEditOpen ? undefined : -1}
                         value={planForm.name}
                       />
                       <Pencil
@@ -1586,44 +1595,81 @@ function TaxAdvantagedCategoryModal({
                         style={{ color: 'var(--app-text-subtle)' }}
                         aria-hidden
                       />
-                    </div>
-                  ) : (
-                    planForm.name.trim() || plan.name
-                  )}
+                    </motion.div>
+                    <motion.span
+                      className={`absolute inset-0 block h-10 truncate leading-10 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
+                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={categoryEditOpen}
+                    >
+                      {planForm.name.trim() || plan.name}
+                    </motion.span>
+                  </div>
                 </h3>
               </div>
 
               <div className="space-y-4">
-                {categoryEditOpen ? (
-                  <div className="h-14 min-w-0 overflow-hidden">
-                    <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Type</p>
-                    <InlineTaxTreatmentSelect
-                      value={planForm.tax_treatment}
-                      onChange={(value) => setPlanField('tax_treatment', value)}
-                    />
+                <div className="relative h-14 min-w-0 overflow-hidden">
+                  <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Type</p>
+                  <div className="relative h-6 min-w-0">
+                    <motion.div
+                      className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
+                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={!categoryEditOpen}
+                    >
+                      <InlineTaxTreatmentSelect
+                        value={planForm.tax_treatment}
+                        onChange={(value) => setPlanField('tax_treatment', value)}
+                      />
+                    </motion.div>
+                    <motion.p
+                      className={`absolute inset-0 ${CATEGORY_SUMMARY_VALUE_CLASS} ${categoryEditOpen ? 'pointer-events-none' : ''}`}
+                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={categoryEditOpen}
+                    >
+                      {formatTaxTreatment(plan.tax_treatment)}
+                    </motion.p>
                   </div>
-                ) : (
-                  <InfoItem label="Type" value={formatTaxTreatment(plan.tax_treatment)} />
-                )}
+                </div>
 
                 <InfoItem label="Currency" value={plan.currency} />
                 <InfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
 
-                {categoryEditOpen ? (
-                  <div className="h-14 min-w-0 overflow-hidden">
-                    <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Lifetime limit</p>
-                    <InlineCurrencyInput
-                      ariaLabel="Lifetime contribution limit"
-                      currencies={currencies}
-                      currency={plan.currency}
-                      value={planForm.lifetime_contribution_limit}
-                      onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
-                      placeholder="Optional"
-                    />
+                <div className="relative h-14 min-w-0 overflow-hidden">
+                  <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Lifetime limit</p>
+                  <div className="relative h-6 min-w-0">
+                    <motion.div
+                      className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
+                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={!categoryEditOpen}
+                    >
+                      <InlineCurrencyInput
+                        ariaLabel="Lifetime contribution limit"
+                        currencies={currencies}
+                        currency={plan.currency}
+                        value={planForm.lifetime_contribution_limit}
+                        onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
+                        placeholder="Optional"
+                      />
+                    </motion.div>
+                    <motion.p
+                      className={`absolute inset-0 font-financial ${CATEGORY_SUMMARY_VALUE_CLASS} ${categoryEditOpen ? 'pointer-events-none' : ''}`}
+                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={categoryEditOpen}
+                    >
+                      {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
+                    </motion.p>
                   </div>
-                ) : (
-                  <InfoItem label="Lifetime limit" value={plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)} financial />
-                )}
+                </div>
               </div>
 
               {planError && (
