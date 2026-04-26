@@ -36,7 +36,9 @@ import {
   useUpdateRunwayAccounts,
   type UpdateProfilePayload,
 } from '@/api/user'
+import ActionFeedbackButton from '@/components/ActionFeedbackButton'
 import Dropdown from '@/components/Dropdown'
+import { useActionFeedback } from '@/hooks/useActionFeedback'
 
 // IANA timezone list, sourced from the browser at module-load so it stays in
 // sync with the signup page. Underscores are swapped for spaces purely for
@@ -134,66 +136,51 @@ export default function Settings() {
   }, [runwayDraft, runwayServerSet])
 
   // ── Combined save/discard ──
-  // Save has three visible states. `saving` holds for at least 1s so a fast
-  // API response still gets visible feedback; `saved` then briefly confirms
-  // success with a checkmark before returning to `idle`.
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const saveFeedback = useActionFeedback()
+  const saveStatus = saveFeedback.status
   const isDirty = isProfileDirty || isRunwayDirty
-  const isPending = saveStatus !== 'idle'
+  const isPending = saveFeedback.isPending
   const canSave = isDirty && !isPending && (!isProfileDirty || firstNameValid)
 
   const handleSave = async () => {
     if (!canSave || !user) return
 
-    setSaveStatus('saving')
-    const startTime = Date.now()
+    try {
+      await saveFeedback.run(async () => {
+        const requests: Promise<unknown>[] = []
 
-    const requests: Promise<unknown>[] = []
+        if (isProfileDirty) {
+          // Patch only the fields that actually changed. last_name translates ""
+          // → null so the backend clears the column instead of storing "".
+          const patch: UpdateProfilePayload = {}
+          if (profileForm.first_name !== user.first_name) patch.first_name = profileForm.first_name.trim()
+          const nextLast = profileForm.last_name === '' ? null : profileForm.last_name
+          if (nextLast !== user.last_name) patch.last_name = nextLast
+          if (profileForm.tz !== user.tz) patch.tz = profileForm.tz
 
-    if (isProfileDirty) {
-      // Patch only the fields that actually changed. last_name translates ""
-      // → null so the backend clears the column instead of storing "".
-      const patch: UpdateProfilePayload = {}
-      if (profileForm.first_name !== user.first_name) patch.first_name = profileForm.first_name.trim()
-      const nextLast = profileForm.last_name === '' ? null : profileForm.last_name
-      if (nextLast !== user.last_name) patch.last_name = nextLast
-      if (profileForm.tz !== user.tz) patch.tz = profileForm.tz
+          requests.push(
+            updateProfile.mutateAsync(patch).then((updated) => {
+              setUser(updated)
+              setProfileOverrides({})
+            }),
+          )
+        }
 
-      requests.push(
-        updateProfile.mutateAsync(patch).then((updated) => {
-          setUser(updated)
-          setProfileOverrides({})
-        }),
-      )
+        if (isRunwayDirty && runwayDraft) {
+          requests.push(
+            updateRunway.mutateAsync(Array.from(runwayDraft)).then(() => {
+              setRunwayDraft(null)
+            }),
+          )
+        }
+
+        const results = await Promise.allSettled(requests)
+        const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+        if (failed) throw failed.reason
+      })
+    } catch {
+      // Mutation errors already surface through the existing save error text.
     }
-
-    if (isRunwayDirty && runwayDraft) {
-      requests.push(
-        updateRunway.mutateAsync(Array.from(runwayDraft)).then(() => {
-          setRunwayDraft(null)
-        }),
-      )
-    }
-
-    const results = await Promise.allSettled(requests)
-    const anyFailed = results.some((r) => r.status === 'rejected')
-
-    // Hold `saving` until at least 1s has elapsed so the feedback is visible
-    // even on fast networks.
-    const elapsed = Date.now() - startTime
-    if (elapsed < 1000) await new Promise((r) => setTimeout(r, 1000 - elapsed))
-
-    if (anyFailed) {
-      // Error surfaces via the mutation's own error state; drop back to idle
-      // so the user can retry.
-      setSaveStatus('idle')
-      return
-    }
-
-    // Brief confirmation flash, then back to idle.
-    setSaveStatus('saved')
-    await new Promise((r) => setTimeout(r, 1200))
-    setSaveStatus('idle')
   }
 
   const handleDiscard = () => {
@@ -310,41 +297,16 @@ export default function Settings() {
             >
               Discard
             </button>
-            <motion.button
+            <ActionFeedbackButton
               type="button"
-              className="app-primary-button"
+              className="app-primary-button w-[72px]"
               onClick={handleSave}
               disabled={!canSave && saveStatus === 'idle'}
-              layout
-              transition={{ layout: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] } }}
-              style={saveStatus === 'saved' ? {
-                background: 'var(--app-positive)',
-                borderColor: 'var(--app-positive)',
-                color: '#fff',
-                transition: 'background 250ms ease, border-color 250ms ease, color 250ms ease',
-              } : {
-                transition: 'background 250ms ease, border-color 250ms ease, color 250ms ease',
-              }}
+              loadingLabel="Saving"
+              status={saveStatus}
             >
-              {saveStatus === 'saved' ? (
-                <motion.span
-                  layout="position"
-                  className="inline-flex items-center gap-1.5"
-                  initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 480, damping: 22 }}
-                >
-                  <Check size={16} strokeWidth={2.5} aria-hidden />
-                  Saved
-                </motion.span>
-              ) : saveStatus === 'saving' ? (
-                <motion.span layout="position" aria-label="Saving">
-                  <div className="app-spinner" />
-                </motion.span>
-              ) : (
-                <motion.span layout="position">Save</motion.span>
-              )}
-            </motion.button>
+              Save
+            </ActionFeedbackButton>
           </div>
         </div>
       </div>
