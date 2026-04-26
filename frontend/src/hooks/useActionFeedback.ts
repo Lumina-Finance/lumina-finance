@@ -20,29 +20,32 @@ export function useActionFeedback({
   const [status, setStatus] = useState<ActionFeedbackStatus>('idle')
   const mountedRef = useRef(true)
 
-  useEffect(() => () => {
-    mountedRef.current = false
+  useEffect(() => {
+    mountedRef.current = true
+
+    return () => {
+      mountedRef.current = false
+    }
   }, [])
 
   const setMountedStatus = useCallback((nextStatus: ActionFeedbackStatus) => {
-    if (mountedRef.current) setStatus(nextStatus)
+    if (!mountedRef.current) return
+    setStatus(nextStatus)
   }, [])
 
   const run = useCallback(async <T,>(action: () => Promise<T>): Promise<T> => {
     setMountedStatus('loading')
-    const startedAt = performance.now()
+    const minimumLoading = sleep(minimumLoadingMs)
 
     try {
       const result = await action()
-      const remaining = minimumLoadingMs - (performance.now() - startedAt)
-      if (remaining > 0) await sleep(remaining)
+      await minimumLoading
       setMountedStatus('success')
       await sleep(successMs)
       setMountedStatus('idle')
       return result
     } catch (error) {
-      const remaining = minimumLoadingMs - (performance.now() - startedAt)
-      if (remaining > 0) await sleep(remaining)
+      await minimumLoading
       setMountedStatus('idle')
       throw error
     }

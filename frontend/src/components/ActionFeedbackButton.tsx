@@ -1,10 +1,9 @@
 import { forwardRef, type ReactNode } from 'react'
-import { AnimatePresence, motion, type HTMLMotionProps } from 'motion/react'
-import { Check } from 'lucide-react'
+import { motion, type HTMLMotionProps } from 'motion/react'
+import { Check, LoaderCircle } from 'lucide-react'
 
 export type ActionFeedbackStatus = 'idle' | 'loading' | 'success'
 
-const CONTENT_EASE = [0.25, 0.1, 0.25, 1] as const
 const STATE_STYLE_TRANSITION = 'background 250ms ease, border-color 250ms ease, color 250ms ease'
 
 interface ActionFeedbackButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
@@ -44,44 +43,19 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
           ...stateStyle,
         }}
       >
-        <AnimatePresence mode="wait" initial={false}>
+        <span className="inline-flex h-6 min-w-6 items-center justify-center">
           {status === 'success' ? (
-            <motion.span
-              key="success"
-              className="inline-flex h-6 items-center justify-center"
-              aria-label={successLabel}
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ duration: 0.14, ease: CONTENT_EASE }}
-            >
+            <span aria-label={successLabel}>
               <Check size={16} strokeWidth={2.5} aria-hidden />
-            </motion.span>
+            </span>
           ) : status === 'loading' ? (
-            <motion.span
-              key="loading"
-              className="inline-flex h-6 items-center justify-center"
-              aria-label={loadingLabel}
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ duration: 0.14, ease: CONTENT_EASE }}
-            >
-              <div className="app-spinner" />
-            </motion.span>
+            <span className="inline-flex items-center justify-center" aria-label={loadingLabel}>
+              <LoaderCircle size={18} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
+            </span>
           ) : (
-            <motion.span
-              key="idle"
-              className="inline-flex h-6 items-center justify-center"
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              transition={{ duration: 0.12, ease: CONTENT_EASE }}
-            >
-              {children}
-            </motion.span>
+            children
           )}
-        </AnimatePresence>
+        </span>
       </motion.button>
     )
   },
