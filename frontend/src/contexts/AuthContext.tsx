@@ -84,27 +84,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         localStorage.removeItem(SESSION_KEY);
+        queryClient.clear();
         if (!cancelled) {
           setState({ user: null, accessToken: null, loading: false });
         }
       });
 
     return () => { cancelled = true; };
-  }, [hadSession]);
+  }, [hadSession, queryClient]);
 
   // Call the API and set the session flag, but don't update React state yet.
   // The caller controls when to commit via setSession().
   const login = useCallback(async (payload: LoginPayload) => {
     const res = await authApi.login(payload);
+    queryClient.clear();
     localStorage.setItem(SESSION_KEY, '1');
     return res;
-  }, []);
+  }, [queryClient]);
 
   const signup = useCallback(async (payload: SignupPayload) => {
     const res = await authApi.signup(payload);
+    queryClient.clear();
     localStorage.setItem(SESSION_KEY, '1');
     return res;
-  }, []);
+  }, [queryClient]);
 
   const setSession = useCallback((res: AuthResponse) => {
     setState({ user: res.user, accessToken: res.access_token, loading: false });
