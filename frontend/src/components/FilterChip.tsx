@@ -43,37 +43,35 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="inline-flex h-11 items-center gap-2 rounded-lg px-4 font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]"
+      <div
+        className="inline-flex h-11 items-center rounded-lg border font-medium transition-all duration-150"
         style={{
           background: active ? 'var(--app-accent-soft)' : 'var(--app-input-bg)',
           color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
-          border: `1px solid ${active ? 'var(--app-accent-border)' : 'var(--app-border)'}`,
+          borderColor: active ? 'var(--app-accent-border)' : 'var(--app-border)',
           fontSize: '0.9375rem',
         }}
       >
-        <span>{selectedLabel ?? label}</span>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className={`flex h-full items-center gap-2 rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] ${active && onClear ? 'pl-4 pr-2' : 'px-4'}`}
+        >
+          <span>{selectedLabel ?? label}</span>
+          {active && onClear ? null : <ChevronDown size={14} aria-hidden style={{ opacity: 0.7 }} />}
+        </button>
         {active && onClear ? (
-          <span
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             aria-label={`Clear ${label.toLowerCase()} filter`}
             onClick={(e) => { e.stopPropagation(); onClear() }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onClear() }
-            }}
-            className="ml-0.5 grid place-items-center rounded-md transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
-            style={{ width: 18, height: 18 }}
+            className="app-icon-button mr-1 h-7 w-7"
           >
             <X size={12} aria-hidden />
-          </span>
-        ) : (
-          <ChevronDown size={14} aria-hidden style={{ opacity: 0.7 }} />
-        )}
-      </button>
+          </button>
+        ) : null}
+      </div>
 
       <AnimatePresence>
         {open && (
