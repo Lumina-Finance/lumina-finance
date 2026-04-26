@@ -1177,7 +1177,6 @@ function TaxAdvantagedCategoryModal({
   const [activeTab, setActiveTab] = useState<CategoryModalTab>('limits')
   const [categoryEditOpen, setCategoryEditOpen] = useState(false)
   const [showAddTaxYear, setShowAddTaxYear] = useState(false)
-  const [taxYearsExpanded, setTaxYearsExpanded] = useState(false)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [confirmingPlanDelete, setConfirmingPlanDelete] = useState(false)
   const planDeleteButtonRef = useRef<HTMLButtonElement>(null)
@@ -1411,8 +1410,7 @@ function TaxAdvantagedCategoryModal({
     }
     return nextLimits.sort((a, b) => b.year - a.year)
   }, [limits, pendingCreateLimitYear, pendingDeletedLimit])
-  const visibleLimits = taxYearsExpanded ? sortedLimits : sortedLimits.slice(0, MAX_VISIBLE_LIMIT_ROWS)
-  const hasHiddenLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
+  const hasScrollableLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
   const creatingLimit = pendingCreateLimitYear !== null || createLimit.isPending
   const bindableAccounts = accounts.filter(
     (account) =>
@@ -1532,7 +1530,6 @@ function TaxAdvantagedCategoryModal({
     }
 
     resetNewLimitForm()
-    setTaxYearsExpanded(true)
     setLimitError(null)
     showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
   }
@@ -1890,7 +1887,7 @@ function TaxAdvantagedCategoryModal({
                       </button>
                     </div>
 
-                    <div className="overflow-hidden">
+                    <div className={hasScrollableLimitRows ? 'max-h-[22rem] overflow-y-auto overflow-x-hidden pr-1' : 'overflow-hidden'}>
                       <table className="w-full table-fixed text-left text-[0.9375rem]">
                         <colgroup>
                           <col style={{ width: '6.5rem' }} />
@@ -1900,10 +1897,29 @@ function TaxAdvantagedCategoryModal({
                         </colgroup>
                         <thead>
                           <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
-                            <th className="py-2 pr-4 font-medium">Year</th>
-                            <th className="py-2 pl-0 pr-4 font-medium">Contribution limit</th>
-                            <th className="py-2 pl-4 pr-0 font-medium">Withdrawal limit</th>
-                            <th className="py-2 pl-2 font-medium" aria-label="Actions" />
+                            <th
+                              className="sticky top-0 z-10 py-2 pr-4 font-medium"
+                              style={{ background: 'var(--app-bg)' }}
+                            >
+                              Year
+                            </th>
+                            <th
+                              className="sticky top-0 z-10 py-2 pl-0 pr-4 font-medium"
+                              style={{ background: 'var(--app-bg)' }}
+                            >
+                              Contribution limit
+                            </th>
+                            <th
+                              className="sticky top-0 z-10 py-2 pl-4 pr-0 font-medium"
+                              style={{ background: 'var(--app-bg)' }}
+                            >
+                              Withdrawal limit
+                            </th>
+                            <th
+                              className="sticky top-0 z-10 py-2 pl-2 font-medium"
+                              style={{ background: 'var(--app-bg)' }}
+                              aria-label="Actions"
+                            />
                           </tr>
                         </thead>
                         <tbody>
@@ -1996,7 +2012,7 @@ function TaxAdvantagedCategoryModal({
                               </td>
                             </tr>
                           ) : (
-                            visibleLimits.map((limit) => {
+                            sortedLimits.map((limit) => {
                               const draft = limitDraft(limit.year)
                               const confirmingDelete = deleteConfirmYear === limit.year
                               const deletingLimit = pendingDeleteLimitYear === limit.year
@@ -2098,17 +2114,6 @@ function TaxAdvantagedCategoryModal({
                       </table>
                     </div>
 
-                    {hasHiddenLimitRows && !limitsLoading && (
-                      <div className="flex justify-center">
-                        <button
-                          type="button"
-                          className="app-secondary-button"
-                          onClick={() => setTaxYearsExpanded((current) => !current)}
-                        >
-                          {taxYearsExpanded ? 'See less' : 'See more'}
-                        </button>
-                      </div>
-                    )}
                     {limitError && (
                       <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
                         {limitError}
