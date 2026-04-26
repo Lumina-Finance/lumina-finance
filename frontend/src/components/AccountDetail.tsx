@@ -30,6 +30,7 @@ import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
+import { useTaxAdvantagedPlan, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
@@ -207,6 +208,150 @@ function DetailInstitutionLogo({ institution }: { institution: Account['institut
         />
       ) : (
         <span className="text-2xl font-semibold select-none" style={{ color: 'var(--app-accent)' }}>$</span>
+      )}
+    </div>
+  )
+}
+
+function taxAdvantagedUsageColor(used: number, limit: number): string {
+  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-subtle)'
+  const ratio = used / limit
+  if (ratio > 1) return 'var(--app-negative)'
+  if (ratio >= 0.85) return 'var(--app-accent)'
+  return 'var(--app-positive)'
+}
+
+function taxAdvantagedUsagePercent(used: number, limit: number): number {
+  if (limit <= 0) return used > 0 ? 100 : 0
+  return Math.min(Math.max((used / limit) * 100, 0), 100)
+}
+
+function DetailLimitUsage({
+  label,
+  used,
+  limit,
+  currency,
+}: {
+  label: string
+  used: number
+  limit: number | null
+  currency: string
+}) {
+  if (limit === null) {
+    return (
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+            {label}
+          </p>
+          <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+            N/A
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const color = taxAdvantagedUsageColor(used, limit)
+  const usageLabel = `${formatCurrency(used, currency)} / ${formatCurrency(limit, currency)}`
+  const usagePercent = taxAdvantagedUsagePercent(used, limit)
+
+  return (
+    <div className="group relative">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+          {label}
+        </p>
+        <p className="font-financial text-sm font-semibold tabular-nums" style={{ color }}>
+          {Math.round(usagePercent)}%
+        </p>
+      </div>
+      <div className="relative mt-1">
+        <div
+          className="h-1.5 overflow-hidden rounded-full"
+          style={{ background: 'var(--app-border)' }}
+          role="progressbar"
+          aria-label={`${label} usage`}
+          aria-valuemin={0}
+          aria-valuemax={Math.max(limit, 0)}
+          aria-valuenow={Math.min(Math.max(used, 0), Math.max(limit, 0))}
+          aria-valuetext={usageLabel}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              background: color,
+              width: `${usagePercent}%`,
+            }}
+          />
+        </div>
+        <div
+          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            color: 'var(--app-text)',
+          }}
+        >
+          {usageLabel}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TaxAdvantagedCategoryBand({
+  plan,
+  isLoading,
+  hasError,
+}: {
+  plan: TaxAdvantagedPlan | undefined
+  isLoading: boolean
+  hasError: boolean
+}) {
+  return (
+    <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+      {isLoading ? (
+        <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          Loading linked category...
+        </p>
+      ) : hasError || !plan ? (
+        <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          Linked category unavailable
+        </p>
+      ) : (
+        <>
+          <div className="min-w-0">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{plan.name}</p>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Across linked accounts
+              </p>
+            </div>
+          </div>
+
+          {plan.current_year_contribution_limit === null &&
+          plan.current_year_withdrawal_limit === null ? (
+            <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              No current-year limits set
+            </p>
+          ) : (
+            <div className="mt-3 space-y-3">
+              <DetailLimitUsage
+                label="Contribution limit"
+                used={plan.ytd_contributions}
+                limit={plan.current_year_contribution_limit}
+                currency={plan.currency}
+              />
+              <DetailLimitUsage
+                label="Withdrawal limit"
+                used={plan.ytd_withdrawals}
+                limit={plan.current_year_withdrawal_limit}
+                currency={plan.currency}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -1286,6 +1431,12 @@ function BackLink() {
 export default function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, isLoading, error } = useAccount(accountId)
+  const linkedTaxAdvantagedPlanId = account?.group_id === null ? account.tax_advantaged_plan_id : null
+  const {
+    data: linkedTaxAdvantagedPlan,
+    isLoading: isLinkedTaxAdvantagedPlanLoading,
+    error: linkedTaxAdvantagedPlanError,
+  } = useTaxAdvantagedPlan(linkedTaxAdvantagedPlanId)
 
   // Transaction modal state — lifted up from TransactionListCard so the
   // "Add transaction" button can live outside the card next to the section
@@ -1382,8 +1533,15 @@ export default function AccountDetail() {
                 <dd className="text-sm font-medium">{row.value}</dd>
               </div>
             ))}
-
           </dl>
+
+          {linkedTaxAdvantagedPlanId && (
+            <TaxAdvantagedCategoryBand
+              plan={linkedTaxAdvantagedPlan}
+              isLoading={isLinkedTaxAdvantagedPlanLoading}
+              hasError={!!linkedTaxAdvantagedPlanError}
+            />
+          )}
         </section>
 
         <BalanceChartCard account={account} />
