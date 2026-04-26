@@ -1,12 +1,12 @@
 """Account balance snapshot maintenance.
 
-Snapshots are derived from transactions: one row per `(account, day)` where a
-transaction occurred. The helpers here are called from the transaction routes
+Snapshots include a zero-balance anchor plus one row per `(account, day)` where
+a transaction occurred. The helpers here are called from the transaction routes
 after any mutation to keep the snapshot table consistent.
 """
 import uuid
 from collections.abc import Sequence
-from datetime import date
+from datetime import UTC, date
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,8 +21,8 @@ async def get_current_balances(
     """Return the most recent snapshot balance for each account in one query.
 
     Uses Postgres ``DISTINCT ON`` to pick the row with the highest ``dt`` per account
-    without a self-join. Trusts that every account has at least one snapshot (the
-    zero anchor inserted at account creation time).
+    without a self-join. Every account should have at least one snapshot: the
+    zero anchor inserted at account creation and restored when history is emptied.
     """
     if not account_ids:
         return {}
@@ -111,4 +111,27 @@ async def recompute_snapshots_from(
             balance=running_balance,
         ))
 
+    await db.flush()
+    await restore_zero_anchor_if_empty(db, account_id)
+
+
+async def restore_zero_anchor_if_empty(db: AsyncSession, account_id: uuid.UUID) -> None:
+    """Restore the account creation-day zero anchor when no snapshots remain."""
+    existing = await db.execute(
+        select(AccountBalanceSnapshot.account_id)
+        .where(AccountBalanceSnapshot.account_id == account_id)
+        .limit(1),
+    )
+    if existing.scalar_one_or_none() is not None:
+        return
+
+    created_at = await db.scalar(select(Account.created_at).where(Account.id == account_id))
+    if created_at is None:
+        return
+
+    db.add(AccountBalanceSnapshot(
+        account_id=account_id,
+        dt=created_at.astimezone(UTC).date(),
+        balance=0,
+    ))
     await db.flush()

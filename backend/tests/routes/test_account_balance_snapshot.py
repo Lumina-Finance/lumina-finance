@@ -486,6 +486,7 @@ async def test_update_transaction_account_id_recomputes_both_accounts(client):
     dst = await _create_account(client, headers, name="Dest")
     src_id = uuid.UUID(src.json()["id"])
     dst_id = uuid.UUID(dst.json()["id"])
+    src_creation_day = _creation_day(src)
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
 
@@ -506,9 +507,10 @@ async def test_update_transaction_account_id_recomputes_both_accounts(client):
     src_map = {s.dt: s.balance for s in src_snapshots}
     dst_map = {s.dt: s.balance for s in dst_snapshots}
 
-    # Source loses the moved txn's day; with no other txns it ends up with no snapshots
+    # Source loses the moved txn's day; with no other txns it keeps its zero anchor.
     assert date(2026, 3, 15) not in src_map
-    assert len(src_snapshots) == 0
+    assert src_map[src_creation_day] == 0
+    assert len(src_snapshots) == 1
     # Destination gains the moved txn's day
     assert dst_map[date(2026, 3, 15)] == -5000
     assert len(dst_snapshots) == 1
@@ -796,6 +798,7 @@ async def test_delete_only_transaction_on_day_removes_snapshot(client):
 
     account_resp = await _create_account(client, headers)
     account_id = uuid.UUID(account_resp.json()["id"])
+    creation_day = _creation_day(account_resp)
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
 
@@ -810,9 +813,16 @@ async def test_delete_only_transaction_on_day_removes_snapshot(client):
     snapshots = await _get_snapshots_for(account_id)
     snapshot_map = {s.dt: s.balance for s in snapshots}
     assert date(2026, 3, 15) not in snapshot_map
-    # The retroactive create wiped the original creation-day anchor; deleting
-    # the only txn now leaves the account with no snapshots at all.
-    assert len(snapshots) == 0
+    assert snapshot_map[creation_day] == 0
+    assert len(snapshots) == 1
+
+    accounts_resp = await client.get("/accounts", headers=headers)
+    assert accounts_resp.status_code == 200
+    assert accounts_resp.json()[0]["current_balance"] == 0
+
+    dashboard_resp = await client.get("/dashboard", headers=headers)
+    assert dashboard_resp.status_code == 200
+    assert dashboard_resp.json()["current_net_worth"] == 0
 
 
 async def test_delete_one_of_multiple_same_day_transactions_adjusts_balance(client):
@@ -887,6 +897,7 @@ async def test_delete_group_account_transaction_recomputes_snapshots(client):
 
     account_resp = await _create_account(client, headers, group_id=group_id)
     account_id = uuid.UUID(account_resp.json()["id"])
+    creation_day = _creation_day(account_resp)
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
 
@@ -901,7 +912,8 @@ async def test_delete_group_account_transaction_recomputes_snapshots(client):
     snapshots = await _get_snapshots_for(account_id)
     snapshot_map = {s.dt: s.balance for s in snapshots}
     assert date(2026, 3, 15) not in snapshot_map
-    assert len(snapshots) == 0
+    assert snapshot_map[creation_day] == 0
+    assert len(snapshots) == 1
 
 
 # --- Helpers for the snapshots endpoint ---

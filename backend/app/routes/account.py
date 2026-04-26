@@ -332,8 +332,8 @@ async def create_account(
 
     # Anchor balance history with a zero-balance snapshot on the creation day.
     # This gives the frontend a stable starting point for charts without needing
-    # to join against account.created_at. Retroactively imported transactions
-    # may later replace this snapshot via recompute_snapshots_from.
+    # to join against account.created_at. Recompute restores this anchor when
+    # transaction history is emptied.
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
         dt=account.created_at.astimezone(UTC).date(),

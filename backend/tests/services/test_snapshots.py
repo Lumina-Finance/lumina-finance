@@ -1,5 +1,5 @@
 """Tests for the account balance snapshot recomputation service."""
-from datetime import date
+from datetime import UTC, date
 
 import pytest
 from sqlalchemy import select
@@ -88,11 +88,14 @@ async def _get_snapshots(db, account_id):
 # --- Tests ---
 
 
-async def test_recompute_with_no_transactions_writes_no_snapshots(db, account):
-    """Empty transaction history leaves the snapshot table empty."""
+async def test_recompute_with_no_transactions_restores_zero_anchor(db, account):
+    """Empty transaction history leaves the account with its zero anchor."""
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
-    assert await _get_snapshots(db, account.id) == []
+    snapshots = await _get_snapshots(db, account.id)
+    assert [(s.dt, s.balance) for s in snapshots] == [
+        (account.created_at.astimezone(UTC).date(), 0),
+    ]
 
 
 async def test_recompute_single_day_writes_one_snapshot(db, user, account, category):
