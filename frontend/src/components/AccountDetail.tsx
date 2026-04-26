@@ -1400,8 +1400,7 @@ export default function AccountDetail() {
             <button
               type="button"
               aria-label="Edit account"
-              className="absolute top-3 right-3 grid place-items-center rounded-md transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
-              style={{ width: 28, height: 28, color: 'var(--app-text-muted)' }}
+              className="app-icon-button absolute right-6 top-6"
             >
               <Pencil size={14} aria-hidden />
             </button>

@@ -1759,9 +1759,8 @@ function TaxAdvantagedCategoryModal({
                                   </div>
                                   <button
                                     type="button"
-                                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                                    className="app-icon-button shrink-0"
                                     onClick={resetNewLimitForm}
-                                    style={{ color: 'var(--app-text-subtle)' }}
                                     aria-label="Cancel new tax year"
                                   >
                                     <X size={14} aria-hidden />
