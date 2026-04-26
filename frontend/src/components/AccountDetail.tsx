@@ -189,7 +189,7 @@ function DetailInstitutionLogo({ institution }: { institution: Account['institut
     : null
   return (
     <div
-      className="w-16 h-16 shrink-0 rounded-xl overflow-hidden flex items-center justify-center"
+      className="w-14 h-14 shrink-0 rounded-xl overflow-hidden flex items-center justify-center"
       style={
         faviconUrl
           ? undefined
@@ -207,7 +207,7 @@ function DetailInstitutionLogo({ institution }: { institution: Account['institut
           loading="lazy"
         />
       ) : (
-        <span className="text-2xl font-semibold select-none" style={{ color: 'var(--app-accent)' }}>$</span>
+        <span className="text-xl font-semibold select-none" style={{ color: 'var(--app-accent)' }}>$</span>
       )}
     </div>
   )
@@ -310,7 +310,7 @@ function TaxAdvantagedCategoryBand({
   hasError: boolean
 }) {
   return (
-    <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+    <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
       {isLoading ? (
         <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           Loading linked category...
@@ -353,6 +353,17 @@ function TaxAdvantagedCategoryBand({
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function StandardAccountBand() {
+  return (
+    <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+      <p className="text-sm font-semibold">Standard account</p>
+      <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+        No contribution or withdrawal limits
+      </p>
     </div>
   )
 }
@@ -1478,14 +1489,14 @@ export default function AccountDetail() {
     )
   }
 
-  const money = (value: number | null) =>
-    value === null ? '—' : formatCurrency(value, account.currency)
-
-  const coreRows: { label: string; value: string }[] = [
+  const identityFacts: { label: string; value: string }[] = [
     { label: 'Kind', value: ACCOUNT_KIND_LABEL[account.account_kind] ?? account.account_kind },
     { label: 'Type', value: humanizeAccountType(account.account_type) },
     { label: 'Currency', value: account.currency },
-    { label: 'Credit limit', value: money(account.credit_limit) },
+    {
+      label: 'Credit limit',
+      value: account.credit_limit === null ? '—' : formatCurrency(account.credit_limit, account.currency),
+    },
   ]
 
   return (
@@ -1496,7 +1507,7 @@ export default function AccountDetail() {
           The chart side is a placeholder for step 4. */}
       <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-5">
         <section
-          className="relative rounded-2xl p-6 flex flex-col"
+          className="relative flex min-h-[440px] flex-col rounded-2xl p-6"
           style={{
             background: 'var(--app-surface-soft)',
             border: '1px solid var(--app-border)',
@@ -1514,33 +1525,31 @@ export default function AccountDetail() {
 
           <DetailInstitutionLogo institution={account.institution} />
 
-          <h1 className="mt-4 font-serif font-semibold leading-tight text-2xl">{account.name}</h1>
+          <h1 className="mt-4 font-serif text-[1.375rem] font-semibold leading-tight">{account.name}</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
             {account.institution?.name ?? 'No institution'}
             {account.closed_at && ` · Closed ${new Date(account.closed_at).toLocaleDateString()}`}
           </p>
 
-          <dl className="mt-5 flex-1">
-            {coreRows.map((row) => (
-              <div
-                key={row.label}
-                className="flex items-baseline justify-between py-2 border-b"
-                style={{ borderColor: 'var(--app-border)' }}
-              >
-                <dt className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  {row.label}
+          <dl className="mt-5 grid grid-cols-2 gap-x-5 gap-y-3">
+            {identityFacts.map((fact) => (
+              <div key={fact.label} className="min-w-0">
+                <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+                  {fact.label}
                 </dt>
-                <dd className="text-sm font-medium">{row.value}</dd>
+                <dd className="mt-0.5 truncate text-sm font-medium">{fact.value}</dd>
               </div>
             ))}
           </dl>
 
-          {linkedTaxAdvantagedPlanId && (
+          {linkedTaxAdvantagedPlanId ? (
             <TaxAdvantagedCategoryBand
               plan={linkedTaxAdvantagedPlan}
               isLoading={isLinkedTaxAdvantagedPlanLoading}
               hasError={!!linkedTaxAdvantagedPlanError}
             />
+          ) : (
+            <StandardAccountBand />
           )}
         </section>
 
