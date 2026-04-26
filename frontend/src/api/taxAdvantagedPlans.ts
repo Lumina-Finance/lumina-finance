@@ -1,6 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { accountKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys';
+import type { Account, AccountsOverview } from '@/api/accounts';
 
 export type TaxTreatment = 'tax_free' | 'tax_deferred' | 'tax_assisted';
 
@@ -57,10 +59,83 @@ export interface UpdateTaxAdvantagedPlanLimitPayload {
   withdrawal_limit?: number | null;
 }
 
+function upsertTaxAdvantagedPlan(queryClient: QueryClient, plan: TaxAdvantagedPlan) {
+  queryClient.setQueryData(taxAdvantagedPlanKeys.detail(plan.id), plan);
+  queryClient.setQueryData<TaxAdvantagedPlan[]>(taxAdvantagedPlanKeys.list(), (plans) => {
+    if (!plans) return [plan];
+    const index = plans.findIndex((item) => item.id === plan.id);
+    if (index === -1) return [...plans, plan];
+    return plans.map((item) => (item.id === plan.id ? plan : item));
+  });
+}
+
+function refreshTaxAdvantagedPlanSummary(queryClient: QueryClient, planId: string) {
+  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.list(), exact: true });
+  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.detail(planId), exact: true });
+}
+
+function upsertTaxAdvantagedPlanLimit(
+  queryClient: QueryClient,
+  limit: TaxAdvantagedPlanLimit,
+) {
+  queryClient.setQueryData<TaxAdvantagedPlanLimit[]>(
+    taxAdvantagedPlanKeys.limits(limit.plan_id),
+    (limits) => {
+      if (!limits) return [limit];
+      const index = limits.findIndex((item) => item.year === limit.year);
+      if (index === -1) return [...limits, limit];
+      return limits.map((item) => (item.year === limit.year ? limit : item));
+    },
+  );
+}
+
+function refreshTaxAdvantagedPlanLimitCaches(queryClient: QueryClient, planId: string) {
+  refreshTaxAdvantagedPlanSummary(queryClient, planId);
+  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.limits(planId), exact: true });
+}
+
+function removeTaxAdvantagedPlanLimit(
+  queryClient: QueryClient,
+  planId: string,
+  year: number,
+) {
+  queryClient.setQueryData<TaxAdvantagedPlanLimit[]>(
+    taxAdvantagedPlanKeys.limits(planId),
+    (limits) => limits?.filter((limit) => limit.year !== year),
+  );
+}
+
+function clearLinkedAccountPlanCaches(queryClient: QueryClient, planId: string) {
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list()) ?? [];
+  const linkedAccountIds = accounts
+    .filter((account) => account.tax_advantaged_plan_id === planId)
+    .map((account) => account.id);
+
+  queryClient.setQueryData<AccountsOverview[]>(
+    accountKeys.list(),
+    (currentAccounts) =>
+      currentAccounts?.map((account) =>
+        account.tax_advantaged_plan_id === planId
+          ? { ...account, tax_advantaged_plan_id: null }
+          : account,
+      ),
+  );
+
+  for (const accountId of linkedAccountIds) {
+    queryClient.setQueryData<Account>(accountKeys.detail(accountId), (account) =>
+      account?.tax_advantaged_plan_id === planId
+        ? { ...account, tax_advantaged_plan_id: null }
+        : account,
+    );
+  }
+
+  queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
+}
+
 export function useTaxAdvantagedPlans() {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['tax-advantaged-plans'],
+    queryKey: taxAdvantagedPlanKeys.list(),
     queryFn: () => authenticatedFetch<TaxAdvantagedPlan[]>('/tax-advantaged-plans'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
@@ -75,8 +150,8 @@ export function useCreateTaxAdvantagedPlan() {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
+    onSuccess: (plan) => {
+      upsertTaxAdvantagedPlan(queryClient, plan);
     },
   });
 }
@@ -89,9 +164,8 @@ export function useUpdateTaxAdvantagedPlan(planId: string) {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans', planId] });
+    onSuccess: (plan) => {
+      upsertTaxAdvantagedPlan(queryClient, plan);
     },
   });
 }
@@ -103,8 +177,14 @@ export function useDeleteTaxAdvantagedPlan() {
       authenticatedFetch<void>(`/tax-advantaged-plans/${planId}`, {
         method: 'DELETE',
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
+    onSuccess: (_data, planId) => {
+      queryClient.setQueryData<TaxAdvantagedPlan[]>(
+        taxAdvantagedPlanKeys.list(),
+        (plans) => plans?.filter((plan) => plan.id !== planId),
+      );
+      queryClient.removeQueries({ queryKey: taxAdvantagedPlanKeys.detail(planId), exact: true });
+      queryClient.removeQueries({ queryKey: taxAdvantagedPlanKeys.limits(planId), exact: true });
+      clearLinkedAccountPlanCaches(queryClient, planId);
     },
   });
 }
@@ -112,7 +192,7 @@ export function useDeleteTaxAdvantagedPlan() {
 export function useTaxAdvantagedPlanLimits(planId: string | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['tax-advantaged-plans', planId, 'limits'],
+    queryKey: taxAdvantagedPlanKeys.limits(planId),
     queryFn: () => authenticatedFetch<TaxAdvantagedPlanLimit[]>(`/tax-advantaged-plans/${planId}/limits`),
     enabled: !!accessToken && !!planId,
     staleTime: 5 * 60 * 1000,
@@ -127,10 +207,9 @@ export function useCreateTaxAdvantagedPlanLimit() {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans', variables.planId] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans', variables.planId, 'limits'] });
+    onSuccess: (limit, variables) => {
+      upsertTaxAdvantagedPlanLimit(queryClient, limit);
+      refreshTaxAdvantagedPlanSummary(queryClient, variables.planId);
     },
   });
 }
@@ -143,10 +222,9 @@ export function useUpdateTaxAdvantagedPlanLimit() {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans', variables.planId] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans', variables.planId, 'limits'] });
+    onSuccess: (limit, variables) => {
+      upsertTaxAdvantagedPlanLimit(queryClient, limit);
+      refreshTaxAdvantagedPlanSummary(queryClient, variables.planId);
     },
   });
 }
@@ -159,9 +237,8 @@ export function useDeleteTaxAdvantagedPlanLimit() {
         method: 'DELETE',
       }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans', variables.planId] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans', variables.planId, 'limits'] });
+      removeTaxAdvantagedPlanLimit(queryClient, variables.planId, variables.year);
+      refreshTaxAdvantagedPlanLimitCaches(queryClient, variables.planId);
     },
   });
 }
@@ -169,7 +246,7 @@ export function useDeleteTaxAdvantagedPlanLimit() {
 export function useTaxAdvantagedPlan(planId: string | null | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['tax-advantaged-plans', planId],
+    queryKey: taxAdvantagedPlanKeys.detail(planId),
     queryFn: () => authenticatedFetch<TaxAdvantagedPlan>(`/tax-advantaged-plans/${planId}`),
     enabled: !!accessToken && !!planId,
     staleTime: 5 * 60 * 1000,
