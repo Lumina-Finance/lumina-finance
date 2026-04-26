@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Plus, Search, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -17,6 +17,7 @@ import {
   useAccountCashFlow,
   useAccountSnapshots,
   useAccountSpendingBreakdown,
+  useUpdateAccount,
   type Account,
   type AccountBalanceSnapshot,
   type AccountMonthlyCashFlow,
@@ -25,15 +26,18 @@ import {
   type SpendingRange,
 } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
+import { useCurrencies, type Currency } from '@/api/currency'
+import { useInstitutions } from '@/api/institutions'
 import { useMerchants } from '@/api/merchants'
 import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
-import { useTaxAdvantagedPlan, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import { useTaxAdvantagedPlan, useTaxAdvantagedPlans, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
+import Dropdown from '@/components/Dropdown'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
 
@@ -48,6 +52,30 @@ function humanizeAccountType(type: string): string {
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+function currencyExponent(currencies: Currency[], code: string): number {
+  return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? 2
+}
+
+function fromMinorUnits(value: number | null, currencies: Currency[], code: string): string {
+  if (value === null) return ''
+  const exponent = currencyExponent(currencies, code)
+  const major = value / Math.pow(10, exponent)
+  return exponent === 0 ? String(Math.round(major)) : Number(major.toFixed(exponent)).toString()
+}
+
+function toMinorUnits(value: string, currencies: Currency[], code: string): number | null {
+  if (!value.trim()) return null
+  const exponent = currencyExponent(currencies, code)
+  return Math.round(Number(value) * Math.pow(10, exponent))
+}
+
+function isValidMoneyInput(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) && parsed >= 0
 }
 
 // Balance chart range presets. Each range drives a lookback window + a
@@ -365,6 +393,245 @@ function StandardAccountBand() {
         No contribution or withdrawal limits
       </p>
     </div>
+  )
+}
+
+interface AccountIdentityForm {
+  name: string
+  institution_id: string
+  tax_advantaged_plan_id: string
+  credit_limit: string
+}
+
+function EditAccountIdentityModal({
+  account,
+  onClose,
+}: {
+  account: Account
+  onClose: () => void
+}) {
+  const updateAccount = useUpdateAccount()
+  const { data: currencies = [] } = useCurrencies()
+  const { data: institutions = [] } = useInstitutions()
+  const { data: taxAdvantagedPlans = [] } = useTaxAdvantagedPlans()
+  const [form, setForm] = useState<AccountIdentityForm>({
+    name: account.name,
+    institution_id: account.institution?.id ?? '',
+    tax_advantaged_plan_id: account.tax_advantaged_plan_id ?? '',
+    credit_limit: fromMinorUnits(account.credit_limit, currencies, account.currency),
+  })
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof AccountIdentityForm, string>>>({})
+
+  const isRevolving = account.account_kind === 'revolving'
+  const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
+
+  const institutionOptions = useMemo(
+    () => [
+      { value: '', label: 'None' },
+      ...institutions.map((institution) => ({ value: institution.id, label: institution.name })),
+    ],
+    [institutions],
+  )
+
+  const taxAdvantagedCategoryOptions = useMemo(
+    () => [
+      { value: '', label: 'None' },
+      ...taxAdvantagedPlans
+        .filter((plan) => plan.group_id === null && plan.currency === account.currency)
+        .map((plan) => ({ value: plan.id, label: plan.name })),
+    ],
+    [account.currency, taxAdvantagedPlans],
+  )
+
+  const setField = (field: keyof AccountIdentityForm, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    setFieldErrors((current) => ({ ...current, [field]: undefined }))
+    setSubmitError(null)
+  }
+
+  const validate = () => {
+    const errors: Partial<Record<keyof AccountIdentityForm, string>> = {}
+    if (!form.name.trim()) errors.name = 'Name is required.'
+    else if (form.name.trim().length > 256) errors.name = 'Name must be 256 characters or less.'
+    if (isRevolving && !isValidMoneyInput(form.credit_limit)) {
+      errors.credit_limit = 'Credit limit must be zero or higher.'
+    }
+    return errors
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const errors = validate()
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    updateAccount.mutate(
+      {
+        accountId: account.id,
+        payload: {
+          name: form.name.trim(),
+          institution_id: form.institution_id || null,
+          ...(isRevolving
+            ? { credit_limit: toMinorUnits(form.credit_limit, currencies, account.currency) }
+            : {}),
+          ...(canLinkTaxAdvantagedCategory
+            ? { tax_advantaged_plan_id: form.tax_advantaged_plan_id || null }
+            : {}),
+        },
+      },
+      {
+        onSuccess: onClose,
+        onError: (error) => {
+          setSubmitError(error instanceof Error ? error.message : 'Failed to update account.')
+        },
+      },
+    )
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <form
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-account-identity-title"
+          className="w-full max-w-lg rounded-2xl p-8"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            boxShadow: 'var(--app-shadow-soft)',
+          }}
+          onClick={(event) => event.stopPropagation()}
+          onSubmit={handleSubmit}
+          noValidate
+        >
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <h2 id="edit-account-identity-title" className="font-serif text-3xl font-light tracking-tight">
+              Edit Account
+            </h2>
+            <button type="button" className="app-icon-button shrink-0" onClick={onClose} aria-label="Close">
+              <X size={20} aria-hidden />
+            </button>
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="edit-account-name" className="app-label mb-1.5 block">
+                Account Name
+              </label>
+              <input
+                id="edit-account-name"
+                className={`app-input ${fieldErrors.name ? 'app-input-error' : ''}`}
+                value={form.name}
+                onChange={(event) => setField('name', event.target.value)}
+                maxLength={256}
+              />
+              {fieldErrors.name && (
+                <p className="mt-1 text-xs" style={{ color: 'var(--app-negative)' }}>
+                  {fieldErrors.name}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="app-label mb-1.5 block">Institution</label>
+              <Dropdown
+                options={institutionOptions}
+                value={form.institution_id}
+                onChange={(value) => setField('institution_id', value)}
+                placeholder="Select institution..."
+                searchable
+                searchPlaceholder="Search institutions..."
+              />
+            </div>
+
+            {canLinkTaxAdvantagedCategory && (
+              <div>
+                <label className="app-label mb-1.5 block">Tax-Advantaged Category</label>
+                <Dropdown
+                  options={taxAdvantagedCategoryOptions}
+                  value={form.tax_advantaged_plan_id}
+                  onChange={(value) => setField('tax_advantaged_plan_id', value)}
+                  placeholder="Select category..."
+                  searchable
+                  searchPlaceholder="Search categories..."
+                />
+              </div>
+            )}
+
+            {isRevolving && (
+              <div>
+                <label htmlFor="edit-credit-limit" className="app-label mb-1.5 block">
+                  Credit Limit
+                </label>
+                <input
+                  id="edit-credit-limit"
+                  className={`app-input ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
+                  inputMode="decimal"
+                  value={form.credit_limit}
+                  onChange={(event) => setField('credit_limit', event.target.value)}
+                  placeholder="Optional"
+                />
+                {fieldErrors.credit_limit && (
+                  <p className="mt-1 text-xs" style={{ color: 'var(--app-negative)' }}>
+                    {fieldErrors.credit_limit}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {submitError && (
+              <p className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+                {submitError}
+              </p>
+            )}
+          </div>
+
+          <div
+            className="mt-8 flex items-center justify-end gap-3 pt-4"
+            style={{ borderTop: '1px solid var(--app-border)' }}
+          >
+            <button
+              type="button"
+              className="app-secondary-button"
+              onClick={onClose}
+              disabled={updateAccount.isPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={`app-primary-button ${updateAccount.isPending ? 'app-primary-button-loading' : ''}`}
+              disabled={updateAccount.isPending}
+            >
+              {updateAccount.isPending ? <span className="app-spinner" /> : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
   )
 }
 
@@ -1455,6 +1722,7 @@ export default function AccountDetail() {
   const [showTxnModal, setShowTxnModal] = useState(false)
   const [txnModalKey, setTxnModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [showAccountEditModal, setShowAccountEditModal] = useState(false)
 
   const openCreateTransaction = () => {
     setEditingTransaction(null)
@@ -1518,6 +1786,7 @@ export default function AccountDetail() {
               type="button"
               aria-label="Edit account"
               className="app-icon-button absolute right-6 top-6"
+              onClick={() => setShowAccountEditModal(true)}
             >
               <Pencil size={14} aria-hidden />
             </button>
@@ -1580,6 +1849,13 @@ export default function AccountDetail() {
         defaultAccountId={account.id}
         defaultCurrency={account.currency}
       />
+
+      {showAccountEditModal && (
+        <EditAccountIdentityModal
+          account={account}
+          onClose={() => setShowAccountEditModal(false)}
+        />
+      )}
     </div>
   )
 }
