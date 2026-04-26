@@ -28,6 +28,7 @@ import {
   useUpdateTaxAdvantagedPlan,
   useUpdateTaxAdvantagedPlanLimit,
   type TaxAdvantagedPlan,
+  type TaxAdvantagedPlanLimit,
   type TaxTreatment,
 } from '@/api/taxAdvantagedPlans'
 import {
@@ -59,6 +60,10 @@ const DISABLED_INPUT_STYLE: React.CSSProperties = {
 const CATEGORY_SUMMARY_LABEL_CLASS = 'app-label mb-1 block h-5 truncate leading-5'
 const CATEGORY_SUMMARY_VALUE_CLASS = 'flex h-6 items-center truncate text-[0.9375rem] font-medium leading-6'
 const CATEGORY_FIELD_TRANSITION = {
+  duration: 0.1,
+  ease: 'easeOut' as const,
+}
+const LIMIT_DELETE_BUTTON_TRANSITION = {
   duration: 0.1,
   ease: 'easeOut' as const,
 }
@@ -385,6 +390,7 @@ const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [
 
 const DEFAULT_NEW_LIMIT_YEAR = new Date().getFullYear()
 const MAX_VISIBLE_LIMIT_ROWS = 5
+const LIMIT_DELETE_FEEDBACK_MS = 600
 
 interface TaxPlanFormState {
   name: string
@@ -648,7 +654,7 @@ function CompactCurrencyInput({
 
   return (
     <div
-      className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+      className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
       style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
     >
       {symbol && (
@@ -1162,7 +1168,11 @@ function TaxAdvantagedCategoryModal({
   const planDeleteButtonRef = useRef<HTMLButtonElement>(null)
   const planDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
   const planDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
+  const limitDeleteButtonRef = useRef<HTMLButtonElement>(null)
+  const limitDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
+  const limitDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
   const [planDeleteLabelWidths, setPlanDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
+  const [limitDeleteLabelWidths, setLimitDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
   const planBase: TaxPlanFormState = {
     name: plan.name,
     tax_treatment: plan.tax_treatment,
@@ -1178,6 +1188,8 @@ function TaxAdvantagedCategoryModal({
     withdrawal_limit: '',
   })
   const [deleteConfirmYear, setDeleteConfirmYear] = useState<number | null>(null)
+  const [pendingDeleteLimitYear, setPendingDeleteLimitYear] = useState<number | null>(null)
+  const [pendingDeletedLimit, setPendingDeletedLimit] = useState<TaxAdvantagedPlanLimit | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
   const [limitError, setLimitError] = useState<string | null>(null)
   const [planSaveStatus, setPlanSaveStatus] = useState<'idle' | 'loading' | 'success'>('idle')
@@ -1222,6 +1234,12 @@ function TaxAdvantagedCategoryModal({
         confirm: planDeleteConfirmLabelRef.current.offsetWidth,
       })
     }
+    if (limitDeleteIdleLabelRef.current && limitDeleteConfirmLabelRef.current) {
+      setLimitDeleteLabelWidths({
+        idle: limitDeleteIdleLabelRef.current.offsetWidth,
+        confirm: limitDeleteConfirmLabelRef.current.offsetWidth,
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -1237,6 +1255,20 @@ function TaxAdvantagedCategoryModal({
       window.removeEventListener('pointerdown', onPointerDown)
     }
   }, [confirmingPlanDelete])
+
+  useEffect(() => {
+    if (deleteConfirmYear === null || pendingDeleteLimitYear !== null) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (limitDeleteButtonRef.current && !limitDeleteButtonRef.current.contains(event.target as Node)) {
+        setDeleteConfirmYear(null)
+      }
+    }
+    const timer = window.setTimeout(() => window.addEventListener('pointerdown', onPointerDown), 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [deleteConfirmYear, pendingDeleteLimitYear])
 
   const setPlanField = <K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) => {
     setPlanOverrides((current) => ({ ...current, [key]: value }))
@@ -1346,10 +1378,13 @@ function TaxAdvantagedCategoryModal({
     })
   }
 
-  const sortedLimits = useMemo(
-    () => [...limits].sort((a, b) => b.year - a.year),
-    [limits],
-  )
+  const sortedLimits = useMemo(() => {
+    const nextLimits = [...limits]
+    if (pendingDeletedLimit && !nextLimits.some((limit) => limit.year === pendingDeletedLimit.year)) {
+      nextLimits.push(pendingDeletedLimit)
+    }
+    return nextLimits.sort((a, b) => b.year - a.year)
+  }, [limits, pendingDeletedLimit])
   const visibleLimits = taxYearsExpanded ? sortedLimits : sortedLimits.slice(0, MAX_VISIBLE_LIMIT_ROWS)
   const hasHiddenLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
   const bindableAccounts = accounts.filter(
@@ -1361,6 +1396,7 @@ function TaxAdvantagedCategoryModal({
 
   const limitDraft = (year: number) => {
     const limit = limits.find((row) => row.year === year)
+      ?? (pendingDeletedLimit?.year === year ? pendingDeletedLimit : undefined)
     return {
       contribution_limit: limitDrafts[year]?.contribution_limit
         ?? fromMinorUnits(limit?.contribution_limit ?? null, currencies, plan.currency),
@@ -1466,25 +1502,36 @@ function TaxAdvantagedCategoryModal({
     )
   }
 
-  const handleDeleteLimit = (year: number) => {
-    if (deleteConfirmYear !== year) {
-      setDeleteConfirmYear(year)
+  const handleDeleteLimit = async (limit: TaxAdvantagedPlanLimit) => {
+    if (deleteConfirmYear !== limit.year) {
+      setDeleteConfirmYear(limit.year)
       return
     }
-    deleteLimit.mutate(
-      { planId: plan.id, year },
-      {
-        onSuccess: () => {
-          setDeleteConfirmYear(null)
-          showAutosaveNotice({ status: 'saved', message: 'Limit deleted.' })
-        },
-        onError: (error) => {
-          const message = error instanceof Error ? error.message : 'Failed to delete limit.'
-          setLimitError(message)
-          showAutosaveNotice({ status: 'error', message })
-        },
-      },
-    )
+    if (pendingDeleteLimitYear !== null) return
+
+    setPendingDeleteLimitYear(limit.year)
+    setPendingDeletedLimit(limit)
+    const minimumFeedback = new Promise((resolve) => window.setTimeout(resolve, LIMIT_DELETE_FEEDBACK_MS))
+
+    let deleteError: unknown = null
+    try {
+      await deleteLimit.mutateAsync({ planId: plan.id, year: limit.year })
+    } catch (error) {
+      deleteError = error
+    }
+
+    await minimumFeedback
+
+    setPendingDeleteLimitYear(null)
+    setPendingDeletedLimit(null)
+    setDeleteConfirmYear(null)
+
+    if (deleteError) {
+      setLimitError(deleteError instanceof Error ? deleteError.message : 'Failed to delete limit.')
+      return
+    }
+
+    setLimitError(null)
   }
 
   const handleToggleAccount = (account: AccountsOverview) => {
@@ -1808,18 +1855,20 @@ function TaxAdvantagedCategoryModal({
                       </button>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <div className="overflow-hidden">
                       <table className="w-full table-fixed text-left text-[0.9375rem]">
                         <colgroup>
-                          <col style={{ width: '7rem' }} />
-                          <col />
-                          <col />
+                          <col style={{ width: '6.5rem' }} />
+                          <col style={{ width: 'calc((100% - 11.5rem) / 2)' }} />
+                          <col style={{ width: 'calc((100% - 11.5rem) / 2)' }} />
+                          <col style={{ width: '5rem' }} />
                         </colgroup>
                         <thead>
                           <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
                             <th className="py-2 pr-4 font-medium">Year</th>
-                            <th className="py-2 pr-4 font-medium">Contribution limit</th>
-                            <th className="py-2 font-medium">Withdrawal limit</th>
+                            <th className="py-2 pl-0 pr-4 font-medium">Contribution limit</th>
+                            <th className="py-2 pl-4 pr-0 font-medium">Withdrawal limit</th>
+                            <th className="py-2 pl-2 font-medium" aria-label="Actions" />
                           </tr>
                         </thead>
                         <tbody>
@@ -1828,7 +1877,7 @@ function TaxAdvantagedCategoryModal({
                               style={{ borderBottom: '1px solid var(--app-border)' }}
                               onBlur={(event) => saveWhenFocusLeaves(event, handleCreateLimit)}
                             >
-                              <td className="min-w-0 py-3 pr-4">
+                              <td className="min-w-0 py-3 pr-5">
                                 <div
                                   className="group flex h-9 w-20 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
                                   style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
@@ -1851,7 +1900,7 @@ function TaxAdvantagedCategoryModal({
                                   />
                                 </div>
                               </td>
-                              <td className="min-w-0 py-3 pr-4">
+                              <td className="min-w-0 py-3 pl-0 pr-4">
                                 <CompactCurrencyInput
                                   ariaLabel="New tax-year contribution limit"
                                   currencies={currencies}
@@ -1861,18 +1910,18 @@ function TaxAdvantagedCategoryModal({
                                   placeholder="Contribution limit"
                                 />
                               </td>
-                              <td className="min-w-0 py-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="min-w-0 flex-1">
-                                    <CompactCurrencyInput
-                                      ariaLabel="New tax-year withdrawal limit"
-                                      currencies={currencies}
-                                      currency={plan.currency}
-                                      value={newLimitForm.withdrawal_limit}
-                                      onChange={(value) => setNewLimitField('withdrawal_limit', value)}
-                                      placeholder="Optional"
-                                    />
-                                  </div>
+                              <td className="min-w-0 py-3 pl-4 pr-0">
+                                <CompactCurrencyInput
+                                  ariaLabel="New tax-year withdrawal limit"
+                                  currencies={currencies}
+                                  currency={plan.currency}
+                                  value={newLimitForm.withdrawal_limit}
+                                  onChange={(value) => setNewLimitField('withdrawal_limit', value)}
+                                  placeholder="Optional"
+                                />
+                              </td>
+                              <td className="py-3 pl-2">
+                                <div className="flex items-center justify-center gap-1">
                                   <button
                                     type="button"
                                     className="app-icon-button shrink-0"
@@ -1901,13 +1950,13 @@ function TaxAdvantagedCategoryModal({
                           )}
                           {limitsLoading ? (
                             <tr>
-                              <td className="py-3" colSpan={3}>
+                              <td className="py-3" colSpan={4}>
                                 <div className="h-10 rounded-lg bg-gray-300" />
                               </td>
                             </tr>
                           ) : sortedLimits.length === 0 && !showAddTaxYear ? (
                             <tr>
-                              <td className="py-4 text-sm italic" colSpan={3} style={{ color: 'var(--app-text-subtle)' }}>
+                              <td className="py-4 text-sm italic" colSpan={4} style={{ color: 'var(--app-text-subtle)' }}>
                                 No limit entries yet.
                               </td>
                             </tr>
@@ -1915,10 +1964,11 @@ function TaxAdvantagedCategoryModal({
                             visibleLimits.map((limit) => {
                               const draft = limitDraft(limit.year)
                               const confirmingDelete = deleteConfirmYear === limit.year
+                              const deletingLimit = pendingDeleteLimitYear === limit.year
                               return (
                                 <tr key={limit.year} style={{ borderBottom: '1px solid var(--app-border)' }}>
                                   <td className="py-3 pr-4 font-medium">{limit.year}</td>
-                                  <td className="min-w-0 py-3 pr-4">
+                                  <td className="min-w-0 py-3 pl-0 pr-4">
                                     <CompactCurrencyInput
                                       ariaLabel={`${limit.year} contribution limit`}
                                       currencies={currencies}
@@ -1928,28 +1978,80 @@ function TaxAdvantagedCategoryModal({
                                       onChange={(value) => setLimitField(limit.year, 'contribution_limit', value)}
                                     />
                                   </td>
-                                  <td className="min-w-0 py-3">
-                                    <div className="flex items-center gap-2">
-                                      <div className="min-w-0 flex-1">
-                                        <CompactCurrencyInput
-                                          ariaLabel={`${limit.year} withdrawal limit`}
-                                          currencies={currencies}
-                                          currency={plan.currency}
-                                          onBlur={() => handleSaveLimit(limit.year)}
-                                          value={draft.withdrawal_limit}
-                                          onChange={(value) => setLimitField(limit.year, 'withdrawal_limit', value)}
-                                          placeholder="Optional"
-                                        />
-                                      </div>
+                                  <td className="min-w-0 py-3 pl-4 pr-0">
+                                    <CompactCurrencyInput
+                                      ariaLabel={`${limit.year} withdrawal limit`}
+                                      currencies={currencies}
+                                      currency={plan.currency}
+                                      onBlur={() => handleSaveLimit(limit.year)}
+                                      value={draft.withdrawal_limit}
+                                      onChange={(value) => setLimitField(limit.year, 'withdrawal_limit', value)}
+                                      placeholder="Optional"
+                                    />
+                                  </td>
+                                  <td className="py-3 pl-2">
+                                    <div className="flex items-center justify-center">
                                       <button
+                                        ref={confirmingDelete ? limitDeleteButtonRef : undefined}
                                         type="button"
-                                        className={`inline-flex h-7 shrink-0 items-center justify-center rounded-md text-xs font-medium transition-colors duration-150 hover:bg-[var(--app-negative-soft)] ${confirmingDelete ? 'px-2' : 'w-7'}`}
-                                        onClick={() => handleDeleteLimit(limit.year)}
-                                        disabled={deleteLimit.isPending}
-                                        style={{ color: confirmingDelete ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}
+                                        className="inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors duration-150 hover:bg-[var(--app-negative-soft)]"
+                                        onClick={() => { void handleDeleteLimit(limit) }}
+                                        disabled={pendingDeleteLimitYear !== null}
+                                        style={{ color: confirmingDelete || deletingLimit ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}
                                         aria-label={confirmingDelete ? `Confirm deleting ${limit.year} limits` : `Delete ${limit.year} limits`}
                                       >
-                                        {confirmingDelete ? 'Confirm' : <Trash2 size={14} aria-hidden />}
+                                        <span
+                                          className="relative block"
+                                          style={{
+                                            width: limitDeleteLabelWidths
+                                              ? `${confirmingDelete || deletingLimit ? limitDeleteLabelWidths.confirm : limitDeleteLabelWidths.idle}px`
+                                              : 'auto',
+                                            height: '1rem',
+                                            transition: 'width 150ms ease-out',
+                                          }}
+                                        >
+                                          <span
+                                            ref={limitDeleteIdleLabelRef}
+                                            className="invisible absolute inline-flex items-center whitespace-nowrap"
+                                            aria-hidden
+                                          >
+                                            <Trash2 size={14} aria-hidden />
+                                          </span>
+                                          <span
+                                            ref={limitDeleteConfirmLabelRef}
+                                            className="invisible absolute inline-flex items-center whitespace-nowrap"
+                                            aria-hidden
+                                          >
+                                            Confirm
+                                          </span>
+                                          <motion.span
+                                            className="absolute inset-0 inline-flex items-center justify-center"
+                                            animate={{ opacity: deletingLimit ? 1 : 0 }}
+                                            initial={false}
+                                            transition={LIMIT_DELETE_BUTTON_TRANSITION}
+                                            aria-hidden={!deletingLimit}
+                                          >
+                                            <LoaderCircle size={14} className="animate-spin" aria-hidden />
+                                          </motion.span>
+                                          <motion.span
+                                            className="absolute inset-0 inline-flex items-center justify-center"
+                                            animate={{ opacity: confirmingDelete && !deletingLimit ? 1 : 0 }}
+                                            initial={false}
+                                            transition={LIMIT_DELETE_BUTTON_TRANSITION}
+                                            aria-hidden={!confirmingDelete || deletingLimit}
+                                          >
+                                            Confirm
+                                          </motion.span>
+                                          <motion.span
+                                            className="absolute inset-0 inline-flex items-center justify-center"
+                                            animate={{ opacity: confirmingDelete || deletingLimit ? 0 : 1 }}
+                                            initial={false}
+                                            transition={LIMIT_DELETE_BUTTON_TRANSITION}
+                                            aria-hidden={confirmingDelete || deletingLimit}
+                                          >
+                                            <Trash2 size={14} aria-hidden />
+                                          </motion.span>
+                                        </span>
                                       </button>
                                     </div>
                                   </td>
