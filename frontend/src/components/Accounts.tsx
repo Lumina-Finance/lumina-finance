@@ -11,6 +11,7 @@ import {
 import { useTaxAdvantagedPlans, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { useTransactionsOverview } from '@/api/transactions'
 import { useRunway } from '@/api/user'
+import { accountKeys, taxAdvantagedPlanKeys, transactionOverviewKeys } from '@/api/queryKeys'
 import { useFocusRefetch } from '@/hooks/useFocusRefetch'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -397,7 +398,11 @@ export default function Accounts() {
   const { user } = useAuth()
   const { data: accounts, isLoading, error } = useAccounts()
   const { data: taxAdvantagedPlans } = useTaxAdvantagedPlans()
-  useFocusRefetch([['accounts'], ['transactions-overview'], ['tax-advantaged-plans']])
+  useFocusRefetch([
+    accountKeys.list(),
+    { queryKey: transactionOverviewKeys.all, exact: false },
+    taxAdvantagedPlanKeys.list(),
+  ])
 
   const rows = useMemo(() => accounts ?? [], [accounts])
   const taxAdvantagedPlanById = useMemo(
