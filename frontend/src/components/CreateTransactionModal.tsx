@@ -436,7 +436,7 @@ export default function CreateTransactionModal({
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5" noValidate>
                 {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                <div className="flex gap-2">
+                <div className="app-segmented-control w-full">
                   {KIND_OPTIONS.map((opt) => {
                     const selected = form.kind === opt.value
                     return (
@@ -446,13 +446,7 @@ export default function CreateTransactionModal({
                         onClick={() => !editing && handleKindChange(opt.value)}
                         disabled={editing}
                         aria-disabled={editing}
-                        className="flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed"
-                        style={{
-                          background: selected ? 'var(--app-accent-soft)' : 'transparent',
-                          color: selected ? 'var(--app-accent)' : 'var(--app-text-muted)',
-                          border: `1px solid ${selected ? 'var(--app-accent-border)' : 'var(--app-border)'}`,
-                          opacity: editing && !selected ? 0.4 : 1,
-                        }}
+                        className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''} ${editing ? 'cursor-not-allowed' : ''} ${editing && !selected ? 'opacity-40' : ''}`}
                       >
                         {opt.label}
                       </button>
@@ -474,7 +468,7 @@ export default function CreateTransactionModal({
                     >
                       <div>
                         <label className="app-label block mb-1.5">Direction</label>
-                        <div className="flex gap-2">
+                        <div className="app-segmented-control w-full">
                           {([
                             { value: 'out', label: 'Money Out' },
                             { value: 'in', label: 'Money In' },
@@ -485,12 +479,7 @@ export default function CreateTransactionModal({
                                 key={opt.value}
                                 type="button"
                                 onClick={() => handleField('transfer_direction', opt.value)}
-                                className="flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-150"
-                                style={{
-                                  background: selected ? 'var(--app-accent-soft)' : 'transparent',
-                                  color: selected ? 'var(--app-accent)' : 'var(--app-text-muted)',
-                                  border: `1px solid ${selected ? 'var(--app-accent-border)' : 'var(--app-border)'}`,
-                                }}
+                                className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''}`}
                               >
                                 {opt.label}
                               </button>
