@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { ChevronDown, EyeOff, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import {
   useAccounts,
@@ -311,25 +311,90 @@ function AccountListSection({
   )
 }
 
+function HiddenAccountsSection({
+  accounts,
+  displayCurrency,
+  taxAdvantagedPlanById,
+}: {
+  accounts: AccountsOverview[]
+  displayCurrency: string
+  taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (accounts.length === 0) return null
+
+  return (
+    <section>
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 py-2 text-left transition-colors hover:text-[var(--app-text)]"
+        style={{
+          borderTop: '1px solid var(--app-border)',
+          color: 'var(--app-text-muted)',
+        }}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <EyeOff size={16} aria-hidden />
+        <span className="font-medium">Hidden accounts</span>
+        <span
+          className="rounded-full px-2 py-0.5 text-xs font-semibold"
+          style={{ background: 'var(--app-accent-soft)' }}
+        >
+          {accounts.length}
+        </span>
+        <ChevronDown
+          size={16}
+          className={`ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      </button>
+
+      {expanded && (
+        <div className="pt-1">
+          {accounts.map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              accent={account.account_kind === 'asset' ? 'positive' : 'negative'}
+              showCreditLimit={account.account_kind === 'revolving'}
+              displayCurrency={displayCurrency}
+              taxAdvantagedPlanById={taxAdvantagedPlanById}
+              isHidden
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function AccountRow({
   account,
   accent,
   showCreditLimit,
   displayCurrency,
   taxAdvantagedPlanById,
+  isHidden = false,
 }: {
   account: AccountsOverview
   accent: 'positive' | 'negative'
   showCreditLimit: boolean
   displayCurrency: string
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
+  isHidden?: boolean
 }) {
-  const barColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
+  const barColor = isHidden
+    ? 'var(--app-text-muted)'
+    : accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
   // Asset balances show green when positive; debt-kind sections stay neutral
   // when the balance is non-negative (an overpayment credit shouldn't read as
   // celebratory).
   const balanceColor =
-    accent === 'positive'
+    isHidden
+      ? 'var(--app-text-muted)'
+      : accent === 'positive'
       ? account.current_balance > 0
         ? 'var(--app-positive)'
         : account.current_balance < 0
@@ -345,7 +410,10 @@ function AccountRow({
   return (
     <Link
       to={`/accounts/${account.id}`}
-      className="flex items-stretch rounded-xl transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+      className={`flex items-stretch rounded-xl transition-colors duration-150 hover:bg-[var(--app-accent-soft)] ${
+        isHidden ? 'my-1 border border-dashed opacity-75 hover:opacity-100' : ''
+      }`}
+      style={isHidden ? { borderColor: 'var(--app-border)' } : undefined}
     >
       <div
         className="w-0.5 rounded-full my-3"
@@ -356,6 +424,14 @@ function AccountRow({
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{account.name}</p>
           <div className="mt-0.5 flex min-w-0 items-center gap-2">
+            {isHidden && (
+              <EyeOff
+                size={13}
+                className="shrink-0"
+                style={{ color: 'var(--app-text-muted)' }}
+                aria-hidden
+              />
+            )}
             <p className="min-w-0 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
               {humanizeAccountType(account.account_type)}
               {account.institution && ` · ${account.institution.name}`}
@@ -404,7 +480,9 @@ export default function Accounts() {
     taxAdvantagedPlanKeys.list(),
   ])
 
-  const rows = useMemo(() => accounts ?? [], [accounts])
+  const allRows = useMemo(() => accounts ?? [], [accounts])
+  const rows = useMemo(() => allRows.filter((account) => !account.is_hidden), [allRows])
+  const hiddenRows = useMemo(() => allRows.filter((account) => account.is_hidden), [allRows])
   const taxAdvantagedPlanById = useMemo(
     () => new Map((taxAdvantagedPlans ?? []).map((plan) => [plan.id, plan])),
     [taxAdvantagedPlans],
@@ -417,8 +495,8 @@ export default function Accounts() {
   const assetCount = rows.filter((a) => a.account_kind === 'asset').length
   const debtCount = rows.filter(isDebtAccount).length
 
-  // Filters apply only to the Assets/Liabilities lists below — the headline
-  // totals and metrics band above always reflect the full picture.
+  // Filters apply only to the Assets/Liabilities lists below. Hidden accounts
+  // stay out of the overview math and live in their own disclosure section.
   const [filters, setFilters] = useState<AccountFilterValues>({})
   const setFilter = (patch: Partial<AccountFilterValues>) => {
     setFilters((f) => {
@@ -865,6 +943,11 @@ export default function Accounts() {
           taxAdvantagedPlanById={taxAdvantagedPlanById}
         />
 
+        <HiddenAccountsSection
+          accounts={hiddenRows}
+          displayCurrency={displayCurrency}
+          taxAdvantagedPlanById={taxAdvantagedPlanById}
+        />
       </div>
 
       <CreateAccountModal
