@@ -1876,7 +1876,21 @@ function TaxAdvantagedCategoryModal({
                                   <button
                                     type="button"
                                     className="app-icon-button shrink-0"
+                                    onClick={handleCreateLimit}
+                                    disabled={createLimit.isPending}
+                                    aria-label="Save new tax year"
+                                  >
+                                    {createLimit.isPending ? (
+                                      <LoaderCircle size={14} className="animate-spin" aria-hidden />
+                                    ) : (
+                                      <Check size={14} aria-hidden />
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="app-icon-button shrink-0"
                                     onClick={resetNewLimitForm}
+                                    disabled={createLimit.isPending}
                                     aria-label="Cancel new tax year"
                                   >
                                     <X size={14} aria-hidden />
