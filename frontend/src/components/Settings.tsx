@@ -588,7 +588,7 @@ function InlineCurrencyInput({
 
   return (
     <div
-      className="flex h-6 min-w-0 items-center gap-1"
+      className="group flex h-6 min-w-0 items-center gap-1"
       style={{ borderBottom: '1px solid var(--app-border-strong)' }}
     >
       {symbol && (
@@ -610,6 +610,12 @@ function InlineCurrencyInput({
         style={{ color: 'var(--app-text)' }}
         type="text"
         value={displayValue}
+      />
+      <Pencil
+        size={13}
+        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+        style={{ color: 'var(--app-text-subtle)' }}
+        aria-hidden
       />
     </div>
   )
@@ -681,23 +687,31 @@ function InlineTaxTreatmentSelect({
   value: TaxTreatment
 }) {
   return (
-    <select
-      aria-label="Category type"
-      className="block h-6 w-full appearance-none bg-transparent text-[0.9375rem] font-medium leading-6 outline-none"
-      onBlur={onBlur}
-      onChange={(event) => onChange(event.target.value as TaxTreatment)}
-      style={{
-        borderBottom: '1px solid var(--app-border-strong)',
-        color: 'var(--app-text)',
-      }}
-      value={value}
+    <div
+      className="group flex h-6 min-w-0 items-center gap-1"
+      style={{ borderBottom: '1px solid var(--app-border-strong)' }}
     >
-      {TAX_TREATMENT_OPTIONS.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+      <select
+        aria-label="Category type"
+        className="block h-6 min-w-0 flex-1 appearance-none bg-transparent text-[0.9375rem] font-medium leading-6 outline-none"
+        onBlur={onBlur}
+        onChange={(event) => onChange(event.target.value as TaxTreatment)}
+        style={{ color: 'var(--app-text)' }}
+        value={value}
+      >
+        {TAX_TREATMENT_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <Pencil
+        size={13}
+        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+        style={{ color: 'var(--app-text-subtle)' }}
+        aria-hidden
+      />
+    </div>
   )
 }
 
@@ -1553,18 +1567,26 @@ function TaxAdvantagedCategoryModal({
               <div className="min-w-0">
                 <h3 id="tax-advantaged-category-title" className="font-serif text-3xl font-medium tracking-tight truncate">
                   {categoryEditOpen ? (
-                    <input
-                      aria-label="Category name"
-                      className="block w-full min-w-0 bg-transparent font-serif text-3xl font-medium tracking-tight outline-none"
-                      maxLength={256}
-                      onChange={(event) => setPlanField('name', event.target.value)}
-                      required
-                      style={{
-                        borderBottom: '1px solid var(--app-border-strong)',
-                        color: 'var(--app-text)',
-                      }}
-                      value={planForm.name}
-                    />
+                    <div
+                      className="group flex min-w-0 items-center gap-2"
+                      style={{ borderBottom: '1px solid var(--app-border-strong)' }}
+                    >
+                      <input
+                        aria-label="Category name"
+                        className="block min-w-0 flex-1 bg-transparent font-serif text-3xl font-medium tracking-tight outline-none"
+                        maxLength={256}
+                        onChange={(event) => setPlanField('name', event.target.value)}
+                        required
+                        style={{ color: 'var(--app-text)' }}
+                        value={planForm.name}
+                      />
+                      <Pencil
+                        size={15}
+                        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                        style={{ color: 'var(--app-text-subtle)' }}
+                        aria-hidden
+                      />
+                    </div>
                   ) : (
                     planForm.name.trim() || plan.name
                   )}
