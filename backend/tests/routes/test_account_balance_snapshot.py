@@ -14,7 +14,7 @@ from tests.routes.conftest import _create_account, _create_user, _get_auth_heade
 
 
 def _creation_day(account_resp):
-    """Return the date (UTC) of the account's creation day."""
+    """Return the account's creation date from the API timestamp."""
     return datetime.fromisoformat(account_resp.json()["created_at"]).astimezone(UTC).date()
 
 
@@ -448,8 +448,8 @@ async def test_update_transaction_dt_to_earlier_day_recomputes_from_earlier_day(
     assert len(snapshots) == 1
 
 
-async def test_update_transaction_dt_within_same_utc_day_keeps_snapshot_unchanged(client):
-    """Changing ts to a different time of the same UTC day re-runs recompute but yields the same snapshot."""
+async def test_update_transaction_dt_within_same_day_keeps_snapshot_unchanged(client):
+    """Updating dt to the same date re-runs recompute but yields the same snapshot."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -466,7 +466,6 @@ async def test_update_transaction_dt_within_same_utc_day_keeps_snapshot_unchange
 
     before = [(s.dt, s.balance) for s in await _get_snapshots_for(account_id)]
 
-    # Same UTC day, different time of day
     await client.patch(
         f"/transactions/{txn_id}",
         json={"dt": "2026-03-15"},
@@ -1073,7 +1072,6 @@ async def test_list_snapshots_with_zero_width_date_range_returns_only_that_day(c
     account_id = account_resp.json()["id"]
     await _seed_three_day_history(client, headers, account_id)
 
-    # Both bounds at midnight UTC of day 5 — the snapshot's ts is exactly that
     resp = await client.get(
         f"/accounts/{account_id}/snapshots",
         params={

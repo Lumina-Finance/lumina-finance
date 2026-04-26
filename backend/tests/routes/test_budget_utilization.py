@@ -311,7 +311,7 @@ async def test_get_budget_utilization_excludes_transactions_after_period_end(cli
 
 
 async def test_get_budget_utilization_includes_transaction_at_period_start_boundary(client):
-    """A transaction whose UTC date equals period_start is included (inclusive bound)."""
+    """A transaction whose date equals period_start is included (inclusive bound)."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -322,7 +322,6 @@ async def test_get_budget_utilization_includes_transaction_at_period_start_bound
         client, headers, category_ids=[groceries],
     )
 
-    # Midnight UTC of period_start — date bucket is exactly period_start
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-01", amount=-1000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
@@ -333,7 +332,7 @@ async def test_get_budget_utilization_includes_transaction_at_period_start_bound
 
 
 async def test_get_budget_utilization_includes_transaction_at_period_end_boundary(client):
-    """A transaction whose UTC date equals period_end is included (inclusive bound)."""
+    """A transaction whose date equals period_end is included (inclusive bound)."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -344,7 +343,6 @@ async def test_get_budget_utilization_includes_transaction_at_period_end_boundar
         client, headers, category_ids=[groceries],
     )
 
-    # 23:59 on period_end UTC — still on the period_end day
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-31", amount=-1000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
