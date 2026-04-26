@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   User as UserIcon,
@@ -1178,6 +1178,11 @@ function TaxAdvantagedCategoryModal({
   const [showAddTaxYear, setShowAddTaxYear] = useState(false)
   const [taxYearsExpanded, setTaxYearsExpanded] = useState(false)
   const [accountError, setAccountError] = useState<string | null>(null)
+  const [confirmingPlanDelete, setConfirmingPlanDelete] = useState(false)
+  const planDeleteButtonRef = useRef<HTMLButtonElement>(null)
+  const planDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
+  const planDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
+  const [planDeleteLabelWidths, setPlanDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
   const planBase: TaxPlanFormState = {
     name: plan.name,
     tax_treatment: plan.tax_treatment,
@@ -1228,6 +1233,29 @@ function TaxAdvantagedCategoryModal({
       window.clearTimeout(autosaveTimerRef.current)
     }
   }, [])
+
+  useLayoutEffect(() => {
+    if (planDeleteIdleLabelRef.current && planDeleteConfirmLabelRef.current) {
+      setPlanDeleteLabelWidths({
+        idle: planDeleteIdleLabelRef.current.offsetWidth,
+        confirm: planDeleteConfirmLabelRef.current.offsetWidth,
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!confirmingPlanDelete) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (planDeleteButtonRef.current && !planDeleteButtonRef.current.contains(event.target as Node)) {
+        setConfirmingPlanDelete(false)
+      }
+    }
+    const timer = window.setTimeout(() => window.addEventListener('pointerdown', onPointerDown), 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [confirmingPlanDelete])
 
   const setPlanField = <K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) => {
     setPlanOverrides((current) => ({ ...current, [key]: value }))
@@ -1317,10 +1345,10 @@ function TaxAdvantagedCategoryModal({
   }
 
   const handleDeletePlan = () => {
-    if (!window.confirm(`Delete ${plan.name}?`)) return
     deletePlan.mutate(plan.id, {
       onSuccess: onClose,
       onError: (error) => {
+        setConfirmingPlanDelete(false)
         setPlanError(error instanceof Error ? error.message : 'Failed to delete plan.')
       },
     })
@@ -1617,15 +1645,64 @@ function TaxAdvantagedCategoryModal({
                   className="app-secondary-button"
                   onClick={toggleCategoryEdit}
                 >
-                  {categoryEditOpen ? 'Done editing' : 'Edit details'}
+                  {categoryEditOpen ? 'Done' : 'Edit'}
                 </button>
                 <button
+                  ref={planDeleteButtonRef}
                   type="button"
-                  className="app-danger-button"
-                  onClick={handleDeletePlan}
+                  className={`app-danger-button ${deletePlan.isPending && confirmingPlanDelete ? 'app-primary-button-loading' : ''}`}
+                  onClick={() => {
+                    if (deletePlan.isPending) return
+                    if (confirmingPlanDelete) handleDeletePlan()
+                    else setConfirmingPlanDelete(true)
+                  }}
                   disabled={deletePlan.isPending}
                 >
-                  Delete
+                  {deletePlan.isPending && confirmingPlanDelete ? (
+                    <div className="app-spinner" />
+                  ) : (
+                    <span
+                      className="relative block"
+                      style={{
+                        width: planDeleteLabelWidths
+                          ? `${confirmingPlanDelete ? planDeleteLabelWidths.confirm : planDeleteLabelWidths.idle}px`
+                          : 'auto',
+                        height: '1.25rem',
+                        transition: 'width 220ms cubic-bezier(0.25, 0.1, 0.25, 1)',
+                      }}
+                    >
+                      <span
+                        ref={planDeleteIdleLabelRef}
+                        className="invisible absolute inline-flex items-center gap-2 whitespace-nowrap"
+                        aria-hidden
+                      >
+                        <Trash2 size={16} aria-hidden />
+                        Delete
+                      </span>
+                      <span
+                        ref={planDeleteConfirmLabelRef}
+                        className="invisible absolute inline-flex items-center gap-2 whitespace-nowrap"
+                        aria-hidden
+                      >
+                        <Check size={16} aria-hidden />
+                        Yes, delete
+                      </span>
+                      <span
+                        className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                        style={{ opacity: confirmingPlanDelete ? 0 : 1 }}
+                      >
+                        <Trash2 size={16} aria-hidden />
+                        Delete
+                      </span>
+                      <span
+                        className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
+                        style={{ opacity: confirmingPlanDelete ? 1 : 0 }}
+                      >
+                        <Check size={16} aria-hidden />
+                        Yes, delete
+                      </span>
+                    </span>
+                  )}
                 </button>
               </div>
 
