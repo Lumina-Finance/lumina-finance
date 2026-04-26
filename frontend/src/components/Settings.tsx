@@ -442,6 +442,15 @@ function formatMoneyInput(value: string, currencies: Currency[], code: string) {
   }).format(Number(value))
 }
 
+function formatMoneyInputLive(value: string) {
+  if (!value.trim()) return value
+  const [integerPart, decimalPart] = value.split('.', 2)
+  const formattedInteger = integerPart
+    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
+    : '0'
+  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
+}
+
 function isValidMoneyInput(value: string, required = false) {
   const trimmed = value.trim()
   if (!trimmed) return !required
@@ -649,9 +658,8 @@ function CompactCurrencyInput({
   placeholder?: string
   value: string
 }) {
-  const [focused, setFocused] = useState(false)
   const symbol = currencySymbol(currencies, currency)
-  const displayValue = focused ? value : formatMoneyInput(value, currencies, currency)
+  const displayValue = formatMoneyInputLive(value)
 
   return (
     <div
@@ -668,11 +676,9 @@ function CompactCurrencyInput({
         className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
         inputMode="decimal"
         onBlur={() => {
-          setFocused(false)
           onBlur?.()
         }}
         onChange={(event) => onChange(sanitizeMoneyInput(event.target.value))}
-        onFocus={() => setFocused(true)}
         placeholder={placeholder}
         style={{ color: 'var(--app-text)' }}
         type="text"
