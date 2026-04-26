@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { currencyKeys } from '@/api/queryKeys';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -21,7 +22,7 @@ async function fetchCurrencies(): Promise<Currency[]> {
 // garbage collected within a session — the persistent cache handles TTL.
 export function useCurrencies() {
   return useQuery({
-    queryKey: ['currencies'],
+    queryKey: currencyKeys.list(),
     queryFn: fetchCurrencies,
     staleTime: Infinity,
     gcTime: Infinity,

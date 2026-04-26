@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { categoryKeys } from '@/api/queryKeys';
 
 export interface Category {
   id: string;
@@ -15,7 +16,7 @@ export interface Category {
 export function useCategories() {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['categories'],
+    queryKey: categoryKeys.list(),
     queryFn: () => authenticatedFetch<Category[]>('/categories'),
     enabled: !!accessToken,
     staleTime: Infinity,

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { merchantKeys } from '@/api/queryKeys';
 
 export interface Merchant {
   id: string;
@@ -14,7 +15,7 @@ export interface Merchant {
 export function useMerchants() {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['merchants'],
+    queryKey: merchantKeys.list(),
     queryFn: () => authenticatedFetch<Merchant[]>('/merchants'),
     enabled: !!accessToken,
     staleTime: Infinity,
@@ -32,7 +33,7 @@ export function useCreateMerchant() {
       }),
     // Splice the new merchant into the cache so the dropdown sees it immediately
     onSuccess: (created) => {
-      qc.setQueryData<Merchant[]>(['merchants'], (prev = []) => [...prev, created]);
+      qc.setQueryData<Merchant[]>(merchantKeys.list(), (prev = []) => [...prev, created]);
     },
   });
 }

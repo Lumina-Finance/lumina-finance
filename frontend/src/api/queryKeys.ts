@@ -72,4 +72,20 @@ export const userKeys = {
   runway: () => ['me', 'runway'] as const,
 };
 
+export const categoryKeys = {
+  list: () => ['categories'] as const,
+};
+
+export const merchantKeys = {
+  list: () => ['merchants'] as const,
+};
+
+export const institutionKeys = {
+  list: () => ['institutions'] as const,
+};
+
+export const currencyKeys = {
+  list: () => ['currencies'] as const,
+};
+
 export type FocusRefetchTarget = QueryKey | { queryKey: QueryKey; exact?: boolean };
