@@ -50,7 +50,7 @@ function ProtectedRoute() {
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
           <Navigation />
-          <main className="flex-1 px-5 pb-8 pt-6 lg:px-8 lg:pb-12 lg:pt-12">
+          <main className="ml-[260px] flex-1 px-5 pb-8 pt-6 lg:px-8 lg:pb-12 lg:pt-12">
             <Outlet />
           </main>
         </div>

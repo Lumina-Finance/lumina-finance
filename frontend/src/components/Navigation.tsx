@@ -47,7 +47,7 @@ const Navigation = () => {
   return (
     <nav
       aria-label="Primary"
-      className="sticky top-5 flex flex-col h-[calc(100vh-2.5rem)] w-60 shrink-0 rounded-2xl px-4 py-7 m-5 mr-0"
+      className="fixed left-5 top-5 z-30 flex h-[calc(100vh-2.5rem)] w-60 flex-col rounded-2xl px-4 py-7"
       style={{
         background: 'var(--app-nav-bg)',
         border: '1px solid var(--app-border)',
