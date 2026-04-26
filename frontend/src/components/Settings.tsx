@@ -1614,18 +1614,16 @@ function TaxAdvantagedCategoryModal({
               <div className="mt-auto flex items-center justify-between border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
                 <button
                   type="button"
-                  className="text-sm font-medium transition-colors duration-150"
+                  className="app-secondary-button"
                   onClick={toggleCategoryEdit}
-                  style={{ color: categoryEditOpen ? 'var(--app-accent)' : 'var(--app-text-muted)' }}
                 >
                   {categoryEditOpen ? 'Done editing' : 'Edit details'}
                 </button>
                 <button
                   type="button"
-                  className="text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="app-danger-button"
                   onClick={handleDeletePlan}
                   disabled={deletePlan.isPending}
-                  style={{ color: 'var(--app-negative)' }}
                 >
                   Delete
                 </button>
