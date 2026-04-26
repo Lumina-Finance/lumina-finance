@@ -4,9 +4,19 @@ import {
   useQueryClient,
   useMutation,
   type InfiniteData,
+  type QueryClient,
 } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import {
+  accountKeys,
+  dashboardKeys,
+  taxAdvantagedPlanKeys,
+  transactionKeys,
+  transactionOverviewKeys,
+  userKeys,
+} from '@/api/queryKeys';
+import type { Account, AccountsOverview } from '@/api/accounts';
 
 // ── Types (mirror backend schemas) ──
 
@@ -101,9 +111,22 @@ export interface UpdateTransactionPayload {
 
 // ── Helpers ──
 
-// Fields whose value never feeds into any TransactionsOverview aggregate, so an
-// edit limited to these can skip the overview refetch.
-const OVERVIEW_INDEPENDENT_FIELDS = new Set<string>(['notes', 'tag_ids']);
+const ACCOUNT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
+  'merchant_id',
+]);
+
+const TAX_ADVANTAGED_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
+]);
+
+const OVERVIEW_INDEPENDENT_FIELDS = new Set<keyof UpdateTransactionPayload>(['tag_ids']);
 
 function buildQueryString(params: Record<string, string | number | undefined>): string {
   const entries = Object.entries(params).filter(
@@ -113,12 +136,102 @@ function buildQueryString(params: Record<string, string | number | undefined>): 
   return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
 }
 
+function patchTouches(
+  patch: UpdateTransactionPayload,
+  fields: Set<keyof UpdateTransactionPayload>,
+): boolean {
+  return Object.keys(patch).some((key) => fields.has(key as keyof UpdateTransactionPayload));
+}
+
+function uniqueIds(ids: Array<string | null | undefined>): string[] {
+  return [...new Set(ids.filter((id): id is string => !!id))];
+}
+
+function isInfiniteTransactionsData(data: unknown): data is InfiniteData<Transaction[]> {
+  return (
+    typeof data === 'object'
+    && data !== null
+    && 'pages' in data
+    && Array.isArray((data as InfiniteData<Transaction[]>).pages)
+  );
+}
+
+function findCachedTransaction(queryClient: QueryClient, transactionId: string): Transaction | undefined {
+  const transactionQueries = queryClient.getQueriesData<Transaction[] | InfiniteData<Transaction[]>>({
+    queryKey: transactionKeys.all,
+    exact: false,
+  });
+
+  for (const [, data] of transactionQueries) {
+    if (!data) continue;
+    if (isInfiniteTransactionsData(data)) {
+      const transaction = data.pages.flat().find((item) => item.id === transactionId);
+      if (transaction) return transaction;
+    } else {
+      const transaction = data.find((item) => item.id === transactionId);
+      if (transaction) return transaction;
+    }
+  }
+  return undefined;
+}
+
+function getCachedAccountPlanId(
+  queryClient: QueryClient,
+  accountId: string,
+): string | null | undefined {
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
+  if (detail) return detail.tax_advantaged_plan_id;
+
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
+  return accounts?.find((account) => account.id === accountId)?.tax_advantaged_plan_id;
+}
+
+function invalidateTransactionLists(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
+}
+
+function invalidateTransactionOverview(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
+}
+
+function invalidateAccountActivity(queryClient: QueryClient, accountIds: string[]) {
+  if (accountIds.length === 0) return;
+
+  queryClient.invalidateQueries({
+    queryKey: accountKeys.list(),
+    exact: true,
+    refetchType: 'none',
+  });
+  for (const accountId of accountIds) {
+    queryClient.invalidateQueries({ queryKey: accountKeys.accountScope(accountId), exact: false });
+  }
+}
+
+function invalidateDashboardActivity(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
+  queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
+}
+
+function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: string[]) {
+  const planIds = uniqueIds(
+    accountIds.map((accountId) => getCachedAccountPlanId(queryClient, accountId)),
+  );
+  if (planIds.length === 0) return;
+
+  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.list(), exact: true });
+  for (const planId of planIds) {
+    queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.detail(planId), exact: true });
+  }
+}
+
 // ── Hooks ──
 
 export function useTransactions(filters: TransactionFilters = {}) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['transactions', filters],
+    queryKey: transactionKeys.list(filters as Record<string, unknown>),
     queryFn: () =>
       authenticatedFetch<Transaction[]>(
         '/transactions' + buildQueryString(filters as Record<string, string | number | undefined>),
@@ -131,7 +244,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
 export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit' | 'offset'> = {}, pageSize = 15) {
   const { accessToken } = useAuth();
   return useInfiniteQuery({
-    queryKey: ['transactions', 'infinite', filters, pageSize],
+    queryKey: transactionKeys.infinite(filters as Record<string, unknown>, pageSize),
     queryFn: ({ pageParam }) =>
       authenticatedFetch<Transaction[]>(
         '/transactions' +
@@ -153,7 +266,7 @@ export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit
 export function useTransactionsOverview(filters: OverviewFilters = {}) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['transactions-overview', filters],
+    queryKey: transactionOverviewKeys.detail(filters as Record<string, unknown>),
     queryFn: () =>
       authenticatedFetch<TransactionsOverview>(
         '/transactions/overview' + buildQueryString(filters as Record<string, string | number | undefined>),
@@ -171,12 +284,13 @@ export function useCreateTransaction() {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
-      // Mark account balances stale so they refetch when the user next visits Accounts.
-      queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
+    onSuccess: (transaction) => {
+      const accountIds = [transaction.account_id];
+      invalidateTransactionLists(queryClient);
+      invalidateTransactionOverview(queryClient);
+      invalidateAccountActivity(queryClient, accountIds);
+      invalidateDashboardActivity(queryClient);
+      invalidateTaxAdvantagedActivity(queryClient, accountIds);
     },
   });
 }
@@ -189,32 +303,28 @@ export function useUpdateTransaction() {
         method: 'PATCH',
         body: JSON.stringify(patch),
       }),
-    onSuccess: (updated, { patch }) => {
-      // Patch the row in-place across cached lists instead of refetching them.
-      // Infinite-query caches hold InfiniteData<Transaction[]>; the plain query holds Transaction[].
-      queryClient.setQueriesData<InfiniteData<Transaction[]>>(
-        { predicate: (q) => q.queryKey[0] === 'transactions' && q.queryKey[1] === 'infinite' },
-        (old) =>
-          old && {
-            ...old,
-            pages: old.pages.map((page) =>
-              page.map((t) => (t.id === updated.id ? updated : t)),
-            ),
-          },
+    onMutate: ({ id }) => ({
+      previousTransaction: findCachedTransaction(queryClient, id),
+    }),
+    onSuccess: (updated, { patch }, context) => {
+      const accountIds = uniqueIds([
+        context?.previousTransaction?.account_id,
+        updated.account_id,
+      ]);
+      const overviewChanged = !Object.keys(patch).every((key) =>
+        OVERVIEW_INDEPENDENT_FIELDS.has(key as keyof UpdateTransactionPayload),
       );
-      queryClient.setQueriesData<Transaction[]>(
-        { predicate: (q) => q.queryKey[0] === 'transactions' && q.queryKey[1] !== 'infinite' },
-        (old) => old?.map((t) => (t.id === updated.id ? updated : t)),
-      );
-      // Skip the overview refetch when the patch only touches fields that don't
-      // feed any aggregate (totals, top categories, daily flow, outlier ranks).
-      const onlyDisplayFields = Object.keys(patch).every((k) =>
-        OVERVIEW_INDEPENDENT_FIELDS.has(k),
-      );
-      if (!onlyDisplayFields) {
-        queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
-        queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
-        queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
+
+      invalidateTransactionLists(queryClient);
+      if (overviewChanged) {
+        invalidateTransactionOverview(queryClient);
+        invalidateDashboardActivity(queryClient);
+      }
+      if (patchTouches(patch, ACCOUNT_ACTIVITY_FIELDS)) {
+        invalidateAccountActivity(queryClient, accountIds);
+      }
+      if (patchTouches(patch, TAX_ADVANTAGED_ACTIVITY_FIELDS)) {
+        invalidateTaxAdvantagedActivity(queryClient, accountIds);
       }
     },
   });
@@ -225,11 +335,16 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: (id: string) =>
       authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions-overview'] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'], refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
+    onMutate: (id) => ({
+      deletedTransaction: findCachedTransaction(queryClient, id),
+    }),
+    onSuccess: (_data, _id, context) => {
+      const accountIds = uniqueIds([context?.deletedTransaction?.account_id]);
+      invalidateTransactionLists(queryClient);
+      invalidateTransactionOverview(queryClient);
+      invalidateAccountActivity(queryClient, accountIds);
+      invalidateDashboardActivity(queryClient);
+      invalidateTaxAdvantagedActivity(queryClient, accountIds);
     },
   });
 }
