@@ -98,8 +98,7 @@ const Navigation = () => {
       {/* Theme toggle */}
       <div className="mt-auto pt-4">
         <div
-          className="flex items-center gap-1 rounded-xl p-1"
-          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+          className="app-segmented-control w-full"
           role="group"
           aria-label="Theme selection"
         >
@@ -116,7 +115,7 @@ const Navigation = () => {
                 onClick={() => setTheme(value)}
                 aria-pressed={isActive}
                 aria-label={label}
-                className={`app-nav-link flex-1 justify-center ${isActive ? 'app-nav-link-active' : ''}`}
+                className={`app-segmented-option flex-1 px-0 ${isActive ? 'app-segmented-option-active' : ''}`}
               >
                 <Icon size={16} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
               </button>
