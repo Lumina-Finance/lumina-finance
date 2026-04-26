@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { dashboardKeys } from '@/api/queryKeys';
 import type { Transaction } from '@/api/transactions';
 
 // ── Types (mirror backend schemas) ──
@@ -74,7 +75,7 @@ export interface SpendingComparisonResponse {
 export function useDashboard(windowDays = 90) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['dashboard', windowDays],
+    queryKey: dashboardKeys.summary(windowDays),
     queryFn: () =>
       authenticatedFetch<DashboardResponse>(`/dashboard?window_days=${windowDays}`),
     enabled: !!accessToken,
@@ -85,7 +86,7 @@ export function useDashboard(windowDays = 90) {
 export function useSpendingComparison(range: SpendingRange) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['spending-comparison', range],
+    queryKey: dashboardKeys.spendingComparison(range),
     queryFn: () =>
       authenticatedFetch<SpendingComparisonResponse>(
         `/dashboard/spending-comparison?range=${range}`,
@@ -98,7 +99,7 @@ export function useSpendingComparison(range: SpendingRange) {
 export function useSpendingBreakdown(range: SpendingRange) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['spending-breakdown', range],
+    queryKey: dashboardKeys.spendingBreakdown(range),
     queryFn: () =>
       authenticatedFetch<SpendingBreakdownResponse>(
         `/dashboard/spending-breakdown?range=${range}`,

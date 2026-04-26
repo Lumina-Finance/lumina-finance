@@ -2,6 +2,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import type { User } from '@/api/auth';
 import { authenticatedFetch } from '@/api/client';
+import { userKeys } from '@/api/queryKeys';
 
 // Fields a user may edit on their own profile. `email` and `base_currency`
 // are intentionally omitted — email is the identity handle, and base_currency
@@ -31,7 +32,7 @@ export function useUpdateProfile() {
 export function useRunwayAccounts() {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['me', 'runway-accounts'],
+    queryKey: userKeys.runwayAccounts(),
     queryFn: () => authenticatedFetch<string[]>('/me/runway-accounts'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
@@ -47,10 +48,10 @@ export function useUpdateRunwayAccounts() {
         body: JSON.stringify({ account_ids: accountIds }),
       }),
     onSuccess: (data) => {
-      queryClient.setQueryData(['me', 'runway-accounts'], data);
+      queryClient.setQueryData(userKeys.runwayAccounts(), data);
       // The runway figure depends on the selected accounts; invalidate so the
       // widget reflects the new selection without a manual refresh.
-      queryClient.invalidateQueries({ queryKey: ['me', 'runway'] });
+      queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
     },
   });
 }
@@ -68,7 +69,7 @@ export interface RunwayResult {
 export function useRunway() {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['me', 'runway'],
+    queryKey: userKeys.runway(),
     queryFn: () => authenticatedFetch<RunwayResult>('/me/runway'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
