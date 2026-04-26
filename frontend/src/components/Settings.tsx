@@ -390,6 +390,7 @@ const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [
 
 const DEFAULT_NEW_LIMIT_YEAR = new Date().getFullYear()
 const MAX_VISIBLE_LIMIT_ROWS = 5
+const LIMIT_SAVE_FEEDBACK_MS = 600
 const LIMIT_DELETE_FEEDBACK_MS = 600
 
 interface TaxPlanFormState {
@@ -1187,6 +1188,7 @@ function TaxAdvantagedCategoryModal({
     contribution_limit: '',
     withdrawal_limit: '',
   })
+  const [pendingCreateLimitYear, setPendingCreateLimitYear] = useState<number | null>(null)
   const [deleteConfirmYear, setDeleteConfirmYear] = useState<number | null>(null)
   const [pendingDeleteLimitYear, setPendingDeleteLimitYear] = useState<number | null>(null)
   const [pendingDeletedLimit, setPendingDeletedLimit] = useState<TaxAdvantagedPlanLimit | null>(null)
@@ -1306,10 +1308,10 @@ function TaxAdvantagedCategoryModal({
     setDeleteConfirmYear(null)
   }
 
-  const saveWhenFocusLeaves = (event: React.FocusEvent<HTMLElement>, save: () => void) => {
+  const saveWhenFocusLeaves = (event: React.FocusEvent<HTMLElement>, save: () => void | Promise<void>) => {
     const nextFocused = event.relatedTarget
     if (nextFocused instanceof Node && event.currentTarget.contains(nextFocused)) return
-    save()
+    void save()
   }
 
   const getPlanUpdateState = (form: TaxPlanFormState) => {
@@ -1379,14 +1381,15 @@ function TaxAdvantagedCategoryModal({
   }
 
   const sortedLimits = useMemo(() => {
-    const nextLimits = [...limits]
+    const nextLimits = limits.filter((limit) => limit.year !== pendingCreateLimitYear)
     if (pendingDeletedLimit && !nextLimits.some((limit) => limit.year === pendingDeletedLimit.year)) {
       nextLimits.push(pendingDeletedLimit)
     }
     return nextLimits.sort((a, b) => b.year - a.year)
-  }, [limits, pendingDeletedLimit])
+  }, [limits, pendingCreateLimitYear, pendingDeletedLimit])
   const visibleLimits = taxYearsExpanded ? sortedLimits : sortedLimits.slice(0, MAX_VISIBLE_LIMIT_ROWS)
   const hasHiddenLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
+  const creatingLimit = pendingCreateLimitYear !== null || createLimit.isPending
   const bindableAccounts = accounts.filter(
     (account) =>
       account.closed_at === null
@@ -1454,8 +1457,8 @@ function TaxAdvantagedCategoryModal({
     )
   }
 
-  const handleCreateLimit = () => {
-    if (!showAddTaxYear || createLimit.isPending) return
+  const handleCreateLimit = async () => {
+    if (!showAddTaxYear || createLimit.isPending || pendingCreateLimitYear !== null) return
     const year = Number.parseInt(newLimitForm.year, 10)
     if (!Number.isInteger(year) || year < 1900 || year > 2100) {
       setLimitError('Year must be between 1900 and 2100.')
@@ -1478,28 +1481,36 @@ function TaxAdvantagedCategoryModal({
       return
     }
 
+    setPendingCreateLimitYear(year)
     showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
-    createLimit.mutate(
-      {
+    const minimumFeedback = new Promise((resolve) => window.setTimeout(resolve, LIMIT_SAVE_FEEDBACK_MS))
+
+    let createError: unknown = null
+    try {
+      await createLimit.mutateAsync({
         planId: plan.id,
         year,
         contribution_limit: toMinorUnits(newLimitForm.contribution_limit, currencies, plan.currency) ?? 0,
         withdrawal_limit: toMinorUnits(newLimitForm.withdrawal_limit, currencies, plan.currency),
-      },
-      {
-        onSuccess: () => {
-          resetNewLimitForm()
-          setTaxYearsExpanded(true)
-          setLimitError(null)
-          showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
-        },
-        onError: (error) => {
-          const message = error instanceof Error ? error.message : 'Failed to add tax-year limits.'
-          setLimitError(message)
-          showAutosaveNotice({ status: 'error', message })
-        },
-      },
-    )
+      })
+    } catch (error) {
+      createError = error
+    }
+
+    await minimumFeedback
+    setPendingCreateLimitYear(null)
+
+    if (createError) {
+      const message = createError instanceof Error ? createError.message : 'Failed to add tax-year limits.'
+      setLimitError(message)
+      showAutosaveNotice({ status: 'error', message })
+      return
+    }
+
+    resetNewLimitForm()
+    setTaxYearsExpanded(true)
+    setLimitError(null)
+    showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
   }
 
   const handleDeleteLimit = async (limit: TaxAdvantagedPlanLimit) => {
@@ -1925,11 +1936,11 @@ function TaxAdvantagedCategoryModal({
                                   <button
                                     type="button"
                                     className="app-icon-button shrink-0"
-                                    onClick={handleCreateLimit}
-                                    disabled={createLimit.isPending}
+                                    onClick={() => { void handleCreateLimit() }}
+                                    disabled={creatingLimit}
                                     aria-label="Save new tax year"
                                   >
-                                    {createLimit.isPending ? (
+                                    {creatingLimit ? (
                                       <LoaderCircle size={14} className="animate-spin" aria-hidden />
                                     ) : (
                                       <Check size={14} aria-hidden />
@@ -1939,7 +1950,7 @@ function TaxAdvantagedCategoryModal({
                                     type="button"
                                     className="app-icon-button shrink-0"
                                     onClick={resetNewLimitForm}
-                                    disabled={createLimit.isPending}
+                                    disabled={creatingLimit}
                                     aria-label="Cancel new tax year"
                                   >
                                     <X size={14} aria-hidden />
