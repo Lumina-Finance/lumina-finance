@@ -393,6 +393,14 @@ const MAX_VISIBLE_LIMIT_ROWS = 5
 const LIMIT_SAVE_FEEDBACK_MS = 600
 const LIMIT_DELETE_FEEDBACK_MS = 600
 
+function nextAvailableLimitYear(limits: TaxAdvantagedPlanLimit[]) {
+  const existingYears = new Set(limits.map((limit) => limit.year))
+  for (let year = DEFAULT_NEW_LIMIT_YEAR; year >= 1900; year -= 1) {
+    if (!existingYears.has(year)) return year
+  }
+  return DEFAULT_NEW_LIMIT_YEAR
+}
+
 interface TaxPlanFormState {
   name: string
   tax_treatment: TaxTreatment
@@ -1290,11 +1298,21 @@ function TaxAdvantagedCategoryModal({
 
   const resetNewLimitForm = () => {
     setNewLimitForm({
-      year: String(DEFAULT_NEW_LIMIT_YEAR),
+      year: String(nextAvailableLimitYear(limits)),
       contribution_limit: '',
       withdrawal_limit: '',
     })
     setShowAddTaxYear(false)
+    setLimitError(null)
+  }
+
+  const startNewLimitForm = () => {
+    setNewLimitForm({
+      year: String(nextAvailableLimitYear(limits)),
+      contribution_limit: '',
+      withdrawal_limit: '',
+    })
+    setShowAddTaxYear(true)
     setLimitError(null)
   }
 
@@ -1864,7 +1882,7 @@ function TaxAdvantagedCategoryModal({
                       <button
                         type="button"
                         className="app-secondary-button shrink-0"
-                        onClick={() => setShowAddTaxYear(true)}
+                        onClick={startNewLimitForm}
                         disabled={showAddTaxYear}
                       >
                         <Plus size={15} aria-hidden />
