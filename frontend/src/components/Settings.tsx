@@ -1682,10 +1682,9 @@ function TaxAdvantagedCategoryModal({
                       </p>
                       <button
                         type="button"
-                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors duration-150 hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="app-secondary-button shrink-0"
                         onClick={() => setShowAddTaxYear(true)}
                         disabled={showAddTaxYear}
-                        style={{ color: 'var(--app-accent)' }}
                       >
                         <Plus size={15} aria-hidden />
                         Add year
