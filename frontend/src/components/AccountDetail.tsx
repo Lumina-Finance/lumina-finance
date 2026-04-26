@@ -402,6 +402,7 @@ interface AccountIdentityForm {
   institution_id: string
   tax_advantaged_plan_id: string
   credit_limit: string
+  is_hidden: boolean
 }
 
 type DeleteAccountStage = 'idle' | 'confirm' | 'type-name'
@@ -431,6 +432,7 @@ function EditAccountIdentityModal({
     institution_id: account.institution?.id ?? '',
     tax_advantaged_plan_id: account.tax_advantaged_plan_id ?? '',
     credit_limit: fromMinorUnits(account.credit_limit, currencies, account.currency),
+    is_hidden: account.is_hidden,
   })
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -472,7 +474,7 @@ function EditAccountIdentityModal({
     [account.currency, taxAdvantagedPlans],
   )
 
-  const setField = (field: keyof AccountIdentityForm, value: string) => {
+  const setField = <K extends keyof AccountIdentityForm>(field: K, value: AccountIdentityForm[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
     setFieldErrors((current) => ({ ...current, [field]: undefined }))
     setSubmitError(null)
@@ -501,6 +503,7 @@ function EditAccountIdentityModal({
         payload: {
           name: form.name.trim(),
           institution_id: form.institution_id || null,
+          is_hidden: form.is_hidden,
           ...(isRevolving
             ? { credit_limit: toMinorUnits(form.credit_limit, currencies, account.currency) }
             : {}),
@@ -656,6 +659,45 @@ function EditAccountIdentityModal({
                 )}
               </div>
             )}
+
+            <label
+              htmlFor="edit-account-hidden"
+              className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
+              style={{
+                background: 'var(--app-input-bg)',
+                border: '1px solid var(--app-input-border)',
+              }}
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 font-medium">
+                  <EyeOff size={16} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
+                  Hide account
+                </span>
+                <span className="mt-0.5 block text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Exclude this account from overview totals and primary lists.
+                </span>
+              </span>
+              <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors">
+                <input
+                  id="edit-account-hidden"
+                  type="checkbox"
+                  role="switch"
+                  checked={form.is_hidden}
+                  onChange={(event) => setField('is_hidden', event.target.checked)}
+                  className="peer sr-only"
+                />
+                <span
+                  className="absolute inset-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2"
+                  style={{ background: form.is_hidden ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
+                  aria-hidden
+                />
+                <span
+                  className="relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                  style={{ transform: form.is_hidden ? 'translateX(1.25rem)' : 'translateX(0)' }}
+                  aria-hidden
+                />
+              </span>
+            </label>
 
             {submitError && (
               <p className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
