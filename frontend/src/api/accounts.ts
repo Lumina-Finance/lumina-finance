@@ -1,7 +1,14 @@
 import { useQuery, useQueryClient, useMutation, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
-import { accountKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys';
+import {
+  accountKeys,
+  dashboardKeys,
+  taxAdvantagedPlanKeys,
+  transactionKeys,
+  transactionOverviewKeys,
+  userKeys,
+} from '@/api/queryKeys';
 
 // Split liabilities into revolving (credit cards, lines of credit, HELOCs —
 // purchases already expensed at time of swipe) vs amortizing (loans,
@@ -112,6 +119,12 @@ function updateAccount({ accountId, payload }: { accountId: string; payload: Upd
   });
 }
 
+function deleteAccount(accountId: string) {
+  return authenticatedFetch<void>(`/accounts/${accountId}`, {
+    method: 'DELETE',
+  });
+}
+
 function updateCachedAccountList(queryClient: QueryClient, account: AccountsOverview) {
   queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) => {
     if (!accounts) return [account];
@@ -172,6 +185,27 @@ export function useUpdateAccount() {
           account.tax_advantaged_plan_id,
         ]);
       }
+    },
+  });
+}
+
+export function useDeleteAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteAccount,
+    onSuccess: (_, accountId) => {
+      const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, accountId);
+
+      queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) =>
+        accounts?.filter((account) => account.id !== accountId) ?? accounts,
+      );
+      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) });
+      queryClient.invalidateQueries({ queryKey: transactionKeys.all });
+      queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+      queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts() });
+      queryClient.invalidateQueries({ queryKey: userKeys.runway() });
+      invalidateTaxAdvantagedPlanCaches(queryClient, [previousPlanId]);
     },
   });
 }

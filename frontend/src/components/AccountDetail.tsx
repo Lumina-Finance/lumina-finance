@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Plus, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AlertTriangle, EyeOff, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, ArrowLeft } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -17,6 +17,7 @@ import {
   useAccountCashFlow,
   useAccountSnapshots,
   useAccountSpendingBreakdown,
+  useDeleteAccount,
   useUpdateAccount,
   type Account,
   type AccountBalanceSnapshot,
@@ -403,6 +404,15 @@ interface AccountIdentityForm {
   credit_limit: string
 }
 
+type DeleteAccountStage = 'idle' | 'confirm' | 'type-name'
+const MIN_DELETE_SPINNER_MS = 1000
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
 function EditAccountIdentityModal({
   account,
   onClose,
@@ -410,7 +420,9 @@ function EditAccountIdentityModal({
   account: Account
   onClose: () => void
 }) {
+  const navigate = useNavigate()
   const updateAccount = useUpdateAccount()
+  const deleteAccount = useDeleteAccount()
   const { data: currencies = [] } = useCurrencies()
   const { data: institutions = [] } = useInstitutions()
   const { data: taxAdvantagedPlans = [] } = useTaxAdvantagedPlans()
@@ -421,7 +433,11 @@ function EditAccountIdentityModal({
     credit_limit: fromMinorUnits(account.credit_limit, currencies, account.currency),
   })
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof AccountIdentityForm, string>>>({})
+  const [deleteStage, setDeleteStage] = useState<DeleteAccountStage>('idle')
+  const [deleteNameInput, setDeleteNameInput] = useState('')
+  const [deleteDelayPending, setDeleteDelayPending] = useState(false)
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
@@ -474,6 +490,7 @@ function EditAccountIdentityModal({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isBusy || deleteStage !== 'idle') return
     const errors = validate()
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
@@ -500,6 +517,44 @@ function EditAccountIdentityModal({
       },
     )
   }
+
+  const handleHideAccount = () => {
+    setDeleteError(null)
+    updateAccount.mutate(
+      {
+        accountId: account.id,
+        payload: { is_hidden: true },
+      },
+      {
+        onSuccess: onClose,
+        onError: (error) => {
+          setDeleteError(error instanceof Error ? error.message : 'Failed to hide account.')
+        },
+      },
+    )
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deleteNameInput !== account.name || isBusy) return
+    setDeleteError(null)
+    setDeleteDelayPending(true)
+    const minimumDelay = wait(MIN_DELETE_SPINNER_MS)
+
+    try {
+      await deleteAccount.mutateAsync(account.id)
+      await minimumDelay
+      onClose()
+      navigate('/accounts', { replace: true })
+    } catch (error) {
+      await minimumDelay
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete account.')
+      setDeleteDelayPending(false)
+    }
+  }
+
+  const deleteLoading = deleteAccount.isPending || deleteDelayPending
+  const isBusy = updateAccount.isPending || deleteLoading
+  const canDelete = deleteNameInput === account.name
 
   return (
     <>
@@ -607,27 +662,152 @@ function EditAccountIdentityModal({
                 {submitError}
               </p>
             )}
+
+            {deleteStage !== 'idle' && (
+              <div className="pt-2">
+                <div
+                  className="rounded-xl p-4"
+                  style={{
+                    background: 'var(--app-negative-soft)',
+                    border: '1px solid var(--app-negative-border)',
+                  }}
+                >
+                  <div className="flex gap-3">
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                      style={{
+                        background: 'var(--app-bg)',
+                        color: 'var(--app-negative)',
+                      }}
+                    >
+                      <AlertTriangle size={16} aria-hidden />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="app-label break-words font-semibold">
+                        Delete {account.name}?
+                      </p>
+                      <p className="mt-1 text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
+                        Permanent deletion removes its transactions, budgets, and balance history. Hide it instead
+                        if you only want it out of view.
+                      </p>
+
+                      {deleteStage === 'confirm' && (
+                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          {!account.is_hidden ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 text-sm font-medium"
+                              style={{ color: 'var(--app-text-muted)' }}
+                              onClick={handleHideAccount}
+                              disabled={isBusy}
+                            >
+                              {updateAccount.isPending ? (
+                                <span className="app-spinner" />
+                              ) : (
+                                <>
+                                  <EyeOff size={15} aria-hidden />
+                                  Hide instead
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <span aria-hidden />
+                          )}
+                          <button
+                            type="button"
+                            className="app-danger-button justify-center sm:ml-auto"
+                            onClick={() => setDeleteStage('type-name')}
+                            disabled={isBusy}
+                          >
+                            Continue
+                          </button>
+                        </div>
+                      )}
+
+                      {deleteStage === 'type-name' && (
+                        <div className="mt-4">
+                          <label
+                            htmlFor="delete-account-name"
+                            className="mb-1.5 block break-words text-[0.9375rem]"
+                            style={{ color: 'var(--app-text-muted)' }}
+                          >
+                            Type "{account.name}" to delete.
+                          </label>
+                          <input
+                            id="delete-account-name"
+                            className="app-input"
+                            value={deleteNameInput}
+                            onChange={(event) => {
+                              setDeleteNameInput(event.target.value)
+                              setDeleteError(null)
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter') return
+                              event.preventDefault()
+                              handleDeleteAccount()
+                            }}
+                            disabled={isBusy}
+                            autoComplete="off"
+                          />
+                        </div>
+                      )}
+
+                      {deleteError && (
+                        <p className="mt-3 text-[0.9375rem] font-medium" style={{ color: 'var(--app-negative)' }}>
+                          {deleteError}
+                        </p>
+                      )}
+
+                      {deleteStage === 'type-name' && (
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            type="button"
+                            className={`app-danger-button ${deleteLoading ? 'app-primary-button-loading' : ''}`}
+                            onClick={handleDeleteAccount}
+                            disabled={!canDelete || isBusy}
+                          >
+                            {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div
-            className="mt-8 flex items-center justify-end gap-3 pt-4"
+            className="mt-8 flex items-center gap-3 pt-4"
             style={{ borderTop: '1px solid var(--app-border)' }}
           >
             <button
               type="button"
-              className="app-secondary-button"
-              onClick={onClose}
-              disabled={updateAccount.isPending}
+              className="app-danger-button h-10 w-10 shrink-0 px-0"
+              onClick={() => setDeleteStage('confirm')}
+              disabled={isBusy || deleteStage !== 'idle'}
+              aria-label="Delete account"
+              title="Delete account"
             >
-              Cancel
+              <Trash2 size={16} aria-hidden />
             </button>
-            <button
-              type="submit"
-              className={`app-primary-button ${updateAccount.isPending ? 'app-primary-button-loading' : ''}`}
-              disabled={updateAccount.isPending}
-            >
-              {updateAccount.isPending ? <span className="app-spinner" /> : 'Save Changes'}
-            </button>
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                type="button"
+                className="app-secondary-button"
+                onClick={onClose}
+                disabled={isBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`app-primary-button ${updateAccount.isPending && deleteStage === 'idle' ? 'app-primary-button-loading' : ''}`}
+                disabled={isBusy || deleteStage !== 'idle'}
+              >
+                {updateAccount.isPending && deleteStage === 'idle' ? <span className="app-spinner" /> : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
