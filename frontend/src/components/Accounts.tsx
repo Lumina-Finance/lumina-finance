@@ -8,6 +8,7 @@ import {
   type AccountType,
   type AccountsOverview,
 } from '@/api/accounts'
+import { useTaxAdvantagedPlans, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { useTransactionsOverview } from '@/api/transactions'
 import { useRunway } from '@/api/user'
 import { useFocusRefetch } from '@/hooks/useFocusRefetch'
@@ -50,6 +51,11 @@ const ACCOUNT_TYPE_OPTIONS: OptionItem[] = [
   { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
 ]
 
+interface TaxAdvantagedLimitSummary {
+  plan: TaxAdvantagedPlan
+  linkedAccountCount: number
+}
+
 function sumByKind(accounts: AccountsOverview[], kind: AccountKind): number {
   return accounts
     .filter((a) => a.account_kind === kind)
@@ -67,6 +73,128 @@ function humanizeAccountType(type: string): string {
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+function limitUsageColor(used: number, limit: number): string {
+  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-subtle)'
+  const ratio = used / limit
+  if (ratio > 1) return 'var(--app-negative)'
+  if (ratio >= 0.85) return 'var(--app-accent)'
+  return 'var(--app-positive)'
+}
+
+function limitUsagePercent(used: number, limit: number): number {
+  if (limit <= 0) return used > 0 ? 100 : 0
+  return Math.min(Math.max((used / limit) * 100, 0), 100)
+}
+
+function CompactLimitUsageCell({
+  label,
+  used,
+  limit,
+  currency,
+}: {
+  label: string
+  used: number
+  limit: number | null
+  currency: string
+}) {
+  if (limit === null) {
+    return (
+      <div className="min-w-0">
+        <p className="mb-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+          {label}
+        </p>
+        <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+          Not set
+        </p>
+      </div>
+    )
+  }
+
+  const color = limitUsageColor(used, limit)
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+          {label}
+        </p>
+        <p className="truncate font-financial text-sm font-semibold tabular-nums" style={{ color }}>
+          {formatCurrency(used, currency)} / {formatCurrency(limit, currency)}
+        </p>
+      </div>
+      <div
+        className="h-1 overflow-hidden rounded-full"
+        style={{ background: 'var(--app-border)' }}
+        role="progressbar"
+        aria-label={`${label} usage`}
+        aria-valuemin={0}
+        aria-valuemax={Math.max(limit, 0)}
+        aria-valuenow={Math.min(Math.max(used, 0), Math.max(limit, 0))}
+      >
+        <div
+          className="h-full rounded-full"
+          style={{
+            background: color,
+            width: `${limitUsagePercent(used, limit)}%`,
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function TaxAdvantagedLimitsSection({ summaries }: { summaries: TaxAdvantagedLimitSummary[] }) {
+  if (summaries.length === 0) return null
+
+  return (
+    <section>
+      <div className="mb-2 flex items-center gap-4">
+        <h3 className="font-serif text-2xl font-semibold" style={{ color: 'var(--app-accent)' }}>
+          Tax-Advantaged Limits
+        </h3>
+        <div
+          className="h-px flex-1"
+          style={{
+            background: 'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
+          }}
+        />
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--app-border-strong)' }}>
+        {summaries.map(({ plan, linkedAccountCount }) => {
+          return (
+            <div
+              key={plan.id}
+              className="grid gap-3 py-2.5 md:grid-cols-[minmax(11rem,0.8fr)_minmax(12rem,1fr)_minmax(12rem,1fr)] md:items-center"
+              style={{ borderBottom: '1px solid var(--app-border)' }}
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium">{plan.name}</p>
+                <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {linkedAccountCount} linked account{linkedAccountCount !== 1 ? 's' : ''} · {plan.currency}
+                </p>
+              </div>
+
+              <CompactLimitUsageCell
+                label="Contributions"
+                used={plan.ytd_contributions}
+                limit={plan.current_year_contribution_limit}
+                currency={plan.currency}
+              />
+              <CompactLimitUsageCell
+                label="Withdrawals"
+                used={plan.ytd_withdrawals}
+                limit={plan.current_year_withdrawal_limit}
+                currency={plan.currency}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 // Fixed-size slot for an institution logo. When an institution is linked we
@@ -118,6 +246,7 @@ function AccountListSection({
   subtotal,
   emptyLabel,
   displayCurrency,
+  taxAdvantagedPlanById,
   showCreditLimit = false,
 }: {
   title: string
@@ -126,6 +255,7 @@ function AccountListSection({
   subtotal: number
   emptyLabel: string
   displayCurrency: string
+  taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
   showCreditLimit?: boolean
 }) {
   const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
@@ -171,6 +301,7 @@ function AccountListSection({
               accent={accent}
               showCreditLimit={showCreditLimit}
               displayCurrency={displayCurrency}
+              taxAdvantagedPlanById={taxAdvantagedPlanById}
             />
           ))
         )}
@@ -184,11 +315,13 @@ function AccountRow({
   accent,
   showCreditLimit,
   displayCurrency,
+  taxAdvantagedPlanById,
 }: {
   account: AccountsOverview
   accent: 'positive' | 'negative'
   showCreditLimit: boolean
   displayCurrency: string
+  taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
 }) {
   const barColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
   // Asset balances show green when positive; debt-kind sections stay neutral
@@ -204,6 +337,9 @@ function AccountRow({
       : account.current_balance < 0
         ? 'var(--app-negative)'
         : 'var(--app-text)'
+  const linkedPlan = account.group_id === null && account.tax_advantaged_plan_id
+    ? taxAdvantagedPlanById.get(account.tax_advantaged_plan_id)
+    : undefined
 
   return (
     <Link
@@ -218,10 +354,24 @@ function AccountRow({
         <InstitutionLogo institution={account.institution} />
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{account.name}</p>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--app-text-muted)' }}>
-            {humanizeAccountType(account.account_type)}
-            {account.institution && ` · ${account.institution.name}`}
-          </p>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2">
+            <p className="min-w-0 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {humanizeAccountType(account.account_type)}
+              {account.institution && ` · ${account.institution.name}`}
+            </p>
+            {linkedPlan && (
+              <span
+                className="max-w-40 shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-medium"
+                style={{
+                  background: 'var(--app-accent-soft)',
+                  color: 'var(--app-accent)',
+                  border: '1px solid var(--app-accent-border)',
+                }}
+              >
+                {linkedPlan.name}
+              </span>
+            )}
+          </div>
         </div>
         <div className="text-right shrink-0">
           <p className="font-financial font-medium" style={{ color: balanceColor }}>
@@ -246,9 +396,14 @@ export default function Accounts() {
   const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
   const { data: accounts, isLoading, error } = useAccounts()
-  useFocusRefetch([['accounts'], ['transactions-overview']])
+  const { data: taxAdvantagedPlans } = useTaxAdvantagedPlans()
+  useFocusRefetch([['accounts'], ['transactions-overview'], ['tax-advantaged-plans']])
 
   const rows = useMemo(() => accounts ?? [], [accounts])
+  const taxAdvantagedPlanById = useMemo(
+    () => new Map((taxAdvantagedPlans ?? []).map((plan) => [plan.id, plan])),
+    [taxAdvantagedPlans],
+  )
   const totalAssets = sumByKind(rows, 'asset')
   // Top-line debts aggregate revolving + amortizing — the detail list below
   // splits them into separate sections.
@@ -299,6 +454,37 @@ export default function Accounts() {
     if (filters.account_type && a.account_type !== filters.account_type) return false
     return true
   })
+
+  const linkedAccountCountByPlanId = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const account of rows) {
+      if (account.group_id !== null || !account.tax_advantaged_plan_id) continue
+      if (!taxAdvantagedPlanById.has(account.tax_advantaged_plan_id)) continue
+      counts.set(
+        account.tax_advantaged_plan_id,
+        (counts.get(account.tax_advantaged_plan_id) ?? 0) + 1,
+      )
+    }
+    return counts
+  }, [rows, taxAdvantagedPlanById])
+
+  const taxAdvantagedLimitSummaries = useMemo<TaxAdvantagedLimitSummary[]>(() => {
+    const visiblePlanIds = new Set<string>()
+    for (const account of filteredRows) {
+      if (account.group_id !== null || !account.tax_advantaged_plan_id) continue
+      visiblePlanIds.add(account.tax_advantaged_plan_id)
+    }
+
+    return (taxAdvantagedPlans ?? [])
+      .filter((plan) => visiblePlanIds.has(plan.id))
+      .filter((plan) =>
+        plan.current_year_contribution_limit !== null ||
+        plan.current_year_withdrawal_limit !== null)
+      .map((plan) => ({
+        plan,
+        linkedAccountCount: linkedAccountCountByPlanId.get(plan.id) ?? 0,
+      }))
+  }, [filteredRows, linkedAccountCountByPlanId, taxAdvantagedPlans])
 
   // Assets / revolving credit / amortizing debt each get their own list
   // section. Within a section rows are ordered by balance descending — largest
@@ -641,6 +827,8 @@ export default function Accounts() {
           </button>
         </div>
 
+        <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
+
         <AccountListSection
           title="Assets"
           accent="positive"
@@ -648,6 +836,7 @@ export default function Accounts() {
           subtotal={totalAssets}
           emptyLabel="No asset accounts"
           displayCurrency={displayCurrency}
+          taxAdvantagedPlanById={taxAdvantagedPlanById}
         />
 
         <AccountListSection
@@ -657,6 +846,7 @@ export default function Accounts() {
           subtotal={sumByKind(rows, 'revolving')}
           emptyLabel="No revolving credit accounts"
           displayCurrency={displayCurrency}
+          taxAdvantagedPlanById={taxAdvantagedPlanById}
           showCreditLimit
         />
 
@@ -667,6 +857,7 @@ export default function Accounts() {
           subtotal={sumByKind(rows, 'amortizing')}
           emptyLabel="No amortizing debt accounts"
           displayCurrency={displayCurrency}
+          taxAdvantagedPlanById={taxAdvantagedPlanById}
         />
 
       </div>
