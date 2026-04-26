@@ -1162,6 +1162,7 @@ function TaxAdvantagedCategoryModal({
   const [deleteConfirmYear, setDeleteConfirmYear] = useState<number | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
   const [limitError, setLimitError] = useState<string | null>(null)
+  const [planSaveStatus, setPlanSaveStatus] = useState<'idle' | 'loading' | 'success'>('idle')
   const [autosaveNotice, setAutosaveNotice] = useState<AutosaveNotice | null>(null)
   const autosaveTimerRef = useRef<number | null>(null)
 
@@ -1261,49 +1262,60 @@ function TaxAdvantagedCategoryModal({
     save()
   }
 
-  const savePlan = (form: TaxPlanFormState = planForm) => {
+  const getPlanUpdateState = (form: TaxPlanFormState) => {
     const nextLifetimeLimit = toMinorUnits(form.lifetime_contribution_limit, currencies, plan.currency)
     const dirty = form.name.trim() !== plan.name
       || form.tax_treatment !== plan.tax_treatment
       || nextLifetimeLimit !== plan.lifetime_contribution_limit
-    if (!dirty || updatePlan.isPending) return
-
-    if (!form.name.trim()) {
-      setPlanError('Name is required.')
-      showAutosaveNotice({ status: 'error', message: 'Name is required.' })
-      return
-    }
-    if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-      setPlanError('Lifetime limit must be zero or higher.')
-      showAutosaveNotice({ status: 'error', message: 'Lifetime limit must be zero or higher.' })
-      return
-    }
-
-    showAutosaveNotice({ status: 'saving', message: 'Saving changes...' })
-    updatePlan.mutate(
-      {
-        name: form.name.trim(),
-        tax_treatment: form.tax_treatment,
-        lifetime_contribution_limit: nextLifetimeLimit,
-      },
-      {
-        onSuccess: () => {
-          setPlanOverrides({})
-          setPlanError(null)
-          showAutosaveNotice({ status: 'saved', message: 'Changes saved.' })
-        },
-        onError: (error) => {
-          const message = error instanceof Error ? error.message : 'Failed to update plan.'
-          setPlanError(message)
-          showAutosaveNotice({ status: 'error', message })
-        },
-      },
-    )
+    return { dirty, nextLifetimeLimit }
   }
 
-  const toggleCategoryEdit = () => {
-    if (categoryEditOpen) savePlan()
-    setCategoryEditOpen((current) => !current)
+  const validatePlanForm = (form: TaxPlanFormState) => {
+    if (!form.name.trim()) {
+      return 'Name is required.'
+    }
+    if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
+      return 'Lifetime limit must be zero or higher.'
+    }
+    return null
+  }
+
+  const handleCategoryEditClick = async () => {
+    if (updatePlan.isPending || planSaveStatus !== 'idle') return
+    if (!categoryEditOpen) {
+      setCategoryEditOpen(true)
+      return
+    }
+
+    const validationError = validatePlanForm(planForm)
+    if (validationError) {
+      setPlanError(validationError)
+      return
+    }
+
+    const { dirty, nextLifetimeLimit } = getPlanUpdateState(planForm)
+    setPlanSaveStatus('loading')
+    const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, 1000))
+    try {
+      if (dirty) {
+        await updatePlan.mutateAsync({
+          name: planForm.name.trim(),
+          tax_treatment: planForm.tax_treatment,
+          lifetime_contribution_limit: nextLifetimeLimit,
+        })
+        setPlanOverrides({})
+        setPlanError(null)
+      }
+      await minimumLoading
+      setPlanSaveStatus('success')
+      setCategoryEditOpen(false)
+      await new Promise((resolve) => window.setTimeout(resolve, 1200))
+      setPlanSaveStatus('idle')
+    } catch (error) {
+      await minimumLoading
+      setPlanSaveStatus('idle')
+      setPlanError(error instanceof Error ? error.message : 'Failed to update plan.')
+    }
   }
 
   const handleDeletePlan = () => {
@@ -1545,7 +1557,6 @@ function TaxAdvantagedCategoryModal({
                       aria-label="Category name"
                       className="block w-full min-w-0 bg-transparent font-serif text-3xl font-medium tracking-tight outline-none"
                       maxLength={256}
-                      onBlur={() => savePlan()}
                       onChange={(event) => setPlanField('name', event.target.value)}
                       required
                       style={{
@@ -1566,7 +1577,6 @@ function TaxAdvantagedCategoryModal({
                     <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Type</p>
                     <InlineTaxTreatmentSelect
                       value={planForm.tax_treatment}
-                      onBlur={() => savePlan()}
                       onChange={(value) => setPlanField('tax_treatment', value)}
                     />
                   </div>
@@ -1584,7 +1594,6 @@ function TaxAdvantagedCategoryModal({
                       ariaLabel="Lifetime contribution limit"
                       currencies={currencies}
                       currency={plan.currency}
-                      onBlur={() => savePlan()}
                       value={planForm.lifetime_contribution_limit}
                       onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
                       placeholder="Optional"
@@ -1602,13 +1611,16 @@ function TaxAdvantagedCategoryModal({
               )}
 
               <div className="mt-auto flex items-center justify-between border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
-                <button
+                <ActionFeedbackButton
                   type="button"
-                  className="app-secondary-button"
-                  onClick={toggleCategoryEdit}
+                  className="app-secondary-button w-[72px]"
+                  disabled={planSaveStatus !== 'idle'}
+                  loadingLabel="Saving"
+                  onClick={() => { void handleCategoryEditClick() }}
+                  status={planSaveStatus}
                 >
                   {categoryEditOpen ? 'Done' : 'Edit'}
-                </button>
+                </ActionFeedbackButton>
                 <button
                   ref={planDeleteButtonRef}
                   type="button"
