@@ -1,6 +1,7 @@
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { accountKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys';
 
 // Split liabilities into revolving (credit cards, lines of credit, HELOCs —
 // purchases already expensed at time of swipe) vs amortizing (loans,
@@ -111,12 +112,43 @@ function updateAccount({ accountId, payload }: { accountId: string; payload: Upd
   });
 }
 
+function updateCachedAccountList(queryClient: QueryClient, account: AccountsOverview) {
+  queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) => {
+    if (!accounts) return [account];
+    const index = accounts.findIndex((item) => item.id === account.id);
+    if (index === -1) return [...accounts, account];
+    return accounts.map((item) => (item.id === account.id ? account : item));
+  });
+}
+
+function getCachedTaxAdvantagedPlanId(
+  queryClient: QueryClient,
+  accountId: string,
+): string | null | undefined {
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
+  if (detail) return detail.tax_advantaged_plan_id;
+
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
+  return accounts?.find((account) => account.id === accountId)?.tax_advantaged_plan_id;
+}
+
+function invalidateTaxAdvantagedPlanCaches(queryClient: QueryClient, planIds: Array<string | null | undefined>) {
+  const uniquePlanIds = [...new Set(planIds.filter((planId): planId is string => !!planId))];
+  if (uniquePlanIds.length === 0) return;
+
+  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.list(), exact: true });
+  for (const planId of uniquePlanIds) {
+    queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.detail(planId), exact: true });
+  }
+}
+
 export function useCreateAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createAccount,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    onSuccess: (account) => {
+      updateCachedAccountList(queryClient, account);
+      invalidateTaxAdvantagedPlanCaches(queryClient, [account.tax_advantaged_plan_id]);
     },
   });
 }
@@ -125,10 +157,21 @@ export function useUpdateAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: updateAccount,
-    onSuccess: (account) => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['accounts', account.id] });
-      queryClient.invalidateQueries({ queryKey: ['tax-advantaged-plans'] });
+    onSuccess: (account, variables) => {
+      const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, account.id);
+
+      queryClient.setQueryData(accountKeys.detail(account.id), account);
+      updateCachedAccountList(queryClient, account);
+
+      if (
+        'tax_advantaged_plan_id' in variables.payload
+        && previousPlanId !== account.tax_advantaged_plan_id
+      ) {
+        invalidateTaxAdvantagedPlanCaches(queryClient, [
+          previousPlanId,
+          account.tax_advantaged_plan_id,
+        ]);
+      }
     },
   });
 }
@@ -136,7 +179,7 @@ export function useUpdateAccount() {
 export function useAccounts() {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['accounts'],
+    queryKey: accountKeys.list(),
     queryFn: () => authenticatedFetch<AccountsOverview[]>('/accounts'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
@@ -146,7 +189,7 @@ export function useAccounts() {
 export function useAccount(accountId: string | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['accounts', accountId],
+    queryKey: accountKeys.detail(accountId),
     queryFn: () => authenticatedFetch<Account>(`/accounts/${accountId}`),
     enabled: !!accessToken && !!accountId,
     staleTime: 10 * 60 * 1000,
@@ -169,15 +212,12 @@ export function useAccountSnapshots(
   const { accessToken } = useAuth();
   const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range;
   return useQuery({
-    queryKey: [
-      'accounts',
-      accountId,
-      'snapshots',
-      fromDate ?? null,
-      toDate ?? null,
+    queryKey: accountKeys.snapshots(accountId, {
+      fromDate,
+      toDate,
       granularity,
       includeAnchor,
-    ],
+    }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (fromDate) params.set('from_date', fromDate);
@@ -230,7 +270,7 @@ export function useAccountSpendingBreakdown(
 ) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['accounts', accountId, 'spending-breakdown', range],
+    queryKey: accountKeys.spendingBreakdown(accountId, range),
     queryFn: () =>
       authenticatedFetch<AccountSpendingBreakdown>(
         `/accounts/${accountId}/spending-breakdown?range=${range}`,
@@ -252,7 +292,7 @@ export interface AccountMonthlyCashFlow {
 export function useAccountCashFlow(accountId: string | undefined, months: number = 6) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: ['accounts', accountId, 'cash-flow', months],
+    queryKey: accountKeys.cashFlow(accountId, months),
     queryFn: () =>
       authenticatedFetch<AccountMonthlyCashFlow[]>(
         `/accounts/${accountId}/cash-flow?months=${months}`,
