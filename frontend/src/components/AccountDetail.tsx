@@ -30,7 +30,6 @@ import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
-import { useTaxAdvantagedPlan, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
@@ -43,50 +42,11 @@ const ACCOUNT_KIND_LABEL: Record<string, string> = {
   amortizing: 'Amortizing debt',
 }
 
-const TAX_TREATMENT_LABEL: Record<string, string> = {
-  tax_free: 'Tax-free',
-  tax_deferred: 'Tax-deferred',
-  tax_assisted: 'Tax-assisted',
-}
-
 function humanizeAccountType(type: string): string {
   return type
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
-}
-
-function TaxPlanRows({ plan }: { plan: TaxAdvantagedPlan }) {
-  const money = (value: number | null) =>
-    value === null ? '—' : formatCurrency(value, plan.currency)
-  const rows = [
-    { label: 'Tax plan', value: plan.name },
-    { label: 'Treatment', value: TAX_TREATMENT_LABEL[plan.tax_treatment] ?? plan.tax_treatment },
-    { label: 'Contribution limit', value: money(plan.current_year_contribution_limit) },
-    { label: 'Lifetime limit', value: money(plan.lifetime_contribution_limit) },
-    { label: 'Withdrawal limit', value: money(plan.current_year_withdrawal_limit) },
-    { label: 'YTD contributions', value: money(plan.ytd_contributions) },
-    { label: 'YTD withdrawals', value: money(plan.ytd_withdrawals) },
-    { label: 'Lifetime contributions', value: money(plan.lifetime_contributions) },
-    { label: 'Lifetime withdrawals', value: money(plan.lifetime_withdrawals) },
-  ]
-
-  return (
-    <>
-      {rows.map((row) => (
-        <div
-          key={row.label}
-          className="flex items-baseline justify-between gap-4 py-2 border-b"
-          style={{ borderColor: 'var(--app-border)' }}
-        >
-          <dt className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            {row.label}
-          </dt>
-          <dd className="text-sm font-medium text-right">{row.value}</dd>
-        </div>
-      ))}
-    </>
-  )
 }
 
 // Balance chart range presets. Each range drives a lookback window + a
@@ -1326,11 +1286,6 @@ function BackLink() {
 export default function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, isLoading, error } = useAccount(accountId)
-  const {
-    data: taxPlan,
-    isLoading: isTaxPlanLoading,
-    isError: isTaxPlanError,
-  } = useTaxAdvantagedPlan(account?.tax_advantaged_plan_id)
 
   // Transaction modal state — lifted up from TransactionListCard so the
   // "Add transaction" button can live outside the card next to the section
@@ -1428,31 +1383,6 @@ export default function AccountDetail() {
               </div>
             ))}
 
-            {account.tax_advantaged_plan_id && isTaxPlanLoading && (
-              <div
-                className="flex items-baseline justify-between py-2 border-b"
-                style={{ borderColor: 'var(--app-border)' }}
-              >
-                <dt className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Tax plan
-                </dt>
-                <dd className="text-sm font-medium">Loading…</dd>
-              </div>
-            )}
-
-            {account.tax_advantaged_plan_id && isTaxPlanError && (
-              <div
-                className="flex items-baseline justify-between py-2 border-b"
-                style={{ borderColor: 'var(--app-border)' }}
-              >
-                <dt className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Tax plan
-                </dt>
-                <dd className="text-sm font-medium">Unavailable</dd>
-              </div>
-            )}
-
-            {taxPlan && <TaxPlanRows plan={taxPlan} />}
           </dl>
         </section>
 
