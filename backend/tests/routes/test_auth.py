@@ -97,6 +97,15 @@ async def test_signup_invalid_base_currency_returns_422(client):
     assert resp.json()["detail"] == "Invalid currency code"
 
 
+async def test_signup_invalid_timezone_returns_422(client):
+    """Signup rejects non-IANA timezone names."""
+    await _seed_currency()
+    payload = {**SIGNUP_PAYLOAD, "tz": "Toronto"}
+    resp = await client.post("/auth/signup", json=payload)
+
+    assert resp.status_code == 422
+
+
 # --- Login ---
 
 

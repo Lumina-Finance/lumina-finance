@@ -2,7 +2,9 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.auth import validate_iana_timezone
 
 
 class UserProfile(BaseModel):
@@ -28,6 +30,14 @@ class UpdateProfileRequest(BaseModel):
     profile_pic: str | None = None
     tz: str | None = Field(None, max_length=40)
     base_currency: str | None = Field(None, min_length=3, max_length=3)
+
+    @field_validator("tz")
+    @classmethod
+    def validate_tz(cls, v: str | None) -> str | None:
+        """Validate timezone names when provided."""
+        if v is None:
+            return v
+        return validate_iana_timezone(v)
 
 
 class RunwayAccountsRequest(BaseModel):

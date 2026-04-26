@@ -1,5 +1,6 @@
+from datetime import date
+
 import pytest
-from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.models.base import CategoryKind, PermissionLevel, RecurrenceFreq
@@ -10,6 +11,16 @@ from app.models.group import Group, GroupMember
 from app.models.user import User
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
+TRACKED_AT = date(2026, 1, 1)
+
+
+def _tracked_category(base_budget_id, category_id, **overrides):
+    return BudgetTrackedCategory(
+        base_budget_id=base_budget_id,
+        category_id=category_id,
+        added_at=overrides.pop("added_at", TRACKED_AT),
+        **overrides,
+    )
 
 # --- Fixtures ---
 
@@ -272,7 +283,7 @@ async def test_base_budget_cascades_on_group_deletion(db, group):
 
 async def test_link_base_budget_to_category(db, base_budget, category):
     """Link a base budget to a tracked category."""
-    btc = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
+    btc = _tracked_category(base_budget.id, category.id)
     db.add(btc)
     await db.flush()
 
@@ -286,12 +297,12 @@ async def test_link_base_budget_to_category(db, base_budget, category):
 
 async def test_soft_delete_tracked_category(db, base_budget, category):
     """Setting removed_at soft-deletes the row; the PK is still retrievable."""
-    btc = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
+    btc = _tracked_category(base_budget.id, category.id)
     db.add(btc)
     await db.flush()
     btc_id = btc.id
 
-    btc.removed_at = func.now()
+    btc.removed_at = date(2026, 1, 2)
     await db.flush()
     db.expire_all()
 
@@ -308,8 +319,8 @@ async def test_multiple_tracked_categories(db, base_budget, user):
     db.add(cat2)
     await db.flush()
 
-    btc1 = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat1.id)
-    btc2 = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat2.id)
+    btc1 = _tracked_category(base_budget.id, cat1.id)
+    btc2 = _tracked_category(base_budget.id, cat2.id)
     db.add(btc1)
     db.add(btc2)
     await db.flush()
@@ -325,24 +336,24 @@ async def test_multiple_tracked_categories(db, base_budget, user):
 
 async def test_tracked_category_invalid_base_budget_rejected(db, category):
     """base_budget_id must reference a valid base budget."""
-    db.add(BudgetTrackedCategory(base_budget_id=NONEXISTENT_ID, category_id=category.id))
+    db.add(_tracked_category(NONEXISTENT_ID, category.id))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_tracked_category_invalid_category_rejected(db, base_budget):
     """category_id must reference a valid category."""
-    db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=NONEXISTENT_ID))
+    db.add(_tracked_category(base_budget.id, NONEXISTENT_ID))
     with pytest.raises(IntegrityError):
         await db.flush()
 
 
 async def test_duplicate_active_tracked_category_rejected(db, base_budget, category):
     """Partial unique index blocks two active rows for the same (base, category)."""
-    db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id))
+    db.add(_tracked_category(base_budget.id, category.id))
     await db.flush()
 
-    db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id))
+    db.add(_tracked_category(base_budget.id, category.id))
     with pytest.raises(IntegrityError):
         await db.flush()
 
@@ -355,8 +366,8 @@ async def test_active_tracked_category_scoped_per_base(db, user, category):
     db.add(base_b)
     await db.flush()
 
-    btc_a = BudgetTrackedCategory(base_budget_id=base_a.id, category_id=category.id)
-    btc_b = BudgetTrackedCategory(base_budget_id=base_b.id, category_id=category.id)
+    btc_a = _tracked_category(base_a.id, category.id)
+    btc_b = _tracked_category(base_b.id, category.id)
     db.add(btc_a)
     db.add(btc_b)
     await db.flush()
@@ -369,14 +380,14 @@ async def test_active_tracked_category_scoped_per_base(db, user, category):
 async def test_historical_tracked_category_rows_allowed(db, base_budget, category):
     """Re-adding a category after removal is allowed; the partial index ignores removed rows."""
     # First addition — then soft-delete it
-    first = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
+    first = _tracked_category(base_budget.id, category.id)
     db.add(first)
     await db.flush()
-    first.removed_at = func.now()
+    first.removed_at = date(2026, 1, 2)
     await db.flush()
 
     # Re-add the same category — should succeed as a second historical row
-    second = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
+    second = _tracked_category(base_budget.id, category.id, added_at=date(2026, 1, 3))
     db.add(second)
     await db.flush()
 
@@ -386,7 +397,7 @@ async def test_historical_tracked_category_rows_allowed(db, base_budget, categor
 
 async def test_tracked_categories_cascade_on_base_budget_deletion(db, base_budget, category):
     """Deleting a base budget cascades to its tracked-category rows."""
-    btc = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=category.id)
+    btc = _tracked_category(base_budget.id, category.id)
     db.add(btc)
     await db.flush()
     btc_id = btc.id

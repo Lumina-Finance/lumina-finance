@@ -1,3 +1,8 @@
+from datetime import UTC, datetime
+
+import sqlalchemy as sa
+
+from app.models.budget import BudgetTrackedCategory
 from app.models.currency import Currency
 from tests.conftest import TestSession
 from tests.routes.conftest import _create_user, _get_auth_header
@@ -1077,6 +1082,32 @@ async def test_update_base_budget_add_categories(client):
     assert set(resp.json()["category_ids"]) == {cat_id_1, cat_id_2}
 
 
+async def test_create_base_budget_sets_tracked_category_added_at_from_user_timezone(client, monkeypatch):
+    """At Jan 1 01:00 UTC, Toronto-created category links are added on Dec 31."""
+    from app.routes import base_budget as base_budget_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(base_budget_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    cat_id = await _create_category(client, headers)
+
+    resp = await _create_base_budget(client, headers, category_ids=[cat_id])
+    assert resp.status_code == 201
+
+    async with TestSession() as session:
+        tracked = (await session.execute(
+            sa.select(BudgetTrackedCategory).where(BudgetTrackedCategory.category_id == cat_id),
+        )).scalar_one()
+        assert tracked.added_at.isoformat() == "2025-12-31"
+
+
 async def test_update_base_budget_remove_categories(client):
     """Removing a tracked category via PATCH soft-deletes it from the response."""
     signup_resp = await _create_user(client)
@@ -1097,6 +1128,40 @@ async def test_update_base_budget_remove_categories(client):
 
     assert resp.status_code == 200
     assert resp.json()["category_ids"] == [cat_keep]
+
+
+async def test_update_base_budget_sets_removed_at_from_user_timezone(client, monkeypatch):
+    """At Jan 1 01:00 UTC, Toronto removals are stamped Dec 31."""
+    from app.routes import base_budget as base_budget_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(base_budget_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    cat_keep = await _create_category(client, headers, name="Test Groceries")
+    cat_remove = await _create_category(client, headers, name="Test Takeout")
+    base_budget_id = (await _create_base_budget(
+        client, headers, category_ids=[cat_keep, cat_remove],
+    )).json()["id"]
+
+    resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"category_ids": [cat_keep]},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    async with TestSession() as session:
+        tracked = (await session.execute(
+            sa.select(BudgetTrackedCategory).where(BudgetTrackedCategory.category_id == cat_remove),
+        )).scalar_one()
+        assert tracked.removed_at.isoformat() == "2025-12-31"
 
 
 async def test_update_base_budget_swap_categories(client):

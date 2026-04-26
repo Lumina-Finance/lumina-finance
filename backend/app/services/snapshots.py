@@ -6,13 +6,20 @@ after any mutation to keep the snapshot table consistent.
 """
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, date
+from datetime import date
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.account import Account, AccountBalanceSnapshot
+from app.models.group import Group
 from app.models.transaction import Transaction
+from app.models.user import User
+
+PersonalOwner = aliased(User)
+GroupOwner = aliased(User)
 
 
 async def get_current_balances(
@@ -125,13 +132,19 @@ async def restore_zero_anchor_if_empty(db: AsyncSession, account_id: uuid.UUID) 
     if existing.scalar_one_or_none() is not None:
         return
 
-    created_at = await db.scalar(select(Account.created_at).where(Account.id == account_id))
-    if created_at is None:
+    row = (await db.execute(
+        select(Account.created_at, func.coalesce(PersonalOwner.tz, GroupOwner.tz).label("tz"))
+        .outerjoin(PersonalOwner, Account.owner_id == PersonalOwner.id)
+        .outerjoin(Group, Account.group_id == Group.id)
+        .outerjoin(GroupOwner, Group.owner_id == GroupOwner.id)
+        .where(Account.id == account_id),
+    )).one_or_none()
+    if row is None or row.created_at is None or row.tz is None:
         return
 
     db.add(AccountBalanceSnapshot(
         account_id=account_id,
-        dt=created_at.astimezone(UTC).date(),
+        dt=row.created_at.astimezone(ZoneInfo(row.tz)).date(),
         balance=0,
     ))
     await db.flush()

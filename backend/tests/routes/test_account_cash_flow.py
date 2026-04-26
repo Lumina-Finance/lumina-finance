@@ -1,5 +1,6 @@
 """Route tests for GET /accounts/{account_id}/cash-flow."""
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from tests.routes.conftest import _create_account, _create_user, _get_auth_header
 
@@ -9,8 +10,8 @@ NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
 def _today_utc() -> date:
-    """Return the same "today" the endpoint uses when deriving its month window."""
-    return datetime.now(UTC).date()
+    """Return the Toronto-local "today" the default test user uses."""
+    return datetime.now(ZoneInfo("America/Toronto")).date()
 
 
 def _first_of_current_month(today: date) -> date:
@@ -165,6 +166,30 @@ async def test_months_param_one_returns_single_current_month_entry(client):
     assert data[0]["month"] == _first_of_current_month(_today_utc()).isoformat()
 
 
+async def test_cash_flow_current_month_uses_viewer_timezone_at_utc_boundary(client, monkeypatch):
+    """At Jan 1 01:00 UTC, a Toronto user's current cash-flow month is December."""
+    from app.routes import account as account_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(account_routes, "datetime", FixedDateTime)
+
+    headers, account_id = await _setup_account(client)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/cash-flow",
+        params={"months": 1},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["month"] == "2025-12-01"
+
+
 async def test_months_param_twenty_four_returns_twenty_four_entries(client):
     """?months=24 (the upper bound) returns exactly 24 entries."""
     headers, account_id = await _setup_account(client)
@@ -179,7 +204,7 @@ async def test_months_param_twenty_four_returns_twenty_four_entries(client):
 
 
 async def test_series_is_ordered_oldest_first_and_anchored_to_current_month(client):
-    """Months are strictly ascending and the last entry is the first of the current UTC month."""
+    """Months are strictly ascending and the last entry is the first of the viewer-local month."""
     headers, account_id = await _setup_account(client)
 
     resp = await client.get(
@@ -191,7 +216,7 @@ async def test_series_is_ordered_oldest_first_and_anchored_to_current_month(clie
     data = resp.json()
 
     months = [date.fromisoformat(entry["month"]) for entry in data]
-    # Last entry anchors to the first of the current UTC month.
+    # Last entry anchors to the first of the viewer-local month.
     assert months[-1] == _first_of_current_month(_today_utc())
     # Every month is the 1st of its month and each step forward by one month.
     assert all(m.day == 1 for m in months)

@@ -1,6 +1,7 @@
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,7 +14,7 @@ from app.dependencies import get_current_user
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission, TaxAdvantagedPlan
 from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, PermissionLevel, TaxTreatment
 from app.models.currency import Currency
-from app.models.group import GroupMember
+from app.models.group import Group, GroupMember
 from app.models.institution import Institution
 from app.models.user import User
 from app.permissions import check_account_access
@@ -221,7 +222,7 @@ async def get_account_spending_breakdown_route(
     Requires read access on the account.
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-    return await get_account_spending_breakdown(db, account_id, range_, datetime.now(UTC))
+    return await get_account_spending_breakdown(db, account_id, range_, datetime.now(ZoneInfo(user.tz)))
 
 
 @router.get("/{account_id}/cash-flow", response_model=list[MonthlyIncomeExpense])
@@ -239,7 +240,7 @@ async def get_account_cash_flow_route(
     read access on the account.
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-    return await get_account_cash_flow_history(db, account_id, months, datetime.now(UTC))
+    return await get_account_cash_flow_history(db, account_id, months, datetime.now(ZoneInfo(user.tz)))
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
@@ -291,6 +292,7 @@ async def create_account(
     # Determine ownership
     owner_id = user.id
     group_id = data.group_id
+    anchor_tz = user.tz
     if group_id:
         membership_result = await db.execute(
             select(GroupMember).where(
@@ -304,6 +306,14 @@ async def create_account(
         if not membership.is_admin:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create group accounts")
         owner_id = None
+        group_owner_tz = await db.scalar(
+            select(User.tz)
+            .join(Group, Group.owner_id == User.id)
+            .where(Group.id == group_id),
+        )
+        if group_owner_tz is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+        anchor_tz = group_owner_tz
 
     await _validate_tax_advantaged_plan_link(
         db,
@@ -336,7 +346,7 @@ async def create_account(
     # transaction history is emptied.
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
-        dt=account.created_at.astimezone(UTC).date(),
+        dt=account.created_at.astimezone(ZoneInfo(anchor_tz)).date(),
         balance=0,
     ))
 

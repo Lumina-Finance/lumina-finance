@@ -202,7 +202,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('base_budget_id', sa.Uuid(), nullable=False),
     sa.Column('category_id', sa.Uuid(), nullable=False),
-    sa.Column('added_at', sa.Date(), server_default=sa.text('CURRENT_DATE'), nullable=False),
+    sa.Column('added_at', sa.Date(), nullable=False),
     sa.Column('removed_at', sa.Date(), nullable=True),
     sa.ForeignKeyConstraint(['base_budget_id'], ['base_budgets.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),

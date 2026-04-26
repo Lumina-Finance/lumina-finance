@@ -7,6 +7,14 @@ from pydantic import BaseModel, EmailStr, field_validator
 _VALID_TIMEZONES = available_timezones()
 
 
+def validate_iana_timezone(value: str) -> str:
+    """Reject values that are not recognized IANA timezone names."""
+    if value not in _VALID_TIMEZONES:
+        msg = "Invalid IANA timezone"
+        raise ValueError(msg)
+    return value
+
+
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str
@@ -18,11 +26,8 @@ class SignupRequest(BaseModel):
     @field_validator("tz")
     @classmethod
     def validate_tz(cls, v: str) -> str:
-        """Reject values that are not recognised IANA timezone names."""
-        if v not in _VALID_TIMEZONES:
-            msg = "Invalid IANA timezone"
-            raise ValueError(msg)
-        return v
+        """Validate timezone names at the API boundary."""
+        return validate_iana_timezone(v)
 
 
 class LoginRequest(BaseModel):

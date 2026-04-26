@@ -1,5 +1,7 @@
 import uuid
+from datetime import datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -108,6 +110,7 @@ async def update_base_budget(
 
     # Update tracked categories if provided — soft-delete removed, insert new
     if new_category_ids is not None:
+        today = datetime.now(ZoneInfo(user.tz)).date()
         validated = set(await _validate_category_ids(db, new_category_ids, user.id, base_budget.group_id))
         current_result = await db.execute(
             select(BudgetTrackedCategory.category_id).where(
@@ -127,13 +130,13 @@ async def update_base_budget(
                     BudgetTrackedCategory.category_id.in_(removed),
                     BudgetTrackedCategory.removed_at.is_(None),
                 )
-                .values(removed_at=sa.func.current_date()),
+                .values(removed_at=today),
             )
 
         # Insert newly added categories
         added = validated - current
         for cat_id in added:
-            db.add(BudgetTrackedCategory(base_budget_id=base_budget_id, category_id=cat_id))
+            db.add(BudgetTrackedCategory(base_budget_id=base_budget_id, category_id=cat_id, added_at=today))
 
     await db.commit()
     await db.refresh(base_budget)
@@ -232,8 +235,9 @@ async def create_base_budget(
     await db.flush()
 
     # Link tracked categories
+    today = datetime.now(ZoneInfo(user.tz)).date()
     for cat_id in validated_cat_ids:
-        db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat_id))
+        db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat_id, added_at=today))
 
     await db.commit()
     await db.refresh(base_budget)

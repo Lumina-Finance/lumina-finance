@@ -1,4 +1,10 @@
+from datetime import UTC, date, datetime
+
+from app.models.account import AccountBalanceSnapshot
+from app.models.base import CategoryKind
+from app.models.category import Category
 from app.models.currency import Currency
+from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.conftest import (
     SIGNUP_PAYLOAD,
@@ -85,6 +91,16 @@ async def test_patch_updates_timezone(client):
 
     assert resp.status_code == 200
     assert resp.json()["tz"] == "Europe/London"
+
+
+async def test_patch_invalid_timezone_returns_422(client):
+    """PATCH /me rejects non-IANA timezone names."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch("/me", json={"tz": "Toronto"}, headers=headers)
+
+    assert resp.status_code == 422
 
 
 async def test_patch_updates_base_currency(client):
@@ -304,3 +320,45 @@ async def test_put_runway_accounts_rejects_other_users_account(client):
 
     get_resp = await client.get("/me/runway-accounts", headers=headers_a)
     assert get_resp.json() == []
+
+
+async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypatch):
+    """A Toronto viewer still treats Jan 1 01:00 UTC as Dec 31 for runway history."""
+    from app.routes import user as user_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add(Transaction(
+            created_by_user_id=user_id,
+            account_id=account_id,
+            category_id=category.id,
+            dt=date(2025, 1, 1),
+            amount=-12000,
+            currency="CAD",
+        ))
+        session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 12, 31), balance=120000))
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["months_covered"] == 1
+    assert data["avg_monthly_expense"] == 12000
+    assert data["reason"] is None

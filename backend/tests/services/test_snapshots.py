@@ -1,5 +1,5 @@
 """Tests for the account balance snapshot recomputation service."""
-from datetime import UTC, date
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import select
@@ -96,6 +96,25 @@ async def test_recompute_with_no_transactions_restores_zero_anchor(db, account):
     assert [(s.dt, s.balance) for s in snapshots] == [
         (account.created_at.astimezone(UTC).date(), 0),
     ]
+
+
+async def test_recompute_restores_zero_anchor_from_owner_local_created_at(db, user, category):
+    """Creation anchors use the account owner's local date, not the UTC date."""
+    account = Account(
+        owner_id=user.id,
+        account_kind=AccountKind.ASSET,
+        account_type=AccountType.CHECKING,
+        name="Boundary",
+        currency="CAD",
+        created_at=datetime(2026, 1, 1, 2, 0, tzinfo=UTC),
+    )
+    db.add(account)
+    await db.flush()
+
+    await recompute_snapshots_from(db, account.id, date(2026, 1, 1))
+
+    snapshots = await _get_snapshots(db, account.id)
+    assert [(s.dt, s.balance) for s in snapshots] == [(date(2025, 12, 31), 0)]
 
 
 async def test_recompute_single_day_writes_one_snapshot(db, user, account, category):

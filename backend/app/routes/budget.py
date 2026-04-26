@@ -74,7 +74,7 @@ async def get_budget_utilization(
     )
     tracked_category_ids = list(tracked_result.scalars().all())
 
-    # Sum amounts per category for transactions whose UTC date falls in the period.
+    # Sum amounts per category for transactions whose transaction date falls in the period.
     # Transaction.amount is stored in the parent account's currency, so we restrict the
     # join to accounts whose currency matches the base's currency — this keeps multi-
     # currency users from mixing e.g. USD and CAD totals when the same category crosses
@@ -196,5 +196,4 @@ async def list_budgets(
         build_budget_response(budget, base, cats_by_base.get(base.id, []))
         for budget, base in rows
     ]
-
 

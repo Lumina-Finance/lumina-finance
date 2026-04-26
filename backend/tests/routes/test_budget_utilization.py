@@ -51,7 +51,7 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
     """Create a base budget via POST /base-budgets.
 
     Defaults: name="March Budget", currency="CAD", one freshly-created tracked
-    category. The category's `added_at` defaults to server-side `now()` — tests
+    category. The category's `added_at` is set from the user's local today — tests
     that care about period_end cutoff semantics should call this via
     `_create_base_with_instance` (which backdates added_at) or override it via
     `_set_tracked_category_timestamps`.
@@ -1110,7 +1110,7 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
     await _create_transaction(client, headers, account_id, groceries, dt="2026-01-15", amount=-4000)
 
     # Create the base budget + past-period instance via low-level helpers so
-    # added_at stays at server-side now() (today is well after Jan 31). The
+    # added_at stays at the user's local today (well after Jan 31). The
     # high-level _create_base_with_instance helper backdates added_at, which
     # would mask the behavior under test.
     base_resp = await _create_base_budget(client, headers, category_ids=[groceries])
@@ -1131,7 +1131,7 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
 async def test_get_budget_utilization_mid_period_category_addition_counts_whole_period_retroactively(client):
     """Mid-period category additions count transactions from the start of the period.
 
-    Predicate is `added_at <= period_end`, not `added_at <= ts_day`. So a
+    Predicate is `added_at <= period_end`, not `added_at <= transaction_day`. So a
     category added on March 15 for a March 1-31 instance sweeps in transactions
     dated March 5 — the add applies to the whole period retroactively.
     """
@@ -1146,7 +1146,7 @@ async def test_get_budget_utilization_mid_period_category_addition_counts_whole_
     )
 
     # Force added_at to mid-period (Mar 15). Direct DB edit because the public
-    # API only sets added_at to server now().
+    # API sets added_at to the user's local today.
     await _set_tracked_category_timestamps(
         base_id, groceries, added_at=date(2026, 3, 15),
     )
@@ -1229,7 +1229,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
         dt="2026-01-15", amount=-5000,
     )
 
-    # Remove groceries via PATCH. removed_at defaults to server now() — well after Jan 31.
+    # Remove groceries via PATCH. removed_at is set to the user's local today — well after Jan 31.
     new_cat = await _create_category(client, headers, name="Replacement")
     patch_resp = await client.patch(
         f"/base-budgets/{base_id}",
@@ -1277,7 +1277,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
     await _create_transaction(client, headers, account_id, original, dt="2026-01-10", amount=-3000)
     await _create_transaction(client, headers, account_id, addon, dt="2026-01-20", amount=-7777)
 
-    # PATCH the base today to start tracking `addon` — added_at defaults to now(), well after Jan 31
+    # PATCH the base today to start tracking `addon` — added_at is the user's local today, well after Jan 31.
     patch_resp = await client.patch(
         f"/base-budgets/{base_id}",
         json={"category_ids": [original, addon]},
@@ -1399,9 +1399,9 @@ async def test_get_budget_utilization_current_period_uses_currently_active_categ
 
 
 async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(client):
-    """A category whose added_at UTC day equals period_end is still tracked.
+    """A category whose added_at day equals period_end is still tracked.
 
-    Pins the `added_at_day <= period_end` bound: same-day-as-period-end passes.
+    Pins the `added_at <= period_end` bound: same-day-as-period-end passes.
     A regression that flipped `<=` to `<` would exclude the category and make
     this test fail.
     """
@@ -1414,7 +1414,7 @@ async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(cl
     base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
-    # Pin added_at to mid-day on period_end itself (2026-03-31)
+    # Pin added_at to period_end itself (2026-03-31)
     await _set_tracked_category_timestamps(
         base_id, groceries, added_at=date(2026, 3, 31),
     )
@@ -1434,9 +1434,9 @@ async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(cl
 
 
 async def test_get_budget_utilization_added_at_day_after_period_end_is_not_tracked(client):
-    """A category whose added_at UTC day is one day after period_end is excluded.
+    """A category whose added_at day is one day after period_end is excluded.
 
-    Pins the other side of the `added_at_day <= period_end` bound: April 1 for
+    Pins the other side of the `added_at <= period_end` bound: April 1 for
     a March 1-31 instance is excluded. A regression that flipped the direction
     of the comparison would include the row and make this test fail.
     """
@@ -1467,9 +1467,9 @@ async def test_get_budget_utilization_added_at_day_after_period_end_is_not_track
 
 
 async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_tracked(client):
-    """A category whose removed_at UTC day equals period_end is excluded.
+    """A category whose removed_at day equals period_end is excluded.
 
-    Pins the strict `removed_at_day > period_end` bound: same-day-as-period-end
+    Pins the strict `removed_at > period_end` bound: same-day-as-period-end
     fails the predicate. A regression that flipped `>` to `>=` would include
     the row and make this test fail.
     """
@@ -1482,7 +1482,7 @@ async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_trac
     base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
-    # added_at well before period, removed_at mid-day on period_end itself
+    # added_at well before period, removed_at on period_end itself
     await _set_tracked_category_timestamps(
         base_id, groceries,
         added_at=date(2026, 2, 1),
@@ -1502,9 +1502,9 @@ async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_trac
 
 
 async def test_get_budget_utilization_removed_at_day_after_period_end_is_tracked(client):
-    """A category whose removed_at UTC day is one day after period_end stays tracked.
+    """A category whose removed_at day is one day after period_end stays tracked.
 
-    Pins the other side of `removed_at_day > period_end`: April 1 for a March
+    Pins the other side of `removed_at > period_end`: April 1 for a March
     1-31 instance still counts. A regression that flipped the comparison would
     exclude the row and make this test fail.
     """

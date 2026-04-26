@@ -5,8 +5,9 @@ Thin orchestrator that composes the per-widget service helpers in
 The heavy SQL, date math, and widget-specific computation live in the
 service module — this file just wires the results together.
 """
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,7 +42,7 @@ async def get_dashboard(
     window_days: Annotated[int, Query(ge=1, le=365)] = 90,
 ):
     """Return the aggregated landing payload for the dashboard."""
-    now = datetime.now(UTC)
+    now = datetime.now(ZoneInfo(user.tz))
 
     accounts = await get_accessible_accounts(db, user)
     base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
@@ -85,7 +86,7 @@ async def get_spending_comparison_route(
     cumulative totals in positive minor units, scoped to base-currency
     accounts and expense categories.
     """
-    now = datetime.now(UTC)
+    now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
     base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
     return await get_spending_comparison(db, base_currency_account_ids, range_, now)
@@ -103,7 +104,7 @@ async def get_spending_breakdown_route(
     can flip without refetching. Scoped to base-currency accessible accounts
     and the same current-period bounds as the spending comparison chart.
     """
-    now = datetime.now(UTC)
+    now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
     base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
     return await get_spending_breakdown(db, base_currency_account_ids, range_, now)

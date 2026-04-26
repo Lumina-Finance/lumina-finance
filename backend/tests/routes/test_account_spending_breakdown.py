@@ -1,5 +1,6 @@
 """Route tests for GET /accounts/{account_id}/spending-breakdown."""
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from tests.routes.conftest import _create_account, _create_user, _get_auth_header
 
@@ -9,8 +10,8 @@ NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
 def _today_utc() -> date:
-    """Return the same "today" the endpoint uses when deriving range bounds."""
-    return datetime.now(UTC).date()
+    """Return the Toronto-local "today" the default test user uses."""
+    return datetime.now(ZoneInfo("America/Toronto")).date()
 
 
 def _range_start(range_: str, today: date) -> date:
@@ -170,6 +171,34 @@ async def test_mtd_includes_transactions_since_first_of_month_and_excludes_earli
     assert data["grand_total_spend"] == 2000
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["total"] == 2000
+
+
+async def test_mtd_uses_viewer_timezone_at_utc_year_boundary(client, monkeypatch):
+    """At Jan 1 01:00 UTC, a Toronto user is still in Dec 31 MTD."""
+    from app.routes import account as account_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(account_routes, "datetime", FixedDateTime)
+
+    headers, account_id = await _setup_account(client)
+    category_id = (await _create_category(client, headers)).json()["id"]
+
+    await _create_transaction(client, headers, account_id, category_id, dt="2025-12-31", amount=-3100)
+    await _create_transaction(client, headers, account_id, category_id, dt="2026-01-01", amount=-9999)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["grand_total_spend"] == 3100
 
 
 async def test_qtd_includes_transactions_since_first_of_quarter_and_excludes_earlier(client):

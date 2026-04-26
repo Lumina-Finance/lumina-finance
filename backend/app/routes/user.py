@@ -1,6 +1,7 @@
 import uuid
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -154,7 +155,7 @@ async def get_runway(
     # single query. COUNT(DISTINCT … FILTER …) only counts month buckets that
     # actually contain expenses, so a user with only income activity averages
     # against zero months (handled as insufficient_history below).
-    window_start = date.today() - timedelta(days=_RUNWAY_WINDOW_DAYS - 1)
+    window_start = datetime.now(ZoneInfo(user.tz)).date() - timedelta(days=_RUNWAY_WINDOW_DAYS - 1)
     expense_filter = (Transaction.amount < 0) & (Category.kind == CategoryKind.EXPENSE)
     agg = (await db.execute(
         select(

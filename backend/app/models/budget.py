@@ -120,7 +120,7 @@ class BudgetTrackedCategory(Base):
         ForeignKey("base_budgets.id", ondelete="CASCADE"), nullable=False,
     )
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
-    added_at: Mapped[date] = mapped_column(Date, nullable=False, server_default=func.current_date())
+    added_at: Mapped[date] = mapped_column(Date, nullable=False)
     removed_at: Mapped[date | None] = mapped_column(Date)
 
 
