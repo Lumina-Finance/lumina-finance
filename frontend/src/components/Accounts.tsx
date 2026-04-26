@@ -163,7 +163,7 @@ function TaxAdvantagedLimitsSection({ summaries }: { summaries: TaxAdvantagedLim
         />
       </div>
 
-      <div style={{ borderTop: '1px solid var(--app-border-strong)' }}>
+      <div>
         {summaries.map(({ plan, linkedAccountCount }) => {
           return (
             <div
@@ -775,6 +775,8 @@ export default function Accounts() {
           </div>
         </section>
 
+        <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
+
         {/* Filter row — institution / category / type */}
         <div className="flex flex-wrap items-center gap-4">
           <FilterChip
@@ -831,8 +833,6 @@ export default function Accounts() {
             Add Account
           </button>
         </div>
-
-        <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
 
         <AccountListSection
           title="Assets"
