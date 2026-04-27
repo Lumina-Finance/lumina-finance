@@ -59,7 +59,7 @@ class BaseBudget(Base):
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     recurrence_freq: Mapped[RecurrenceFreq] = mapped_column(nullable=False)
-    # How many freq-units per instance (1 week, 3 months = quarterly, etc.)
+    # Number of recurrence units each Budget instance spans.
     instance_length: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
     recurrence_weekday: Mapped[int | None] = mapped_column(SmallInteger)  # 0=Mon..6=Sun, required iff freq=weekly
     recurrence_dom: Mapped[int | None] = mapped_column(SmallInteger)  # 1..31, required iff freq in (monthly, yearly)
