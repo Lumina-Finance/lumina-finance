@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, CircleAlert, CircleCheck, OctagonAlert, Plus, Search, TriangleAlert, X } from 'lucide-react'
 import {
   useBaseBudgets,
@@ -16,6 +16,7 @@ import { useCurrencies, type Currency } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import Dropdown from '@/components/Dropdown'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { ApiError } from '@/api/auth'
 
 interface BudgetFormState {
   name: string
@@ -195,6 +196,18 @@ function addBudgetPeriod(start: CalendarDate, baseBudget: BaseBudget) {
   return addMonths(start, periodLengthInMonths(baseBudget))
 }
 
+function compareCalendarDates(a: CalendarDate, b: CalendarDate) {
+  if (a.year !== b.year) return a.year - b.year
+  if (a.month !== b.month) return a.month - b.month
+  return a.day - b.day
+}
+
+function formatYmd(date: CalendarDate) {
+  const month = String(date.month).padStart(2, '0')
+  const day = String(date.day).padStart(2, '0')
+  return `${date.year}-${month}-${day}`
+}
+
 function formatPeriodRange(start: CalendarDate, baseBudget: BaseBudget) {
   const nextStart = addBudgetPeriod(start, baseBudget)
   return `${formatCalendarDate(start)} - ${formatCalendarDate(addDays(nextStart, -1))}`
@@ -210,6 +223,21 @@ function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget | undefi
     formatPeriodRange(nextStart, baseBudget),
     formatPeriodRange(followingStart, baseBudget),
   ]
+}
+
+function missingRecurringPeriodStarts(baseBudget: BaseBudget, latestPeriod: Budget | undefined, today: string) {
+  if (!baseBudget.recurs || !latestPeriod) return []
+
+  const todayDate = parseYmd(today)
+  const starts: string[] = []
+  let nextStart = addBudgetPeriod(parseYmd(latestPeriod.period_start), baseBudget)
+
+  while (compareCalendarDates(nextStart, todayDate) <= 0) {
+    starts.push(formatYmd(nextStart))
+    nextStart = addBudgetPeriod(nextStart, baseBudget)
+  }
+
+  return starts
 }
 
 function attentionState(latestPeriod: Budget | undefined, utilization: BudgetUtilization | undefined) {
@@ -782,8 +810,12 @@ export default function Budgets() {
   const { data: currencies, isLoading: currenciesLoading } = useCurrencies()
   const baseBudgetsQuery = useBaseBudgets()
   const budgetsQuery = useBudgets()
+  const createBackfillBudget = useCreateBudgetInstance()
   const [createOpen, setCreateOpen] = useState(false)
+  const backfilledKeys = useRef(new Set<string>())
   const defaultCurrency = user?.base_currency ?? currencies?.[0]?.id ?? 'USD'
+  const userTimeZone = user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const today = useMemo(() => todayYmd(userTimeZone), [userTimeZone])
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category.name])),
     [categories],
@@ -836,6 +868,58 @@ export default function Budgets() {
   )
   const budgetsLoading = baseBudgetsQuery.isLoading || budgetsQuery.isLoading || utilizationQueries.some((query) => query.isLoading)
   const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || utilizationQueries.some((query) => query.isError)
+
+  useEffect(() => {
+    if (!user || baseBudgetsQuery.isLoading || budgetsQuery.isLoading) return
+
+    const missingPeriods = budgetCards.flatMap(({ baseBudget, latestPeriod }) => {
+      if (!latestPeriod) return []
+      return missingRecurringPeriodStarts(baseBudget, latestPeriod, today).map((periodStart) => ({
+        key: `${baseBudget.id}:${periodStart}`,
+        baseBudgetId: baseBudget.id,
+        period_start: periodStart,
+        overall_limit: latestPeriod.overall_limit,
+      }))
+    }).filter((period) => {
+      if (backfilledKeys.current.has(period.key)) return false
+      backfilledKeys.current.add(period.key)
+      return true
+    })
+
+    if (missingPeriods.length === 0) return
+
+    let cancelled = false
+
+    async function backfillPeriods() {
+      let shouldRefetch = false
+      for (const period of missingPeriods) {
+        try {
+          await createBackfillBudget.mutateAsync({
+            baseBudgetId: period.baseBudgetId,
+            period_start: period.period_start,
+            overall_limit: period.overall_limit,
+          })
+          shouldRefetch = true
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409) {
+            shouldRefetch = true
+            continue
+          }
+          return
+        }
+      }
+
+      if (!cancelled && shouldRefetch) {
+        await budgetsQuery.refetch()
+      }
+    }
+
+    void backfillPeriods()
+
+    return () => {
+      cancelled = true
+    }
+  }, [baseBudgetsQuery.isLoading, budgetCards, budgetsQuery, createBackfillBudget, today, user])
 
   return (
     <div>
@@ -957,7 +1041,7 @@ export default function Budgets() {
           categories={categories ?? []}
           currencies={currencies ?? []}
           defaultCurrency={defaultCurrency}
-          timeZone={user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
+          timeZone={userTimeZone}
           onClose={() => setCreateOpen(false)}
           onCreated={() => undefined}
         />
