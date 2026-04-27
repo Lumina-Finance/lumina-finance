@@ -1,14 +1,21 @@
 import { useMemo, useState } from 'react'
-import { Check, Plus, Search, TriangleAlert, X } from 'lucide-react'
+import { Check, CircleAlert, CircleCheck, OctagonAlert, Plus, Search, TriangleAlert, X } from 'lucide-react'
 import {
+  useBaseBudgets,
+  useBudgetUtilizations,
+  useBudgets,
   useCreateBaseBudget,
   useCreateBudgetInstance,
+  type BaseBudget,
+  type Budget,
+  type BudgetUtilization,
   type RecurrenceFreq,
 } from '@/api/budgets'
 import { useCategories, type Category } from '@/api/categories'
 import { useCurrencies, type Currency } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import Dropdown from '@/components/Dropdown'
+import { formatCurrency } from '@/utils/formatCurrency'
 
 interface BudgetFormState {
   name: string
@@ -159,6 +166,216 @@ function cadenceSummary(form: BudgetFormState) {
   }
 
   return `"${name}" will repeat ${cadence} starting ${form.periodStart ? formatCalendarDate(parseYmd(form.periodStart)) : 'the selected start date'}`
+}
+
+function budgetCadenceLabel(baseBudget: BaseBudget) {
+  if (!baseBudget.recurs) return 'One-off'
+  if (baseBudget.instance_length === 1) {
+    return baseBudget.recurrence_freq[0].toUpperCase() + baseBudget.recurrence_freq.slice(1)
+  }
+  return `Every ${baseBudget.instance_length} ${baseBudget.recurrence_freq === 'yearly' ? 'years' : `${baseBudget.recurrence_freq.slice(0, -2)}s`}`
+}
+
+function formatBudgetPeriod(period: Budget | undefined) {
+  if (!period) return 'No period yet'
+  return `${formatCalendarDate(parseYmd(period.period_start))} - ${formatCalendarDate(parseYmd(period.period_end))}`
+}
+
+function periodLengthInMonths(baseBudget: BaseBudget) {
+  if (baseBudget.recurrence_freq === 'monthly') return baseBudget.instance_length
+  if (baseBudget.recurrence_freq === 'yearly') return baseBudget.instance_length * 12
+  return 0
+}
+
+function addBudgetPeriod(start: CalendarDate, baseBudget: BaseBudget) {
+  if (baseBudget.recurrence_freq === 'weekly') {
+    return addDays(start, baseBudget.instance_length * 7)
+  }
+
+  return addMonths(start, periodLengthInMonths(baseBudget))
+}
+
+function formatPeriodRange(start: CalendarDate, baseBudget: BaseBudget) {
+  const nextStart = addBudgetPeriod(start, baseBudget)
+  return `${formatCalendarDate(start)} - ${formatCalendarDate(addDays(nextStart, -1))}`
+}
+
+function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget | undefined) {
+  if (!baseBudget.recurs || !latestPeriod) return []
+
+  const nextStart = addBudgetPeriod(parseYmd(latestPeriod.period_start), baseBudget)
+  const followingStart = addBudgetPeriod(nextStart, baseBudget)
+
+  return [
+    formatPeriodRange(nextStart, baseBudget),
+    formatPeriodRange(followingStart, baseBudget),
+  ]
+}
+
+function attentionState(latestPeriod: Budget | undefined, utilization: BudgetUtilization | undefined) {
+  if (!latestPeriod || !utilization) {
+    return {
+      label: 'Needs attention',
+      background: 'var(--app-negative-soft)',
+      color: 'var(--app-negative)',
+      textColor: 'var(--app-negative)',
+      indicatorColor: 'var(--app-negative)',
+    }
+  }
+
+  const usedRatio = utilization.total_spent / latestPeriod.overall_limit
+  if (usedRatio >= 1) {
+    return {
+      label: 'Needs attention',
+      background: 'var(--app-negative-soft)',
+      color: 'var(--app-negative)',
+      textColor: 'var(--app-negative)',
+      indicatorColor: 'var(--app-negative)',
+    }
+  }
+  if (usedRatio >= 0.8) {
+    return {
+      label: 'Watch',
+      background: 'var(--app-warning-soft)',
+      color: 'var(--app-warning)',
+      textColor: 'var(--app-warning-text)',
+      indicatorColor: 'var(--app-warning)',
+    }
+  }
+  return {
+    label: 'On track',
+    background: 'var(--app-positive-soft)',
+    color: 'var(--app-positive)',
+    textColor: 'var(--app-positive)',
+    indicatorColor: 'var(--app-positive)',
+  }
+}
+
+function CategoryRow({ label }: { label: string }) {
+  return (
+    <div
+      className="flex h-8 items-center rounded-lg px-3 text-sm"
+      style={{ background: 'var(--app-bg)', color: 'var(--app-text-muted)' }}
+    >
+      <span className="truncate">{label}</span>
+    </div>
+  )
+}
+
+function AttentionIcon({ label }: { label: string }) {
+  if (label === 'On track') return <CircleCheck size={14} aria-hidden />
+  if (label === 'Watch') return <CircleAlert size={14} aria-hidden />
+  return <OctagonAlert size={14} aria-hidden />
+}
+
+function BudgetCard({
+  baseBudget,
+  latestPeriod,
+  categoryNames,
+  utilization,
+}: {
+  baseBudget: BaseBudget
+  latestPeriod: Budget | undefined
+  categoryNames: string[]
+  utilization: BudgetUtilization | undefined
+}) {
+  const shownCategories = categoryNames.length > 3 ? categoryNames.slice(0, 2) : categoryNames.slice(0, 3)
+  const extraCategoryCount = Math.max(categoryNames.length - shownCategories.length, 0)
+  const spent = utilization?.total_spent ?? 0
+  const remaining = latestPeriod ? latestPeriod.overall_limit - spent : 0
+  const isOverBudget = remaining < 0
+  const displayBalance = isOverBudget ? Math.abs(remaining) : remaining
+  const progress = latestPeriod ? Math.min(Math.max((spent / latestPeriod.overall_limit) * 100, 0), 100) : 0
+  const attention = attentionState(latestPeriod, utilization)
+  const upcomingPeriods = nextBudgetPeriods(baseBudget, latestPeriod)
+
+  return (
+    <article
+      className="flex h-[21.5rem] w-full flex-col rounded-2xl p-5"
+      style={{
+        background: 'var(--app-input-bg)',
+        border: '1px solid var(--app-input-border)',
+        borderTop: `5px solid ${attention.indicatorColor}`,
+      }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="truncate text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
+            {baseBudget.name}
+          </h2>
+          <p className="mt-1 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+            {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
+          </p>
+        </div>
+        <span
+          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
+          style={{ background: attention.background, color: attention.textColor }}
+        >
+          <AttentionIcon label={attention.label} />
+          {attention.label}
+        </span>
+      </div>
+
+      <div className="mt-5">
+        <div className="flex items-baseline justify-between gap-4">
+          <p className="flex min-w-0 items-baseline gap-2 text-3xl font-semibold tracking-tight" style={{ color: 'var(--app-text)' }}>
+            <span className="truncate">{latestPeriod ? formatCurrency(displayBalance, baseBudget.currency) : 'Not set'}</span>
+            {latestPeriod && (
+              <span className="shrink-0 text-lg font-bold uppercase">
+                {isOverBudget ? 'over' : 'left'}
+              </span>
+            )}
+          </p>
+          <p className="shrink-0 text-right text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+            {latestPeriod
+              ? `${formatCurrency(spent, baseBudget.currency)} used of ${formatCurrency(latestPeriod.overall_limit, baseBudget.currency)}`
+              : 'Create a period to start tracking spending.'}
+          </p>
+        </div>
+        <div className="mt-3 h-2 rounded-full" style={{ background: 'var(--app-border)' }}>
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${progress}%`, background: attention.indicatorColor }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem]">
+        <div className="min-w-0">
+          <p className="text-sm font-medium" style={{ color: 'var(--app-text-subtle)' }}>
+            Current period
+          </p>
+          <div className="mt-2 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+            <p className="truncate">{formatBudgetPeriod(latestPeriod)}</p>
+          </div>
+          <p className="mt-4 text-sm font-medium" style={{ color: 'var(--app-text-subtle)' }}>
+            Upcoming periods
+          </p>
+          <div className="mt-2 space-y-1.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+            {upcomingPeriods.length > 0
+              ? upcomingPeriods.map((period) => (
+                <p key={period} className="truncate">{period}</p>
+              ))
+              : <p className="truncate">No upcoming periods</p>}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <p className="mb-2 text-sm font-medium" style={{ color: 'var(--app-text-subtle)' }}>
+            Categories
+          </p>
+          <div className="grid gap-2">
+            {shownCategories.length > 0 ? shownCategories.map((name) => (
+              <CategoryRow key={name} label={name} />
+            )) : (
+              <CategoryRow label="No categories selected" />
+            )}
+            {extraCategoryCount > 0 && <CategoryRow label={`+${extraCategoryCount} more`} />}
+          </div>
+        </div>
+      </div>
+    </article>
+  )
 }
 
 function BudgetCreateModal({
@@ -563,9 +780,62 @@ export default function Budgets() {
   const { user } = useAuth()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
   const { data: currencies, isLoading: currenciesLoading } = useCurrencies()
+  const baseBudgetsQuery = useBaseBudgets()
+  const budgetsQuery = useBudgets()
   const [createOpen, setCreateOpen] = useState(false)
-  const [created, setCreated] = useState(false)
   const defaultCurrency = user?.base_currency ?? currencies?.[0]?.id ?? 'USD'
+  const categoryById = useMemo(
+    () => new Map((categories ?? []).map((category) => [category.id, category.name])),
+    [categories],
+  )
+  const budgetCards = useMemo(() => {
+    const baseById = new Map<string, BaseBudget>()
+    const periodsByBase = new Map<string, Budget[]>()
+
+    for (const baseBudget of baseBudgetsQuery.data ?? []) {
+      baseById.set(baseBudget.id, baseBudget)
+    }
+
+    for (const period of budgetsQuery.data ?? []) {
+      baseById.set(period.base_budget_id, period.base_budget)
+      const periods = periodsByBase.get(period.base_budget_id) ?? []
+      periods.push(period)
+      periodsByBase.set(period.base_budget_id, periods)
+    }
+
+    return Array.from(baseById.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((baseBudget) => {
+        const periods = (periodsByBase.get(baseBudget.id) ?? [])
+          .slice()
+          .sort((a, b) => b.period_start.localeCompare(a.period_start))
+        return {
+          baseBudget,
+          latestPeriod: periods[0],
+          categoryNames: baseBudget.category_ids
+            .map((categoryId) => categoryById.get(categoryId))
+            .filter((name): name is string => Boolean(name)),
+        }
+      })
+  }, [baseBudgetsQuery.data, budgetsQuery.data, categoryById])
+  const latestPeriodIds = useMemo(
+    () => budgetCards
+      .map(({ latestPeriod }) => latestPeriod?.id)
+      .filter((budgetId): budgetId is string => Boolean(budgetId)),
+    [budgetCards],
+  )
+  const utilizationQueries = useBudgetUtilizations(latestPeriodIds)
+  const utilizationByBudgetId = useMemo(
+    () => new Map(
+      utilizationQueries
+        .map((query) => query.data)
+        .filter((utilization): utilization is BudgetUtilization => Boolean(utilization))
+        .map((utilization) => [utilization.budget_id, utilization]),
+    ),
+    [utilizationQueries],
+  )
+  const budgetsLoading = baseBudgetsQuery.isLoading || budgetsQuery.isLoading || utilizationQueries.some((query) => query.isLoading)
+  const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || utilizationQueries.some((query) => query.isError)
 
   return (
     <div>
@@ -582,56 +852,105 @@ export default function Budgets() {
         </div>
       </header>
 
-      <section
-        className="rounded-2xl p-6"
-        style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
-      >
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
-              No budgets to display
-            </p>
-            <p className="mt-1 max-w-xl text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
-              {created
-                ? 'Budget created. Create another one or continue with the next setup step.'
-                : 'Create a budget to start tracking limits, spending, and category progress.'}
-            </p>
-            {(categoriesLoading || currenciesLoading) && (
-              <p className="mt-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                Loading form options...
-              </p>
-            )}
-          </div>
-
-          <div
-            className="w-full max-w-sm rounded-2xl p-5"
-            style={{ background: 'var(--app-input-bg)', border: '1px solid var(--app-input-border)' }}
-            aria-hidden
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="h-3 w-28 rounded-full" style={{ background: 'var(--app-border)' }} />
-                <div className="mt-3 h-4 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
-              </div>
-              <div className="h-7 w-20 rounded-full" style={{ background: 'var(--app-accent-soft)' }} />
-            </div>
-            <div className="mt-6">
-              <div className="h-8 w-36 rounded-md" style={{ background: 'var(--app-border)' }} />
-              <div className="mt-3 h-2 rounded-full" style={{ background: 'var(--app-border)' }}>
-                <div className="h-full w-2/5 rounded-full" style={{ background: 'var(--app-accent)' }} />
-              </div>
-            </div>
-            <div className="mt-5 space-y-3">
-              {[0, 1, 2].map((item) => (
-                <div key={item} className="flex items-center justify-between gap-4">
-                  <div className="h-3 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
-                  <div className="h-3 w-16 rounded-full" style={{ background: 'var(--app-border)' }} />
+      {budgetsLoading ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[0, 1].map((item) => (
+            <div
+              key={item}
+              className="rounded-2xl p-5"
+              style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+              aria-hidden
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="h-4 w-32 rounded-full" style={{ background: 'var(--app-border)' }} />
+                  <div className="mt-3 h-3 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
                 </div>
-              ))}
+                <div className="h-7 w-16 rounded-full" style={{ background: 'var(--app-accent-soft)' }} />
+              </div>
+              <div className="mt-6 h-9 w-40 rounded-md" style={{ background: 'var(--app-border)' }} />
+              <div className="mt-3 h-3 w-56 rounded-full" style={{ background: 'var(--app-border)' }} />
+              <div className="mt-6 flex gap-2">
+                <div className="h-7 w-20 rounded-full" style={{ background: 'var(--app-input-bg)' }} />
+                <div className="h-7 w-24 rounded-full" style={{ background: 'var(--app-input-bg)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : budgetsError ? (
+        <section
+          className="rounded-2xl p-6"
+          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+        >
+          <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
+            Budgets could not load
+          </p>
+          <p className="mt-1 text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
+            Refresh the page or try again later.
+          </p>
+        </section>
+      ) : budgetCards.length > 0 ? (
+        <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {budgetCards.map(({ baseBudget, latestPeriod, categoryNames }) => (
+            <BudgetCard
+              key={baseBudget.id}
+              baseBudget={baseBudget}
+              latestPeriod={latestPeriod}
+              categoryNames={categoryNames}
+              utilization={latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined}
+            />
+          ))}
+        </section>
+      ) : (
+        <section
+          className="rounded-2xl p-6"
+          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+        >
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
+                No budgets to display
+              </p>
+              <p className="mt-1 max-w-xl text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
+                Create a budget to start tracking limits, spending, and category progress.
+              </p>
+              {(categoriesLoading || currenciesLoading) && (
+                <p className="mt-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  Loading form options...
+                </p>
+              )}
+            </div>
+
+            <div
+              className="w-full max-w-sm rounded-2xl p-5"
+              style={{ background: 'var(--app-input-bg)', border: '1px solid var(--app-input-border)' }}
+              aria-hidden
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="h-3 w-28 rounded-full" style={{ background: 'var(--app-border)' }} />
+                  <div className="mt-3 h-4 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
+                </div>
+                <div className="h-7 w-20 rounded-full" style={{ background: 'var(--app-accent-soft)' }} />
+              </div>
+              <div className="mt-6">
+                <div className="h-8 w-36 rounded-md" style={{ background: 'var(--app-border)' }} />
+                <div className="mt-3 h-2 rounded-full" style={{ background: 'var(--app-border)' }}>
+                  <div className="h-full w-2/5 rounded-full" style={{ background: 'var(--app-accent)' }} />
+                </div>
+              </div>
+              <div className="mt-5 space-y-3">
+                {[0, 1, 2].map((item) => (
+                  <div key={item} className="flex items-center justify-between gap-4">
+                    <div className="h-3 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
+                    <div className="h-3 w-16 rounded-full" style={{ background: 'var(--app-border)' }} />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {createOpen && (
         <BudgetCreateModal
@@ -640,7 +959,7 @@ export default function Budgets() {
           defaultCurrency={defaultCurrency}
           timeZone={user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
           onClose={() => setCreateOpen(false)}
-          onCreated={() => setCreated(true)}
+          onCreated={() => undefined}
         />
       )}
     </div>

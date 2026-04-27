@@ -67,6 +67,13 @@ export const dashboardKeys = {
   spendingBreakdownAll: ['spending-breakdown'] as const,
 };
 
+export const budgetKeys = {
+  all: ['budgets'] as const,
+  baseBudgets: () => ['budgets', 'base-budgets'] as const,
+  periods: () => ['budgets', 'periods'] as const,
+  utilization: (budgetId: string) => ['budgets', 'periods', budgetId, 'utilization'] as const,
+};
+
 export const userKeys = {
   runwayAccounts: () => ['me', 'runway-accounts'] as const,
   runway: () => ['me', 'runway'] as const,

@@ -20,6 +20,9 @@
     --app-input-border: rgba(75, 55, 35, 0.22);
     --app-positive: #3A7850;
     --app-positive-soft: rgba(58, 120, 80, 0.10);
+    --app-warning: #D6B400;
+    --app-warning-soft: rgba(214, 180, 0, 0.16);
+    --app-warning-text: #6F5700;
     --app-negative: #9A3C34;
     --app-negative-soft: rgba(154, 60, 52, 0.10);
     --app-negative-border: rgba(154, 60, 52, 0.30);
@@ -47,6 +50,9 @@
     --app-input-border: rgba(210, 180, 120, 0.20);
     --app-positive: #6CA07B;
     --app-positive-soft: rgba(108, 160, 123, 0.14);
+    --app-warning: #F5D547;
+    --app-warning-soft: rgba(245, 213, 71, 0.18);
+    --app-warning-text: #F8E28A;
     --app-negative: #B8584E;
     --app-negative-soft: rgba(184, 88, 78, 0.12);
     --app-negative-border: rgba(184, 88, 78, 0.35);
