@@ -2273,7 +2273,7 @@ function ProfileSection({ user, form, onFieldChange, firstNameValid }: ProfileSe
         <SettingsCard>
           <div className="space-y-6">
             <div className="space-y-1">
-              <h3 className="font-serif text-xl font-medium tracking-tight">User information</h3>
+              <h3 className="text-base font-semibold">User information</h3>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 Your identity and localization defaults.
               </p>
@@ -2335,7 +2335,7 @@ function ProfileSection({ user, form, onFieldChange, firstNameValid }: ProfileSe
         <SettingsCard>
           <div className="space-y-6">
             <div className="space-y-1">
-              <h3 className="font-serif text-xl font-medium tracking-tight">Email and password</h3>
+              <h3 className="text-base font-semibold">Email and password</h3>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 Your login email and password settings.
               </p>
