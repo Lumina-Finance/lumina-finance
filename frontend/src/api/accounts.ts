@@ -145,6 +145,14 @@ function getCachedTaxAdvantagedPlanId(
   return accounts?.find((account) => account.id === accountId)?.tax_advantaged_plan_id;
 }
 
+function getCachedIsHidden(queryClient: QueryClient, accountId: string): boolean | undefined {
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
+  if (detail) return detail.is_hidden;
+
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
+  return accounts?.find((account) => account.id === accountId)?.is_hidden;
+}
+
 function invalidateTaxAdvantagedPlanCaches(queryClient: QueryClient, planIds: Array<string | null | undefined>) {
   const uniquePlanIds = [...new Set(planIds.filter((planId): planId is string => !!planId))];
   if (uniquePlanIds.length === 0) return;
@@ -172,9 +180,21 @@ export function useUpdateAccount() {
     mutationFn: updateAccount,
     onSuccess: (account, variables) => {
       const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, account.id);
+      const previousIsHidden = getCachedIsHidden(queryClient, account.id);
 
       queryClient.setQueryData(accountKeys.detail(account.id), account);
       updateCachedAccountList(queryClient, account);
+
+      if ('is_hidden' in variables.payload && previousIsHidden !== account.is_hidden) {
+        queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
+        queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
+        queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
+        queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
+      }
 
       if (
         'tax_advantaged_plan_id' in variables.payload

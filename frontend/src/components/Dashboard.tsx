@@ -289,7 +289,7 @@ export default function Dashboard() {
     if (!runway || runway.reason !== null) return []
     const ids = new Set(runwayAccountIds ?? [])
     const rows = (accounts ?? [])
-      .filter((a) => ids.has(a.id) && a.current_balance > 0)
+      .filter((a) => ids.has(a.id) && !a.is_hidden && a.current_balance > 0)
       .sort((a, b) => b.current_balance - a.current_balance)
     const total = rows.reduce((sum, a) => sum + a.current_balance, 0)
     if (total === 0) return []

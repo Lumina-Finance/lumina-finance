@@ -93,13 +93,13 @@ class DashboardResponse(BaseModel):
     """Aggregated payload for `GET /dashboard`.
 
     Bundles every widget the dashboard landing page renders in one round trip.
-    Individual sub-queries mirror the scoping logic used by the list endpoints
-    (`list_accounts`, `list_transactions`, `list_budgets`) so the dashboard
-    respects the same permission rules without reissuing per-resource checks.
+    Individual sub-queries mirror default aggregate scoping: readable,
+    non-hidden accounts plus readable budgets. Hidden accounts remain
+    inspectable on direct account views but are excluded here.
 
     Net worth widget:
-    - `current_net_worth` is the sum of latest balances across every accessible
-      account in the user's base currency, with liability balances subtracted.
+    - `current_net_worth` is the sum of latest balances across every readable
+      non-hidden account in the user's base currency, with liability balances subtracted.
     - `net_worth_history` is a day-by-day series of net worth over the last
       `net_worth_window_days` days (length = `net_worth_window_days`, index 0 =
       earliest day, final index = today). Forward-filled from
@@ -107,8 +107,8 @@ class DashboardResponse(BaseModel):
       day's balance.
 
     Credit widget:
-    - `credit_limit_total` sums `credit_limit` across accessible liability
-      accounts in the user's base currency that have a limit set.
+    - `credit_limit_total` sums `credit_limit` across readable non-hidden
+      liability accounts in the user's base currency that have a limit set.
     - `credit_used` is the absolute value of the current outstanding balance on
       those same accounts (liability balances are stored as negatives).
 

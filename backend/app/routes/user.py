@@ -80,9 +80,8 @@ async def list_runway_accounts(
 ):
     """Return the account IDs the user has picked to feed the runway calculation.
 
-    Filters out any stored selections the user can no longer read (e.g., a
-    household account they've lost permission to) so the response only
-    surfaces currently valid IDs.
+    Filters out any stored selections the user can no longer read or has
+    hidden, so the response only surfaces currently active IDs.
     """
     accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
     stored = await db.execute(
@@ -101,22 +100,29 @@ async def replace_runway_accounts(
 
     Dedupes the submitted set. Rejects the whole request with 422 if any submitted
     account isn't readable by the user (personal, household admin, or explicit
-    permission).
+    permission) and currently visible. Stored hidden selections are preserved
+    so they become active again if the account is unhidden.
     """
     requested_ids = set(data.account_ids)
 
-    if requested_ids:
-        accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
-        invalid = requested_ids - accessible_ids
-        if invalid:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Inaccessible accounts: {sorted(str(x) for x in invalid)}",
-            )
+    all_accessible = await get_accessible_accounts(db, user, include_hidden=True)
+    visible_ids = {a.id for a in all_accessible if not a.is_hidden}
+    hidden_ids = {a.id for a in all_accessible if a.is_hidden}
+
+    invalid = requested_ids - visible_ids
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Inaccessible accounts: {sorted(str(x) for x in invalid)}",
+        )
 
     # Replace the full set in a single transaction — simpler than diffing and
     # the runway selection is expected to be small (a handful of accounts).
-    await db.execute(delete(UserRunwayAccount).where(UserRunwayAccount.user_id == user.id))
+    # Hidden selections are left untouched so hiding an account is reversible.
+    delete_query = delete(UserRunwayAccount).where(UserRunwayAccount.user_id == user.id)
+    if hidden_ids:
+        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(hidden_ids))
+    await db.execute(delete_query)
     for account_id in requested_ids:
         db.add(UserRunwayAccount(user_id=user.id, account_id=account_id))
     await db.commit()

@@ -1,4 +1,7 @@
 from datetime import UTC, date, datetime
+from uuid import UUID
+
+from sqlalchemy import update
 
 from app.models.account import AccountBalanceSnapshot
 from app.models.base import CategoryKind
@@ -320,6 +323,91 @@ async def test_put_runway_accounts_rejects_other_users_account(client):
 
     get_resp = await client.get("/me/runway-accounts", headers=headers_a)
     assert get_resp.json() == []
+
+
+async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkeypatch):
+    """Hidden selected accounts are omitted from runway responses without deleting the stored pick."""
+    from app.routes import user as user_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    visible_account = (await _create_account(client, headers, name="Visible Cash")).json()
+    hidden_account = (await _create_account(client, headers, name="Temporarily Hidden")).json()
+    visible_account_id = visible_account["id"]
+    hidden_account_id = hidden_account["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add_all([
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(visible_account_id),
+                category_id=category.id,
+                dt=date(2026, 4, 1),
+                amount=-12_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(hidden_account_id),
+                category_id=category.id,
+                dt=date(2026, 4, 2),
+                amount=-24_000,
+                currency="CAD",
+            ),
+            AccountBalanceSnapshot(account_id=UUID(visible_account_id), dt=date(2026, 4, 15), balance=120_000),
+            AccountBalanceSnapshot(account_id=UUID(hidden_account_id), dt=date(2026, 4, 15), balance=48_000),
+        ])
+        for account, balance in [(visible_account, 120_000), (hidden_account, 48_000)]:
+            await session.execute(
+                update(AccountBalanceSnapshot)
+                .where(
+                    AccountBalanceSnapshot.account_id == UUID(account["id"]),
+                    AccountBalanceSnapshot.dt == date.fromisoformat(account["created_at"][:10]),
+                )
+                .values(balance=balance),
+            )
+        await session.commit()
+
+    await client.put(
+        "/me/runway-accounts",
+        json={"account_ids": [visible_account_id, hidden_account_id]},
+        headers=headers,
+    )
+    await client.patch(f"/accounts/{hidden_account_id}", json={"is_hidden": True}, headers=headers)
+    await client.put("/me/runway-accounts", json={"account_ids": [visible_account_id]}, headers=headers)
+
+    hidden_list_resp = await client.get("/me/runway-accounts", headers=headers)
+    hidden_runway_resp = await client.get("/me/runway", headers=headers)
+
+    assert hidden_list_resp.status_code == 200
+    assert hidden_list_resp.json() == [visible_account_id]
+    assert hidden_runway_resp.status_code == 200
+    hidden_runway = hidden_runway_resp.json()
+    assert hidden_runway["liquid_balance"] == 120_000
+    assert hidden_runway["avg_monthly_expense"] == 12_000
+
+    await client.patch(f"/accounts/{hidden_account_id}", json={"is_hidden": False}, headers=headers)
+
+    restored_list_resp = await client.get("/me/runway-accounts", headers=headers)
+    restored_runway_resp = await client.get("/me/runway", headers=headers)
+
+    assert restored_list_resp.status_code == 200
+    assert set(restored_list_resp.json()) == {visible_account_id, hidden_account_id}
+    restored_runway = restored_runway_resp.json()
+    assert restored_runway["liquid_balance"] == 168_000
+    assert restored_runway["avg_monthly_expense"] == 36_000
 
 
 async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypatch):

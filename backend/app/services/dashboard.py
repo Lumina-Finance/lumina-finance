@@ -5,8 +5,8 @@ payload. Helpers take the signed-in user (or a derived account list) plus
 a reference time ``now`` and derive any further date boundaries internally,
 so callers don't have to plumb window-start/window-end timestamps through.
 
-Scoping rules mirror the list endpoints:
-- accessible accounts = personal + group admin + explicit per-account permission
+Scoping rules mirror the default aggregate/list endpoints:
+- accessible accounts = non-hidden personal + group admin + explicit per-account permission
 - accessible budgets  = same pattern against base budgets
 so the dashboard never surfaces data the user couldn't read elsewhere.
 
@@ -86,9 +86,11 @@ def _cumsum(values: list[int]) -> list[int]:
 # Account access
 # ---------------------------------------------------------------------------
 
-async def get_accessible_accounts(db: AsyncSession, user: User) -> list[Account]:
-    """Return every account the user can read (personal / group admin / explicit permission)."""
-    result = await db.execute(
+async def get_accessible_accounts(
+    db: AsyncSession, user: User, *, include_hidden: bool = False,
+) -> list[Account]:
+    """Return accounts the user can read, excluding hidden accounts by default."""
+    query = (
         select(Account)
         .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
         .outerjoin(
@@ -99,7 +101,13 @@ async def get_accessible_accounts(db: AsyncSession, user: User) -> list[Account]
             (Account.owner_id == user.id)
             | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
             | (AccountPermission.user_id == user.id),
-        ),
+        )
+    )
+    if not include_hidden:
+        query = query.where(Account.is_hidden.is_(False))
+
+    result = await db.execute(
+        query,
     )
     return list(result.scalars().unique().all())
 
@@ -291,6 +299,7 @@ async def _aggregate_spent_per_active_budget(
             (BudgetTrackedCategory.removed_at.is_(None)) | (BudgetTrackedCategory.removed_at > Budget.period_end),
             Transaction.dt >= Budget.period_start,
             Transaction.dt <= Budget.period_end,
+            Account.is_hidden.is_(False),
             Account.currency == BaseBudget.currency,
             (
                 (BaseBudget.group_id.is_not(None) & (Account.group_id == BaseBudget.group_id))
