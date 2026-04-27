@@ -2269,106 +2269,119 @@ function ProfileSection({ user, form, onFieldChange, firstNameValid }: ProfileSe
         description="Your name and localization defaults."
       />
 
-      <SettingsCard>
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold"
-              style={{
-                background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
-                color: '#1C1510',
-              }}
-            >
-              {initials}
+      <div className="space-y-4">
+        <SettingsCard>
+          <div className="space-y-6">
+            <div className="space-y-1">
+              <h3 className="font-serif text-xl font-medium tracking-tight">User information</h3>
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                Your identity and localization defaults.
+              </p>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium truncate">{displayName}</p>
+
+            <div className="flex items-center gap-4">
+              <div
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
+                  color: '#1C1510',
+                }}
+              >
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium truncate">{displayName}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="First name">
+                <input
+                  className="app-input"
+                  required
+                  aria-invalid={!firstNameValid}
+                  value={form.first_name}
+                  onChange={(e) => onFieldChange('first_name', e.target.value)}
+                />
+              </Field>
+              <Field label="Last name">
+                <input
+                  className="app-input"
+                  value={form.last_name}
+                  onChange={(e) => onFieldChange('last_name', e.target.value)}
+                />
+              </Field>
+              <Field label="Timezone">
+                <Dropdown
+                  options={TIMEZONES}
+                  value={form.tz}
+                  onChange={(v) => onFieldChange('tz', v)}
+                  searchable
+                  searchPlaceholder="Search timezones..."
+                />
+              </Field>
+              <Field label="Base currency" hint="Planned, currently not supported to change">
+                <input
+                  className="app-input"
+                  value={baseCurrencyLabel}
+                  disabled
+                  style={DISABLED_INPUT_STYLE}
+                />
+              </Field>
             </div>
           </div>
+        </SettingsCard>
 
-          {/* Name + localization fields. Base currency is shown alongside so
-              the user sees the full picture; it visibly dims via
-              DISABLED_INPUT_STYLE on top of the HTML disabled attribute. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="First name">
-              <input
-                className="app-input"
-                required
-                aria-invalid={!firstNameValid}
-                value={form.first_name}
-                onChange={(e) => onFieldChange('first_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Last name">
-              <input
-                className="app-input"
-                value={form.last_name}
-                onChange={(e) => onFieldChange('last_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Timezone">
-              <Dropdown
-                options={TIMEZONES}
-                value={form.tz}
-                onChange={(v) => onFieldChange('tz', v)}
-                searchable
-                searchPlaceholder="Search timezones..."
-              />
-            </Field>
-            <Field label="Base currency" hint="Planned, currently not supported to change">
-              <input
-                className="app-input"
-                value={baseCurrencyLabel}
-                disabled
-                style={DISABLED_INPUT_STYLE}
-              />
-            </Field>
+        <SettingsCard>
+          <div className="space-y-6">
+            <div className="space-y-1">
+              <h3 className="font-serif text-xl font-medium tracking-tight">Email and password</h3>
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                Your login email and password settings.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Email" hint="Planned, currently not supported to change">
+                <input
+                  className="app-input"
+                  type="email"
+                  value={user?.email ?? ''}
+                  disabled
+                  style={DISABLED_INPUT_STYLE}
+                />
+              </Field>
+              <Field label="Current password" hint="Planned, currently not supported to change">
+                <input
+                  className="app-input"
+                  type="password"
+                  placeholder="••••••••"
+                  disabled
+                  style={DISABLED_INPUT_STYLE}
+                />
+              </Field>
+              <Field label="New password" hint="Planned, currently not supported to change">
+                <input
+                  className="app-input"
+                  type="password"
+                  placeholder="••••••••"
+                  disabled
+                  style={DISABLED_INPUT_STYLE}
+                />
+              </Field>
+              <Field label="Confirm new password" hint="Planned, currently not supported to change">
+                <input
+                  className="app-input"
+                  type="password"
+                  placeholder="••••••••"
+                  disabled
+                  style={DISABLED_INPUT_STYLE}
+                />
+              </Field>
+            </div>
           </div>
-
-          {/* Divider between identity/localization and the account/security
-              group (email + passwords). */}
-          <div style={{ borderTop: '1px solid var(--app-border)' }} />
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Email" hint="Planned, currently not supported to change">
-              <input
-                className="app-input"
-                type="email"
-                value={user?.email ?? ''}
-                disabled
-                style={DISABLED_INPUT_STYLE}
-              />
-            </Field>
-            <Field label="Current password" hint="Planned, currently not supported to change">
-              <input
-                className="app-input"
-                type="password"
-                placeholder="••••••••"
-                disabled
-                style={DISABLED_INPUT_STYLE}
-              />
-            </Field>
-            <Field label="New password" hint="Planned, currently not supported to change">
-              <input
-                className="app-input"
-                type="password"
-                placeholder="••••••••"
-                disabled
-                style={DISABLED_INPUT_STYLE}
-              />
-            </Field>
-            <Field label="Confirm new password" hint="Planned, currently not supported to change">
-              <input
-                className="app-input"
-                type="password"
-                placeholder="••••••••"
-                disabled
-                style={DISABLED_INPUT_STYLE}
-              />
-            </Field>
-          </div>
-        </div>
-      </SettingsCard>
+        </SettingsCard>
+      </div>
     </section>
   )
 }
