@@ -103,7 +103,7 @@
   }
 
   .app-input {
-    @apply w-full rounded-lg border px-4 py-2.5 outline-none transition-colors duration-200;
+    @apply h-10 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
     font-size: 0.9375rem;
     background: var(--app-input-bg);
     border-color: var(--app-input-border);
