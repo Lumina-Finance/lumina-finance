@@ -89,6 +89,12 @@ function getBudgetUtilization(budgetId: string) {
   return authenticatedFetch<BudgetUtilization>(`/budgets/${budgetId}/utilization`);
 }
 
+function deleteBaseBudget(baseBudgetId: string) {
+  return authenticatedFetch<void>(`/base-budgets/${baseBudgetId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function useBaseBudgets() {
   const { accessToken } = useAuth();
   return useQuery({
@@ -138,5 +144,11 @@ export function useCreateBudgetInstance() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: budgetKeys.periods(), exact: true });
     },
+  });
+}
+
+export function useDeleteBaseBudget() {
+  return useMutation({
+    mutationFn: deleteBaseBudget,
   });
 }

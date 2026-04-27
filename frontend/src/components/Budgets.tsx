@@ -15,6 +15,7 @@ import {
   useBudgets,
   useCreateBaseBudget,
   useCreateBudgetInstance,
+  useDeleteBaseBudget,
   type BaseBudget,
   type Budget,
   type BudgetUtilization,
@@ -479,13 +480,19 @@ function BudgetDetailsModal({
   categoryById,
   utilizationByBudgetId,
   onClose,
+  onDeleted,
 }: {
   baseBudget: BaseBudget
   periods: Budget[]
   categoryById: Map<string, string>
   utilizationByBudgetId: Map<string, BudgetUtilization>
   onClose: () => void
+  onDeleted: () => void
 }) {
+  const deleteBaseBudget = useDeleteBaseBudget()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteInProgress, setDeleteInProgress] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const sortedPeriods = periods.slice().sort((a, b) => a.period_start.localeCompare(b.period_start))
   const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
   const latestUtilization = latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined
@@ -508,6 +515,27 @@ function BudgetDetailsModal({
     .slice()
     .sort((a, b) => b.spent - a.spent)
   const attention = attentionState(latestPeriod, latestUtilization)
+  const isDeleting = deleteBaseBudget.isPending || deleteInProgress
+  const handleDelete = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+
+    setDeleteError(null)
+    setDeleteInProgress(true)
+    try {
+      await Promise.all([
+        deleteBaseBudget.mutateAsync(baseBudget.id),
+        new Promise((resolve) => window.setTimeout(resolve, 1000)),
+      ])
+      onClose()
+      onDeleted()
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete budget.')
+      setDeleteInProgress(false)
+    }
+  }
 
   return (
     <div
@@ -610,15 +638,32 @@ function BudgetDetailsModal({
               </div>
             </section>
 
-            <div className="mt-auto flex gap-3 pt-6">
-              <button type="button" className="app-primary-button flex-1">
-                <Pencil size={16} aria-hidden />
-                Edit
-              </button>
-              <button type="button" className="app-danger-button flex-1">
-                <Trash2 size={16} aria-hidden />
-                Delete
-              </button>
+            <div className="mt-auto">
+              {confirmDelete && !isDeleting && (
+                <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                  This deletes all budget periods.
+                </p>
+              )}
+              {deleteError && (
+                <p className="mb-3 text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+                  {deleteError}
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button type="button" className="app-primary-button flex-1">
+                  <Pencil size={16} aria-hidden />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="app-danger-button flex-1"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                >
+                  <Trash2 size={16} aria-hidden />
+                  {isDeleting ? <div className="app-spinner" /> : confirmDelete ? 'Confirm' : 'Delete'}
+                </button>
+              </div>
             </div>
           </aside>
 
@@ -1385,6 +1430,10 @@ export default function Budgets() {
           categoryById={categoryById}
           utilizationByBudgetId={utilizationByBudgetId}
           onClose={() => setSelectedBudgetId(null)}
+          onDeleted={() => {
+            void baseBudgetsQuery.refetch()
+            void budgetsQuery.refetch()
+          }}
         />
       )}
     </div>
