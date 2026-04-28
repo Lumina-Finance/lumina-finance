@@ -13,6 +13,7 @@ class CategoryResponse(BaseModel):
     name: str
     kind: str
     icon: str | None
+    is_required: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}

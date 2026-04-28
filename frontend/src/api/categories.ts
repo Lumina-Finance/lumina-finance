@@ -10,6 +10,7 @@ export interface Category {
   name: string;
   kind: 'expense' | 'income' | 'transfer';
   icon: string | null;
+  is_required: boolean;
   created_at: string;
 }
 

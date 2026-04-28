@@ -12,12 +12,6 @@ const KIND_LABELS: Record<CategoryKind, string> = {
 
 const KIND_ORDER: CategoryKind[] = ['expense', 'income', 'transfer']
 
-const PROTECTED_CATEGORY_NAMES = new Set(['Transfer', 'Credit Card Payment', 'Debt Payment', 'Vehicle Maintenance'])
-
-function isProtectedCategory(category: Pick<Category, 'name'>): boolean {
-  return PROTECTED_CATEGORY_NAMES.has(category.name)
-}
-
 function displayEmoji(category: Category): string {
   return category.icon ?? '🏷️'
 }
@@ -53,7 +47,7 @@ export default function CategorySettingsSection() {
     })
   }
   const handleDelete = (category: Category) => {
-    if (isProtectedCategory(category)) return
+    if (category.is_required) return
     const confirmed = window.confirm(`Delete ${category.name}? This cannot be undone.`)
     if (!confirmed) return
     setDeleteError(null)
@@ -191,7 +185,7 @@ function CategoryRow({
   isLast: boolean
   onDelete: (category: Category) => void
 }) {
-  const protectedCategory = isProtectedCategory(category)
+  const requiredCategory = category.is_required
 
   return (
     <div
@@ -215,7 +209,7 @@ function CategoryRow({
         </div>
       </div>
       <div className="flex justify-end gap-1.5">
-        {protectedCategory ? (
+        {requiredCategory ? (
           <span
             className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium"
             style={{

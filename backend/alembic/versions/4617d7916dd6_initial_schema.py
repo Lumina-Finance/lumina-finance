@@ -121,6 +121,7 @@ def upgrade() -> None:
     sa.Column('name', sa.Text(), nullable=False),
     sa.Column('kind', sa.Enum('EXPENSE', 'INCOME', 'TRANSFER', name='categorykind'), nullable=False),
     sa.Column('icon', sa.Text(), nullable=True),
+    sa.Column('is_required', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),

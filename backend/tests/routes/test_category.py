@@ -120,7 +120,12 @@ async def test_list_categories_returns_seeded_defaults(client):
     assert by_name["Groceries"]["icon"] == "🛒"
     assert by_name["Miscellaneous"]["kind"] == "expense"
     assert by_name["Debt Payment"]["kind"] == "expense"
+    assert by_name["Debt Payment"]["is_required"] is True
+    assert by_name["Vehicle Maintenance"]["is_required"] is True
     assert by_name["Credit Card Payment"]["kind"] == "transfer"
+    assert by_name["Credit Card Payment"]["is_required"] is True
+    assert by_name["Transfer"]["is_required"] is True
+    assert by_name["Groceries"]["is_required"] is False
 
 
 async def test_list_categories_returns_user_categories(client):
@@ -349,6 +354,19 @@ async def test_patch_category_rename_to_duplicate_returns_409(client):
     assert get_resp.json()["name"] == "Beta Unique"
 
 
+async def test_patch_required_category_returns_403(client):
+    """Required seeded categories cannot be modified."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    categories_resp = await client.get("/categories", headers=headers)
+    category_id = next(c["id"] for c in categories_resp.json() if c["name"] == "Transfer")
+
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "Moved Money"}, headers=headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Required categories cannot be modified"
+
+
 async def test_patch_category_without_auth_returns_401(client):
     """PATCH /categories/{id} without an Authorization header returns 401."""
     resp = await client.patch(f"/categories/{NONEXISTENT_ID}", json={"name": "X"})
@@ -401,6 +419,19 @@ async def test_delete_category_without_auth_returns_401(client):
     """DELETE /categories/{id} without an Authorization header returns 401."""
     resp = await client.delete(f"/categories/{NONEXISTENT_ID}")
     assert resp.status_code == 401
+
+
+async def test_delete_required_category_returns_403(client):
+    """Required seeded categories cannot be deleted."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    categories_resp = await client.get("/categories", headers=headers)
+    category_id = next(c["id"] for c in categories_resp.json() if c["name"] == "Credit Card Payment")
+
+    resp = await client.delete(f"/categories/{category_id}", headers=headers)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Required categories cannot be deleted"
 
 
 async def test_double_delete_returns_404_on_second(client):

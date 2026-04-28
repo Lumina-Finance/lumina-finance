@@ -25,6 +25,13 @@ from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
 
+_REQUIRED_CATEGORY_NAMES = frozenset({
+    "Credit Card Payment",
+    "Debt Payment",
+    "Transfer",
+    "Vehicle Maintenance",
+})
+
 # Default categories seeded for every new user. Icons are emoji glyphs rendered by the client.
 _DEFAULT_CATEGORIES: list[tuple[str, CategoryKind, str]] = [
     # Family, health, and education
@@ -72,7 +79,13 @@ _DEFAULT_CATEGORIES: list[tuple[str, CategoryKind, str]] = [
 async def _seed_default_categories(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Create the default set of categories for a newly registered user."""
     for name, kind, icon in _DEFAULT_CATEGORIES:
-        db.add(Category(owner_id=user_id, name=name, kind=kind, icon=icon))
+        db.add(Category(
+            owner_id=user_id,
+            name=name,
+            kind=kind,
+            icon=icon,
+            is_required=name in _REQUIRED_CATEGORY_NAMES,
+        ))
 
 # Use less secure params in testing to keep the suite fast; production uses defaults
 _ph = (

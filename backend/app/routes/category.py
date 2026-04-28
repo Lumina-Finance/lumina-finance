@@ -152,6 +152,8 @@ async def update_category(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return category
+    if category.is_required:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Required categories cannot be modified")
 
     for field, value in updates.items():
         setattr(category, field, value)
@@ -201,6 +203,9 @@ async def delete_category(
         member = member_result.scalar_one_or_none()
         if not member or not member.is_admin:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
+    if category.is_required:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Required categories cannot be deleted")
 
     await db.delete(category)
     # The FK from transactions.category_id uses RESTRICT; catch the violation
