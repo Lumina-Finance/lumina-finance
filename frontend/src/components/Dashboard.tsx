@@ -5,8 +5,11 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  CircleAlert,
+  CircleCheck,
   CreditCard,
   LifeBuoy,
+  OctagonAlert,
   PieChart as PieChartIcon,
   Repeat,
   Wallet,
@@ -80,6 +83,47 @@ function savingsTier(rate: number | null): SavingsTier {
   if (rate >= 20) return 'positive'
   if (rate >= 10) return 'accent'
   return 'negative'
+}
+
+function formatShortDate(value: string) {
+  const [datePart] = value.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  if (!year || !month || !day) return 'Unknown'
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function budgetAttentionState(usagePct: number) {
+  if (usagePct >= 100) {
+    return {
+      label: 'Needs attention',
+      background: 'var(--app-negative-soft)',
+      textColor: 'var(--app-negative)',
+      indicatorColor: 'var(--app-negative)',
+    }
+  }
+  if (usagePct >= 80) {
+    return {
+      label: 'Watch',
+      background: 'var(--app-warning-soft)',
+      textColor: 'var(--app-warning-text)',
+      indicatorColor: 'var(--app-warning)',
+    }
+  }
+  return {
+    label: 'On track',
+    background: 'var(--app-positive-soft)',
+    textColor: 'var(--app-positive)',
+    indicatorColor: 'var(--app-positive)',
+  }
+}
+
+function BudgetAttentionIcon({ label }: { label: string }) {
+  if (label === 'On track') return <CircleCheck size={14} aria-hidden />
+  if (label === 'Watch') return <CircleAlert size={14} aria-hidden />
+  return <OctagonAlert size={14} aria-hidden />
 }
 
 // Dashed vertical divider drawn at the left edge of the given category band.
@@ -343,6 +387,26 @@ export default function Dashboard() {
     YTD: 'This Year',
   }
   const rangeOptions: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
+  const topBudgets = useMemo(() => {
+    return (dashboard?.active_budgets ?? [])
+      .map((budget) => {
+        const usageRatio = budget.overall_limit > 0
+          ? budget.total_spent / budget.overall_limit
+          : 0
+        const usagePct = Math.round(usageRatio * 100)
+        return {
+          ...budget,
+          usageRatio,
+          usagePct,
+          remaining: budget.overall_limit - budget.total_spent,
+        }
+      })
+      .sort((a, b) => {
+        if (b.usageRatio !== a.usageRatio) return b.usageRatio - a.usageRatio
+        return b.total_spent - a.total_spent
+      })
+      .slice(0, 3)
+  }, [dashboard])
 
   return (
     <div>
@@ -1030,7 +1094,99 @@ export default function Dashboard() {
 
         {/* Row 3 — Quick insight cards */}
         <div className="grid grid-cols-1 gap-4 grid-cols-2">
-          <div className="rounded-2xl h-[400px] bg-gray-300" />
+          {/* Top Budgets — the three active budgets closest to their limit. */}
+          <div
+            className="rounded-2xl h-[400px] p-5 flex flex-col"
+            style={{
+              background: 'var(--app-surface-soft)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+                <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+              </div>
+              <span className="app-label">Top Budgets</span>
+            </div>
+
+            {topBudgets.length === 0 ? (
+              <div
+                className="flex-1 flex items-center justify-center text-sm italic"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                No active budgets
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 min-h-0 space-y-2">
+                  {topBudgets.map((budget) => {
+                    const attention = budgetAttentionState(budget.usagePct)
+                    const barPct = Math.min(Math.max(budget.usagePct, 0), 100)
+                    return (
+                      <div
+                        key={budget.budget_id}
+                        className="rounded-xl p-2.5"
+                        style={{
+                          background: 'var(--app-bg)',
+                          border: '1px solid var(--app-border)',
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{budget.name}</p>
+                            <p
+                              className="mt-0.5 text-xs"
+                              style={{ color: 'var(--app-text-muted)' }}
+                            >
+                              {formatCurrency(budget.total_spent, budget.currency)}
+                              {' / '}
+                              {formatCurrency(budget.overall_limit, budget.currency)}
+                            </p>
+                          </div>
+                          <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
+                            style={{ background: attention.background, color: attention.textColor }}
+                          >
+                            <BudgetAttentionIcon label={attention.label} />
+                            {attention.label}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-3">
+                          <div
+                            className="h-2 flex-1 overflow-hidden rounded-full"
+                            style={{ background: 'var(--app-border)' }}
+                            aria-hidden
+                          >
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${barPct}%`,
+                                background: attention.indicatorColor,
+                              }}
+                            />
+                          </div>
+                          <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                            Ends {formatShortDate(budget.period_end)} · {budget.usagePct}% used
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <Link
+                  to="/budgets"
+                  className="mt-3 text-center text-xs font-medium py-2 rounded-lg transition-colors duration-150"
+                  style={{
+                    background: 'var(--app-accent-soft)',
+                    color: 'var(--app-accent)',
+                    border: '1px solid var(--app-accent-border)',
+                  }}
+                >
+                  View all budgets
+                </Link>
+              </>
+            )}
+          </div>
 
           {/* Recent Activity — the 5 most recent transactions inside the
               dashboard's rolling window. Amount color follows the category
