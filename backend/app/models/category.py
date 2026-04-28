@@ -26,5 +26,5 @@ class Category(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)  # Creator/owner
     name: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[CategoryKind] = mapped_column(nullable=False)
-    icon: Mapped[str | None] = mapped_column(Text)  # Lucide icon name (kebab-case), e.g. "shopping-basket"
+    icon: Mapped[str | None] = mapped_column(Text)  # Emoji glyph rendered by the client.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

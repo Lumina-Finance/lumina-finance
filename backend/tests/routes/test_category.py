@@ -110,6 +110,17 @@ async def test_list_categories_returns_seeded_defaults(client):
     assert "Salary" in names
     assert "Transfer" in names
     assert "Debt Payment" in names
+    assert "Fuel" in names
+    assert "Miscellaneous" in names
+    assert "Capital Gains" in names
+    assert "Gas" not in names
+    assert "Capital Gains/Losses" not in names
+
+    by_name = {c["name"]: c for c in data}
+    assert by_name["Groceries"]["icon"] == "🛒"
+    assert by_name["Miscellaneous"]["kind"] == "expense"
+    assert by_name["Debt Payment"]["kind"] == "expense"
+    assert by_name["Credit Card Payment"]["kind"] == "transfer"
 
 
 async def test_list_categories_returns_user_categories(client):

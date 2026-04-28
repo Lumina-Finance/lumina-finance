@@ -25,38 +25,47 @@ from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
 
-# Default categories seeded for every new user. Icons are Lucide icon names (kebab-case).
+# Default categories seeded for every new user. Icons are emoji glyphs rendered by the client.
 _DEFAULT_CATEGORIES: list[tuple[str, CategoryKind, str]] = [
-    ("Groceries", CategoryKind.EXPENSE, "shopping-basket"),
-    ("Dining", CategoryKind.EXPENSE, "utensils"),
-    ("Takeout", CategoryKind.EXPENSE, "utensils-crossed"),
-    ("Housing", CategoryKind.EXPENSE, "house"),
-    ("Gas", CategoryKind.EXPENSE, "fuel"),
-    ("Vehicle Maintenance", CategoryKind.EXPENSE, "wrench"),
-    ("Public Transit", CategoryKind.EXPENSE, "bus"),
-    ("Utilities", CategoryKind.EXPENSE, "lightbulb"),
-    ("Health", CategoryKind.EXPENSE, "heart-pulse"),
-    ("Entertainment", CategoryKind.EXPENSE, "clapperboard"),
-    ("Shopping", CategoryKind.EXPENSE, "shopping-bag"),
-    ("Insurance", CategoryKind.EXPENSE, "shield"),
-    ("Education", CategoryKind.EXPENSE, "graduation-cap"),
-    ("Childcare", CategoryKind.EXPENSE, "baby"),
-    ("Personal Care", CategoryKind.EXPENSE, "scissors"),
-    ("Gifts & Donations", CategoryKind.EXPENSE, "gift"),
-    ("Pets", CategoryKind.EXPENSE, "paw-print"),
-    ("Travel", CategoryKind.EXPENSE, "plane"),
-    ("Taxes", CategoryKind.EXPENSE, "landmark"),
-    ("Salary", CategoryKind.INCOME, "briefcase"),
-    ("Freelance", CategoryKind.INCOME, "laptop"),
-    ("Bonus", CategoryKind.INCOME, "award"),
-    ("Interest", CategoryKind.INCOME, "percent"),
-    ("Dividends", CategoryKind.INCOME, "coins"),
-    ("Capital Gains/Losses", CategoryKind.INCOME, "trending-up"),
-    ("Rental Income", CategoryKind.INCOME, "key-round"),
-    ("Other Income", CategoryKind.INCOME, "circle-dollar-sign"),
-    ("Transfer", CategoryKind.TRANSFER, "arrow-right-left"),
-    ("Credit Card Payment", CategoryKind.TRANSFER, "credit-card"),
-    ("Debt Payment", CategoryKind.TRANSFER, "banknote"),
+    # Family, health, and education
+    ("Childcare", CategoryKind.EXPENSE, "🧸"),
+    ("Education", CategoryKind.EXPENSE, "🎓"),
+    ("Health", CategoryKind.EXPENSE, "🏥"),
+    ("Personal Care", CategoryKind.EXPENSE, "✂️"),
+    ("Pets", CategoryKind.EXPENSE, "🐾"),
+    # Financial obligations
+    ("Debt Payment", CategoryKind.EXPENSE, "🏦"),
+    ("Insurance", CategoryKind.EXPENSE, "🛡️"),
+    ("Taxes", CategoryKind.EXPENSE, "🏛️"),
+    # Food and dining
+    ("Dining", CategoryKind.EXPENSE, "🍽️"),
+    ("Groceries", CategoryKind.EXPENSE, "🛒"),
+    ("Takeout", CategoryKind.EXPENSE, "🥡"),
+    # Income
+    ("Bonus", CategoryKind.INCOME, "🏆"),
+    ("Capital Gains", CategoryKind.INCOME, "📈"),
+    ("Dividends", CategoryKind.INCOME, "🪙"),
+    ("Freelance", CategoryKind.INCOME, "💻"),
+    ("Interest", CategoryKind.INCOME, "💰"),
+    ("Other Income", CategoryKind.INCOME, "💵"),
+    ("Salary", CategoryKind.INCOME, "💼"),
+    # Lifestyle and discretionary
+    ("Entertainment", CategoryKind.EXPENSE, "🎬"),
+    ("Gifts & Donations", CategoryKind.EXPENSE, "🎁"),
+    ("Shopping", CategoryKind.EXPENSE, "🛍️"),
+    ("Travel", CategoryKind.EXPENSE, "✈️"),
+    # Living expenses
+    ("Housing", CategoryKind.EXPENSE, "🏠"),
+    ("Utilities", CategoryKind.EXPENSE, "💡"),
+    # Miscellaneous
+    ("Miscellaneous", CategoryKind.EXPENSE, "🏷️"),
+    # Transfers
+    ("Credit Card Payment", CategoryKind.TRANSFER, "💳"),
+    ("Transfer", CategoryKind.TRANSFER, "↔️"),
+    # Vehicle and transportation
+    ("Fuel", CategoryKind.EXPENSE, "⛽"),
+    ("Public Transit", CategoryKind.EXPENSE, "🚌"),
+    ("Vehicle Maintenance", CategoryKind.EXPENSE, "🔧"),
 ]
 
 

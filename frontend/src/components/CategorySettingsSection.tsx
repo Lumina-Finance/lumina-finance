@@ -23,7 +23,7 @@ function displayEmoji(category: Category): string {
 }
 
 function displayKind(category: Category): CategoryKind {
-  return category.name === 'Debt Payment' ? 'expense' : category.kind
+  return category.kind
 }
 
 export default function CategorySettingsSection() {
