@@ -1026,7 +1026,7 @@ function TopCategoriesBySpendingCard({ account }: { account: Account }) {
 
   return (
     <BreakdownCard
-      title="Top Categories by Spending"
+      title="Categories by Spending"
       rangeLabel="Spending range"
       range={range}
       onRangeChange={setRange}
@@ -1053,7 +1053,7 @@ function TopMerchantsBySpendingCard({ account }: { account: Account }) {
 
   return (
     <BreakdownCard
-      title="Top Merchants by Spending"
+      title="Merchants by Spending"
       rangeLabel="Merchant range"
       range={range}
       onRangeChange={setRange}
