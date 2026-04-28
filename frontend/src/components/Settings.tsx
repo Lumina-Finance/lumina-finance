@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Tag,
   Trash2,
   X,
   type LucideIcon,
@@ -38,6 +39,7 @@ import {
   type UpdateProfilePayload,
 } from '@/api/user'
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
+import CategorySettingsSection from '@/components/CategorySettingsSection'
 import Dropdown from '@/components/Dropdown'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 
@@ -68,7 +70,7 @@ const LIMIT_DELETE_BUTTON_TRANSITION = {
   ease: 'easeOut' as const,
 }
 
-type SectionId = 'profile' | 'runway' | 'tax-advantaged-categories'
+type SectionId = 'profile' | 'runway' | 'categories' | 'tax-advantaged-categories'
 
 interface Section {
   id: SectionId
@@ -79,6 +81,7 @@ interface Section {
 const SECTIONS: Section[] = [
   { id: 'profile', label: 'Profile', icon: UserIcon },
   { id: 'runway', label: 'Runway', icon: LifeBuoy },
+  { id: 'categories', label: 'Categories', icon: Tag },
   { id: 'tax-advantaged-categories', label: 'Tax-Advantaged Categories', icon: Landmark },
 ]
 
@@ -245,7 +248,7 @@ export default function Settings() {
       <header className="app-page-header">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
-          Manage your profile, runway preferences, and tax-advantaged categories.
+          Manage your profile, runway preferences, categories, and tax-advantaged categories.
         </p>
       </header>
 
@@ -284,6 +287,8 @@ export default function Settings() {
             selection={runwaySelection}
             onToggle={toggleRunwayAccount}
           />
+
+          <CategorySettingsSection />
 
           <TaxAdvantagedCategoriesSection
             accounts={accounts ?? []}

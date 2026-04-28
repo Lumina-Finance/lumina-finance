@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import { categoryKeys } from '@/api/queryKeys';
@@ -21,5 +21,20 @@ export function useCategories() {
     enabled: !!accessToken,
     staleTime: Infinity,
     gcTime: Infinity,
+  });
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (categoryId: string) =>
+      authenticatedFetch<void>(`/categories/${categoryId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: (_, categoryId) => {
+      queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
+        categories?.filter((category) => category.id !== categoryId) ?? categories,
+      );
+    },
   });
 }
