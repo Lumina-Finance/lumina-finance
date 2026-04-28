@@ -16,6 +16,8 @@ import {
   useCreateBaseBudget,
   useCreateBudgetInstance,
   useDeleteBaseBudget,
+  useUpdateBaseBudget,
+  useUpdateBudget,
   type BaseBudget,
   type Budget,
   type BudgetUtilization,
@@ -36,6 +38,13 @@ interface BudgetFormState {
   recurrenceFreq: RecurrenceFreq
   instanceLength: string
   periodStart: string
+  recurs: boolean
+}
+
+interface BudgetEditFormState {
+  name: string
+  categoryIds: string[]
+  limit: string
   recurs: boolean
 }
 
@@ -92,6 +101,19 @@ function toMinorUnits(value: string, currencies: Currency[], code: string) {
   const numberValue = Number(value.replace(/,/g, ''))
   if (!Number.isFinite(numberValue) || numberValue <= 0) return null
   return Math.round(numberValue * Math.pow(10, currencyExponent(currencies, code)))
+}
+
+function formatMinorUnitsInput(value: number, currencies: Currency[], code: string) {
+  const exponent = currencyExponent(currencies, code)
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: exponent,
+  }).format(value / Math.pow(10, exponent))
+}
+
+function sameStringSet(a: string[], b: string[]) {
+  if (a.length !== b.length) return false
+  const values = new Set(a)
+  return b.every((value) => values.has(value))
 }
 
 function recurrenceAnchorsFromStart(freq: RecurrenceFreq, periodStart: string) {
@@ -353,6 +375,304 @@ function BudgetChartTooltip({
   )
 }
 
+function BudgetEditModal({
+  baseBudget,
+  latestPeriod,
+  categories,
+  currencies,
+  onClose,
+  onSaved,
+}: {
+  baseBudget: BaseBudget
+  latestPeriod: Budget | undefined
+  categories: Category[]
+  currencies: Currency[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const updateBaseBudget = useUpdateBaseBudget()
+  const updateBudget = useUpdateBudget()
+  const [formError, setFormError] = useState<string | null>(null)
+  const [saveInProgress, setSaveInProgress] = useState(false)
+  const [categorySearch, setCategorySearch] = useState('')
+  const [form, setForm] = useState<BudgetEditFormState>({
+    name: baseBudget.name,
+    categoryIds: baseBudget.category_ids,
+    limit: latestPeriod ? formatMinorUnitsInput(latestPeriod.overall_limit, currencies, baseBudget.currency) : '',
+    recurs: baseBudget.recurs,
+  })
+  const categoryOptions = useMemo(
+    () => categories.filter((category) => (
+      category.kind === 'expense'
+      && (baseBudget.group_id ? category.group_id === baseBudget.group_id : category.group_id === null)
+    )),
+    [baseBudget.group_id, categories],
+  )
+  const filteredCategories = useMemo(() => {
+    const query = categorySearch.trim().toLowerCase()
+    if (!query) return categoryOptions
+    return categoryOptions.filter((category) => category.name.toLowerCase().includes(query))
+  }, [categoryOptions, categorySearch])
+  const isPending = updateBaseBudget.isPending || updateBudget.isPending || saveInProgress
+  const limitMinorUnits = latestPeriod ? toMinorUnits(form.limit, currencies, baseBudget.currency) : null
+  const hasCategory = form.categoryIds.some((categoryId) =>
+    categoryOptions.some((category) => category.id === categoryId),
+  )
+  const baseChanged =
+    form.name.trim() !== baseBudget.name
+    || form.recurs !== baseBudget.recurs
+    || !sameStringSet(form.categoryIds, baseBudget.category_ids)
+  const periodChanged = Boolean(latestPeriod && limitMinorUnits !== null && limitMinorUnits !== latestPeriod.overall_limit)
+  const canSave =
+    !isPending
+    && form.name.trim().length > 0
+    && hasCategory
+    && (!latestPeriod || limitMinorUnits !== null)
+    && (baseChanged || periodChanged)
+
+  const toggleCategory = (categoryId: string) => {
+    setForm((current) => ({
+      ...current,
+      categoryIds: current.categoryIds.includes(categoryId)
+        ? current.categoryIds.filter((id) => id !== categoryId)
+        : [...current.categoryIds, categoryId],
+    }))
+  }
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setFormError(null)
+
+    if (!form.name.trim()) {
+      setFormError('Name is required.')
+      return
+    }
+    if (!hasCategory) {
+      setFormError('Select at least one category.')
+      return
+    }
+    if (latestPeriod && limitMinorUnits === null) {
+      setFormError('Limit must be greater than zero.')
+      return
+    }
+
+    const basePatch: {
+      name?: string
+      recurs?: boolean
+      category_ids?: string[]
+    } = {}
+    if (form.name.trim() !== baseBudget.name) basePatch.name = form.name.trim()
+    if (form.recurs !== baseBudget.recurs) basePatch.recurs = form.recurs
+    if (!sameStringSet(form.categoryIds, baseBudget.category_ids)) basePatch.category_ids = form.categoryIds
+
+    setSaveInProgress(true)
+
+    try {
+      const saveChanges = async () => {
+        if (Object.keys(basePatch).length > 0) {
+          await updateBaseBudget.mutateAsync({ id: baseBudget.id, patch: basePatch })
+        }
+        if (latestPeriod && limitMinorUnits !== null && limitMinorUnits !== latestPeriod.overall_limit) {
+          await updateBudget.mutateAsync({ id: latestPeriod.id, patch: { overall_limit: limitMinorUnits } })
+        }
+      }
+
+      await Promise.all([
+        saveChanges(),
+        new Promise((resolve) => window.setTimeout(resolve, 1000)),
+      ])
+      onClose()
+      onSaved()
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not save budget.')
+      setSaveInProgress(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      style={{ background: 'rgba(15, 14, 12, 0.56)' }}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClose()
+      }}
+    >
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="budget-edit-title"
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-8"
+        style={{
+          background: 'var(--app-bg)',
+          border: '1px solid var(--app-border-strong)',
+          boxShadow: 'var(--app-shadow-soft)',
+        }}
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        <div className="mb-8 flex items-center justify-between">
+          <h2 id="budget-edit-title" className="font-serif text-3xl font-light tracking-tight">
+            Edit Budget
+          </h2>
+          <button type="button" className="app-icon-button" aria-label="Close budget edit form" onClick={onClose}>
+            <X size={20} aria-hidden />
+          </button>
+        </div>
+
+        <div className="space-y-5">
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label htmlFor="budget-edit-name" className="app-label mb-1.5 block">Name</label>
+              <input
+                id="budget-edit-name"
+                className="app-input"
+                value={form.name}
+                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                required
+              />
+            </div>
+
+            <div>
+              <span className="app-label mb-1.5 block">Type</span>
+              <div className="app-segmented-control w-full">
+                <button
+                  type="button"
+                  className={`app-segmented-option flex-1 text-sm ${form.recurs ? 'app-segmented-option-active' : ''}`}
+                  onClick={() => setForm((current) => ({ ...current, recurs: true }))}
+                >
+                  Recurring
+                </button>
+                <button
+                  type="button"
+                  className={`app-segmented-option flex-1 text-sm ${!form.recurs ? 'app-segmented-option-active' : ''}`}
+                  onClick={() => setForm((current) => ({ ...current, recurs: false }))}
+                >
+                  Once
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="budget-edit-limit" className="app-label mb-1.5 block">Current period limit</label>
+              <input
+                id="budget-edit-limit"
+                className="app-input disabled:cursor-not-allowed disabled:opacity-50"
+                inputMode="decimal"
+                placeholder={latestPeriod ? '0.00' : 'No period yet'}
+                value={form.limit}
+                onChange={(event) => setForm((current) => ({
+                  ...current,
+                  limit: formatMoneyInputLive(sanitizeMoneyInput(event.target.value)),
+                }))}
+                disabled={!latestPeriod}
+                required={Boolean(latestPeriod)}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <p className="app-label mb-1.5 block">Cadence</p>
+              <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                {budgetCadenceLabel(baseBudget)} · {baseBudget.currency}
+              </p>
+            </div>
+          </div>
+
+          <section>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="app-label">Categories</h3>
+                <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  Pick the spending categories this budget should track.
+                </p>
+              </div>
+              <span className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                {form.categoryIds.length} selected
+              </span>
+            </div>
+            <div className="relative mt-3">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--app-text-subtle)' }}
+                aria-hidden
+              />
+              <input
+                className="app-input pl-9"
+                value={categorySearch}
+                onChange={(event) => setCategorySearch(event.target.value)}
+                placeholder="Search categories..."
+              />
+            </div>
+            <div
+              className="mt-3 max-h-60 space-y-1 overflow-y-auto rounded-xl p-1"
+              style={{ border: '1px solid var(--app-input-border)', background: 'var(--app-input-bg)' }}
+            >
+              {filteredCategories.map((category) => {
+                const selected = form.categoryIds.includes(category.id)
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className="grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150"
+                    style={{
+                      background: selected ? 'var(--app-accent-soft)' : 'transparent',
+                      border: `1px solid ${selected ? 'var(--app-accent)' : 'transparent'}`,
+                      color: selected ? 'var(--app-text)' : 'var(--app-text-muted)',
+                      fontWeight: selected ? 600 : 400,
+                    }}
+                    onClick={() => toggleCategory(category.id)}
+                  >
+                    <span
+                      className="flex h-5 w-5 items-center justify-center rounded-full"
+                      style={{
+                        background: selected ? 'var(--app-accent)' : 'var(--app-bg)',
+                        border: `1px solid ${selected ? 'var(--app-accent)' : 'var(--app-border-strong)'}`,
+                        color: selected ? 'var(--app-bg)' : 'transparent',
+                      }}
+                    >
+                      <Check size={13} strokeWidth={3} aria-hidden />
+                    </span>
+                    <span className="truncate">{category.name}</span>
+                  </button>
+                )
+              })}
+              {categoryOptions.length > 0 && filteredCategories.length === 0 && (
+                <p className="px-3 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  No matching categories.
+                </p>
+              )}
+            </div>
+            {categoryOptions.length === 0 && (
+              <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                Create an expense category before editing this budget.
+              </p>
+            )}
+          </section>
+
+          {formError && (
+            <p className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+              {formError}
+            </p>
+          )}
+
+          <div
+            className="flex items-center justify-end gap-3 pt-4"
+            style={{ borderTop: '1px solid var(--app-border)' }}
+          >
+            <button type="button" className="app-secondary-button" onClick={onClose} disabled={isPending}>
+              Cancel
+            </button>
+            <button type="submit" className="app-primary-button" disabled={!canSave}>
+              {isPending ? <div className="app-spinner" /> : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 function BudgetCard({
   baseBudget,
   latestPeriod,
@@ -477,19 +797,26 @@ function BudgetCard({
 function BudgetDetailsModal({
   baseBudget,
   periods,
+  categories,
+  currencies,
   categoryById,
   utilizationByBudgetId,
   onClose,
   onDeleted,
+  onSaved,
 }: {
   baseBudget: BaseBudget
   periods: Budget[]
+  categories: Category[]
+  currencies: Currency[]
   categoryById: Map<string, string>
   utilizationByBudgetId: Map<string, BudgetUtilization>
   onClose: () => void
   onDeleted: () => void
+  onSaved: () => void
 }) {
   const deleteBaseBudget = useDeleteBaseBudget()
+  const [editOpen, setEditOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteInProgress, setDeleteInProgress] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -650,7 +977,7 @@ function BudgetDetailsModal({
                 </p>
               )}
               <div className="flex gap-3">
-                <button type="button" className="app-primary-button flex-1">
+                <button type="button" className="app-primary-button flex-1" onClick={() => setEditOpen(true)}>
                   <Pencil size={16} aria-hidden />
                   Edit
                 </button>
@@ -766,6 +1093,16 @@ function BudgetDetailsModal({
           </section>
         </div>
       </div>
+      {editOpen && (
+        <BudgetEditModal
+          baseBudget={baseBudget}
+          latestPeriod={latestPeriod}
+          categories={categories}
+          currencies={currencies}
+          onClose={() => setEditOpen(false)}
+          onSaved={onSaved}
+        />
+      )}
     </div>
   )
 }
@@ -1427,12 +1764,21 @@ export default function Budgets() {
         <BudgetDetailsModal
           baseBudget={selectedBudget.baseBudget}
           periods={selectedBudget.periods}
+          categories={categories ?? []}
+          currencies={currencies ?? []}
           categoryById={categoryById}
           utilizationByBudgetId={utilizationByBudgetId}
           onClose={() => setSelectedBudgetId(null)}
           onDeleted={() => {
             void baseBudgetsQuery.refetch()
             void budgetsQuery.refetch()
+          }}
+          onSaved={() => {
+            void baseBudgetsQuery.refetch()
+            void budgetsQuery.refetch()
+            utilizationQueries.forEach((query) => {
+              void query.refetch()
+            })
           }}
         />
       )}

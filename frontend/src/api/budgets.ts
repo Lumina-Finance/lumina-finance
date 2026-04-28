@@ -63,6 +63,22 @@ export interface CreateBudgetPayload {
   overall_limit: number;
 }
 
+export interface UpdateBaseBudgetPayload {
+  id: string;
+  patch: {
+    name?: string;
+    recurs?: boolean;
+    category_ids?: string[];
+  };
+}
+
+export interface UpdateBudgetPayload {
+  id: string;
+  patch: {
+    overall_limit?: number;
+  };
+}
+
 function createBaseBudget(payload: CreateBaseBudgetPayload) {
   return authenticatedFetch<BaseBudget>('/base-budgets', {
     method: 'POST',
@@ -92,6 +108,20 @@ function getBudgetUtilization(budgetId: string) {
 function deleteBaseBudget(baseBudgetId: string) {
   return authenticatedFetch<void>(`/base-budgets/${baseBudgetId}`, {
     method: 'DELETE',
+  });
+}
+
+function updateBaseBudget({ id, patch }: UpdateBaseBudgetPayload) {
+  return authenticatedFetch<BaseBudget>(`/base-budgets/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+function updateBudget({ id, patch }: UpdateBudgetPayload) {
+  return authenticatedFetch<Budget>(`/budgets/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
   });
 }
 
@@ -150,5 +180,17 @@ export function useCreateBudgetInstance() {
 export function useDeleteBaseBudget() {
   return useMutation({
     mutationFn: deleteBaseBudget,
+  });
+}
+
+export function useUpdateBaseBudget() {
+  return useMutation({
+    mutationFn: updateBaseBudget,
+  });
+}
+
+export function useUpdateBudget() {
+  return useMutation({
+    mutationFn: updateBudget,
   });
 }
