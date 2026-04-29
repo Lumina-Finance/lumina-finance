@@ -1,7 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
-import { categoryKeys } from '@/api/queryKeys';
+import {
+  accountKeys,
+  budgetKeys,
+  categoryKeys,
+  dashboardKeys,
+  merchantKeys,
+  transactionKeys,
+  transactionOverviewKeys,
+} from '@/api/queryKeys';
 
 export interface Category {
   id: string;
@@ -24,6 +32,21 @@ export interface CreateCategoryPayload {
   kind: Category['kind'];
   icon?: string | null;
   group_id?: string | null;
+}
+
+export interface MergeCategoryPayload {
+  replacement_category_id: string;
+}
+
+function invalidateCategoryMergeQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: accountKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
+  queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: merchantKeys.list(), exact: true });
 }
 
 export function useCategories() {
@@ -77,5 +100,22 @@ export function useDeleteCategory() {
       authenticatedFetch<void>(`/categories/${categoryId}`, {
         method: 'DELETE',
       }),
+  });
+}
+
+export function useMergeCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ categoryId, payload }: { categoryId: string; payload: MergeCategoryPayload }) =>
+      authenticatedFetch<void>(`/categories/${categoryId}/merge`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (_, { categoryId }) => {
+      queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
+        categories?.filter((category) => category.id !== categoryId) ?? categories,
+      );
+      invalidateCategoryMergeQueries(queryClient);
+    },
   });
 }

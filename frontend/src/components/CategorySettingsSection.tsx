@@ -3,10 +3,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Picker } from 'emoji-mart'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ChevronDown, Lock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ApiError } from '@/api/auth'
 import {
   useCategories,
   useCreateCategory,
   useDeleteCategory,
+  useMergeCategory,
   useUpdateCategory,
   type Category,
 } from '@/api/categories'
@@ -108,12 +110,14 @@ export default function CategorySettingsSection() {
   const queryClient = useQueryClient()
   const { data: categories = [], isLoading } = useCategories()
   const deleteCategory = useDeleteCategory()
+  const mergeCategory = useMergeCategory()
   const [search, setSearch] = useState('')
   const [expandedKinds, setExpandedKinds] = useState<Set<CategoryKind>>(() => new Set())
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [confirmingDeleteCategoryId, setConfirmingDeleteCategoryId] = useState<string | null>(null)
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
+  const [mergeDeleteCategory, setMergeDeleteCategory] = useState<Category | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const groupedCategories = useMemo(() => {
@@ -152,7 +156,12 @@ export default function CategorySettingsSection() {
       setConfirmingDeleteCategoryId(null)
     } else {
       const error = deleteResult[0].reason
-      setDeleteError(error instanceof Error ? error.message : 'Failed to delete category.')
+      if (error instanceof ApiError && error.status === 409) {
+        setConfirmingDeleteCategoryId(null)
+        setMergeDeleteCategory(category)
+      } else {
+        setDeleteError(error instanceof Error ? error.message : 'Failed to delete category.')
+      }
     }
 
     setDeletingCategoryId(null)
@@ -246,6 +255,21 @@ export default function CategorySettingsSection() {
         <CreateCategoryModal
           onClose={() => setShowCreateModal(false)}
           onCreated={handleCreated}
+        />
+      )}
+      {mergeDeleteCategory && (
+        <MergeDeleteCategoryModal
+          category={mergeDeleteCategory}
+          categories={categories}
+          isPending={mergeCategory.isPending}
+          onClose={() => setMergeDeleteCategory(null)}
+          onMerge={async (replacementCategoryId) => {
+            await mergeCategory.mutateAsync({
+              categoryId: mergeDeleteCategory.id,
+              payload: { replacement_category_id: replacementCategoryId },
+            })
+            setMergeDeleteCategory(null)
+          }}
         />
       )}
     </section>
@@ -435,6 +459,156 @@ function CreateCategoryModal({
               >
                 {createCategory.isPending ? <div className="app-spinner" aria-label="Creating" /> : <Plus size={16} aria-hidden />}
                 Create category
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function categoryMergeOptions(category: Category, categories: Category[]) {
+  return categories
+    .filter((option) => {
+      if (option.id === category.id || option.kind !== category.kind) return false
+      if (category.group_id) return option.is_system || option.group_id === category.group_id
+      return option.is_system || (!option.is_system && option.group_id === null)
+    })
+    .map((option) => ({
+      value: option.id,
+      label: option.name,
+      icon: option.icon,
+      group: option.is_system ? 'System' : option.group_id ? 'Group' : 'Personal',
+    }))
+}
+
+function MergeDeleteCategoryModal({
+  category,
+  categories,
+  isPending,
+  onClose,
+  onMerge,
+}: {
+  category: Category
+  categories: Category[]
+  isPending: boolean
+  onClose: () => void
+  onMerge: (replacementCategoryId: string) => Promise<void>
+}) {
+  const options = useMemo(() => categoryMergeOptions(category, categories), [categories, category])
+  const [replacementCategoryId, setReplacementCategoryId] = useState(() => options[0]?.value ?? '')
+  const [formError, setFormError] = useState<string | null>(null)
+  const selectedReplacementId = options.some((option) => option.value === replacementCategoryId)
+    ? replacementCategoryId
+    : options[0]?.value ?? ''
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isPending) onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isPending, onClose])
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isPending) return
+    if (!selectedReplacementId) {
+      setFormError('Select a replacement category.')
+      return
+    }
+
+    setFormError(null)
+    try {
+      await onMerge(selectedReplacementId)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to delete category.')
+    }
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        onClick={isPending ? undefined : onClose}
+        aria-hidden
+      />
+
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={isPending ? undefined : onClose}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="merge-delete-category-title"
+          className="w-full max-w-lg rounded-2xl p-6 sm:p-8"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            boxShadow: 'var(--app-shadow-soft)',
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="merge-delete-category-title" className="font-serif text-2xl font-light tracking-tight">
+                  Delete {category.name}
+                </h3>
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Move existing references before deleting this category.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="app-icon-button shrink-0"
+                disabled={isPending}
+                aria-label="Close"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            <Field label="Replacement category">
+              <Dropdown
+                options={options}
+                value={selectedReplacementId}
+                onChange={(value) => {
+                  setReplacementCategoryId(value)
+                  setFormError(null)
+                }}
+                placeholder={options.length === 0 ? 'No compatible categories' : 'Select category...'}
+                searchable
+                disabled={isPending || options.length === 0}
+              />
+            </Field>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              {formError && (
+                <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
+                  {formError}
+                </p>
+              )}
+              <button
+                type="button"
+                className="app-secondary-button"
+                onClick={onClose}
+                disabled={isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="app-primary-button inline-flex items-center justify-center gap-2"
+                disabled={isPending || options.length === 0}
+              >
+                {isPending ? <div className="app-spinner" aria-label="Deleting" /> : <Trash2 size={16} aria-hidden />}
+                Delete category
               </button>
             </div>
           </form>
