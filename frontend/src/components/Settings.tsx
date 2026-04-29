@@ -360,12 +360,38 @@ function SettingsCard({ children }: { children: React.ReactNode }) {
   )
 }
 
+function TaxAdvantagedCurrencyWarning() {
+  return (
+    <div className="group relative inline-flex">
+      <AlertTriangle
+        size={15}
+        strokeWidth={2.75}
+        aria-label="Tax-advantaged category currency limitation"
+        className="cursor-help"
+        style={{ color: 'var(--app-negative)' }}
+      />
+      <div
+        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100"
+        style={{
+          background: 'var(--app-bg)',
+          border: '1px solid var(--app-border-strong)',
+          color: 'var(--app-text)',
+        }}
+      >
+        Tax-advantaged categories currently link only accounts in the same currency.
+      </div>
+    </div>
+  )
+}
+
 function Field({
   label,
+  labelAccessory,
   hint,
   children,
 }: {
   label: string
+  labelAccessory?: React.ReactNode
   hint?: string
   children: React.ReactNode
 }) {
@@ -374,7 +400,10 @@ function Field({
   // closed on option selection. The visual label is the span below.
   return (
     <div className="space-y-1.5 block">
-      <span className="app-label block">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className="app-label block">{label}</span>
+        {labelAccessory}
+      </div>
       {children}
       {hint && (
         <span className="block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
@@ -1111,7 +1140,7 @@ function CreateTaxAdvantagedCategoryModal({
                   onChange={(value) => setField('tax_treatment', value as TaxTreatment)}
                 />
               </Field>
-              <Field label="Currency">
+              <Field label="Currency" labelAccessory={<TaxAdvantagedCurrencyWarning />}>
                 <Dropdown
                   options={options}
                   value={selectedCurrency}
@@ -1721,7 +1750,11 @@ function TaxAdvantagedCategoryModal({
                   </div>
                 </div>
 
-                <InfoItem label="Currency" value={plan.currency} />
+                <InfoItem
+                  label="Currency"
+                  labelAccessory={<TaxAdvantagedCurrencyWarning />}
+                  value={plan.currency}
+                />
                 <InfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
 
                 <div className="relative h-14 min-w-0 overflow-hidden">
@@ -2202,15 +2235,20 @@ function TaxAdvantagedCategoryModal({
 function InfoItem({
   financial = false,
   label,
+  labelAccessory,
   value,
 }: {
   financial?: boolean
   label: string
+  labelAccessory?: React.ReactNode
   value: string
 }) {
   return (
-    <div className="h-14 min-w-0 overflow-hidden">
-      <p className={CATEGORY_SUMMARY_LABEL_CLASS}>{label}</p>
+    <div className={`h-14 min-w-0 ${labelAccessory ? 'overflow-visible' : 'overflow-hidden'}`}>
+      <div className="mb-1 flex h-5 items-center gap-2">
+        <p className="app-label block truncate leading-5">{label}</p>
+        {labelAccessory}
+      </div>
       <p className={`${financial ? 'font-financial' : ''} ${CATEGORY_SUMMARY_VALUE_CLASS}`}>
         {value}
       </p>
