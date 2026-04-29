@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import { ChevronDown, Lock, Search, Trash2 } from 'lucide-react'
-import { useCategories, useDeleteCategory, type Category } from '@/api/categories'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Picker } from 'emoji-mart'
+import { Check, ChevronDown, Lock, Pencil, Search, Trash2, X } from 'lucide-react'
+import { useCategories, useDeleteCategory, useUpdateCategory, type Category } from '@/api/categories'
 
 type CategoryKind = Category['kind']
 
@@ -11,13 +12,75 @@ const KIND_LABELS: Record<CategoryKind, string> = {
 }
 
 const KIND_ORDER: CategoryKind[] = ['expense', 'income', 'transfer']
+const DEFAULT_CATEGORY_ICON = '🏷️'
+const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
+
+interface EmojiMartData {
+  emojis?: Record<string, unknown>
+}
+
+interface EmojiMartSelection {
+  native?: string
+}
+
+const EMOJI_MART_THEME = {
+  light: {
+    color: '28, 21, 16',
+    accent: '155, 108, 44',
+    background: '242, 237, 228',
+    input: '255, 255, 255',
+    border: 'rgba(75, 55, 35, 0.14)',
+    borderOver: 'rgba(75, 55, 35, 0.24)',
+    shadow: 'var(--app-shadow-soft)',
+  },
+  dark: {
+    color: '236, 230, 218',
+    accent: '201, 169, 106',
+    background: '15, 14, 12',
+    input: '36, 31, 25',
+    border: 'rgba(210, 180, 120, 0.12)',
+    borderOver: 'rgba(210, 180, 120, 0.24)',
+    shadow: 'var(--app-shadow-soft)',
+  },
+} as const
+
+let emojiMartDataPromise: Promise<EmojiMartData> | null = null
+
+function loadEmojiMartData(): Promise<EmojiMartData> {
+  if (!emojiMartDataPromise) {
+    emojiMartDataPromise = fetch(EMOJI_MART_DATA_URL).then((response) => {
+      if (!response.ok) throw new Error('Failed to load emoji data.')
+      return response.json() as Promise<EmojiMartData>
+    })
+  }
+  return emojiMartDataPromise
+}
 
 function displayEmoji(category: Category): string {
-  return category.icon ?? '🏷️'
+  return category.icon ?? DEFAULT_CATEGORY_ICON
+}
+
+function editableEmoji(icon: string | null): string {
+  return icon ?? DEFAULT_CATEGORY_ICON
 }
 
 function displayKind(category: Category): CategoryKind {
   return category.kind
+}
+
+function useAppDarkMode() {
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+
+  useEffect(() => {
+    const root = document.documentElement
+    const observer = new MutationObserver(() => {
+      setIsDark(root.classList.contains('dark'))
+    })
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
+  return isDark
 }
 
 export default function CategorySettingsSection() {
@@ -25,6 +88,7 @@ export default function CategorySettingsSection() {
   const deleteCategory = useDeleteCategory()
   const [search, setSearch] = useState('')
   const [expandedKinds, setExpandedKinds] = useState<Set<CategoryKind>>(() => new Set())
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const groupedCategories = useMemo(() => {
@@ -108,7 +172,10 @@ export default function CategorySettingsSection() {
                     expanded={expandedKinds.has(kind)}
                     categories={items}
                     deletingCategoryId={deleteCategory.isPending ? deleteCategory.variables : null}
+                    editingCategoryId={editingCategoryId}
                     onDelete={handleDelete}
+                    onEdit={(category) => setEditingCategoryId(category.id)}
+                    onEditCancel={() => setEditingCategoryId(null)}
                     onToggle={() => toggleKind(kind)}
                   />
                 )
@@ -124,16 +191,22 @@ export default function CategorySettingsSection() {
 function CategoryGroup({
   categories,
   deletingCategoryId,
+  editingCategoryId,
   expanded,
   kind,
   onDelete,
+  onEdit,
+  onEditCancel,
   onToggle,
 }: {
   categories: Category[]
   deletingCategoryId: string | null | undefined
+  editingCategoryId: string | null
   expanded: boolean
   kind: CategoryKind
   onDelete: (category: Category) => void
+  onEdit: (category: Category) => void
+  onEditCancel: () => void
   onToggle: () => void
 }) {
   return (
@@ -165,7 +238,10 @@ function CategoryGroup({
               category={category}
               deleting={deletingCategoryId === category.id}
               isLast={index === categories.length - 1}
+              isEditing={editingCategoryId === category.id}
               onDelete={onDelete}
+              onEdit={onEdit}
+              onEditCancel={onEditCancel}
             />
           ))}
         </div>
@@ -178,14 +254,29 @@ function CategoryRow({
   category,
   deleting,
   isLast,
+  isEditing,
   onDelete,
+  onEdit,
+  onEditCancel,
 }: {
   category: Category
   deleting: boolean
   isLast: boolean
+  isEditing: boolean
   onDelete: (category: Category) => void
+  onEdit: (category: Category) => void
+  onEditCancel: () => void
 }) {
   const requiredCategory = category.is_required
+  if (isEditing) {
+    return (
+      <InlineCategoryEdit
+        category={category}
+        isLast={isLast}
+        onCancel={onEditCancel}
+      />
+    )
+  }
 
   return (
     <div
@@ -194,10 +285,12 @@ function CategoryRow({
     >
       <div className="flex min-w-0 items-center gap-3">
         <span
-          className="flex h-9 w-8 shrink-0 items-center justify-center text-xl"
+          className="flex h-9 w-9 shrink-0 items-center justify-center p-1 text-xl leading-none"
           aria-hidden
         >
-          {displayEmoji(category)}
+          <span className="translate-x-px" aria-hidden>
+            {displayEmoji(category)}
+          </span>
         </span>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
@@ -222,18 +315,315 @@ function CategoryRow({
             Required
           </span>
         ) : (
-          <button
-            type="button"
-            className="app-icon-button"
-            disabled={deleting}
-            onClick={() => onDelete(category)}
-            aria-label={`Delete ${category.name}`}
-            title="Delete category"
-          >
-            {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Trash2 size={16} aria-hidden />}
-          </button>
+          <>
+            <button
+              type="button"
+              className="app-icon-button"
+              onClick={() => onEdit(category)}
+              aria-label={`Edit ${category.name}`}
+              title="Edit category"
+            >
+              <Pencil size={16} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="app-icon-button"
+              disabled={deleting}
+              onClick={() => onDelete(category)}
+              aria-label={`Delete ${category.name}`}
+              title="Delete category"
+            >
+              {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Trash2 size={16} aria-hidden />}
+            </button>
+          </>
         )}
       </div>
+    </div>
+  )
+}
+
+function InlineCategoryEdit({
+  category,
+  isLast,
+  onCancel,
+}: {
+  category: Category
+  isLast: boolean
+  onCancel: () => void
+}) {
+  const updateCategory = useUpdateCategory()
+  const [form, setForm] = useState({
+    name: category.name,
+    icon: editableEmoji(category.icon),
+  })
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const setField = (field: 'name' | 'icon', value: string) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    setFormError(null)
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (updateCategory.isPending) return
+
+    const name = form.name.trim()
+    if (!name) {
+      setFormError('Name is required.')
+      return
+    }
+    if (name === category.name && form.icon === editableEmoji(category.icon)) {
+      onCancel()
+      return
+    }
+
+    updateCategory.mutate(
+      {
+        categoryId: category.id,
+        payload: {
+          name,
+          icon: form.icon,
+        },
+      },
+      {
+        onSuccess: onCancel,
+        onError: (error) => {
+          setFormError(error instanceof Error ? error.message : 'Failed to update category.')
+        },
+      },
+    )
+  }
+
+  return (
+    <form
+      className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2"
+      style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
+      onSubmit={handleSubmit}
+      noValidate
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <CategoryIconSelector
+          value={form.icon}
+          categoryName={category.name}
+          onChange={(icon) => setField('icon', icon)}
+        />
+        <div className="min-w-0 flex-1">
+          <div
+            className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-within:border-[var(--app-accent-border)]"
+            style={{
+              background: 'var(--app-input-bg)',
+              borderColor: 'var(--app-input-border)',
+            }}
+          >
+            <input
+              className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+              value={form.name}
+              onChange={(event) => setField('name', event.target.value)}
+              maxLength={256}
+              aria-label={`${category.name} name`}
+              required
+              style={{ color: 'var(--app-text)' }}
+            />
+            <Pencil
+              size={13}
+              className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+              style={{ color: 'var(--app-text-subtle)' }}
+              aria-hidden
+            />
+          </div>
+          {formError && (
+            <p className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
+              {formError}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex justify-end gap-1.5">
+        <button
+          type="submit"
+          className="app-icon-button"
+          disabled={updateCategory.isPending}
+          aria-label={`Save ${category.name}`}
+          title="Save"
+        >
+          {updateCategory.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+        </button>
+        <button
+          type="button"
+          className="app-icon-button"
+          onClick={onCancel}
+          disabled={updateCategory.isPending}
+          aria-label={`Cancel editing ${category.name}`}
+          title="Cancel"
+        >
+          <X size={16} aria-hidden />
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function CategoryIconSelector({
+  categoryName,
+  onChange,
+  value,
+}: {
+  categoryName: string
+  onChange: (icon: string) => void
+  value: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selectorRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (selectorRef.current?.contains(event.target as Node)) return
+      setOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => window.removeEventListener('pointerdown', onPointerDown)
+  }, [open])
+
+  return (
+    <div ref={selectorRef} className="relative shrink-0">
+      <button
+        type="button"
+        className="group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-visible:border-[var(--app-accent-border)] focus-visible:outline-none"
+        style={{
+          background: 'var(--app-input-bg)',
+          borderColor: 'var(--app-input-border)',
+        }}
+        onClick={() => setOpen((current) => !current)}
+        aria-label={`Select ${categoryName} icon`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+      >
+        <span className="translate-x-px" aria-hidden>
+          {value}
+        </span>
+      </button>
+
+      {open && (
+        <EmojiMartIconPicker
+          categoryName={categoryName}
+          onChange={onChange}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function EmojiMartIconPicker({
+  categoryName,
+  onChange,
+  onClose,
+}: {
+  categoryName: string
+  onChange: (icon: string) => void
+  onClose: () => void
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [data, setData] = useState<EmojiMartData | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const isDark = useAppDarkMode()
+
+  useEffect(() => {
+    let cancelled = false
+    loadEmojiMartData()
+      .then((loadedData) => {
+        if (!cancelled) setData(loadedData)
+      })
+      .catch((error) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Failed to load emoji picker.')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !data) return
+
+    container.innerHTML = ''
+    const picker = new Picker({
+      data,
+      autoFocus: true,
+      emojiButtonColors: ['var(--app-accent-soft)'],
+      emojiButtonRadius: '6px',
+      emojiButtonSize: 32,
+      emojiSize: 20,
+      emojiVersion: 14,
+      icons: 'outline',
+      maxFrequentRows: 0,
+      navPosition: 'none',
+      noCountryFlags: true,
+      onEmojiSelect: (selection: EmojiMartSelection) => {
+        if (!selection.native) return
+        onChange(selection.native)
+        onClose()
+      },
+      perLine: 7,
+      previewPosition: 'none',
+      searchPosition: 'sticky',
+      set: 'native',
+      skinTonePosition: 'none',
+      theme: isDark ? 'dark' : 'light',
+    })
+    const pickerElement = picker as unknown as HTMLElement
+    const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
+    pickerElement.style.setProperty('--font-family', '"DM Sans", system-ui, sans-serif')
+    pickerElement.style.setProperty('--font-size', '14px')
+    pickerElement.style.setProperty('--border-radius', '0.75rem')
+    pickerElement.style.setProperty('--shadow', 'none')
+    pickerElement.style.setProperty('--sidebar-width', '8px')
+    pickerElement.style.setProperty('--rgb-color', theme.color)
+    pickerElement.style.setProperty('--rgb-accent', theme.accent)
+    pickerElement.style.setProperty('--rgb-background', theme.background)
+    pickerElement.style.setProperty('--rgb-input', theme.input)
+    pickerElement.style.setProperty('--color-border', theme.border)
+    pickerElement.style.setProperty('--color-border-over', theme.borderOver)
+    pickerElement.style.height = '21rem'
+    container.appendChild(pickerElement)
+
+    return () => {
+      pickerElement.remove()
+      container.innerHTML = ''
+    }
+  }, [data, isDark, onChange, onClose])
+
+  return (
+    <div
+      className="absolute left-0 top-10 z-20 inline-block rounded-xl pb-2 pl-1 pr-1 pt-1"
+      role="dialog"
+      aria-label={`Select ${categoryName} icon`}
+      style={{
+        background: isDark ? 'rgb(15, 14, 12)' : 'rgb(242, 237, 228)',
+        border: '1px solid var(--app-border-strong)',
+        boxShadow: 'var(--app-shadow-soft)',
+      }}
+    >
+      {loadError ? (
+        <p className="w-48 p-2 text-sm" style={{ color: 'var(--app-negative)' }}>
+          {loadError}
+        </p>
+      ) : !data ? (
+        <div className="flex h-20 w-48 items-center justify-center">
+          <div className="app-spinner" aria-label="Loading emoji picker" />
+        </div>
+      ) : (
+        <div ref={containerRef} />
+      )}
     </div>
   )
 }

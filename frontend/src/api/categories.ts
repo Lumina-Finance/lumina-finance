@@ -14,6 +14,11 @@ export interface Category {
   created_at: string;
 }
 
+export interface UpdateCategoryPayload {
+  name?: string;
+  icon?: string | null;
+}
+
 export function useCategories() {
   const { accessToken } = useAuth();
   return useQuery({
@@ -22,6 +27,24 @@ export function useCategories() {
     enabled: !!accessToken,
     staleTime: Infinity,
     gcTime: Infinity,
+  });
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ categoryId, payload }: { categoryId: string; payload: UpdateCategoryPayload }) =>
+      authenticatedFetch<Category>(`/categories/${categoryId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (updatedCategory) => {
+      queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
+        categories?.map((category) => (
+          category.id === updatedCategory.id ? updatedCategory : category
+        )) ?? categories,
+      );
+    },
   });
 }
 
