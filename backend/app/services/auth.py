@@ -19,73 +19,10 @@ from app.config import (
     JWT_REFRESH_TOKEN_EXPIRE_HOURS,
 )
 from app.models.auth import AuthIdentity, PasswordCredential
-from app.models.base import AuthProvider, CategoryKind
-from app.models.category import Category
+from app.models.base import AuthProvider
 from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
-
-_REQUIRED_CATEGORY_NAMES = frozenset({
-    "Credit Card Payment",
-    "Debt Payment",
-    "Transfer",
-    "Vehicle Maintenance",
-})
-
-# Default categories seeded for every new user. Icons are emoji glyphs rendered by the client.
-_DEFAULT_CATEGORIES: list[tuple[str, CategoryKind, str]] = [
-    # Family, health, and education
-    ("Childcare", CategoryKind.EXPENSE, "🧸"),
-    ("Education", CategoryKind.EXPENSE, "🎓"),
-    ("Health", CategoryKind.EXPENSE, "🏥"),
-    ("Personal Care", CategoryKind.EXPENSE, "✂️"),
-    ("Pets", CategoryKind.EXPENSE, "🐾"),
-    # Financial obligations
-    ("Debt Payment", CategoryKind.EXPENSE, "🏦"),
-    ("Insurance", CategoryKind.EXPENSE, "🛡️"),
-    ("Taxes", CategoryKind.EXPENSE, "🏛️"),
-    # Food and dining
-    ("Dining", CategoryKind.EXPENSE, "🍽️"),
-    ("Groceries", CategoryKind.EXPENSE, "🛒"),
-    ("Takeout", CategoryKind.EXPENSE, "🥡"),
-    # Income
-    ("Bonus", CategoryKind.INCOME, "🏆"),
-    ("Capital Gains", CategoryKind.INCOME, "📈"),
-    ("Dividends", CategoryKind.INCOME, "🪙"),
-    ("Freelance", CategoryKind.INCOME, "💻"),
-    ("Interest", CategoryKind.INCOME, "💰"),
-    ("Other Income", CategoryKind.INCOME, "💵"),
-    ("Salary", CategoryKind.INCOME, "💼"),
-    # Lifestyle and discretionary
-    ("Entertainment", CategoryKind.EXPENSE, "🎬"),
-    ("Gifts & Donations", CategoryKind.EXPENSE, "🎁"),
-    ("Shopping", CategoryKind.EXPENSE, "🛍️"),
-    ("Travel", CategoryKind.EXPENSE, "✈️"),
-    # Living expenses
-    ("Housing", CategoryKind.EXPENSE, "🏠"),
-    ("Utilities", CategoryKind.EXPENSE, "💡"),
-    # Miscellaneous
-    ("Miscellaneous", CategoryKind.EXPENSE, "🏷️"),
-    # Transfers
-    ("Credit Card Payment", CategoryKind.TRANSFER, "💳"),
-    ("Transfer", CategoryKind.TRANSFER, "↔️"),
-    # Vehicle and transportation
-    ("Fuel", CategoryKind.EXPENSE, "⛽"),
-    ("Public Transit", CategoryKind.EXPENSE, "🚌"),
-    ("Vehicle Maintenance", CategoryKind.EXPENSE, "🔧"),
-]
-
-
-async def _seed_default_categories(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Create the default set of categories for a newly registered user."""
-    for name, kind, icon in _DEFAULT_CATEGORIES:
-        db.add(Category(
-            owner_id=user_id,
-            name=name,
-            kind=kind,
-            icon=icon,
-            is_required=name in _REQUIRED_CATEGORY_NAMES,
-        ))
 
 # Use less secure params in testing to keep the suite fast; production uses defaults
 _ph = (
@@ -219,7 +156,6 @@ async def signup(db: AsyncSession, data: SignupRequest) -> User:
         )
     )
 
-    await _seed_default_categories(db, user.id)
     await db.commit()
     await db.refresh(user)
     return user
