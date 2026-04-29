@@ -33,3 +33,9 @@ class UpdateCategoryRequest(BaseModel):
 
     name: str | None = Field(None, min_length=1)
     icon: str | None = None
+
+
+class MergeCategoryRequest(BaseModel):
+    """Move category references to another category, then delete the source."""
+
+    replacement_category_id: uuid.UUID

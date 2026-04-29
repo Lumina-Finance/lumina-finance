@@ -1,18 +1,28 @@
 import uuid
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import CategoryKind
+from app.models.budget import BudgetTrackedCategory
 from app.models.category import Category
 from app.models.group import GroupMember
+from app.models.merchant import Merchant
+from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.category import CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest
+from app.schemas.category import (
+    CategoryResponse,
+    CreateCategoryRequest,
+    MergeCategoryRequest,
+    UpdateCategoryRequest,
+)
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -25,6 +35,103 @@ def _personal_category_filter(user_id: uuid.UUID):
 
 def _system_or_personal_category_filter(user_id: uuid.UUID):
     return Category.is_system.is_(True) | _personal_category_filter(user_id)
+
+
+def _accessible_category_filter(user_id: uuid.UUID):
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user_id)
+    ).scalar_subquery()
+    return _system_or_personal_category_filter(user_id) | (Category.group_id.in_(group_ids))
+
+
+async def _get_accessible_category_or_404(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category:
+    result = await db.execute(
+        select(Category).where(
+            Category.id == category_id,
+            _accessible_category_filter(user_id),
+        ),
+    )
+    category = result.scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return category
+
+
+async def _require_group_category_admin(db: AsyncSession, category: Category, user_id: uuid.UUID) -> None:
+    if category.group_id is None:
+        return
+
+    member_result = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == category.group_id,
+            GroupMember.user_id == user_id,
+        ),
+    )
+    member = member_result.scalar_one_or_none()
+    if not member or not member.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
+
+async def _get_merge_replacement_category(
+    db: AsyncSession, source: Category, replacement_category_id: uuid.UUID, user_id: uuid.UUID,
+) -> Category:
+    if source.id == replacement_category_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Replacement category must be different",
+        )
+
+    replacement_filter = Category.id == replacement_category_id
+    if source.group_id is None:
+        replacement_filter = replacement_filter & _system_or_personal_category_filter(user_id)
+    else:
+        replacement_filter = replacement_filter & (
+            Category.is_system.is_(True) | (Category.group_id == source.group_id)
+        )
+
+    replacement_result = await db.execute(select(Category).where(replacement_filter))
+    replacement = replacement_result.scalar_one_or_none()
+    if not replacement:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Replacement category not found",
+        )
+    if replacement.kind != source.kind:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Replacement category kind must match",
+        )
+    return replacement
+
+
+async def _move_category_references(db: AsyncSession, source_id: uuid.UUID, replacement_id: uuid.UUID) -> None:
+    replacement_tracked = aliased(BudgetTrackedCategory)
+    await db.execute(
+        sa.delete(BudgetTrackedCategory).where(
+            BudgetTrackedCategory.category_id == source_id,
+            BudgetTrackedCategory.removed_at.is_(None),
+            sa.exists().where(
+                replacement_tracked.base_budget_id == BudgetTrackedCategory.base_budget_id,
+                replacement_tracked.category_id == replacement_id,
+                replacement_tracked.removed_at.is_(None),
+            ),
+        ),
+    )
+    await db.execute(
+        sa.update(Transaction)
+        .where(Transaction.category_id == source_id)
+        .values(category_id=replacement_id),
+    )
+    await db.execute(
+        sa.update(Merchant)
+        .where(Merchant.default_category_id == source_id)
+        .values(default_category_id=replacement_id),
+    )
+    await db.execute(
+        sa.update(BudgetTrackedCategory)
+        .where(BudgetTrackedCategory.category_id == source_id)
+        .values(category_id=replacement_id),
+    )
 
 
 @router.get("", response_model=list[CategoryResponse])
@@ -179,6 +286,25 @@ async def update_category(
         ) from e
     await db.refresh(category)
     return category
+
+
+@router.post("/{category_id}/merge", status_code=status.HTTP_204_NO_CONTENT)
+async def merge_category(
+    category_id: uuid.UUID,
+    data: MergeCategoryRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Move references to another category, then delete the source category."""
+    category = await _get_accessible_category_or_404(db, category_id, user.id)
+    if category.is_system:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="System categories cannot be deleted")
+
+    await _require_group_category_admin(db, category, user.id)
+    replacement = await _get_merge_replacement_category(db, category, data.replacement_category_id, user.id)
+    await _move_category_references(db, category.id, replacement.id)
+    await db.delete(category)
+    await db.commit()
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
