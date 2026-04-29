@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Store,
   Tag,
   Trash2,
   X,
@@ -41,6 +42,7 @@ import {
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
 import CategorySettingsSection from '@/components/CategorySettingsSection'
 import Dropdown from '@/components/Dropdown'
+import MerchantSettingsSection from '@/components/MerchantSettingsSection'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 
 // IANA timezone list, sourced from the browser at module-load so it stays in
@@ -70,7 +72,7 @@ const LIMIT_DELETE_BUTTON_TRANSITION = {
   ease: 'easeOut' as const,
 }
 
-type SectionId = 'profile' | 'runway' | 'categories' | 'tax-advantaged-categories'
+type SectionId = 'profile' | 'runway' | 'categories' | 'merchants' | 'tax-advantaged-categories'
 
 interface Section {
   id: SectionId
@@ -82,6 +84,7 @@ const SECTIONS: Section[] = [
   { id: 'profile', label: 'Profile', icon: UserIcon },
   { id: 'runway', label: 'Runway', icon: LifeBuoy },
   { id: 'categories', label: 'Categories', icon: Tag },
+  { id: 'merchants', label: 'Merchants', icon: Store },
   { id: 'tax-advantaged-categories', label: 'Tax-Advantaged Categories', icon: Landmark },
 ]
 
@@ -322,6 +325,8 @@ export default function Settings() {
           />
 
           <CategorySettingsSection />
+
+          <MerchantSettingsSection />
 
           <TaxAdvantagedCategoriesSection
             accounts={accounts ?? []}

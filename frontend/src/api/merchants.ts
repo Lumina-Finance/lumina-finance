@@ -12,6 +12,17 @@ export interface Merchant {
   created_at: string;
 }
 
+export interface CreateMerchantPayload {
+  name: string;
+  default_category_id?: string | null;
+  group_id?: string | null;
+}
+
+export interface UpdateMerchantPayload {
+  name?: string;
+  default_category_id?: string | null;
+}
+
 export function useMerchants() {
   const { accessToken } = useAuth();
   return useQuery({
@@ -26,14 +37,43 @@ export function useMerchants() {
 export function useCreateMerchant() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { name: string; default_category_id?: string | null }) =>
+    mutationFn: (payload: CreateMerchantPayload) =>
       authenticatedFetch<Merchant>('/merchants', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
     // Splice the new merchant into the cache so the dropdown sees it immediately
     onSuccess: (created) => {
-      qc.setQueryData<Merchant[]>(merchantKeys.list(), (prev = []) => [...prev, created]);
+      qc.setQueryData<Merchant[]>(merchantKeys.list(), (prev = []) =>
+        [...prev, created].sort((a, b) => a.name.localeCompare(b.name)),
+      );
     },
+  });
+}
+
+export function useUpdateMerchant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ merchantId, payload }: { merchantId: string; payload: UpdateMerchantPayload }) =>
+      authenticatedFetch<Merchant>(`/merchants/${merchantId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (updated) => {
+      qc.setQueryData<Merchant[]>(merchantKeys.list(), (prev) =>
+        prev
+          ?.map((merchant) => (merchant.id === updated.id ? updated : merchant))
+          .sort((a, b) => a.name.localeCompare(b.name)) ?? prev,
+      );
+    },
+  });
+}
+
+export function useDeleteMerchant() {
+  return useMutation({
+    mutationFn: (merchantId: string) =>
+      authenticatedFetch<void>(`/merchants/${merchantId}`, {
+        method: 'DELETE',
+      }),
   });
 }
