@@ -19,6 +19,13 @@ export interface UpdateCategoryPayload {
   icon?: string | null;
 }
 
+export interface CreateCategoryPayload {
+  name: string;
+  kind: Category['kind'];
+  icon?: string | null;
+  group_id?: string | null;
+}
+
 export function useCategories() {
   const { accessToken } = useAuth();
   return useQuery({
@@ -27,6 +34,22 @@ export function useCategories() {
     enabled: !!accessToken,
     staleTime: Infinity,
     gcTime: Infinity,
+  });
+}
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateCategoryPayload) =>
+      authenticatedFetch<Category>('/categories', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (createdCategory) => {
+      queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
+        [...(categories ?? []), createdCategory].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+    },
   });
 }
 

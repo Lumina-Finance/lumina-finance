@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Picker } from 'emoji-mart'
-import { Check, ChevronDown, Lock, Pencil, Search, Trash2, X } from 'lucide-react'
-import { useCategories, useDeleteCategory, useUpdateCategory, type Category } from '@/api/categories'
+import { Check, ChevronDown, Lock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import {
+  useCategories,
+  useCreateCategory,
+  useDeleteCategory,
+  useUpdateCategory,
+  type Category,
+} from '@/api/categories'
+import Dropdown from '@/components/Dropdown'
 
 type CategoryKind = Category['kind']
 
@@ -12,6 +19,7 @@ const KIND_LABELS: Record<CategoryKind, string> = {
 }
 
 const KIND_ORDER: CategoryKind[] = ['expense', 'income', 'transfer']
+const KIND_OPTIONS = KIND_ORDER.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
 
@@ -89,6 +97,7 @@ export default function CategorySettingsSection() {
   const [search, setSearch] = useState('')
   const [expandedKinds, setExpandedKinds] = useState<Set<CategoryKind>>(() => new Set())
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const groupedCategories = useMemo(() => {
@@ -121,6 +130,10 @@ export default function CategorySettingsSection() {
       },
     })
   }
+  const handleCreated = (category: Category) => {
+    setExpandedKinds((current) => new Set(current).add(category.kind))
+    setShowCreateModal(false)
+  }
 
   return (
     <section id="categories" className="scroll-mt-8">
@@ -131,20 +144,30 @@ export default function CategorySettingsSection() {
 
       <SettingsCard>
         <div className="space-y-4">
-          <div className="relative min-w-0">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--app-text-subtle)' }}
-              aria-hidden
-            />
-            <input
-              className="app-input pl-9"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search categories..."
-              disabled={categories.length === 0}
-            />
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--app-text-subtle)' }}
+                aria-hidden
+              />
+              <input
+                className="app-input pl-9"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search categories..."
+                disabled={categories.length === 0}
+              />
+            </div>
+            <button
+              type="button"
+              className="app-primary-button shrink-0"
+              onClick={() => setShowCreateModal(true)}
+            >
+              <Plus size={16} aria-hidden />
+              Create category
+            </button>
           </div>
           {deleteError && (
             <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
@@ -184,7 +207,171 @@ export default function CategorySettingsSection() {
           )}
         </div>
       </SettingsCard>
+
+      {showCreateModal && (
+        <CreateCategoryModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleCreated}
+        />
+      )}
     </section>
+  )
+}
+
+function CreateCategoryModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: (category: Category) => void
+}) {
+  const createCategory = useCreateCategory()
+  const [form, setForm] = useState({
+    name: '',
+    kind: 'expense' as CategoryKind,
+    icon: DEFAULT_CATEGORY_ICON,
+  })
+  const [formError, setFormError] = useState<string | null>(null)
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
+
+  const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    setFormError(null)
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (createCategory.isPending) return
+
+    const name = form.name.trim()
+    if (!name) {
+      setFormError('Name is required.')
+      return
+    }
+
+    createCategory.mutate(
+      {
+        name,
+        kind: form.kind,
+        icon: form.icon,
+        group_id: null,
+      },
+      {
+        onSuccess: onCreated,
+        onError: (error) => {
+          setFormError(error instanceof Error ? error.message : 'Failed to create category.')
+        },
+      },
+    )
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        onClick={onClose}
+        aria-hidden
+      />
+
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-category-title"
+          className="w-full max-w-lg rounded-2xl p-6 sm:p-8"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            boxShadow: 'var(--app-shadow-soft)',
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="create-category-title" className="font-serif text-2xl font-light tracking-tight">
+                  Create category
+                </h3>
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Add a personal category for transactions and budgets.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="app-icon-button shrink-0"
+                aria-label="Close"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            <div className="grid gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <span className="app-label block">Icon</span>
+              <span className="app-label block">Category name</span>
+              <div>
+                <CategoryIconSelector
+                  categoryName={form.name || 'New category'}
+                  value={form.icon}
+                  onChange={(icon) => setField('icon', icon)}
+                  buttonClassName="app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none"
+                />
+              </div>
+              <div>
+                <input
+                  className="app-input"
+                  value={form.name}
+                  onChange={(event) => setField('name', event.target.value)}
+                  placeholder="Groceries"
+                  maxLength={256}
+                  required
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Field label="Category type">
+                  <Dropdown
+                    options={KIND_OPTIONS}
+                    value={form.kind}
+                    onChange={(value) => setField('kind', value as CategoryKind)}
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              {formError && (
+                <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
+                  {formError}
+                </p>
+              )}
+              <button type="button" className="app-secondary-button" onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="app-primary-button inline-flex items-center justify-center gap-2"
+                disabled={createCategory.isPending}
+              >
+                {createCategory.isPending ? <div className="app-spinner" aria-label="Creating" /> : <Plus size={16} aria-hidden />}
+                Create category
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -469,10 +656,12 @@ function InlineCategoryEdit({
 }
 
 function CategoryIconSelector({
+  buttonClassName = 'group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-visible:border-[var(--app-accent-border)] focus-visible:outline-none',
   categoryName,
   onChange,
   value,
 }: {
+  buttonClassName?: string
   categoryName: string
   onChange: (icon: string) => void
   value: string
@@ -494,7 +683,7 @@ function CategoryIconSelector({
     <div ref={selectorRef} className="relative shrink-0">
       <button
         type="button"
-        className="group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-visible:border-[var(--app-accent-border)] focus-visible:outline-none"
+        className={buttonClassName}
         style={{
           background: 'var(--app-input-bg)',
           borderColor: 'var(--app-input-border)',
@@ -629,6 +818,15 @@ function EmojiMartIconPicker({
       ) : (
         <div ref={containerRef} />
       )}
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5 block">
+      <span className="app-label mb-1.5 block">{label}</span>
+      {children}
     </div>
   )
 }
