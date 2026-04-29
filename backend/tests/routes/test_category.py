@@ -108,6 +108,7 @@ async def test_list_categories_returns_seeded_defaults(client):
     names = {c["name"] for c in data}
     assert "Groceries" in names
     assert "Salary" in names
+    assert "Balance Adjustment" in names
     assert "Transfer" in names
     assert "Debt Payment" in names
     assert "Fuel" in names
@@ -122,6 +123,8 @@ async def test_list_categories_returns_seeded_defaults(client):
     assert by_name["Debt Payment"]["kind"] == "expense"
     assert by_name["Debt Payment"]["is_system"] is True
     assert by_name["Vehicle Maintenance"]["is_system"] is True
+    assert by_name["Balance Adjustment"]["kind"] == "transfer"
+    assert by_name["Balance Adjustment"]["is_system"] is True
     assert by_name["Credit Card Payment"]["kind"] == "transfer"
     assert by_name["Credit Card Payment"]["is_system"] is True
     assert by_name["Transfer"]["is_system"] is True

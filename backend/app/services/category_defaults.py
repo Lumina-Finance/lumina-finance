@@ -51,6 +51,7 @@ SYSTEM_CATEGORY_DEFAULTS: tuple[SystemCategoryDefault, ...] = tuple(
         # Miscellaneous
         ("Miscellaneous", CategoryKind.EXPENSE, "🏷️"),
         # Transfers
+        ("Balance Adjustment", CategoryKind.TRANSFER, "⚖️"),
         ("Credit Card Payment", CategoryKind.TRANSFER, "💳"),
         ("Transfer", CategoryKind.TRANSFER, "↔️"),
         # Vehicle and transportation
