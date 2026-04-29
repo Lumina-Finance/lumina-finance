@@ -164,27 +164,12 @@ function TaxAdvantagedLimitsSection({ summaries }: { summaries: TaxAdvantagedLim
 
   return (
     <section>
-      <div className="mb-2 flex items-center gap-4">
-        <h3 className="font-serif text-2xl font-semibold" style={{ color: 'var(--app-accent)' }}>
-          TAC Limits
-        </h3>
-        <div
-          className="h-px flex-1"
-          style={{
-            background: 'linear-gradient(to right, var(--app-border-strong), var(--app-border), transparent)',
-          }}
-        />
-      </div>
-
-      <div className="grid gap-x-10 gap-y-0 md:grid-cols-2">
+      <div className="grid gap-x-10 gap-y-0 md:grid-cols-2 xl:grid-cols-3">
         {summaries.map(({ plan, linkedAccountCount }) => {
           return (
             <div
               key={plan.id}
               className="min-w-0 py-3"
-              style={{
-                borderBottom: '1px solid var(--app-border)',
-              }}
             >
               <div className="mb-2 flex min-w-0 items-baseline justify-between gap-3">
                 <div className="flex min-w-0 items-baseline gap-2">
@@ -213,6 +198,12 @@ function TaxAdvantagedLimitsSection({ summaries }: { summaries: TaxAdvantagedLim
           )
         })}
       </div>
+      <div
+        className="mt-3 h-px"
+        style={{
+          background: 'var(--app-accent)',
+        }}
+      />
     </section>
   )
 }
@@ -663,7 +654,7 @@ export default function Accounts() {
         <h1 className="app-page-title">My Accounts</h1>
       </header>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Net Worth statement — headline + assets/debts breakdown */}
         {isLoading ? (
           <div className="rounded-2xl h-[6.5rem] bg-gray-300" />
@@ -726,12 +717,11 @@ export default function Accounts() {
 
         {/* Metrics band — savings rate / credit usage / cash runway */}
         <section>
-          {/* Gold top rule */}
+          {/* Top rule */}
           <div
             style={{
-              height: 2,
-              background: 'var(--app-accent)',
-              opacity: 0.35,
+              height: 1,
+              background: 'var(--app-border-strong)',
               borderRadius: 1,
             }}
           />
