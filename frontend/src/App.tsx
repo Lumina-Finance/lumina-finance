@@ -70,15 +70,6 @@ function PublicRoute() {
   return <Outlet />;
 }
 
-function PageTitle({ title, description }: { title: string; description?: string }) {
-  return (
-    <header className="app-page-header">
-      <h1 className="app-page-title">{title}</h1>
-      {description && <p className="app-page-description">{description}</p>}
-    </header>
-  )
-}
-
 function AnimatedRoutes() {
   const location = useLocation();
 
@@ -98,7 +89,6 @@ function AnimatedRoutes() {
           <Route path="/accounts/:accountId" element={<AccountDetail />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/budgets" element={<Budgets />} />
-          <Route path="/insights" element={<PageTitle title="Insights" />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
 

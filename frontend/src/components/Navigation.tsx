@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom';
 import {
-  BarChart2,
   CreditCard,
   LayoutDashboard,
   LogOut,
@@ -27,7 +26,6 @@ const navItems: NavigationItem[] = [
   { to: '/accounts', icon: CreditCard, label: 'Accounts' },
   { to: '/transactions', icon: Receipt, label: 'Transactions' },
   { to: '/budgets', icon: PieChart, label: 'Budgets' },
-  { to: '/insights', icon: BarChart2, label: 'Insights' },
 ];
 
 const Navigation = () => {
