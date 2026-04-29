@@ -96,7 +96,7 @@ async def _setup_group_with_member(client):
 
 
 async def test_list_categories_returns_seeded_defaults(client):
-    """New user gets the default seeded categories."""
+    """New user sees global system categories."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -120,12 +120,12 @@ async def test_list_categories_returns_seeded_defaults(client):
     assert by_name["Groceries"]["icon"] == "🛒"
     assert by_name["Miscellaneous"]["kind"] == "expense"
     assert by_name["Debt Payment"]["kind"] == "expense"
-    assert by_name["Debt Payment"]["is_required"] is True
-    assert by_name["Vehicle Maintenance"]["is_required"] is True
+    assert by_name["Debt Payment"]["is_system"] is True
+    assert by_name["Vehicle Maintenance"]["is_system"] is True
     assert by_name["Credit Card Payment"]["kind"] == "transfer"
-    assert by_name["Credit Card Payment"]["is_required"] is True
-    assert by_name["Transfer"]["is_required"] is True
-    assert by_name["Groceries"]["is_required"] is False
+    assert by_name["Credit Card Payment"]["is_system"] is True
+    assert by_name["Transfer"]["is_system"] is True
+    assert by_name["Groceries"]["owner_id"] is None
 
 
 async def test_list_categories_returns_user_categories(client):
@@ -229,8 +229,8 @@ async def test_create_category_returns_201(client):
     assert data["created_at"] is not None
 
 
-async def test_create_category_duplicate_name_and_kind_returns_409(client):
-    """Same name + kind for the same user returns 409."""
+async def test_create_category_duplicate_name_returns_409(client):
+    """Same name for the same user returns 409."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -241,8 +241,8 @@ async def test_create_category_duplicate_name_and_kind_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
-async def test_create_category_same_name_different_kind_allowed(client):
-    """Same name with a different kind is allowed."""
+async def test_create_category_same_name_different_kind_returns_409(client):
+    """Same name with a different kind is still a duplicate."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -250,8 +250,7 @@ async def test_create_category_same_name_different_kind_allowed(client):
     resp2 = await _create_category(client, headers, name="Misc", kind="income")
 
     assert resp1.status_code == 201
-    assert resp2.status_code == 201
-    assert resp1.json()["id"] != resp2.json()["id"]
+    assert resp2.status_code == 409
 
 
 async def test_create_category_invalid_kind_returns_422(client):
@@ -336,7 +335,7 @@ async def test_patch_category_other_user_returns_404(client):
 
 
 async def test_patch_category_rename_to_duplicate_returns_409(client):
-    """Renaming a category to an existing name+kind returns 409."""
+    """Renaming a category to an existing name returns 409."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -354,8 +353,8 @@ async def test_patch_category_rename_to_duplicate_returns_409(client):
     assert get_resp.json()["name"] == "Beta Unique"
 
 
-async def test_patch_required_category_returns_403(client):
-    """Required seeded categories cannot be modified."""
+async def test_patch_system_category_returns_403(client):
+    """System categories cannot be modified."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     categories_resp = await client.get("/categories", headers=headers)
@@ -364,7 +363,7 @@ async def test_patch_required_category_returns_403(client):
     resp = await client.patch(f"/categories/{category_id}", json={"name": "Moved Money"}, headers=headers)
 
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "Required categories cannot be modified"
+    assert resp.json()["detail"] == "System categories cannot be modified"
 
 
 async def test_patch_category_without_auth_returns_401(client):
@@ -421,8 +420,8 @@ async def test_delete_category_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
-async def test_delete_required_category_returns_403(client):
-    """Required seeded categories cannot be deleted."""
+async def test_delete_system_category_returns_403(client):
+    """System categories cannot be deleted."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     categories_resp = await client.get("/categories", headers=headers)
@@ -431,7 +430,7 @@ async def test_delete_required_category_returns_403(client):
     resp = await client.delete(f"/categories/{category_id}", headers=headers)
 
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "Required categories cannot be deleted"
+    assert resp.json()["detail"] == "System categories cannot be deleted"
 
 
 async def test_double_delete_returns_404_on_second(client):
@@ -461,6 +460,7 @@ async def test_create_group_category_as_member_returns_201(client):
     data = resp.json()
     assert data["name"] == "Games"
     assert data["group_id"] == group_id
+    assert data["owner_id"] is None
 
 
 async def test_create_group_category_as_admin_returns_201(client):
@@ -490,7 +490,7 @@ async def test_create_group_category_non_member_returns_404(client):
 
 
 async def test_create_group_category_duplicate_returns_409(client):
-    """Duplicate name+kind within the same group returns 409."""
+    """Duplicate name within the same group returns 409."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     await _create_category(client, admin_headers, name="Food", kind="expense", group_id=group_id)
@@ -501,7 +501,7 @@ async def test_create_group_category_duplicate_returns_409(client):
 
 
 async def test_create_group_category_same_name_as_personal_allowed(client):
-    """Personal and group categories with the same name+kind can coexist."""
+    """Personal and group categories with the same name can coexist."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     personal = await _create_category(client, admin_headers, name="Coexist Test", kind="expense")
@@ -687,7 +687,7 @@ async def test_patch_group_category_non_member_returns_404(client):
 
 
 async def test_patch_group_category_rename_to_duplicate_returns_409(client):
-    """Renaming a group category to an existing group category name+kind returns 409."""
+    """Renaming a group category to an existing group category name returns 409."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
 
     await _create_category(client, admin_headers, name="Food", kind="expense", group_id=group_id)

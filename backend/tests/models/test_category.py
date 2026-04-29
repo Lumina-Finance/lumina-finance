@@ -88,7 +88,7 @@ async def test_group_defaults_to_null(db, category):
 
 
 async def test_null_owner_rejected(db):
-    """owner_id is NOT NULL."""
+    """Custom categories require an owner or group scope."""
     db.add(Category(owner_id=None, name="Bad", kind=CategoryKind.EXPENSE))
     with pytest.raises(IntegrityError):
         await db.flush()
@@ -115,8 +115,8 @@ async def test_invalid_owner_rejected(db):
         await db.flush()
 
 
-async def test_duplicate_name_and_kind_rejected(db, user):
-    """Same owner + name + kind combination is rejected by unique constraint."""
+async def test_duplicate_name_rejected(db, user):
+    """Same owner + name combination is rejected by unique constraint."""
     db.add(Category(owner_id=user.id, name="Food", kind=CategoryKind.EXPENSE))
     await db.flush()
 
@@ -125,10 +125,11 @@ async def test_duplicate_name_and_kind_rejected(db, user):
         await db.flush()
 
 
-async def test_same_name_different_kind_allowed(db, user):
-    """Same name with a different kind is allowed (e.g., 'Transfer' as expense and transfer)."""
+async def test_same_name_different_kind_rejected(db, user):
+    """Same name with a different kind is still a duplicate."""
     db.add(Category(owner_id=user.id, name="Misc", kind=CategoryKind.EXPENSE))
     await db.flush()
 
     db.add(Category(owner_id=user.id, name="Misc", kind=CategoryKind.INCOME))
-    await db.flush()  # Should not raise
+    with pytest.raises(IntegrityError):
+        await db.flush()

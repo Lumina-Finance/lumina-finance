@@ -25,6 +25,7 @@ from app.models import (  # noqa: F401
     user,
 )
 from app.models.base import Base
+from app.services.category_defaults import seed_system_categories
 
 # Test database credentials — separate user/db from development
 TEST_DB_HOST = _require("TEST_DB_HOST")
@@ -87,4 +88,7 @@ async def clean_tables():
         await conn.execute(text(
             "TRUNCATE " + ", ".join(t.name for t in reversed(Base.metadata.sorted_tables)) + " CASCADE"
         ))
+    async with TestSession() as session:
+        await seed_system_categories(session)
+        await session.commit()
     yield
