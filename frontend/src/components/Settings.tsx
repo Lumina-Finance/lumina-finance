@@ -243,6 +243,36 @@ export default function Settings() {
       ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway selection.')
       : null
 
+  const saveControls = (
+    <div className="space-y-2">
+      {saveError && (
+        <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+          {saveError}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          className="app-secondary-button"
+          onClick={handleDiscard}
+          disabled={!isDirty || isPending}
+        >
+          Discard
+        </button>
+        <ActionFeedbackButton
+          type="button"
+          className="app-primary-button w-[72px]"
+          onClick={handleSave}
+          disabled={!canSave && saveStatus === 'idle'}
+          loadingLabel="Saving"
+          status={saveStatus}
+        >
+          Save
+        </ActionFeedbackButton>
+      </div>
+    </div>
+  )
+
   return (
     <div>
       <header className="app-page-header">
@@ -272,6 +302,9 @@ export default function Settings() {
               )
             })}
           </nav>
+          <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
+            {saveControls}
+          </div>
         </aside>
 
         <div className="min-w-0 space-y-10">
@@ -297,30 +330,8 @@ export default function Settings() {
           />
 
           {/* Unified save bar — covers both profile + runway in parallel */}
-          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end sm:items-center">
-            {saveError && (
-              <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
-                {saveError}
-              </p>
-            )}
-            <button
-              type="button"
-              className="app-secondary-button"
-              onClick={handleDiscard}
-              disabled={!isDirty || isPending}
-            >
-              Discard
-            </button>
-            <ActionFeedbackButton
-              type="button"
-              className="app-primary-button w-[72px]"
-              onClick={handleSave}
-              disabled={!canSave && saveStatus === 'idle'}
-              loadingLabel="Saving"
-              status={saveStatus}
-            >
-              Save
-            </ActionFeedbackButton>
+          <div className="pt-2 lg:hidden">
+            {saveControls}
           </div>
         </div>
       </div>
