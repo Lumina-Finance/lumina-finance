@@ -89,7 +89,11 @@ function limitUsagePercent(used: number, limit: number): number {
   return Math.min(Math.max((used / limit) * 100, 0), 100)
 }
 
-function CompactLimitUsageCell({
+function limitRoomPercent(used: number, limit: number): number {
+  return 100 - limitUsagePercent(used, limit)
+}
+
+function TaxLimitLedgerRow({
   label,
   used,
   limit,
@@ -102,45 +106,54 @@ function CompactLimitUsageCell({
 }) {
   if (limit === null) {
     return (
-      <div className="min-w-0">
-        <p className="mb-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
-          {label}
-        </p>
-        <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
-          Not set
-        </p>
+      <div>
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+            {label}
+          </p>
+          <p className="font-financial text-sm font-medium tabular-nums" style={{ color: 'var(--app-text-muted)' }}>
+            Not set
+          </p>
+        </div>
+        <div className="mt-1 h-1 rounded-full" style={{ background: 'var(--app-border)' }} />
       </div>
     )
   }
 
   const color = limitUsageColor(used, limit)
+  const remaining = limit - used
+  const overLimit = remaining < 0
 
   return (
-    <div className="min-w-0">
-      <div className="mb-1 flex items-baseline justify-between gap-2">
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
         <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
           {label}
         </p>
         <p className="truncate font-financial text-sm font-semibold tabular-nums" style={{ color }}>
-          {formatCurrency(used, currency)} / {formatCurrency(limit, currency)}
+          {overLimit
+            ? `${formatCurrency(Math.abs(remaining), currency)} over`
+            : `${formatCurrency(remaining, currency)} left`}
         </p>
       </div>
-      <div
-        className="h-1 overflow-hidden rounded-full"
-        style={{ background: 'var(--app-border)' }}
-        role="progressbar"
-        aria-label={`${label} usage`}
-        aria-valuemin={0}
-        aria-valuemax={Math.max(limit, 0)}
-        aria-valuenow={Math.min(Math.max(used, 0), Math.max(limit, 0))}
-      >
+      <div className="mt-1">
         <div
-          className="h-full rounded-full"
-          style={{
-            background: color,
-            width: `${limitUsagePercent(used, limit)}%`,
-          }}
-        />
+          className="h-1 overflow-hidden rounded-full"
+          style={{ background: 'var(--app-border)' }}
+          role="progressbar"
+          aria-label={`${label} usage`}
+          aria-valuemin={0}
+          aria-valuemax={Math.max(limit, 0)}
+          aria-valuenow={Math.min(Math.max(used, 0), Math.max(limit, 0))}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              background: color,
+              width: `${limitRoomPercent(used, limit)}%`,
+            }}
+          />
+        </div>
       </div>
     </div>
   )
@@ -153,7 +166,7 @@ function TaxAdvantagedLimitsSection({ summaries }: { summaries: TaxAdvantagedLim
     <section>
       <div className="mb-2 flex items-center gap-4">
         <h3 className="font-serif text-2xl font-semibold" style={{ color: 'var(--app-accent)' }}>
-          Tax-Advantaged Limits
+          TAC Limits
         </h3>
         <div
           className="h-px flex-1"
@@ -163,33 +176,39 @@ function TaxAdvantagedLimitsSection({ summaries }: { summaries: TaxAdvantagedLim
         />
       </div>
 
-      <div>
+      <div className="grid gap-x-10 gap-y-0 md:grid-cols-2">
         {summaries.map(({ plan, linkedAccountCount }) => {
           return (
             <div
               key={plan.id}
-              className="grid gap-3 py-2.5 md:grid-cols-[minmax(11rem,0.8fr)_minmax(12rem,1fr)_minmax(12rem,1fr)] md:items-center"
-              style={{ borderBottom: '1px solid var(--app-border)' }}
+              className="min-w-0 py-3"
+              style={{
+                borderBottom: '1px solid var(--app-border)',
+              }}
             >
-              <div className="min-w-0">
-                <p className="truncate font-medium">{plan.name}</p>
-                <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  {linkedAccountCount} linked account{linkedAccountCount !== 1 ? 's' : ''} · {plan.currency}
-                </p>
+              <div className="mb-2 flex min-w-0 items-baseline justify-between gap-3">
+                <div className="flex min-w-0 items-baseline gap-2">
+                  <p className="truncate font-medium">{plan.name}</p>
+                  <p className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {plan.currency} · {linkedAccountCount} linked account{linkedAccountCount !== 1 ? 's' : ''}
+                  </p>
+                </div>
               </div>
 
-              <CompactLimitUsageCell
-                label="Contributions"
-                used={plan.ytd_contributions}
-                limit={plan.current_year_contribution_limit}
-                currency={plan.currency}
-              />
-              <CompactLimitUsageCell
-                label="Withdrawals"
-                used={plan.ytd_withdrawals}
-                limit={plan.current_year_withdrawal_limit}
-                currency={plan.currency}
-              />
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                <TaxLimitLedgerRow
+                  label="Contributions"
+                  used={plan.ytd_contributions}
+                  limit={plan.current_year_contribution_limit}
+                  currency={plan.currency}
+                />
+                <TaxLimitLedgerRow
+                  label="Withdrawals"
+                  used={plan.ytd_withdrawals}
+                  limit={plan.current_year_withdrawal_limit}
+                  currency={plan.currency}
+                />
+              </div>
             </div>
           )
         })}
