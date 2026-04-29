@@ -1,7 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
-import { merchantKeys } from '@/api/queryKeys';
+import {
+  accountKeys,
+  dashboardKeys,
+  merchantKeys,
+  transactionKeys,
+  transactionOverviewKeys,
+} from '@/api/queryKeys';
 
 export interface Merchant {
   id: string;
@@ -21,6 +27,19 @@ export interface CreateMerchantPayload {
 export interface UpdateMerchantPayload {
   name?: string;
   default_category_id?: string | null;
+}
+
+export interface MergeMerchantPayload {
+  replacement_merchant_id: string;
+}
+
+function invalidateMerchantMergeQueries(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
+  qc.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
+  qc.invalidateQueries({ queryKey: accountKeys.all, exact: false });
+  qc.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+  qc.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
+  qc.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
 }
 
 export function useMerchants() {
@@ -75,5 +94,22 @@ export function useDeleteMerchant() {
       authenticatedFetch<void>(`/merchants/${merchantId}`, {
         method: 'DELETE',
       }),
+  });
+}
+
+export function useMergeMerchant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ merchantId, payload }: { merchantId: string; payload: MergeMerchantPayload }) =>
+      authenticatedFetch<void>(`/merchants/${merchantId}/merge`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (_, { merchantId }) => {
+      qc.setQueryData<Merchant[]>(merchantKeys.list(), (merchants) =>
+        merchants?.filter((merchant) => merchant.id !== merchantId) ?? merchants,
+      );
+      invalidateMerchantMergeQueries(qc);
+    },
   });
 }

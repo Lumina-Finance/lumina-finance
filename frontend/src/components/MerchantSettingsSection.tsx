@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ApiError } from '@/api/auth'
 import { useCategories, type Category } from '@/api/categories'
 import {
   useCreateMerchant,
   useDeleteMerchant,
+  useMergeMerchant,
   useMerchants,
   useUpdateMerchant,
   type Merchant,
@@ -101,16 +103,34 @@ function scopeLabel(merchant: Merchant) {
   return merchant.group_id ? 'Group merchant' : 'Personal merchant'
 }
 
+function merchantMergeOptions(merchant: Merchant, merchants: Merchant[]): DropdownOption[] {
+  return merchants
+    .filter((option) => {
+      if (option.id === merchant.id) return false
+      return merchant.group_id
+        ? option.group_id === merchant.group_id
+        : option.group_id === null
+    })
+    .map((option) => ({
+      value: option.id,
+      label: option.name,
+      group: option.group_id ? 'Group' : 'Personal',
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
+
 export default function MerchantSettingsSection() {
   const queryClient = useQueryClient()
   const { data: merchants = [], isLoading } = useMerchants()
   const { data: categories = [] } = useCategories()
   const deleteMerchant = useDeleteMerchant()
+  const mergeMerchant = useMergeMerchant()
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingMerchantId, setEditingMerchantId] = useState<string | null>(null)
   const [confirmingDeleteMerchantId, setConfirmingDeleteMerchantId] = useState<string | null>(null)
   const [deletingMerchantId, setDeletingMerchantId] = useState<string | null>(null)
+  const [mergeDeleteMerchant, setMergeDeleteMerchant] = useState<Merchant | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const categoryById = useMemo(
@@ -146,7 +166,12 @@ export default function MerchantSettingsSection() {
       setConfirmingDeleteMerchantId(null)
     } else {
       const error = deleteResult[0].reason
-      setDeleteError(error instanceof Error ? error.message : 'Failed to delete merchant.')
+      if (error instanceof ApiError && error.status === 409) {
+        setConfirmingDeleteMerchantId(null)
+        setMergeDeleteMerchant(merchant)
+      } else {
+        setDeleteError(error instanceof Error ? error.message : 'Failed to delete merchant.')
+      }
     }
 
     setDeletingMerchantId(null)
@@ -236,6 +261,21 @@ export default function MerchantSettingsSection() {
           categoryOptions={options}
           onClose={() => setShowCreateModal(false)}
           onCreated={() => setShowCreateModal(false)}
+        />
+      )}
+      {mergeDeleteMerchant && (
+        <MergeDeleteMerchantModal
+          merchant={mergeDeleteMerchant}
+          merchants={merchants}
+          isPending={mergeMerchant.isPending}
+          onClose={() => setMergeDeleteMerchant(null)}
+          onMerge={async (replacementMerchantId) => {
+            await mergeMerchant.mutateAsync({
+              merchantId: mergeDeleteMerchant.id,
+              payload: { replacement_merchant_id: replacementMerchantId },
+            })
+            setMergeDeleteMerchant(null)
+          }}
         />
       )}
     </section>
@@ -409,6 +449,142 @@ function CreateMerchantModal({
               >
                 {createMerchant.isPending ? <div className="app-spinner" aria-label="Creating" /> : <Plus size={16} aria-hidden />}
                 Create merchant
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function MergeDeleteMerchantModal({
+  merchant,
+  merchants,
+  isPending,
+  onClose,
+  onMerge,
+}: {
+  merchant: Merchant
+  merchants: Merchant[]
+  isPending: boolean
+  onClose: () => void
+  onMerge: (replacementMerchantId: string) => Promise<void>
+}) {
+  const options = useMemo(() => merchantMergeOptions(merchant, merchants), [merchant, merchants])
+  const [replacementMerchantId, setReplacementMerchantId] = useState(() => options[0]?.value ?? '')
+  const [formError, setFormError] = useState<string | null>(null)
+  const selectedReplacementId = options.some((option) => option.value === replacementMerchantId)
+    ? replacementMerchantId
+    : options[0]?.value ?? ''
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isPending) onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isPending, onClose])
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isPending) return
+    if (!selectedReplacementId) {
+      setFormError('Select a replacement merchant.')
+      return
+    }
+
+    setFormError(null)
+    try {
+      await onMerge(selectedReplacementId)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to delete merchant.')
+    }
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        onClick={isPending ? undefined : onClose}
+        aria-hidden
+      />
+
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={isPending ? undefined : onClose}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="merge-delete-merchant-title"
+          className="w-full max-w-lg rounded-2xl p-6 sm:p-8"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            boxShadow: 'var(--app-shadow-soft)',
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="merge-delete-merchant-title" className="font-serif text-2xl font-light tracking-tight">
+                  Delete {merchant.name}
+                </h3>
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Move existing transactions before deleting this merchant.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="app-icon-button shrink-0"
+                disabled={isPending}
+                aria-label="Close"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            <Field label="Replacement merchant">
+              <Dropdown
+                options={options}
+                value={selectedReplacementId}
+                onChange={(value) => {
+                  setReplacementMerchantId(value)
+                  setFormError(null)
+                }}
+                placeholder={options.length === 0 ? 'No compatible merchants' : 'Select merchant...'}
+                searchable
+                searchPlaceholder="Search merchants..."
+                disabled={isPending || options.length === 0}
+              />
+            </Field>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              {formError && (
+                <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
+                  {formError}
+                </p>
+              )}
+              <button
+                type="button"
+                className="app-secondary-button"
+                onClick={onClose}
+                disabled={isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="app-primary-button inline-flex items-center justify-center gap-2"
+                disabled={isPending || options.length === 0}
+              >
+                {isPending ? <div className="app-spinner" aria-label="Deleting" /> : <Trash2 size={16} aria-hidden />}
+                Delete merchant
               </button>
             </div>
           </form>
