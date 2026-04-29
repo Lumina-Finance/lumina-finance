@@ -111,7 +111,7 @@ export default function CategorySettingsSection() {
     })
   }
   const handleDelete = (category: Category) => {
-    if (category.is_required) return
+    if (category.is_system) return
     const confirmed = window.confirm(`Delete ${category.name}? This cannot be undone.`)
     if (!confirmed) return
     setDeleteError(null)
@@ -126,7 +126,7 @@ export default function CategorySettingsSection() {
     <section id="categories" className="scroll-mt-8">
       <SectionHeader
         title="Categories"
-        description="Review categories and remove unused non-required categories."
+        description="Review system categories and manage custom categories."
       />
 
       <SettingsCard>
@@ -267,7 +267,12 @@ function CategoryRow({
   onEdit: (category: Category) => void
   onEditCancel: () => void
 }) {
-  const requiredCategory = category.is_required
+  const systemCategory = category.is_system
+  const scopeLabel = category.is_system
+    ? 'System category'
+    : category.group_id
+      ? 'Group category'
+      : 'Personal category'
   if (isEditing) {
     return (
       <InlineCategoryEdit
@@ -297,12 +302,12 @@ function CategoryRow({
             <p className="truncate font-medium">{category.name}</p>
           </div>
           <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            {category.group_id ? 'Group category' : 'Personal category'}
+            {scopeLabel}
           </p>
         </div>
       </div>
       <div className="flex justify-end gap-1.5">
-        {requiredCategory ? (
+        {systemCategory ? (
           <span
             className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium"
             style={{
@@ -312,7 +317,7 @@ function CategoryRow({
             }}
           >
             <Lock size={13} aria-hidden />
-            Required
+            System
           </span>
         ) : (
           <>

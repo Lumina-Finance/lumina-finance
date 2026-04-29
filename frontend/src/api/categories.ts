@@ -6,11 +6,11 @@ import { categoryKeys } from '@/api/queryKeys';
 export interface Category {
   id: string;
   group_id: string | null;
-  owner_id: string;
+  owner_id: string | null;
   name: string;
   kind: 'expense' | 'income' | 'transfer';
   icon: string | null;
-  is_required: boolean;
+  is_system: boolean;
   created_at: string;
 }
 
