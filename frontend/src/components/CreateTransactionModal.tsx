@@ -19,6 +19,7 @@ import { ApiError } from '@/api/auth'
 /* ── Constants ── */
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
+const DEFAULT_CATEGORY_ICON = '🏷️'
 
 type Kind = 'expense' | 'income' | 'transfer'
 
@@ -73,7 +74,7 @@ function buildOptionsForKind(categories: Category[], kind: string) {
   return categories
     .filter((c) => c.kind === kind)
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map((c) => ({ value: c.id, label: c.name, group: kindLabel }))
+    .map((c) => ({ value: c.id, label: c.name, group: kindLabel, icon: c.icon ?? DEFAULT_CATEGORY_ICON }))
 }
 
 // Build the full category options list with the selected kind's options

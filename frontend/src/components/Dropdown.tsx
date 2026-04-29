@@ -6,6 +6,7 @@ export interface DropdownOption {
   value: string;
   label: string;
   group?: string;
+  icon?: string | null;
 }
 
 interface DropdownProps {
@@ -169,8 +170,16 @@ const Dropdown = ({
         }}
         onKeyDown={handleKeyDown}
       >
-        <span style={{ color: selected ? 'var(--app-text)' : 'var(--app-text-subtle)' }}>
-          {selected?.label ?? placeholder}
+        <span
+          className="flex min-w-0 flex-1 items-center gap-2"
+          style={{ color: selected ? 'var(--app-text)' : 'var(--app-text-subtle)' }}
+        >
+          {selected?.icon && (
+            <span className="shrink-0 text-base leading-none" aria-hidden>
+              {selected.icon}
+            </span>
+          )}
+          <span className="min-w-0 flex-1 truncate">{selected?.label ?? placeholder}</span>
         </span>
         <ChevronDown
           size={16}
@@ -257,7 +266,7 @@ const Dropdown = ({
                           role="option"
                           aria-selected={isSelected}
                           data-option-index={flatIndex}
-                          className="cursor-pointer px-4 py-2 text-sm transition-colors duration-100"
+                          className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm transition-colors duration-100"
                           style={{
                             background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
                             color: isSelected ? 'var(--app-accent)' : 'var(--app-text)',
@@ -266,7 +275,12 @@ const Dropdown = ({
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleSelect(option.value)}
                         >
-                          {option.label}
+                          {option.icon && (
+                            <span className="shrink-0 text-base leading-none" aria-hidden>
+                              {option.icon}
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1 truncate">{option.label}</span>
                         </div>
                       );
                     })}
@@ -282,7 +296,7 @@ const Dropdown = ({
                       role="option"
                       aria-selected={isSelected}
                       data-option-index={i}
-                      className="cursor-pointer px-4 py-2 text-sm transition-colors duration-100"
+                      className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm transition-colors duration-100"
                       style={{
                         background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
                         color: isSelected ? 'var(--app-accent)' : 'var(--app-text)',
@@ -291,7 +305,12 @@ const Dropdown = ({
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => handleSelect(option.value)}
                     >
-                      {option.label}
+                      {option.icon && (
+                        <span className="shrink-0 text-base leading-none" aria-hidden>
+                          {option.icon}
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
                     </li>
                   );
                 })
