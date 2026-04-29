@@ -14,6 +14,7 @@ interface DropdownProps {
   options: DropdownOption[];
   value: string;
   onChange: (value: string) => void;
+  className?: string;
   placeholder?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -27,6 +28,7 @@ const Dropdown = ({
   options,
   value,
   onChange,
+  className = 'app-input',
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
@@ -156,7 +158,7 @@ const Dropdown = ({
         aria-expanded={open}
         aria-haspopup="listbox"
         disabled={disabled}
-        className="app-input flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60"
+        className={`${className} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60`}
         onClick={() => {
           if (disabled) return;
           if (!open) {
