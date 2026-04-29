@@ -5,7 +5,6 @@ import {
   Search,
   Plus,
 } from 'lucide-react'
-import { getCategoryIcon } from '@/utils/categoryIcon'
 import {
   AreaChart,
   Area,
@@ -33,6 +32,8 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
+
+const DEFAULT_CATEGORY_ICON = '🏷️'
 
 interface TransactionFilterValues {
   account_id?: string
@@ -745,7 +746,7 @@ export default function Transactions() {
                     const category = categoryMap.get(t.category_id)
                     const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
                     const accountName = accountMap.get(t.account_id)
-                    const Icon = getCategoryIcon(category?.icon)
+                    const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
                     return (
                       <div
                         key={t.id}
@@ -762,18 +763,10 @@ export default function Transactions() {
                         style={{ borderBottom: '1px solid var(--app-border)' }}
                       >
                         {/* Category icon */}
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                          style={{
-                            background: isIncome ? 'var(--app-positive-soft)' : 'var(--app-surface-soft)',
-                            border: `1px solid ${isIncome ? 'var(--app-positive)' : 'var(--app-border)'}`,
-                          }}
-                        >
-                          <Icon
-                            size={16}
-                            style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text-muted)' }}
-                            aria-hidden
-                          />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                          <span className="text-lg leading-none" aria-hidden>
+                            {categoryIcon}
+                          </span>
                         </div>
 
                         {/* Merchant + account */}

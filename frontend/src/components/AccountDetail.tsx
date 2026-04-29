@@ -35,12 +35,13 @@ import {
   type Transaction,
 } from '@/api/transactions'
 import { useTaxAdvantagedPlan, useTaxAdvantagedPlans, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
-import { getCategoryIcon } from '@/utils/categoryIcon'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
 import Dropdown from '@/components/Dropdown'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
+
+const DEFAULT_CATEGORY_ICON = '🏷️'
 
 const ACCOUNT_KIND_LABEL: Record<string, string> = {
   asset: 'Asset',
@@ -1627,7 +1628,7 @@ function TransactionListSection({
                     const isIncome = t.amount > 0
                     const category = categoryMap.get(t.category_id)
                     const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
-                    const Icon = getCategoryIcon(category?.icon)
+                    const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
                     return (
                       <div
                         key={t.id}
@@ -1643,18 +1644,10 @@ function TransactionListSection({
                         className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
                         style={{ borderBottom: '1px solid var(--app-border)' }}
                       >
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                          style={{
-                            background: isIncome ? 'var(--app-positive-soft)' : 'var(--app-surface-soft)',
-                            border: `1px solid ${isIncome ? 'var(--app-positive)' : 'var(--app-border)'}`,
-                          }}
-                        >
-                          <Icon
-                            size={16}
-                            style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text-muted)' }}
-                            aria-hidden
-                          />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                          <span className="text-lg leading-none" aria-hidden>
+                            {categoryIcon}
+                          </span>
                         </div>
                         {/* Merchant cell — second line kept blank (nbsp) so row
                             height matches the Transactions page, which uses it
