@@ -687,7 +687,7 @@ export default function Transactions() {
           className="app-primary-button"
           onClick={openCreateModal}
         >
-          <Plus size={16} aria-hidden />
+          <Plus size={18} aria-hidden />
           Add Transaction
         </button>
       </div>

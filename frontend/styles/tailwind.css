@@ -145,6 +145,7 @@
 
   .app-primary-button {
     @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
     font-size: 0.9375rem;
     background: var(--app-button-primary-bg);
     border: 1px solid var(--app-button-primary-bg);
