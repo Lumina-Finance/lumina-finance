@@ -123,6 +123,7 @@ function TaxLimitLedgerRow({
   const color = limitUsageColor(used, limit)
   const remaining = limit - used
   const overLimit = remaining < 0
+  const barWidth = overLimit ? 100 : limitRoomPercent(used, limit)
 
   return (
     <div>
@@ -150,7 +151,7 @@ function TaxLimitLedgerRow({
             className="h-full rounded-full"
             style={{
               background: color,
-              width: `${limitRoomPercent(used, limit)}%`,
+              width: `${barWidth}%`,
             }}
           />
         </div>
