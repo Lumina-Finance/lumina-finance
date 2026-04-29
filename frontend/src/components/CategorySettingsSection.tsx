@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Picker } from 'emoji-mart'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ChevronDown, Lock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
@@ -9,6 +10,7 @@ import {
   useUpdateCategory,
   type Category,
 } from '@/api/categories'
+import { categoryKeys } from '@/api/queryKeys'
 import Dropdown from '@/components/Dropdown'
 
 type CategoryKind = Category['kind']
@@ -23,6 +25,7 @@ const KIND_ORDER: CategoryKind[] = ['expense', 'income', 'transfer']
 const KIND_OPTIONS = KIND_ORDER.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
+const DELETE_SPINNER_MS = 1000
 
 interface EmojiMartData {
   emojis?: Record<string, unknown>
@@ -57,6 +60,12 @@ const EMOJI_MART_THEME = {
 } as const
 
 let emojiMartDataPromise: Promise<EmojiMartData> | null = null
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
 
 function loadEmojiMartData(): Promise<EmojiMartData> {
   if (!emojiMartDataPromise) {
@@ -96,12 +105,15 @@ function useAppDarkMode() {
 }
 
 export default function CategorySettingsSection() {
+  const queryClient = useQueryClient()
   const { data: categories = [], isLoading } = useCategories()
   const deleteCategory = useDeleteCategory()
   const [search, setSearch] = useState('')
   const [expandedKinds, setExpandedKinds] = useState<Set<CategoryKind>>(() => new Set())
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [confirmingDeleteCategoryId, setConfirmingDeleteCategoryId] = useState<string | null>(null)
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const groupedCategories = useMemo(() => {
@@ -123,16 +135,27 @@ export default function CategorySettingsSection() {
       return next
     })
   }
-  const handleDelete = (category: Category) => {
+  const handleDelete = async (category: Category) => {
     if (category.is_system) return
-    const confirmed = window.confirm(`Delete ${category.name}? This cannot be undone.`)
-    if (!confirmed) return
     setDeleteError(null)
-    deleteCategory.mutate(category.id, {
-      onError: (error) => {
-        setDeleteError(error instanceof Error ? error.message : 'Failed to delete category.')
-      },
-    })
+    setDeletingCategoryId(category.id)
+
+    const deleteResult = await Promise.allSettled([
+      deleteCategory.mutateAsync(category.id),
+      delay(DELETE_SPINNER_MS),
+    ])
+
+    if (deleteResult[0].status === 'fulfilled') {
+      queryClient.setQueryData<Category[]>(categoryKeys.list(), (currentCategories) =>
+        currentCategories?.filter((currentCategory) => currentCategory.id !== category.id) ?? currentCategories,
+      )
+      setConfirmingDeleteCategoryId(null)
+    } else {
+      const error = deleteResult[0].reason
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete category.')
+    }
+
+    setDeletingCategoryId(null)
   }
   const handleCreated = (category: Category) => {
     setExpandedKinds((current) => new Set(current).add(category.kind))
@@ -198,10 +221,17 @@ export default function CategorySettingsSection() {
                     kind={kind}
                     expanded={expandedKinds.has(kind)}
                     categories={items}
-                    deletingCategoryId={deleteCategory.isPending ? deleteCategory.variables : null}
+                    confirmingDeleteCategoryId={confirmingDeleteCategoryId}
+                    deletingCategoryId={deletingCategoryId}
                     editingCategoryId={editingCategoryId}
-                    onDelete={handleDelete}
+                    onDeleteCancel={() => setConfirmingDeleteCategoryId(null)}
+                    onDeleteConfirm={handleDelete}
                     onEdit={(category) => setEditingCategoryId(category.id)}
+                    onDeleteRequest={(category) => {
+                      setDeleteError(null)
+                      setEditingCategoryId(null)
+                      setConfirmingDeleteCategoryId(category.id)
+                    }}
                     onEditCancel={() => setEditingCategoryId(null)}
                     onToggle={() => toggleKind(kind)}
                   />
@@ -416,21 +446,27 @@ function CreateCategoryModal({
 
 function CategoryGroup({
   categories,
+  confirmingDeleteCategoryId,
   deletingCategoryId,
   editingCategoryId,
   expanded,
   kind,
-  onDelete,
+  onDeleteCancel,
+  onDeleteConfirm,
+  onDeleteRequest,
   onEdit,
   onEditCancel,
   onToggle,
 }: {
   categories: Category[]
+  confirmingDeleteCategoryId: string | null
   deletingCategoryId: string | null | undefined
   editingCategoryId: string | null
   expanded: boolean
   kind: CategoryKind
-  onDelete: (category: Category) => void
+  onDeleteCancel: () => void
+  onDeleteConfirm: (category: Category) => void
+  onDeleteRequest: (category: Category) => void
   onEdit: (category: Category) => void
   onEditCancel: () => void
   onToggle: () => void
@@ -462,10 +498,13 @@ function CategoryGroup({
             <CategoryRow
               key={category.id}
               category={category}
+              confirmingDelete={confirmingDeleteCategoryId === category.id}
               deleting={deletingCategoryId === category.id}
               isLast={index === categories.length - 1}
               isEditing={editingCategoryId === category.id}
-              onDelete={onDelete}
+              onDeleteCancel={onDeleteCancel}
+              onDeleteConfirm={onDeleteConfirm}
+              onDeleteRequest={onDeleteRequest}
               onEdit={onEdit}
               onEditCancel={onEditCancel}
             />
@@ -478,18 +517,24 @@ function CategoryGroup({
 
 function CategoryRow({
   category,
+  confirmingDelete,
   deleting,
   isLast,
   isEditing,
-  onDelete,
+  onDeleteCancel,
+  onDeleteConfirm,
+  onDeleteRequest,
   onEdit,
   onEditCancel,
 }: {
   category: Category
+  confirmingDelete: boolean
   deleting: boolean
   isLast: boolean
   isEditing: boolean
-  onDelete: (category: Category) => void
+  onDeleteCancel: () => void
+  onDeleteConfirm: (category: Category) => void
+  onDeleteRequest: (category: Category) => void
   onEdit: (category: Category) => void
   onEditCancel: () => void
 }) {
@@ -547,25 +592,51 @@ function CategoryRow({
           </span>
         ) : (
           <>
-            <button
-              type="button"
-              className="app-icon-button"
-              onClick={() => onEdit(category)}
-              aria-label={`Edit ${category.name}`}
-              title="Edit category"
-            >
-              <Pencil size={16} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="app-icon-button"
-              disabled={deleting}
-              onClick={() => onDelete(category)}
-              aria-label={`Delete ${category.name}`}
-              title="Delete category"
-            >
-              {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Trash2 size={16} aria-hidden />}
-            </button>
+            {confirmingDelete ? (
+              <>
+                <button
+                  type="button"
+                  className="app-icon-button"
+                  disabled={deleting}
+                  onClick={onDeleteCancel}
+                  aria-label={`Cancel deleting ${category.name}`}
+                  title="Cancel"
+                >
+                  <X size={16} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="app-icon-button"
+                  disabled={deleting}
+                  onClick={() => onDeleteConfirm(category)}
+                  aria-label={`Confirm delete ${category.name}`}
+                  title="Confirm delete"
+                >
+                  {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="app-icon-button"
+                  onClick={() => onEdit(category)}
+                  aria-label={`Edit ${category.name}`}
+                  title="Edit category"
+                >
+                  <Pencil size={16} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="app-icon-button"
+                  onClick={() => onDeleteRequest(category)}
+                  aria-label={`Delete ${category.name}`}
+                  title="Delete category"
+                >
+                  <Trash2 size={16} aria-hidden />
+                </button>
+              </>
+            )}
           </>
         )}
       </div>

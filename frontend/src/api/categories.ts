@@ -72,16 +72,10 @@ export function useUpdateCategory() {
 }
 
 export function useDeleteCategory() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (categoryId: string) =>
       authenticatedFetch<void>(`/categories/${categoryId}`, {
         method: 'DELETE',
       }),
-    onSuccess: (_, categoryId) => {
-      queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
-        categories?.filter((category) => category.id !== categoryId) ?? categories,
-      );
-    },
   });
 }
