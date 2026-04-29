@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 4617d7916dd6
+Revision ID: 12adf8266729
 Revises: 
-Create Date: 2026-04-25 22:05:55.837823
+Create Date: 2026-04-28 21:38:35.295234
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4617d7916dd6'
+revision: str = '12adf8266729'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -117,18 +117,20 @@ def upgrade() -> None:
     op.create_table('categories',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('group_id', sa.Uuid(), nullable=True),
-    sa.Column('owner_id', sa.Uuid(), nullable=False),
+    sa.Column('owner_id', sa.Uuid(), nullable=True),
     sa.Column('name', sa.Text(), nullable=False),
     sa.Column('kind', sa.Enum('EXPENSE', 'INCOME', 'TRANSFER', name='categorykind'), nullable=False),
     sa.Column('icon', sa.Text(), nullable=True),
-    sa.Column('is_required', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('is_system', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint('\n            (\n                is_system = true\n                AND owner_id IS NULL\n                AND group_id IS NULL\n            )\n            OR (\n                is_system = false\n                AND owner_id IS NOT NULL\n                AND group_id IS NULL\n            )\n            OR (\n                is_system = false\n                AND owner_id IS NULL\n                AND group_id IS NOT NULL\n            )\n            ', name='ck_categories_scope'),
     sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('group_id', 'name', 'kind', name='uq_category_group_name_kind')
+    sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('uq_category_owner_name_kind', 'categories', ['owner_id', 'name', 'kind'], unique=True, postgresql_where=sa.text('group_id IS NULL'))
+    op.create_index('uq_category_group_name', 'categories', ['group_id', 'name'], unique=True, postgresql_where=sa.text('group_id IS NOT NULL'))
+    op.create_index('uq_category_owner_name', 'categories', ['owner_id', 'name'], unique=True, postgresql_where=sa.text('owner_id IS NOT NULL AND group_id IS NULL'))
+    op.create_index('uq_category_system_name', 'categories', ['name'], unique=True, postgresql_where=sa.text('is_system = true'))
     op.create_table('group_members',
     sa.Column('group_id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
@@ -323,7 +325,9 @@ def downgrade() -> None:
     op.drop_index('uq_tag_owner_name', table_name='tags', postgresql_where=sa.text('group_id IS NULL'))
     op.drop_table('tags')
     op.drop_table('group_members')
-    op.drop_index('uq_category_owner_name_kind', table_name='categories', postgresql_where=sa.text('group_id IS NULL'))
+    op.drop_index('uq_category_system_name', table_name='categories', postgresql_where=sa.text('is_system = true'))
+    op.drop_index('uq_category_owner_name', table_name='categories', postgresql_where=sa.text('owner_id IS NOT NULL AND group_id IS NULL'))
+    op.drop_index('uq_category_group_name', table_name='categories', postgresql_where=sa.text('group_id IS NOT NULL'))
     op.drop_table('categories')
     op.drop_table('base_budgets')
     op.drop_table('password_credentials')

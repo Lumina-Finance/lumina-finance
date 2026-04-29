@@ -9,11 +9,11 @@ class CategoryResponse(BaseModel):
 
     id: uuid.UUID
     group_id: uuid.UUID | None
-    owner_id: uuid.UUID
+    owner_id: uuid.UUID | None
     name: str
     kind: str
     icon: str | None
-    is_required: bool
+    is_system: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
