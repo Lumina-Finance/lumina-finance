@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Picker } from 'emoji-mart'
+import { AnimatePresence, motion } from 'motion/react'
 import { Check, ChevronDown, Lock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import {
   useCategories,
@@ -30,6 +31,9 @@ interface EmojiMartData {
 interface EmojiMartSelection {
   native?: string
 }
+
+type CreateCategoryField = 'icon' | 'name'
+type CreateCategoryFieldErrors = Partial<Record<CreateCategoryField, string>>
 
 const EMOJI_MART_THEME = {
   light: {
@@ -229,7 +233,12 @@ function CreateCategoryModal({
   const [form, setForm] = useState({
     name: '',
     kind: 'expense' as CategoryKind,
-    icon: DEFAULT_CATEGORY_ICON,
+    icon: '',
+  })
+  const [fieldErrors, setFieldErrors] = useState<CreateCategoryFieldErrors>({})
+  const [touched, setTouched] = useState<Record<CreateCategoryField, boolean>>({
+    icon: false,
+    name: false,
   })
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -245,8 +254,13 @@ function CreateCategoryModal({
     }
   }, [onClose])
 
+  const showError = (field: CreateCategoryField) => touched[field] && fieldErrors[field]
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
+    if (field === 'icon' || field === 'name') {
+      setTouched((current) => ({ ...current, [field]: true }))
+      setFieldErrors((current) => ({ ...current, [field]: undefined }))
+    }
     setFormError(null)
   }
 
@@ -255,8 +269,12 @@ function CreateCategoryModal({
     if (createCategory.isPending) return
 
     const name = form.name.trim()
-    if (!name) {
-      setFormError('Name is required.')
+    const nextErrors: CreateCategoryFieldErrors = {}
+    if (!form.icon) nextErrors.icon = 'Required'
+    if (!name) nextErrors.name = 'Name is required'
+    if (Object.keys(nextErrors).length > 0) {
+      setTouched({ icon: true, name: true })
+      setFieldErrors(nextErrors)
       return
     }
 
@@ -318,28 +336,49 @@ function CreateCategoryModal({
               </button>
             </div>
 
-            <div className="grid gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <span className="app-label block">Icon</span>
-              <span className="app-label block">Category name</span>
+            <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="app-label block">Icon</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="app-label block">Category name</span>
+                <AnimatePresence>
+                  {showError('name') && (
+                    <motion.p
+                      key="name-error"
+                      className="whitespace-nowrap text-xs"
+                      style={{ color: 'var(--app-negative)' }}
+                      initial={{ opacity: 0, x: 4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 4 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {fieldErrors.name}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
               <div>
                 <CategoryIconSelector
                   categoryName={form.name || 'New category'}
                   value={form.icon}
                   onChange={(icon) => setField('icon', icon)}
-                  buttonClassName="app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none"
+                  buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${showError('icon') ? 'app-input-error' : ''}`}
+                  hasError={!!showError('icon')}
                 />
               </div>
               <div>
                 <input
-                  className="app-input"
+                  className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
                   value={form.name}
                   onChange={(event) => setField('name', event.target.value)}
+                  onBlur={() => setTouched((current) => ({ ...current, name: true }))}
                   placeholder="Groceries"
                   maxLength={256}
                   required
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="mt-2 sm:col-span-2">
                 <Field label="Category type">
                   <Dropdown
                     options={KIND_OPTIONS}
@@ -658,11 +697,13 @@ function InlineCategoryEdit({
 function CategoryIconSelector({
   buttonClassName = 'group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-visible:border-[var(--app-accent-border)] focus-visible:outline-none',
   categoryName,
+  hasError = false,
   onChange,
   value,
 }: {
   buttonClassName?: string
   categoryName: string
+  hasError?: boolean
   onChange: (icon: string) => void
   value: string
 }) {
@@ -685,8 +726,8 @@ function CategoryIconSelector({
         type="button"
         className={buttonClassName}
         style={{
-          background: 'var(--app-input-bg)',
-          borderColor: 'var(--app-input-border)',
+          background: hasError ? 'var(--app-negative-soft)' : 'var(--app-input-bg)',
+          borderColor: hasError ? 'var(--app-negative-border)' : 'var(--app-input-border)',
         }}
         onClick={() => setOpen((current) => !current)}
         aria-label={`Select ${categoryName} icon`}
