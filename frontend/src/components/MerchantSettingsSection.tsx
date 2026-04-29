@@ -1,5 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'motion/react'
 import { Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useCategories, type Category } from '@/api/categories'
 import {
@@ -20,6 +21,8 @@ const CATEGORY_KIND_LABELS: Record<Category['kind'], string> = {
   transfer: 'Transfer',
 }
 const CATEGORY_KIND_ORDER: Category['kind'][] = ['expense', 'income', 'transfer']
+type CreateMerchantField = 'name'
+type CreateMerchantFieldErrors = Partial<Record<CreateMerchantField, string>>
 
 function delay(ms: number) {
   return new Promise((resolve) => {
@@ -74,7 +77,7 @@ function Field({
 
 function categoryOptions(categories: Category[]): DropdownOption[] {
   return [
-    { value: NO_CATEGORY_VALUE, label: 'No default category' },
+    { value: NO_CATEGORY_VALUE, label: 'No default category', group: 'Default' },
     ...CATEGORY_KIND_ORDER.flatMap((kind) =>
       categories
         .filter((category) => category.kind === kind)
@@ -253,10 +256,31 @@ function CreateMerchantModal({
     name: '',
     default_category_id: NO_CATEGORY_VALUE,
   })
+  const [fieldErrors, setFieldErrors] = useState<CreateMerchantFieldErrors>({})
+  const [touched, setTouched] = useState<Record<CreateMerchantField, boolean>>({
+    name: false,
+  })
   const [formError, setFormError] = useState<string | null>(null)
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
+
+  const showError = (field: CreateMerchantField) => touched[field] && fieldErrors[field]
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
+    if (field === 'name') {
+      setTouched((current) => ({ ...current, name: true }))
+      setFieldErrors((current) => ({ ...current, name: undefined }))
+    }
     setFormError(null)
   }
 
@@ -266,7 +290,8 @@ function CreateMerchantModal({
 
     const name = form.name.trim()
     if (!name) {
-      setFormError('Name is required.')
+      setTouched({ name: true })
+      setFieldErrors({ name: 'Name is required' })
       return
     }
 
@@ -294,7 +319,7 @@ function CreateMerchantModal({
         aria-hidden
       />
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
         <div
           role="dialog"
           aria-modal="true"
@@ -328,16 +353,35 @@ function CreateMerchantModal({
             </div>
 
             <div className="grid gap-4">
-              <Field label="Merchant name">
+              <div className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="app-label block">Merchant name</span>
+                  <AnimatePresence>
+                    {showError('name') && (
+                      <motion.p
+                        key="name-error"
+                        className="whitespace-nowrap text-xs"
+                        style={{ color: 'var(--app-negative)' }}
+                        initial={{ opacity: 0, x: 4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 4 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {fieldErrors.name}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
                 <input
-                  className="app-input"
+                  className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
                   value={form.name}
                   onChange={(event) => setField('name', event.target.value)}
+                  onBlur={() => setTouched((current) => ({ ...current, name: true }))}
                   placeholder="Costco"
                   maxLength={256}
                   required
                 />
-              </Field>
+              </div>
               <Field label="Default category">
                 <Dropdown
                   options={categoryOptions}
