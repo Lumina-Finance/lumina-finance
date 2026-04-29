@@ -30,3 +30,9 @@ class UpdateMerchantRequest(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=256)
     default_category_id: uuid.UUID | None = None
+
+
+class MergeMerchantRequest(BaseModel):
+    """Move merchant references to another merchant, then delete the source."""
+
+    replacement_merchant_id: uuid.UUID
