@@ -44,7 +44,7 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
   return (
     <div ref={ref} className="relative">
       <div
-        className="inline-flex h-11 items-center rounded-lg border font-medium transition-all duration-150"
+        className="inline-flex h-10 items-center rounded-lg border font-medium transition-all duration-150"
         style={{
           background: active ? 'var(--app-accent-soft)' : 'var(--app-input-bg)',
           color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
