@@ -897,7 +897,7 @@ export default function Accounts() {
 
           <button
             type="button"
-            className="app-secondary-button ml-auto"
+            className="app-primary-button ml-auto"
             onClick={() => { setCreateModalKey((k) => k + 1); setShowCreateModal(true); }}
           >
             <Plus size={18} aria-hidden />
