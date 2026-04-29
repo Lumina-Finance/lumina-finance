@@ -118,6 +118,12 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
     return await client.post("/transactions", json=payload, headers=headers)
 
 
+async def _get_system_category_id(client, headers, name="Groceries"):
+    """Return the ID for a seeded system category."""
+    resp = await client.get("/categories", headers=headers)
+    return next(category["id"] for category in resp.json() if category["name"] == name)
+
+
 async def _setup_user_with_deps(client, email="test@example.com", name_prefix="Main"):
     """Sign up a user and create the minimum dependencies for a transaction.
 
@@ -229,6 +235,17 @@ async def test_create_transaction_invalid_category_returns_422(client):
     assert resp.json()["detail"] == "Category not found"
 
 
+async def test_create_transaction_with_system_category_returns_201(client):
+    """Transactions on personal accounts can use system categories."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    category_id = await _get_system_category_id(client, headers)
+
+    resp = await _create_transaction(client, headers, account_id, category_id)
+
+    assert resp.status_code == 201
+    assert resp.json()["category_id"] == category_id
+
+
 async def test_create_transaction_invalid_merchant_returns_422(client):
     """Non-existent merchant_id returns 422."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -308,10 +325,8 @@ async def test_create_transaction_other_users_category_returns_422(client):
 async def test_create_transaction_with_group_category_on_personal_account_returns_422(client):
     """A group category cannot be used on a personal-account transaction.
 
-    `Category.owner_id` is set to the creator even on group categories, so a
-    user can pass their own group category to POST /transactions on a personal
-    account. Without the explicit `group_id IS NULL` check, the validator would
-    accept it and group spending would land on the user's personal ledger.
+    Personal-account transactions must stay personal or system-scoped so group
+    spending cannot land on the user's personal ledger.
     """
     headers, personal_account_id, _ = await _setup_user_with_deps(client)
     group_resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)

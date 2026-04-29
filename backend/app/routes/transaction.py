@@ -83,19 +83,19 @@ def _accessible_account_ids(user_id: uuid.UUID, *, include_hidden: bool = False)
 async def _check_category_access_or_422(
     db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, group_id: uuid.UUID | None = None,
 ) -> None:
-    """Validate a category exists and is accessible (personal or same group).
-
-    `Category.owner_id` is set to the creator even on group categories, so a
-    personal-account txn must also require `group_id IS NULL` to keep group
-    categories the user happens to have created off of personal accounts.
-    """
+    """Validate a category exists and is accessible for the account scope."""
     query = select(Category).where(Category.id == category_id)
     if group_id is not None:
         query = query.where(
-            ((Category.owner_id == user_id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
+            Category.is_system.is_(True)
+            | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
+            | (Category.group_id == group_id),
         )
     else:
-        query = query.where(Category.owner_id == user_id, Category.group_id.is_(None))
+        query = query.where(
+            Category.is_system.is_(True)
+            | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
+        )
     if not (await db.execute(query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 

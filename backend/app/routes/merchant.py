@@ -17,6 +17,17 @@ from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, Update
 router = APIRouter(prefix="/merchants", tags=["merchants"])
 
 
+def _personal_category_filter(user_id: uuid.UUID):
+    return (Category.owner_id == user_id) & (Category.group_id.is_(None))
+
+
+def _category_scope_filter(user_id: uuid.UUID, group_id: uuid.UUID | None):
+    category_filter = Category.is_system.is_(True) | _personal_category_filter(user_id)
+    if group_id is not None:
+        category_filter = category_filter | (Category.group_id == group_id)
+    return category_filter
+
+
 @router.get("", response_model=list[MerchantResponse])
 async def list_merchants(
     user: Annotated[User, Depends(get_current_user)],
@@ -98,13 +109,10 @@ async def create_merchant(
 
     # Validate default_category_id (accept personal or same group categories)
     if data.default_category_id:
-        cat_query = select(Category).where(Category.id == data.default_category_id)
-        if group_id:
-            cat_query = cat_query.where(
-                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == group_id),
-            )
-        else:
-            cat_query = cat_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
+        cat_query = select(Category).where(
+            Category.id == data.default_category_id,
+            _category_scope_filter(user.id, group_id),
+        )
         if not (await db.execute(cat_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 
@@ -160,13 +168,10 @@ async def update_merchant(
 
     # Validate default_category_id (accept personal or same group categories)
     if "default_category_id" in updates and updates["default_category_id"] is not None:
-        cat_query = select(Category).where(Category.id == updates["default_category_id"])
-        if merchant.group_id is not None:
-            cat_query = cat_query.where(
-                ((Category.owner_id == user.id) & (Category.group_id.is_(None))) | (Category.group_id == merchant.group_id),
-            )
-        else:
-            cat_query = cat_query.where(Category.owner_id == user.id, Category.group_id.is_(None))
+        cat_query = select(Category).where(
+            Category.id == updates["default_category_id"],
+            _category_scope_filter(user.id, merchant.group_id),
+        )
         if not (await db.execute(cat_query)).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 

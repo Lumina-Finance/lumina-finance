@@ -75,6 +75,12 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
     return await client.post("/transactions", json=payload, headers=headers)
 
 
+async def _get_system_category_id(client, headers, name="Groceries"):
+    """Return the ID for a seeded system category."""
+    resp = await client.get("/categories", headers=headers)
+    return next(category["id"] for category in resp.json() if category["name"] == name)
+
+
 async def _create_group(client, headers, **overrides):
     """Create a group via POST /groups.
 
@@ -346,6 +352,20 @@ async def test_create_transaction_with_group_category(client):
     # Create a different group category as the member
     cat_resp = await _create_category(client, member_headers, name="Games", kind="expense", group_id=group_id)
     category_id = cat_resp.json()["id"]
+
+    resp = await _create_transaction(client, member_headers, account_id, category_id)
+
+    assert resp.status_code == 201
+    assert resp.json()["category_id"] == category_id
+
+
+async def test_create_transaction_with_system_category_on_group_account(client):
+    """Transaction on a group account accepts system categories."""
+    admin_headers, member_headers, member_user_id, _, account_id, _, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+    category_id = await _get_system_category_id(client, member_headers)
 
     resp = await _create_transaction(client, member_headers, account_id, category_id)
 

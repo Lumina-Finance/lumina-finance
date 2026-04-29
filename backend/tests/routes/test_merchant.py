@@ -43,6 +43,12 @@ async def _create_category(client, headers, **overrides):
     return await client.post("/categories", json=payload, headers=headers)
 
 
+async def _get_system_category_id(client, headers, name="Groceries"):
+    """Return the ID for a seeded system category."""
+    resp = await client.get("/categories", headers=headers)
+    return next(category["id"] for category in resp.json() if category["name"] == name)
+
+
 async def _create_second_user(client):
     """Sign up a second user for ownership-isolation tests.
 
@@ -230,6 +236,18 @@ async def test_create_merchant_with_default_category(client):
     assert resp.json()["default_category_id"] == category_id
 
 
+async def test_create_merchant_with_system_default_category(client):
+    """Merchant can use a system category as default_category_id."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = await _get_system_category_id(client, headers)
+
+    resp = await _create_merchant(client, headers, default_category_id=category_id)
+
+    assert resp.status_code == 201
+    assert resp.json()["default_category_id"] == category_id
+
+
 async def test_create_personal_merchant_duplicate_returns_409(client):
     """Creating two personal merchants with the same name returns 409."""
     signup_resp = await _create_user(client)
@@ -307,6 +325,25 @@ async def test_patch_merchant_updates_default_category(client):
 
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
+
+    create_resp = await _create_merchant(client, headers)
+    merchant_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/merchants/{merchant_id}",
+        json={"default_category_id": category_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["default_category_id"] == category_id
+
+
+async def test_patch_merchant_updates_system_default_category(client):
+    """PATCH can set default_category_id to a system category."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = await _get_system_category_id(client, headers)
 
     create_resp = await _create_merchant(client, headers)
     merchant_id = create_resp.json()["id"]
@@ -551,6 +588,17 @@ async def test_create_group_merchant_with_group_category(client):
 
     cat_resp = await _create_category(client, admin_headers, name="Test Groceries", group_id=group_id)
     category_id = cat_resp.json()["id"]
+
+    resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id, default_category_id=category_id)
+
+    assert resp.status_code == 201
+    assert resp.json()["default_category_id"] == category_id
+
+
+async def test_create_group_merchant_with_system_category(client):
+    """Group merchant can use a system category as default."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+    category_id = await _get_system_category_id(client, admin_headers)
 
     resp = await _create_merchant(client, admin_headers, name="Costco", group_id=group_id, default_category_id=category_id)
 

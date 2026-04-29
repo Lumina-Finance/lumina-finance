@@ -55,24 +55,23 @@ async def _validate_category_ids(
     """Verify all category IDs exist and are in scope for the base budget. Returns deduplicated list.
 
     Scope rules:
-    - Personal base budget (group_id is None): only the user's own personal categories
-    - Group base budget: only categories owned by the same group
+    - Personal base budget: system categories or the user's own personal categories
+    - Group base budget: system categories or categories owned by the same group
 
     Mixing scopes (e.g., a group base budget tracking a personal category) is rejected
     so every group member sees the same tracked-category set and the same totals.
-
-    Note: `Category.owner_id` is the creator and is set even on group categories,
-    so the personal branch also checks `group_id IS NULL` to keep group categories
-    the user happens to have created out of personal base budgets.
     """
     if not category_ids:
         return []
     unique_ids = list(set(category_ids))
     query = select(Category.id).where(Category.id.in_(unique_ids))
     if group_id:
-        query = query.where(Category.group_id == group_id)
+        query = query.where(Category.is_system.is_(True) | (Category.group_id == group_id))
     else:
-        query = query.where(Category.owner_id == user_id, Category.group_id.is_(None))
+        query = query.where(
+            Category.is_system.is_(True)
+            | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
+        )
     result = await db.execute(query)
     found = set(result.scalars().all())
     if found != set(unique_ids):

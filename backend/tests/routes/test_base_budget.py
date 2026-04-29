@@ -31,6 +31,12 @@ async def _create_category(client, headers, **overrides):
     return resp.json()["id"]
 
 
+async def _get_system_category_id(client, headers, name="Groceries"):
+    """Return the ID for a seeded system category."""
+    resp = await client.get("/categories", headers=headers)
+    return next(category["id"] for category in resp.json() if category["name"] == name)
+
+
 async def _create_group(client, headers, **overrides):
     """Create a group via POST /groups."""
     payload = {"name": "Smith Family", **overrides}
@@ -99,6 +105,18 @@ async def test_create_base_budget_with_multiple_categories(client):
     assert resp.status_code == 201
     assert len(resp.json()["category_ids"]) == 2
     assert set(resp.json()["category_ids"]) == {cat_id_1, cat_id_2}
+
+
+async def test_create_base_budget_with_system_category(client):
+    """Personal base budget can track a system category."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    cat_id = await _get_system_category_id(client, headers)
+
+    resp = await _create_base_budget(client, headers, category_ids=[cat_id])
+
+    assert resp.status_code == 201
+    assert resp.json()["category_ids"] == [cat_id]
 
 
 async def test_create_base_budget_dedupes_category_ids(client):
@@ -592,6 +610,22 @@ async def test_create_group_base_budget_with_personal_category_returns_422(clien
     )
 
     assert resp.status_code == 422
+
+
+async def test_create_group_base_budget_with_system_category(client):
+    """Group base budget can track a system category."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, headers)
+    cat_id = await _get_system_category_id(client, headers)
+
+    resp = await _create_base_budget(
+        client, headers, group_id=group_id, category_ids=[cat_id],
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["category_ids"] == [cat_id]
 
 
 async def test_create_personal_base_budget_with_group_category_returns_422(client):
@@ -1261,6 +1295,25 @@ async def test_update_base_budget_other_users_category_returns_422(client):
     )
 
     assert resp.status_code == 422
+
+
+async def test_update_base_budget_with_system_category(client):
+    """PATCH can replace tracked categories with a system category."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+    cat_id = await _get_system_category_id(client, headers)
+
+    resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"category_ids": [cat_id]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["category_ids"] == [cat_id]
 
 
 async def test_update_personal_base_budget_with_group_category_returns_422(client):
