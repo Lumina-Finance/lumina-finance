@@ -73,6 +73,35 @@ function getCreditTier(utilization: number): CreditTier {
 }
 
 type SavingsTier = 'positive' | 'accent' | 'negative'
+type DashboardMoneyFormat = 'raw' | 'netWorth' | 'credit' | 'breakdown'
+type CompactMoneyRule = {
+  threshold: number
+  divisor: number
+  suffix: 'K' | 'M'
+  fractionDigits: number
+  rounding?: 'ceil'
+}
+
+const DASHBOARD_MONEY_RULES: Record<DashboardMoneyFormat, CompactMoneyRule[]> = {
+  raw: [],
+  netWorth: [
+    { threshold: 100_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
+    { threshold: 10_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
+    { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 2 },
+  ],
+  credit: [
+    { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
+    { threshold: 100_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
+  ],
+  breakdown: [
+    { threshold: 100_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
+    { threshold: 10_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
+    { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 2 },
+    { threshold: 100_000, divisor: 1_000, suffix: 'K', fractionDigits: 0, rounding: 'ceil' },
+    { threshold: 10_000, divisor: 1_000, suffix: 'K', fractionDigits: 1, rounding: 'ceil' },
+    { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0, rounding: 'ceil' },
+  ],
+}
 
 // Pick the 3-tier bucket for a savings rate, matching the thresholds used on Accounts.
 // Null means the rate is −∞ (no income, some expenses) — the bar is a gap anyway,
@@ -92,6 +121,58 @@ function formatShortDate(value: string) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+function getCurrencyExponent(currency: string) {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency })
+    .resolvedOptions()
+    .maximumFractionDigits ?? 2
+}
+
+function formatCurrencyWithSuffix(
+  value: number,
+  currency: string,
+  suffix: CompactMoneyRule['suffix'],
+  fractionDigits: number,
+) {
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    currencySign: 'accounting',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
+  const parts = formatter.formatToParts(value)
+  const numberPartTypes = new Set(['integer', 'group', 'decimal', 'fraction'])
+  const suffixIndex = parts.findLastIndex((part) => numberPartTypes.has(part.type))
+  return parts
+    .map((part, index) => `${part.value}${index === suffixIndex ? suffix : ''}`)
+    .join('')
+}
+
+function applyCompactRule(value: number, rule: CompactMoneyRule) {
+  const scaled = Math.abs(value) / rule.divisor
+  const signed = value < 0 ? -1 : 1
+  if (rule.rounding !== 'ceil') return value / rule.divisor
+
+  const multiplier = 10 ** rule.fractionDigits
+  return signed * (Math.ceil(scaled * multiplier) / multiplier)
+}
+
+function formatDashboardMoney(minorUnits: number, currency: string, format: DashboardMoneyFormat) {
+  if (format === 'raw') return formatCurrency(minorUnits, currency)
+
+  const exponent = getCurrencyExponent(currency)
+  const majorUnits = minorUnits / Math.pow(10, exponent) || 0
+  const rule = DASHBOARD_MONEY_RULES[format].find(({ threshold }) => Math.abs(majorUnits) >= threshold)
+  if (!rule) return formatCurrency(minorUnits, currency)
+
+  return `≈${formatCurrencyWithSuffix(
+    applyCompactRule(majorUnits, rule),
+    currency,
+    rule.suffix,
+    rule.fractionDigits,
+  )}`
 }
 
 function budgetAttentionState(usagePct: number) {
@@ -222,6 +303,8 @@ export default function Dashboard() {
   const displayPct = creditMode === 'used' ? utilization : availablePct
   const displayAmount = creditMode === 'used' ? creditUsed : availableAmount
   const amountLoadingText = formatCurrency(888888, displayCurrency)
+  const creditLoadingText = formatDashboardMoney(88888800, displayCurrency, 'credit')
+  const breakdownLoadingText = formatDashboardMoney(88888800, displayCurrency, 'breakdown')
 
   // Donut geometry — bg ring plus a stroke-dashed arc that fills to displayPct.
   // Color tier always derives from utilization so the risk signal stays consistent:
@@ -446,7 +529,7 @@ export default function Dashboard() {
               className="font-financial font-normal tracking-tight leading-none text-3xl"
               style={{ color: netWorthColor }}
             >
-              {formatCurrency(netWorth, displayCurrency)}
+              {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
             </p>
             {netWorthData.length >= 2 && (
               <div className="mt-3 flex-1 min-h-0">
@@ -538,17 +621,17 @@ export default function Dashboard() {
                 <div className="min-w-0">
                   <p className="font-financial font-normal tracking-tight leading-none text-3xl">
                     <AppScrambledNumber
-                      text={formatCurrency(displayAmount, displayCurrency)}
+                      text={formatDashboardMoney(displayAmount, displayCurrency, 'credit')}
                       loading={dashboardLoading}
-                      loadingText={amountLoadingText}
+                      loadingText={creditLoadingText}
                     />
                   </p>
                   <p className="font-financial mt-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                     of{' '}
                     <AppScrambledNumber
-                      text={formatCurrency(creditLimit, displayCurrency)}
+                      text={formatDashboardMoney(creditLimit, displayCurrency, 'credit')}
                       loading={dashboardLoading}
-                      loadingText={amountLoadingText}
+                      loadingText={creditLoadingText}
                     />
                   </p>
                 </div>
@@ -1031,9 +1114,9 @@ export default function Dashboard() {
                     </span>
                     <span className="font-financial font-normal tracking-tight text-3xl mt-1">
                       <AppScrambledNumber
-                        text={formatCurrency(breakdownTotal, displayCurrency)}
+                        text={formatDashboardMoney(breakdownTotal, displayCurrency, 'breakdown')}
                         loading={spendingBreakdownLoading}
-                        loadingText={amountLoadingText}
+                        loadingText={breakdownLoadingText}
                       />
                     </span>
                   </div>
