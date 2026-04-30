@@ -316,6 +316,36 @@
     border-color: var(--app-border);
   }
 
+  .recharts-tooltip-wrapper {
+    pointer-events: none !important;
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease-out !important;
+  }
+
+  .recharts-default-tooltip.app-chart-tooltip-default,
+  .app-chart-tooltip-default-content {
+    background: var(--app-bg) !important;
+    border: 1px solid var(--app-border-strong) !important;
+    border-radius: 8px !important;
+    box-shadow: var(--app-shadow-soft) !important;
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-label {
+    color: var(--app-text-subtle) !important;
+  }
+
+  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-item {
+    color: var(--app-text) !important;
+  }
+
+  .recharts-default-tooltip.app-chart-tooltip-compact {
+    background: var(--app-nav-bg) !important;
+    border: 1px solid var(--app-border) !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+  }
+
   .app-page-header {
     @apply mb-8 space-y-3;
   }

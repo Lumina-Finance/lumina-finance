@@ -241,7 +241,6 @@ export default function Transactions() {
   })
   const {
     data: txnPages,
-    isLoading: txnLoading,
     error: txnError,
     hasNextPage,
     fetchNextPage,
@@ -251,6 +250,7 @@ export default function Transactions() {
     q: activeSearch || undefined,
   })
   const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
+  const transactionsLoaded = txnPages !== undefined
 
   // Infinite scroll: when the sentinel becomes visible, mark a fetch as
   // pending so the user sees feedback immediately, then fire fetchNextPage
@@ -467,14 +467,9 @@ export default function Transactions() {
                     tickLine={false}
                   />
                   <Tooltip
+                    wrapperClassName="app-chart-tooltip-compact"
                     cursor={{ fill: 'var(--app-surface-soft)' }}
                     formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
-                    contentStyle={{
-                      background: 'var(--app-nav-bg)',
-                      border: '1px solid var(--app-border)',
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
                   />
                   <Bar dataKey="amount" radius={[0, 3, 3, 0]} barSize={10}>
                     {categorySpend.map((_, i) => (
@@ -524,16 +519,11 @@ export default function Transactions() {
               <YAxis hide />
               <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
               <Tooltip
+                wrapperClassName="app-chart-tooltip-compact"
                 formatter={(value, name) => [
                   formatCurrency(Math.abs(Number(value)), displayCurrency),
                   name === 'inflow' ? 'Inflow' : 'Outflow',
                 ]}
-                contentStyle={{
-                  background: 'var(--app-nav-bg)',
-                  border: '1px solid var(--app-border)',
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
               />
               <Area
                 type="monotone"
@@ -693,24 +683,18 @@ export default function Transactions() {
       </div>
 
       {/* Transaction list */}
-      {txnLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className="rounded-lg h-14 bg-gray-300" />
-          ))}
-        </div>
-      ) : txnError ? (
+      {txnError ? (
         <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
           Unable to load transactions.
         </p>
-      ) : dateGroups.length === 0 ? (
+      ) : transactionsLoaded && dateGroups.length === 0 ? (
         <p
           className="py-8 text-center italic text-sm"
           style={{ color: 'var(--app-text-subtle)' }}
         >
           {search ? 'No transactions match your search.' : 'No transactions yet.'}
         </p>
-      ) : (
+      ) : transactionsLoaded ? (
         <section className="space-y-4">
           {dateGroups.map(({ dateLabel, transactions: txns }) => {
             const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
@@ -827,7 +811,7 @@ export default function Transactions() {
             </p>
           ) : null}
         </section>
-      )}
+      ) : null}
 
       <CreateTransactionModal
         key={createModalKey}

@@ -57,14 +57,6 @@ const BREAKDOWN_COLORS = [
   '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
 ]
 
-// Shared across every recharts Tooltip on this page so hover position updates
-// slide instead of snap. `transform` catches the translate() recharts applies
-// when the tooltip follows the cursor; `opacity` handles show/hide fades.
-const TOOLTIP_WRAPPER_STYLE = {
-  transition: 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease-out',
-  pointerEvents: 'none' as const,
-}
-
 type CreditTier = 'positive' | 'accent' | 'negative'
 
 function getCreditTier(utilization: number): CreditTier {
@@ -451,17 +443,7 @@ export default function Dashboard() {
                     />
                     <YAxis hide domain={['dataMin', 'dataMax']} />
                     <Tooltip
-                      wrapperStyle={TOOLTIP_WRAPPER_STYLE}
-                      contentStyle={{
-                        background: 'var(--app-bg)',
-                        border: '1px solid var(--app-border-strong)',
-                        borderRadius: 8,
-                        boxShadow: 'var(--app-shadow-soft)',
-                        padding: '6px 10px',
-                        fontSize: 13,
-                      }}
-                      labelStyle={{ color: 'var(--app-text-subtle)' }}
-                      itemStyle={{ color: 'var(--app-text)' }}
+                      wrapperClassName="app-chart-tooltip-default"
                       formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Net Worth']}
                       cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
                     />
@@ -605,7 +587,7 @@ export default function Dashboard() {
                       currentLabel={savingsData[savingsData.length - 1].monthLabel}
                     />
                     <Tooltip
-                      wrapperStyle={TOOLTIP_WRAPPER_STYLE}
+                      wrapperClassName="app-chart-tooltip-default"
                       cursor={{ fill: 'var(--app-border)', opacity: 0.4 }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.[0]) return null
@@ -622,14 +604,7 @@ export default function Dashboard() {
                             : '−∞%'
                         return (
                           <div
-                            style={{
-                              background: 'var(--app-bg)',
-                              border: '1px solid var(--app-border-strong)',
-                              borderRadius: 8,
-                              boxShadow: 'var(--app-shadow-soft)',
-                              padding: '6px 10px',
-                              fontSize: 13,
-                            }}
+                            className="app-chart-tooltip-default-content"
                           >
                             <div style={{ color: 'var(--app-text-subtle)' }}>{fullLabel}</div>
                             <div style={{ color: 'var(--app-text)' }}>Savings Rate: {display}</div>
@@ -884,18 +859,8 @@ export default function Dashboard() {
                   />
                   <YAxis hide />
                   <Tooltip
-                    wrapperStyle={TOOLTIP_WRAPPER_STYLE}
+                    wrapperClassName="app-chart-tooltip-default"
                     cursor={{ stroke: 'var(--app-accent-border)', strokeWidth: 1 }}
-                    contentStyle={{
-                      background: 'var(--app-bg)',
-                      border: '1px solid var(--app-border-strong)',
-                      borderRadius: 8,
-                      boxShadow: 'var(--app-shadow-soft)',
-                      padding: '6px 10px',
-                      fontSize: 13,
-                    }}
-                    labelStyle={{ color: 'var(--app-text-subtle)' }}
-                    itemStyle={{ color: 'var(--app-text)' }}
                     formatter={(value, name) => [
                       formatCurrency(Number(value), displayCurrency),
                       name === 'current' ? currentLabel[spendingRange] : previousLabel[spendingRange],
@@ -1026,19 +991,9 @@ export default function Dashboard() {
                         ))}
                       </Pie>
                       <Tooltip
-                        wrapperStyle={TOOLTIP_WRAPPER_STYLE}
+                        wrapperClassName="app-chart-tooltip-default"
                         cursor={false}
                         position={breakdownTipPos ?? undefined}
-                        contentStyle={{
-                          background: 'var(--app-bg)',
-                          border: '1px solid var(--app-border-strong)',
-                          borderRadius: 8,
-                          boxShadow: 'var(--app-shadow-soft)',
-                          padding: '6px 10px',
-                          fontSize: 13,
-                        }}
-                        labelStyle={{ color: 'var(--app-text-subtle)' }}
-                        itemStyle={{ color: 'var(--app-text)' }}
                         formatter={(value, name) => [
                           formatCurrency(Number(value), displayCurrency),
                           name,

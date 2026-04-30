@@ -95,12 +95,6 @@ const RANGE_CONFIG: Record<
   '1Y': { days: 365, granularity: 'month' },
 }
 
-// Shared across the balance tooltip so hover position slides instead of snaps.
-const TOOLTIP_WRAPPER_STYLE = {
-  transition: 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease-out',
-  pointerEvents: 'none' as const,
-}
-
 function toISODate(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -1114,17 +1108,7 @@ function CashFlowBarChart({
         <YAxis hide domain={domain} />
         <Tooltip
           cursor={{ fill: 'var(--app-accent-soft)', radius: 4 }}
-          wrapperStyle={TOOLTIP_WRAPPER_STYLE}
-          contentStyle={{
-            background: 'var(--app-bg)',
-            border: '1px solid var(--app-border-strong)',
-            borderRadius: 8,
-            boxShadow: 'var(--app-shadow-soft)',
-            padding: '6px 10px',
-            fontSize: 13,
-          }}
-          labelStyle={{ color: 'var(--app-text-subtle)' }}
-          itemStyle={{ color: 'var(--app-text)' }}
+          wrapperClassName="app-chart-tooltip-default"
           labelFormatter={(label) => tooltipLabel(String(label))}
           formatter={(value, name) => [
             formatCurrency(Number(value), currency),
@@ -1807,18 +1791,8 @@ function BalanceChartCard({ account }: { account: Account }) {
               />
               <YAxis hide domain={['dataMin', 'dataMax']} />
               <Tooltip
-                wrapperStyle={TOOLTIP_WRAPPER_STYLE}
+                wrapperClassName="app-chart-tooltip-default"
                 cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-                contentStyle={{
-                  background: 'var(--app-bg)',
-                  border: '1px solid var(--app-border-strong)',
-                  borderRadius: 8,
-                  boxShadow: 'var(--app-shadow-soft)',
-                  padding: '6px 10px',
-                  fontSize: 13,
-                }}
-                labelStyle={{ color: 'var(--app-text-subtle)' }}
-                itemStyle={{ color: 'var(--app-text)' }}
                 labelFormatter={(value) =>
                   series.find((s) => s.date === value)?.tooltipLabel ?? String(value)
                 }
