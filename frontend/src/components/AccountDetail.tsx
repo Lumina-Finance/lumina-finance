@@ -909,7 +909,7 @@ function BreakdownCard({
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
         <div
-          className="app-segmented-control"
+          className="app-segmented-control app-segmented-control-compact"
           role="tablist"
           aria-label={rangeLabel}
         >
@@ -922,7 +922,7 @@ function BreakdownCard({
                 role="tab"
                 aria-selected={active}
                 onClick={() => onRangeChange(r)}
-                className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
+                className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
               >
                 {r}
               </button>
@@ -1725,7 +1725,7 @@ function BalanceChartCard({ account }: { account: Account }) {
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Current Balance</p>
         <div
-          className="app-segmented-control"
+          className="app-segmented-control app-segmented-control-compact"
           role="tablist"
           aria-label="Balance range"
         >
@@ -1738,7 +1738,7 @@ function BalanceChartCard({ account }: { account: Account }) {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setRange(r)}
-                className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
+                className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
               >
                 {r}
               </button>

@@ -240,9 +240,18 @@
     border: 1px solid var(--app-border);
   }
 
+  .app-segmented-control-compact {
+    @apply h-8 p-0.5;
+  }
+
   .app-segmented-option {
     @apply inline-flex h-8 items-center justify-center rounded-md px-2.5 text-xs font-medium;
     color: var(--app-text-muted);
+  }
+
+  .app-segmented-option-compact {
+    @apply h-7 px-2.5;
+    font-size: 0.71875rem;
   }
 
   .app-segmented-option:hover {

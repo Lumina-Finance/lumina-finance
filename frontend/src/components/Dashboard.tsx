@@ -774,7 +774,7 @@ export default function Dashboard() {
                 Spending vs. {previousLabel[spendingRange]}
               </span>
               <div
-                className="app-segmented-control ml-auto"
+                className="app-segmented-control app-segmented-control-compact ml-auto"
                 role="tablist"
                 aria-label="Spending range"
               >
@@ -787,7 +787,7 @@ export default function Dashboard() {
                       role="tab"
                       aria-selected={active}
                       onClick={() => setSpendingRange(option)}
-                      className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
+                      className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
                     >
                       {option}
                     </button>
@@ -946,7 +946,7 @@ export default function Dashboard() {
                 <Repeat size={12} />
               </button>
               <div
-                className="app-segmented-control"
+                className="app-segmented-control app-segmented-control-compact"
                 role="tablist"
                 aria-label="Breakdown range"
               >
@@ -959,7 +959,7 @@ export default function Dashboard() {
                       role="tab"
                       aria-selected={active}
                       onClick={() => setBreakdownRange(option)}
-                      className={`app-segmented-option ${active ? 'app-segmented-option-active' : ''}`}
+                      className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
                     >
                       {option}
                     </button>
