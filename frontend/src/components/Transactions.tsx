@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -509,7 +509,24 @@ export default function Transactions() {
     filters.to_date ?? today,
   ].join('|')
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
+  const metricsLayoutTransition = {
+    duration: prefersReducedMotion ? 0 : 0.28,
+    ease: [0.25, 0.1, 0.25, 1],
+  } as const
+  const metricsBandContentRef = useRef<HTMLDivElement>(null)
+  const [metricsBandHeight, setMetricsBandHeight] = useState<number | null>(null)
 
+  useLayoutEffect(() => {
+    const element = metricsBandContentRef.current
+    if (!element) return
+
+    const updateHeight = () => setMetricsBandHeight(element.getBoundingClientRect().height)
+    updateHeight()
+
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
   return (
     <div className="space-y-6">
       <header className="app-page-header">
@@ -549,108 +566,121 @@ export default function Transactions() {
             borderRadius: 1,
           }}
         />
-        <div className="grid grid-cols-3 items-start pb-2 pt-5">
-          {/* Net Flow */}
-          <div className="pr-6">
-            <p className="app-label mb-1.5">Net Flow</p>
-            <p
-              className="font-financial font-semibold tracking-tight leading-none text-6xl"
-              style={{ color: netColor }}
-            >
-              {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow, displayCurrency)}
-            </p>
-            <div className="mt-3 flex items-center gap-4">
-              <span
-                className="inline-flex items-center gap-1 font-financial text-sm font-medium"
-                style={{ color: 'var(--app-positive)' }}
+        <motion.div
+          animate={metricsBandHeight === null ? undefined : { height: metricsBandHeight }}
+          initial={false}
+          transition={metricsLayoutTransition}
+          style={{ overflow: 'hidden' }}
+        >
+          <div ref={metricsBandContentRef} className="grid grid-cols-3 items-start pb-2 pt-5">
+            {/* Net Flow */}
+            <div className="pr-6">
+              <p className="app-label mb-1.5">Net Flow</p>
+              <p
+                className="font-financial font-semibold tracking-tight leading-none text-6xl"
+                style={{ color: netColor }}
               >
-                <ArrowDownLeft size={14} aria-hidden />
-                {formatCurrency(inflow, displayCurrency)}
-              </span>
-              <span
-                className="inline-flex items-center gap-1 font-financial text-sm font-medium"
-                style={{ color: 'var(--app-negative)' }}
-              >
-                <ArrowUpRight size={14} aria-hidden />
-                {formatCurrency(Math.abs(outflow), displayCurrency)}
-              </span>
-            </div>
-          </div>
-
-          {/* Unusual Spending */}
-          <div className="px-6 flex flex-col" style={{ borderInline: '1px solid var(--app-border)' }}>
-            <p className="app-label mb-1">Most Expensive Transactions</p>
-            <div className="mt-2 flex flex-col gap-2.5">
-              {outliers.map((t) => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between gap-3 rounded-md px-2.5 py-2"
-                  style={{
-                    borderLeft: '2px solid var(--app-accent)',
-                    background: 'var(--app-accent-soft)',
-                  }}
+                {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow, displayCurrency)}
+              </p>
+              <div className="mt-3 flex items-center gap-4">
+                <span
+                  className="inline-flex items-center gap-1 font-financial text-sm font-medium"
+                  style={{ color: 'var(--app-positive)' }}
                 >
-                  <p className="truncate min-w-0 text-sm font-medium">
-                    {t.merchant_name ?? t.notes ?? 'Unknown'}
-                  </p>
-                  <p
-                    className="font-financial text-sm font-medium shrink-0"
-                    style={{ color: 'var(--app-negative)' }}
-                  >
-                    {formatCurrency(Math.abs(t.amount), displayCurrency)}
-                  </p>
-                </div>
-              ))}
+                  <ArrowDownLeft size={14} aria-hidden />
+                  {formatCurrency(inflow, displayCurrency)}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 font-financial text-sm font-medium"
+                  style={{ color: 'var(--app-negative)' }}
+                >
+                  <ArrowUpRight size={14} aria-hidden />
+                  {formatCurrency(Math.abs(outflow), displayCurrency)}
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Top Categories */}
-          <div className="pl-6 flex flex-col">
-            <p className="app-label mb-1">Top Categories</p>
-            <div className="mt-2">
-              <div style={{ height: topCategoryChartHeight }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    key={`categories-${chartAnimationKey}`}
-                    data={categorySpend}
-                    layout="vertical"
-                    margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-                  >
-                    <XAxis type="number" hide />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={110}
-                      interval={0}
-                      tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      wrapperClassName="app-chart-tooltip-compact"
-                      cursor={{ fill: 'var(--app-surface-soft)' }}
-                      formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
-                    />
-                    <Bar
-                      dataKey="amount"
-                      radius={[0, 5, 5, 0]}
-                      barSize={16}
-                      isAnimationActive={!prefersReducedMotion}
-                      animationDuration={chartAnimationDuration}
+            {/* Unusual Spending */}
+            <div className="px-6 flex flex-col" style={{ borderInline: '1px solid var(--app-border)' }}>
+              <p className="app-label mb-1">Most Expensive Transactions</p>
+              <div className="mt-2 flex flex-col gap-2.5">
+                <AnimatePresence initial={false}>
+                  {outliers.map((t) => (
+                    <motion.div
+                      key={t.id}
+                      className="flex items-center justify-between gap-3 rounded-md px-2.5 py-2"
+                      style={{
+                        borderLeft: '2px solid var(--app-accent)',
+                        background: 'var(--app-accent-soft)',
+                      }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: prefersReducedMotion ? 0 : 0.28 }}
                     >
-                      {categorySpend.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={i === 0 ? 'var(--app-accent)' : 'var(--app-border-strong)'}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      <p className="truncate min-w-0 text-sm font-medium">
+                        {t.merchant_name ?? t.notes ?? 'Unknown'}
+                      </p>
+                      <p
+                        className="font-financial text-sm font-medium shrink-0"
+                        style={{ color: 'var(--app-negative)' }}
+                      >
+                        {formatCurrency(Math.abs(t.amount), displayCurrency)}
+                      </p>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Top Categories */}
+            <div className="pl-6 flex flex-col">
+              <p className="app-label mb-1">Top Categories</p>
+              <div className="mt-2">
+                <div style={{ height: topCategoryChartHeight }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      key={`categories-${chartAnimationKey}`}
+                      data={categorySpend}
+                      layout="vertical"
+                      margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+                    >
+                      <XAxis type="number" hide />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={110}
+                        interval={0}
+                        tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        wrapperClassName="app-chart-tooltip-compact"
+                        cursor={{ fill: 'var(--app-surface-soft)' }}
+                        formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
+                      />
+                      <Bar
+                        dataKey="amount"
+                        radius={[0, 5, 5, 0]}
+                        barSize={16}
+                        isAnimationActive={!prefersReducedMotion}
+                        animationDuration={chartAnimationDuration}
+                      >
+                        {categorySpend.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={i === 0 ? 'var(--app-accent)' : 'var(--app-border-strong)'}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Grey divider with note */}
         <div className="flex items-center gap-4">
