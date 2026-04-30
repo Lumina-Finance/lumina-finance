@@ -591,32 +591,18 @@ function BudgetEditModal({
                 placeholder="Search categories..."
               />
             </div>
-            <div
-              className="mt-3 max-h-60 space-y-1 overflow-y-auto rounded-xl p-1"
-              style={{ border: '1px solid var(--app-input-border)', background: 'var(--app-input-bg)' }}
-            >
+            <div className="app-selection-list">
               {filteredCategories.map((category) => {
                 const selected = form.categoryIds.includes(category.id)
                 return (
                   <button
                     key={category.id}
                     type="button"
-                    className="grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150"
-                    style={{
-                      background: selected ? 'var(--app-accent-soft)' : 'transparent',
-                      border: `1px solid ${selected ? 'var(--app-accent)' : 'transparent'}`,
-                      color: selected ? 'var(--app-text)' : 'var(--app-text-muted)',
-                      fontWeight: selected ? 600 : 400,
-                    }}
+                    className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
                     onClick={() => toggleCategory(category.id)}
                   >
                     <span
-                      className="flex h-5 w-5 items-center justify-center rounded-full"
-                      style={{
-                        background: selected ? 'var(--app-accent)' : 'var(--app-bg)',
-                        border: `1px solid ${selected ? 'var(--app-accent)' : 'var(--app-border-strong)'}`,
-                        color: selected ? 'var(--app-bg)' : 'transparent',
-                      }}
+                      className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}
                     >
                       <Check size={13} strokeWidth={3} aria-hidden />
                     </span>
@@ -1398,32 +1384,18 @@ function BudgetCreateModal({
                 placeholder="Search categories..."
               />
             </div>
-            <div
-              className="mt-3 max-h-60 space-y-1 overflow-y-auto rounded-xl p-1"
-              style={{ border: '1px solid var(--app-input-border)', background: 'var(--app-input-bg)' }}
-            >
+            <div className="app-selection-list">
               {filteredExpenseCategories.map((category) => {
                 const selected = form.categoryIds.includes(category.id)
                 return (
                   <button
                     key={category.id}
                     type="button"
-                    className="grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150"
-                    style={{
-                      background: selected ? 'var(--app-accent-soft)' : 'transparent',
-                      border: `1px solid ${selected ? 'var(--app-accent)' : 'transparent'}`,
-                      color: selected ? 'var(--app-text)' : 'var(--app-text-muted)',
-                      fontWeight: selected ? 600 : 400,
-                    }}
+                    className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
                     onClick={() => toggleCategory(category.id)}
                   >
                     <span
-                      className="flex h-5 w-5 items-center justify-center rounded-full"
-                      style={{
-                        background: selected ? 'var(--app-accent)' : 'var(--app-bg)',
-                        border: `1px solid ${selected ? 'var(--app-accent)' : 'var(--app-border-strong)'}`,
-                        color: selected ? 'var(--app-bg)' : 'transparent',
-                      }}
+                      className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}
                     >
                       <Check size={13} strokeWidth={3} aria-hidden />
                     </span>

@@ -377,6 +377,40 @@
     box-shadow: var(--app-shadow-soft);
   }
 
+  .app-selection-list {
+    @apply mt-3 max-h-60 space-y-1 overflow-y-auto rounded-xl p-1;
+    background: var(--app-input-bg);
+    border: 1px solid var(--app-input-border);
+  }
+
+  .app-selection-option {
+    @apply grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--app-text-muted);
+    font-weight: 400;
+  }
+
+  .app-selection-option-active {
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent);
+    color: var(--app-text);
+    font-weight: 600;
+  }
+
+  .app-selection-check {
+    @apply flex h-5 w-5 items-center justify-center rounded-full;
+    background: var(--app-bg);
+    border: 1px solid var(--app-border-strong);
+    color: transparent;
+  }
+
+  .app-selection-check-active {
+    background: var(--app-accent);
+    border-color: var(--app-accent);
+    color: var(--app-bg);
+  }
+
   .app-page-header {
     @apply mb-8 space-y-3;
   }
