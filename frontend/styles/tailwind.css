@@ -301,6 +301,12 @@
     color: var(--app-text-muted);
   }
 
+  .app-card {
+    @apply rounded-2xl border;
+    background: var(--app-surface-soft);
+    border-color: var(--app-border);
+  }
+
   .app-page-header {
     @apply mb-8 space-y-3;
   }
