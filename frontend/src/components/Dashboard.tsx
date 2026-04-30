@@ -434,7 +434,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-4 grid-cols-4">
           {/* Net Worth — current value + sparkline over trailing window */}
           <div
-            className="app-card h-[13.5rem] pb-2 flex flex-col"
+            className="app-card h-[14rem] pb-2 flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -482,7 +482,7 @@ export default function Dashboard() {
 
           {/* Credit Used / Available donut */}
           <div
-            className="app-card h-[13.5rem] flex flex-col"
+            className="app-card h-[14rem] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: tierSoft }}>
@@ -565,7 +565,7 @@ export default function Dashboard() {
 
           {/* Savings rate — per-month bars for the last 7 months; current month is lighter. */}
           <div
-            className="app-card h-[13.5rem] pb-2 flex flex-col"
+            className="app-card h-[14rem] pb-2 flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -668,7 +668,7 @@ export default function Dashboard() {
 
           {/* Cash Runway — months of coverage at trailing 12-mo avg expense */}
           <div
-            className="app-card h-[13.5rem] flex flex-col"
+            className="app-card h-[14rem] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
