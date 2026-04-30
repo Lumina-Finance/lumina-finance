@@ -50,6 +50,7 @@ import {
   formatCompactRunway,
   runwayBand,
 } from '@/utils/runway'
+import { AppSlotMachineText } from './AppSlotMachineText'
 
 // Palette for the spending breakdown donut. Ordered to harmonize with the
 // warm-earth theme — first two swatches mirror the dark-mode accent and
@@ -473,7 +474,7 @@ export default function Dashboard() {
                 <CreditCard size={16} style={{ color: tierColor }} aria-hidden />
               </div>
               <span className="app-label">
-                Credit {creditMode === 'used' ? 'Used' : 'Available'}
+                Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Available'} reserveText="Available" />
               </span>
               {hasCredit && (
                 <button
@@ -908,8 +909,9 @@ export default function Dashboard() {
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
                 <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
               </div>
-              <span className="app-label">
-                {breakdownMode === 'spending' ? 'Spending' : 'Income'} Breakdown
+              <span className="app-label inline-flex items-baseline whitespace-nowrap">
+                <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
+                <span className="ml-[0.25em]">Breakdown</span>
               </span>
               <button
                 type="button"
