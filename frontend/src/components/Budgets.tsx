@@ -1646,31 +1646,7 @@ export default function Budgets() {
         </div>
       </header>
 
-      {budgetsLoading ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[0, 1].map((item) => (
-            <div
-              key={item}
-              className="app-card"
-              aria-hidden
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="h-4 w-32 rounded-full" style={{ background: 'var(--app-border)' }} />
-                  <div className="mt-3 h-3 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
-                </div>
-                <div className="h-7 w-16 rounded-full" style={{ background: 'var(--app-accent-soft)' }} />
-              </div>
-              <div className="mt-6 h-9 w-40 rounded-md" style={{ background: 'var(--app-border)' }} />
-              <div className="mt-3 h-3 w-56 rounded-full" style={{ background: 'var(--app-border)' }} />
-              <div className="mt-6 flex gap-2">
-                <div className="h-7 w-20 rounded-full" style={{ background: 'var(--app-input-bg)' }} />
-                <div className="h-7 w-24 rounded-full" style={{ background: 'var(--app-input-bg)' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : budgetsError ? (
+      {budgetsLoading ? null : budgetsError ? (
         <section className="app-card">
           <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
             Budgets could not load
@@ -1694,49 +1670,17 @@ export default function Budgets() {
         </section>
       ) : (
         <section className="app-card">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
-                No budgets to display
-              </p>
-              <p className="mt-1 max-w-xl text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
-                Create a budget to start tracking limits, spending, and category progress.
-              </p>
-              {(categoriesLoading || currenciesLoading) && (
-                <p className="mt-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  Loading form options...
-                </p>
-              )}
-            </div>
-
-            <div
-              className="w-full max-w-sm rounded-2xl p-5"
-              style={{ background: 'var(--app-input-bg)', border: '1px solid var(--app-input-border)' }}
-              aria-hidden
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="h-3 w-28 rounded-full" style={{ background: 'var(--app-border)' }} />
-                  <div className="mt-3 h-4 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
-                </div>
-                <div className="h-7 w-20 rounded-full" style={{ background: 'var(--app-accent-soft)' }} />
-              </div>
-              <div className="mt-6">
-                <div className="h-8 w-36 rounded-md" style={{ background: 'var(--app-border)' }} />
-                <div className="mt-3 h-2 rounded-full" style={{ background: 'var(--app-border)' }}>
-                  <div className="h-full w-2/5 rounded-full" style={{ background: 'var(--app-accent)' }} />
-                </div>
-              </div>
-              <div className="mt-5 space-y-3">
-                {[0, 1, 2].map((item) => (
-                  <div key={item} className="flex items-center justify-between gap-4">
-                    <div className="h-3 w-24 rounded-full" style={{ background: 'var(--app-border)' }} />
-                    <div className="h-3 w-16 rounded-full" style={{ background: 'var(--app-border)' }} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
+            No budgets to display
+          </p>
+          <p className="mt-1 max-w-xl text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
+            Create a budget to start tracking limits, spending, and category progress.
+          </p>
+          {(categoriesLoading || currenciesLoading) && (
+            <p className="mt-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              Loading form options...
+            </p>
+          )}
         </section>
       )}
 
