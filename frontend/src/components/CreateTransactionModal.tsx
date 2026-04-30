@@ -70,6 +70,37 @@ function showNativeDatePicker(input: HTMLInputElement) {
   }
 }
 
+function FieldLabelRow({
+  label,
+  htmlFor,
+  error,
+}: {
+  label: string
+  htmlFor?: string
+  error?: string | false
+}) {
+  return (
+    <div className="mb-1.5 flex items-start justify-between gap-3">
+      <label htmlFor={htmlFor} className="app-label block shrink-0">{label}</label>
+      <AnimatePresence initial={false}>
+        {error && (
+          <motion.p
+            key={error}
+            className="text-right text-xs font-medium leading-5"
+            style={{ color: 'var(--app-negative)' }}
+            initial={{ opacity: 0, x: 4 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 4 }}
+            transition={{ duration: 0.15 }}
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 const KIND_LABELS: Record<string, string> = {
   expense: 'Expense',
   income: 'Income',
@@ -102,6 +133,7 @@ interface FieldErrors {
   merchant_id?: string
   amount?: string
   currency?: string
+  date?: string
 }
 
 function validate(form: typeof INITIAL_FORM): FieldErrors {
@@ -115,6 +147,7 @@ function validate(form: typeof INITIAL_FORM): FieldErrors {
     if (isNaN(n) || n <= 0) errors.amount = 'Amount must be greater than zero'
   }
   if (!form.currency) errors.currency = 'Select a currency'
+  if (!form.date) errors.date = 'Select a date'
   return errors
 }
 
@@ -341,7 +374,7 @@ export default function CreateTransactionModal({
     e.preventDefault()
     const errors = validate(form)
     setFieldErrors(errors)
-    setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true })
+    setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true })
     if (Object.keys(errors).length > 0) return
 
     const selectedCurrency = currencies.find((c) => c.id === form.currency)
@@ -536,84 +569,45 @@ export default function CreateTransactionModal({
 
                 {/* Account */}
                 <div>
-                  <label className="app-label block mb-1.5">Account</label>
+                  <FieldLabelRow label="Account" error={showError('account_id')} />
                   <Dropdown
                     options={accountOptions}
                     value={form.account_id}
                     onChange={handleAccountChange}
+                    className={`app-input ${showError('account_id') ? 'app-input-error' : ''}`}
                     placeholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
                     searchable
                     searchPlaceholder="Search accounts..."
                   />
-                  <AnimatePresence>
-                    {showError('account_id') && (
-                      <motion.p
-                        className="mt-1 text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        {fieldErrors.account_id}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
                 </div>
 
                 {/* Merchant */}
                 <div>
-                  <label className="app-label block mb-1.5">Merchant</label>
+                  <FieldLabelRow label="Merchant" error={showError('merchant_id')} />
                   <Dropdown
                     options={merchantOptions}
                     value={form.merchant_id}
                     onChange={handleMerchantChange}
+                    className={`app-input ${showError('merchant_id') ? 'app-input-error' : ''}`}
                     placeholder="Select or type to create..."
                     searchable
                     searchPlaceholder="Search merchants..."
                     onCreateNew={handleCreateMerchant}
                   />
-                  <AnimatePresence>
-                    {showError('merchant_id') && (
-                      <motion.p
-                        className="mt-1 text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        {fieldErrors.merchant_id}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
                 </div>
 
                 {/* Category */}
                 <div>
-                  <label className="app-label block mb-1.5">Category</label>
+                  <FieldLabelRow label="Category" error={showError('category_id')} />
                   <Dropdown
                     options={categoryOptions}
                     value={form.category_id}
                     onChange={handleCategoryChange}
+                    className={`app-input ${showError('category_id') ? 'app-input-error' : ''}`}
                     placeholder="Select category..."
                     searchable
                     searchPlaceholder="Search categories..."
                   />
-                  <AnimatePresence>
-                    {showError('category_id') && (
-                      <motion.p
-                        className="mt-1 text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        {fieldErrors.category_id}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
                 </div>
 
                 {/* Currency + Amount */}
@@ -645,7 +639,7 @@ export default function CreateTransactionModal({
                     />
                   </div>
                   <div>
-                    <label htmlFor="txn-amount" className="app-label block mb-1.5">Amount</label>
+                    <FieldLabelRow htmlFor="txn-amount" label="Amount" error={showError('amount')} />
                     <div className="relative">
                       {selectedCurrencySymbol && (
                         <span
@@ -679,33 +673,20 @@ export default function CreateTransactionModal({
                         onBlur={() => handleBlur('amount')}
                       />
                     </div>
-                    <AnimatePresence>
-                      {showError('amount') && (
-                        <motion.p
-                          className="mt-1 text-xs"
-                          style={{ color: 'var(--app-negative)' }}
-                          initial={{ opacity: 0, x: 4 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 4 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          {fieldErrors.amount}
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
                   </div>
                 </div>
 
                 {/* Date */}
                 <div>
-                  <label htmlFor="txn-date" className="app-label block mb-1.5">Date</label>
+                  <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
                   <input
                     id="txn-date"
                     type="date"
-                    className="app-input"
+                    className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
                     value={form.date}
                     onPointerDown={handleDatePointerDown}
                     onChange={(e) => handleField('date', e.target.value)}
+                    onBlur={() => handleBlur('date')}
                   />
                 </div>
 
