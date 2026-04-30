@@ -525,33 +525,6 @@ export default function CreateTransactionModal({
                   </AnimatePresence>
                 </div>
 
-                {/* Category */}
-                <div>
-                  <label className="app-label block mb-1.5">Category</label>
-                  <Dropdown
-                    options={categoryOptions}
-                    value={form.category_id}
-                    onChange={handleCategoryChange}
-                    placeholder="Select category..."
-                    searchable
-                    searchPlaceholder="Search categories..."
-                  />
-                  <AnimatePresence>
-                    {showError('category_id') && (
-                      <motion.p
-                        className="mt-1 text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        {fieldErrors.category_id}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                </div>
-
                 {/* Merchant */}
                 <div>
                   <label className="app-label block mb-1.5">Merchant</label>
@@ -577,6 +550,33 @@ export default function CreateTransactionModal({
                         transition={{ duration: 0.15 }}
                       >
                         {fieldErrors.merchant_id}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="app-label block mb-1.5">Category</label>
+                  <Dropdown
+                    options={categoryOptions}
+                    value={form.category_id}
+                    onChange={handleCategoryChange}
+                    placeholder="Select category..."
+                    searchable
+                    searchPlaceholder="Search categories..."
+                  />
+                  <AnimatePresence>
+                    {showError('category_id') && (
+                      <motion.p
+                        className="mt-1 text-xs"
+                        style={{ color: 'var(--app-negative)' }}
+                        initial={{ opacity: 0, x: 4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 4 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        {fieldErrors.category_id}
                       </motion.p>
                     )}
                   </AnimatePresence>
