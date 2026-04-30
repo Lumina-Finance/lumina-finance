@@ -364,13 +364,7 @@ function SectionHeader({ title, description }: { title: string; description: Rea
 
 function SettingsCard({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="rounded-2xl p-5 sm:p-6"
-      style={{
-        background: 'var(--app-surface-soft)',
-        border: '1px solid var(--app-border)',
-      }}
-    >
+    <div className="app-card">
       {children}
     </div>
   )
@@ -865,9 +859,7 @@ function TaxAdvantagedCategoriesSection({
             </button>
           </div>
 
-          {isLoading ? (
-            <div className="h-24 rounded-lg bg-gray-300" />
-          ) : plans.length === 0 ? (
+          {isLoading ? null : plans.length === 0 ? (
             <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
               No tax-advantaged categories yet.
             </p>
@@ -2053,13 +2045,7 @@ function TaxAdvantagedCategoryModal({
                               </td>
                             </tr>
                           )}
-                          {limitsLoading ? (
-                            <tr>
-                              <td className="py-3" colSpan={4}>
-                                <div className="h-10 rounded-lg bg-gray-300" />
-                              </td>
-                            </tr>
-                          ) : sortedLimits.length === 0 && !showAddTaxYear ? (
+                          {limitsLoading ? null : sortedLimits.length === 0 && !showAddTaxYear ? (
                             <tr>
                               <td className="py-4 text-sm italic" colSpan={4} style={{ color: 'var(--app-text-subtle)' }}>
                                 No limit entries yet.
@@ -2472,9 +2458,7 @@ function RunwaySection({ loading, accounts, selection, onToggle }: RunwaySection
       />
 
       <SettingsCard>
-        {loading ? (
-          <div className="h-24 rounded-lg bg-gray-300" />
-        ) : accounts.length === 0 ? (
+        {loading ? null : accounts.length === 0 ? (
           <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             No eligible accounts yet. Add an asset account to configure runway.
           </p>

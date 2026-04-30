@@ -50,13 +50,7 @@ function SectionHeader({ title, description }: { title: string; description: Rea
 
 function SettingsCard({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="rounded-2xl p-5 sm:p-6"
-      style={{
-        background: 'var(--app-surface-soft)',
-        border: '1px solid var(--app-border)',
-      }}
-    >
+    <div className="app-card">
       {children}
     </div>
   )
@@ -218,9 +212,7 @@ export default function MerchantSettingsSection() {
             </p>
           )}
 
-          {isLoading ? (
-            <div className="h-24 rounded-lg bg-gray-300" />
-          ) : merchants.length === 0 ? (
+          {isLoading ? null : merchants.length === 0 ? (
             <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
               No merchants yet.
             </p>
