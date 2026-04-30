@@ -332,20 +332,14 @@ function DetailLimitUsage({
 
 function TaxAdvantagedCategoryBand({
   plan,
-  isLoading,
   hasError,
 }: {
   plan: TaxAdvantagedPlan | undefined
-  isLoading: boolean
   hasError: boolean
 }) {
   return (
     <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
-      {isLoading ? (
-        <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-          Loading linked category...
-        </p>
-      ) : hasError || !plan ? (
+      {hasError || !plan ? (
         <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           Linked category unavailable
         </p>
@@ -898,7 +892,6 @@ function BreakdownCard({
   grandTotal,
   currency,
   emptyLabel,
-  isLoading,
 }: {
   title: string
   rangeLabel: string
@@ -908,15 +901,10 @@ function BreakdownCard({
   grandTotal: number
   currency: string
   emptyLabel: string
-  isLoading: boolean
 }) {
   return (
     <section
-      className="rounded-2xl p-6 flex flex-col"
-      style={{
-        background: 'var(--app-surface-soft)',
-        border: '1px solid var(--app-border)',
-      }}
+      className="app-card p-6 flex flex-col"
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
@@ -943,9 +931,7 @@ function BreakdownCard({
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex-1" />
-      ) : rows.length === 0 ? (
+      {rows.length === 0 ? (
         <div
           className="flex-1 flex items-center justify-center text-sm"
           style={{ color: 'var(--app-text-subtle)' }}
@@ -1015,7 +1001,7 @@ function BreakdownCard({
 
 function TopCategoriesBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data, isLoading } = useAccountSpendingBreakdown(account.id, range)
+  const { data } = useAccountSpendingBreakdown(account.id, range)
 
   const rows = breakdownToRows(
     data,
@@ -1035,14 +1021,13 @@ function TopCategoriesBySpendingCard({ account }: { account: Account }) {
       grandTotal={data?.grand_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No spending in this range"
-      isLoading={isLoading}
     />
   )
 }
 
 function TopMerchantsBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data, isLoading } = useAccountSpendingBreakdown(account.id, range)
+  const { data } = useAccountSpendingBreakdown(account.id, range)
 
   const rows = breakdownToRows(
     data,
@@ -1062,7 +1047,6 @@ function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       grandTotal={data?.grand_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No merchant activity in this range"
-      isLoading={isLoading}
     />
   )
 }
@@ -1167,7 +1151,7 @@ function CashFlowBarChart({
 }
 
 function MonthlyCashFlowCard({ account }: { account: Account }) {
-  const { data, isLoading } = useAccountCashFlow(account.id, CASH_FLOW_CHART_MONTHS)
+  const { data } = useAccountCashFlow(account.id, CASH_FLOW_CHART_MONTHS)
 
   const chartData = useMemo(
     () =>
@@ -1219,11 +1203,7 @@ function MonthlyCashFlowCard({ account }: { account: Account }) {
 
   return (
     <section
-      className="rounded-2xl p-6 flex flex-col"
-      style={{
-        background: 'var(--app-surface-soft)',
-        border: '1px solid var(--app-border)',
-      }}
+      className="app-card p-6 flex flex-col"
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Monthly Cash Flow</p>
@@ -1244,12 +1224,12 @@ function MonthlyCashFlowCard({ account }: { account: Account }) {
 
       <div className="flex-1 min-h-[200px] w-full flex gap-4">
         <div className="flex-1 min-w-0">
-          {isLoading || !hasActivity ? (
+          {!hasActivity ? (
             <div
               className="h-full w-full flex items-center justify-center text-sm"
               style={{ color: 'var(--app-text-subtle)' }}
             >
-              {isLoading ? '' : 'No cash flow yet'}
+              No cash flow yet
             </div>
           ) : (
             <CashFlowBarChart
@@ -1261,7 +1241,7 @@ function MonthlyCashFlowCard({ account }: { account: Account }) {
           )}
         </div>
 
-        {!isLoading && hasActivity && (
+        {hasActivity && (
           <>
             <div
               className="shrink-0 self-stretch"
@@ -1402,7 +1382,6 @@ function TransactionListSection({
 
   const {
     data: txnPages,
-    isLoading,
     error,
     hasNextPage,
     fetchNextPage,
@@ -1426,39 +1405,26 @@ function TransactionListSection({
   )
 
   const dateGroups = useMemo(() => groupByDate(transactions), [transactions])
+  const transactionsLoaded = txnPages !== undefined
 
-  // Infinite scroll — mark pending 1s before actually fetching so the user
-  // sees immediate feedback when the sentinel enters the viewport. Same
-  // pattern as the main Transactions page.
+  // Infinite scroll — keep fetching as the sentinel enters the viewport.
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const [pendingFetch, setPendingFetch] = useState(false)
   useEffect(() => {
     if (!hasNextPage || isFetchingNextPage) return
     const el = sentinelRef.current
     if (!el) return
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let requested = false
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        if (timeoutId === null) {
-          setPendingFetch(true)
-          timeoutId = setTimeout(() => {
-            setPendingFetch(false)
-            fetchNextPage()
-          }, 1000)
-        }
-      } else if (timeoutId !== null) {
-        clearTimeout(timeoutId)
-        timeoutId = null
-        setPendingFetch(false)
+      if (entries[0].isIntersecting && !requested) {
+        requested = true
+        fetchNextPage()
       }
     }, { rootMargin: '200px' })
     observer.observe(el)
     return () => {
-      if (timeoutId !== null) clearTimeout(timeoutId)
       observer.disconnect()
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
-  const showPendingFetch = pendingFetch && hasNextPage && !isFetchingNextPage
 
   return (
     <>
@@ -1578,24 +1544,18 @@ function TransactionListSection({
         </button>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className="rounded-lg h-14 bg-gray-300" />
-          ))}
-        </div>
-      ) : error ? (
+      {error ? (
         <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
           Unable to load transactions.
         </p>
-      ) : dateGroups.length === 0 ? (
+      ) : transactionsLoaded && dateGroups.length === 0 ? (
         <p
           className="py-8 text-center italic text-sm"
           style={{ color: 'var(--app-text-subtle)' }}
         >
           {search ? 'No transactions match your search.' : 'No transactions yet.'}
         </p>
-      ) : (
+      ) : transactionsLoaded ? (
         <section className="space-y-4">
           {dateGroups.map(({ dateLabel, transactions: txns }) => {
             const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
@@ -1692,17 +1652,13 @@ function TransactionListSection({
           })}
 
           <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
-          {isFetchingNextPage || showPendingFetch ? (
-            <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-              Loading more transactions...
-            </p>
-          ) : hasNextPage === false ? (
+          {hasNextPage === false ? (
             <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
               You've reached the end.
             </p>
           ) : null}
         </section>
-      )}
+      ) : null}
     </>
   )
 }
@@ -1721,7 +1677,7 @@ function BalanceChartCard({ account }: { account: Account }) {
     return { fromDate: from, granularity: cfg.granularity }
   }, [range])
 
-  const { data: snapshots, isLoading } = useAccountSnapshots(account.id, {
+  const { data: snapshots } = useAccountSnapshots(account.id, {
     fromDate: toISODate(fromDate),
     granularity,
     includeAnchor: true,
@@ -1763,11 +1719,7 @@ function BalanceChartCard({ account }: { account: Account }) {
 
   return (
     <section
-      className="rounded-2xl p-6 flex flex-col"
-      style={{
-        background: 'var(--app-surface-soft)',
-        border: '1px solid var(--app-border)',
-      }}
+      className="app-card p-6 flex flex-col"
     >
       {/* Header — label + range pills */}
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
@@ -1825,12 +1777,12 @@ function BalanceChartCard({ account }: { account: Account }) {
       {/* Chart fills the remaining space. 240px min keeps it usable even on
           short identity cards; stretches taller when grid row grows. */}
       <div className="flex-1 min-h-[240px] w-full">
-        {isLoading || series.length < 2 ? (
+        {series.length < 2 ? (
           <div
             className="h-full w-full rounded-lg flex items-center justify-center text-sm"
             style={{ color: 'var(--app-text-subtle)' }}
           >
-            {isLoading ? '' : 'Not enough history yet'}
+            Not enough history yet
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -1923,11 +1875,10 @@ function BackLink() {
 
 export default function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>()
-  const { data: account, isLoading, error } = useAccount(accountId)
+  const { data: account, error } = useAccount(accountId)
   const linkedTaxAdvantagedPlanId = account?.group_id === null ? account.tax_advantaged_plan_id : null
   const {
     data: linkedTaxAdvantagedPlan,
-    isLoading: isLinkedTaxAdvantagedPlanLoading,
     error: linkedTaxAdvantagedPlanError,
   } = useTaxAdvantagedPlan(linkedTaxAdvantagedPlanId)
 
@@ -1950,14 +1901,10 @@ export default function AccountDetail() {
     setShowTxnModal(true)
   }
 
-  if (isLoading) {
+  if (!account && !error) {
     return (
       <div>
         <BackLink />
-        <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-5">
-          <div className="h-96 rounded-2xl bg-[var(--app-surface-soft)]" />
-          <div className="h-96 rounded-2xl bg-[var(--app-surface-soft)]" />
-        </div>
       </div>
     )
   }
@@ -1990,11 +1937,7 @@ export default function AccountDetail() {
           The chart side is a placeholder for step 4. */}
       <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-5">
         <section
-          className="relative flex min-h-[440px] flex-col rounded-2xl p-6"
-          style={{
-            background: 'var(--app-surface-soft)',
-            border: '1px solid var(--app-border)',
-          }}
+          className="app-card relative flex min-h-[440px] flex-col p-6"
         >
           {!account.closed_at && (
             <button
@@ -2029,7 +1972,6 @@ export default function AccountDetail() {
           {linkedTaxAdvantagedPlanId ? (
             <TaxAdvantagedCategoryBand
               plan={linkedTaxAdvantagedPlan}
-              isLoading={isLinkedTaxAdvantagedPlanLoading}
               hasError={!!linkedTaxAdvantagedPlanError}
             />
           ) : (
