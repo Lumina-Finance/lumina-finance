@@ -365,6 +365,18 @@
     border: 1px solid var(--app-border-strong);
   }
 
+  .app-modal-backdrop {
+    @apply fixed inset-0 flex items-center justify-center p-4;
+    background: rgba(15, 14, 12, 0.56);
+  }
+
+  .app-modal-panel {
+    @apply rounded-2xl;
+    background: var(--app-bg);
+    border: 1px solid var(--app-border-strong);
+    box-shadow: var(--app-shadow-soft);
+  }
+
   .app-page-header {
     @apply mb-8 space-y-3;
   }

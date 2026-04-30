@@ -484,8 +484,7 @@ function BudgetEditModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-      style={{ background: 'rgba(15, 14, 12, 0.56)' }}
+      className="app-modal-backdrop z-[60]"
       onClick={(event) => {
         event.stopPropagation()
         onClose()
@@ -495,12 +494,7 @@ function BudgetEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="budget-edit-title"
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-8"
-        style={{
-          background: 'var(--app-bg)',
-          border: '1px solid var(--app-border-strong)',
-          boxShadow: 'var(--app-shadow-soft)',
-        }}
+        className="app-modal-panel max-h-[85vh] w-full max-w-2xl overflow-y-auto p-8"
         onClick={(event) => event.stopPropagation()}
         onSubmit={handleSubmit}
       >
@@ -857,20 +851,14 @@ function BudgetDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(15, 14, 12, 0.56)' }}
+      className="app-modal-backdrop z-50"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="budget-detail-title"
-        className="h-[44rem] max-h-[88vh] w-full max-w-6xl overflow-hidden rounded-2xl"
-        style={{
-          background: 'var(--app-bg)',
-          border: '1px solid var(--app-border-strong)',
-          boxShadow: 'var(--app-shadow-soft)',
-        }}
+        className="app-modal-panel h-[44rem] max-h-[88vh] w-full max-w-6xl overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="grid h-full lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -1228,20 +1216,14 @@ function BudgetCreateModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(15, 14, 12, 0.56)' }}
+      className="app-modal-backdrop z-50"
       onClick={onClose}
     >
       <form
         role="dialog"
         aria-modal="true"
         aria-labelledby="budget-create-title"
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-8"
-        style={{
-          background: 'var(--app-bg)',
-          border: '1px solid var(--app-border-strong)',
-          boxShadow: 'var(--app-shadow-soft)',
-        }}
+        className="app-modal-panel max-h-[85vh] w-full max-w-2xl overflow-y-auto p-8"
         onClick={(event) => event.stopPropagation()}
         onSubmit={handleSubmit}
       >
