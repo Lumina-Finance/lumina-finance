@@ -146,6 +146,47 @@ function groupByDate(transactions: Transaction[]): DateGroup[] {
   return groups
 }
 
+function TransactionFilterLoadingOverlay({
+  placement = 'top',
+  reducedMotion,
+}: {
+  placement?: 'center' | 'top'
+  reducedMotion: boolean | null
+}) {
+  return (
+    <motion.div
+      className={`absolute inset-0 z-30 flex min-h-64 flex-col items-center gap-4 ${
+        placement === 'center' ? 'justify-center' : 'justify-start pt-24'
+      }`}
+      style={{
+        background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
+        backdropFilter: 'blur(3px)',
+        touchAction: 'none',
+      }}
+      role="status"
+      aria-live="polite"
+      initial={reducedMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: reducedMotion ? 0 : 0.18 }}
+      onWheel={(event) => event.preventDefault()}
+      onTouchMove={(event) => event.preventDefault()}
+    >
+      <div
+        className="h-9 w-9 rounded-full border-2 animate-spin motion-reduce:animate-none"
+        style={{ borderColor: 'var(--app-border-strong)', borderTopColor: 'var(--app-accent)' }}
+        aria-hidden
+      />
+      <p
+        className="text-xs font-medium uppercase tracking-[0.2em]"
+        style={{ color: 'var(--app-text-subtle)' }}
+      >
+        Loading transactions
+      </p>
+    </motion.div>
+  )
+}
+
 // ── Component ──
 
 export default function Transactions() {
@@ -280,7 +321,7 @@ export default function Transactions() {
   }, [filters.from_date, filters.to_date, monthStart, today])
 
   // Overview only supports account_id + date range; category filter applies to the list only
-  const { data: overview } = useTransactionsOverview({
+  const { data: overview, isFetching: isOverviewFetching } = useTransactionsOverview({
     account_id: filters.account_id,
     from_date: filters.from_date ?? monthStart,
     to_date: filters.to_date ?? today,
@@ -319,7 +360,7 @@ export default function Transactions() {
 
   useEffect(() => {
     if (!filterListLoading) return
-    if (!isFetching && (txnPages !== undefined || txnError)) {
+    if (!isFetching && !isOverviewFetching && (txnPages !== undefined || txnError)) {
       const elapsed = Date.now() - filterLoadingStartedAtRef.current
       const remaining = Math.max(FILTER_LIST_LOADING_MIN_MS - elapsed, 0)
       if (filterLoadingTimeoutRef.current !== null) {
@@ -332,7 +373,7 @@ export default function Transactions() {
         filterLoadingTimeoutRef.current = null
       }, remaining)
     }
-  }, [filterListLoading, isFetching, txnError, txnPages])
+  }, [filterListLoading, isFetching, isOverviewFetching, txnError, txnPages])
 
   // Infinite scroll: when the sentinel becomes visible, mark a fetch as
   // pending so the user sees feedback immediately, then fire fetchNextPage
@@ -462,7 +503,15 @@ export default function Transactions() {
 
       {/* Metrics & charts section — with overlay when no data */}
       <section className="relative">
-        {!hasOverviewData && (
+        <AnimatePresence>
+          {filterListLoading && (
+            <TransactionFilterLoadingOverlay
+              placement="center"
+              reducedMotion={prefersReducedMotion}
+            />
+          )}
+        </AnimatePresence>
+        {!filterListLoading && !hasOverviewData && (
           <div
             className="absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md"
             style={{
@@ -793,36 +842,7 @@ export default function Transactions() {
       {/* Transaction list */}
       <div className="relative" aria-busy={filterListLoading}>
         <AnimatePresence>
-          {filterListLoading && (
-            <motion.div
-              className="absolute inset-0 z-30 flex min-h-64 flex-col items-center justify-start gap-4 pt-24"
-              style={{
-                background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
-                backdropFilter: 'blur(3px)',
-                touchAction: 'none',
-              }}
-              role="status"
-              aria-live="polite"
-              initial={prefersReducedMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.18 }}
-              onWheel={(event) => event.preventDefault()}
-              onTouchMove={(event) => event.preventDefault()}
-            >
-              <div
-                className="h-9 w-9 rounded-full border-2 animate-spin motion-reduce:animate-none"
-                style={{ borderColor: 'var(--app-border-strong)', borderTopColor: 'var(--app-accent)' }}
-                aria-hidden
-              />
-              <p
-                className="text-xs font-medium uppercase tracking-[0.2em]"
-                style={{ color: 'var(--app-text-subtle)' }}
-              >
-                Loading transactions
-              </p>
-            </motion.div>
-          )}
+          {filterListLoading && <TransactionFilterLoadingOverlay reducedMotion={prefersReducedMotion} />}
         </AnimatePresence>
 
         {txnError ? (
