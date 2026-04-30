@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Check, CircleAlert, CircleCheck, OctagonAlert, Pencil, Plus, Search, Trash2, TriangleAlert, X } from 'lucide-react'
 import {
   Bar,
@@ -59,6 +60,10 @@ const RECURRENCE_OPTIONS: Array<{ value: RecurrenceFreq; label: string }> = [
   { value: 'monthly', label: 'Monthly' },
   { value: 'yearly', label: 'Yearly' },
 ]
+
+const EASE = [0.25, 0.1, 0.25, 1] as const
+const MODAL_SURFACE_TRANSITION_SECONDS = 0.25
+const MODAL_SURFACE_TRANSITION_MS = MODAL_SURFACE_TRANSITION_SECONDS * 1000
 
 function todayYmd(timeZone: string) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -833,18 +838,34 @@ function BudgetDetailsModal({
   }
 
   return (
-    <div
-      className="app-modal-backdrop z-50"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="budget-detail-title"
-        className="app-modal-panel h-[44rem] max-h-[88vh] w-full max-w-6xl overflow-hidden"
-        onClick={(event) => event.stopPropagation()}
+    <>
+      <motion.div
+        className="fixed inset-0 z-50"
+        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={onClose}
+        aria-hidden
+      />
+
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+        transition={{ duration: MODAL_SURFACE_TRANSITION_SECONDS, ease: EASE }}
+        onClick={onClose}
       >
-        <div className="grid h-full lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="budget-detail-title"
+          className="app-modal-panel h-[44rem] max-h-[88vh] w-full max-w-6xl overflow-hidden"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="grid h-full lg:grid-cols-[22rem_minmax(0,1fr)]">
           <aside
             className="flex min-h-0 flex-col p-7"
             style={{ background: 'var(--app-accent-soft)', color: 'var(--app-text)' }}
@@ -995,7 +1016,13 @@ function BudgetDetailsModal({
                       cursor={{ fill: 'var(--app-surface-soft)' }}
                       content={<BudgetChartTooltip currency={baseBudget.currency} />}
                     />
-                    <Bar dataKey="utilizationPct" fill="var(--app-accent)" radius={[4, 4, 0, 0]} barSize={28} />
+                    <Bar
+                      dataKey="utilizationPct"
+                      fill="var(--app-accent)"
+                      radius={[4, 4, 0, 0]}
+                      barSize={28}
+                      animationBegin={MODAL_SURFACE_TRANSITION_MS}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -1054,7 +1081,8 @@ function BudgetDetailsModal({
             </section>
           </section>
         </div>
-      </div>
+        </div>
+      </motion.div>
       {editOpen && (
         <BudgetEditModal
           baseBudget={baseBudget}
@@ -1065,7 +1093,7 @@ function BudgetDetailsModal({
           onSaved={onSaved}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -1629,28 +1657,31 @@ export default function Budgets() {
         />
       )}
 
-      {selectedBudget && (
-        <BudgetDetailsModal
-          baseBudget={selectedBudget.baseBudget}
-          periods={selectedBudget.periods}
-          categories={categories ?? []}
-          currencies={currencies ?? []}
-          categoryById={categoryById}
-          utilizationByBudgetId={utilizationByBudgetId}
-          onClose={() => setSelectedBudgetId(null)}
-          onDeleted={() => {
-            void baseBudgetsQuery.refetch()
-            void budgetsQuery.refetch()
-          }}
-          onSaved={() => {
-            void baseBudgetsQuery.refetch()
-            void budgetsQuery.refetch()
-            utilizationQueries.forEach((query) => {
-              void query.refetch()
-            })
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {selectedBudget && (
+          <BudgetDetailsModal
+            key={selectedBudget.baseBudget.id}
+            baseBudget={selectedBudget.baseBudget}
+            periods={selectedBudget.periods}
+            categories={categories ?? []}
+            currencies={currencies ?? []}
+            categoryById={categoryById}
+            utilizationByBudgetId={utilizationByBudgetId}
+            onClose={() => setSelectedBudgetId(null)}
+            onDeleted={() => {
+              void baseBudgetsQuery.refetch()
+              void budgetsQuery.refetch()
+            }}
+            onSaved={() => {
+              void baseBudgetsQuery.refetch()
+              void budgetsQuery.refetch()
+              utilizationQueries.forEach((query) => {
+                void query.refetch()
+              })
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
