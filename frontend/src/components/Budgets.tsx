@@ -629,10 +629,7 @@ function BudgetEditModal({
             </p>
           )}
 
-          <div
-            className="flex items-center justify-end gap-3 pt-4"
-            style={{ borderTop: '1px solid var(--app-border)' }}
-          >
+          <div className="app-form-actions">
             <button type="button" className="app-secondary-button" onClick={onClose} disabled={isPending}>
               Cancel
             </button>
@@ -1422,10 +1419,7 @@ function BudgetCreateModal({
             </p>
           )}
 
-          <div
-            className="flex items-center justify-end gap-3 pt-4"
-            style={{ borderTop: '1px solid var(--app-border)' }}
-          >
+          <div className="app-form-actions">
             <button type="button" className="app-secondary-button" onClick={onClose} disabled={isPending}>
               Cancel
             </button>

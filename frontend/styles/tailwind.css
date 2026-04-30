@@ -411,6 +411,11 @@
     color: var(--app-bg);
   }
 
+  .app-form-actions {
+    @apply flex items-center justify-end gap-3 pt-4;
+    border-top: 1px solid var(--app-border);
+  }
+
   .app-page-header {
     @apply mb-8 space-y-3;
   }
