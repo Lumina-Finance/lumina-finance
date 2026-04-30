@@ -904,7 +904,7 @@ function BreakdownCard({
 }) {
   return (
     <section
-      className="app-card p-6 flex flex-col"
+      className="app-card flex flex-col"
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
@@ -1203,7 +1203,7 @@ function MonthlyCashFlowCard({ account }: { account: Account }) {
 
   return (
     <section
-      className="app-card p-6 flex flex-col"
+      className="app-card flex flex-col"
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Monthly Cash Flow</p>
@@ -1719,7 +1719,7 @@ function BalanceChartCard({ account }: { account: Account }) {
 
   return (
     <section
-      className="app-card p-6 flex flex-col"
+      className="app-card flex flex-col"
     >
       {/* Header — label + range pills */}
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
@@ -1937,7 +1937,7 @@ export default function AccountDetail() {
           The chart side is a placeholder for step 4. */}
       <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-5">
         <section
-          className="app-card relative flex min-h-[440px] flex-col p-6"
+          className="app-card relative flex min-h-[440px] flex-col"
         >
           {!account.closed_at && (
             <button

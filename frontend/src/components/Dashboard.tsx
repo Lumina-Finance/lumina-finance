@@ -422,7 +422,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-4 grid-cols-4">
           {/* Net Worth — current value + sparkline over trailing window */}
           <div
-            className="app-card h-[13.5rem] p-5 pb-2 flex flex-col"
+            className="app-card h-[13.5rem] pb-2 flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -480,7 +480,7 @@ export default function Dashboard() {
 
           {/* Credit Used / Available donut */}
           <div
-            className="app-card h-[13.5rem] p-5 flex flex-col"
+            className="app-card h-[13.5rem] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: tierSoft }}>
@@ -550,7 +550,7 @@ export default function Dashboard() {
 
           {/* Savings rate — per-month bars for the last 7 months; current month is lighter. */}
           <div
-            className="app-card h-[13.5rem] p-5 pb-2 flex flex-col"
+            className="app-card h-[13.5rem] pb-2 flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -660,7 +660,7 @@ export default function Dashboard() {
 
           {/* Cash Runway — months of coverage at trailing 12-mo avg expense */}
           <div
-            className="app-card h-[13.5rem] p-5 flex flex-col"
+            className="app-card h-[13.5rem] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -764,7 +764,7 @@ export default function Dashboard() {
           {/* Spending comparison — cumulative spend in the selected range vs. the
               matching prior period. Range is user-selectable (WTD/MTD/QTD/YTD). */}
           <div
-            className="app-card h-[420px] p-5 flex flex-col"
+            className="app-card h-[420px] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -927,7 +927,7 @@ export default function Dashboard() {
               One payload carries both expense and income buckets so the mode
               toggle flips instantly without refetching. */}
           <div
-            className="app-card h-[420px] p-5 flex flex-col"
+            className="app-card h-[420px] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -1072,7 +1072,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-4 grid-cols-2">
           {/* Top Budgets — the three active budgets closest to their limit. */}
           <div
-            className="app-card h-[400px] p-5 flex flex-col"
+            className="app-card h-[400px] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
@@ -1160,7 +1160,7 @@ export default function Dashboard() {
               kind rather than the signed amount so refunds on expense
               categories still read as expense-colored. */}
           <div
-            className="app-card h-[400px] p-5 flex flex-col"
+            className="app-card h-[400px] flex flex-col"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
