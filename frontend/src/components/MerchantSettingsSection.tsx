@@ -34,14 +34,9 @@ function delay(ms: number) {
 
 function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
   return (
-    <div className="mb-4">
-      <h2
-        className="font-serif font-medium tracking-tight"
-        style={{ fontSize: 'clamp(1.5rem, 2.2vw, 2rem)', lineHeight: 1.1 }}
-      >
-        {title}
-      </h2>
-      <div className="mt-1 text-base" style={{ color: 'var(--app-text-muted)' }}>
+    <div className="app-section-header">
+      <h2 className="app-section-title">{title}</h2>
+      <div className="app-section-description">
         <p>{description}</p>
       </div>
     </div>

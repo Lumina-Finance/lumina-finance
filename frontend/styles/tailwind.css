@@ -416,6 +416,21 @@
     border-top: 1px solid var(--app-border);
   }
 
+  .app-section-header {
+    @apply mb-4;
+  }
+
+  .app-section-title {
+    @apply font-serif font-medium tracking-tight;
+    font-size: clamp(1.5rem, 2.2vw, 2rem);
+    line-height: 1.1;
+  }
+
+  .app-section-description {
+    @apply mt-1 text-base;
+    color: var(--app-text-muted);
+  }
+
   .app-page-header {
     @apply mb-8 space-y-3;
   }

@@ -348,14 +348,9 @@ export default function Settings() {
 
 function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
   return (
-    <div className="mb-4">
-      <h2
-        className="font-serif font-medium tracking-tight"
-        style={{ fontSize: 'clamp(1.5rem, 2.2vw, 2rem)', lineHeight: 1.1 }}
-      >
-        {title}
-      </h2>
-      <div className="text-base mt-1 space-y-2" style={{ color: 'var(--app-text-muted)' }}>
+    <div className="app-section-header">
+      <h2 className="app-section-title">{title}</h2>
+      <div className="app-section-description space-y-2">
         {typeof description === 'string' ? <p>{description}</p> : description}
       </div>
     </div>
@@ -380,14 +375,7 @@ function TaxAdvantagedCurrencyWarning() {
         className="cursor-help"
         style={{ color: 'var(--app-negative)' }}
       />
-      <div
-        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100"
-        style={{
-          background: 'var(--app-bg)',
-          border: '1px solid var(--app-border-strong)',
-          color: 'var(--app-text)',
-        }}
-      >
+      <div className="app-tooltip-panel app-hover-tooltip w-56">
         Tax-advantaged categories currently link only accounts in the same currency.
       </div>
     </div>
