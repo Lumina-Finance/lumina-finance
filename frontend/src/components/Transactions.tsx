@@ -426,11 +426,11 @@ export default function Transactions() {
           {/* Unusual Spending */}
           <div className="px-6 flex flex-col" style={{ borderInline: '1px solid var(--app-border)' }}>
             <p className="app-label mb-1">Most Expensive Transactions</p>
-            <div className="flex-1 mt-2 flex flex-col justify-between gap-1">
+            <div className="mt-2 flex flex-col gap-2">
               {outliers.map((t) => (
                 <div
                   key={t.id}
-                  className="flex items-center justify-between gap-3 rounded-md px-2.5 py-2.5"
+                  className="flex items-center justify-between gap-3 rounded-md px-2.5 py-1.5"
                   style={{
                     borderLeft: '2px solid var(--app-accent)',
                     background: 'var(--app-accent-soft)',
