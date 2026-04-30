@@ -657,13 +657,11 @@ export default function Accounts() {
 
       <div className="space-y-4">
         {/* Net Worth statement — headline + assets/debts breakdown */}
-        {isLoading ? (
-          <div className="rounded-2xl h-[6.5rem] bg-gray-300" />
-        ) : error ? (
+        {error ? (
           <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
             Unable to load accounts.
           </p>
-        ) : (
+        ) : !isLoading ? (
           <section>
             <div
               className="mb-5"
@@ -714,7 +712,7 @@ export default function Accounts() {
               </div>
             </div>
           </section>
-        )}
+        ) : null}
 
         {/* Metrics band — savings rate / credit usage / cash runway */}
         <section>
