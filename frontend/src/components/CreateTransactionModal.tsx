@@ -61,6 +61,15 @@ function amountToInputString(amountMinor: number, exponent: number): string {
   return (Math.abs(amountMinor) / Math.pow(10, exponent)).toFixed(exponent)
 }
 
+function showNativeDatePicker(input: HTMLInputElement) {
+  const picker = (input as HTMLInputElement & { showPicker?: () => void }).showPicker
+  try {
+    picker?.call(input)
+  } catch {
+    // Browser fallback: focusing the field still gives native date input behavior.
+  }
+}
+
 const KIND_LABELS: Record<string, string> = {
   expense: 'Expense',
   income: 'Income',
@@ -273,6 +282,24 @@ export default function CreateTransactionModal({
     clearError('category_id')
   }
 
+  const handleMerchantChange = (merchantId: string) => {
+    const merchant = merchants.find((m) => m.id === merchantId)
+    const defaultCategoryId = merchant?.default_category_id
+    const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
+    setForm((f) => ({
+      ...f,
+      merchant_id: merchantId,
+      ...(defaultCategoryId
+        ? {
+            category_id: defaultCategoryId,
+            kind: (defaultCategory?.kind as Kind) ?? f.kind,
+          }
+        : {}),
+    }))
+    clearError('merchant_id')
+    if (defaultCategoryId) clearError('category_id')
+  }
+
   const handleCreateMerchant = (name: string) => {
     createMerchant.mutate(
       { name },
@@ -381,6 +408,15 @@ export default function CreateTransactionModal({
         setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
       },
     })
+  }
+
+  const handleDatePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+    const picker = (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker
+    if (!picker) return
+
+    e.preventDefault()
+    e.currentTarget.focus({ preventScroll: true })
+    showNativeDatePicker(e.currentTarget)
   }
 
   const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field]
@@ -531,9 +567,7 @@ export default function CreateTransactionModal({
                   <Dropdown
                     options={merchantOptions}
                     value={form.merchant_id}
-                    onChange={(v) => {
-                      handleField('merchant_id', v)
-                    }}
+                    onChange={handleMerchantChange}
                     placeholder="Select or type to create..."
                     searchable
                     searchPlaceholder="Search merchants..."
@@ -670,6 +704,7 @@ export default function CreateTransactionModal({
                     type="date"
                     className="app-input"
                     value={form.date}
+                    onPointerDown={handleDatePointerDown}
                     onChange={(e) => handleField('date', e.target.value)}
                   />
                 </div>
