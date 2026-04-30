@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -61,6 +61,8 @@ const BREAKDOWN_COLORS = [
 ]
 
 const TIME_SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.7 } as const
+const BREAKDOWN_DONUT_TRANSITION = { duration: 0.36, ease: [0.16, 1, 0.3, 1] } as const
+const BREAKDOWN_PIE_ANIMATION_MS = 650
 
 type CreditTier = 'positive' | 'accent' | 'negative'
 
@@ -376,6 +378,7 @@ export default function Dashboard() {
     return breakdownMode === 'spending' ? spendingBreakdown.expense : spendingBreakdown.income
   }, [spendingBreakdown, breakdownMode])
   const breakdownTotal = breakdownEntries.reduce((sum, e) => sum + e.amount, 0)
+  const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
 
   const previousLabel: Record<SpendingRange, string> = {
     WTD: 'Last Week',
@@ -1034,37 +1037,50 @@ export default function Dashboard() {
                       />
                     </span>
                   </div>
-                  {breakdownEntries.length > 0 && (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={breakdownEntries}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius="68%"
-                          outerRadius="92%"
-                          paddingAngle={3}
-                          dataKey="amount"
-                          nameKey="name"
-                          stroke="none"
-                          isAnimationActive={false}
-                        >
-                          {breakdownEntries.map((_, i) => (
-                            <Cell key={i} fill={BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          wrapperClassName="app-chart-tooltip-default"
-                          cursor={false}
-                          position={breakdownTipPos ?? undefined}
-                          formatter={(value, name) => [
-                            formatCurrency(Number(value), displayCurrency),
-                            name,
-                          ]}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {breakdownEntries.length > 0 && (
+                      <motion.div
+                        key={breakdownChartKey}
+                        className="absolute inset-0"
+                        initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.975 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 1.015 }}
+                        transition={shouldReduceMotion ? { duration: 0 } : BREAKDOWN_DONUT_TRANSITION}
+                      >
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={breakdownEntries}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="68%"
+                              outerRadius="92%"
+                              paddingAngle={3}
+                              dataKey="amount"
+                              nameKey="name"
+                              stroke="none"
+                              isAnimationActive={!shouldReduceMotion}
+                              animationDuration={shouldReduceMotion ? 0 : BREAKDOWN_PIE_ANIMATION_MS}
+                              animationEasing="ease-out"
+                            >
+                              {breakdownEntries.map((_, i) => (
+                                <Cell key={i} fill={BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              wrapperClassName="app-chart-tooltip-default"
+                              cursor={false}
+                              position={breakdownTipPos ?? undefined}
+                              formatter={(value, name) => [
+                                formatCurrency(Number(value), displayCurrency),
+                                name,
+                              ]}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 {breakdownEntries.length > 0 && (
                   <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
