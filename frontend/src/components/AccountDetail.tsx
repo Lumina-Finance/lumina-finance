@@ -1943,7 +1943,7 @@ export default function AccountDetail() {
             <button
               type="button"
               aria-label="Edit account"
-              className="app-icon-button absolute right-6 top-6"
+              className="app-icon-button absolute right-2 top-2"
               onClick={() => setShowAccountEditModal(true)}
             >
               <Pencil size={14} aria-hidden />
