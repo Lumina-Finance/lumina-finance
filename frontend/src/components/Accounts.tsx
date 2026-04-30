@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, EyeOff, Plus } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import {
   useAccounts,
@@ -29,6 +30,8 @@ interface AccountFilterValues {
   account_kind?: AccountKind
   account_type?: AccountType
 }
+
+const ACCOUNT_ROW_EASE = [0.25, 0.1, 0.25, 1] as const
 
 const ACCOUNT_KIND_OPTIONS: OptionItem[] = [
   { value: 'asset', label: 'Assets' },
@@ -270,6 +273,7 @@ function AccountListSection({
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
   showCreditLimit?: boolean
 }) {
+  const prefersReducedMotion = useReducedMotion()
   const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
   const subtotalColor = accent === 'positive'
     ? subtotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
@@ -297,26 +301,42 @@ function AccountListSection({
         </span>
       </div>
 
-      <div>
-        {accounts.length === 0 ? (
-          <p
-            className="py-3 text-center italic text-sm"
-            style={{ color: 'var(--app-text-subtle)' }}
-          >
-            {emptyLabel}
-          </p>
-        ) : (
-          accounts.map((account) => (
-            <AccountRow
+      <div className="relative min-h-[4.625rem]">
+        <AnimatePresence initial={false}>
+          {accounts.length === 0 && (
+            <motion.p
+              key="empty"
+              className="pointer-events-none absolute inset-x-0 top-0 flex overflow-hidden text-center italic text-sm"
+              style={{ color: 'var(--app-text-subtle)' }}
+              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 74 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: ACCOUNT_ROW_EASE }}
+            >
+              <span className="m-auto">{emptyLabel}</span>
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {accounts.map((account) => (
+            <motion.div
               key={account.id}
-              account={account}
-              accent={accent}
-              showCreditLimit={showCreditLimit}
-              displayCurrency={displayCurrency}
-              taxAdvantagedPlanById={taxAdvantagedPlanById}
-            />
-          ))
-        )}
+              className="overflow-hidden"
+              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: ACCOUNT_ROW_EASE }}
+            >
+              <AccountRow
+                account={account}
+                accent={accent}
+                showCreditLimit={showCreditLimit}
+                displayCurrency={displayCurrency}
+                taxAdvantagedPlanById={taxAdvantagedPlanById}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </section>
   )
