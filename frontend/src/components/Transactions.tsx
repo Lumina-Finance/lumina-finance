@@ -17,7 +17,7 @@ import {
   Bar,
   Cell,
 } from 'recharts'
-import { useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
@@ -42,6 +42,14 @@ interface TransactionFilterValues {
   from_date?: string
   to_date?: string
 }
+
+const TRANSACTION_FILTER_KEYS = [
+  'account_id',
+  'category_id',
+  'from_date',
+  'to_date',
+] as const
+const FILTER_LIST_LOADING_MIN_MS = 1000
 
 // ── Placeholder data shown when the overview has no real data ──
 
@@ -110,6 +118,14 @@ function formatDateRangeLabel(from?: string, to?: string): string | null {
   return `Until ${monthDay(to!)}, ${fullYear(to!)}`
 }
 
+function normalizeTransactionFilters(filters: TransactionFilterValues): TransactionFilterValues {
+  const next = { ...filters }
+  for (const key of TRANSACTION_FILTER_KEYS) {
+    if (!next[key]) delete next[key]
+  }
+  return next
+}
+
 function groupByDate(transactions: Transaction[]): DateGroup[] {
   const groups: DateGroup[] = []
   let currentLabel = ''
@@ -147,6 +163,9 @@ export default function Transactions() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const latestTransactionsRef = useRef<Transaction[]>([])
+  const filterLoadingStartedAtRef = useRef(0)
+  const filterLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useFocusRefetch([
     { queryKey: transactionKeys.all, exact: false },
     { queryKey: transactionOverviewKeys.all, exact: false },
@@ -163,15 +182,40 @@ export default function Transactions() {
     setShowCreateModal(true)
   }
   const [filters, setFilters] = useState<TransactionFilterValues>({})
+  const filtersRef = useRef(filters)
+  const [filterListLoading, setFilterListLoading] = useState(false)
+  const [filterLoadingRows, setFilterLoadingRows] = useState<Transaction[] | null>(null)
+
+  useEffect(() => {
+    filtersRef.current = filters
+  }, [filters])
 
   const setFilter = (patch: Partial<TransactionFilterValues>) => {
-    setFilters((f) => {
-      const next = { ...f, ...patch }
-      for (const key of Object.keys(next) as (keyof TransactionFilterValues)[]) {
-        if (!next[key]) delete next[key]
+    const current = filtersRef.current
+    const next = normalizeTransactionFilters({ ...current, ...patch })
+    const changed = TRANSACTION_FILTER_KEYS.some((key) => current[key] !== next[key])
+    if (!changed) return
+
+    const isApplyingFilter = Object.values(patch).some(Boolean)
+    if (isApplyingFilter) {
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+        filterLoadingTimeoutRef.current = null
       }
-      return next
-    })
+      filterLoadingStartedAtRef.current = Date.now()
+      setFilterLoadingRows(latestTransactionsRef.current)
+      setFilterListLoading(true)
+    } else {
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+        filterLoadingTimeoutRef.current = null
+      }
+      filterLoadingStartedAtRef.current = 0
+      setFilterListLoading(false)
+      setFilterLoadingRows(null)
+    }
+
+    setFilters(next)
   }
 
   // Date range chip: the user edits `pendingFrom` / `pendingTo` inside the
@@ -247,12 +291,48 @@ export default function Transactions() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    isFetching,
   } = useInfiniteTransactions({
     ...filters,
     q: activeSearch || undefined,
   })
   const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
   const transactionsLoaded = txnPages !== undefined
+  const displayedTransactions = filterListLoading && filterLoadingRows
+    ? filterLoadingRows
+    : transactions
+  const displayedTransactionsLoaded = transactionsLoaded || (filterListLoading && filterLoadingRows !== null)
+
+  useEffect(() => {
+    return () => {
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!filterListLoading && transactionsLoaded) {
+      latestTransactionsRef.current = transactions
+    }
+  }, [filterListLoading, transactions, transactionsLoaded])
+
+  useEffect(() => {
+    if (!filterListLoading) return
+    if (!isFetching && (txnPages !== undefined || txnError)) {
+      const elapsed = Date.now() - filterLoadingStartedAtRef.current
+      const remaining = Math.max(FILTER_LIST_LOADING_MIN_MS - elapsed, 0)
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+      }
+      filterLoadingTimeoutRef.current = setTimeout(() => {
+        setFilterListLoading(false)
+        setFilterLoadingRows(null)
+        filterLoadingStartedAtRef.current = 0
+        filterLoadingTimeoutRef.current = null
+      }, remaining)
+    }
+  }, [filterListLoading, isFetching, txnError, txnPages])
 
   // Infinite scroll: when the sentinel becomes visible, mark a fetch as
   // pending so the user sees feedback immediately, then fire fetchNextPage
@@ -263,7 +343,7 @@ export default function Transactions() {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [pendingFetch, setPendingFetch] = useState(false)
   useEffect(() => {
-    if (!hasNextPage || isFetchingNextPage) return
+    if (!hasNextPage || isFetchingNextPage || filterListLoading) return
     const el = sentinelRef.current
     if (!el) return
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -287,7 +367,7 @@ export default function Transactions() {
       if (timeoutId !== null) clearTimeout(timeoutId)
       observer.disconnect()
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [hasNextPage, isFetchingNextPage, filterListLoading, fetchNextPage])
   const showPendingFetch = pendingFetch && hasNextPage && !isFetchingNextPage
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
@@ -315,8 +395,8 @@ export default function Transactions() {
   }, [accounts])
 
   const dateGroups = useMemo(
-    () => groupByDate(transactions ?? []),
-    [transactions],
+    () => groupByDate(displayedTransactions),
+    [displayedTransactions],
   )
 
   // Resolve overview data or fall back to placeholders
@@ -711,135 +791,173 @@ export default function Transactions() {
       </div>
 
       {/* Transaction list */}
-      {txnError ? (
-        <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
-          Unable to load transactions.
-        </p>
-      ) : transactionsLoaded && dateGroups.length === 0 ? (
-        <p
-          className="py-8 text-center italic text-sm"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          {search ? 'No transactions match your search.' : 'No transactions yet.'}
-        </p>
-      ) : transactionsLoaded ? (
-        <section className="space-y-4">
-          {dateGroups.map(({ dateLabel, transactions: txns }) => {
-            const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
-            const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
-            return (
-              <div key={dateLabel}>
-                {/* Date header */}
-                <div
-                  className="sticky top-[6rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
-                  style={{
-                    background: 'var(--app-input-bg)',
-                    borderBottom: '1px solid var(--app-border)',
-                  }}
-                >
-                  <p
-                    className="text-sm font-semibold uppercase tracking-wide"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    {dateLabel}
-                  </p>
-                  <p
-                    className="font-financial text-sm font-medium"
-                    style={{ color: dailyColor }}
-                  >
-                    {formatCurrency(dailyTotal, displayCurrency)}
-                  </p>
-                </div>
+      <div className="relative" aria-busy={filterListLoading}>
+        <AnimatePresence>
+          {filterListLoading && (
+            <motion.div
+              className="absolute inset-0 z-30 flex min-h-64 flex-col items-center justify-start gap-4 pt-24"
+              style={{
+                background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
+                backdropFilter: 'blur(3px)',
+                touchAction: 'none',
+              }}
+              role="status"
+              aria-live="polite"
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.18 }}
+              onWheel={(event) => event.preventDefault()}
+              onTouchMove={(event) => event.preventDefault()}
+            >
+              <div
+                className="h-9 w-9 rounded-full border-2 animate-spin motion-reduce:animate-none"
+                style={{ borderColor: 'var(--app-border-strong)', borderTopColor: 'var(--app-accent)' }}
+                aria-hidden
+              />
+              <p
+                className="text-xs font-medium uppercase tracking-[0.2em]"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                Loading transactions
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                {/* Rows */}
-                <div>
-                  {txns.map((t) => {
-                    const isIncome = t.amount > 0
-                    const category = categoryMap.get(t.category_id)
-                    const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
-                    const accountName = accountMap.get(t.account_id)
-                    const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
-                    return (
-                      <div
-                        key={t.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openEditModal(t)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            openEditModal(t)
-                          }
-                        }}
-                        className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
-                        style={{ borderBottom: '1px solid var(--app-border)' }}
-                      >
-                        {/* Category icon */}
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-                          <span className="text-lg leading-none" aria-hidden>
-                            {categoryIcon}
-                          </span>
-                        </div>
+        {txnError ? (
+          <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
+            Unable to load transactions.
+          </p>
+        ) : displayedTransactionsLoaded && dateGroups.length === 0 ? (
+          <p
+            className="py-8 text-center italic text-sm"
+            style={{ color: 'var(--app-text-subtle)' }}
+          >
+            {search ? 'No transactions match your search.' : 'No transactions yet.'}
+          </p>
+        ) : displayedTransactionsLoaded ? (
+          <section className="space-y-4">
+            {dateGroups.map(({ dateLabel, transactions: txns }) => {
+              const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
+              const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+              return (
+                <div key={dateLabel}>
+                  {/* Date header */}
+                  <div
+                    className="sticky top-[6rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
+                    style={{
+                      background: 'var(--app-input-bg)',
+                      borderBottom: '1px solid var(--app-border)',
+                    }}
+                  >
+                    <p
+                      className="text-sm font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--app-text-subtle)' }}
+                    >
+                      {dateLabel}
+                    </p>
+                    <p
+                      className="font-financial text-sm font-medium"
+                      style={{ color: dailyColor }}
+                    >
+                      {formatCurrency(dailyTotal, displayCurrency)}
+                    </p>
+                  </div>
 
-                        {/* Merchant + account */}
-                        <div className="min-w-0 w-80 shrink-0">
-                          <p className="font-medium truncate">{merchantName ?? 'Transfer'}</p>
+                  {/* Rows */}
+                  <div>
+                    {txns.map((t) => {
+                      const isIncome = t.amount > 0
+                      const category = categoryMap.get(t.category_id)
+                      const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
+                      const accountName = accountMap.get(t.account_id)
+                      const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
+                      return (
+                        <div
+                          key={t.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openEditModal(t)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              openEditModal(t)
+                            }
+                          }}
+                          className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
+                          style={{ borderBottom: '1px solid var(--app-border)' }}
+                        >
+                          {/* Category icon */}
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                            <span className="text-lg leading-none" aria-hidden>
+                              {categoryIcon}
+                            </span>
+                          </div>
+
+                          {/* Merchant + account */}
+                          <div className="min-w-0 w-80 shrink-0">
+                            <p className="font-medium truncate">{merchantName ?? 'Transfer'}</p>
+                            <p
+                              className="text-sm mt-0.5 truncate"
+                              style={{ color: 'var(--app-text-muted)' }}
+                            >
+                              {accountName ?? '\u00A0'}
+                            </p>
+                          </div>
+
+                          {/* Notes */}
                           <p
-                            className="text-sm mt-0.5 truncate"
-                            style={{ color: 'var(--app-text-muted)' }}
+                            className="min-w-0 flex-1 truncate"
+                            style={{ color: 'var(--app-text-subtle)' }}
                           >
-                            {accountName ?? '\u00A0'}
+                            {t.notes ?? '\u00A0'}
+                          </p>
+
+                          {/* Category badge */}
+                          <span
+                            className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                            style={{
+                              background: 'var(--app-surface-soft)',
+                              color: 'var(--app-text-muted)',
+                              border: '1px solid var(--app-border)',
+                            }}
+                          >
+                            {category?.name ?? 'Uncategorized'}
+                          </span>
+
+                          {/* Amount */}
+                          <p
+                            className="font-financial font-medium shrink-0 tabular-nums w-28 text-right"
+                            style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
+                          >
+                            {t.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(t.amount), displayCurrency)}
                           </p>
                         </div>
-
-                        {/* Notes */}
-                        <p
-                          className="min-w-0 flex-1 truncate"
-                          style={{ color: 'var(--app-text-subtle)' }}
-                        >
-                          {t.notes ?? '\u00A0'}
-                        </p>
-
-                        {/* Category badge */}
-                        <span
-                          className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                          style={{
-                            background: 'var(--app-surface-soft)',
-                            color: 'var(--app-text-muted)',
-                            border: '1px solid var(--app-border)',
-                          }}
-                        >
-                          {category?.name ?? 'Uncategorized'}
-                        </span>
-
-                        {/* Amount */}
-                        <p
-                          className="font-financial font-medium shrink-0 tabular-nums w-28 text-right"
-                          style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
-                        >
-                          {t.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(t.amount), displayCurrency)}
-                        </p>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
 
-          {/* Sentinel + loading / end-of-list indicator for infinite scroll */}
-          <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
-          {isFetchingNextPage || showPendingFetch ? (
-            <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-              Loading more transactions...
-            </p>
-          ) : hasNextPage === false ? (
-            <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-              You've reached the end.
-            </p>
-          ) : null}
-        </section>
-      ) : null}
+            {/* Sentinel + loading / end-of-list indicator for infinite scroll */}
+            <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+            {isFetchingNextPage || showPendingFetch ? (
+              <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                Loading more transactions...
+              </p>
+            ) : hasNextPage === false ? (
+              <p
+                className="py-4 text-center text-sm italic"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                You've reached the end.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
 
       <CreateTransactionModal
         key={createModalKey}
