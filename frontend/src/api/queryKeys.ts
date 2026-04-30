@@ -71,6 +71,7 @@ export const budgetKeys = {
   all: ['budgets'] as const,
   baseBudgets: () => ['budgets', 'base-budgets'] as const,
   periods: () => ['budgets', 'periods'] as const,
+  latestUtilizations: () => ['budgets', 'latest-utilizations'] as const,
   utilization: (budgetId: string) => ['budgets', 'periods', budgetId, 'utilization'] as const,
 };
 

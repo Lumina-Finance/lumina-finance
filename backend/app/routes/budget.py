@@ -18,6 +18,7 @@ from app.schemas.budget import (
     BudgetCategoryUtilization,
     BudgetResponse,
     BudgetUtilizationResponse,
+    LatestBudgetUtilizationResponse,
     UpdateBudgetRequest,
 )
 from app.services.budget_responses import build_budget_response, load_tracked_categories
@@ -31,6 +32,135 @@ async def _build_budget_response(
     """Build a BudgetResponse for a single budget instance (convenience wrapper)."""
     cats = await load_tracked_categories(db, [base_budget.id])
     return build_budget_response(budget, base_budget, cats.get(base_budget.id, []))
+
+
+async def _build_budget_utilization_responses(
+    db: AsyncSession,
+    rows: list[tuple[Budget, BaseBudget]],
+) -> list[BudgetUtilizationResponse]:
+    """Build utilization responses for budget instances in batch."""
+    if not rows:
+        return []
+
+    budget_ids = [budget.id for budget, _ in rows]
+    tracked_result = await db.execute(
+        select(Budget.id, BudgetTrackedCategory.category_id)
+        .join(BudgetTrackedCategory, BudgetTrackedCategory.base_budget_id == Budget.base_budget_id)
+        .where(
+            Budget.id.in_(budget_ids),
+            BudgetTrackedCategory.added_at <= Budget.period_end,
+            (BudgetTrackedCategory.removed_at.is_(None)) | (BudgetTrackedCategory.removed_at > Budget.period_end),
+        )
+        .distinct(),
+    )
+    tracked_by_budget: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for budget_id, category_id in tracked_result:
+        tracked_by_budget.setdefault(budget_id, []).append(category_id)
+
+    spend_result = await db.execute(
+        select(
+            Budget.id,
+            Transaction.category_id,
+            func.sum(Transaction.amount).label("amount_sum"),
+        )
+        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
+        .join(
+            BudgetTrackedCategory,
+            (BudgetTrackedCategory.base_budget_id == BaseBudget.id)
+            & (BudgetTrackedCategory.added_at <= Budget.period_end)
+            & (
+                (BudgetTrackedCategory.removed_at.is_(None))
+                | (BudgetTrackedCategory.removed_at > Budget.period_end)
+            ),
+        )
+        .join(Transaction, Transaction.category_id == BudgetTrackedCategory.category_id)
+        .join(Account, Transaction.account_id == Account.id)
+        .where(
+            Budget.id.in_(budget_ids),
+            Transaction.dt >= Budget.period_start,
+            Transaction.dt <= Budget.period_end,
+            Account.currency == BaseBudget.currency,
+            (
+                (BaseBudget.group_id.is_not(None) & (Account.group_id == BaseBudget.group_id))
+                | (BaseBudget.group_id.is_(None) & (Account.owner_id == BaseBudget.owner_id))
+            ),
+        )
+        .group_by(Budget.id, Transaction.category_id),
+    )
+    spend_by_budget_category = {
+        (budget_id, category_id): amount_sum
+        for budget_id, category_id, amount_sum in spend_result
+    }
+
+    responses = []
+    for budget, _ in rows:
+        categories = [
+            BudgetCategoryUtilization(
+                category_id=category_id,
+                spent=-(spend_by_budget_category.get((budget.id, category_id), 0) or 0),
+            )
+            for category_id in tracked_by_budget.get(budget.id, [])
+        ]
+        responses.append(
+            BudgetUtilizationResponse(
+                budget_id=budget.id,
+                period_start=budget.period_start,
+                period_end=budget.period_end,
+                overall_limit=budget.overall_limit,
+                total_spent=sum(category.spent for category in categories),
+                categories=categories,
+            ),
+        )
+    return responses
+
+
+@router.get("/latest-utilizations", response_model=list[LatestBudgetUtilizationResponse])
+async def list_latest_budget_utilizations(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return utilization for the latest period of each accessible base budget."""
+    ranked_budget_ids = (
+        select(
+            Budget.id.label("budget_id"),
+            func.row_number()
+            .over(
+                partition_by=Budget.base_budget_id,
+                order_by=(Budget.period_start.desc(), Budget.created_at.desc()),
+            )
+            .label("rank"),
+        )
+        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
+        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
+        .outerjoin(
+            BudgetPermission,
+            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user.id),
+        )
+        .where(
+            (BaseBudget.owner_id == user.id)
+            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
+            | (BudgetPermission.user_id == user.id),
+        )
+        .subquery()
+    )
+    result = await db.execute(
+        select(Budget, BaseBudget)
+        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
+        .join(ranked_budget_ids, Budget.id == ranked_budget_ids.c.budget_id)
+        .where(ranked_budget_ids.c.rank == 1)
+        .order_by(BaseBudget.name),
+    )
+    rows = result.all()
+    utilizations = await _build_budget_utilization_responses(db, rows)
+    return [
+        LatestBudgetUtilizationResponse(
+            **utilization.model_dump(),
+            base_budget_id=base_budget.id,
+            name=base_budget.name,
+            currency=base_budget.currency,
+        )
+        for utilization, (_, base_budget) in zip(utilizations, rows, strict=True)
+    ]
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)
@@ -59,66 +189,8 @@ async def get_budget_utilization(
     category from the whole period.
     """
     budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
-
-    # Categories active as of period_end — the historical-accuracy predicate. Past
-    # periods stay pinned because period_end is fixed; current periods reduce to
-    # "currently active" because period_end is in the future.
-    tracked_result = await db.execute(
-        select(BudgetTrackedCategory.category_id)
-        .where(
-            BudgetTrackedCategory.base_budget_id == base_budget.id,
-            BudgetTrackedCategory.added_at <= budget.period_end,
-            (BudgetTrackedCategory.removed_at.is_(None)) | (BudgetTrackedCategory.removed_at > budget.period_end),
-        )
-        .distinct(),
-    )
-    tracked_category_ids = list(tracked_result.scalars().all())
-
-    # Sum amounts per category for transactions whose transaction date falls in the period.
-    # Transaction.amount is stored in the parent account's currency, so we restrict the
-    # join to accounts whose currency matches the base's currency — this keeps multi-
-    # currency users from mixing e.g. USD and CAD totals when the same category crosses
-    # accounts. Scope is also constrained to accounts the base budget actually owns
-    # so cross-scope spending never bleeds in.
-    spend_map: dict[uuid.UUID, int] = {}
-    if tracked_category_ids:
-        scope_filter = (
-            Account.group_id == base_budget.group_id
-            if base_budget.group_id
-            else Account.owner_id == base_budget.owner_id
-        )
-        spend_result = await db.execute(
-            select(
-                Transaction.category_id,
-                func.sum(Transaction.amount).label("amount_sum"),
-            )
-            .join(Account, Transaction.account_id == Account.id)
-            .where(
-                Transaction.category_id.in_(tracked_category_ids),
-                Transaction.dt >= budget.period_start,
-                Transaction.dt <= budget.period_end,
-                Account.currency == base_budget.currency,
-                scope_filter,
-            )
-            .group_by(Transaction.category_id),
-        )
-        spend_map = {row.category_id: row.amount_sum for row in spend_result}
-
-    # Build per-category utilization (positive = net outflow)
-    categories = [
-        BudgetCategoryUtilization(category_id=cat_id, spent=-spend_map.get(cat_id, 0))
-        for cat_id in tracked_category_ids
-    ]
-    total_spent = sum(c.spent for c in categories)
-
-    return BudgetUtilizationResponse(
-        budget_id=budget.id,
-        period_start=budget.period_start,
-        period_end=budget.period_end,
-        overall_limit=budget.overall_limit,
-        total_spent=total_spent,
-        categories=categories,
-    )
+    responses = await _build_budget_utilization_responses(db, [(budget, base_budget)])
+    return responses[0]
 
 
 @router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -196,4 +268,3 @@ async def list_budgets(
         build_budget_response(budget, base, cats_by_base.get(base.id, []))
         for budget, base in rows
     ]
-

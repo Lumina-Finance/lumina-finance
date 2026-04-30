@@ -1,4 +1,4 @@
-"""Route tests for GET /budgets/{id}/utilization."""
+"""Route tests for budget utilization endpoints."""
 import uuid
 from datetime import date
 
@@ -179,6 +179,75 @@ async def _set_tracked_category_timestamps(base_budget_id, category_id, *, added
 
 
 # --- GET /budgets/{id}/utilization — listing and aggregation ---
+
+
+async def test_list_latest_budget_utilizations_returns_latest_period_only(client):
+    """The latest-utilizations endpoint returns one utilization row per base budget."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_id = (await _create_account(client, headers)).json()["id"]
+    groceries = await _create_category(client, headers, name="Groceries")
+
+    base_id, old_budget_id = await _create_base_with_instance(
+        client,
+        headers,
+        category_ids=[groceries],
+        instance_overrides={"period_start": "2026-02-01", "overall_limit": 80000},
+    )
+    latest_resp = await _create_budget_instance(
+        client,
+        headers,
+        base_id,
+        period_start="2026-03-01",
+        overall_limit=100000,
+    )
+    latest_budget_id = latest_resp.json()["id"]
+
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-02-15", amount=-9000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-03-15", amount=-5000)
+
+    resp = await client.get("/budgets/latest-utilizations", headers=headers)
+    assert resp.status_code == 200
+
+    data = resp.json()
+    assert [item["budget_id"] for item in data] == [latest_budget_id]
+    assert old_budget_id not in {item["budget_id"] for item in data}
+    assert data[0]["base_budget_id"] == base_id
+    assert data[0]["name"] == "March Budget"
+    assert data[0]["currency"] == "CAD"
+    assert data[0]["total_spent"] == 5000
+    assert data[0]["overall_limit"] == 100000
+
+
+async def test_list_latest_budget_utilizations_excludes_inaccessible_budgets(client):
+    """Only budgets readable by the caller are included."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers, _ = await _create_second_user(client)
+
+    account_id = (await _create_account(client, headers)).json()["id"]
+    other_account_id = (await _create_account(client, other_headers)).json()["id"]
+    groceries = await _create_category(client, headers, name="Groceries")
+    other_groceries = await _create_category(client, other_headers, name="Other Groceries")
+
+    _, budget_id = await _create_base_with_instance(client, headers, category_ids=[groceries])
+    _, other_budget_id = await _create_base_with_instance(
+        client,
+        other_headers,
+        category_ids=[other_groceries],
+        base_overrides={"name": "Other Budget"},
+    )
+
+    await _create_transaction(client, headers, account_id, groceries, amount=-5000)
+    await _create_transaction(client, other_headers, other_account_id, other_groceries, amount=-7000)
+
+    resp = await client.get("/budgets/latest-utilizations", headers=headers)
+    assert resp.status_code == 200
+
+    budget_ids = {item["budget_id"] for item in resp.json()}
+    assert budget_ids == {budget_id}
+    assert other_budget_id not in budget_ids
 
 
 async def test_get_budget_utilization_returns_per_category_breakdown(client):

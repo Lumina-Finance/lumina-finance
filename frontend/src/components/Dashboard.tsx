@@ -38,10 +38,7 @@ import {
   useSpendingComparison,
 } from '@/api/dashboard'
 import {
-  useBudgetUtilizations,
-  useBudgets,
-  type Budget,
-  type BudgetUtilization,
+  useLatestBudgetUtilizations,
 } from '@/api/budgets'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
@@ -137,17 +134,6 @@ function formatShortDate(value: string) {
   })
 }
 
-function todayYmd(timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ''
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
-
 function getCurrencyExponent(currency: string) {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency })
     .resolvedOptions()
@@ -223,23 +209,6 @@ function budgetAttentionState(usagePct: number) {
     textColor: 'var(--app-positive)',
     indicatorColor: 'var(--app-positive)',
   }
-}
-
-function selectTopBudgetPeriods(budgets: Budget[], today: string) {
-  const byBase = new Map<string, Budget[]>()
-  for (const budget of budgets) {
-    const periods = byBase.get(budget.base_budget_id) ?? []
-    periods.push(budget)
-    byBase.set(budget.base_budget_id, periods)
-  }
-
-  return Array.from(byBase.values()).map((periods) => {
-    const sortedPeriods = periods
-      .slice()
-      .sort((a, b) => b.period_start.localeCompare(a.period_start))
-    return sortedPeriods.find((period) => period.period_start <= today && period.period_end >= today)
-      ?? sortedPeriods[0]
-  })
 }
 
 function TopBudgetsWidget({ budgets, loading }: { budgets: TopBudget[]; loading: boolean }) {
@@ -376,7 +345,7 @@ export default function Dashboard() {
 
   const { user } = useAuth()
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
-  const { data: budgetPeriods, isLoading: budgetPeriodsLoading } = useBudgets()
+  const { data: latestBudgetUtilizations, isLoading: latestBudgetUtilizationsLoading } = useLatestBudgetUtilizations()
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
@@ -591,8 +560,6 @@ export default function Dashboard() {
   }, [spendingBreakdown, breakdownMode])
   const breakdownTotal = breakdownEntries.reduce((sum, e) => sum + e.amount, 0)
   const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
-  const today = useMemo(() => todayYmd(user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone), [user?.tz])
-
   const previousLabel: Record<SpendingRange, string> = {
     WTD: 'Last Week',
     MTD: 'Last Month',
@@ -612,41 +579,21 @@ export default function Dashboard() {
     YTD: 'This Year',
   }
   const rangeOptions: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
-  const topBudgetPeriods = useMemo(
-    () => selectTopBudgetPeriods(budgetPeriods ?? [], today),
-    [budgetPeriods, today],
-  )
-  const topBudgetPeriodIds = useMemo(
-    () => topBudgetPeriods.map((budget) => budget.id),
-    [topBudgetPeriods],
-  )
-  const topBudgetUtilizationQueries = useBudgetUtilizations(topBudgetPeriodIds)
-  const topBudgetUtilizationsLoading = topBudgetUtilizationQueries.some((query) => query.isLoading)
-  const topBudgetUtilizationById = useMemo(
-    () => new Map(
-      topBudgetUtilizationQueries
-        .map((query) => query.data)
-        .filter((utilization): utilization is BudgetUtilization => Boolean(utilization))
-        .map((utilization) => [utilization.budget_id, utilization]),
-    ),
-    [topBudgetUtilizationQueries],
-  )
   const topBudgets = useMemo(() => {
-    return topBudgetPeriods
-      .map((budget): TopBudget => {
-        const totalSpent = topBudgetUtilizationById.get(budget.id)?.total_spent ?? 0
-        const usageRatio = budget.overall_limit > 0
-          ? totalSpent / budget.overall_limit
+    return (latestBudgetUtilizations ?? [])
+      .map((utilization): TopBudget => {
+        const usageRatio = utilization.overall_limit > 0
+          ? utilization.total_spent / utilization.overall_limit
           : 0
         const usagePct = Math.round(usageRatio * 100)
         return {
-          budget_id: budget.id,
-          base_budget_id: budget.base_budget_id,
-          name: budget.base_budget.name,
-          currency: budget.base_budget.currency,
-          period_end: budget.period_end,
-          overall_limit: budget.overall_limit,
-          total_spent: totalSpent,
+          budget_id: utilization.budget_id,
+          base_budget_id: utilization.base_budget_id,
+          name: utilization.name,
+          currency: utilization.currency,
+          period_end: utilization.period_end,
+          overall_limit: utilization.overall_limit,
+          total_spent: utilization.total_spent,
           usageRatio,
           usagePct,
         }
@@ -656,8 +603,8 @@ export default function Dashboard() {
         return b.total_spent - a.total_spent
       })
       .slice(0, 3)
-  }, [topBudgetPeriods, topBudgetUtilizationById])
-  const topBudgetsLoading = budgetPeriodsLoading || topBudgetUtilizationsLoading
+  }, [latestBudgetUtilizations])
+  const topBudgetsLoading = latestBudgetUtilizationsLoading
 
   return (
     <div>

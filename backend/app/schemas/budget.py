@@ -128,3 +128,11 @@ class BudgetUtilizationResponse(BaseModel):
     overall_limit: int
     total_spent: int
     categories: list[BudgetCategoryUtilization]
+
+
+class LatestBudgetUtilizationResponse(BudgetUtilizationResponse):
+    """Latest-period budget utilization with enough base metadata for summary widgets."""
+
+    base_budget_id: uuid.UUID
+    name: str
+    currency: str

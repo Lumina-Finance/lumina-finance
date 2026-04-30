@@ -45,6 +45,12 @@ export interface BudgetUtilization {
   categories: BudgetCategoryUtilization[];
 }
 
+export interface LatestBudgetUtilization extends BudgetUtilization {
+  base_budget_id: string;
+  name: string;
+  currency: string;
+}
+
 export interface CreateBaseBudgetPayload {
   name: string;
   currency: string;
@@ -105,6 +111,10 @@ function getBudgetUtilization(budgetId: string) {
   return authenticatedFetch<BudgetUtilization>(`/budgets/${budgetId}/utilization`);
 }
 
+function listLatestBudgetUtilizations() {
+  return authenticatedFetch<LatestBudgetUtilization[]>('/budgets/latest-utilizations');
+}
+
 function deleteBaseBudget(baseBudgetId: string) {
   return authenticatedFetch<void>(`/base-budgets/${baseBudgetId}`, {
     method: 'DELETE',
@@ -145,6 +155,16 @@ export function useBudgets() {
   return useQuery({
     queryKey: budgetKeys.periods(),
     queryFn: listBudgets,
+    enabled: !!accessToken,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useLatestBudgetUtilizations() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: budgetKeys.latestUtilizations(),
+    queryFn: listLatestBudgetUtilizations,
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   });

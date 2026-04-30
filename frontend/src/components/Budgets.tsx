@@ -18,6 +18,7 @@ import {
   useCreateBaseBudget,
   useCreateBudgetInstance,
   useDeleteBaseBudget,
+  useLatestBudgetUtilizations,
   useUpdateBaseBudget,
   useUpdateBudget,
   type BaseBudget,
@@ -774,7 +775,7 @@ function BudgetDetailsModal({
   categories,
   currencies,
   categoryById,
-  utilizationByBudgetId,
+  initialLatestUtilization,
   onClose,
   onDeleted,
   onSaved,
@@ -784,7 +785,7 @@ function BudgetDetailsModal({
   categories: Category[]
   currencies: Currency[]
   categoryById: Map<string, string>
-  utilizationByBudgetId: Map<string, BudgetUtilization>
+  initialLatestUtilization: BudgetUtilization | undefined
   onClose: () => void
   onDeleted: () => void
   onSaved: () => void
@@ -796,6 +797,23 @@ function BudgetDetailsModal({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const sortedPeriods = periods.slice().sort((a, b) => a.period_start.localeCompare(b.period_start))
   const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
+  const periodIds = useMemo(() => periods.map((period) => period.id), [periods])
+  const utilizationQueries = useBudgetUtilizations(periodIds)
+  const utilizationByBudgetId = useMemo(() => {
+    const utilizations = new Map<string, BudgetUtilization>()
+    if (initialLatestUtilization) {
+      utilizations.set(initialLatestUtilization.budget_id, initialLatestUtilization)
+    }
+    utilizationQueries
+      .map((query) => query.data)
+      .filter((utilization): utilization is BudgetUtilization => Boolean(utilization))
+      .forEach((utilization) => {
+        utilizations.set(utilization.budget_id, utilization)
+      })
+    return utilizations
+  }, [initialLatestUtilization, utilizationQueries])
+  const utilizationHistoryLoading = utilizationQueries.some((query) => query.isLoading)
+  const utilizationHistoryError = utilizationQueries.some((query) => query.isError)
   const latestUtilization = latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined
   const spent = latestUtilization?.total_spent ?? 0
   const limit = latestPeriod?.overall_limit ?? 0
@@ -817,6 +835,11 @@ function BudgetDetailsModal({
     .sort((a, b) => b.spent - a.spent)
   const attention = attentionState(latestPeriod, latestUtilization)
   const isDeleting = deleteBaseBudget.isPending || deleteInProgress
+  const refetchUtilizationHistory = () => {
+    utilizationQueries.forEach((query) => {
+      void query.refetch()
+    })
+  }
   const handleDelete = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true)
@@ -995,7 +1018,21 @@ function BudgetDetailsModal({
             </div>
 
             <div className="h-80">
-              {chartData.length > 0 ? (
+              {utilizationHistoryLoading ? (
+                <div
+                  className="flex h-full items-center justify-center rounded-xl"
+                  style={{ background: 'var(--app-bg)' }}
+                >
+                  <div className="app-spinner" />
+                </div>
+              ) : utilizationHistoryError ? (
+                <div
+                  className="flex h-full items-center justify-center rounded-xl text-sm"
+                  style={{ background: 'var(--app-bg)', color: 'var(--app-negative)' }}
+                >
+                  Utilization history could not load.
+                </div>
+              ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                     <CartesianGrid stroke="var(--app-border)" vertical={false} />
@@ -1053,7 +1090,19 @@ function BudgetDetailsModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedPeriods.slice().reverse().map((period) => {
+                      {utilizationHistoryLoading ? (
+                        <tr>
+                          <td className="px-4 py-6 text-center" colSpan={4} style={{ color: 'var(--app-text-subtle)' }}>
+                            Loading utilization history...
+                          </td>
+                        </tr>
+                      ) : utilizationHistoryError ? (
+                        <tr>
+                          <td className="px-4 py-6 text-center" colSpan={4} style={{ color: 'var(--app-negative)' }}>
+                            Utilization history could not load.
+                          </td>
+                        </tr>
+                      ) : sortedPeriods.slice().reverse().map((period) => {
                         const utilization = utilizationByBudgetId.get(period.id)
                         const periodSpent = utilization?.total_spent ?? 0
                         const periodRemaining = period.overall_limit - periodSpent
@@ -1091,7 +1140,10 @@ function BudgetDetailsModal({
           categories={categories}
           currencies={currencies}
           onClose={() => setEditOpen(false)}
-          onSaved={onSaved}
+          onSaved={() => {
+            refetchUtilizationHistory()
+            onSaved()
+          }}
         />
       )}
     </>
@@ -1473,6 +1525,7 @@ export default function Budgets() {
   const { data: currencies, isLoading: currenciesLoading } = useCurrencies()
   const baseBudgetsQuery = useBaseBudgets()
   const budgetsQuery = useBudgets()
+  const latestUtilizationsQuery = useLatestBudgetUtilizations()
   const createBackfillBudget = useCreateBudgetInstance()
   const [createOpen, setCreateOpen] = useState(false)
   const budgetParam = searchParams.get('budget')
@@ -1516,32 +1569,15 @@ export default function Budgets() {
         }
       })
   }, [baseBudgetsQuery.data, budgetsQuery.data, categoryById])
-  const latestPeriodIds = useMemo(
-    () => budgetCards
-      .map(({ latestPeriod }) => latestPeriod?.id)
-      .filter((budgetId): budgetId is string => Boolean(budgetId)),
-    [budgetCards],
-  )
-  const allPeriodIds = useMemo(
-    () => budgetCards.flatMap(({ periods }) => periods.map((period) => period.id)),
-    [budgetCards],
-  )
-  const utilizationQueries = useBudgetUtilizations(allPeriodIds)
-  const utilizationByBudgetId = useMemo(
+  const latestUtilizationByBudgetId = useMemo(
     () => new Map(
-      utilizationQueries
-        .map((query) => query.data)
-        .filter((utilization): utilization is BudgetUtilization => Boolean(utilization))
+      (latestUtilizationsQuery.data ?? [])
         .map((utilization) => [utilization.budget_id, utilization]),
     ),
-    [utilizationQueries],
+    [latestUtilizationsQuery.data],
   )
-  const latestUtilizationsLoading = latestPeriodIds.some((budgetId) => {
-    const queryIndex = allPeriodIds.indexOf(budgetId)
-    return queryIndex >= 0 && utilizationQueries[queryIndex]?.isLoading
-  })
-  const budgetsLoading = baseBudgetsQuery.isLoading || budgetsQuery.isLoading || latestUtilizationsLoading
-  const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || utilizationQueries.some((query) => query.isError)
+  const budgetsLoading = baseBudgetsQuery.isLoading || budgetsQuery.isLoading || latestUtilizationsQuery.isLoading
+  const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || latestUtilizationsQuery.isError
   const selectedBudget = budgetCards.find(({ baseBudget }) => baseBudget.id === selectedBudgetId)
 
   useEffect(() => {
@@ -1650,7 +1686,7 @@ export default function Budgets() {
               baseBudget={baseBudget}
               latestPeriod={latestPeriod}
               categoryNames={categoryNames}
-              utilization={latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined}
+              utilization={latestPeriod ? latestUtilizationByBudgetId.get(latestPeriod.id) : undefined}
               onOpen={() => openBudget(baseBudget.id)}
             />
           ))}
@@ -1691,18 +1727,21 @@ export default function Budgets() {
             categories={categories ?? []}
             currencies={currencies ?? []}
             categoryById={categoryById}
-            utilizationByBudgetId={utilizationByBudgetId}
+            initialLatestUtilization={
+              selectedBudget.latestPeriod
+                ? latestUtilizationByBudgetId.get(selectedBudget.latestPeriod.id)
+                : undefined
+            }
             onClose={closeBudget}
             onDeleted={() => {
               void baseBudgetsQuery.refetch()
               void budgetsQuery.refetch()
+              void latestUtilizationsQuery.refetch()
             }}
             onSaved={() => {
               void baseBudgetsQuery.refetch()
               void budgetsQuery.refetch()
-              utilizationQueries.forEach((query) => {
-                void query.refetch()
-              })
+              void latestUtilizationsQuery.refetch()
             }}
           />
         )}
