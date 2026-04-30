@@ -714,7 +714,7 @@ export default function CreateTransactionModal({
                   <label htmlFor="txn-notes" className="app-label block mb-1.5">Notes</label>
                   <textarea
                     id="txn-notes"
-                    className="app-input min-h-[4.5rem] resize-y"
+                    className="app-input min-h-[4.5rem] resize-y py-2"
                     placeholder="Optional"
                     value={form.notes}
                     onChange={(e) => handleField('notes', e.target.value)}
