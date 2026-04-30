@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, EyeOff, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, ArrowLeft } from 'lucide-react'
 import {
@@ -85,6 +86,7 @@ function isValidMoneyInput(value: string): boolean {
 // weekly for 30D/90D, monthly for 1Y.
 type BalanceRange = '7D' | '30D' | '90D' | '1Y'
 const BALANCE_RANGES: BalanceRange[] = ['7D', '30D', '90D', '1Y']
+const TIME_SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.7 } as const
 const RANGE_CONFIG: Record<
   BalanceRange,
   { days: number; granularity: SnapshotGranularity }
@@ -896,6 +898,8 @@ function BreakdownCard({
   currency: string
   emptyLabel: string
 }) {
+  const shouldReduceMotion = useReducedMotion()
+
   return (
     <section
       className="app-card flex flex-col"
@@ -903,10 +907,16 @@ function BreakdownCard({
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
         <div
-          className="app-segmented-control app-segmented-control-compact"
+          className="app-segmented-control app-segmented-control-compact app-time-selector"
           role="tablist"
           aria-label={rangeLabel}
         >
+          <motion.span
+            className="app-time-selector-indicator"
+            aria-hidden
+            animate={{ x: `${SPENDING_RANGES.indexOf(range) * 100}%` }}
+            transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
+          />
           {SPENDING_RANGES.map((r) => {
             const active = range === r
             return (
@@ -1648,6 +1658,7 @@ function TransactionListSection({
 }
 
 function BalanceChartCard({ account }: { account: Account }) {
+  const shouldReduceMotion = useReducedMotion()
   const [range, setRange] = useState<BalanceRange>('30D')
 
   // Derive the window + granularity from the selected range. Memoized on
@@ -1709,10 +1720,16 @@ function BalanceChartCard({ account }: { account: Account }) {
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Current Balance</p>
         <div
-          className="app-segmented-control app-segmented-control-compact"
+          className="app-segmented-control app-segmented-control-compact app-time-selector"
           role="tablist"
           aria-label="Balance range"
         >
+          <motion.span
+            className="app-time-selector-indicator"
+            aria-hidden
+            animate={{ x: `${BALANCE_RANGES.indexOf(range) * 100}%` }}
+            transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
+          />
           {BALANCE_RANGES.map((r) => {
             const active = range === r
             return (

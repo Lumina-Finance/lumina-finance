@@ -269,6 +269,56 @@
     color: var(--app-accent);
   }
 
+  .app-time-selector {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .app-time-selector-indicator {
+    @apply pointer-events-none absolute rounded-md;
+    top: 0.125rem;
+    bottom: 0.125rem;
+    left: 0.125rem;
+    z-index: 0;
+    width: calc((100% - 0.25rem) / 4);
+    background: var(--app-accent-soft);
+    border: 1px solid var(--app-accent-border);
+  }
+
+  .app-time-selector .app-segmented-option {
+    @apply relative z-10;
+    width: 2.625rem;
+    background: transparent;
+    box-shadow: none;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+  }
+
+  .app-time-selector .app-segmented-option:hover {
+    color: var(--app-text);
+    background: var(--app-accent-soft);
+  }
+
+  .app-time-selector .app-segmented-option:active {
+    transform: scale(0.9);
+  }
+
+  .app-time-selector .app-segmented-option-active,
+  .app-time-selector .app-segmented-option-active:hover {
+    color: var(--app-accent);
+    background: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-time-selector .app-segmented-option {
+      transition: none;
+    }
+
+    .app-time-selector .app-segmented-option:active {
+      transform: none;
+    }
+  }
+
   .app-icon-button {
     @apply inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-150 motion-reduce:transition-none;
     color: var(--app-text-muted);

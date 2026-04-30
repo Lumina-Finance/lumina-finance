@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -56,6 +57,8 @@ import {
 const BREAKDOWN_COLORS = [
   '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
 ]
+
+const TIME_SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.7 } as const
 
 type CreditTier = 'positive' | 'accent' | 'negative'
 
@@ -146,6 +149,7 @@ function SavingsCurrentBoundary({ currentLabel }: { currentLabel: string }) {
 }
 
 export default function Dashboard() {
+  const shouldReduceMotion = useReducedMotion()
   const hour = new Date().getHours()
   const greeting =
     hour >= 1 && hour < 4 ? 'Still Up?' :
@@ -749,10 +753,16 @@ export default function Dashboard() {
                 Spending vs. {previousLabel[spendingRange]}
               </span>
               <div
-                className="app-segmented-control app-segmented-control-compact ml-auto"
+                className="app-segmented-control app-segmented-control-compact app-time-selector ml-auto"
                 role="tablist"
                 aria-label="Spending range"
               >
+                <motion.span
+                  className="app-time-selector-indicator"
+                  aria-hidden
+                  animate={{ x: `${rangeOptions.indexOf(spendingRange) * 100}%` }}
+                  transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
+                />
                 {rangeOptions.map((option) => {
                   const active = option === spendingRange
                   return (
@@ -911,10 +921,16 @@ export default function Dashboard() {
                 <Repeat size={12} />
               </button>
               <div
-                className="app-segmented-control app-segmented-control-compact"
+                className="app-segmented-control app-segmented-control-compact app-time-selector"
                 role="tablist"
                 aria-label="Breakdown range"
               >
+                <motion.span
+                  className="app-time-selector-indicator"
+                  aria-hidden
+                  animate={{ x: `${rangeOptions.indexOf(breakdownRange) * 100}%` }}
+                  transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
+                />
                 {rangeOptions.map((option) => {
                   const active = option === breakdownRange
                   return (
