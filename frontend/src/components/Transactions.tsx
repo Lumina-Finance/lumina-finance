@@ -226,6 +226,9 @@ export default function Transactions() {
   const filtersRef = useRef(filters)
   const [filterListLoading, setFilterListLoading] = useState(false)
   const [filterLoadingRows, setFilterLoadingRows] = useState<Transaction[] | null>(null)
+  const [pendingClearReveal, setPendingClearReveal] = useState(false)
+  const [clearExitRows, setClearExitRows] = useState<Transaction[] | null>(null)
+  const [listRevealKey, setListRevealKey] = useState(0)
 
   useEffect(() => {
     filtersRef.current = filters
@@ -239,6 +242,8 @@ export default function Transactions() {
 
     const isApplyingFilter = Object.values(patch).some(Boolean)
     if (isApplyingFilter) {
+      setPendingClearReveal(false)
+      setClearExitRows(null)
       if (filterLoadingTimeoutRef.current !== null) {
         clearTimeout(filterLoadingTimeoutRef.current)
         filterLoadingTimeoutRef.current = null
@@ -254,6 +259,8 @@ export default function Transactions() {
       filterLoadingStartedAtRef.current = 0
       setFilterListLoading(false)
       setFilterLoadingRows(null)
+      setClearExitRows(latestTransactionsRef.current)
+      setPendingClearReveal(true)
     }
 
     setFilters(next)
@@ -341,8 +348,9 @@ export default function Transactions() {
   const transactionsLoaded = txnPages !== undefined
   const displayedTransactions = filterListLoading && filterLoadingRows
     ? filterLoadingRows
-    : transactions
-  const displayedTransactionsLoaded = transactionsLoaded || (filterListLoading && filterLoadingRows !== null)
+    : clearExitRows ?? transactions
+  const displayedTransactionsLoaded =
+    transactionsLoaded || (filterListLoading && filterLoadingRows !== null) || clearExitRows !== null
 
   useEffect(() => {
     return () => {
@@ -353,10 +361,17 @@ export default function Transactions() {
   }, [])
 
   useEffect(() => {
-    if (!filterListLoading && transactionsLoaded) {
+    if (!filterListLoading && !pendingClearReveal && clearExitRows === null && transactionsLoaded) {
       latestTransactionsRef.current = transactions
     }
-  }, [filterListLoading, transactions, transactionsLoaded])
+  }, [clearExitRows, filterListLoading, pendingClearReveal, transactions, transactionsLoaded])
+
+  useEffect(() => {
+    if (!pendingClearReveal || isFetching || txnPages === undefined) return
+    setListRevealKey((key) => key + 1)
+    setClearExitRows(null)
+    setPendingClearReveal(false)
+  }, [isFetching, pendingClearReveal, txnPages])
 
   useEffect(() => {
     if (!filterListLoading) return
@@ -845,24 +860,54 @@ export default function Transactions() {
           {filterListLoading && <TransactionFilterLoadingOverlay reducedMotion={prefersReducedMotion} />}
         </AnimatePresence>
 
-        {txnError ? (
-          <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
-            Unable to load transactions.
-          </p>
-        ) : displayedTransactionsLoaded && dateGroups.length === 0 ? (
-          <p
-            className="py-8 text-center italic text-sm"
-            style={{ color: 'var(--app-text-subtle)' }}
-          >
-            {search ? 'No transactions match your search.' : 'No transactions yet.'}
-          </p>
-        ) : displayedTransactionsLoaded ? (
-          <section className="space-y-4">
-            {dateGroups.map(({ dateLabel, transactions: txns }) => {
-              const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
-              const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
-              return (
-                <div key={dateLabel}>
+        <AnimatePresence initial={false} mode="wait">
+          {txnError ? (
+            <motion.p
+              key={`error-${listRevealKey}`}
+              className="py-2 font-medium"
+              style={{ color: 'var(--app-negative)' }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+            >
+              Unable to load transactions.
+            </motion.p>
+          ) : displayedTransactionsLoaded && dateGroups.length === 0 ? (
+            <motion.p
+              key={`empty-${listRevealKey}`}
+              className="py-8 text-center italic text-sm"
+              style={{ color: 'var(--app-text-subtle)' }}
+              initial={listRevealKey === 0 || prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              {search ? 'No transactions match your search.' : 'No transactions yet.'}
+            </motion.p>
+          ) : displayedTransactionsLoaded ? (
+            <motion.section
+              key={`list-${listRevealKey}`}
+              className="space-y-4"
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              {dateGroups.map(({ dateLabel, transactions: txns }, groupIndex) => {
+                const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
+                const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+                return (
+                  <motion.div
+                    key={`${dateLabel}-${listRevealKey}`}
+                    initial={
+                      listRevealKey === 0 || prefersReducedMotion
+                        ? false
+                        : { opacity: 0, y: 8 }
+                    }
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: prefersReducedMotion ? 0 : 0.28,
+                      delay: prefersReducedMotion ? 0 : Math.min(groupIndex * 0.035, 0.18),
+                      ease: [0.25, 0.1, 0.25, 1],
+                    }}
+                  >
                   {/* Date header */}
                   <div
                     className="sticky top-[6rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
@@ -957,26 +1002,27 @@ export default function Transactions() {
                       )
                     })}
                   </div>
-                </div>
-              )
-            })}
+                  </motion.div>
+                )
+              })}
 
-            {/* Sentinel + loading / end-of-list indicator for infinite scroll */}
-            <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
-            {isFetchingNextPage || showPendingFetch ? (
-              <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                Loading more transactions...
-              </p>
-            ) : hasNextPage === false ? (
-              <p
-                className="py-4 text-center text-sm italic"
-                style={{ color: 'var(--app-text-subtle)' }}
-              >
-                You've reached the end.
-              </p>
-            ) : null}
-          </section>
-        ) : null}
+              {/* Sentinel + loading / end-of-list indicator for infinite scroll */}
+              <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+              {isFetchingNextPage || showPendingFetch ? (
+                <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  Loading more transactions...
+                </p>
+              ) : hasNextPage === false ? (
+                <p
+                  className="py-4 text-center text-sm italic"
+                  style={{ color: 'var(--app-text-subtle)' }}
+                >
+                  You've reached the end.
+                </p>
+              ) : null}
+            </motion.section>
+          ) : null}
+        </AnimatePresence>
       </div>
 
       <CreateTransactionModal
