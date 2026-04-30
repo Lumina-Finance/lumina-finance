@@ -1,6 +1,6 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/api/client';
-import { budgetKeys } from '@/api/queryKeys';
+import { budgetKeys, dashboardKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 export type RecurrenceFreq = 'weekly' | 'monthly' | 'yearly';
@@ -125,6 +125,11 @@ function updateBudget({ id, patch }: UpdateBudgetPayload) {
   });
 }
 
+function invalidateBudgetActivity(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+}
+
 export function useBaseBudgets() {
   const { accessToken } = useAuth();
   return useQuery({
@@ -162,7 +167,7 @@ export function useCreateBaseBudget() {
   return useMutation({
     mutationFn: createBaseBudget,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: budgetKeys.baseBudgets(), exact: true });
+      invalidateBudgetActivity(queryClient);
     },
   });
 }
@@ -172,25 +177,37 @@ export function useCreateBudgetInstance() {
   return useMutation({
     mutationFn: createBudgetInstance,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: budgetKeys.periods(), exact: true });
+      invalidateBudgetActivity(queryClient);
     },
   });
 }
 
 export function useDeleteBaseBudget() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteBaseBudget,
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
   });
 }
 
 export function useUpdateBaseBudget() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: updateBaseBudget,
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
   });
 }
 
 export function useUpdateBudget() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: updateBudget,
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
   });
 }

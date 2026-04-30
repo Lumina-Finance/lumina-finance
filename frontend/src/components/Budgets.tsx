@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { useSearchParams } from 'react-router-dom'
 import { Check, CircleAlert, CircleCheck, OctagonAlert, Pencil, Plus, Search, Trash2, TriangleAlert, X } from 'lucide-react'
 import {
   Bar,
@@ -1467,13 +1468,15 @@ function BudgetCreateModal({
 
 export default function Budgets() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
   const { data: currencies, isLoading: currenciesLoading } = useCurrencies()
   const baseBudgetsQuery = useBaseBudgets()
   const budgetsQuery = useBudgets()
   const createBackfillBudget = useCreateBudgetInstance()
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null)
+  const budgetParam = searchParams.get('budget')
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(budgetParam)
   const backfilledKeys = useRef(new Set<string>())
   const defaultCurrency = user?.base_currency ?? currencies?.[0]?.id ?? 'USD'
   const userTimeZone = user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -1540,6 +1543,28 @@ export default function Budgets() {
   const budgetsLoading = baseBudgetsQuery.isLoading || budgetsQuery.isLoading || latestUtilizationsLoading
   const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || utilizationQueries.some((query) => query.isError)
   const selectedBudget = budgetCards.find(({ baseBudget }) => baseBudget.id === selectedBudgetId)
+
+  useEffect(() => {
+    setSelectedBudgetId(budgetParam)
+  }, [budgetParam])
+
+  const openBudget = (budgetId: string) => {
+    setSelectedBudgetId(budgetId)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('budget', budgetId)
+      return next
+    })
+  }
+
+  const closeBudget = () => {
+    setSelectedBudgetId(null)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('budget')
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!user || baseBudgetsQuery.isLoading || budgetsQuery.isLoading) return
@@ -1626,7 +1651,7 @@ export default function Budgets() {
               latestPeriod={latestPeriod}
               categoryNames={categoryNames}
               utilization={latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined}
-              onOpen={() => setSelectedBudgetId(baseBudget.id)}
+              onOpen={() => openBudget(baseBudget.id)}
             />
           ))}
         </section>
@@ -1667,7 +1692,7 @@ export default function Budgets() {
             currencies={currencies ?? []}
             categoryById={categoryById}
             utilizationByBudgetId={utilizationByBudgetId}
-            onClose={() => setSelectedBudgetId(null)}
+            onClose={closeBudget}
             onDeleted={() => {
               void baseBudgetsQuery.refetch()
               void budgetsQuery.refetch()

@@ -6,11 +6,8 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
-  CircleAlert,
-  CircleCheck,
   CreditCard,
   LifeBuoy,
-  OctagonAlert,
   PieChart as PieChartIcon,
   Repeat,
   Wallet,
@@ -40,6 +37,12 @@ import {
   useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard'
+import {
+  useBudgetUtilizations,
+  useBudgets,
+  type Budget,
+  type BudgetUtilization,
+} from '@/api/budgets'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
 import { useMerchants } from '@/api/merchants'
@@ -65,6 +68,17 @@ const BREAKDOWN_DONUT_TRANSITION = { duration: 0.36, ease: [0.16, 1, 0.3, 1] } a
 const BREAKDOWN_PIE_ANIMATION_MS = 650
 
 type CreditTier = 'positive' | 'accent' | 'negative'
+type TopBudget = {
+  budget_id: string
+  base_budget_id: string
+  name: string
+  currency: string
+  period_end: string
+  overall_limit: number
+  total_spent: number
+  usageRatio: number
+  usagePct: number
+}
 
 function getCreditTier(utilization: number): CreditTier {
   if (utilization <= 30) return 'positive'
@@ -121,6 +135,17 @@ function formatShortDate(value: string) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+function todayYmd(timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
 }
 
 function getCurrencyExponent(currency: string) {
@@ -200,10 +225,113 @@ function budgetAttentionState(usagePct: number) {
   }
 }
 
-function BudgetAttentionIcon({ label }: { label: string }) {
-  if (label === 'On track') return <CircleCheck size={14} aria-hidden />
-  if (label === 'Watch') return <CircleAlert size={14} aria-hidden />
-  return <OctagonAlert size={14} aria-hidden />
+function selectTopBudgetPeriods(budgets: Budget[], today: string) {
+  const byBase = new Map<string, Budget[]>()
+  for (const budget of budgets) {
+    const periods = byBase.get(budget.base_budget_id) ?? []
+    periods.push(budget)
+    byBase.set(budget.base_budget_id, periods)
+  }
+
+  return Array.from(byBase.values()).map((periods) => {
+    const sortedPeriods = periods
+      .slice()
+      .sort((a, b) => b.period_start.localeCompare(a.period_start))
+    return sortedPeriods.find((period) => period.period_start <= today && period.period_end >= today)
+      ?? sortedPeriods[0]
+  })
+}
+
+function TopBudgetsWidget({ budgets, loading }: { budgets: TopBudget[]; loading: boolean }) {
+  return (
+    <div className="app-card h-[400px] flex flex-col">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+          <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+        </div>
+        <span className="app-label">Top Budgets</span>
+      </div>
+
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="app-spinner" />
+        </div>
+      ) : budgets.length === 0 ? (
+        <div
+          className="flex-1 flex items-center justify-center text-sm italic"
+          style={{ color: 'var(--app-text-subtle)' }}
+        >
+          No budgets
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 min-h-0">
+            {budgets.map((budget, index) => {
+              const attention = budgetAttentionState(budget.usagePct)
+              const barPct = Math.min(Math.max(budget.usagePct, 0), 100)
+              return (
+                <Link
+                  key={budget.budget_id}
+                  to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
+                  className="block px-1 py-3 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+                  style={{
+                    borderBottom: index < budgets.length - 1 ? '1px solid var(--app-border)' : undefined,
+                  }}
+                  aria-label={`Open ${budget.name} budget`}
+                >
+                  <div className="flex items-baseline justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{budget.name}</p>
+                      <p
+                        className="mt-0.5 text-xs"
+                        style={{ color: 'var(--app-text-muted)' }}
+                      >
+                        {formatCurrency(budget.total_spent, budget.currency)}
+                        {' / '}
+                        {formatCurrency(budget.overall_limit, budget.currency)}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-lg font-semibold leading-none" style={{ color: attention.textColor }}>
+                        {budget.usagePct}%
+                      </p>
+                      <p className="mt-1 text-xs font-medium" style={{ color: attention.textColor }}>
+                        {attention.label}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-3">
+                    <div
+                      className="h-1.5 flex-1 overflow-hidden rounded-full"
+                      style={{ background: 'var(--app-border)' }}
+                      aria-hidden
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${barPct}%`,
+                          background: attention.indicatorColor,
+                        }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                      Ends {formatShortDate(budget.period_end)}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+          <Link
+            to="/budgets"
+            className="app-secondary-button mt-3 h-9 text-xs"
+          >
+            View all budgets
+          </Link>
+        </>
+      )}
+    </div>
+  )
 }
 
 // Dashed vertical divider drawn at the left edge of the given category band.
@@ -248,6 +376,7 @@ export default function Dashboard() {
 
   const { user } = useAuth()
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
+  const { data: budgetPeriods, isLoading: budgetPeriodsLoading } = useBudgets()
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
@@ -462,6 +591,7 @@ export default function Dashboard() {
   }, [spendingBreakdown, breakdownMode])
   const breakdownTotal = breakdownEntries.reduce((sum, e) => sum + e.amount, 0)
   const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
+  const today = useMemo(() => todayYmd(user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone), [user?.tz])
 
   const previousLabel: Record<SpendingRange, string> = {
     WTD: 'Last Week',
@@ -482,18 +612,43 @@ export default function Dashboard() {
     YTD: 'This Year',
   }
   const rangeOptions: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
+  const topBudgetPeriods = useMemo(
+    () => selectTopBudgetPeriods(budgetPeriods ?? [], today),
+    [budgetPeriods, today],
+  )
+  const topBudgetPeriodIds = useMemo(
+    () => topBudgetPeriods.map((budget) => budget.id),
+    [topBudgetPeriods],
+  )
+  const topBudgetUtilizationQueries = useBudgetUtilizations(topBudgetPeriodIds)
+  const topBudgetUtilizationsLoading = topBudgetUtilizationQueries.some((query) => query.isLoading)
+  const topBudgetUtilizationById = useMemo(
+    () => new Map(
+      topBudgetUtilizationQueries
+        .map((query) => query.data)
+        .filter((utilization): utilization is BudgetUtilization => Boolean(utilization))
+        .map((utilization) => [utilization.budget_id, utilization]),
+    ),
+    [topBudgetUtilizationQueries],
+  )
   const topBudgets = useMemo(() => {
-    return (dashboard?.active_budgets ?? [])
-      .map((budget) => {
+    return topBudgetPeriods
+      .map((budget): TopBudget => {
+        const totalSpent = topBudgetUtilizationById.get(budget.id)?.total_spent ?? 0
         const usageRatio = budget.overall_limit > 0
-          ? budget.total_spent / budget.overall_limit
+          ? totalSpent / budget.overall_limit
           : 0
         const usagePct = Math.round(usageRatio * 100)
         return {
-          ...budget,
+          budget_id: budget.id,
+          base_budget_id: budget.base_budget_id,
+          name: budget.base_budget.name,
+          currency: budget.base_budget.currency,
+          period_end: budget.period_end,
+          overall_limit: budget.overall_limit,
+          total_spent: totalSpent,
           usageRatio,
           usagePct,
-          remaining: budget.overall_limit - budget.total_spent,
         }
       })
       .sort((a, b) => {
@@ -501,7 +656,8 @@ export default function Dashboard() {
         return b.total_spent - a.total_spent
       })
       .slice(0, 3)
-  }, [dashboard])
+  }, [topBudgetPeriods, topBudgetUtilizationById])
+  const topBudgetsLoading = budgetPeriodsLoading || topBudgetUtilizationsLoading
 
   return (
     <div>
@@ -1190,90 +1346,7 @@ export default function Dashboard() {
 
         {/* Row 3 — Quick insight cards */}
         <div className="grid grid-cols-1 gap-4 grid-cols-2">
-          {/* Top Budgets — the three active budgets closest to their limit. */}
-          <div
-            className="app-card h-[400px] flex flex-col"
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
-                <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
-              </div>
-              <span className="app-label">Top Budgets</span>
-            </div>
-
-            {topBudgets.length === 0 ? (
-              <div
-                className="flex-1 flex items-center justify-center text-sm italic"
-                style={{ color: 'var(--app-text-subtle)' }}
-              >
-                No active budgets
-              </div>
-            ) : (
-              <>
-                <div className="flex-1 min-h-0 space-y-2">
-                  {topBudgets.map((budget) => {
-                    const attention = budgetAttentionState(budget.usagePct)
-                    const barPct = Math.min(Math.max(budget.usagePct, 0), 100)
-                    return (
-                      <div
-                        key={budget.budget_id}
-                        className="rounded-xl p-2.5"
-                        style={{
-                          background: 'var(--app-bg)',
-                          border: '1px solid var(--app-border)',
-                        }}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate">{budget.name}</p>
-                            <p
-                              className="mt-0.5 text-xs"
-                              style={{ color: 'var(--app-text-muted)' }}
-                            >
-                              {formatCurrency(budget.total_spent, budget.currency)}
-                              {' / '}
-                              {formatCurrency(budget.overall_limit, budget.currency)}
-                            </p>
-                          </div>
-                          <span
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
-                            style={{ background: attention.background, color: attention.textColor }}
-                          >
-                            <BudgetAttentionIcon label={attention.label} />
-                            {attention.label}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex items-center gap-3">
-                          <div
-                            className="h-2 flex-1 overflow-hidden rounded-full"
-                            style={{ background: 'var(--app-border)' }}
-                            aria-hidden
-                          >
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${barPct}%`,
-                                background: attention.indicatorColor,
-                              }}
-                            />
-                          </div>
-                          <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                            Ends {formatShortDate(budget.period_end)} · {budget.usagePct}% used
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                <Link
-                  to="/budgets"
-                  className="app-secondary-button mt-3 h-9 text-xs"
-                >
-                  View all budgets
-                </Link>
-              </>
-            )}
-          </div>
+          <TopBudgetsWidget budgets={topBudgets} loading={topBudgetsLoading} />
 
           {/* Recent Activity — the 5 most recent transactions inside the
               dashboard's rolling window. Amount color follows the category
