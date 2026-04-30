@@ -471,6 +471,7 @@ export default function Transactions() {
         amount: Math.abs(c.total),
       }))
     : PLACEHOLDER_CATEGORIES
+  const topCategoryChartHeight = Math.max(24, categorySpend.length * 26)
 
   const dailyFlow = useMemo(() => {
     if (!hasOverviewData) return PLACEHOLDER_DAILY_FLOW
@@ -548,7 +549,7 @@ export default function Transactions() {
             borderRadius: 1,
           }}
         />
-        <div className="grid grid-cols-3 py-6">
+        <div className="grid grid-cols-3 items-start pb-2 pt-5">
           {/* Net Flow */}
           <div className="pr-6">
             <p className="app-label mb-1.5">Net Flow</p>
@@ -579,11 +580,11 @@ export default function Transactions() {
           {/* Unusual Spending */}
           <div className="px-6 flex flex-col" style={{ borderInline: '1px solid var(--app-border)' }}>
             <p className="app-label mb-1">Most Expensive Transactions</p>
-            <div className="mt-2 flex flex-col gap-2">
+            <div className="mt-2 flex flex-col gap-2.5">
               {outliers.map((t) => (
                 <div
                   key={t.id}
-                  className="flex items-center justify-between gap-3 rounded-md px-2.5 py-1.5"
+                  className="flex items-center justify-between gap-3 rounded-md px-2.5 py-2"
                   style={{
                     borderLeft: '2px solid var(--app-accent)',
                     background: 'var(--app-accent-soft)',
@@ -606,45 +607,47 @@ export default function Transactions() {
           {/* Top Categories */}
           <div className="pl-6 flex flex-col">
             <p className="app-label mb-1">Top Categories</p>
-            <div className="flex-1 mt-2 min-h-[140px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  key={`categories-${chartAnimationKey}`}
-                  data={categorySpend}
-                  layout="vertical"
-                  margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={110}
-                    interval={0}
-                    tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    wrapperClassName="app-chart-tooltip-compact"
-                    cursor={{ fill: 'var(--app-surface-soft)' }}
-                    formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
-                  />
-                  <Bar
-                    dataKey="amount"
-                    radius={[0, 3, 3, 0]}
-                    barSize={10}
-                    isAnimationActive={!prefersReducedMotion}
-                    animationDuration={chartAnimationDuration}
+            <div className="mt-2">
+              <div style={{ height: topCategoryChartHeight }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    key={`categories-${chartAnimationKey}`}
+                    data={categorySpend}
+                    layout="vertical"
+                    margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
                   >
-                    {categorySpend.map((_, i) => (
-                      <Cell
-                        key={i}
-                        fill={i === 0 ? 'var(--app-accent)' : 'var(--app-border-strong)'}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={110}
+                      interval={0}
+                      tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      wrapperClassName="app-chart-tooltip-compact"
+                      cursor={{ fill: 'var(--app-surface-soft)' }}
+                      formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
+                    />
+                    <Bar
+                      dataKey="amount"
+                      radius={[0, 5, 5, 0]}
+                      barSize={16}
+                      isAnimationActive={!prefersReducedMotion}
+                      animationDuration={chartAnimationDuration}
+                    >
+                      {categorySpend.map((_, i) => (
+                        <Cell
+                          key={i}
+                          fill={i === 0 ? 'var(--app-accent)' : 'var(--app-border-strong)'}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>
