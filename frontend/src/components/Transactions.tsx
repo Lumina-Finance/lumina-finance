@@ -17,6 +17,7 @@ import {
   Bar,
   Cell,
 } from 'recharts'
+import { useReducedMotion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
@@ -132,6 +133,7 @@ function groupByDate(transactions: Transaction[]): DateGroup[] {
 // ── Component ──
 
 export default function Transactions() {
+  const prefersReducedMotion = useReducedMotion()
   const [search, setSearch] = useState('')
   // `search` tracks what the user is typing in real time; `activeSearch` is
   // what actually gets sent to the API. It catches up 1 second after typing
@@ -363,6 +365,13 @@ export default function Transactions() {
     }
     return result
   }, [overview, hasOverviewData])
+  const chartAnimationKey = [
+    filters.account_id ?? 'all-accounts',
+    filters.category_id ?? 'all-categories',
+    filters.from_date ?? monthStart,
+    filters.to_date ?? today,
+  ].join('|')
+  const chartAnimationDuration = prefersReducedMotion ? 0 : 550
 
   return (
     <div className="space-y-6">
@@ -455,7 +464,12 @@ export default function Transactions() {
             <p className="app-label mb-1">Top Categories</p>
             <div className="flex-1 mt-2 min-h-[140px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categorySpend} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                <BarChart
+                  key={`categories-${chartAnimationKey}`}
+                  data={categorySpend}
+                  layout="vertical"
+                  margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+                >
                   <XAxis type="number" hide />
                   <YAxis
                     type="category"
@@ -471,7 +485,13 @@ export default function Transactions() {
                     cursor={{ fill: 'var(--app-surface-soft)' }}
                     formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
                   />
-                  <Bar dataKey="amount" radius={[0, 3, 3, 0]} barSize={10}>
+                  <Bar
+                    dataKey="amount"
+                    radius={[0, 3, 3, 0]}
+                    barSize={10}
+                    isAnimationActive={!prefersReducedMotion}
+                    animationDuration={chartAnimationDuration}
+                  >
                     {categorySpend.map((_, i) => (
                       <Cell
                         key={i}
@@ -498,7 +518,11 @@ export default function Transactions() {
         <p className="app-label mb-3">Daily Cash Flow</p>
         <div className="h-44">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dailyFlow} margin={{ top: 4, right: 12, bottom: 0, left: 12 }}>
+            <AreaChart
+              key={`daily-flow-${chartAnimationKey}`}
+              data={dailyFlow}
+              margin={{ top: 4, right: 12, bottom: 0, left: 12 }}
+            >
               <defs>
                 <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--app-positive)" stopOpacity={0.25} />
@@ -531,6 +555,8 @@ export default function Transactions() {
                 stroke="var(--app-positive)"
                 fill="url(#inflowGrad)"
                 strokeWidth={1.5}
+                isAnimationActive={!prefersReducedMotion}
+                animationDuration={chartAnimationDuration}
               />
               <Area
                 type="monotone"
@@ -538,6 +564,8 @@ export default function Transactions() {
                 stroke="var(--app-negative)"
                 fill="url(#outflowGrad)"
                 strokeWidth={1.5}
+                isAnimationActive={!prefersReducedMotion}
+                animationDuration={chartAnimationDuration}
               />
             </AreaChart>
           </ResponsiveContainer>
