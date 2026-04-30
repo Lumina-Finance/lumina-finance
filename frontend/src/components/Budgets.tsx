@@ -348,26 +348,19 @@ function BudgetChartTooltip({
   if (!active || !point) return null
 
   return (
-    <div
-      className="rounded-lg px-3 py-2 text-sm shadow-sm"
-      style={{
-        background: 'var(--app-bg)',
-        border: '1px solid var(--app-border)',
-        color: 'var(--app-text)',
-      }}
-    >
+    <div className="app-tooltip-panel app-budget-chart-tooltip">
       <p className="font-medium">{point.label}</p>
       <div className="mt-2 space-y-1">
         <div className="flex min-w-44 justify-between gap-4">
-          <span style={{ color: 'var(--app-text-subtle)' }}>Used</span>
+          <span className="app-tooltip-muted">Used</span>
           <span>{formatCurrency(point.spent, currency)}</span>
         </div>
         <div className="flex min-w-44 justify-between gap-4">
-          <span style={{ color: 'var(--app-text-subtle)' }}>Limit</span>
+          <span className="app-tooltip-muted">Limit</span>
           <span>{formatCurrency(point.limit, currency)}</span>
         </div>
         <div className="flex min-w-44 justify-between gap-4">
-          <span style={{ color: 'var(--app-text-subtle)' }}>Utilization</span>
+          <span className="app-tooltip-muted">Utilization</span>
           <span>{point.utilizationPct}%</span>
         </div>
       </div>
@@ -1289,14 +1282,7 @@ function BudgetCreateModal({
                     className="cursor-help"
                     style={{ color: 'var(--app-negative)' }}
                   />
-                  <div
-                    className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-52 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100"
-                    style={{
-                      background: 'var(--app-bg)',
-                      border: '1px solid var(--app-border-strong)',
-                      color: 'var(--app-text)',
-                    }}
-                  >
+                  <div className="app-tooltip-panel app-hover-tooltip">
                     Budgets currently track only accounts in the same currency.
                   </div>
                 </div>

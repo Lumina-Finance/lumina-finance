@@ -346,6 +346,25 @@
     font-size: 12px !important;
   }
 
+  .app-tooltip-panel {
+    background: var(--app-bg);
+    color: var(--app-text);
+  }
+
+  .app-tooltip-muted {
+    color: var(--app-text-subtle);
+  }
+
+  .app-budget-chart-tooltip {
+    @apply rounded-lg px-3 py-2 text-sm shadow-sm;
+    border: 1px solid var(--app-border);
+  }
+
+  .app-hover-tooltip {
+    @apply pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-52 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100;
+    border: 1px solid var(--app-border-strong);
+  }
+
   .app-page-header {
     @apply mb-8 space-y-3;
   }
