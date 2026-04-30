@@ -698,10 +698,8 @@ function BudgetCard({
 
   return (
     <article
-      className="flex h-[21.5rem] w-full cursor-pointer flex-col rounded-2xl p-5 transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+      className="app-card flex h-[21.5rem] w-full cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
       style={{
-        background: 'var(--app-input-bg)',
-        border: '1px solid var(--app-input-border)',
         borderTop: `5px solid ${attention.indicatorColor}`,
       }}
       role="button"
@@ -1653,8 +1651,7 @@ export default function Budgets() {
           {[0, 1].map((item) => (
             <div
               key={item}
-              className="rounded-2xl p-5"
-              style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+              className="app-card"
               aria-hidden
             >
               <div className="flex items-start justify-between gap-4">
@@ -1674,10 +1671,7 @@ export default function Budgets() {
           ))}
         </div>
       ) : budgetsError ? (
-        <section
-          className="rounded-2xl p-6"
-          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
-        >
+        <section className="app-card">
           <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
             Budgets could not load
           </p>
@@ -1699,10 +1693,7 @@ export default function Budgets() {
           ))}
         </section>
       ) : (
-        <section
-          className="rounded-2xl p-6"
-          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
-        >
+        <section className="app-card">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
