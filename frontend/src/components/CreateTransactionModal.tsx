@@ -61,15 +61,6 @@ function amountToInputString(amountMinor: number, exponent: number): string {
   return (Math.abs(amountMinor) / Math.pow(10, exponent)).toFixed(exponent)
 }
 
-function showNativeDatePicker(input: HTMLInputElement) {
-  const picker = (input as HTMLInputElement & { showPicker?: () => void }).showPicker
-  try {
-    picker?.call(input)
-  } catch {
-    // Browser fallback: focusing the field still gives native date input behavior.
-  }
-}
-
 function FieldLabelRow({
   label,
   htmlFor,
@@ -443,15 +434,6 @@ export default function CreateTransactionModal({
     })
   }
 
-  const handleDatePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
-    const picker = (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker
-    if (!picker) return
-
-    e.preventDefault()
-    e.currentTarget.focus({ preventScroll: true })
-    showNativeDatePicker(e.currentTarget)
-  }
-
   const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field]
 
   return (
@@ -684,7 +666,6 @@ export default function CreateTransactionModal({
                     type="date"
                     className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
                     value={form.date}
-                    onPointerDown={handleDatePointerDown}
                     onChange={(e) => handleField('date', e.target.value)}
                     onBlur={() => handleBlur('date')}
                   />
