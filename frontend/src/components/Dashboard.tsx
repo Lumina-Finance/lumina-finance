@@ -383,6 +383,12 @@ export default function Dashboard() {
     QTD: 'Last Quarter',
     YTD: 'Last Year',
   }
+  const previousPeriodLabel: Record<SpendingRange, string> = {
+    WTD: 'Week',
+    MTD: 'Month',
+    QTD: 'Quarter',
+    YTD: 'Year',
+  }
   const currentLabel: Record<SpendingRange, string> = {
     WTD: 'This Week',
     MTD: 'This Month',
@@ -769,8 +775,9 @@ export default function Dashboard() {
               <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
                 <BarChart3 size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
               </div>
-              <span className="app-label">
-                Spending vs. {previousLabel[spendingRange]}
+              <span className="app-label inline-flex items-baseline whitespace-nowrap">
+                Spending vs. Last&nbsp;
+                <AppSlotMachineText text={previousPeriodLabel[spendingRange]} />
               </span>
               <div
                 className="app-segmented-control app-segmented-control-compact app-time-selector ml-auto"
