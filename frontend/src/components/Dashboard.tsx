@@ -51,6 +51,7 @@ import {
   runwayBand,
 } from '@/utils/runway'
 import { AppSlotMachineText } from './AppSlotMachineText'
+import { AppScrambledNumber } from './AppScrambledNumber'
 
 // Palette for the spending breakdown donut. Ordered to harmonize with the
 // warm-earth theme — first two swatches mirror the dark-mode accent and
@@ -163,7 +164,7 @@ export default function Dashboard() {
       : 'Here is your financial overview.'
 
   const { user } = useAuth()
-  const { data: dashboard } = useDashboard()
+  const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
   const { data: categories } = useCategories()
   const { data: merchants } = useMerchants()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
@@ -176,10 +177,10 @@ export default function Dashboard() {
   // tracks the mouse and the CSS transition on the wrapper smooths motion.
   const [breakdownTipPos, setBreakdownTipPos] = useState<{ x: number; y: number } | null>(null)
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
-  const { data: spendingComparison } = useSpendingComparison(spendingRange)
+  const { data: spendingComparison, isLoading: spendingComparisonLoading } = useSpendingComparison(spendingRange)
   const [breakdownMode, setBreakdownMode] = useState<'spending' | 'income'>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
-  const { data: spendingBreakdown } = useSpendingBreakdown(breakdownRange)
+  const { data: spendingBreakdown, isLoading: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
 
   const displayCurrency = user!.base_currency
 
@@ -218,6 +219,7 @@ export default function Dashboard() {
   const availablePct = creditLimit > 0 ? 100 - utilization : 0
   const displayPct = creditMode === 'used' ? utilization : availablePct
   const displayAmount = creditMode === 'used' ? creditUsed : availableAmount
+  const amountLoadingText = formatCurrency(888888, displayCurrency)
 
   // Donut geometry — bg ring plus a stroke-dashed arc that fills to displayPct.
   // Color tier always derives from utilization so the risk signal stays consistent:
@@ -289,6 +291,10 @@ export default function Dashboard() {
     previousAtSameOffset != null && previousAtSameOffset > 0
       ? ((spentToDate - previousAtSameOffset) / previousAtSameOffset) * 100
       : null
+  const spendingDeltaText =
+    spendingDeltaPct == null
+      ? '+00.0%'
+      : `${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`
   // Recent activity widget — top 5 transactions from the dashboard payload,
   // with merchant/category names resolved via the list hooks so rows can
   // render without a second round-trip.
@@ -489,7 +495,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            {hasCredit ? (
+            {dashboardLoading || hasCredit ? (
               <div className="flex flex-1 min-h-0 items-center justify-center gap-4">
                 <div className="relative shrink-0 aspect-square h-full">
                   <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90">
@@ -512,16 +518,29 @@ export default function Dashboard() {
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <span className="font-financial font-medium tracking-tight text-2xl">
-                      {displayPct}%
+                      <AppScrambledNumber
+                        text={`${displayPct}%`}
+                        loading={dashboardLoading}
+                        loadingText="00%"
+                      />
                     </span>
                   </div>
                 </div>
                 <div className="min-w-0">
                   <p className="font-financial font-normal tracking-tight leading-none text-3xl">
-                    {formatCurrency(displayAmount, displayCurrency)}
+                    <AppScrambledNumber
+                      text={formatCurrency(displayAmount, displayCurrency)}
+                      loading={dashboardLoading}
+                      loadingText={amountLoadingText}
+                    />
                   </p>
                   <p className="font-financial mt-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    of {formatCurrency(creditLimit, displayCurrency)}
+                    of{' '}
+                    <AppScrambledNumber
+                      text={formatCurrency(creditLimit, displayCurrency)}
+                      loading={dashboardLoading}
+                      loadingText={amountLoadingText}
+                    />
                   </p>
                 </div>
               </div>
@@ -783,21 +802,35 @@ export default function Dashboard() {
             </div>
             <div className="flex items-baseline gap-2">
               <p className="font-financial font-normal tracking-tight leading-none text-3xl">
-                {formatCurrency(spentToDate, displayCurrency)}
+                <AppScrambledNumber
+                  text={formatCurrency(spentToDate, displayCurrency)}
+                  loading={spendingComparisonLoading}
+                  loadingText={amountLoadingText}
+                />
               </p>
-              {spendingDeltaPct != null && (
+              {(spendingComparisonLoading || spendingDeltaPct != null) && (
                 <div
                   className="flex items-center text-sm font-medium"
                   style={{
-                    color: spendingDeltaPct <= 0 ? 'var(--app-positive)' : 'var(--app-negative)',
+                    color: spendingComparisonLoading || spendingDeltaPct == null
+                      ? 'var(--app-text-muted)'
+                      : spendingDeltaPct <= 0
+                        ? 'var(--app-positive)'
+                        : 'var(--app-negative)',
                   }}
                 >
-                  {spendingDeltaPct <= 0 ? (
-                    <ArrowDownRight size={14} aria-hidden />
-                  ) : (
-                    <ArrowUpRight size={14} aria-hidden />
+                  {!spendingComparisonLoading && spendingDeltaPct != null && (
+                    spendingDeltaPct <= 0 ? (
+                      <ArrowDownRight size={14} aria-hidden />
+                    ) : (
+                      <ArrowUpRight size={14} aria-hidden />
+                    )
                   )}
-                  {`${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`}
+                  <AppScrambledNumber
+                    text={spendingDeltaText}
+                    loading={spendingComparisonLoading}
+                    loadingText="+00.0%"
+                  />
                 </div>
               )}
             </div>
@@ -951,7 +984,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {breakdownEntries.length === 0 ? (
+            {breakdownEntries.length === 0 && !spendingBreakdownLoading ? (
               <div
                 className="flex-1 flex items-center justify-center text-sm italic"
                 style={{ color: 'var(--app-text-subtle)' }}
@@ -987,55 +1020,63 @@ export default function Dashboard() {
                       Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
                     </span>
                     <span className="font-financial font-normal tracking-tight text-3xl mt-1">
-                      {formatCurrency(breakdownTotal, displayCurrency)}
+                      <AppScrambledNumber
+                        text={formatCurrency(breakdownTotal, displayCurrency)}
+                        loading={spendingBreakdownLoading}
+                        loadingText={amountLoadingText}
+                      />
                     </span>
                   </div>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={breakdownEntries}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius="68%"
-                        outerRadius="92%"
-                        paddingAngle={3}
-                        dataKey="amount"
-                        nameKey="name"
-                        stroke="none"
-                        isAnimationActive={false}
-                      >
-                        {breakdownEntries.map((_, i) => (
-                          <Cell key={i} fill={BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        wrapperClassName="app-chart-tooltip-default"
-                        cursor={false}
-                        position={breakdownTipPos ?? undefined}
-                        formatter={(value, name) => [
-                          formatCurrency(Number(value), displayCurrency),
-                          name,
-                        ]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {breakdownEntries.length > 0 && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={breakdownEntries}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius="68%"
+                          outerRadius="92%"
+                          paddingAngle={3}
+                          dataKey="amount"
+                          nameKey="name"
+                          stroke="none"
+                          isAnimationActive={false}
+                        >
+                          {breakdownEntries.map((_, i) => (
+                            <Cell key={i} fill={BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          wrapperClassName="app-chart-tooltip-default"
+                          cursor={false}
+                          position={breakdownTipPos ?? undefined}
+                          formatter={(value, name) => [
+                            formatCurrency(Number(value), displayCurrency),
+                            name,
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
-                <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
-                  {breakdownEntries.slice(0, 6).map((entry, i) => (
-                    <div key={entry.category_id} className="flex items-center gap-1.5">
-                      <span
-                        className="inline-block w-2.5 h-2.5 rounded-full"
-                        style={{ background: BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length] }}
-                      />
-                      <span
-                        className="text-xs font-medium whitespace-nowrap"
-                        style={{ color: 'var(--app-text-muted)' }}
-                      >
-                        {entry.name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                {breakdownEntries.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
+                    {breakdownEntries.slice(0, 6).map((entry, i) => (
+                      <div key={entry.category_id} className="flex items-center gap-1.5">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full"
+                          style={{ background: BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length] }}
+                        />
+                        <span
+                          className="text-xs font-medium whitespace-nowrap"
+                          style={{ color: 'var(--app-text-muted)' }}
+                        >
+                          {entry.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>
