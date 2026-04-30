@@ -768,7 +768,7 @@ export default function Dashboard() {
         </div>
 
         {/* Row 2 — Charts */}
-        <div className="grid grid-cols-1 gap-6 grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 grid-cols-2">
           {/* Spending comparison — cumulative spend in the selected range vs. the
               matching prior period. Range is user-selectable (WTD/MTD/QTD/YTD). */}
           <div
