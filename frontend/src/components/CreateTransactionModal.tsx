@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Check, Trash2, X } from 'lucide-react'
+import { Check, Trash2, TriangleAlert, X } from 'lucide-react'
 import Dropdown from '@/components/Dropdown'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
@@ -227,8 +227,14 @@ export default function CreateTransactionModal({
     [merchants],
   )
   const currencyOptions = useMemo(
-    () => currencies.map((c) => ({ value: c.id, label: c.id })),
-    [currencies],
+    () => {
+      const options = currencies.map((c) => ({ value: c.id, label: c.id }))
+      if (form.currency && !options.some((option) => option.value === form.currency)) {
+        return [{ value: form.currency, label: form.currency }, ...options]
+      }
+      return options
+    },
+    [currencies, form.currency],
   )
 
   const selectedCurrencySymbol = currencies.find((c) => c.id === form.currency)?.symbol ?? ''
@@ -287,10 +293,10 @@ export default function CreateTransactionModal({
     setForm((f) => ({
       ...f,
       account_id: accountId,
-      // Default the currency to the account's currency unless the user already changed it
-      currency: f.currency || account?.currency || '',
+      currency: account?.currency || '',
     }))
     clearError('account_id')
+    clearError('currency')
   }
 
   const handleField = <K extends keyof typeof INITIAL_FORM>(field: K, value: typeof INITIAL_FORM[K]) => {
@@ -576,8 +582,34 @@ export default function CreateTransactionModal({
                   </AnimatePresence>
                 </div>
 
-                {/* Amount + Currency */}
-                <div className="grid grid-cols-[1fr_180px] gap-3">
+                {/* Currency + Amount */}
+                <div className="grid grid-cols-[180px_1fr] gap-3">
+                  <div>
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <label className="app-label block">Currency</label>
+                      <div className="group relative inline-flex">
+                        <TriangleAlert
+                          size={17}
+                          strokeWidth={2.75}
+                          aria-label="Transaction currency limitation"
+                          className="cursor-help"
+                          style={{ color: 'var(--app-negative)' }}
+                        />
+                        <div className="app-tooltip-panel app-hover-tooltip">
+                          Locked to the selected account currency. FX currency transactions will be supported soon.
+                        </div>
+                      </div>
+                    </div>
+                    <Dropdown
+                      options={currencyOptions}
+                      value={form.currency}
+                      onChange={() => undefined}
+                      placeholder={currencies.length === 0 ? 'Loading…' : 'Select…'}
+                      searchable
+                      searchPlaceholder="Search currencies..."
+                      disabled
+                    />
+                  </div>
                   <div>
                     <label htmlFor="txn-amount" className="app-label block mb-1.5">Amount</label>
                     <div className="relative">
@@ -627,18 +659,6 @@ export default function CreateTransactionModal({
                         </motion.p>
                       )}
                     </AnimatePresence>
-                  </div>
-                  <div>
-                    <label className="app-label block mb-1.5">Currency</label>
-                    <Dropdown
-                      options={currencyOptions}
-                      value={form.currency}
-                      onChange={(v) => handleField('currency', v)}
-                      placeholder={currencies.length === 0 ? 'Loading…' : 'Select…'}
-                      searchable
-                      searchPlaceholder="Search currencies..."
-                      disabled={editing}
-                    />
                   </div>
                 </div>
 
