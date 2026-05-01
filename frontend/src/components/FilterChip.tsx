@@ -11,9 +11,10 @@ interface Props {
   onClose?: () => void                              // fires whenever the panel closes (click-off, escape, or close())
   children: (close: () => void) => ReactNode        // popover content
   panelClassName?: string                           // override popover sizing/layout
+  panelAlign?: 'left' | 'right'
 }
 
-export default function FilterChip({ label, selectedLabel, onClear, onClose, children, panelClassName }: Props) {
+export default function FilterChip({ label, selectedLabel, onClear, onClose, children, panelClassName, panelAlign = 'left' }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const active = !!selectedLabel
@@ -76,7 +77,7 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
       <AnimatePresence>
         {open && (
           <motion.div
-            className={`absolute left-0 top-full mt-2 z-30 rounded-xl ${panelClassName ?? 'w-72'}`}
+            className={`absolute ${panelAlign === 'right' ? 'right-0' : 'left-0'} top-full mt-2 z-30 rounded-xl ${panelClassName ?? 'w-72'}`}
             style={{
               background: 'var(--app-bg)',
               border: '1px solid var(--app-border-strong)',

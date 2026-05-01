@@ -38,6 +38,7 @@ import {
 import { useTaxAdvantagedPlan, useTaxAdvantagedPlans, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
+import DateRangeFilterPanel from '@/components/DateRangeFilterPanel'
 import Dropdown from '@/components/Dropdown'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
@@ -1476,55 +1477,23 @@ function TransactionListSection({
           selectedLabel={formatDateRangeLabel(filters.from_date, filters.to_date)}
           onClear={() => setFilter({ from_date: undefined, to_date: undefined })}
           onClose={commitDateRange}
-          panelClassName="w-72 p-4 space-y-3"
+          panelAlign="right"
+          panelClassName="w-[25rem] overflow-hidden"
         >
           {(close) => (
-            <>
-              <div>
-                <label className="app-label block mb-1.5">From</label>
-                <input
-                  type="date"
-                  className="app-input w-full"
-                  value={pendingFrom}
-                  onChange={(e) => setPendingFrom(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="app-label block mb-1.5">To</label>
-                <input
-                  type="date"
-                  className="app-input w-full"
-                  value={pendingTo}
-                  onChange={(e) => setPendingTo(e.target.value)}
-                />
-              </div>
-              {dateRangeInvalid && (
-                <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                  From date must be on or before To date.
-                </p>
-              )}
-              <div className="!mt-5 flex gap-2">
-                <button
-                  type="button"
-                  className="app-secondary-button flex-1 justify-center"
-                  disabled={!pendingFrom && !pendingTo}
-                  onClick={() => {
-                    setPendingFrom('')
-                    setPendingTo('')
-                  }}
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  className="app-primary-button flex-1 justify-center"
-                  disabled={dateRangeInvalid || !dateRangeChanged}
-                  onClick={close}
-                >
-                  Apply
-                </button>
-              </div>
-            </>
+            <DateRangeFilterPanel
+              from={pendingFrom}
+              to={pendingTo}
+              changed={dateRangeChanged}
+              invalid={dateRangeInvalid}
+              onFromChange={setPendingFrom}
+              onToChange={setPendingTo}
+              onReset={() => {
+                setPendingFrom('')
+                setPendingTo('')
+              }}
+              onApply={close}
+            />
           )}
         </FilterChip>
 
