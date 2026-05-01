@@ -290,9 +290,6 @@ export default function MerchantSettingsSection() {
     ])
 
     if (deleteResult[0].status === 'fulfilled') {
-      queryClient.setQueryData<Merchant[]>(merchantKeys.list(), (currentMerchants) =>
-        currentMerchants?.filter((currentMerchant) => currentMerchant.id !== merchant.id) ?? currentMerchants,
-      )
       queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false })
       setConfirmingDeleteMerchantId(null)
     } else {

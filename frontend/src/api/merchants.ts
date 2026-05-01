@@ -55,17 +55,6 @@ function invalidateMerchantMergeQueries(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
 }
 
-export function useMerchants() {
-  const { accessToken } = useAuth();
-  return useQuery({
-    queryKey: merchantKeys.list(),
-    queryFn: () => authenticatedFetch<Merchant[]>('/merchants'),
-    enabled: !!accessToken,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  });
-}
-
 export function useMerchant(merchantId: string | null | undefined, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
@@ -107,11 +96,7 @@ export function useCreateMerchant() {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    // Splice the new merchant into the cache so the dropdown sees it immediately
     onSuccess: (created) => {
-      qc.setQueryData<Merchant[]>(merchantKeys.list(), (prev = []) =>
-        [...prev, created].sort((a, b) => a.name.localeCompare(b.name)),
-      );
       qc.setQueryData<Merchant>(merchantKeys.detail(created.id), created);
       qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
     },
@@ -127,11 +112,6 @@ export function useUpdateMerchant() {
         body: JSON.stringify(payload),
       }),
     onSuccess: (updated) => {
-      qc.setQueryData<Merchant[]>(merchantKeys.list(), (prev) =>
-        prev
-          ?.map((merchant) => (merchant.id === updated.id ? updated : merchant))
-          .sort((a, b) => a.name.localeCompare(b.name)) ?? prev,
-      );
       qc.setQueryData<Merchant>(merchantKeys.detail(updated.id), updated);
       qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
     },
@@ -156,9 +136,6 @@ export function useMergeMerchant() {
         body: JSON.stringify(payload),
       }),
     onSuccess: (_, { merchantId }) => {
-      qc.setQueryData<Merchant[]>(merchantKeys.list(), (merchants) =>
-        merchants?.filter((merchant) => merchant.id !== merchantId) ?? merchants,
-      );
       qc.removeQueries({ queryKey: merchantKeys.detail(merchantId), exact: true });
       qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
       invalidateMerchantMergeQueries(qc);

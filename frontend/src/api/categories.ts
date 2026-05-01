@@ -46,7 +46,7 @@ function invalidateCategoryMergeQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
   queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: merchantKeys.list(), exact: true });
+  queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
 }
 
 export function useCategories() {
