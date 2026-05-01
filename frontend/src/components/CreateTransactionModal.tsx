@@ -69,6 +69,23 @@ function amountToInputString(amountMinor: number, exponent: number): string {
   return (Math.abs(amountMinor) / Math.pow(10, exponent)).toFixed(exponent)
 }
 
+function sanitizeMoneyInput(value: string) {
+  let sanitized = value.replace(/[^\d.]/g, '')
+  const parts = sanitized.split('.')
+  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
+  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
+  return sanitized
+}
+
+function formatMoneyInputLive(value: string) {
+  if (!value.trim()) return value
+  const [integerPart, decimalPart] = value.split('.', 2)
+  const formattedInteger = integerPart
+    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
+    : '0'
+  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
+}
+
 function FieldLabelRow({
   label,
   htmlFor,
@@ -738,16 +755,8 @@ export default function CreateTransactionModal({
                                 inputMode="decimal"
                                 className={`app-input w-full ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('amount') ? 'app-input-error' : ''}`}
                                 placeholder="0.00"
-                                value={form.amount}
-                                onChange={(e) => {
-                                  // Allow only digits and a single decimal point
-                                  let sanitized = e.target.value.replace(/[^\d.]/g, '')
-                                  const parts = sanitized.split('.')
-                                  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
-                                  // Prepend leading zero when the user starts with "."
-                                  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
-                                  handleField('amount', sanitized)
-                                }}
+                                value={formatMoneyInputLive(form.amount)}
+                                onChange={(e) => handleField('amount', sanitizeMoneyInput(e.target.value))}
                                 onBlur={() => handleBlur('amount')}
                               />
                             </div>
