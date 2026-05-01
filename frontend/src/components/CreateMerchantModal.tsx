@@ -222,26 +222,26 @@ export default function CreateMerchantModal({
                       </div>
 
                       <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
+                        <div className="flex min-h-4 items-start justify-between gap-3">
+                          <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Merchant Name</p>
+                          <AnimatePresence initial={false}>
+                            {showError('name') && (
+                              <motion.p
+                                key="name-error"
+                                className="text-right text-xs font-medium leading-5"
+                                style={{ color: 'var(--app-negative)' }}
+                                initial={{ opacity: 0, x: 4 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 4 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                {fieldErrors.name}
+                              </motion.p>
+                            )}
+                          </AnimatePresence>
+                        </div>
                         <div>
-                          <div className="mb-1.5 flex items-start justify-between gap-3">
-                            <label htmlFor="merchant-name" className="app-label block shrink-0 text-[0.9375rem] leading-5">Merchant name</label>
-                            <AnimatePresence initial={false}>
-                              {showError('name') && (
-                                <motion.p
-                                  key="name-error"
-                                  className="text-right text-xs font-medium leading-5"
-                                  style={{ color: 'var(--app-negative)' }}
-                                  initial={{ opacity: 0, x: 4 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  exit={{ opacity: 0, x: 4 }}
-                                  transition={{ duration: 0.15 }}
-                                >
-                                  {fieldErrors.name}
-                                </motion.p>
-                              )}
-                            </AnimatePresence>
-                          </div>
+                          <label htmlFor="merchant-name" className="sr-only">Merchant name</label>
                           <input
                             id="merchant-name"
                             className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
@@ -269,10 +269,16 @@ export default function CreateMerchantModal({
                       </div>
 
                       <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Default</p>
                         <div>
-                          <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Default category</span>
+                          <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Default Category</p>
+                          <p className="mt-2 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+                            Used to prefill the category when this merchant is selected when creating a new transaction.
+                          </p>
+                        </div>
+                        <div>
+                          <label htmlFor="merchant-default-category" className="sr-only">Default category</label>
                           <Dropdown
+                            id="merchant-default-category"
                             options={categoryOptions}
                             value={form.default_category_id}
                             onChange={(value) => setField('default_category_id', value)}
