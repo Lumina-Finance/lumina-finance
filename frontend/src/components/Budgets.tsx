@@ -2245,15 +2245,17 @@ export default function Budgets() {
           ))}
         </section>
       ) : (
-        <section className="app-card">
-          <p className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
-            No budgets to display
-          </p>
-          <p className="mt-1 max-w-xl text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
-            Create a budget to start tracking limits, spending, and category progress.
-          </p>
+        <section className="flex min-h-[calc(100vh-16rem)] items-center justify-center text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          <div>
+            <p>
+              No budgets to display
+            </p>
+            <p className="mt-1">
+              Create a budget to start tracking limits, spending, and category progress.
+            </p>
+          </div>
           {(categoriesLoading || currenciesLoading) && (
-            <p className="mt-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+            <p className="sr-only">
               Loading form options...
             </p>
           )}
