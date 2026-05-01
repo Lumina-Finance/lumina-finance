@@ -808,7 +808,7 @@ export default function Transactions() {
               (categories ?? [])
                 .filter((c) => c.kind === kind)
                 .sort((a, b) => a.name.localeCompare(b.name))
-                .map((c) => ({ value: c.id, label: c.name, group: KIND_LABELS[kind] })),
+                .map((c) => ({ value: c.id, label: c.name, group: KIND_LABELS[kind], icon: c.icon ?? DEFAULT_CATEGORY_ICON })),
             )
             return (
               <FilterOptionList

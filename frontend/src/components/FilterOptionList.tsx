@@ -5,6 +5,7 @@ export interface OptionItem {
   value: string
   label: string
   group?: string
+  icon?: string | null
 }
 
 interface Props {
@@ -53,25 +54,28 @@ export default function FilterOptionList({
 
   return (
     <div className="flex flex-col">
-      <div className="relative px-2 pt-2">
-        <Search
-          size={14}
-          className="absolute left-4 top-1/2 -translate-y-1/2"
-          style={{ color: 'var(--app-text-subtle)' }}
-          aria-hidden
-        />
-        <input
-          ref={inputRef}
-          type="text"
-          className="app-input w-full pl-8"
-          style={{ fontSize: '0.8125rem' }}
-          placeholder={searchPlaceholder}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="px-2 pb-1 pt-2">
+        <div className="app-input grid grid-cols-[theme(spacing.9)_minmax(0,1fr)] items-center overflow-hidden px-0 py-0">
+          <span className="pointer-events-none flex h-10 w-9 items-center justify-center">
+            <Search
+              size={14}
+              style={{ color: 'var(--app-text-subtle)' }}
+              aria-hidden
+            />
+          </span>
+          <input
+            ref={inputRef}
+            type="text"
+            className="h-10 min-w-0 bg-transparent pr-3 text-[0.8125rem] leading-10 outline-none"
+            style={{ fontSize: '0.8125rem' }}
+            placeholder={searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
-      <ul className="max-h-64 overflow-auto py-1">
+      <ul className="max-h-64 overflow-auto pb-1">
         {filtered.length === 0 ? (
           <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {emptyLabel}
@@ -120,13 +124,18 @@ function Row({
       <button
         type="button"
         onClick={() => onSelect(option.value)}
-        className="w-full text-left px-4 py-1.5 text-sm transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
+        className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
         style={{
           color: selected ? 'var(--app-accent)' : 'var(--app-text)',
           fontWeight: selected ? 500 : 400,
         }}
       >
-        {option.label}
+        {option.icon && (
+          <span className="shrink-0 text-base leading-none" aria-hidden>
+            {option.icon}
+          </span>
+        )}
+        <span className="min-w-0 flex-1 truncate">{option.label}</span>
       </button>
     </li>
   )
