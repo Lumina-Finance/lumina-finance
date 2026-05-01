@@ -566,6 +566,7 @@ function BudgetEditModal({
   }
 
   const showError = (field: keyof BudgetEditFieldErrors) => touched[field] && fieldErrors[field]
+  const categoryIdsError = showError('categoryIds')
 
   const toggleCategory = (categoryId: string) => {
     setForm((current) => ({
@@ -859,18 +860,19 @@ function BudgetEditModal({
                         <div className="flex items-start">
                           <div className="min-w-0 flex-1">
                             <AnimatePresence initial={false}>
-                              {showError('categoryIds') && (
-                                <motion.p
+                              {categoryIdsError && (
+                                <motion.div
                                   key="budget-edit-category-error"
-                                  className="mb-1.5 text-xs font-medium leading-5"
-                                  style={{ color: 'var(--app-negative)' }}
-                                  initial={{ opacity: 0, x: 4 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  exit={{ opacity: 0, x: 4 }}
-                                  transition={{ duration: 0.15 }}
+                                  className="overflow-hidden"
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.18, ease: EASE }}
                                 >
-                                  {showError('categoryIds')}
-                                </motion.p>
+                                  <p className="mb-1.5 text-xs font-medium leading-5" style={{ color: 'var(--app-negative)' }}>
+                                    {categoryIdsError}
+                                  </p>
+                                </motion.div>
                               )}
                             </AnimatePresence>
                             <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
@@ -895,7 +897,11 @@ function BudgetEditModal({
                         </div>
 
                         <div className="relative mb-1 mt-3 min-h-0 flex-1">
-                          <motion.div className="app-selection-list absolute inset-0 m-0 max-h-none" layout>
+                          <motion.div
+                            className="app-selection-list absolute inset-0 m-0 max-h-none"
+                            style={categoryIdsError ? { borderColor: 'var(--app-negative-border)', background: 'var(--app-negative-soft)' } : undefined}
+                            layout
+                          >
                             {filteredCategories.map((category) => {
                               const selected = form.categoryIds.includes(category.id)
                               return (
@@ -1653,6 +1659,7 @@ function BudgetCreateModal({
   }
 
   const showError = (field: keyof BudgetCreateFieldErrors) => touched[field] && fieldErrors[field]
+  const categoryIdsError = showError('categoryIds')
 
   return createPortal(
     <AnimatePresence>
@@ -1933,18 +1940,19 @@ function BudgetCreateModal({
                           <div className="flex items-start">
                             <div className="min-w-0 flex-1">
                               <AnimatePresence initial={false}>
-                                {showError('categoryIds') && (
-                                  <motion.p
+                                {categoryIdsError && (
+                                  <motion.div
                                     key="categoryIds-error"
-                                    className="mb-1.5 text-xs font-medium leading-5"
-                                    style={{ color: 'var(--app-negative)' }}
-                                    initial={{ opacity: 0, x: 4 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 4 }}
-                                    transition={{ duration: 0.15 }}
+                                    className="overflow-hidden"
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.18, ease: EASE }}
                                   >
-                                    {showError('categoryIds')}
-                                  </motion.p>
+                                    <p className="mb-1.5 text-xs font-medium leading-5" style={{ color: 'var(--app-negative)' }}>
+                                      {categoryIdsError}
+                                    </p>
+                                  </motion.div>
                                 )}
                               </AnimatePresence>
                               <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
@@ -1967,7 +1975,10 @@ function BudgetCreateModal({
                             />
                           </div>
                           <div className="relative mb-1 mt-3 min-h-0 flex-1">
-                            <div className="app-selection-list absolute inset-0 m-0 max-h-none">
+                            <div
+                              className="app-selection-list absolute inset-0 m-0 max-h-none"
+                              style={categoryIdsError ? { borderColor: 'var(--app-negative-border)', background: 'var(--app-negative-soft)' } : undefined}
+                            >
                               {filteredExpenseCategories.map((category) => {
                                 const selected = form.categoryIds.includes(category.id)
                                 return (
