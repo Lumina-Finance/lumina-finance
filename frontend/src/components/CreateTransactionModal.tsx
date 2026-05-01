@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { Check, Info, ReceiptText, Trash2, X } from 'lucide-react'
+import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import Dropdown from '@/components/Dropdown'
 import { useAccounts } from '@/api/accounts'
@@ -228,6 +229,9 @@ export default function CreateTransactionModal({
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitError, setSubmitError] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [categoryModalName, setCategoryModalName] = useState('')
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [categoryModalKey, setCategoryModalKey] = useState(0)
   const [merchantModalName, setMerchantModalName] = useState('')
   const [showMerchantModal, setShowMerchantModal] = useState(false)
   const [merchantModalKey, setMerchantModalKey] = useState(0)
@@ -339,6 +343,22 @@ export default function CreateTransactionModal({
       kind: (category?.kind as Kind) ?? f.kind,
     }))
     clearError('category_id')
+  }
+
+  const handleCreateCategory = (name: string) => {
+    setCategoryModalName(name)
+    setCategoryModalKey((key) => key + 1)
+    setShowCategoryModal(true)
+  }
+
+  const handleCategoryCreated = (category: Category) => {
+    setForm((f) => ({
+      ...f,
+      category_id: category.id,
+      kind: category.kind as Kind,
+    }))
+    clearError('category_id')
+    setShowCategoryModal(false)
   }
 
   const handleMerchantChange = (merchantId: string) => {
@@ -707,6 +727,8 @@ export default function CreateTransactionModal({
                             placeholder="Select category..."
                             searchable
                             searchPlaceholder="Search categories..."
+                            onCreateNew={handleCreateCategory}
+                            createNewLabel={(query) => query ? `Create category "${query}"` : 'Create category'}
                           />
                         </div>
                       </div>
@@ -918,6 +940,15 @@ export default function CreateTransactionModal({
         categoryOptions={merchantDefaultCategoryOptions}
         onClose={() => setShowMerchantModal(false)}
         onCreated={handleMerchantCreated}
+      />
+      <CreateCategoryModal
+        key={categoryModalKey}
+        open={open && showCategoryModal}
+        initialName={categoryModalName}
+        initialKind={form.kind}
+        variant="secondary"
+        onClose={() => setShowCategoryModal(false)}
+        onCreated={handleCategoryCreated}
       />
     </>
   )
