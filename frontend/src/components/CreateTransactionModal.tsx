@@ -23,6 +23,8 @@ import { ApiError } from '@/api/auth'
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
 const DEFAULT_CATEGORY_ICON = '🏷️'
+const MIN_ADD_TRANSACTION_LOADING_MS = 800
+const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
 
 type Kind = 'expense' | 'income' | 'transfer'
 
@@ -86,6 +88,12 @@ function formatMoneyInputLive(value: string) {
     ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
     : '0'
   return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
 }
 
 function FieldLabelRow({
@@ -235,6 +243,8 @@ export default function CreateTransactionModal({
   const [merchantModalName, setMerchantModalName] = useState('')
   const [showMerchantModal, setShowMerchantModal] = useState(false)
   const [merchantModalKey, setMerchantModalKey] = useState(0)
+  const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
+  const [createDelayPending, setCreateDelayPending] = useState(false)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
@@ -267,8 +277,9 @@ export default function CreateTransactionModal({
     }
   }, [confirmingDelete])
 
-  const submitMutation = editing ? updateMutation : createMutation
-  const isPending = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
+  const createLoading = createMutation.isPending || createDelayPending
+  const submitLoading = editing ? updateMutation.isPending : createLoading
+  const isPending = createLoading || updateMutation.isPending || deleteMutation.isPending
 
   const categoryById = useMemo(() => {
     const map = new Map<string, Category>()
@@ -425,8 +436,9 @@ export default function CreateTransactionModal({
     setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isPending) return
     const errors = validate(form)
     setFieldErrors(errors)
     setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true })
@@ -479,12 +491,38 @@ export default function CreateTransactionModal({
       notes,
     }
 
-    createMutation.mutate(payload, {
-      onSuccess: () => onClose(),
-      onError: (err) => {
-        setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
-      },
-    })
+    setSubmitError('')
+    setCreateDelayPending(true)
+    const minimumLoading = delay(
+      keepOpenAfterCreate ? MIN_BATCH_ADD_TRANSACTION_LOADING_MS : MIN_ADD_TRANSACTION_LOADING_MS,
+    )
+
+    try {
+      await createMutation.mutateAsync(payload)
+      await minimumLoading
+
+      if (!keepOpenAfterCreate) {
+        onClose()
+        return
+      }
+
+      setForm({
+        ...INITIAL_FORM,
+        kind: form.kind,
+        transfer_direction: form.transfer_direction,
+        account_id: form.account_id,
+        currency: form.currency,
+        date: form.date,
+      })
+      setFieldErrors({})
+      setTouched({})
+      setSubmitError('')
+    } catch (err) {
+      await minimumLoading
+      setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setCreateDelayPending(false)
+    }
   }
 
   const handleDelete = () => {
@@ -845,7 +883,7 @@ export default function CreateTransactionModal({
                   className="flex shrink-0 flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:px-8"
                   style={{ borderTop: '1px solid var(--app-border)' }}
                 >
-                  {editing && (
+                  {editing ? (
                     <button
                       ref={deleteButtonRef}
                       type="button"
@@ -905,6 +943,29 @@ export default function CreateTransactionModal({
                         </span>
                       )}
                     </button>
+                  ) : (
+                    <label
+                      htmlFor="txn-keep-open"
+                      className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1 sm:max-w-xs"
+                    >
+                      <input
+                        id="txn-keep-open"
+                        type="checkbox"
+                        checked={keepOpenAfterCreate}
+                        onChange={(event) => setKeepOpenAfterCreate(event.target.checked)}
+                        disabled={isPending}
+                        className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                        style={{ accentColor: 'var(--app-accent)' }}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                          Keep modal open after adding
+                        </span>
+                        <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                          Keep type, date, and account
+                        </span>
+                      </span>
+                    </label>
                   )}
                   <div className="flex flex-col-reverse gap-3 sm:ml-auto sm:flex-row sm:items-center">
                     <button
@@ -918,9 +979,9 @@ export default function CreateTransactionModal({
                     <button
                       type="submit"
                       disabled={isPending}
-                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitMutation.isPending ? 'app-primary-button-loading' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
+                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
                     >
-                      {submitMutation.isPending ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
+                      {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
                     </button>
                   </div>
                 </div>
