@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X } from 'lucide-react';
+import { Landmark, X } from 'lucide-react';
 import Dropdown from '@/components/Dropdown';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
@@ -58,6 +58,36 @@ interface FieldErrors {
   credit_limit?: string;
 }
 
+interface FieldLabelRowProps {
+  label: string;
+  htmlFor?: string;
+  error?: string;
+}
+
+function FieldLabelRow({ label, htmlFor, error }: FieldLabelRowProps) {
+  return (
+    <div className="mb-1.5 flex items-baseline justify-between gap-3">
+      <label htmlFor={htmlFor} className="app-label block shrink-0">
+        {label}
+      </label>
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            className="text-right text-xs font-medium"
+            style={{ color: 'var(--app-negative)' }}
+            initial={{ opacity: 0, x: 4 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 4 }}
+            transition={{ duration: 0.15 }}
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function validate(form: typeof INITIAL_FORM): FieldErrors {
   const errors: FieldErrors = {};
   if (!form.account_type) errors.account_type = 'Select an account type';
@@ -102,6 +132,8 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   // LOCs, HELOCs). Amortizing debt has a fixed principal schedule, not a limit.
   const isRevolving = accountKind === 'revolving';
   const canLinkTaxPlan = accountKind === 'asset' && !!form.currency;
+  const conditionalAccountField = canLinkTaxPlan ? 'tax-plan' : isRevolving ? 'credit-limit' : null;
+  const selectedAccountType = ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type);
 
   // Dropdown options
   const currencyOptions = useMemo(
@@ -252,7 +284,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-account-title"
-              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl p-8"
+              className="flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
               style={{
                 background: 'var(--app-bg)',
                 border: '1px solid var(--app-border-strong)',
@@ -260,206 +292,221 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-8">
-                <h2
-                  id="create-account-title"
-                  className="font-serif text-3xl font-light tracking-tight"
-                >
-                  Add Account
-                </h2>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="app-icon-button shrink-0"
-                  aria-label="Close"
-                >
-                  <X size={20} aria-hidden />
-                </button>
+              <div
+                className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"
+                style={{
+                  background: 'var(--app-button-primary-bg)',
+                  color: 'var(--app-button-primary-text)',
+                }}
+                aria-hidden
+              >
+                <Landmark size={20} strokeWidth={2} />
+                <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
+                  Account
+                </span>
               </div>
 
               {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-                {/* Account Type */}
-                <div>
-                  <label className="app-label block mb-1.5">Account Type</label>
-                  <Dropdown
-                    options={ACCOUNT_TYPE_OPTIONS}
-                    value={form.account_type}
-                    onChange={(v) => handleChange('account_type', v)}
-                    placeholder="Select type..."
-                    searchable
-                    searchPlaceholder="Search types..."
-                  />
-                  <AnimatePresence>
-                    {showError('account_type') && (
-                      <motion.p
-                        className="mt-1 text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
+              <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+                {/* Header */}
+                <div
+                  className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+                  style={{ borderBottom: '1px solid var(--app-border)' }}
+                >
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="min-w-0">
+                      <p
+                        className="mb-2 text-xs font-semibold uppercase"
+                        style={{ color: 'var(--app-accent)' }}
                       >
-                        {fieldErrors.account_type}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                  <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-subtle)' }}>
-                    Cannot be changed after creation.
-                  </p>
-                </div>
-
-                {/* Account Name */}
-                <div>
-                  <label htmlFor="account-name" className="app-label block mb-1.5">
-                    Account Name
-                  </label>
-                  <input
-                    id="account-name"
-                    type="text"
-                    className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
-                    placeholder="e.g. Main Checking"
-                    value={form.name}
-                    onChange={(e) => handleChange('name', e.target.value)}
-                    onBlur={() => handleBlur('name')}
-                    maxLength={256}
-                  />
-                  <AnimatePresence>
-                    {showError('name') && (
-                      <motion.p
-                        className="mt-1 text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
+                        {selectedAccountType?.label ?? 'New account'}
+                      </p>
+                      <h2
+                        id="create-account-title"
+                        className="font-serif text-3xl font-light"
                       >
-                        {fieldErrors.name}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Currency */}
-                <div>
-                  <label className="app-label block mb-1.5">Currency</label>
-                  <Dropdown
-                    options={currencyOptions}
-                    value={form.currency}
-                    onChange={(v) => handleChange('currency', v)}
-                    placeholder={currencies.length === 0 ? 'Loading currencies…' : 'Select currency...'}
-                    searchable
-                    searchPlaceholder="Search currencies..."
-                  />
-                  <AnimatePresence>
-                    {showError('currency') && (
-                      <motion.p
-                        className="mt-1 text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        {fieldErrors.currency}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                  <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-subtle)' }}>
-                    Cannot be changed after creation.
-                  </p>
-                </div>
-
-                {/* Institution */}
-                <div>
-                  <label className="app-label block mb-1.5">Institution</label>
-                  <Dropdown
-                    options={institutionOptions}
-                    value={form.institution_id}
-                    onChange={(v) => handleChange('institution_id', v)}
-                    placeholder="Select institution..."
-                    searchable
-                    searchPlaceholder="Search institutions..."
-                    onCreateNew={handleCreateInstitution}
-                  />
-                </div>
-
-                {canLinkTaxPlan && (
-                  <div>
-                    <label className="app-label block mb-1.5">Tax-Advantaged Plan</label>
-                    <Dropdown
-                      options={taxPlanOptions}
-                      value={form.tax_advantaged_plan_id}
-                      onChange={(v) => handleChange('tax_advantaged_plan_id', v)}
-                      placeholder="Select plan..."
-                      searchable
-                      searchPlaceholder="Search plans..."
-                    />
-                  </div>
-                )}
-
-                {/* Conditional: Credit Limit */}
-                <AnimatePresence>
-                  {isRevolving && (
-                    <motion.div className="overflow-hidden" {...conditionalField}>
-                      <div className="pt-1">
-                        <label htmlFor="credit-limit" className="app-label block mb-1.5">
-                          Credit Limit
-                        </label>
-                        <input
-                          id="credit-limit"
-                          type="number"
-                          min="0"
-                          className={`app-input ${showError('credit_limit') ? 'app-input-error' : ''}`}
-                          placeholder="Optional"
-                          value={form.credit_limit}
-                          onChange={(e) => handleChange('credit_limit', e.target.value)}
-                          onBlur={() => handleBlur('credit_limit')}
-                        />
-                        <AnimatePresence>
-                          {showError('credit_limit') && (
-                            <motion.p
-                              className="mt-1 text-xs"
-                              style={{ color: 'var(--app-negative)' }}
-                              initial={{ opacity: 0, x: 4 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: 4 }}
-                              transition={{ duration: 0.15 }}
-                            >
-                              {fieldErrors.credit_limit}
-                            </motion.p>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Submit error */}
-                <AnimatePresence>
-                  {submitError && (
-                    <motion.p
-                      className="text-sm font-medium"
-                      style={{ color: 'var(--app-negative)' }}
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.15 }}
+                        Add Account
+                      </h2>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="app-icon-button shrink-0"
+                      aria-label="Close"
                     >
-                      {submitError}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
+                      <X size={20} aria-hidden />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+                  <div className="space-y-8">
+                    <section className="relative space-y-5 pl-5">
+                      <div
+                        className="absolute bottom-0 left-0 top-0 w-px"
+                        style={{ background: 'var(--app-border-strong)' }}
+                        aria-hidden
+                      />
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="text-xs font-semibold"
+                          style={{ color: 'var(--app-accent)' }}
+                          aria-hidden
+                        >
+                          01
+                        </span>
+                        <p className="app-label">Identity</p>
+                      </div>
+
+                      {/* Account Type */}
+                      <div>
+                        <FieldLabelRow label="Account Type" error={showError('account_type') || undefined} />
+                        <Dropdown
+                          options={ACCOUNT_TYPE_OPTIONS}
+                          value={form.account_type}
+                          onChange={(v) => handleChange('account_type', v)}
+                          className={`app-input ${showError('account_type') ? 'app-input-error' : ''}`}
+                          placeholder="Select type..."
+                          searchable
+                          searchPlaceholder="Search types..."
+                        />
+                        <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-subtle)' }}>
+                          Cannot be changed after creation.
+                        </p>
+                      </div>
+
+                      {/* Account Name */}
+                      <div>
+                        <FieldLabelRow htmlFor="account-name" label="Account Name" error={showError('name') || undefined} />
+                        <input
+                          id="account-name"
+                          type="text"
+                          className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                          placeholder="e.g. Main Checking"
+                          value={form.name}
+                          onChange={(e) => handleChange('name', e.target.value)}
+                          onBlur={() => handleBlur('name')}
+                          maxLength={256}
+                        />
+                      </div>
+
+                      {/* Currency */}
+                      <div>
+                        <FieldLabelRow label="Currency" error={showError('currency') || undefined} />
+                        <Dropdown
+                          options={currencyOptions}
+                          value={form.currency}
+                          onChange={(v) => handleChange('currency', v)}
+                          placeholder={currencies.length === 0 ? 'Loading currencies…' : 'Select currency...'}
+                          searchable
+                          searchPlaceholder="Search currencies..."
+                        />
+                        <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-subtle)' }}>
+                          Cannot be changed after creation.
+                        </p>
+                      </div>
+                    </section>
+
+                    <section className="relative space-y-5 pl-5">
+                      <div
+                        className="absolute bottom-0 left-0 top-0 w-px"
+                        style={{ background: 'var(--app-border-strong)' }}
+                        aria-hidden
+                      />
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="text-xs font-semibold"
+                          style={{ color: 'var(--app-accent)' }}
+                          aria-hidden
+                        >
+                          02
+                        </span>
+                        <p className="app-label">Context</p>
+                      </div>
+
+                      {/* Institution */}
+                      <div>
+                        <label className="app-label block mb-1.5">Institution</label>
+                        <Dropdown
+                          options={institutionOptions}
+                          value={form.institution_id}
+                          onChange={(v) => handleChange('institution_id', v)}
+                          placeholder="Select institution..."
+                          searchable
+                          searchPlaceholder="Search institutions..."
+                          onCreateNew={handleCreateInstitution}
+                        />
+                      </div>
+
+                      <AnimatePresence initial={false} mode="wait">
+                        {conditionalAccountField && (
+                          <motion.div
+                            key={conditionalAccountField}
+                            className="overflow-hidden"
+                            {...conditionalField}
+                          >
+                            {conditionalAccountField === 'tax-plan' ? (
+                              <div>
+                                <label className="app-label block mb-1.5">Tax-Advantaged Plan</label>
+                                <Dropdown
+                                  options={taxPlanOptions}
+                                  value={form.tax_advantaged_plan_id}
+                                  onChange={(v) => handleChange('tax_advantaged_plan_id', v)}
+                                  placeholder="Select plan..."
+                                  searchable
+                                  searchPlaceholder="Search plans..."
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <FieldLabelRow
+                                  htmlFor="credit-limit"
+                                  label="Credit Limit"
+                                  error={showError('credit_limit') || undefined}
+                                />
+                                <input
+                                  id="credit-limit"
+                                  type="number"
+                                  min="0"
+                                  className={`app-input ${showError('credit_limit') ? 'app-input-error' : ''}`}
+                                  placeholder="Optional"
+                                  value={form.credit_limit}
+                                  onChange={(e) => handleChange('credit_limit', e.target.value)}
+                                  onBlur={() => handleBlur('credit_limit')}
+                                />
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </section>
+
+                    {/* Submit error */}
+                    <AnimatePresence>
+                      {submitError && (
+                        <motion.p
+                          className="text-sm font-medium"
+                          style={{ color: 'var(--app-negative)' }}
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          {submitError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
 
                 {/* Footer */}
                 <div
-                  className="flex items-center justify-end gap-3 pt-4"
+                  className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8"
                   style={{ borderTop: '1px solid var(--app-border)' }}
                 >
                   <button
                     type="button"
-                    className="app-secondary-button"
+                    className="app-secondary-button w-full sm:w-auto"
                     onClick={onClose}
                     disabled={mutation.isPending}
                   >
@@ -468,7 +515,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   <button
                     type="submit"
                     disabled={mutation.isPending}
-                    className={`app-primary-button ${mutation.isPending ? 'app-primary-button-loading' : ''}`}
+                    className={`app-primary-button w-full sm:w-auto ${mutation.isPending ? 'app-primary-button-loading' : ''}`}
                   >
                     {mutation.isPending ? <div className="app-spinner" /> : 'Create Account'}
                   </button>
