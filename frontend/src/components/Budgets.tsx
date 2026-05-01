@@ -109,6 +109,12 @@ interface BudgetCreateFieldErrors {
   categoryIds?: string
 }
 
+interface BudgetEditFieldErrors {
+  name?: string
+  limit?: string
+  categoryIds?: string
+}
+
 function todayYmd(timeZone: string) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -462,6 +468,12 @@ function BudgetEditModal({
   const updateBaseBudget = useUpdateBaseBudget()
   const updateBudget = useUpdateBudget()
   const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<BudgetEditFieldErrors>({})
+  const [touched, setTouched] = useState<Record<keyof BudgetEditFieldErrors, boolean>>({
+    name: false,
+    limit: false,
+    categoryIds: false,
+  })
   const [saveInProgress, setSaveInProgress] = useState(false)
   const [categorySearch, setCategorySearch] = useState('')
   const [form, setForm] = useState<BudgetEditFormState>({
@@ -479,9 +491,16 @@ function BudgetEditModal({
   )
   const filteredCategories = useMemo(() => {
     const query = categorySearch.trim().toLowerCase()
-    if (!query) return categoryOptions
-    return categoryOptions.filter((category) => category.name.toLowerCase().includes(query))
-  }, [categoryOptions, categorySearch])
+    const selectedCategoryIds = new Set(form.categoryIds)
+    return categoryOptions
+      .filter((category) => !query || category.name.toLowerCase().includes(query))
+      .sort((a, b) => {
+        const aSelected = selectedCategoryIds.has(a.id)
+        const bSelected = selectedCategoryIds.has(b.id)
+        if (aSelected !== bSelected) return aSelected ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+  }, [categoryOptions, categorySearch, form.categoryIds])
   const isPending = updateBaseBudget.isPending || updateBudget.isPending || saveInProgress
   const limitMinorUnits = latestPeriod ? toMinorUnits(form.limit, currencies, baseBudget.currency) : null
   const hasCategory = form.categoryIds.some((categoryId) =>
@@ -492,12 +511,48 @@ function BudgetEditModal({
     || form.recurs !== baseBudget.recurs
     || !sameStringSet(form.categoryIds, baseBudget.category_ids)
   const periodChanged = Boolean(latestPeriod && limitMinorUnits !== null && limitMinorUnits !== latestPeriod.overall_limit)
+  const selectedCurrencySymbol = currencies.find((currency) => currency.id === baseBudget.currency)?.symbol ?? ''
   const canSave =
     !isPending
     && form.name.trim().length > 0
     && hasCategory
     && (!latestPeriod || limitMinorUnits !== null)
     && (baseChanged || periodChanged)
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  const validateEditForm = () => {
+    const errors: BudgetEditFieldErrors = {}
+    if (!form.name.trim()) errors.name = 'Name is required'
+    if (!hasCategory) errors.categoryIds = 'Select at least one category'
+    if (latestPeriod && limitMinorUnits === null) errors.limit = 'Limit must be greater than zero'
+    return errors
+  }
+
+  const clearError = (field: keyof BudgetEditFieldErrors) => {
+    setFieldErrors((current) => ({ ...current, [field]: undefined }))
+    setFormError(null)
+  }
+
+  const setField = <K extends keyof BudgetEditFormState>(field: K, value: BudgetEditFormState[K]) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    if (field === 'name') clearError('name')
+    if (field === 'limit') clearError('limit')
+  }
+
+  const handleBlur = (field: keyof BudgetEditFieldErrors) => {
+    setTouched((current) => ({ ...current, [field]: true }))
+    const errors = validateEditForm()
+    setFieldErrors((current) => ({ ...current, [field]: errors[field] }))
+  }
+
+  const showError = (field: keyof BudgetEditFieldErrors) => touched[field] && fieldErrors[field]
 
   const toggleCategory = (categoryId: string) => {
     setForm((current) => ({
@@ -506,22 +561,17 @@ function BudgetEditModal({
         ? current.categoryIds.filter((id) => id !== categoryId)
         : [...current.categoryIds, categoryId],
     }))
+    clearError('categoryIds')
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setFormError(null)
 
-    if (!form.name.trim()) {
-      setFormError('Name is required.')
-      return
-    }
-    if (!hasCategory) {
-      setFormError('Select at least one category.')
-      return
-    }
-    if (latestPeriod && limitMinorUnits === null) {
-      setFormError('Limit must be greater than zero.')
+    const errors = validateEditForm()
+    setFieldErrors(errors)
+    setTouched({ name: true, limit: true, categoryIds: true })
+    if (Object.keys(errors).length > 0) {
       return
     }
 
@@ -558,164 +608,354 @@ function BudgetEditModal({
     }
   }
 
-  return (
-    <div
-      className="app-modal-backdrop z-[60]"
-      onClick={(event) => {
-        event.stopPropagation()
-        onClose()
-      }}
-    >
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="budget-edit-title"
-        className="app-modal-panel max-h-[85vh] w-full max-w-2xl overflow-y-auto p-8"
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={handleSubmit}
+  return createPortal(
+    <>
+      <motion.div
+        className="fixed inset-0 z-[100]"
+        style={{ background: 'rgba(0, 0, 0, 0.22)', backdropFilter: 'blur(6px)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        onClick={(event) => {
+          event.stopPropagation()
+          onClose()
+        }}
+        aria-hidden
+      />
+
+      <motion.div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 16 }}
+        transition={{ duration: 0.22, ease: EASE }}
+        onClick={(event) => {
+          event.stopPropagation()
+          onClose()
+        }}
       >
-        <div className="mb-8 flex items-center justify-between">
-          <h2 id="budget-edit-title" className="font-serif text-3xl font-light tracking-tight">
-            Edit Budget
-          </h2>
-          <button type="button" className="app-icon-button" aria-label="Close budget edit form" onClick={onClose}>
-            <X size={20} aria-hidden />
-          </button>
-        </div>
-
-        <div className="space-y-5">
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label htmlFor="budget-edit-name" className="app-label mb-1.5 block">Name</label>
-              <input
-                id="budget-edit-name"
-                className="app-input"
-                value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                required
-              />
-            </div>
-
-            <div>
-              <span className="app-label mb-1.5 block">Type</span>
-              <div className="app-segmented-control w-full">
-                <button
-                  type="button"
-                  className={`app-segmented-option flex-1 text-sm ${form.recurs ? 'app-segmented-option-active' : ''}`}
-                  onClick={() => setForm((current) => ({ ...current, recurs: true }))}
-                >
-                  Recurring
-                </button>
-                <button
-                  type="button"
-                  className={`app-segmented-option flex-1 text-sm ${!form.recurs ? 'app-segmented-option-active' : ''}`}
-                  onClick={() => setForm((current) => ({ ...current, recurs: false }))}
-                >
-                  Once
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="budget-edit-limit" className="app-label mb-1.5 block">Current period limit</label>
-              <input
-                id="budget-edit-limit"
-                className="app-input disabled:cursor-not-allowed disabled:opacity-50"
-                inputMode="decimal"
-                placeholder={latestPeriod ? '0.00' : 'No period yet'}
-                value={form.limit}
-                onChange={(event) => setForm((current) => ({
-                  ...current,
-                  limit: formatMoneyInputLive(sanitizeMoneyInput(event.target.value)),
-                }))}
-                disabled={!latestPeriod}
-                required={Boolean(latestPeriod)}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <p className="app-label mb-1.5 block">Cadence</p>
-              <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                {budgetCadenceLabel(baseBudget)} · {baseBudget.currency}
-              </p>
-            </div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="budget-edit-title"
+          className="flex max-h-[84vh] w-full max-w-5xl overflow-hidden rounded-2xl"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            boxShadow: 'var(--app-shadow-soft)',
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div
+            className="hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex"
+            style={{
+              background: 'var(--app-surface-soft)',
+              borderRight: '1px solid var(--app-border)',
+              color: 'var(--app-accent)',
+            }}
+            aria-hidden
+          >
+            <PiggyBank size={18} strokeWidth={2} />
+            <span className="rotate-180 text-[0.6875rem] font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
+              Edit
+            </span>
           </div>
 
-          <section>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="app-label">Categories</h3>
-                <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  Pick the spending categories this budget should track.
-                </p>
+          <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+            <div className="shrink-0 px-6 pb-5 pt-6 sm:px-7" style={{ borderBottom: '1px solid var(--app-border)' }}>
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                    {form.recurs ? 'Recurring budget' : 'One-off budget'}
+                  </p>
+                  <h2 id="budget-edit-title" className="font-serif text-3xl font-light">
+                    Edit Budget
+                  </h2>
+                </div>
+                <button type="button" className="app-icon-button shrink-0" aria-label="Close" onClick={onClose}>
+                  <X size={20} aria-hidden />
+                </button>
               </div>
-              <span className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                {form.categoryIds.length} selected
-              </span>
             </div>
-            <div className="relative mt-3">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: 'var(--app-text-subtle)' }}
-                aria-hidden
-              />
-              <input
-                className="app-input pl-9"
-                value={categorySearch}
-                onChange={(event) => setCategorySearch(event.target.value)}
-                placeholder="Search categories..."
-              />
-            </div>
-            <div className="app-selection-list">
-              {filteredCategories.map((category) => {
-                const selected = form.categoryIds.includes(category.id)
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
-                    onClick={() => toggleCategory(category.id)}
+
+            <div className="px-6 pb-3 pt-4 sm:px-7">
+              <div className="grid min-h-0 items-stretch gap-7 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                <div className="flex min-h-0 flex-col gap-5">
+                  <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                    <div className="flex min-h-0 flex-col items-center">
+                      <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                        01
+                      </span>
+                      <span className="mt-1 w-px flex-1" style={{ backgroundColor: 'var(--app-border-strong)' }} aria-hidden />
+                    </div>
+
+                    <div className="min-w-0 space-y-3">
+                      <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Scope</p>
+
+                      <div>
+                        <FieldLabelRow htmlFor="budget-edit-name" label="Name" error={showError('name')} />
+                        <input
+                          id="budget-edit-name"
+                          className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                          value={form.name}
+                          onChange={(event) => setField('name', event.target.value)}
+                          onBlur={() => handleBlur('name')}
+                        />
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <FieldLabelRow htmlFor="budget-edit-currency" label="Currency" />
+                          <input
+                            id="budget-edit-currency"
+                            className="app-input disabled:cursor-not-allowed disabled:opacity-60"
+                            value={baseBudget.currency}
+                            disabled
+                            readOnly
+                          />
+                        </div>
+
+                        <div>
+                          <FieldLabelRow htmlFor="budget-edit-limit" label="Limit" error={showError('limit')} />
+                          <div className="relative">
+                            {selectedCurrencySymbol && (
+                              <span
+                                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                style={{ color: 'var(--app-text-subtle)' }}
+                                aria-hidden
+                              >
+                                {selectedCurrencySymbol}
+                              </span>
+                            )}
+                            <input
+                              id="budget-edit-limit"
+                              className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
+                              inputMode="decimal"
+                              placeholder={latestPeriod ? '0.00' : 'No period yet'}
+                              value={form.limit}
+                              onChange={(event) => setField('limit', formatMoneyInputLive(sanitizeMoneyInput(event.target.value)))}
+                              onBlur={() => handleBlur('limit')}
+                              disabled={!latestPeriod}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                    <div className="flex min-h-0 flex-col items-center">
+                      <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                        02
+                      </span>
+                      <span className="mt-1 w-px flex-1" style={{ backgroundColor: 'var(--app-border-strong)' }} aria-hidden />
+                    </div>
+
+                    <div className="min-w-0 space-y-2.5">
+                      <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Cadence</p>
+
+                      <div className="grid gap-2.5 md:grid-cols-[10rem_minmax(0,1fr)] md:items-end">
+                        <div>
+                          <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Type</span>
+                          <div className="app-segmented-control w-full">
+                            <button
+                              type="button"
+                              className={`app-segmented-option flex-1 text-sm ${form.recurs ? 'app-segmented-option-active' : ''}`}
+                              onClick={() => setField('recurs', true)}
+                            >
+                              Recurring
+                            </button>
+                            <button
+                              type="button"
+                              className={`app-segmented-option flex-1 text-sm ${!form.recurs ? 'app-segmented-option-active' : ''}`}
+                              onClick={() => setField('recurs', false)}
+                            >
+                              Once
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Frequency</span>
+                          <div className="app-segmented-control w-full opacity-60">
+                            {RECURRENCE_OPTIONS.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className={`app-segmented-option flex-1 cursor-not-allowed text-sm ${baseBudget.recurrence_freq === option.value ? 'app-segmented-option-active' : ''}`}
+                                disabled
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,1fr)]">
+                        <div className="opacity-60">
+                          <FieldLabelRow htmlFor="budget-edit-interval" label="Period length" />
+                          <input
+                            id="budget-edit-interval"
+                            className="app-input disabled:cursor-not-allowed"
+                            value={baseBudget.instance_length}
+                            disabled
+                            readOnly
+                          />
+                        </div>
+
+                        <div className="opacity-60">
+                          <FieldLabelRow htmlFor="budget-edit-period-start" label="Period start" />
+                          <input
+                            id="budget-edit-period-start"
+                            className="app-input disabled:cursor-not-allowed"
+                            type="date"
+                            value={latestPeriod?.period_start ?? ''}
+                            disabled
+                            readOnly
+                          />
+                        </div>
+                      </div>
+
+                      <p className="text-center text-sm leading-tight italic" style={{ color: 'var(--app-text-muted)' }}>
+                        {budgetCadenceLabel(baseBudget)}{latestPeriod ? ` · ${formatBudgetPeriod(latestPeriod)}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex min-h-0 overflow-hidden">
+                  <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-3 overflow-hidden">
+                    <div className="flex min-h-0 flex-col items-center">
+                      <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                        03
+                      </span>
+                      <span className="mt-1 w-px flex-1" style={{ backgroundColor: 'var(--app-border-strong)' }} aria-hidden />
+                    </div>
+
+                    <div className="flex min-h-0 min-w-0 flex-col">
+                      <div className="flex h-4 items-center justify-between gap-4">
+                        <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Tracked categories</p>
+                        <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
+                          {form.categoryIds.length} selected
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+                        <div className="flex items-start">
+                          <div className="min-w-0 flex-1">
+                            <AnimatePresence initial={false}>
+                              {showError('categoryIds') && (
+                                <motion.p
+                                  key="budget-edit-category-error"
+                                  className="mb-1.5 text-xs font-medium leading-5"
+                                  style={{ color: 'var(--app-negative)' }}
+                                  initial={{ opacity: 0, x: 4 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: 4 }}
+                                  transition={{ duration: 0.15 }}
+                                >
+                                  {showError('categoryIds')}
+                                </motion.p>
+                              )}
+                            </AnimatePresence>
+                            <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                              Pick the categories this budget should track.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="relative mt-3">
+                          <Search
+                            size={16}
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                            aria-hidden
+                          />
+                          <input
+                            className="app-input pl-9"
+                            value={categorySearch}
+                            onChange={(event) => setCategorySearch(event.target.value)}
+                            placeholder="Search categories..."
+                          />
+                        </div>
+
+                        <div className="relative mb-1 mt-3 min-h-0 flex-1">
+                          <motion.div className="app-selection-list absolute inset-0 m-0 max-h-none" layout>
+                            {filteredCategories.map((category) => {
+                              const selected = form.categoryIds.includes(category.id)
+                              return (
+                                <motion.button
+                                  key={category.id}
+                                  layout
+                                  type="button"
+                                  className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
+                                  onClick={() => toggleCategory(category.id)}
+                                  transition={{ layout: { duration: 0.22, ease: EASE } }}
+                                >
+                                  <span className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}>
+                                    <Check size={13} strokeWidth={3} aria-hidden />
+                                  </span>
+                                  <span className="truncate">{category.name}</span>
+                                </motion.button>
+                              )
+                            })}
+                            {categoryOptions.length > 0 && filteredCategories.length === 0 && (
+                              <p className="px-3 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                                No matching categories.
+                              </p>
+                            )}
+                          </motion.div>
+                        </div>
+
+                        {categoryOptions.length === 0 && (
+                          <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                            Create an expense category before editing this budget.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <AnimatePresence>
+                {formError && (
+                  <motion.p
+                    className="mt-4 text-sm font-medium"
+                    style={{ color: 'var(--app-negative)' }}
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
                   >
-                    <span
-                      className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}
-                    >
-                      <Check size={13} strokeWidth={3} aria-hidden />
-                    </span>
-                    <span className="truncate">{category.name}</span>
-                  </button>
-                )
-              })}
-              {categoryOptions.length > 0 && filteredCategories.length === 0 && (
-                <p className="px-3 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  No matching categories.
-                </p>
-              )}
+                    {formError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
-            {categoryOptions.length === 0 && (
-              <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                Create an expense category before editing this budget.
-              </p>
-            )}
-          </section>
 
-          {formError && (
-            <p className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-              {formError}
-            </p>
-          )}
-
-          <div className="app-form-actions">
-            <button type="button" className="app-secondary-button" onClick={onClose} disabled={isPending}>
-              Cancel
-            </button>
-            <button type="submit" className="app-primary-button" disabled={!canSave}>
-              {isPending ? <div className="app-spinner" /> : 'Save Changes'}
-            </button>
-          </div>
+            <div
+              className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-7"
+              style={{ borderTop: '1px solid var(--app-border)' }}
+            >
+              <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={isPending}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading' : 'w-full sm:w-36'}`}
+                disabled={!canSave}
+              >
+                {isPending ? <div className="app-spinner" /> : 'Save Changes'}
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
-    </div>
+      </motion.div>
+    </>,
+    document.body,
   )
 }
 
@@ -1202,19 +1442,22 @@ function BudgetDetailsModal({
         </div>
         </div>
       </motion.div>
-      {editOpen && (
-        <BudgetEditModal
-          baseBudget={baseBudget}
-          latestPeriod={latestPeriod}
-          categories={categories}
-          currencies={currencies}
-          onClose={() => setEditOpen(false)}
-          onSaved={() => {
-            refetchUtilizationHistory()
-            onSaved()
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {editOpen && (
+          <BudgetEditModal
+            key="budget-edit-modal"
+            baseBudget={baseBudget}
+            latestPeriod={latestPeriod}
+            categories={categories}
+            currencies={currencies}
+            onClose={() => setEditOpen(false)}
+            onSaved={() => {
+              refetchUtilizationHistory()
+              onSaved()
+            }}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }
