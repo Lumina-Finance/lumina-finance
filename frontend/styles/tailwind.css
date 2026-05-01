@@ -354,6 +354,28 @@
     to { transform: rotate(360deg); }
   }
 
+  .app-merchant-more-glyph {
+    animation: app-merchant-more-glyph-dance 3.6s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+    will-change: transform;
+  }
+
+  @keyframes app-merchant-more-glyph-dance {
+    0%, 8%, 18%, 100% {
+      transform: translateY(0);
+    }
+
+    4%, 13% {
+      transform: translateY(3px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-merchant-more-glyph {
+      animation: none;
+      will-change: auto;
+    }
+  }
+
   .app-label {
     @apply font-semibold lg:font-medium normal-case;
     font-size: clamp(0.9375rem, 1.2vw, 1.0625rem);

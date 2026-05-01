@@ -7,7 +7,7 @@ import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/Cre
 import Dropdown from '@/components/Dropdown'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
-import { useMerchants, type Merchant } from '@/api/merchants'
+import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchants'
 import { useCurrencies } from '@/api/currency'
 import {
   useCreateTransaction,
@@ -25,6 +25,7 @@ const EASE = [0.25, 0.1, 0.25, 1] as const
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const MIN_ADD_TRANSACTION_LOADING_MS = 800
 const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
+const MERCHANT_DROPDOWN_PAGE_SIZE = 10
 
 type Kind = 'expense' | 'income' | 'transfer'
 
@@ -203,7 +204,6 @@ export default function CreateTransactionModal({
   const deleteMutation = useDeleteTransaction()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
-  const { data: merchants = [] } = useMerchants()
   const { data: currencies = [] } = useCurrencies()
 
   // Build the initial form from the existing transaction (edit) or sensible defaults (create).
@@ -241,6 +241,8 @@ export default function CreateTransactionModal({
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [categoryModalKey, setCategoryModalKey] = useState(0)
   const [merchantModalName, setMerchantModalName] = useState('')
+  const [merchantSearch, setMerchantSearch] = useState('')
+  const [createdMerchant, setCreatedMerchant] = useState<Merchant | null>(null)
   const [showMerchantModal, setShowMerchantModal] = useState(false)
   const [merchantModalKey, setMerchantModalKey] = useState(0)
   const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
@@ -249,6 +251,15 @@ export default function CreateTransactionModal({
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
+  const merchantQuery = useInfiniteMerchants(
+    { q: merchantSearch.trim() || undefined },
+    MERCHANT_DROPDOWN_PAGE_SIZE,
+    open,
+  )
+  const selectedMerchantId = form.merchant_id || null
+  const { data: fetchedSelectedMerchant } = useMerchant(selectedMerchantId, open && !!selectedMerchantId)
+  const pagedMerchants = useMemo(() => merchantQuery.data?.pages.flat() ?? [], [merchantQuery.data])
+  const selectedMerchant = createdMerchant?.id === selectedMerchantId ? createdMerchant : fetchedSelectedMerchant
 
   // Measure both label widths once after mount so we can drive a smooth width transition.
   useLayoutEffect(() => {
@@ -302,12 +313,19 @@ export default function CreateTransactionModal({
     ],
     [categoryOptions],
   )
+  const merchantCandidates = useMemo(() => {
+    const map = new Map<string, Merchant>()
+    pagedMerchants.forEach((merchant) => map.set(merchant.id, merchant))
+    if (selectedMerchant) map.set(selectedMerchant.id, selectedMerchant)
+    if (createdMerchant) map.set(createdMerchant.id, createdMerchant)
+    return [...map.values()]
+  }, [createdMerchant, pagedMerchants, selectedMerchant])
   const merchantOptions = useMemo(
-    () => merchants
+    () => merchantCandidates
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((m) => ({ value: m.id, label: m.name })),
-    [merchants],
+    [merchantCandidates],
   )
   const currencyOptions = useMemo(
     () => {
@@ -373,7 +391,7 @@ export default function CreateTransactionModal({
   }
 
   const handleMerchantChange = (merchantId: string) => {
-    const merchant = merchants.find((m) => m.id === merchantId)
+    const merchant = merchantCandidates.find((m) => m.id === merchantId)
     const defaultCategoryId = merchant?.default_category_id
     const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
     setForm((f) => ({
@@ -397,6 +415,7 @@ export default function CreateTransactionModal({
   }
 
   const handleMerchantCreated = (merchant: Merchant) => {
+    setCreatedMerchant(merchant)
     const defaultCategoryId = merchant.default_category_id
     const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
     setForm((f) => ({
@@ -749,6 +768,16 @@ export default function CreateTransactionModal({
                             placeholder="Select or type to create..."
                             searchable
                             searchPlaceholder="Search merchants..."
+                            searchValue={merchantSearch}
+                            onSearchChange={setMerchantSearch}
+                            filterOptions={false}
+                            isLoading={merchantQuery.isLoading || merchantQuery.isFetchingNextPage}
+                            hasMore={!!merchantQuery.hasNextPage}
+                            onLoadMore={() => {
+                              if (merchantQuery.hasNextPage && !merchantQuery.isFetchingNextPage) {
+                                merchantQuery.fetchNextPage()
+                              }
+                            }}
                             onCreateNew={handleCreateMerchant}
                             createNewLabel={(query) => query ? `Create merchant "${query}"` : 'Create merchant'}
                           />

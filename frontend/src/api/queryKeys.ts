@@ -85,7 +85,15 @@ export const categoryKeys = {
 };
 
 export const merchantKeys = {
+  all: ['merchants'] as const,
   list: () => ['merchants'] as const,
+  detail: (merchantId: string | null | undefined) => ['merchants', merchantId] as const,
+  infinite: (filters: Record<string, unknown>, pageSize: number) => [
+    'merchants',
+    'infinite',
+    filters,
+    pageSize,
+  ] as const,
 };
 
 export const institutionKeys = {

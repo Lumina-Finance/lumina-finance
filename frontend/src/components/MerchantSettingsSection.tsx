@@ -7,21 +7,29 @@ import { ApiError } from '@/api/auth'
 import { useCategories, type Category } from '@/api/categories'
 import {
   useDeleteMerchant,
+  useInfiniteMerchants,
   useMergeMerchant,
-  useMerchants,
   useUpdateMerchant,
   type Merchant,
 } from '@/api/merchants'
 import { merchantKeys } from '@/api/queryKeys'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 
 const DELETE_SPINNER_MS = 1000
 const NO_CATEGORY_VALUE = NO_DEFAULT_CATEGORY_VALUE
 const EASE = [0.25, 0.1, 0.25, 1] as const
+const LOADING_TEXT_MIN_MS = 300
+const FETCHING_MORE_TEXT_MIN_MS = 800
+const MERCHANT_SEARCH_DEBOUNCE_MS = 300
 const MERCHANT_LIST_VISIBLE_ROWS = 10
-const MERCHANT_LIST_PAGE_SIZE = 10
-const MERCHANT_LIST_INITIAL_COUNT = MERCHANT_LIST_VISIBLE_ROWS + 1
+const MERCHANT_LIST_PAGE_SIZE = MERCHANT_LIST_VISIBLE_ROWS
+const MERCHANT_MERGE_PAGE_SIZE = 10
+const MERCHANT_MORE_BUTTON_INITIAL = { opacity: 0, y: 6, scale: 0.96 }
+const MERCHANT_MORE_BUTTON_ANIMATE = { opacity: 1, y: 0, scale: 1 }
+const MERCHANT_MORE_BUTTON_EXIT = { opacity: 0, y: 6, scale: 0.96 }
+const MERCHANT_MORE_BUTTON_TRANSITION = { duration: 0.2, ease: EASE }
 const CATEGORY_KIND_LABELS: Record<Category['kind'], string> = {
   expense: 'Expense',
   income: 'Income',
@@ -99,11 +107,15 @@ function merchantMergeOptions(merchant: Merchant, merchants: Merchant[]): Dropdo
 export default function MerchantSettingsSection() {
   const queryClient = useQueryClient()
   const shouldReduceMotion = useReducedMotion()
-  const { data: merchants = [], isLoading } = useMerchants()
+  const [search, setSearch] = useState('')
+  const [activeSearch, setActiveSearch] = useState('')
+  const merchantQuery = useInfiniteMerchants(
+    { q: activeSearch.trim() || undefined },
+    MERCHANT_LIST_PAGE_SIZE,
+  )
   const { data: categories = [] } = useCategories()
   const deleteMerchant = useDeleteMerchant()
   const mergeMerchant = useMergeMerchant()
-  const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [editingMerchantId, setEditingMerchantId] = useState<string | null>(null)
@@ -111,31 +123,126 @@ export default function MerchantSettingsSection() {
   const [deletingMerchantId, setDeletingMerchantId] = useState<string | null>(null)
   const [mergeDeleteMerchant, setMergeDeleteMerchant] = useState<Merchant | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [visibleMerchantCount, setVisibleMerchantCount] = useState(MERCHANT_LIST_INITIAL_COUNT)
+  const [visibleMerchants, setVisibleMerchants] = useState<Merchant[]>([])
   const [merchantListAtBottom, setMerchantListAtBottom] = useState(false)
   const merchantListRef = useRef<HTMLDivElement | null>(null)
+  const visibleMerchantCountRef = useRef(0)
+  const initialFetchStartedAtRef = useRef<number | null>(null)
+  const fetchMoreStartedAtRef = useRef<number | null>(null)
 
   const categoryById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   )
   const options = useMemo(() => categoryOptions(categories), [categories])
-  const filteredMerchants = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return merchants
-      .filter((merchant) =>
-        !query ||
-        merchant.name.toLowerCase().includes(query) ||
-        categoryName(categoryById, merchant.default_category_id).toLowerCase().includes(query),
-      )
+  const fetchedMerchants = useMemo(
+    () => (merchantQuery.data?.pages.flat() ?? [])
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [categoryById, merchants, search])
-  const visibleMerchants = filteredMerchants.slice(0, visibleMerchantCount)
-  const hasMoreMerchants = visibleMerchantCount < filteredMerchants.length
-  const shouldScrollMerchants = filteredMerchants.length > MERCHANT_LIST_VISIBLE_ROWS
-  const showMerchantListMoreIndicator = shouldScrollMerchants && !merchantListAtBottom
-  const showMerchantListEnd = shouldScrollMerchants && !hasMoreMerchants
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [merchantQuery.data],
+  )
+  const fetchedMerchantKey = useMemo(
+    () => fetchedMerchants.map((merchant) => merchant.id).join('|'),
+    [fetchedMerchants],
+  )
+  const visibleMerchantKey = useMemo(
+    () => visibleMerchants.map((merchant) => merchant.id).join('|'),
+    [visibleMerchants],
+  )
+  const hasUndisplayedFetchedMerchants = (
+    fetchedMerchantKey !== visibleMerchantKey &&
+    fetchedMerchants.length > visibleMerchants.length &&
+    visibleMerchants.length > 0
+  )
+  const showInitialMerchantLoading = useMinimumVisibleFlag(
+    merchantQuery.isLoading,
+    LOADING_TEXT_MIN_MS,
+  )
+  const showFetchingMoreMerchants = useMinimumVisibleFlag(
+    merchantQuery.isFetchingNextPage || hasUndisplayedFetchedMerchants,
+    FETCHING_MORE_TEXT_MIN_MS,
+  )
+  const hasMoreMerchants = !!merchantQuery.hasNextPage
+  const canFetchMoreMerchants = hasMoreMerchants && !merchantQuery.isFetchingNextPage && !showFetchingMoreMerchants
+  const shouldScrollMerchants = (
+    visibleMerchants.length >= MERCHANT_LIST_VISIBLE_ROWS &&
+    (hasMoreMerchants || visibleMerchants.length > MERCHANT_LIST_VISIBLE_ROWS || showFetchingMoreMerchants)
+  )
+  const showMerchantListMoreIndicator = shouldScrollMerchants && !merchantListAtBottom && !showFetchingMoreMerchants
+  const showMerchantListEnd = shouldScrollMerchants && !hasMoreMerchants && merchantListAtBottom
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setActiveSearch(search)
+    }, MERCHANT_SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [search])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setVisibleMerchants([])
+      setMerchantListAtBottom(false)
+      visibleMerchantCountRef.current = 0
+      initialFetchStartedAtRef.current = performance.now()
+      fetchMoreStartedAtRef.current = null
+      if (merchantListRef.current) merchantListRef.current.scrollTop = 0
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeSearch])
+
+  useEffect(() => {
+    visibleMerchantCountRef.current = visibleMerchants.length
+  }, [visibleMerchants.length])
+
+  useEffect(() => {
+    if (merchantQuery.isLoading) {
+      initialFetchStartedAtRef.current = performance.now()
+    }
+  }, [merchantQuery.isLoading])
+
+  useEffect(() => {
+    if (merchantQuery.isFetchingNextPage) {
+      fetchMoreStartedAtRef.current = performance.now()
+    }
+  }, [merchantQuery.isFetchingNextPage])
+
+  useEffect(() => {
+    if (fetchedMerchantKey === visibleMerchantKey) return undefined
+
+    const isAppendingPage = fetchedMerchants.length > visibleMerchantCountRef.current && visibleMerchantCountRef.current > 0
+    const isInitialPage = fetchedMerchants.length > 0 && visibleMerchantCountRef.current === 0
+    const now = performance.now()
+    const fetchStartedAt = isAppendingPage
+      ? fetchMoreStartedAtRef.current
+      : initialFetchStartedAtRef.current
+    const elapsed = fetchStartedAt === null ? LOADING_TEXT_MIN_MS : now - fetchStartedAt
+    const shouldDelay = isAppendingPage || isInitialPage
+    const minimumVisibleMs = isAppendingPage ? FETCHING_MORE_TEXT_MIN_MS : LOADING_TEXT_MIN_MS
+    const delayMs = shouldDelay ? Math.max(minimumVisibleMs - elapsed, 0) : 0
+    const timeoutId = window.setTimeout(() => {
+      setVisibleMerchants(fetchedMerchants)
+      if (isInitialPage) initialFetchStartedAtRef.current = null
+      if (isAppendingPage) fetchMoreStartedAtRef.current = null
+    }, delayMs)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [fetchedMerchantKey, fetchedMerchants, visibleMerchantKey])
+
+  useEffect(() => {
+    if (hasMoreMerchants || !shouldScrollMerchants) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const list = merchantListRef.current
+      if (!list) return
+
+      const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 4
+      if (atBottom) setMerchantListAtBottom(true)
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [hasMoreMerchants, shouldScrollMerchants, visibleMerchants.length])
 
   const handleMerchantListScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget
@@ -145,24 +252,31 @@ export default function MerchantSettingsSection() {
       return
     }
 
-    if (!hasMoreMerchants) {
+    if (canFetchMoreMerchants) {
+      fetchMoreStartedAtRef.current = performance.now()
+      merchantQuery.fetchNextPage()
+      setMerchantListAtBottom(false)
+    } else if (!hasMoreMerchants && !showFetchingMoreMerchants) {
       setMerchantListAtBottom(true)
-      return
     }
-
-    setVisibleMerchantCount((current) => Math.min(current + MERCHANT_LIST_PAGE_SIZE, filteredMerchants.length))
-    setMerchantListAtBottom(false)
   }
 
   const handleMerchantListMoreClick = () => {
-    if (hasMoreMerchants) {
-      setVisibleMerchantCount((current) => Math.min(current + MERCHANT_LIST_PAGE_SIZE, filteredMerchants.length))
-      setMerchantListAtBottom(false)
-    }
-
+    setMerchantListAtBottom(false)
     window.requestAnimationFrame(() => {
       const list = merchantListRef.current
-      list?.scrollBy({ top: list.clientHeight * 0.45, behavior: 'smooth' })
+      if (!list) return
+
+      const maxScrollTop = list.scrollHeight - list.clientHeight
+      if (list.scrollTop >= maxScrollTop - 4) {
+        if (canFetchMoreMerchants) {
+          fetchMoreStartedAtRef.current = performance.now()
+          merchantQuery.fetchNextPage()
+        }
+        return
+      }
+
+      list.scrollBy({ top: list.clientHeight * 0.45, behavior: 'smooth' })
     })
   }
 
@@ -179,6 +293,7 @@ export default function MerchantSettingsSection() {
       queryClient.setQueryData<Merchant[]>(merchantKeys.list(), (currentMerchants) =>
         currentMerchants?.filter((currentMerchant) => currentMerchant.id !== merchant.id) ?? currentMerchants,
       )
+      queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false })
       setConfirmingDeleteMerchantId(null)
     } else {
       const error = deleteResult[0].reason
@@ -215,11 +330,12 @@ export default function MerchantSettingsSection() {
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value)
-                  setVisibleMerchantCount(MERCHANT_LIST_INITIAL_COUNT)
-                  setMerchantListAtBottom(false)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return
+                  setActiveSearch(search)
                 }}
                 placeholder="Search merchants..."
-                disabled={merchants.length === 0}
               />
             </div>
             <button
@@ -241,13 +357,9 @@ export default function MerchantSettingsSection() {
             </p>
           )}
 
-          {isLoading ? null : merchants.length === 0 ? (
+          {visibleMerchants.length === 0 && !showInitialMerchantLoading ? (
             <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-              No merchants yet.
-            </p>
-          ) : filteredMerchants.length === 0 ? (
-            <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-              No merchants match your search.
+              {activeSearch.trim() ? 'No merchants match your search.' : 'No merchants yet.'}
             </p>
           ) : (
             <div className="relative">
@@ -277,12 +389,28 @@ export default function MerchantSettingsSection() {
                     onEditCancel={() => setEditingMerchantId(null)}
                   />
                 ))}
-                {showMerchantListEnd && (
+                {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
                   <p
                     className="py-4 text-center text-sm italic"
                     style={{ color: 'var(--app-text-subtle)' }}
                   >
                     You've reached the end.
+                  </p>
+                )}
+                {showFetchingMoreMerchants && visibleMerchants.length > 0 && (
+                  <p
+                    className="py-4 text-center text-sm italic"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                  >
+                    Fetching more
+                  </p>
+                )}
+                {showInitialMerchantLoading && visibleMerchants.length === 0 && (
+                  <p
+                    className="py-4 text-center text-sm italic"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                  >
+                    Loading merchants...
                   </p>
                 )}
               </div>
@@ -293,24 +421,14 @@ export default function MerchantSettingsSection() {
                     className="absolute bottom-2 left-[calc(50%-1rem)] z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[var(--app-button-primary-bg)] text-[var(--app-button-primary-text)] transition-colors duration-150 hover:bg-[var(--app-button-primary-bg-hover)] active:bg-[var(--app-button-primary-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]"
                     onClick={handleMerchantListMoreClick}
                     aria-label={hasMoreMerchants ? 'Show more merchants' : 'Scroll merchants down'}
-                    initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.96 }}
-                    animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-                    exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.2, ease: EASE }}
+                    initial={shouldReduceMotion ? false : MERCHANT_MORE_BUTTON_INITIAL}
+                    animate={shouldReduceMotion ? { opacity: 1 } : MERCHANT_MORE_BUTTON_ANIMATE}
+                    exit={shouldReduceMotion ? { opacity: 0 } : MERCHANT_MORE_BUTTON_EXIT}
+                    transition={MERCHANT_MORE_BUTTON_TRANSITION}
                   >
-                    <motion.span
-                      className="flex items-center justify-center"
-                      animate={shouldReduceMotion ? undefined : { y: [0, 3, 0, 3, 0] }}
-                      transition={{
-                        duration: 0.72,
-                        ease: EASE,
-                        repeat: Infinity,
-                        repeatDelay: 3.1,
-                        times: [0, 0.18, 0.36, 0.58, 1],
-                      }}
-                    >
+                    <span className="app-merchant-more-glyph flex items-center justify-center">
                       <ArrowDown size={19} strokeWidth={2.5} aria-hidden />
-                    </motion.span>
+                    </span>
                   </motion.button>
                 )}
               </AnimatePresence>
@@ -331,7 +449,6 @@ export default function MerchantSettingsSection() {
           <MergeDeleteMerchantModal
             key={mergeDeleteMerchant.id}
             merchant={mergeDeleteMerchant}
-            merchants={merchants}
             isPending={mergeMerchant.isPending}
             onClose={() => setMergeDeleteMerchant(null)}
             onMerge={async (replacementMerchantId) => {
@@ -349,18 +466,31 @@ export default function MerchantSettingsSection() {
 
 function MergeDeleteMerchantModal({
   merchant,
-  merchants,
   isPending,
   onClose,
   onMerge,
 }: {
   merchant: Merchant
-  merchants: Merchant[]
   isPending: boolean
   onClose: () => void
   onMerge: (replacementMerchantId: string) => Promise<void>
 }) {
-  const options = useMemo(() => merchantMergeOptions(merchant, merchants), [merchant, merchants])
+  const [replacementSearch, setReplacementSearch] = useState('')
+  const replacementQuery = useInfiniteMerchants(
+    {
+      group_id: merchant.group_id ?? undefined,
+      q: replacementSearch.trim() || undefined,
+    },
+    MERCHANT_MERGE_PAGE_SIZE,
+  )
+  const replacementMerchants = useMemo(
+    () => replacementQuery.data?.pages.flat() ?? [],
+    [replacementQuery.data],
+  )
+  const options = useMemo(
+    () => merchantMergeOptions(merchant, replacementMerchants),
+    [merchant, replacementMerchants],
+  )
   const [replacementMerchantId, setReplacementMerchantId] = useState(() => options[0]?.value ?? '')
   const [formError, setFormError] = useState<string | null>(null)
   const [mergeInProgress, setMergeInProgress] = useState(false)
@@ -505,10 +635,20 @@ function MergeDeleteMerchantModal({
                         setReplacementMerchantId(value)
                         setFormError(null)
                       }}
-                      placeholder={options.length === 0 ? 'No compatible merchants' : 'Select merchant...'}
+                      placeholder={replacementQuery.isLoading ? 'Loading merchants...' : options.length === 0 ? 'No compatible merchants' : 'Select merchant...'}
                       searchable
                       searchPlaceholder="Search merchants..."
-                      disabled={isSubmitting || options.length === 0}
+                      searchValue={replacementSearch}
+                      onSearchChange={setReplacementSearch}
+                      filterOptions={false}
+                      isLoading={replacementQuery.isLoading || replacementQuery.isFetchingNextPage}
+                      hasMore={!!replacementQuery.hasNextPage}
+                      onLoadMore={() => {
+                        if (replacementQuery.hasNextPage && !replacementQuery.isFetchingNextPage) {
+                          replacementQuery.fetchNextPage()
+                        }
+                      }}
+                      disabled={isSubmitting || (!replacementQuery.isLoading && options.length === 0)}
                     />
                   </div>
                 </div>

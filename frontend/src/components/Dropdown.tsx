@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Plus } from 'lucide-react';
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
 
 export interface DropdownOption {
   value: string;
@@ -18,11 +19,19 @@ interface DropdownProps {
   placeholder?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  filterOptions?: boolean;
+  isLoading?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   disabled?: boolean;
   /** Called when the user clicks the dropdown create action. Receives the current search text. */
   onCreateNew?: (query: string) => void;
   createNewLabel?: string | ((query: string) => string);
 }
+
+const LOADING_TEXT_MIN_MS = 300;
 
 const Dropdown = ({
   id,
@@ -33,6 +42,12 @@ const Dropdown = ({
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
+  searchValue,
+  onSearchChange,
+  filterOptions = true,
+  isLoading = false,
+  hasMore = false,
+  onLoadMore,
   disabled = false,
   onCreateNew,
   createNewLabel,
@@ -47,12 +62,14 @@ const Dropdown = ({
   const searchRef = useRef<HTMLInputElement>(null);
 
   const selected = options.find((o) => o.value === value);
+  const searchText = searchValue ?? search;
+  const showLoading = useMinimumVisibleFlag(isLoading, LOADING_TEXT_MIN_MS);
 
   const filtered = useMemo(() => {
-    if (!searchable || !search) return options;
-    const q = search.toLowerCase();
+    if (!filterOptions || !searchable || !searchText) return options;
+    const q = searchText.toLowerCase();
     return options.filter((o) => o.label.toLowerCase().includes(q));
-  }, [options, search, searchable]);
+  }, [options, searchText, searchable, filterOptions]);
 
   // Group filtered options by their `group` field for sectioned rendering.
   // Each group wraps its options so sticky headers stay pinned for the full section.
@@ -79,11 +96,17 @@ const Dropdown = ({
     setListPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
   };
 
-  const close = () => {
+  const setSearchText = useCallback((nextSearch: string) => {
+    if (searchValue === undefined) setSearch(nextSearch);
+    onSearchChange?.(nextSearch);
+    setHighlightedIndex(0);
+  }, [onSearchChange, searchValue]);
+
+  const close = useCallback(() => {
     setOpen(false);
-    setSearch('');
+    setSearchText('');
     setHighlightedIndex(-1);
-  };
+  }, [setSearchText]);
 
   // Close on outside click
   useEffect(() => {
@@ -97,7 +120,7 @@ const Dropdown = ({
 
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
+  }, [open, close]);
 
   // Scroll highlighted option into view
   useEffect(() => {
@@ -118,7 +141,7 @@ const Dropdown = ({
     close();
   };
 
-  const createQuery = search.trim();
+  const createQuery = searchText.trim();
   const resolvedCreateNewLabel = typeof createNewLabel === 'function'
     ? createNewLabel(createQuery)
     : createNewLabel ?? (createQuery ? `Create "${createQuery}"` : 'Create new');
@@ -159,6 +182,13 @@ const Dropdown = ({
         close();
         break;
     }
+  };
+
+  const handleListScroll = (e: React.UIEvent<HTMLUListElement>) => {
+    if (!hasMore || isLoading || !onLoadMore) return;
+    const target = e.currentTarget;
+    const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
+    if (nearBottom) onLoadMore();
   };
 
   return (
@@ -233,8 +263,8 @@ const Dropdown = ({
                   className="app-input min-w-0 flex-1"
                   style={{ fontSize: '0.8125rem' }}
                   placeholder={searchPlaceholder}
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setHighlightedIndex(0); }}
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
                   onKeyDown={handleKeyDown}
                 />
                 {onCreateNew && (
@@ -256,8 +286,9 @@ const Dropdown = ({
               ref={listRef}
               role="listbox"
               className="max-h-52 overflow-auto"
+              onScroll={handleListScroll}
             >
-              {filtered.length === 0 ? (
+              {filtered.length === 0 && !showLoading ? (
                 <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
                   No results
                 </li>
@@ -331,6 +362,11 @@ const Dropdown = ({
                     </li>
                   );
                 })
+              )}
+              {showLoading && (
+                <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  Loading...
+                </li>
               )}
             </ul>
           </motion.div>

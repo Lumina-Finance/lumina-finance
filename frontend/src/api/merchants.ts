@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import {
@@ -33,6 +33,19 @@ export interface MergeMerchantPayload {
   replacement_merchant_id: string;
 }
 
+export interface MerchantFilters {
+  group_id?: string;
+  q?: string;
+}
+
+function buildQueryString(params: Record<string, string | number | undefined>): string {
+  const entries = Object.entries(params).filter(
+    (entry): entry is [string, string | number] => entry[1] !== undefined,
+  );
+  if (entries.length === 0) return '';
+  return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
+}
+
 function invalidateMerchantMergeQueries(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
@@ -53,6 +66,39 @@ export function useMerchants() {
   });
 }
 
+export function useMerchant(merchantId: string | null | undefined, enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: merchantKeys.detail(merchantId),
+    queryFn: () => authenticatedFetch<Merchant>(`/merchants/${merchantId}`),
+    enabled: !!accessToken && !!merchantId && enabled,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
+export function useInfiniteMerchants(filters: MerchantFilters = {}, pageSize = 20, enabled = true) {
+  const { accessToken } = useAuth();
+  return useInfiniteQuery({
+    queryKey: merchantKeys.infinite(filters as Record<string, unknown>, pageSize),
+    queryFn: ({ pageParam }) =>
+      authenticatedFetch<Merchant[]>(
+        '/merchants' +
+          buildQueryString({
+            ...(filters as Record<string, string | number | undefined>),
+            limit: pageSize,
+            offset: pageParam,
+          }),
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < pageSize ? undefined : allPages.length * pageSize,
+    enabled: !!accessToken && enabled,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
 export function useCreateMerchant() {
   const qc = useQueryClient();
   return useMutation({
@@ -66,6 +112,8 @@ export function useCreateMerchant() {
       qc.setQueryData<Merchant[]>(merchantKeys.list(), (prev = []) =>
         [...prev, created].sort((a, b) => a.name.localeCompare(b.name)),
       );
+      qc.setQueryData<Merchant>(merchantKeys.detail(created.id), created);
+      qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
     },
   });
 }
@@ -84,6 +132,8 @@ export function useUpdateMerchant() {
           ?.map((merchant) => (merchant.id === updated.id ? updated : merchant))
           .sort((a, b) => a.name.localeCompare(b.name)) ?? prev,
       );
+      qc.setQueryData<Merchant>(merchantKeys.detail(updated.id), updated);
+      qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
     },
   });
 }
@@ -109,6 +159,8 @@ export function useMergeMerchant() {
       qc.setQueryData<Merchant[]>(merchantKeys.list(), (merchants) =>
         merchants?.filter((merchant) => merchant.id !== merchantId) ?? merchants,
       );
+      qc.removeQueries({ queryKey: merchantKeys.detail(merchantId), exact: true });
+      qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
       invalidateMerchantMergeQueries(qc);
     },
   });
