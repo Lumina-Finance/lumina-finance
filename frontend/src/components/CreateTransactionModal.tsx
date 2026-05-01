@@ -2,10 +2,11 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { Check, Info, ReceiptText, Trash2, X } from 'lucide-react'
+import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import Dropdown from '@/components/Dropdown'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
-import { useMerchants, useCreateMerchant } from '@/api/merchants'
+import { useMerchants, type Merchant } from '@/api/merchants'
 import { useCurrencies } from '@/api/currency'
 import {
   useCreateTransaction,
@@ -191,7 +192,6 @@ export default function CreateTransactionModal({
   const createMutation = useCreateTransaction()
   const updateMutation = useUpdateTransaction()
   const deleteMutation = useDeleteTransaction()
-  const createMerchant = useCreateMerchant()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: merchants = [] } = useMerchants()
@@ -228,6 +228,9 @@ export default function CreateTransactionModal({
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitError, setSubmitError] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [merchantModalName, setMerchantModalName] = useState('')
+  const [showMerchantModal, setShowMerchantModal] = useState(false)
+  const [merchantModalKey, setMerchantModalKey] = useState(0)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
@@ -276,6 +279,13 @@ export default function CreateTransactionModal({
   const categoryOptions = useMemo(
     () => buildCategoryOptions(categories, form.kind),
     [categories, form.kind],
+  )
+  const merchantDefaultCategoryOptions = useMemo(
+    () => [
+      { value: NO_DEFAULT_CATEGORY_VALUE, label: 'No default category', group: 'Default' },
+      ...categoryOptions,
+    ],
+    [categoryOptions],
   )
   const merchantOptions = useMemo(
     () => merchants
@@ -350,18 +360,27 @@ export default function CreateTransactionModal({
   }
 
   const handleCreateMerchant = (name: string) => {
-    createMerchant.mutate(
-      { name },
-      {
-        onSuccess: (merchant) => {
-          setForm((f) => ({ ...f, merchant_id: merchant.id }))
-          clearError('merchant_id')
-        },
-        onError: (err) => {
-          setSubmitError(err instanceof ApiError ? err.message : 'Could not create merchant.')
-        },
-      },
-    )
+    setMerchantModalName(name)
+    setMerchantModalKey((key) => key + 1)
+    setShowMerchantModal(true)
+  }
+
+  const handleMerchantCreated = (merchant: Merchant) => {
+    const defaultCategoryId = merchant.default_category_id
+    const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
+    setForm((f) => ({
+      ...f,
+      merchant_id: merchant.id,
+      ...(defaultCategoryId
+        ? {
+            category_id: defaultCategoryId,
+            kind: (defaultCategory?.kind as Kind) ?? f.kind,
+          }
+        : {}),
+    }))
+    clearError('merchant_id')
+    if (defaultCategoryId) clearError('category_id')
+    setShowMerchantModal(false)
   }
 
   const handleAccountChange = (accountId: string) => {
@@ -461,12 +480,14 @@ export default function CreateTransactionModal({
 
   const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field]
 
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <motion.div
+  return (
+    <>
+      {createPortal(
+        <AnimatePresence>
+          {open && (
+            <>
+              {/* Backdrop */}
+              <motion.div
             className="fixed inset-0 z-50"
             style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
             initial={{ opacity: 0 }}
@@ -475,18 +496,18 @@ export default function CreateTransactionModal({
             transition={{ duration: 0.2 }}
             onClick={onClose}
             aria-hidden
-          />
+              />
 
-          {/* Panel */}
-          <motion.div
+              {/* Panel */}
+              <motion.div
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ duration: 0.25, ease: EASE }}
             onClick={onClose}
-          >
-            <div
+              >
+                <div
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-txn-title"
@@ -497,23 +518,23 @@ export default function CreateTransactionModal({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(e) => e.stopPropagation()}
-            >
-              <div
+                >
+                  <div
                 className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"
                 style={{
                   background: 'var(--app-button-primary-bg)',
                   color: 'var(--app-button-primary-text)',
                 }}
                 aria-hidden
-              >
-                <ReceiptText size={20} strokeWidth={2} />
-                <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
-                  Transaction
-                </span>
-              </div>
+                  >
+                    <ReceiptText size={20} strokeWidth={2} />
+                    <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
+                      Transaction
+                    </span>
+                  </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+                  {/* Form */}
+                  <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
                 {/* Header */}
                 <div
                   className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
@@ -880,12 +901,23 @@ export default function CreateTransactionModal({
                     </button>
                   </div>
                 </div>
-              </form>
-            </div>
-          </motion.div>
-        </>
+                  </form>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body,
       )}
-    </AnimatePresence>,
-    document.body,
+      <CreateMerchantModal
+        key={merchantModalKey}
+        open={open && showMerchantModal}
+        initialName={merchantModalName}
+        variant="secondary"
+        categoryOptions={merchantDefaultCategoryOptions}
+        onClose={() => setShowMerchantModal(false)}
+        onCreated={handleMerchantCreated}
+      />
+    </>
   )
 }
