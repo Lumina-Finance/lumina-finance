@@ -69,6 +69,7 @@ const MODAL_SURFACE_TRANSITION_SECONDS = 0.25
 const MODAL_SURFACE_TRANSITION_MS = MODAL_SURFACE_TRANSITION_SECONDS * 1000
 const CREATE_BUDGET_MIN_LOADING_MS = 800
 const DELETE_BUDGET_MIN_LOADING_MS = 1000
+const DEFAULT_CATEGORY_ICON = '🏷️'
 
 interface FieldLabelRowProps {
   label: React.ReactNode
@@ -106,6 +107,10 @@ function FieldLabelRow({ label, htmlFor, error }: FieldLabelRowProps) {
       </AnimatePresence>
     </div>
   )
+}
+
+function categoryIcon(category: Category) {
+  return category.icon ?? DEFAULT_CATEGORY_ICON
 }
 
 interface BudgetCreateFieldErrors {
@@ -898,12 +903,15 @@ function BudgetEditModal({
                                   key={category.id}
                                   layout
                                   type="button"
-                                  className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
+                                  className={`app-selection-option grid-cols-[1.25rem_1.25rem_minmax(0,1fr)] ${selected ? 'app-selection-option-active' : ''}`}
                                   onClick={() => toggleCategory(category.id)}
                                   transition={{ layout: { duration: 0.22, ease: EASE } }}
                                 >
                                   <span className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}>
                                     <Check size={13} strokeWidth={3} aria-hidden />
+                                  </span>
+                                  <span className="h-5 w-5 text-center text-base leading-5" aria-hidden>
+                                    {categoryIcon(category)}
                                   </span>
                                   <span className="truncate">{category.name}</span>
                                 </motion.button>
@@ -1966,11 +1974,14 @@ function BudgetCreateModal({
                                   <button
                                     key={category.id}
                                     type="button"
-                                    className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
+                                    className={`app-selection-option grid-cols-[1.25rem_1.25rem_minmax(0,1fr)] ${selected ? 'app-selection-option-active' : ''}`}
                                     onClick={() => toggleCategory(category.id)}
                                   >
                                     <span className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}>
                                       <Check size={13} strokeWidth={3} aria-hidden />
+                                    </span>
+                                    <span className="h-5 w-5 text-center text-base leading-5" aria-hidden>
+                                      {categoryIcon(category)}
                                     </span>
                                     <span className="truncate">{category.name}</span>
                                   </button>
