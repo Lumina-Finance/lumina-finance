@@ -597,6 +597,19 @@ export default function CreateTransactionModal({
                             </motion.div>
                           )}
                         </AnimatePresence>
+
+                        {/* Date */}
+                        <div>
+                          <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
+                          <input
+                            id="txn-date"
+                            type="date"
+                            className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
+                            value={form.date}
+                            onChange={(e) => handleField('date', e.target.value)}
+                            onBlur={() => handleBlur('date')}
+                          />
+                        </div>
                       </div>
                     </section>
 
@@ -613,7 +626,7 @@ export default function CreateTransactionModal({
                       </div>
 
                       <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Source/Destination</p>
 
                         {/* Account */}
                         <div>
@@ -739,19 +752,6 @@ export default function CreateTransactionModal({
                               />
                             </div>
                           </div>
-                        </div>
-
-                        {/* Date */}
-                        <div>
-                          <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
-                          <input
-                            id="txn-date"
-                            type="date"
-                            className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
-                            value={form.date}
-                            onChange={(e) => handleField('date', e.target.value)}
-                            onBlur={() => handleBlur('date')}
-                          />
                         </div>
 
                         {/* Notes */}
