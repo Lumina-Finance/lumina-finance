@@ -60,7 +60,14 @@ export default function FilterChip({ label, selectedLabel, onClear, onClose, chi
           className={`flex h-full items-center gap-2 rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] ${active && onClear ? 'pl-4 pr-2' : 'px-4'}`}
         >
           <span>{selectedLabel ?? label}</span>
-          {active && onClear ? null : <ChevronDown size={14} aria-hidden style={{ opacity: 0.7 }} />}
+          {active && onClear ? null : (
+            <ChevronDown
+              size={14}
+              aria-hidden
+              className={`shrink-0 transition-transform duration-150 motion-reduce:transition-none ${open ? 'rotate-180' : 'rotate-0'}`}
+              style={{ opacity: 0.7 }}
+            />
+          )}
         </button>
         {active && onClear ? (
           <button
