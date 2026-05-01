@@ -18,6 +18,7 @@ import {
   type UpdateTransactionPayload,
 } from '@/api/transactions'
 import { ApiError } from '@/api/auth'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 
 /* ── Constants ── */
 
@@ -26,6 +27,9 @@ const DEFAULT_CATEGORY_ICON = '🏷️'
 const MIN_ADD_TRANSACTION_LOADING_MS = 800
 const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
 const MERCHANT_DROPDOWN_PAGE_SIZE = 10
+const MERCHANT_SEARCH_LOADING_TEXT_MIN_MS = 300
+const MERCHANT_SEARCH_DEBOUNCE_MS = 300
+const MERCHANT_FETCHING_MORE_TEXT_MIN_MS = 800
 
 type Kind = 'expense' | 'income' | 'transfer'
 
@@ -242,6 +246,8 @@ export default function CreateTransactionModal({
   const [categoryModalKey, setCategoryModalKey] = useState(0)
   const [merchantModalName, setMerchantModalName] = useState('')
   const [merchantSearch, setMerchantSearch] = useState('')
+  const [activeMerchantSearch, setActiveMerchantSearch] = useState('')
+  const [visiblePagedMerchants, setVisiblePagedMerchants] = useState<Merchant[]>([])
   const [createdMerchant, setCreatedMerchant] = useState<Merchant | null>(null)
   const [showMerchantModal, setShowMerchantModal] = useState(false)
   const [merchantModalKey, setMerchantModalKey] = useState(0)
@@ -250,15 +256,41 @@ export default function CreateTransactionModal({
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
+  const visibleMerchantCountRef = useRef(0)
+  const merchantInitialFetchStartedAtRef = useRef<number | null>(null)
+  const merchantFetchMoreStartedAtRef = useRef<number | null>(null)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
   const merchantQuery = useInfiniteMerchants(
-    { q: merchantSearch.trim() || undefined },
+    { q: activeMerchantSearch.trim() || undefined },
     MERCHANT_DROPDOWN_PAGE_SIZE,
     open,
   )
+  const showFetchingMoreMerchants = useMinimumVisibleFlag(
+    merchantQuery.isFetchingNextPage,
+    MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
+  )
+  const showInitialMerchantLoading = useMinimumVisibleFlag(
+    merchantQuery.isLoading,
+    MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
+  )
+  const showMerchantLoading = showInitialMerchantLoading || showFetchingMoreMerchants
+  const activeMerchantSearchText = activeMerchantSearch.trim()
+  const merchantLoadingText = showFetchingMoreMerchants
+    ? 'Fetching more'
+    : activeMerchantSearchText
+      ? `Searching for ${activeMerchantSearchText}`
+      : 'Loading merchants...'
   const selectedMerchantId = form.merchant_id || null
   const { data: fetchedSelectedMerchant } = useMerchant(selectedMerchantId, open && !!selectedMerchantId)
-  const pagedMerchants = useMemo(() => merchantQuery.data?.pages.flat() ?? [], [merchantQuery.data])
+  const fetchedMerchants = useMemo(() => merchantQuery.data?.pages.flat() ?? [], [merchantQuery.data])
+  const fetchedMerchantKey = useMemo(
+    () => fetchedMerchants.map((merchant) => merchant.id).join('|'),
+    [fetchedMerchants],
+  )
+  const visibleMerchantKey = useMemo(
+    () => visiblePagedMerchants.map((merchant) => merchant.id).join('|'),
+    [visiblePagedMerchants],
+  )
   const selectedMerchant = createdMerchant?.id === selectedMerchantId ? createdMerchant : fetchedSelectedMerchant
 
   // Measure both label widths once after mount so we can drive a smooth width transition.
@@ -288,6 +320,90 @@ export default function CreateTransactionModal({
     }
   }, [confirmingDelete])
 
+  useEffect(() => {
+    if (!merchantSearch.trim()) {
+      setActiveMerchantSearch('')
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveMerchantSearch(merchantSearch)
+    }, MERCHANT_SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [merchantSearch])
+
+  useEffect(() => {
+    visibleMerchantCountRef.current = visiblePagedMerchants.length
+  }, [visiblePagedMerchants.length])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (!activeMerchantSearchText) {
+        merchantInitialFetchStartedAtRef.current = null
+        merchantFetchMoreStartedAtRef.current = null
+        return
+      }
+
+      setVisiblePagedMerchants([])
+      visibleMerchantCountRef.current = 0
+      merchantInitialFetchStartedAtRef.current = performance.now()
+      merchantFetchMoreStartedAtRef.current = null
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeMerchantSearchText])
+
+  useLayoutEffect(() => {
+    if (activeMerchantSearchText) return
+    if (merchantQuery.isFetchingNextPage || merchantFetchMoreStartedAtRef.current !== null) return
+    if (fetchedMerchantKey === visibleMerchantKey) return
+
+    setVisiblePagedMerchants(fetchedMerchants)
+    visibleMerchantCountRef.current = fetchedMerchants.length
+    merchantInitialFetchStartedAtRef.current = null
+  }, [
+    activeMerchantSearchText,
+    fetchedMerchantKey,
+    fetchedMerchants,
+    merchantQuery.isFetchingNextPage,
+    visibleMerchantKey,
+  ])
+
+  useEffect(() => {
+    if (merchantQuery.isLoading) {
+      merchantInitialFetchStartedAtRef.current = performance.now()
+    }
+  }, [merchantQuery.isLoading])
+
+  useEffect(() => {
+    if (merchantQuery.isFetchingNextPage) {
+      merchantFetchMoreStartedAtRef.current = performance.now()
+    }
+  }, [merchantQuery.isFetchingNextPage])
+
+  useEffect(() => {
+    if (fetchedMerchantKey === visibleMerchantKey) return undefined
+
+    const isAppendingPage = fetchedMerchants.length > visibleMerchantCountRef.current && visibleMerchantCountRef.current > 0
+    const isInitialPage = fetchedMerchants.length > 0 && visibleMerchantCountRef.current === 0
+    const fetchStartedAt = isAppendingPage
+      ? merchantFetchMoreStartedAtRef.current
+      : merchantInitialFetchStartedAtRef.current
+    const minimumVisibleMs = isAppendingPage
+      ? MERCHANT_FETCHING_MORE_TEXT_MIN_MS
+      : MERCHANT_SEARCH_LOADING_TEXT_MIN_MS
+    const elapsed = fetchStartedAt === null ? minimumVisibleMs : performance.now() - fetchStartedAt
+    const delayMs = Math.max(minimumVisibleMs - elapsed, 0)
+    const timeoutId = window.setTimeout(() => {
+      setVisiblePagedMerchants(fetchedMerchants)
+      if (isInitialPage) merchantInitialFetchStartedAtRef.current = null
+      if (isAppendingPage) merchantFetchMoreStartedAtRef.current = null
+    }, delayMs)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [fetchedMerchantKey, fetchedMerchants, visibleMerchantKey])
+
   const createLoading = createMutation.isPending || createDelayPending
   const submitLoading = editing ? updateMutation.isPending : createLoading
   const isPending = createLoading || updateMutation.isPending || deleteMutation.isPending
@@ -315,11 +431,10 @@ export default function CreateTransactionModal({
   )
   const merchantCandidates = useMemo(() => {
     const map = new Map<string, Merchant>()
-    pagedMerchants.forEach((merchant) => map.set(merchant.id, merchant))
-    if (selectedMerchant) map.set(selectedMerchant.id, selectedMerchant)
+    visiblePagedMerchants.forEach((merchant) => map.set(merchant.id, merchant))
     if (createdMerchant) map.set(createdMerchant.id, createdMerchant)
     return [...map.values()]
-  }, [createdMerchant, pagedMerchants, selectedMerchant])
+  }, [createdMerchant, visiblePagedMerchants])
   const merchantOptions = useMemo(
     () => merchantCandidates
       .slice()
@@ -327,6 +442,9 @@ export default function CreateTransactionModal({
       .map((m) => ({ value: m.id, label: m.name })),
     [merchantCandidates],
   )
+  const selectedMerchantOption = selectedMerchant
+    ? { value: selectedMerchant.id, label: selectedMerchant.name }
+    : undefined
   const currencyOptions = useMemo(
     () => {
       const options = currencies.map((c) => ({ value: c.id, label: c.id }))
@@ -762,6 +880,7 @@ export default function CreateTransactionModal({
                           <FieldLabelRow label="Merchant" error={showError('merchant_id')} />
                           <Dropdown
                             options={merchantOptions}
+                            selectedOption={selectedMerchantOption}
                             value={form.merchant_id}
                             onChange={handleMerchantChange}
                             className={`app-input ${showError('merchant_id') ? 'app-input-error' : ''}`}
@@ -770,11 +889,19 @@ export default function CreateTransactionModal({
                             searchPlaceholder="Search merchants..."
                             searchValue={merchantSearch}
                             onSearchChange={setMerchantSearch}
+                            onSearchCommit={setActiveMerchantSearch}
                             filterOptions={false}
-                            isLoading={merchantQuery.isLoading || merchantQuery.isFetchingNextPage}
+                            isLoading={showMerchantLoading}
+                            loadingText={merchantLoadingText}
+                            loadingMinMs={0}
+                            hideOptionsWhileLoading={showInitialMerchantLoading}
                             hasMore={!!merchantQuery.hasNextPage}
                             onLoadMore={() => {
-                              if (merchantQuery.hasNextPage && !merchantQuery.isFetchingNextPage) {
+                              if (
+                                merchantQuery.hasNextPage &&
+                                !merchantQuery.isFetchingNextPage &&
+                                !showFetchingMoreMerchants
+                              ) {
                                 merchantQuery.fetchNextPage()
                               }
                             }}

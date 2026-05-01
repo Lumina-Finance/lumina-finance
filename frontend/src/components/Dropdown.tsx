@@ -13,6 +13,7 @@ export interface DropdownOption {
 interface DropdownProps {
   id?: string;
   options: DropdownOption[];
+  selectedOption?: DropdownOption;
   value: string;
   onChange: (value: string) => void;
   className?: string;
@@ -23,8 +24,12 @@ interface DropdownProps {
   onSearchChange?: (value: string) => void;
   filterOptions?: boolean;
   isLoading?: boolean;
+  loadingText?: string;
+  loadingMinMs?: number;
+  hideOptionsWhileLoading?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  onSearchCommit?: (value: string) => void;
   disabled?: boolean;
   /** Called when the user clicks the dropdown create action. Receives the current search text. */
   onCreateNew?: (query: string) => void;
@@ -36,6 +41,7 @@ const LOADING_TEXT_MIN_MS = 300;
 const Dropdown = ({
   id,
   options,
+  selectedOption,
   value,
   onChange,
   className = 'app-input',
@@ -46,8 +52,12 @@ const Dropdown = ({
   onSearchChange,
   filterOptions = true,
   isLoading = false,
+  loadingText = 'Loading...',
+  loadingMinMs = LOADING_TEXT_MIN_MS,
+  hideOptionsWhileLoading = false,
   hasMore = false,
   onLoadMore,
+  onSearchCommit,
   disabled = false,
   onCreateNew,
   createNewLabel,
@@ -61,25 +71,32 @@ const Dropdown = ({
   const listRef = useRef<HTMLUListElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const selected = options.find((o) => o.value === value);
+  const selected = options.find((o) => o.value === value) ?? (
+    selectedOption?.value === value ? selectedOption : undefined
+  );
   const searchText = searchValue ?? search;
-  const showLoading = useMinimumVisibleFlag(isLoading, LOADING_TEXT_MIN_MS);
+  const heldLoading = useMinimumVisibleFlag(isLoading, loadingMinMs);
+  const showLoading = loadingMinMs <= 0 ? isLoading : heldLoading;
 
   const filtered = useMemo(() => {
     if (!filterOptions || !searchable || !searchText) return options;
     const q = searchText.toLowerCase();
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, searchText, searchable, filterOptions]);
+  const visibleFiltered = useMemo(
+    () => (showLoading && hideOptionsWhileLoading ? [] : filtered),
+    [filtered, hideOptionsWhileLoading, showLoading],
+  );
 
   // Group filtered options by their `group` field for sectioned rendering.
   // Each group wraps its options so sticky headers stay pinned for the full section.
   const groupedFiltered = useMemo(() => {
-    if (!filtered.some((o) => o.group)) return null;
+    if (!visibleFiltered.some((o) => o.group)) return null;
 
     const groups: { label: string; items: { option: DropdownOption; flatIndex: number }[] }[] = [];
     let current: string | undefined;
 
-    filtered.forEach((option, i) => {
+    visibleFiltered.forEach((option, i) => {
       if (option.group !== current) {
         current = option.group;
         groups.push({ label: option.group ?? '', items: [] });
@@ -88,7 +105,7 @@ const Dropdown = ({
     });
 
     return groups;
-  }, [filtered]);
+  }, [visibleFiltered]);
 
   const updateListPosition = () => {
     if (!triggerRef.current) return;
@@ -161,7 +178,7 @@ const Dropdown = ({
           setOpen(true);
           setHighlightedIndex(0);
         } else {
-          setHighlightedIndex((i) => Math.min(i + 1, filtered.length - 1));
+          setHighlightedIndex((i) => Math.min(i + 1, visibleFiltered.length - 1));
         }
         break;
       case 'ArrowUp':
@@ -170,12 +187,12 @@ const Dropdown = ({
         break;
       case 'Enter':
         e.preventDefault();
-        if (open && highlightedIndex >= 0 && highlightedIndex < filtered.length) {
-          handleSelect(filtered[highlightedIndex].value);
+        if (open && highlightedIndex >= 0 && highlightedIndex < visibleFiltered.length) {
+          handleSelect(visibleFiltered[highlightedIndex].value);
         } else if (!open) {
           updateListPosition();
           setOpen(true);
-          setHighlightedIndex(filtered.findIndex((o) => o.value === value));
+          setHighlightedIndex(visibleFiltered.findIndex((o) => o.value === value));
         }
         break;
       case 'Escape':
@@ -265,7 +282,15 @@ const Dropdown = ({
                   placeholder={searchPlaceholder}
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && onSearchCommit) {
+                      e.preventDefault();
+                      onSearchCommit(searchText);
+                      setHighlightedIndex(0);
+                      return;
+                    }
+                    handleKeyDown(e);
+                  }}
                 />
                 {onCreateNew && (
                   <button
@@ -288,7 +313,7 @@ const Dropdown = ({
               className="max-h-52 overflow-auto"
               onScroll={handleListScroll}
             >
-              {filtered.length === 0 && !showLoading ? (
+              {visibleFiltered.length === 0 && !showLoading ? (
                 <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
                   No results
                 </li>
@@ -335,7 +360,7 @@ const Dropdown = ({
                   </li>
                 ))
               ) : (
-                filtered.map((option, i) => {
+                visibleFiltered.map((option, i) => {
                   const isSelected = option.value === value;
                   const isHighlighted = i === highlightedIndex;
                   return (
@@ -365,7 +390,7 @@ const Dropdown = ({
               )}
               {showLoading && (
                 <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  Loading...
+                  {loadingText}
                 </li>
               )}
             </ul>
