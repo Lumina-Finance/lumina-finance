@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   User as UserIcon,
@@ -71,6 +72,7 @@ const LIMIT_DELETE_BUTTON_TRANSITION = {
   duration: 0.1,
   ease: 'easeOut' as const,
 }
+const EASE = [0.25, 0.1, 0.25, 1] as const
 
 type SectionId = 'profile' | 'runway' | 'categories' | 'merchants' | 'tax-advantaged-categories'
 
@@ -424,6 +426,7 @@ const DEFAULT_NEW_LIMIT_YEAR = new Date().getFullYear()
 const MAX_VISIBLE_LIMIT_ROWS = 5
 const LIMIT_SAVE_FEEDBACK_MS = 600
 const LIMIT_DELETE_FEEDBACK_MS = 600
+const CREATE_TAX_CATEGORY_MIN_LOADING_MS = 800
 
 function nextAvailableLimitYear(limits: TaxAdvantagedPlanLimit[]) {
   const existingYears = new Set(limits.map((limit) => limit.year))
@@ -1013,8 +1016,10 @@ function CreateTaxAdvantagedCategoryModal({
     lifetime_contribution_limit: '',
   })
   const [createError, setCreateError] = useState<string | null>(null)
+  const [createInProgress, setCreateInProgress] = useState(false)
   const selectedCurrency = form.currency || userBaseCurrency || ''
   const options = useMemo(() => currencyOptions(currencies), [currencies])
+  const isCreating = createPlan.isPending || createInProgress
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -1035,6 +1040,8 @@ function CreateTaxAdvantagedCategoryModal({
 
   const handleCreatePlan = (event: React.FormEvent) => {
     event.preventDefault()
+    if (isCreating) return
+
     if (!form.name.trim()) {
       setCreateError('Name is required.')
       return
@@ -1048,7 +1055,10 @@ function CreateTaxAdvantagedCategoryModal({
       return
     }
 
-    createPlan.mutate(
+    setCreateInProgress(true)
+    const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, CREATE_TAX_CATEGORY_MIN_LOADING_MS))
+
+    void createPlan.mutateAsync(
       {
         name: form.name.trim(),
         tax_treatment: form.tax_treatment,
@@ -1056,16 +1066,17 @@ function CreateTaxAdvantagedCategoryModal({
         lifetime_contribution_limit: toMinorUnits(form.lifetime_contribution_limit, currencies, selectedCurrency),
         group_id: null,
       },
-      {
-        onSuccess: onClose,
-        onError: (error) => {
-          setCreateError(error instanceof Error ? error.message : 'Failed to create category.')
-        },
-      },
-    )
+    ).then(async () => {
+      await minimumLoading
+      onClose()
+    }).catch(async (error) => {
+      await minimumLoading
+      setCreateError(error instanceof Error ? error.message : 'Failed to create category.')
+      setCreateInProgress(false)
+    })
   }
 
-  return (
+  return createPortal(
     <>
       <motion.div
         className="fixed inset-0 z-50"
@@ -1083,14 +1094,14 @@ function CreateTaxAdvantagedCategoryModal({
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ duration: 0.25, ease: EASE }}
         onClick={onClose}
       >
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-tax-advantaged-category-title"
-          className="w-full max-w-2xl rounded-2xl p-6 sm:p-8"
+          className="flex max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
             border: '1px solid var(--app-border-strong)',
@@ -1098,91 +1109,170 @@ function CreateTaxAdvantagedCategoryModal({
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <form className="space-y-6" onSubmit={handleCreatePlan}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 id="create-tax-advantaged-category-title" className="font-serif text-2xl font-light tracking-tight">
-                  Create category
-                </h3>
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Define the shared limits before linking accounts.
-                </p>
+          <div
+            className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"
+            style={{
+              background: 'var(--app-button-primary-bg)',
+              color: 'var(--app-button-primary-text)',
+            }}
+            aria-hidden
+          >
+            <Landmark size={20} strokeWidth={2} />
+            <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
+              TAC
+            </span>
+          </div>
+
+          <form onSubmit={handleCreatePlan} className="flex min-h-0 w-full flex-col" noValidate>
+            <div
+              className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+              style={{ borderBottom: '1px solid var(--app-border)' }}
+            >
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                    Tax-advantaged category
+                  </p>
+                  <h3 id="create-tax-advantaged-category-title" className="font-serif text-3xl font-light">
+                    Create Category
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="app-icon-button shrink-0"
+                  aria-label="Close"
+                >
+                  <X size={20} aria-hidden />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="app-icon-button shrink-0"
-                aria-label="Close"
-              >
-                <X size={18} aria-hidden />
-              </button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Category name">
-                <input
-                  className="app-input"
-                  value={form.name}
-                  onChange={(event) => setField('name', event.target.value)}
-                  placeholder="TFSA"
-                  maxLength={256}
-                  required
-                />
-              </Field>
-              <Field label="Category type">
-                <Dropdown
-                  options={TAX_TREATMENT_OPTIONS}
-                  value={form.tax_treatment}
-                  onChange={(value) => setField('tax_treatment', value as TaxTreatment)}
-                />
-              </Field>
-              <Field label="Currency" labelAccessory={<TaxAdvantagedCurrencyWarning />}>
-                <Dropdown
-                  options={options}
-                  value={selectedCurrency}
-                  onChange={(value) => setField('currency', value)}
-                  placeholder="Select currency"
-                  searchable
-                  searchPlaceholder="Search currencies..."
-                />
-              </Field>
-              <Field label="Lifetime contribution limit">
-                <CurrencyInput
-                  currencies={currencies}
-                  currency={selectedCurrency}
-                  value={form.lifetime_contribution_limit}
-                  onChange={(value) => setField('lifetime_contribution_limit', value)}
-                  placeholder="Optional"
-                />
-              </Field>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8">
+              <div className="space-y-5">
+                <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                  <div className="flex min-h-0 flex-col items-center">
+                    <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                      01
+                    </span>
+                    <span
+                      className="mt-1 w-px flex-1"
+                      style={{ backgroundColor: 'var(--app-border-strong)' }}
+                      aria-hidden
+                    />
+                  </div>
+
+                  <div className="min-w-0 space-y-3">
+                    <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category name</span>
+                        <input
+                          className="app-input"
+                          value={form.name}
+                          onChange={(event) => setField('name', event.target.value)}
+                          placeholder="TFSA"
+                          maxLength={256}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</span>
+                        <Dropdown
+                          options={TAX_TREATMENT_OPTIONS}
+                          value={form.tax_treatment}
+                          onChange={(value) => setField('tax_treatment', value as TaxTreatment)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                  <div className="flex min-h-0 flex-col items-center">
+                    <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                      02
+                    </span>
+                    <span
+                      className="mt-1 w-px flex-1"
+                      style={{ backgroundColor: 'var(--app-border-strong)' }}
+                      aria-hidden
+                    />
+                  </div>
+
+                  <div className="min-w-0 space-y-3">
+                    <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Limits</p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <span className="app-label block text-[0.9375rem] leading-5">Currency</span>
+                          <TaxAdvantagedCurrencyWarning />
+                        </div>
+                        <Dropdown
+                          options={options}
+                          value={selectedCurrency}
+                          onChange={(value) => setField('currency', value)}
+                          placeholder="Select currency"
+                          searchable
+                          searchPlaceholder="Search currencies..."
+                        />
+                      </div>
+                      <div>
+                        <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime contribution limit</span>
+                        <CurrencyInput
+                          currencies={currencies}
+                          currency={selectedCurrency}
+                          value={form.lifetime_contribution_limit}
+                          onChange={(value) => setField('lifetime_contribution_limit', value)}
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <AnimatePresence>
+                  {createError && (
+                    <motion.p
+                      className="text-sm font-medium"
+                      style={{ color: 'var(--app-negative)' }}
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      {createError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-              {createError && (
-                <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
-                  {createError}
-                </p>
-              )}
+            <div
+              className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8"
+              style={{ borderTop: '1px solid var(--app-border)' }}
+            >
               <button
                 type="button"
-                className="app-secondary-button"
+                className="app-secondary-button w-full sm:w-auto"
                 onClick={onClose}
+                disabled={isCreating}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="app-primary-button inline-flex items-center justify-center gap-2"
-                disabled={createPlan.isPending}
+                className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
+                disabled={isCreating}
               >
-                {createPlan.isPending ? <div className="app-spinner" aria-label="Creating" /> : <Plus size={16} aria-hidden />}
-                Create category
+                {isCreating ? <div className="app-spinner" aria-label="Creating" /> : 'Create Category'}
               </button>
             </div>
           </form>
         </div>
       </motion.div>
-    </>
+    </>,
+    document.body,
   )
 }
 

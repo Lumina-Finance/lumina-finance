@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Picker } from 'emoji-mart'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, ChevronDown, Lock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, Lock, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import {
   useCategories,
@@ -28,6 +29,7 @@ const KIND_OPTIONS = KIND_ORDER.map((kind) => ({ value: kind, label: KIND_LABELS
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
 const DELETE_SPINNER_MS = 1000
+const EASE = [0.25, 0.1, 0.25, 1] as const
 
 interface EmojiMartData {
   emojis?: Record<string, unknown>
@@ -249,12 +251,14 @@ export default function CategorySettingsSection() {
         </div>
       </SettingsCard>
 
-      {showCreateModal && (
-        <CreateCategoryModal
-          onClose={() => setShowCreateModal(false)}
-          onCreated={handleCreated}
-        />
-      )}
+      <AnimatePresence>
+        {showCreateModal && (
+          <CreateCategoryModal
+            onClose={() => setShowCreateModal(false)}
+            onCreated={handleCreated}
+          />
+        )}
+      </AnimatePresence>
       {mergeDeleteCategory && (
         <MergeDeleteCategoryModal
           category={mergeDeleteCategory}
@@ -346,21 +350,32 @@ function CreateCategoryModal({
     )
   }
 
-  return (
+  return createPortal(
     <>
-      <div
+      <motion.div
         className="fixed inset-0 z-50"
         style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
         onClick={onClose}
         aria-hidden
       />
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+        transition={{ duration: 0.25, ease: EASE }}
+        onClick={onClose}
+      >
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-category-title"
-          className="w-full max-w-lg rounded-2xl p-6 sm:p-8"
+          className="flex max-h-[86vh] w-full max-w-2xl rounded-2xl"
           style={{
             background: 'var(--app-bg)',
             border: '1px solid var(--app-border-strong)',
@@ -368,101 +383,186 @@ function CreateCategoryModal({
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 id="create-category-title" className="font-serif text-2xl font-light tracking-tight">
-                  Create category
-                </h3>
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Add a personal category for transactions and budgets.
-                </p>
+          <div
+            className="hidden w-16 shrink-0 flex-col items-center justify-between rounded-l-2xl py-6 sm:flex"
+            style={{
+              background: 'var(--app-button-primary-bg)',
+              color: 'var(--app-button-primary-text)',
+            }}
+            aria-hidden
+          >
+            <Tag size={20} strokeWidth={2} />
+            <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
+              Category
+            </span>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+            <div
+              className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+              style={{ borderBottom: '1px solid var(--app-border)' }}
+            >
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                    {KIND_LABELS[form.kind]} category
+                  </p>
+                  <h3 id="create-category-title" className="font-serif text-3xl font-light">
+                    Create Category
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="app-icon-button shrink-0"
+                  aria-label="Close"
+                >
+                  <X size={20} aria-hidden />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="app-icon-button shrink-0"
-                aria-label="Close"
-              >
-                <X size={18} aria-hidden />
-              </button>
             </div>
 
-            <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="app-label block">Icon</span>
-              </div>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="app-label block">Category name</span>
+            <div className="px-6 pb-3 pt-4 sm:px-8">
+              <div className="space-y-5">
+                <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                  <div className="flex min-h-0 flex-col items-center">
+                    <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                      01
+                    </span>
+                    <span
+                      className="mt-1 w-px flex-1"
+                      style={{ backgroundColor: 'var(--app-border-strong)' }}
+                      aria-hidden
+                    />
+                  </div>
+
+                  <div className="min-w-0 space-y-3">
+                    <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
+
+                    <div className="grid gap-4 sm:grid-cols-[3.5rem_minmax(0,1fr)]">
+                      <div>
+                        <div className="mb-1.5 flex items-start justify-between gap-3">
+                          <span className="app-label block shrink-0 text-[0.9375rem] leading-5">Icon</span>
+                          <AnimatePresence initial={false}>
+                            {showError('icon') && (
+                              <motion.p
+                                key="icon-error"
+                                className="text-right text-xs font-medium leading-5"
+                                style={{ color: 'var(--app-negative)' }}
+                                initial={{ opacity: 0, x: 4 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 4 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                {fieldErrors.icon}
+                              </motion.p>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <CategoryIconSelector
+                          categoryName={form.name || 'New category'}
+                          value={form.icon}
+                          onChange={(icon) => setField('icon', icon)}
+                          buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${showError('icon') ? 'app-input-error' : ''}`}
+                          hasError={!!showError('icon')}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1.5 flex items-start justify-between gap-3">
+                          <span className="app-label block shrink-0 text-[0.9375rem] leading-5">Category name</span>
+                          <AnimatePresence initial={false}>
+                            {showError('name') && (
+                              <motion.p
+                                key="name-error"
+                                className="text-right text-xs font-medium leading-5"
+                                style={{ color: 'var(--app-negative)' }}
+                                initial={{ opacity: 0, x: 4 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 4 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                {fieldErrors.name}
+                              </motion.p>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <input
+                          className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                          value={form.name}
+                          onChange={(event) => setField('name', event.target.value)}
+                          onBlur={() => setTouched((current) => ({ ...current, name: true }))}
+                          placeholder="Groceries"
+                          maxLength={256}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                  <div className="flex min-h-0 flex-col items-center">
+                    <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                      02
+                    </span>
+                    <span
+                      className="mt-1 w-px flex-1"
+                      style={{ backgroundColor: 'var(--app-border-strong)' }}
+                      aria-hidden
+                    />
+                  </div>
+
+                  <div className="min-w-0 space-y-3">
+                    <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Classification</p>
+                    <div>
+                      <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</span>
+                      <Dropdown
+                        options={KIND_OPTIONS}
+                        value={form.kind}
+                        onChange={(value) => setField('kind', value as CategoryKind)}
+                      />
+                    </div>
+                  </div>
+                </section>
+
                 <AnimatePresence>
-                  {showError('name') && (
+                  {formError && (
                     <motion.p
-                      key="name-error"
-                      className="whitespace-nowrap text-xs"
+                      className="text-sm font-medium"
                       style={{ color: 'var(--app-negative)' }}
-                      initial={{ opacity: 0, x: 4 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 4 }}
-                      transition={{ duration: 0.2 }}
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
                     >
-                      {fieldErrors.name}
+                      {formError}
                     </motion.p>
                   )}
                 </AnimatePresence>
               </div>
-              <div>
-                <CategoryIconSelector
-                  categoryName={form.name || 'New category'}
-                  value={form.icon}
-                  onChange={(icon) => setField('icon', icon)}
-                  buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${showError('icon') ? 'app-input-error' : ''}`}
-                  hasError={!!showError('icon')}
-                />
-              </div>
-              <div>
-                <input
-                  className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
-                  value={form.name}
-                  onChange={(event) => setField('name', event.target.value)}
-                  onBlur={() => setTouched((current) => ({ ...current, name: true }))}
-                  placeholder="Groceries"
-                  maxLength={256}
-                  required
-                />
-              </div>
-              <div className="mt-2 sm:col-span-2">
-                <Field label="Category type">
-                  <Dropdown
-                    options={KIND_OPTIONS}
-                    value={form.kind}
-                    onChange={(value) => setField('kind', value as CategoryKind)}
-                  />
-                </Field>
-              </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-              {formError && (
-                <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
-                  {formError}
-                </p>
-              )}
-              <button type="button" className="app-secondary-button" onClick={onClose}>
+            <div
+              className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8"
+              style={{ borderTop: '1px solid var(--app-border)' }}
+            >
+              <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={createCategory.isPending}>
                 Cancel
               </button>
               <button
                 type="submit"
-                className="app-primary-button inline-flex items-center justify-center gap-2"
+                className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${createCategory.isPending ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
                 disabled={createCategory.isPending}
               >
-                {createCategory.isPending ? <div className="app-spinner" aria-label="Creating" /> : <Plus size={16} aria-hidden />}
-                Create category
+                {createCategory.isPending ? <div className="app-spinner" aria-label="Creating" /> : 'Create Category'}
               </button>
             </div>
           </form>
         </div>
-      </div>
-    </>
+      </motion.div>
+    </>,
+    document.body,
   )
 }
 

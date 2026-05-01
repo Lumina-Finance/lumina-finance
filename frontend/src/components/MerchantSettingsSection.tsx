@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, Pencil, Plus, Search, Store, Trash2, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCategories, type Category } from '@/api/categories'
 import {
@@ -17,6 +18,8 @@ import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 
 const DELETE_SPINNER_MS = 1000
 const NO_CATEGORY_VALUE = '__none__'
+const EASE = [0.25, 0.1, 0.25, 1] as const
+const CREATE_MERCHANT_MIN_LOADING_MS = 800
 const CATEGORY_KIND_LABELS: Record<Category['kind'], string> = {
   expense: 'Expense',
   income: 'Income',
@@ -243,13 +246,15 @@ export default function MerchantSettingsSection() {
         </div>
       </SettingsCard>
 
-      {showCreateModal && (
-        <CreateMerchantModal
-          categoryOptions={options}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={() => setShowCreateModal(false)}
-        />
-      )}
+      <AnimatePresence>
+        {showCreateModal && (
+          <CreateMerchantModal
+            categoryOptions={options}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={() => setShowCreateModal(false)}
+          />
+        )}
+      </AnimatePresence>
       {mergeDeleteMerchant && (
         <MergeDeleteMerchantModal
           merchant={mergeDeleteMerchant}
@@ -288,6 +293,8 @@ function CreateMerchantModal({
     name: false,
   })
   const [formError, setFormError] = useState<string | null>(null)
+  const [createInProgress, setCreateInProgress] = useState(false)
+  const isCreating = createMerchant.isPending || createInProgress
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -313,7 +320,7 @@ function CreateMerchantModal({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (createMerchant.isPending) return
+    if (isCreating) return
 
     const name = form.name.trim()
     if (!name) {
@@ -322,36 +329,51 @@ function CreateMerchantModal({
       return
     }
 
-    createMerchant.mutate(
+    setCreateInProgress(true)
+    const minimumLoading = delay(CREATE_MERCHANT_MIN_LOADING_MS)
+
+    void createMerchant.mutateAsync(
       {
         name,
         default_category_id: form.default_category_id === NO_CATEGORY_VALUE ? null : form.default_category_id,
         group_id: null,
       },
-      {
-        onSuccess: onCreated,
-        onError: (error) => {
-          setFormError(error instanceof Error ? error.message : 'Failed to create merchant.')
-        },
-      },
-    )
+    ).then(async () => {
+      await minimumLoading
+      onCreated()
+    }).catch(async (error) => {
+      await minimumLoading
+      setFormError(error instanceof Error ? error.message : 'Failed to create merchant.')
+      setCreateInProgress(false)
+    })
   }
 
-  return (
+  return createPortal(
     <>
-      <div
+      <motion.div
         className="fixed inset-0 z-50"
         style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
         onClick={onClose}
         aria-hidden
       />
 
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <motion.div
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+        transition={{ duration: 0.25, ease: EASE }}
+        onClick={onClose}
+      >
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-merchant-title"
-          className="w-full max-w-lg rounded-2xl p-6 sm:p-8"
+          className="flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
             border: '1px solid var(--app-border-strong)',
@@ -359,89 +381,157 @@ function CreateMerchantModal({
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 id="create-merchant-title" className="font-serif text-2xl font-light tracking-tight">
-                  Create merchant
-                </h3>
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  Add a merchant and choose its default category.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="app-icon-button shrink-0"
-                aria-label="Close"
-              >
-                <X size={18} aria-hidden />
-              </button>
-            </div>
+          <div
+            className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"
+            style={{
+              background: 'var(--app-button-primary-bg)',
+              color: 'var(--app-button-primary-text)',
+            }}
+            aria-hidden
+          >
+            <Store size={20} strokeWidth={2} />
+            <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
+              Merchant
+            </span>
+          </div>
 
-            <div className="grid gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="app-label block">Merchant name</span>
-                  <AnimatePresence>
-                    {showError('name') && (
-                      <motion.p
-                        key="name-error"
-                        className="whitespace-nowrap text-xs"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        {fieldErrors.name}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
+          <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+            <div
+              className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+              style={{ borderBottom: '1px solid var(--app-border)' }}
+            >
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                    Personal merchant
+                  </p>
+                  <h3 id="create-merchant-title" className="font-serif text-3xl font-light">
+                    Create Merchant
+                  </h3>
                 </div>
-                <input
-                  className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
-                  value={form.name}
-                  onChange={(event) => setField('name', event.target.value)}
-                  onBlur={() => setTouched((current) => ({ ...current, name: true }))}
-                  placeholder="Costco"
-                  maxLength={256}
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="app-icon-button shrink-0"
+                  aria-label="Close"
+                >
+                  <X size={20} aria-hidden />
+                </button>
               </div>
-              <Field label="Default category">
-                <Dropdown
-                  options={categoryOptions}
-                  value={form.default_category_id}
-                  onChange={(value) => setField('default_category_id', value)}
-                  searchable
-                  searchPlaceholder="Search categories..."
-                />
-              </Field>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-              {formError && (
-                <p className="text-sm sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
-                  {formError}
-                </p>
-              )}
-              <button type="button" className="app-secondary-button" onClick={onClose}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8">
+              <div className="space-y-5">
+                <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                  <div className="flex min-h-0 flex-col items-center">
+                    <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                      01
+                    </span>
+                    <span
+                      className="mt-1 w-px flex-1"
+                      style={{ backgroundColor: 'var(--app-border-strong)' }}
+                      aria-hidden
+                    />
+                  </div>
+
+                  <div className="min-w-0 space-y-3">
+                    <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
+                    <div>
+                      <div className="mb-1.5 flex items-start justify-between gap-3">
+                        <span className="app-label block shrink-0 text-[0.9375rem] leading-5">Merchant name</span>
+                        <AnimatePresence initial={false}>
+                          {showError('name') && (
+                            <motion.p
+                              key="name-error"
+                              className="text-right text-xs font-medium leading-5"
+                              style={{ color: 'var(--app-negative)' }}
+                              initial={{ opacity: 0, x: 4 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: 4 }}
+                              transition={{ duration: 0.15 }}
+                            >
+                              {fieldErrors.name}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                      <input
+                        className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                        value={form.name}
+                        onChange={(event) => setField('name', event.target.value)}
+                        onBlur={() => setTouched((current) => ({ ...current, name: true }))}
+                        placeholder="Costco"
+                        maxLength={256}
+                        required
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                  <div className="flex min-h-0 flex-col items-center">
+                    <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                      02
+                    </span>
+                    <span
+                      className="mt-1 w-px flex-1"
+                      style={{ backgroundColor: 'var(--app-border-strong)' }}
+                      aria-hidden
+                    />
+                  </div>
+
+                  <div className="min-w-0 space-y-3">
+                    <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Default</p>
+                    <div>
+                      <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Default category</span>
+                      <Dropdown
+                        options={categoryOptions}
+                        value={form.default_category_id}
+                        onChange={(value) => setField('default_category_id', value)}
+                        searchable
+                        searchPlaceholder="Search categories..."
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <AnimatePresence>
+                  {formError && (
+                    <motion.p
+                      className="text-sm font-medium"
+                      style={{ color: 'var(--app-negative)' }}
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      {formError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            <div
+              className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8"
+              style={{ borderTop: '1px solid var(--app-border)' }}
+            >
+              <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={isCreating}>
                 Cancel
               </button>
               <button
                 type="submit"
-                className="app-primary-button inline-flex items-center justify-center gap-2"
-                disabled={createMerchant.isPending}
+                className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
+                disabled={isCreating}
               >
-                {createMerchant.isPending ? <div className="app-spinner" aria-label="Creating" /> : <Plus size={16} aria-hidden />}
-                Create merchant
+                {isCreating ? <div className="app-spinner" aria-label="Creating" /> : 'Create Merchant'}
               </button>
             </div>
           </form>
         </div>
-      </div>
-    </>
+      </motion.div>
+    </>,
+    document.body,
   )
 }
 
