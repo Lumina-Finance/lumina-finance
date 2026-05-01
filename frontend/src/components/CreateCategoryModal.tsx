@@ -29,6 +29,7 @@ interface EmojiMartSelection {
 }
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
+const CREATE_CATEGORY_MIN_LOADING_MS = 800
 const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
 
 const KIND_LABELS: Record<CategoryKind, string> = {
@@ -60,6 +61,12 @@ const EMOJI_MART_THEME = {
 } as const
 
 let emojiMartDataPromise: Promise<EmojiMartData> | null = null
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
 
 function loadEmojiMartData(): Promise<EmojiMartData> {
   if (!emojiMartDataPromise) {
@@ -106,6 +113,8 @@ export default function CreateCategoryModal({
     name: false,
   })
   const [formError, setFormError] = useState<string | null>(null)
+  const [createInProgress, setCreateInProgress] = useState(false)
+  const isCreating = createCategory.isPending || createInProgress
   const isSecondary = variant === 'secondary'
 
   useEffect(() => {
@@ -135,7 +144,7 @@ export default function CreateCategoryModal({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (createCategory.isPending) return
+    if (isCreating) return
 
     const name = form.name.trim()
     const nextErrors: CreateCategoryFieldErrors = {}
@@ -147,20 +156,24 @@ export default function CreateCategoryModal({
       return
     }
 
-    createCategory.mutate(
+    setCreateInProgress(true)
+    const minimumLoading = delay(CREATE_CATEGORY_MIN_LOADING_MS)
+
+    void createCategory.mutateAsync(
       {
         name,
         kind: form.kind,
         icon: form.icon,
         group_id: null,
       },
-      {
-        onSuccess: onCreated,
-        onError: (error) => {
-          setFormError(error instanceof Error ? error.message : 'Failed to create category.')
-        },
-      },
-    )
+    ).then(async (category) => {
+      await minimumLoading
+      onCreated(category)
+    }).catch(async (error) => {
+      await minimumLoading
+      setFormError(error instanceof Error ? error.message : 'Failed to create category.')
+      setCreateInProgress(false)
+    })
   }
 
   const backdropClassName = isSecondary ? 'fixed inset-0 z-[100]' : 'fixed inset-0 z-50'
@@ -383,15 +396,15 @@ export default function CreateCategoryModal({
                 </div>
 
                 <div className={footerPadding} style={{ borderTop: '1px solid var(--app-border)' }}>
-                  <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={createCategory.isPending}>
+                  <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={isCreating}>
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${createCategory.isPending ? 'app-primary-button-loading' : submitWidth}`}
-                    disabled={createCategory.isPending}
+                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading' : submitWidth}`}
+                    disabled={isCreating}
                   >
-                    {createCategory.isPending ? <div className="app-spinner" aria-label="Creating" /> : submitLabel}
+                    {isCreating ? <div className="app-spinner" aria-label="Creating" /> : submitLabel}
                   </button>
                 </div>
               </form>
