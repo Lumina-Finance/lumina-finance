@@ -423,7 +423,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           </div>
 
                           <div className="min-w-0 space-y-3">
-                            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Context</p>
+                            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
 
                             {/* Institution */}
                             <div>
