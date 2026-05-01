@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type UIEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'motion/react'
-import { Check, Pencil, Plus, Search, Store, Trash2, X } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { ArrowDown, Check, Pencil, Plus, Search, Store, Trash2, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCategories, type Category } from '@/api/categories'
 import {
@@ -19,6 +19,9 @@ import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 const DELETE_SPINNER_MS = 1000
 const NO_CATEGORY_VALUE = NO_DEFAULT_CATEGORY_VALUE
 const EASE = [0.25, 0.1, 0.25, 1] as const
+const MERCHANT_LIST_VISIBLE_ROWS = 10
+const MERCHANT_LIST_PAGE_SIZE = 10
+const MERCHANT_LIST_INITIAL_COUNT = MERCHANT_LIST_VISIBLE_ROWS + 1
 const CATEGORY_KIND_LABELS: Record<Category['kind'], string> = {
   expense: 'Expense',
   income: 'Income',
@@ -95,6 +98,7 @@ function merchantMergeOptions(merchant: Merchant, merchants: Merchant[]): Dropdo
 
 export default function MerchantSettingsSection() {
   const queryClient = useQueryClient()
+  const shouldReduceMotion = useReducedMotion()
   const { data: merchants = [], isLoading } = useMerchants()
   const { data: categories = [] } = useCategories()
   const deleteMerchant = useDeleteMerchant()
@@ -107,6 +111,9 @@ export default function MerchantSettingsSection() {
   const [deletingMerchantId, setDeletingMerchantId] = useState<string | null>(null)
   const [mergeDeleteMerchant, setMergeDeleteMerchant] = useState<Merchant | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [visibleMerchantCount, setVisibleMerchantCount] = useState(MERCHANT_LIST_INITIAL_COUNT)
+  const [merchantListAtBottom, setMerchantListAtBottom] = useState(false)
+  const merchantListRef = useRef<HTMLDivElement | null>(null)
 
   const categoryById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
@@ -124,6 +131,40 @@ export default function MerchantSettingsSection() {
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [categoryById, merchants, search])
+  const visibleMerchants = filteredMerchants.slice(0, visibleMerchantCount)
+  const hasMoreMerchants = visibleMerchantCount < filteredMerchants.length
+  const shouldScrollMerchants = filteredMerchants.length > MERCHANT_LIST_VISIBLE_ROWS
+  const showMerchantListMoreIndicator = shouldScrollMerchants && !merchantListAtBottom
+  const showMerchantListEnd = shouldScrollMerchants && !hasMoreMerchants
+
+  const handleMerchantListScroll = (event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 4
+    if (!atBottom) {
+      setMerchantListAtBottom(false)
+      return
+    }
+
+    if (!hasMoreMerchants) {
+      setMerchantListAtBottom(true)
+      return
+    }
+
+    setVisibleMerchantCount((current) => Math.min(current + MERCHANT_LIST_PAGE_SIZE, filteredMerchants.length))
+    setMerchantListAtBottom(false)
+  }
+
+  const handleMerchantListMoreClick = () => {
+    if (hasMoreMerchants) {
+      setVisibleMerchantCount((current) => Math.min(current + MERCHANT_LIST_PAGE_SIZE, filteredMerchants.length))
+      setMerchantListAtBottom(false)
+    }
+
+    window.requestAnimationFrame(() => {
+      const list = merchantListRef.current
+      list?.scrollBy({ top: list.clientHeight * 0.45, behavior: 'smooth' })
+    })
+  }
 
   const handleDelete = async (merchant: Merchant) => {
     setDeleteError(null)
@@ -172,7 +213,11 @@ export default function MerchantSettingsSection() {
               <input
                 className="app-input pl-9"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setVisibleMerchantCount(MERCHANT_LIST_INITIAL_COUNT)
+                  setMerchantListAtBottom(false)
+                }}
                 placeholder="Search merchants..."
                 disabled={merchants.length === 0}
               />
@@ -205,28 +250,70 @@ export default function MerchantSettingsSection() {
               No merchants match your search.
             </p>
           ) : (
-            <div>
-              {filteredMerchants.map((merchant, index) => (
-                <MerchantRow
-                  key={merchant.id}
-                  categoryById={categoryById}
-                  categoryOptions={options}
-                  confirmingDelete={confirmingDeleteMerchantId === merchant.id}
-                  deleting={deletingMerchantId === merchant.id}
-                  isEditing={editingMerchantId === merchant.id}
-                  isLast={index === filteredMerchants.length - 1}
-                  merchant={merchant}
-                  onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
-                  onDeleteConfirm={handleDelete}
-                  onDeleteRequest={(nextMerchant) => {
-                    setDeleteError(null)
-                    setEditingMerchantId(null)
-                    setConfirmingDeleteMerchantId(nextMerchant.id)
-                  }}
-                  onEdit={(nextMerchant) => setEditingMerchantId(nextMerchant.id)}
-                  onEditCancel={() => setEditingMerchantId(null)}
-                />
-              ))}
+            <div className="relative">
+              <div
+                ref={merchantListRef}
+                className={shouldScrollMerchants ? 'max-h-[35rem] overflow-y-auto pr-2' : undefined}
+                onScroll={shouldScrollMerchants ? handleMerchantListScroll : undefined}
+              >
+                {visibleMerchants.map((merchant, index) => (
+                  <MerchantRow
+                    key={merchant.id}
+                    categoryById={categoryById}
+                    categoryOptions={options}
+                    confirmingDelete={confirmingDeleteMerchantId === merchant.id}
+                    deleting={deletingMerchantId === merchant.id}
+                    isEditing={editingMerchantId === merchant.id}
+                    isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
+                    merchant={merchant}
+                    onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
+                    onDeleteConfirm={handleDelete}
+                    onDeleteRequest={(nextMerchant) => {
+                      setDeleteError(null)
+                      setEditingMerchantId(null)
+                      setConfirmingDeleteMerchantId(nextMerchant.id)
+                    }}
+                    onEdit={(nextMerchant) => setEditingMerchantId(nextMerchant.id)}
+                    onEditCancel={() => setEditingMerchantId(null)}
+                  />
+                ))}
+                {showMerchantListEnd && (
+                  <p
+                    className="py-4 text-center text-sm italic"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                  >
+                    You've reached the end.
+                  </p>
+                )}
+              </div>
+              <AnimatePresence initial={false}>
+                {showMerchantListMoreIndicator && (
+                  <motion.button
+                    type="button"
+                    className="absolute bottom-2 left-[calc(50%-1rem)] z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[var(--app-button-primary-bg)] text-[var(--app-button-primary-text)] transition-colors duration-150 hover:bg-[var(--app-button-primary-bg-hover)] active:bg-[var(--app-button-primary-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]"
+                    onClick={handleMerchantListMoreClick}
+                    aria-label={hasMoreMerchants ? 'Show more merchants' : 'Scroll merchants down'}
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 6, scale: 0.96 }}
+                    animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+                    exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.2, ease: EASE }}
+                  >
+                    <motion.span
+                      className="flex items-center justify-center"
+                      animate={shouldReduceMotion ? undefined : { y: [0, 3, 0, 3, 0] }}
+                      transition={{
+                        duration: 0.72,
+                        ease: EASE,
+                        repeat: Infinity,
+                        repeatDelay: 3.1,
+                        times: [0, 0.18, 0.36, 0.58, 1],
+                      }}
+                    >
+                      <ArrowDown size={19} strokeWidth={2.5} aria-hidden />
+                    </motion.span>
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
