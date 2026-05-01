@@ -42,7 +42,7 @@ from app.schemas.dashboard import (
 )
 from app.schemas.transaction import TransactionResponse
 from app.services.snapshots import get_current_balances
-from app.services.transaction_responses import build_transaction_response, get_tag_ids_batch
+from app.services.transaction_responses import build_transaction_response, get_merchant_names_batch, get_tag_ids_batch
 
 # ---------------------------------------------------------------------------
 # Helpers for dashboard widgets (date & math)
@@ -236,7 +236,11 @@ async def get_recent_transactions(
     )
     transactions = list(txn_result.scalars().all())
     tag_map = await get_tag_ids_batch(db, [t.id for t in transactions])
-    return [build_transaction_response(t, tag_map[t.id]) for t in transactions]
+    merchant_names = await get_merchant_names_batch(db, [t.merchant_id for t in transactions])
+    return [
+        build_transaction_response(t, tag_map[t.id], merchant_names.get(t.merchant_id) if t.merchant_id else None)
+        for t in transactions
+    ]
 
 
 # ---------------------------------------------------------------------------

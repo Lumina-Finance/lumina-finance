@@ -31,7 +31,6 @@ import {
 import { useCategories } from '@/api/categories'
 import { useCurrencies, type Currency } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
-import { useMerchants } from '@/api/merchants'
 import {
   useInfiniteTransactions,
   type Transaction,
@@ -1565,14 +1564,9 @@ function TransactionListSection({
   const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
 
   const { data: categories } = useCategories()
-  const { data: merchants } = useMerchants()
   const categoryMap = useMemo(
     () => new Map(categories?.map((c) => [c.id, c]) ?? []),
     [categories],
-  )
-  const merchantMap = useMemo(
-    () => new Map(merchants?.map((m) => [m.id, m]) ?? []),
-    [merchants],
   )
 
   const dateGroups = useMemo(() => groupByDate(transactions), [transactions])
@@ -1726,7 +1720,7 @@ function TransactionListSection({
                   {txns.map((t) => {
                     const isIncome = t.amount > 0
                     const category = categoryMap.get(t.category_id)
-                    const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
+                    const merchantName = t.merchant_name
                     const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
                     return (
                       <div

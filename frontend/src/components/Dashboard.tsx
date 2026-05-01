@@ -42,7 +42,6 @@ import {
 } from '@/api/budgets'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
-import { useMerchants } from '@/api/merchants'
 import { useRunway, useRunwayAccounts } from '@/api/user'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -347,7 +346,6 @@ export default function Dashboard() {
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
   const { data: latestBudgetUtilizations, isLoading: latestBudgetUtilizationsLoading } = useLatestBudgetUtilizations()
   const { data: categories } = useCategories()
-  const { data: merchants } = useMerchants()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
   // Runway tooltip tracks the cursor's position inside the bar (0–100%) so it
   // can slide smoothly from one segment to another. null means "not hovering."
@@ -478,19 +476,14 @@ export default function Dashboard() {
     spendingDeltaPct == null
       ? '+00.0%'
       : `${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`
-  // Recent activity widget — top 5 transactions from the dashboard payload,
-  // with merchant/category names resolved via the list hooks so rows can
-  // render without a second round-trip.
+  // Recent activity widget — top 5 transactions from the dashboard payload.
+  // Transaction rows already include merchant names; categories still come
+  // from the shared category lookup for labels and kind coloring.
   const categoryMap = useMemo(() => {
     const m = new Map<string, { name: string; kind: 'expense' | 'income' | 'transfer' }>()
     categories?.forEach((c) => m.set(c.id, { name: c.name, kind: c.kind }))
     return m
   }, [categories])
-  const merchantMap = useMemo(() => {
-    const m = new Map<string, string>()
-    merchants?.forEach((x) => m.set(x.id, x.name))
-    return m
-  }, [merchants])
   const recentActivity = (dashboard?.recent_transactions ?? []).slice(0, 5)
 
   // Runway — months of expense coverage from the user's selected liquid
@@ -1321,7 +1314,7 @@ export default function Dashboard() {
                 <div className="flex-1 min-h-0">
                   {recentActivity.map((t, idx) => {
                     const category = categoryMap.get(t.category_id)
-                    const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id) : null
+                    const merchantName = t.merchant_name
                     const isIncome = category?.kind === 'income'
                     const title = merchantName ?? t.notes ?? category?.name ?? 'Transaction'
                     return (

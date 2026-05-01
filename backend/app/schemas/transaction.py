@@ -52,6 +52,7 @@ class TransactionResponse(BaseModel):
     account_id: uuid.UUID
     dt: date
     merchant_id: uuid.UUID | None
+    merchant_name: str | None = None
     category_id: uuid.UUID
     amount: int
     currency: str

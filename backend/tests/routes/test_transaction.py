@@ -201,6 +201,7 @@ async def test_create_transaction_with_all_optional_fields(client):
     assert resp.status_code == 201
     data = resp.json()
     assert data["merchant_id"] == merchant_resp.json()["id"]
+    assert data["merchant_name"] == "Costco"
     assert data["notes"] == "Business lunch"
     assert set(data["tag_ids"]) == {tag1_resp.json()["id"], tag2_resp.json()["id"]}
 
@@ -603,6 +604,7 @@ async def test_list_transactions_filter_by_merchant(client):
 
     assert len(resp.json()) == 1
     assert resp.json()[0]["amount"] == -1000
+    assert resp.json()[0]["merchant_name"] == "Costco"
 
 
 async def test_list_transactions_filter_by_currency(client):
@@ -790,7 +792,14 @@ async def test_list_transactions_includes_tag_ids(client):
 async def test_get_transaction_returns_transaction(client):
     """Valid transaction ID returns the transaction with all fields."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    create_resp = await _create_transaction(client, headers, account_id, category_id)
+    merchant_resp = await _create_merchant(client, headers, name="Detail Store")
+    create_resp = await _create_transaction(
+        client,
+        headers,
+        account_id,
+        category_id,
+        merchant_id=merchant_resp.json()["id"],
+    )
     txn_id = create_resp.json()["id"]
 
     resp = await client.get(f"/transactions/{txn_id}", headers=headers)
@@ -798,6 +807,7 @@ async def test_get_transaction_returns_transaction(client):
     assert resp.status_code == 200
     assert resp.json()["id"] == txn_id
     assert resp.json()["amount"] == -5000
+    assert resp.json()["merchant_name"] == "Detail Store"
     assert resp.json()["tag_ids"] == []
 
 
@@ -1043,6 +1053,7 @@ async def test_patch_transaction_clears_merchant(client):
 
     assert resp.status_code == 200
     assert resp.json()["merchant_id"] is None
+    assert resp.json()["merchant_name"] is None
 
 
 async def test_patch_transaction_clears_notes(client):

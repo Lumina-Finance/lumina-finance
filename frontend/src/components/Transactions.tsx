@@ -21,7 +21,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
-import { useMerchants, type Merchant } from '@/api/merchants'
 import {
   useInfiniteTransactions,
   useTransactionsOverview,
@@ -427,7 +426,6 @@ export default function Transactions() {
   }, [hasNextPage, isFetchingNextPage, filterListLoading, fetchNextPage])
   const showPendingFetch = pendingFetch && hasNextPage && !isFetchingNextPage
   const { data: categories } = useCategories()
-  const { data: merchants } = useMerchants()
   const { data: accounts } = useAccounts()
 
   const hasOverviewData = overview?.total_inflow !== null && overview?.total_inflow !== undefined
@@ -438,12 +436,6 @@ export default function Transactions() {
     categories?.forEach((c) => map.set(c.id, c))
     return map
   }, [categories])
-
-  const merchantMap = useMemo(() => {
-    const map = new Map<string, Merchant>()
-    merchants?.forEach((m) => map.set(m.id, m))
-    return map
-  }, [merchants])
 
   const accountMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -937,7 +929,7 @@ export default function Transactions() {
                     {txns.map((t) => {
                       const isIncome = t.amount > 0
                       const category = categoryMap.get(t.category_id)
-                      const merchantName = t.merchant_id ? merchantMap.get(t.merchant_id)?.name : null
+                      const merchantName = t.merchant_name
                       const accountName = accountMap.get(t.account_id)
                       const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
                       return (

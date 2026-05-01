@@ -21,6 +21,11 @@ async def _create_category(client, headers, **overrides):
     return await client.post("/categories", json=payload, headers=headers)
 
 
+async def _create_merchant(client, headers, **overrides):
+    payload = {"name": "Test Merchant", **overrides}
+    return await client.post("/merchants", json=payload, headers=headers)
+
+
 async def _create_transaction(client, headers, account_id, category_id, **overrides):
     payload = {
         "account_id": account_id,
@@ -152,10 +157,11 @@ async def test_dashboard_spending_savings_and_activity_exclude_hidden_accounts(c
     hidden_account_id = (await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"]
     income_id = (await _create_category(client, headers, name="Test Salary", kind="income")).json()["id"]
     expense_id = (await _create_category(client, headers, name="Test Groceries", kind="expense")).json()["id"]
+    merchant_id = (await _create_merchant(client, headers, name="Visible Store")).json()["id"]
 
     visible_income = await _create_transaction(client, headers, visible_account_id, income_id, dt="2026-03-15", amount=500_000)
     visible_expense = await _create_transaction(
-        client, headers, visible_account_id, expense_id, dt="2026-03-16", amount=-200_000,
+        client, headers, visible_account_id, expense_id, dt="2026-03-16", amount=-200_000, merchant_id=merchant_id,
     )
     await _create_transaction(client, headers, hidden_account_id, income_id, dt="2026-03-17", amount=700_000)
     await _create_transaction(client, headers, hidden_account_id, expense_id, dt="2026-03-18", amount=-300_000)
@@ -173,6 +179,8 @@ async def test_dashboard_spending_savings_and_activity_exclude_hidden_accounts(c
     }
     recent_ids = {txn["id"] for txn in dashboard["recent_transactions"]}
     assert recent_ids == {visible_income.json()["id"], visible_expense.json()["id"]}
+    recent_by_id = {txn["id"]: txn for txn in dashboard["recent_transactions"]}
+    assert recent_by_id[visible_expense.json()["id"]]["merchant_name"] == "Visible Store"
 
     assert breakdown_resp.status_code == 200
     assert breakdown_resp.json()["expense"][0]["amount"] == 200_000

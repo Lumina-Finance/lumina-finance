@@ -27,6 +27,7 @@ export interface Transaction {
   // Calendar date in YYYY-MM-DD form (no time, no tz). Backend stores it as a Date column.
   dt: string;
   merchant_id: string | null;
+  merchant_name: string | null;
   category_id: string;
   amount: number;
   currency: string;
