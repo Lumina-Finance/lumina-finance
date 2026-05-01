@@ -34,6 +34,17 @@ def _personal_merchant_filter(user_id: uuid.UUID):
     return (Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE-special characters so user input is matched literally."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _merchant_list_scope_filter(user_id: uuid.UUID, group_id: uuid.UUID | None):
+    if group_id is None:
+        return _personal_merchant_filter(user_id)
+    return _personal_merchant_filter(user_id) | (Merchant.group_id == group_id)
+
+
 def _accessible_merchant_filter(user_id: uuid.UUID):
     group_ids = (
         select(GroupMember.group_id).where(GroupMember.user_id == user_id)
@@ -67,6 +78,17 @@ async def _require_group_merchant_admin(db: AsyncSession, merchant: Merchant, us
     member = member_result.scalar_one_or_none()
     if not member or not member.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
+
+async def _require_group_member_or_404(db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    member_result = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user_id,
+        ),
+    )
+    if not member_result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
 
 async def _get_merge_replacement_merchant(
@@ -107,26 +129,25 @@ async def list_merchants(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     group_id: Annotated[uuid.UUID | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    limit: Annotated[int | None, Query(ge=1, le=50)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
     """Return merchants the user can access. Personal only by default, or include a group's merchants."""
-    # Without a filter, only return personal merchants (group_id is null)
-    query = select(Merchant).where(Merchant.owner_id == user.id, Merchant.group_id.is_(None))
-
     if group_id:
-        member_result = await db.execute(
-            select(GroupMember).where(
-                GroupMember.group_id == group_id,
-                GroupMember.user_id == user.id,
-            ),
-        )
-        if not member_result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+        await _require_group_member_or_404(db, group_id, user.id)
 
-        query = select(Merchant).where(
-            ((Merchant.owner_id == user.id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
-        )
+    query = select(Merchant).where(_merchant_list_scope_filter(user.id, group_id))
 
-    result = await db.execute(query.order_by(Merchant.name))
+    search = q.strip() if q else ""
+    if search:
+        query = query.where(Merchant.name.ilike(f"%{_escape_like(search)}%", escape="\\"))
+
+    query = query.order_by(Merchant.name)
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
+
+    result = await db.execute(query)
     return result.scalars().all()
 
 

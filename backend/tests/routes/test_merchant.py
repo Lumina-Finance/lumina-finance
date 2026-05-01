@@ -148,6 +148,51 @@ async def test_list_merchants_returns_user_merchants(client):
     assert names == {"Costco", "Walmart"}
 
 
+async def test_list_merchants_supports_limit_and_offset(client):
+    """GET /merchants can return a sorted page of merchants."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_merchant(client, headers, name="Charlie Market")
+    await _create_merchant(client, headers, name="Alpha Market")
+    await _create_merchant(client, headers, name="Bravo Market")
+
+    first_page = await client.get("/merchants?limit=2", headers=headers)
+    second_page = await client.get("/merchants?limit=2&offset=2", headers=headers)
+
+    assert first_page.status_code == 200
+    assert [merchant["name"] for merchant in first_page.json()] == ["Alpha Market", "Bravo Market"]
+    assert second_page.status_code == 200
+    assert [merchant["name"] for merchant in second_page.json()] == ["Charlie Market"]
+
+
+async def test_list_merchants_searches_names_case_insensitively(client):
+    """GET /merchants?q= filters merchant names without leaking other users' rows."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_merchant(client, headers, name="Coffee Bar")
+    await _create_merchant(client, headers, name="Book Shop")
+
+    other_headers = _get_auth_header(await _create_second_user(client))
+    await _create_merchant(client, other_headers, name="Coffee Other")
+
+    resp = await client.get("/merchants?q=COF", headers=headers)
+
+    assert resp.status_code == 200
+    assert [merchant["name"] for merchant in resp.json()] == ["Coffee Bar"]
+
+
+async def test_list_merchants_rejects_invalid_pagination_params(client):
+    """Pagination query params must stay within the route bounds."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    for url in ["/merchants?limit=0", "/merchants?limit=51", "/merchants?offset=-1"]:
+        resp = await client.get(url, headers=headers)
+        assert resp.status_code == 422
+
+
 async def test_list_merchants_without_auth_returns_401(client):
     """GET /merchants without an Authorization header returns 401."""
     resp = await client.get("/merchants")
@@ -733,6 +778,26 @@ async def test_list_merchants_with_group_filter_excludes_other_groups(client):
     assert "Personal Store" in names
     assert "Group B Store" in names
     assert "Group A Store" not in names
+
+
+async def test_list_merchants_group_filter_supports_search_and_pagination(client):
+    """Search and pagination respect personal + selected-group merchant scope."""
+    headers = _get_auth_header(await _create_user(client))
+
+    group_a = await _create_group(client, headers)
+    group_b = await _create_group(client, headers)
+
+    await _create_merchant(client, headers, name="Alpha Shared Personal")
+    await _create_merchant(client, headers, name="Beta Shared Group", group_id=group_b)
+    await _create_merchant(client, headers, name="Gamma Shared Other Group", group_id=group_a)
+
+    first_page = await client.get(f"/merchants?group_id={group_b}&q=shared&limit=1", headers=headers)
+    second_page = await client.get(f"/merchants?group_id={group_b}&q=shared&limit=1&offset=1", headers=headers)
+
+    assert first_page.status_code == 200
+    assert [merchant["name"] for merchant in first_page.json()] == ["Alpha Shared Personal"]
+    assert second_page.status_code == 200
+    assert [merchant["name"] for merchant in second_page.json()] == ["Beta Shared Group"]
 
 
 # --- Group merchants: PATCH /merchants ---
