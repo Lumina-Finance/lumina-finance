@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 
 export interface DropdownOption {
   value: string;
@@ -19,8 +19,9 @@ interface DropdownProps {
   searchable?: boolean;
   searchPlaceholder?: string;
   disabled?: boolean;
-  /** Called when search yields no results and the user clicks "Create {query}". */
+  /** Called when the user clicks the dropdown create action. Receives the current search text. */
   onCreateNew?: (query: string) => void;
+  createNewLabel?: string | ((query: string) => string);
 }
 
 const Dropdown = ({
@@ -34,6 +35,7 @@ const Dropdown = ({
   searchPlaceholder = 'Search...',
   disabled = false,
   onCreateNew,
+  createNewLabel,
 }: DropdownProps) => {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -113,6 +115,17 @@ const Dropdown = ({
 
   const handleSelect = (optionValue: string) => {
     onChange(optionValue);
+    close();
+  };
+
+  const createQuery = search.trim();
+  const resolvedCreateNewLabel = typeof createNewLabel === 'function'
+    ? createNewLabel(createQuery)
+    : createNewLabel ?? (createQuery ? `Create "${createQuery}"` : 'Create new');
+
+  const handleCreateNew = () => {
+    if (!onCreateNew) return;
+    onCreateNew(createQuery);
     close();
   };
 
@@ -213,39 +226,41 @@ const Dropdown = ({
             transition={{ duration: 0.15 }}
           >
             {searchable && (
-              <div className="px-2 pt-2">
+              <div className="flex gap-2 px-2 pb-2 pt-2">
                 <input
                   ref={searchRef}
                   type="text"
-                  className="app-input"
+                  className="app-input min-w-0 flex-1"
                   style={{ fontSize: '0.8125rem' }}
                   placeholder={searchPlaceholder}
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setHighlightedIndex(0); }}
                   onKeyDown={handleKeyDown}
                 />
+                {onCreateNew && (
+                  <button
+                    type="button"
+                    className="app-icon-button h-10 w-10 shrink-0"
+                    style={{ color: 'var(--app-accent)' }}
+                    aria-label={resolvedCreateNewLabel}
+                    title={resolvedCreateNewLabel}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleCreateNew}
+                  >
+                    <Plus size={18} aria-hidden />
+                  </button>
+                )}
               </div>
             )}
             <ul
               ref={listRef}
               role="listbox"
-              className="max-h-52 overflow-auto pb-1"
+              className="max-h-52 overflow-auto"
             >
               {filtered.length === 0 ? (
-                onCreateNew && search.trim() ? (
-                  <li
-                    className="cursor-pointer px-4 py-2 text-sm font-medium transition-colors duration-100"
-                    style={{ color: 'var(--app-accent)' }}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => { onCreateNew(search.trim()); close(); }}
-                  >
-                    Create "{search.trim()}"
-                  </li>
-                ) : (
-                  <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                    No results
-                  </li>
-                )
+                <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  No results
+                </li>
               ) : groupedFiltered ? (
                 groupedFiltered.map((group) => (
                   <li key={group.label}>

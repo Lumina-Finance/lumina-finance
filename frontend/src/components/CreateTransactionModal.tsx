@@ -692,6 +692,7 @@ export default function CreateTransactionModal({
                             searchable
                             searchPlaceholder="Search merchants..."
                             onCreateNew={handleCreateMerchant}
+                            createNewLabel={(query) => query ? `Create merchant "${query}"` : 'Create merchant'}
                           />
                         </div>
 

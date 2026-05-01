@@ -436,6 +436,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                                 searchable
                                 searchPlaceholder="Search institutions..."
                                 onCreateNew={handleCreateInstitution}
+                                createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
                               />
                             </div>
 
