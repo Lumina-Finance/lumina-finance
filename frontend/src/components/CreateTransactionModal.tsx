@@ -80,7 +80,7 @@ function FieldLabelRow({
 }) {
   return (
     <div className="mb-1.5 flex items-start justify-between gap-3">
-      <label htmlFor={htmlFor} className="app-label block shrink-0">{label}</label>
+      <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">{label}</label>
       <AnimatePresence initial={false}>
         {error && (
           <motion.p
@@ -528,247 +528,244 @@ export default function CreateTransactionModal({
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
-                  <div className="space-y-8">
-                    <section className="relative space-y-5 pl-5">
-                      <div
-                        className="absolute bottom-0 left-0 top-0 w-px"
-                        style={{ background: 'var(--app-border-strong)' }}
-                        aria-hidden
-                      />
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="text-xs font-semibold"
-                          style={{ color: 'var(--app-accent)' }}
-                          aria-hidden
-                        >
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8">
+                  <div className="space-y-5">
+                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                      <div className="flex min-h-0 flex-col items-center">
+                        <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                           01
                         </span>
-                        <p className="app-label">Type</p>
+                        <span
+                          className="mt-1 w-px flex-1"
+                          style={{ backgroundColor: 'var(--app-border-strong)' }}
+                          aria-hidden
+                        />
                       </div>
 
-                      {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                      <div className="app-segmented-control w-full">
-                        {KIND_OPTIONS.map((opt) => {
-                          const selected = form.kind === opt.value
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => !editing && handleKindChange(opt.value)}
-                              disabled={editing}
-                              aria-disabled={editing}
-                              className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''} ${editing ? 'cursor-not-allowed' : ''} ${editing && !selected ? 'opacity-40' : ''}`}
+                      <div className="min-w-0 space-y-3">
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type</p>
+
+                        {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
+                        <div className="app-segmented-control w-full">
+                          {KIND_OPTIONS.map((opt) => {
+                            const selected = form.kind === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => !editing && handleKindChange(opt.value)}
+                                disabled={editing}
+                                aria-disabled={editing}
+                                className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''} ${editing ? 'cursor-not-allowed' : ''} ${editing && !selected ? 'opacity-40' : ''}`}
+                              >
+                                {opt.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Transfer direction — only meaningful when the transaction
+                            is a transfer. Stays editable in edit mode so a mis-signed
+                            transfer can be corrected without deleting the row. */}
+                        <AnimatePresence initial={false}>
+                          {form.kind === 'transfer' && (
+                            <motion.div
+                              className="overflow-hidden"
+                              {...conditionalField}
                             >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      {/* Transfer direction — only meaningful when the transaction
-                          is a transfer. Stays editable in edit mode so a mis-signed
-                          transfer can be corrected without deleting the row. */}
-                      <AnimatePresence initial={false}>
-                        {form.kind === 'transfer' && (
-                          <motion.div
-                            className="overflow-hidden"
-                            {...conditionalField}
-                          >
-                            <div>
-                              <label className="app-label block mb-1.5">Direction</label>
-                              <div className="app-segmented-control w-full">
-                                {([
-                                  { value: 'out', label: 'Money Out' },
-                                  { value: 'in', label: 'Money In' },
-                                ] as const).map((opt) => {
-                                  const selected = form.transfer_direction === opt.value
-                                  return (
-                                    <button
-                                      key={opt.value}
-                                      type="button"
-                                      onClick={() => handleField('transfer_direction', opt.value)}
-                                      className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''}`}
-                                    >
-                                      {opt.label}
-                                    </button>
-                                  )
-                                })}
+                              <div>
+                                <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Direction</label>
+                                <div className="app-segmented-control w-full">
+                                  {([
+                                    { value: 'out', label: 'Money Out' },
+                                    { value: 'in', label: 'Money In' },
+                                  ] as const).map((opt) => {
+                                    const selected = form.transfer_direction === opt.value
+                                    return (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => handleField('transfer_direction', opt.value)}
+                                        className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''}`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
                               </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </section>
 
-                    <section className="relative space-y-5 pl-5">
-                      <div
-                        className="absolute bottom-0 left-0 top-0 w-px"
-                        style={{ background: 'var(--app-border-strong)' }}
-                        aria-hidden
-                      />
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="text-xs font-semibold"
-                          style={{ color: 'var(--app-accent)' }}
-                          aria-hidden
-                        >
+                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                      <div className="flex min-h-0 flex-col items-center">
+                        <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                           02
                         </span>
-                        <p className="app-label">Details</p>
-                      </div>
-
-                      {/* Account */}
-                      <div>
-                        <FieldLabelRow label="Account" error={showError('account_id')} />
-                        <Dropdown
-                          options={accountOptions}
-                          value={form.account_id}
-                          onChange={handleAccountChange}
-                          className={`app-input ${showError('account_id') ? 'app-input-error' : ''}`}
-                          placeholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
-                          searchable
-                          searchPlaceholder="Search accounts..."
+                        <span
+                          className="mt-1 w-px flex-1"
+                          style={{ backgroundColor: 'var(--app-border-strong)' }}
+                          aria-hidden
                         />
                       </div>
 
-                      {/* Merchant */}
-                      <div>
-                        <FieldLabelRow label="Merchant" error={showError('merchant_id')} />
-                        <Dropdown
-                          options={merchantOptions}
-                          value={form.merchant_id}
-                          onChange={handleMerchantChange}
-                          className={`app-input ${showError('merchant_id') ? 'app-input-error' : ''}`}
-                          placeholder="Select or type to create..."
-                          searchable
-                          searchPlaceholder="Search merchants..."
-                          onCreateNew={handleCreateMerchant}
-                        />
-                      </div>
+                      <div className="min-w-0 space-y-3">
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
 
-                      {/* Category */}
-                      <div>
-                        <FieldLabelRow label="Category" error={showError('category_id')} />
-                        <Dropdown
-                          options={categoryOptions}
-                          value={form.category_id}
-                          onChange={handleCategoryChange}
-                          className={`app-input ${showError('category_id') ? 'app-input-error' : ''}`}
-                          placeholder="Select category..."
-                          searchable
-                          searchPlaceholder="Search categories..."
-                        />
+                        {/* Account */}
+                        <div>
+                          <FieldLabelRow label="Account" error={showError('account_id')} />
+                          <Dropdown
+                            options={accountOptions}
+                            value={form.account_id}
+                            onChange={handleAccountChange}
+                            className={`app-input ${showError('account_id') ? 'app-input-error' : ''}`}
+                            placeholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
+                            searchable
+                            searchPlaceholder="Search accounts..."
+                          />
+                        </div>
+
+                        {/* Merchant */}
+                        <div>
+                          <FieldLabelRow label="Merchant" error={showError('merchant_id')} />
+                          <Dropdown
+                            options={merchantOptions}
+                            value={form.merchant_id}
+                            onChange={handleMerchantChange}
+                            className={`app-input ${showError('merchant_id') ? 'app-input-error' : ''}`}
+                            placeholder="Select or type to create..."
+                            searchable
+                            searchPlaceholder="Search merchants..."
+                            onCreateNew={handleCreateMerchant}
+                          />
+                        </div>
+
+                        {/* Category */}
+                        <div>
+                          <FieldLabelRow label="Category" error={showError('category_id')} />
+                          <Dropdown
+                            options={categoryOptions}
+                            value={form.category_id}
+                            onChange={handleCategoryChange}
+                            className={`app-input ${showError('category_id') ? 'app-input-error' : ''}`}
+                            placeholder="Select category..."
+                            searchable
+                            searchPlaceholder="Search categories..."
+                          />
+                        </div>
                       </div>
                     </section>
 
-                    <section className="relative space-y-5 pl-5">
-                      <div
-                        className="absolute bottom-0 left-0 top-0 w-px"
-                        style={{ background: 'var(--app-border-strong)' }}
-                        aria-hidden
-                      />
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="text-xs font-semibold"
-                          style={{ color: 'var(--app-accent)' }}
-                          aria-hidden
-                        >
+                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                      <div className="flex min-h-0 flex-col items-center">
+                        <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                           03
                         </span>
-                        <p className="app-label">Amount</p>
+                        <span
+                          className="mt-1 w-px flex-1"
+                          style={{ backgroundColor: 'var(--app-border-strong)' }}
+                          aria-hidden
+                        />
                       </div>
 
-                      {/* Currency + Amount */}
-                      <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
-                        <div>
-                          <div className="mb-1.5 flex items-center gap-2">
-                            <label className="app-label block">Currency</label>
-                            <div className="group relative inline-flex">
-                              <Info
-                                size={17}
-                                strokeWidth={2.5}
-                                aria-label="Transaction currency limitation"
-                                className="cursor-help"
-                                style={{ color: 'var(--app-accent)' }}
-                              />
-                              <div className="app-tooltip-panel app-hover-tooltip">
-                                Locked to the selected account currency. FX currency transactions will be supported soon.
+                      <div className="min-w-0 space-y-3">
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Amount</p>
+
+                        {/* Currency + Amount */}
+                        <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
+                          <div>
+                            <div className="mb-1.5 flex items-center gap-2">
+                              <label className="app-label block text-[0.9375rem] leading-5">Currency</label>
+                              <div className="group relative inline-flex">
+                                <Info
+                                  size={17}
+                                  strokeWidth={2.5}
+                                  aria-label="Transaction currency limitation"
+                                  className="cursor-help"
+                                  style={{ color: 'var(--app-accent)' }}
+                                />
+                                <div className="app-tooltip-panel app-hover-tooltip">
+                                  Locked to the selected account currency. FX currency transactions will be supported soon.
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <Dropdown
-                            options={currencyOptions}
-                            value={form.currency}
-                            onChange={() => undefined}
-                            placeholder={currencies.length === 0 ? 'Loading…' : 'Select…'}
-                            searchable
-                            searchPlaceholder="Search currencies..."
-                            disabled
-                          />
-                        </div>
-                        <div>
-                          <FieldLabelRow htmlFor="txn-amount" label="Amount" error={showError('amount')} />
-                          <div className="relative">
-                            {selectedCurrencySymbol && (
-                              <span
-                                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                                style={{
-                                  color: 'var(--app-text-subtle)',
-                                  fontSize: '0.9375rem',
-                                  lineHeight: 1,
-                                }}
-                                aria-hidden
-                              >
-                                {selectedCurrencySymbol}
-                              </span>
-                            )}
-                            <input
-                              id="txn-amount"
-                              type="text"
-                              inputMode="decimal"
-                              className={`app-input w-full ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('amount') ? 'app-input-error' : ''}`}
-                              placeholder="0.00"
-                              value={form.amount}
-                              onChange={(e) => {
-                                // Allow only digits and a single decimal point
-                                let sanitized = e.target.value.replace(/[^\d.]/g, '')
-                                const parts = sanitized.split('.')
-                                if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
-                                // Prepend leading zero when the user starts with "."
-                                if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
-                                handleField('amount', sanitized)
-                              }}
-                              onBlur={() => handleBlur('amount')}
+                            <Dropdown
+                              options={currencyOptions}
+                              value={form.currency}
+                              onChange={() => undefined}
+                              placeholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
+                              searchable
+                              searchPlaceholder="Search currencies..."
+                              disabled
                             />
                           </div>
+                          <div>
+                            <FieldLabelRow htmlFor="txn-amount" label="Amount" error={showError('amount')} />
+                            <div className="relative">
+                              {selectedCurrencySymbol && (
+                                <span
+                                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                  style={{
+                                    color: 'var(--app-text-subtle)',
+                                    fontSize: '0.9375rem',
+                                    lineHeight: 1,
+                                  }}
+                                  aria-hidden
+                                >
+                                  {selectedCurrencySymbol}
+                                </span>
+                              )}
+                              <input
+                                id="txn-amount"
+                                type="text"
+                                inputMode="decimal"
+                                className={`app-input w-full ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('amount') ? 'app-input-error' : ''}`}
+                                placeholder="0.00"
+                                value={form.amount}
+                                onChange={(e) => {
+                                  // Allow only digits and a single decimal point
+                                  let sanitized = e.target.value.replace(/[^\d.]/g, '')
+                                  const parts = sanitized.split('.')
+                                  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
+                                  // Prepend leading zero when the user starts with "."
+                                  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
+                                  handleField('amount', sanitized)
+                                }}
+                                onBlur={() => handleBlur('amount')}
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Date */}
-                      <div>
-                        <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
-                        <input
-                          id="txn-date"
-                          type="date"
-                          className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
-                          value={form.date}
-                          onChange={(e) => handleField('date', e.target.value)}
-                          onBlur={() => handleBlur('date')}
-                        />
-                      </div>
+                        {/* Date */}
+                        <div>
+                          <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
+                          <input
+                            id="txn-date"
+                            type="date"
+                            className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
+                            value={form.date}
+                            onChange={(e) => handleField('date', e.target.value)}
+                            onBlur={() => handleBlur('date')}
+                          />
+                        </div>
 
-                      {/* Notes */}
-                      <div>
-                        <label htmlFor="txn-notes" className="app-label block mb-1.5">Notes</label>
-                        <textarea
-                          id="txn-notes"
-                          className="app-input min-h-[4.5rem] resize-y py-2"
-                          placeholder="Optional"
-                          value={form.notes}
-                          onChange={(e) => handleField('notes', e.target.value)}
-                          maxLength={500}
-                        />
+                        {/* Notes */}
+                        <div>
+                          <label htmlFor="txn-notes" className="app-label mb-1.5 block text-[0.9375rem] leading-5">Notes</label>
+                          <textarea
+                            id="txn-notes"
+                            className="app-input min-h-[4.5rem] resize-y py-2"
+                            placeholder="Optional"
+                            value={form.notes}
+                            onChange={(e) => handleField('notes', e.target.value)}
+                            maxLength={500}
+                          />
+                        </div>
                       </div>
                     </section>
 
@@ -868,7 +865,7 @@ export default function CreateTransactionModal({
                     <button
                       type="submit"
                       disabled={isPending}
-                      className={`app-primary-button w-full sm:w-auto ${submitMutation.isPending ? 'app-primary-button-loading' : ''}`}
+                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitMutation.isPending ? 'app-primary-button-loading' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
                     >
                       {submitMutation.isPending ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
                     </button>
