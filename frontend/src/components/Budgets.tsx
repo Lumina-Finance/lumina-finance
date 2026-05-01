@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSearchParams } from 'react-router-dom'
-import { Check, CircleAlert, CircleCheck, OctagonAlert, Pencil, Plus, Search, Trash2, TriangleAlert, X } from 'lucide-react'
+import { Check, CircleAlert, CircleCheck, OctagonAlert, Pencil, PiggyBank, Plus, Search, Trash2, TriangleAlert, X } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -66,6 +67,47 @@ const RECURRENCE_OPTIONS: Array<{ value: RecurrenceFreq; label: string }> = [
 const EASE = [0.25, 0.1, 0.25, 1] as const
 const MODAL_SURFACE_TRANSITION_SECONDS = 0.25
 const MODAL_SURFACE_TRANSITION_MS = MODAL_SURFACE_TRANSITION_SECONDS * 1000
+const CREATE_BUDGET_MIN_LOADING_MS = 800
+
+interface FieldLabelRowProps {
+  label: React.ReactNode
+  htmlFor?: string
+  error?: string | false
+}
+
+function FieldLabelRow({ label, htmlFor, error }: FieldLabelRowProps) {
+  return (
+    <div className="mb-1.5 flex items-start justify-between gap-3">
+      <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
+        {label}
+      </label>
+      <AnimatePresence initial={false}>
+        {error && (
+          <motion.p
+            key={error}
+            className="text-right text-xs font-medium leading-5"
+            style={{ color: 'var(--app-negative)' }}
+            initial={{ opacity: 0, x: 4 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 4 }}
+            transition={{ duration: 0.15 }}
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+interface BudgetCreateFieldErrors {
+  name?: string
+  currency?: string
+  limit?: string
+  instanceLength?: string
+  periodStart?: string
+  categoryIds?: string
+}
 
 function todayYmd(timeZone: string) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -108,6 +150,33 @@ function toMinorUnits(value: string, currencies: Currency[], code: string) {
   const numberValue = Number(value.replace(/,/g, ''))
   if (!Number.isFinite(numberValue) || numberValue <= 0) return null
   return Math.round(numberValue * Math.pow(10, currencyExponent(currencies, code)))
+}
+
+function validateBudgetCreateForm(
+  form: BudgetFormState,
+  currencies: Currency[],
+  expenseCategories: Category[],
+): BudgetCreateFieldErrors {
+  const errors: BudgetCreateFieldErrors = {}
+  const instanceLength = Number(form.instanceLength)
+  const hasSelectedExpenseCategory = form.categoryIds.some((categoryId) =>
+    expenseCategories.some((category) => category.id === categoryId),
+  )
+
+  if (!form.name.trim()) errors.name = 'Name is required'
+  if (!form.currency || !currencies.some((currency) => currency.id === form.currency)) {
+    errors.currency = 'Select a currency'
+  }
+  if (toMinorUnits(form.limit, currencies, form.currency) === null) {
+    errors.limit = 'Limit must be greater than zero'
+  }
+  if (!form.periodStart) errors.periodStart = 'Choose a period start'
+  if (form.recurs && (!Number.isInteger(instanceLength) || instanceLength < 1)) {
+    errors.instanceLength = 'Enter at least 1'
+  }
+  if (!hasSelectedExpenseCategory) errors.categoryIds = 'Select at least one category'
+
+  return errors
 }
 
 function formatMinorUnitsInput(value: number, currencies: Currency[], code: string) {
@@ -192,8 +261,8 @@ function cadenceSummary(form: BudgetFormState) {
   const name = form.name.trim() || 'Untitled'
 
   if (!form.recurs) {
-    if (!form.periodStart) return `"${name}" is a one-off budget`
-    return `"${name}" is a one-off budget starting ${formatCalendarDate(parseYmd(form.periodStart))} and ending ${formatCalendarDate(oneOffPeriodEnd(form))}`
+    if (!form.periodStart) return `"${name}" is one-off`
+    return `"${name}" is one-off starting ${formatCalendarDate(parseYmd(form.periodStart))} and ending ${formatCalendarDate(oneOffPeriodEnd(form))}`
   }
 
   let cadence: string
@@ -1151,6 +1220,7 @@ function BudgetDetailsModal({
 }
 
 function BudgetCreateModal({
+  open,
   categories,
   currencies,
   defaultCurrency,
@@ -1158,6 +1228,7 @@ function BudgetCreateModal({
   onClose,
   onCreated,
 }: {
+  open: boolean
   categories: Category[]
   currencies: Currency[]
   defaultCurrency: string
@@ -1167,13 +1238,7 @@ function BudgetCreateModal({
 }) {
   const createBaseBudget = useCreateBaseBudget()
   const createBudget = useCreateBudgetInstance()
-  const expenseCategories = useMemo(
-    () => categories.filter((category) => category.kind === 'expense' && category.group_id === null),
-    [categories],
-  )
-  const [formError, setFormError] = useState<string | null>(null)
-  const [categorySearch, setCategorySearch] = useState('')
-  const [form, setForm] = useState<BudgetFormState>({
+  const initialForm = useMemo<BudgetFormState>(() => ({
     name: '',
     currency: defaultCurrency,
     categoryIds: [],
@@ -1182,10 +1247,19 @@ function BudgetCreateModal({
     instanceLength: '1',
     periodStart: todayYmd(timeZone),
     recurs: true,
-  })
+  }), [defaultCurrency, timeZone])
+  const expenseCategories = useMemo(
+    () => categories.filter((category) => category.kind === 'expense' && category.group_id === null),
+    [categories],
+  )
+  const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<BudgetCreateFieldErrors>({})
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [categorySearch, setCategorySearch] = useState('')
+  const [form, setForm] = useState<BudgetFormState>(initialForm)
+  const [createInProgress, setCreateInProgress] = useState(false)
 
-  const isPending = createBaseBudget.isPending || createBudget.isPending
-  const selectedCurrency = currencies.find((currency) => currency.id === form.currency)
+  const isPending = createBaseBudget.isPending || createBudget.isPending || createInProgress
   const selectedCurrencySymbol = currencySymbol(currencies, form.currency)
   const filteredExpenseCategories = useMemo(() => {
     const query = categorySearch.trim().toLowerCase()
@@ -1200,8 +1274,46 @@ function BudgetCreateModal({
     [currencies],
   )
 
+  const resetFormState = useCallback(() => {
+    setForm(initialForm)
+    setFieldErrors({})
+    setTouched({})
+    setFormError(null)
+    setCategorySearch('')
+    setCreateInProgress(false)
+  }, [initialForm])
+
+  const closeAndReset = useCallback(() => {
+    onClose()
+    window.setTimeout(resetFormState, MODAL_SURFACE_TRANSITION_MS)
+  }, [onClose, resetFormState])
+
+  useEffect(() => {
+    if (!open) return
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') closeAndReset() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [closeAndReset, open])
+
+  const clearError = (field: keyof BudgetCreateFieldErrors) => {
+    setFieldErrors((current) => ({ ...current, [field]: undefined }))
+    setFormError(null)
+  }
+
   const setField = <K extends keyof BudgetFormState>(key: K, value: BudgetFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }))
+    if (key === 'name') clearError('name')
+    if (key === 'currency') clearError('currency')
+    if (key === 'limit') clearError('limit')
+    if (key === 'instanceLength') clearError('instanceLength')
+    if (key === 'periodStart') clearError('periodStart')
+    if (key === 'recurs') clearError('instanceLength')
   }
 
   const limitMinorUnits = toMinorUnits(form.limit, currencies, form.currency)
@@ -1209,14 +1321,6 @@ function BudgetCreateModal({
   const hasSelectedExpenseCategory = form.categoryIds.some((categoryId) =>
     expenseCategories.some((category) => category.id === categoryId),
   )
-  const canCreate =
-    !isPending
-    && form.name.trim().length > 0
-    && !!selectedCurrency
-    && limitMinorUnits !== null
-    && !!form.periodStart
-    && hasSelectedExpenseCategory
-    && (!form.recurs || (Number.isInteger(instanceLength) && instanceLength >= 1))
 
   const toggleCategory = (categoryId: string) => {
     setForm((current) => ({
@@ -1225,296 +1329,455 @@ function BudgetCreateModal({
         ? current.categoryIds.filter((id) => id !== categoryId)
         : [...current.categoryIds, categoryId],
     }))
+    clearError('categoryIds')
+  }
+
+  const handleBlur = (field: keyof BudgetCreateFieldErrors) => {
+    setTouched((current) => ({ ...current, [field]: true }))
+    const errors = validateBudgetCreateForm(form, currencies, expenseCategories)
+    setFieldErrors((current) => ({ ...current, [field]: errors[field] }))
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setFormError(null)
 
-    if (!form.name.trim()) {
-      setFormError('Name is required.')
-      return
-    }
-    if (!selectedCurrency) {
-      setFormError('Select a currency.')
-      return
-    }
-    if (limitMinorUnits === null) {
-      setFormError('Limit must be greater than zero.')
-      return
-    }
-    if (!form.periodStart) {
-      setFormError('Choose a period start.')
-      return
-    }
-    if (form.recurs && (!Number.isInteger(instanceLength) || instanceLength < 1)) {
-      setFormError('Interval must be at least 1.')
-      return
-    }
-    if (!hasSelectedExpenseCategory) {
-      setFormError('Select at least one category.')
+    const errors = validateBudgetCreateForm(form, currencies, expenseCategories)
+    setFieldErrors(errors)
+    setTouched({
+      name: true,
+      currency: true,
+      limit: true,
+      instanceLength: true,
+      periodStart: true,
+      categoryIds: true,
+    })
+    if (Object.keys(errors).length > 0 || limitMinorUnits === null || !hasSelectedExpenseCategory) {
       return
     }
 
+    setCreateInProgress(true)
+    const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, CREATE_BUDGET_MIN_LOADING_MS))
+
     try {
-      const baseBudget = await createBaseBudget.mutateAsync({
-        name: form.name.trim(),
-        currency: form.currency,
-        recurrence_freq: form.recurrenceFreq,
-        instance_length: instanceLength,
-        ...recurrenceAnchorsFromStart(form.recurrenceFreq, form.periodStart),
-        recurs: form.recurs,
-        category_ids: form.categoryIds,
-      })
-      await createBudget.mutateAsync({
-        baseBudgetId: baseBudget.id,
-        period_start: form.periodStart,
-        overall_limit: limitMinorUnits,
-      })
+      const createBudgetFlow = async () => {
+        const baseBudget = await createBaseBudget.mutateAsync({
+          name: form.name.trim(),
+          currency: form.currency,
+          recurrence_freq: form.recurrenceFreq,
+          instance_length: instanceLength,
+          ...recurrenceAnchorsFromStart(form.recurrenceFreq, form.periodStart),
+          recurs: form.recurs,
+          category_ids: form.categoryIds,
+        })
+        await createBudget.mutateAsync({
+          baseBudgetId: baseBudget.id,
+          period_start: form.periodStart,
+          overall_limit: limitMinorUnits,
+        })
+      }
+
+      await Promise.all([
+        createBudgetFlow(),
+        minimumLoading,
+      ])
       onCreated()
-      onClose()
+      closeAndReset()
     } catch (error) {
+      await minimumLoading
       setFormError(error instanceof Error ? error.message : 'Could not create budget.')
+      setCreateInProgress(false)
     }
   }
 
-  return (
-    <div
-      className="app-modal-backdrop z-50"
-      onClick={onClose}
-    >
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="budget-create-title"
-        className="app-modal-panel max-h-[85vh] w-full max-w-2xl overflow-y-auto p-8"
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={handleSubmit}
-      >
-        <div className="mb-8 flex items-center justify-between">
-          <h2
-            id="budget-create-title"
-            className="font-serif text-3xl font-light tracking-tight"
+  const showError = (field: keyof BudgetCreateFieldErrors) => touched[field] && fieldErrors[field]
+
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-50"
+            style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={closeAndReset}
+            aria-hidden
+          />
+
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ duration: MODAL_SURFACE_TRANSITION_SECONDS, ease: EASE }}
+            onClick={closeAndReset}
           >
-            Create Budget
-          </h2>
-          <button type="button" className="app-icon-button" aria-label="Close budget form" onClick={onClose}>
-            <X size={20} aria-hidden />
-          </button>
-        </div>
-
-        <div className="space-y-5">
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label htmlFor="budget-name" className="app-label mb-1.5 block">Name</label>
-              <input
-                id="budget-name"
-                className="app-input"
-                placeholder="e.g. Groceries"
-                value={form.name}
-                onChange={(event) => setField('name', event.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <div className="mb-1.5 flex items-center gap-2">
-                <label className="app-label block">Currency</label>
-                <div className="group relative inline-flex">
-                  <TriangleAlert
-                    size={17}
-                    strokeWidth={2.75}
-                    aria-label="Budget currency limitation"
-                    className="cursor-help"
-                    style={{ color: 'var(--app-negative)' }}
-                  />
-                  <div className="app-tooltip-panel app-hover-tooltip">
-                    Budgets currently track only accounts in the same currency.
-                  </div>
-                </div>
-              </div>
-              <Dropdown
-                options={currencyOptions}
-                value={form.currency}
-                onChange={(value) => setField('currency', value)}
-                placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
-                searchable
-                searchPlaceholder="Search currencies..."
-              />
-            </div>
-
-            <div>
-              <label htmlFor="budget-limit" className="app-label mb-1.5 block">Limit</label>
-              <div className="relative">
-                {selectedCurrencySymbol && (
-                  <span
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    {selectedCurrencySymbol}
-                  </span>
-                )}
-                <input
-                  id="budget-limit"
-                  className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''}`}
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={form.limit}
-                  onChange={(event) => setField('limit', formatMoneyInputLive(sanitizeMoneyInput(event.target.value)))}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,1fr)] md:items-end">
-                <div>
-                  <span className="app-label mb-1.5 block">Type</span>
-                  <div className="app-segmented-control w-full">
-                    <button
-                      type="button"
-                      className={`app-segmented-option flex-1 text-sm ${form.recurs ? 'app-segmented-option-active' : ''}`}
-                      onClick={() => setField('recurs', true)}
-                    >
-                      Recurring
-                    </button>
-                    <button
-                      type="button"
-                      className={`app-segmented-option flex-1 text-sm ${!form.recurs ? 'app-segmented-option-active' : ''}`}
-                      onClick={() => setForm((current) => ({ ...current, recurs: false, instanceLength: '1' }))}
-                    >
-                      Once
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="app-label mb-1.5 block">Frequency</label>
-                  <div className="app-segmented-control w-full">
-                    {RECURRENCE_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={`app-segmented-option flex-1 text-sm ${form.recurrenceFreq === option.value ? 'app-segmented-option-active' : ''}`}
-                        onClick={() => setField('recurrenceFreq', option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="budget-interval" className="app-label mb-1.5 block">Period length</label>
-              <input
-                id="budget-interval"
-                className="app-input disabled:cursor-not-allowed disabled:opacity-50"
-                inputMode="numeric"
-                value={form.recurs ? form.instanceLength : '1'}
-                onChange={(event) => setField('instanceLength', event.target.value.replace(/\D/g, ''))}
-                disabled={!form.recurs}
-                required={form.recurs}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="budget-period-start" className="app-label mb-1.5 block">Period start</label>
-              <input
-                id="budget-period-start"
-                className="app-input"
-                type="date"
-                value={form.periodStart}
-                onChange={(event) => setField('periodStart', event.target.value)}
-                required
-              />
-            </div>
-
-            <p className="text-center text-[0.9375rem] italic md:col-span-2" style={{ color: 'var(--app-text-muted)' }}>
-              {cadenceSummary(form)}
-            </p>
-          </div>
-
-          <section>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="app-label">Categories</h3>
-                <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  Pick the spending categories this budget should track.
-                </p>
-              </div>
-              <span className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                {form.categoryIds.length} selected
-              </span>
-            </div>
-            <div className="relative mt-3">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: 'var(--app-text-subtle)' }}
-                aria-hidden
-              />
-              <input
-                className="app-input pl-9"
-                value={categorySearch}
-                onChange={(event) => setCategorySearch(event.target.value)}
-                placeholder="Search categories..."
-              />
-            </div>
-            <div className="app-selection-list">
-              {filteredExpenseCategories.map((category) => {
-                const selected = form.categoryIds.includes(category.id)
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
-                    onClick={() => toggleCategory(category.id)}
-                  >
-                    <span
-                      className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}
-                    >
-                      <Check size={13} strokeWidth={3} aria-hidden />
-                    </span>
-                    <span className="truncate">{category.name}</span>
-                  </button>
-                )
-              })}
-              {expenseCategories.length > 0 && filteredExpenseCategories.length === 0 && (
-                <p className="px-3 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  No matching categories.
-                </p>
-              )}
-            </div>
-            {expenseCategories.length === 0 && (
-              <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                Create an expense category before adding a budget.
-              </p>
-            )}
-          </section>
-
-          {formError && (
-            <p className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-              {formError}
-            </p>
-          )}
-
-          <div className="app-form-actions">
-            <button type="button" className="app-secondary-button" onClick={onClose} disabled={isPending}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className={`app-primary-button ${isPending ? 'app-primary-button-loading' : ''}`}
-              disabled={!canCreate}
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="budget-create-title"
+              className="flex max-h-[86vh] w-full max-w-5xl overflow-hidden rounded-2xl"
+              style={{
+                background: 'var(--app-bg)',
+                border: '1px solid var(--app-border-strong)',
+                boxShadow: 'var(--app-shadow-soft)',
+              }}
+              onClick={(event) => event.stopPropagation()}
             >
-              {isPending ? <div className="app-spinner" /> : 'Create Budget'}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+              <div
+                className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"
+                style={{
+                  background: 'var(--app-button-primary-bg)',
+                  color: 'var(--app-button-primary-text)',
+                }}
+                aria-hidden
+              >
+                <PiggyBank size={20} strokeWidth={2} />
+                <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
+                  Budget
+                </span>
+              </div>
+
+              <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+                <div
+                  className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+                  style={{ borderBottom: '1px solid var(--app-border)' }}
+                >
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="min-w-0">
+                      <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                        {form.recurs ? 'Recurring budget' : 'One-off budget'}
+                      </p>
+                      <h2 id="budget-create-title" className="font-serif text-3xl font-light">
+                        Add Budget
+                      </h2>
+                    </div>
+                    <button type="button" className="app-icon-button shrink-0" aria-label="Close" onClick={closeAndReset}>
+                      <X size={20} aria-hidden />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="px-6 pb-3 pt-4 sm:px-8">
+                  <div className="grid min-h-0 items-stretch gap-7 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                    <div className="flex min-h-0 flex-col gap-5">
+                      <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                        <div className="flex min-h-0 flex-col items-center">
+                          <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                            01
+                          </span>
+                          <span
+                            className="mt-1 w-px flex-1"
+                            style={{ backgroundColor: 'var(--app-border-strong)' }}
+                            aria-hidden
+                          />
+                        </div>
+
+                        <div className="min-w-0 space-y-3">
+                          <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Scope</p>
+
+                        <div>
+                          <FieldLabelRow htmlFor="budget-name" label="Name" error={showError('name')} />
+                          <input
+                            id="budget-name"
+                            className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+                            placeholder="e.g. Groceries"
+                            value={form.name}
+                            onChange={(event) => setField('name', event.target.value)}
+                            onBlur={() => handleBlur('name')}
+                          />
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div>
+                            <FieldLabelRow
+                              htmlFor="budget-currency"
+                              label={(
+                                <span className="inline-flex items-center gap-2">
+                                  Currency
+                                  <span className="group relative inline-flex">
+                                    <TriangleAlert
+                                      size={17}
+                                      strokeWidth={2.75}
+                                      aria-label="Budget currency limitation"
+                                      className="cursor-help"
+                                      style={{ color: 'var(--app-negative)' }}
+                                    />
+                                    <span className="app-tooltip-panel app-hover-tooltip">
+                                      Budgets currently track only accounts in the same currency.
+                                    </span>
+                                  </span>
+                                </span>
+                              )}
+                              error={showError('currency')}
+                            />
+                            <Dropdown
+                              id="budget-currency"
+                              options={currencyOptions}
+                              value={form.currency}
+                              onChange={(value) => setField('currency', value)}
+                              className={`app-input ${showError('currency') ? 'app-input-error' : ''}`}
+                              placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
+                              searchable
+                              searchPlaceholder="Search currencies..."
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabelRow htmlFor="budget-limit" label="Limit" error={showError('limit')} />
+                            <div className="relative">
+                              {selectedCurrencySymbol && (
+                                <span
+                                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                  style={{ color: 'var(--app-text-subtle)' }}
+                                >
+                                  {selectedCurrencySymbol}
+                                </span>
+                              )}
+                              <input
+                                id="budget-limit"
+                                className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
+                                inputMode="decimal"
+                                placeholder="0.00"
+                                value={form.limit}
+                                onChange={(event) => setField('limit', formatMoneyInputLive(sanitizeMoneyInput(event.target.value)))}
+                                onBlur={() => handleBlur('limit')}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                        <div className="flex min-h-0 flex-col items-center">
+                          <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                            02
+                          </span>
+                          <span
+                            className="mt-1 w-px flex-1"
+                            style={{ backgroundColor: 'var(--app-border-strong)' }}
+                            aria-hidden
+                          />
+                        </div>
+
+                        <div className="min-w-0 space-y-2.5">
+                          <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Cadence</p>
+
+                        <div className="grid gap-2.5 md:grid-cols-[10rem_minmax(0,1fr)] md:items-end">
+                          <div>
+                            <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Type</span>
+                            <div className="app-segmented-control w-full">
+                              <button
+                                type="button"
+                                className={`app-segmented-option flex-1 text-sm ${form.recurs ? 'app-segmented-option-active' : ''}`}
+                                onClick={() => setField('recurs', true)}
+                              >
+                                Recurring
+                              </button>
+                              <button
+                                type="button"
+                                className={`app-segmented-option flex-1 text-sm ${!form.recurs ? 'app-segmented-option-active' : ''}`}
+                                onClick={() => {
+                                  setForm((current) => ({ ...current, recurs: false, instanceLength: '1' }))
+                                  clearError('instanceLength')
+                                }}
+                              >
+                                Once
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Frequency</span>
+                            <div className="app-segmented-control w-full">
+                              {RECURRENCE_OPTIONS.map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  className={`app-segmented-option flex-1 text-sm ${form.recurrenceFreq === option.value ? 'app-segmented-option-active' : ''}`}
+                                  onClick={() => setField('recurrenceFreq', option.value)}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,1fr)]">
+                          <div className={!form.recurs ? 'opacity-50' : ''}>
+                            <FieldLabelRow
+                              htmlFor="budget-interval"
+                              label="Period length"
+                              error={showError('instanceLength')}
+                            />
+                            <input
+                              id="budget-interval"
+                              className={`app-input disabled:cursor-not-allowed ${showError('instanceLength') ? 'app-input-error' : ''}`}
+                              inputMode="numeric"
+                              value={form.instanceLength}
+                              onChange={(event) => setField('instanceLength', event.target.value.replace(/\D/g, ''))}
+                              onBlur={() => handleBlur('instanceLength')}
+                              disabled={!form.recurs}
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabelRow htmlFor="budget-period-start" label="Period start" error={showError('periodStart')} />
+                            <input
+                              id="budget-period-start"
+                              className={`app-input ${showError('periodStart') ? 'app-input-error' : ''}`}
+                              type="date"
+                              value={form.periodStart}
+                              onChange={(event) => setField('periodStart', event.target.value)}
+                              onBlur={() => handleBlur('periodStart')}
+                            />
+                          </div>
+                        </div>
+
+                        <p className="text-center text-sm leading-tight italic" style={{ color: 'var(--app-text-muted)' }}>
+                          {cadenceSummary(form)}
+                        </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex min-h-0 overflow-hidden">
+                      <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-3 overflow-hidden">
+                        <div className="flex min-h-0 flex-col items-center">
+                          <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+                            03
+                          </span>
+                          <span
+                            className="mt-1 w-px flex-1"
+                            style={{ backgroundColor: 'var(--app-border-strong)' }}
+                            aria-hidden
+                          />
+                        </div>
+
+                        <div className="flex min-h-0 min-w-0 flex-col">
+                          <div className="flex h-4 items-center justify-between gap-4">
+                            <p className="text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Tracked categories</p>
+                            <span className="shrink-0 text-sm leading-none" style={{ color: 'var(--app-text-subtle)' }}>
+                              {form.categoryIds.length} selected
+                            </span>
+                          </div>
+
+                        <div className="mt-4 flex min-h-0 flex-1 flex-col">
+                          <div className="flex items-start">
+                            <div className="min-w-0 flex-1">
+                              <AnimatePresence initial={false}>
+                                {showError('categoryIds') && (
+                                  <motion.p
+                                    key="categoryIds-error"
+                                    className="mb-1.5 text-xs font-medium leading-5"
+                                    style={{ color: 'var(--app-negative)' }}
+                                    initial={{ opacity: 0, x: 4 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 4 }}
+                                    transition={{ duration: 0.15 }}
+                                  >
+                                    {showError('categoryIds')}
+                                  </motion.p>
+                                )}
+                              </AnimatePresence>
+                              <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                                Pick the categories this budget should track.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="relative mt-3">
+                            <Search
+                              size={16}
+                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                              style={{ color: 'var(--app-text-subtle)' }}
+                              aria-hidden
+                            />
+                            <input
+                              className="app-input pl-9"
+                              value={categorySearch}
+                              onChange={(event) => setCategorySearch(event.target.value)}
+                              placeholder="Search categories..."
+                            />
+                          </div>
+                          <div className="relative mb-1 mt-3 min-h-0 flex-1">
+                            <div className="app-selection-list absolute inset-0 m-0 max-h-none">
+                              {filteredExpenseCategories.map((category) => {
+                                const selected = form.categoryIds.includes(category.id)
+                                return (
+                                  <button
+                                    key={category.id}
+                                    type="button"
+                                    className={`app-selection-option ${selected ? 'app-selection-option-active' : ''}`}
+                                    onClick={() => toggleCategory(category.id)}
+                                  >
+                                    <span className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}>
+                                      <Check size={13} strokeWidth={3} aria-hidden />
+                                    </span>
+                                    <span className="truncate">{category.name}</span>
+                                  </button>
+                                )
+                              })}
+                              {expenseCategories.length > 0 && filteredExpenseCategories.length === 0 && (
+                                <p className="px-3 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                                  No matching categories.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {expenseCategories.length === 0 && (
+                            <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                              Create an expense category before adding a budget.
+                            </p>
+                          )}
+                        </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {formError && (
+                      <motion.p
+                        className="mt-4 text-sm font-medium"
+                        style={{ color: 'var(--app-negative)' }}
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        {formError}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div
+                  className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8"
+                  style={{ borderTop: '1px solid var(--app-border)' }}
+                >
+                  <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={closeAndReset} disabled={isPending}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading' : 'w-full sm:w-36'}`}
+                    disabled={isPending}
+                  >
+                    {isPending ? <div className="app-spinner" /> : 'Create Budget'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body,
   )
 }
 
@@ -1707,16 +1970,16 @@ export default function Budgets() {
         </section>
       )}
 
-      {createOpen && (
-        <BudgetCreateModal
-          categories={categories ?? []}
-          currencies={currencies ?? []}
-          defaultCurrency={defaultCurrency}
-          timeZone={userTimeZone}
-          onClose={() => setCreateOpen(false)}
-          onCreated={() => undefined}
-        />
-      )}
+      <BudgetCreateModal
+        key={`${defaultCurrency}-${userTimeZone}`}
+        open={createOpen}
+        categories={categories ?? []}
+        currencies={currencies ?? []}
+        defaultCurrency={defaultCurrency}
+        timeZone={userTimeZone}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => undefined}
+      />
 
       <AnimatePresence>
         {selectedBudget && (
