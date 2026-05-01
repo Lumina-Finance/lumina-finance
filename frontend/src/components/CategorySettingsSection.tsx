@@ -470,42 +470,60 @@ function CategoryGroup({
     <div>
       <button
         type="button"
-        className="flex h-11 w-full items-center justify-between gap-3 text-left"
+        className="flex h-11 w-full items-center gap-3 text-left"
         onClick={onToggle}
         aria-expanded={expanded}
       >
+        <ChevronDown
+          size={14}
+          className={`mt-1.5 shrink-0 self-start transition-transform duration-150 motion-reduce:transition-none ${expanded ? 'rotate-180' : 'rotate-0'}`}
+          style={{ opacity: 0.7 }}
+          aria-hidden
+        />
         <span className="min-w-0">
           <span className="app-label block">{KIND_LABELS[kind]}</span>
           <span className="block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             {categories.length} {categories.length === 1 ? 'category' : 'categories'}
           </span>
         </span>
-        <ChevronDown
-          size={17}
-          className={`shrink-0 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`}
-          style={{ color: 'var(--app-text-subtle)' }}
-          aria-hidden
-        />
       </button>
-      {expanded && (
-        <div>
-          {categories.map((category, index) => (
-            <CategoryRow
-              key={category.id}
-              category={category}
-              confirmingDelete={confirmingDeleteCategoryId === category.id}
-              deleting={deletingCategoryId === category.id}
-              isLast={index === categories.length - 1}
-              isEditing={editingCategoryId === category.id}
-              onDeleteCancel={onDeleteCancel}
-              onDeleteConfirm={onDeleteConfirm}
-              onDeleteRequest={onDeleteRequest}
-              onEdit={onEdit}
-              onEditCancel={onEditCancel}
-            />
-          ))}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            className="overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.26, ease: EASE }}
+          >
+            {categories.map((category, index) => (
+              <motion.div
+                key={category.id}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.18, ease: EASE, delay: Math.min(index * 0.025, 0.16) },
+                }}
+                exit={{ opacity: 0, y: -4, transition: { duration: 0.12, ease: EASE } }}
+              >
+                <CategoryRow
+                  category={category}
+                  confirmingDelete={confirmingDeleteCategoryId === category.id}
+                  deleting={deletingCategoryId === category.id}
+                  isLast={index === categories.length - 1}
+                  isEditing={editingCategoryId === category.id}
+                  onDeleteCancel={onDeleteCancel}
+                  onDeleteConfirm={onDeleteConfirm}
+                  onDeleteRequest={onDeleteRequest}
+                  onEdit={onEdit}
+                  onEditCancel={onEditCancel}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
