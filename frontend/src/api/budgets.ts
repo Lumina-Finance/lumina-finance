@@ -121,6 +121,12 @@ function deleteBaseBudget(baseBudgetId: string) {
   });
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function updateBaseBudget({ id, patch }: UpdateBaseBudgetPayload) {
   return authenticatedFetch<BaseBudget>(`/base-budgets/${id}`, {
     method: 'PATCH',
@@ -202,10 +208,20 @@ export function useCreateBudgetInstance() {
   });
 }
 
-export function useDeleteBaseBudget() {
+export function useDeleteBaseBudget({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: deleteBaseBudget,
+    mutationFn: async (baseBudgetId: string) => {
+      const minimumPending = delay(minimumPendingMs);
+      try {
+        const result = await deleteBaseBudget(baseBudgetId);
+        await minimumPending;
+        return result;
+      } catch (error) {
+        await minimumPending;
+        throw error;
+      }
+    },
     onSuccess: () => {
       invalidateBudgetActivity(queryClient);
     },

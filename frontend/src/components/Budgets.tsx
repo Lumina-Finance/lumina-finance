@@ -68,11 +68,19 @@ const EASE = [0.25, 0.1, 0.25, 1] as const
 const MODAL_SURFACE_TRANSITION_SECONDS = 0.25
 const MODAL_SURFACE_TRANSITION_MS = MODAL_SURFACE_TRANSITION_SECONDS * 1000
 const CREATE_BUDGET_MIN_LOADING_MS = 800
+const DELETE_BUDGET_MIN_LOADING_MS = 1000
 
 interface FieldLabelRowProps {
   label: React.ReactNode
   htmlFor?: string
   error?: string | false
+}
+
+interface BudgetCardViewModel {
+  baseBudget: BaseBudget
+  periods: Budget[]
+  latestPeriod: Budget | undefined
+  categoryNames: string[]
 }
 
 function FieldLabelRow({ label, htmlFor, error }: FieldLabelRowProps) {
@@ -1099,7 +1107,7 @@ function BudgetDetailsModal({
   onDeleted: () => void
   onSaved: () => void
 }) {
-  const deleteBaseBudget = useDeleteBaseBudget()
+  const deleteBaseBudget = useDeleteBaseBudget({ minimumPendingMs: DELETE_BUDGET_MIN_LOADING_MS })
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteInProgress, setDeleteInProgress] = useState(false)
@@ -1158,10 +1166,7 @@ function BudgetDetailsModal({
     setDeleteError(null)
     setDeleteInProgress(true)
     try {
-      await Promise.all([
-        deleteBaseBudget.mutateAsync(baseBudget.id),
-        new Promise((resolve) => window.setTimeout(resolve, 1000)),
-      ])
+      await deleteBaseBudget.mutateAsync(baseBudget.id)
       onClose()
       onDeleted()
     } catch (error) {
@@ -1283,8 +1288,8 @@ function BudgetDetailsModal({
 
             <div className="mt-auto">
               {confirmDelete && !isDeleting && (
-                <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                  This deletes all budget periods.
+                <p className="mb-3 text-sm" style={{ color: 'var(--app-negative)' }}>
+                  This will delete all historical data.
                 </p>
               )}
               {deleteError && (
@@ -1299,12 +1304,18 @@ function BudgetDetailsModal({
                 </button>
                 <button
                   type="button"
-                  className="app-danger-button flex-1"
+                  className={`app-danger-button overflow-hidden whitespace-nowrap duration-300 ${isDeleting ? 'app-primary-button-loading shrink-0' : 'flex-1'}`}
                   onClick={handleDelete}
                   disabled={isDeleting}
                 >
-                  <Trash2 size={16} aria-hidden />
-                  {isDeleting ? <div className="app-spinner" /> : confirmDelete ? 'Confirm' : 'Delete'}
+                  {isDeleting ? (
+                    <div className="app-spinner" />
+                  ) : (
+                    <>
+                      <Trash2 size={16} aria-hidden />
+                      {confirmDelete ? 'Confirm' : 'Delete'}
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -2036,6 +2047,7 @@ export default function Budgets() {
   const [createOpen, setCreateOpen] = useState(false)
   const budgetParam = searchParams.get('budget')
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(budgetParam)
+  const [budgetDetailsSnapshot, setBudgetDetailsSnapshot] = useState<BudgetCardViewModel | null>(null)
   const backfilledKeys = useRef(new Set<string>())
   const defaultCurrency = user?.base_currency ?? currencies?.[0]?.id ?? 'USD'
   const userTimeZone = user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -2044,7 +2056,7 @@ export default function Budgets() {
     () => new Map((categories ?? []).map((category) => [category.id, category.name])),
     [categories],
   )
-  const budgetCards = useMemo(() => {
+  const budgetCards = useMemo<BudgetCardViewModel[]>(() => {
     const baseById = new Map<string, BaseBudget>()
     const periodsByBase = new Map<string, Budget[]>()
 
@@ -2085,10 +2097,22 @@ export default function Budgets() {
   const budgetsLoading = baseBudgetsQuery.isLoading || budgetsQuery.isLoading || latestUtilizationsQuery.isLoading
   const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || latestUtilizationsQuery.isError
   const selectedBudget = budgetCards.find(({ baseBudget }) => baseBudget.id === selectedBudgetId)
+  const visibleBudgetDetails = selectedBudget ?? (
+    budgetDetailsSnapshot?.baseBudget.id === selectedBudgetId ? budgetDetailsSnapshot : null
+  )
 
   useEffect(() => {
     setSelectedBudgetId(budgetParam)
+    if (!budgetParam) {
+      setBudgetDetailsSnapshot(null)
+    }
   }, [budgetParam])
+
+  useEffect(() => {
+    if (selectedBudget) {
+      setBudgetDetailsSnapshot(selectedBudget)
+    }
+  }, [selectedBudget])
 
   const openBudget = (budgetId: string) => {
     setSelectedBudgetId(budgetId)
@@ -2101,6 +2125,7 @@ export default function Budgets() {
 
   const closeBudget = () => {
     setSelectedBudgetId(null)
+    setBudgetDetailsSnapshot(null)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('budget')
@@ -2225,17 +2250,17 @@ export default function Budgets() {
       />
 
       <AnimatePresence>
-        {selectedBudget && (
+        {visibleBudgetDetails && (
           <BudgetDetailsModal
-            key={selectedBudget.baseBudget.id}
-            baseBudget={selectedBudget.baseBudget}
-            periods={selectedBudget.periods}
+            key={visibleBudgetDetails.baseBudget.id}
+            baseBudget={visibleBudgetDetails.baseBudget}
+            periods={visibleBudgetDetails.periods}
             categories={categories ?? []}
             currencies={currencies ?? []}
             categoryById={categoryById}
             initialLatestUtilization={
-              selectedBudget.latestPeriod
-                ? latestUtilizationByBudgetId.get(selectedBudget.latestPeriod.id)
+              visibleBudgetDetails.latestPeriod
+                ? latestUtilizationByBudgetId.get(visibleBudgetDetails.latestPeriod.id)
                 : undefined
             }
             onClose={closeBudget}
