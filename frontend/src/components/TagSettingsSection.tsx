@@ -51,7 +51,7 @@ function SettingsCard({ children }: { children: React.ReactNode }) {
 }
 
 function scopeLabel(tag: Tag) {
-  return tag.group_id ? 'Group tag' : 'Personal tag'
+  return tag.group_id ? 'Group' : 'Personal'
 }
 
 export default function TagSettingsSection() {
@@ -301,52 +301,90 @@ export default function TagSettingsSection() {
             <div className="relative">
               <div
                 ref={tagListRef}
-                className={shouldScrollTags ? 'max-h-[35rem] overflow-y-auto pr-2' : undefined}
+                className={shouldScrollTags ? 'max-h-[35rem] overflow-x-auto overflow-y-auto pr-2' : 'overflow-x-auto'}
                 onScroll={shouldScrollTags ? handleTagListScroll : undefined}
               >
-                {visibleTags.map((tag, index) => (
-                  <TagRow
-                    key={tag.id}
-                    confirmingDelete={confirmingDeleteTagId === tag.id}
-                    deleting={deletingTagId === tag.id}
-                    isEditing={editingTagId === tag.id}
-                    isLast={!showTagListEnd && !hasMoreTags && index === visibleTags.length - 1}
-                    tag={tag}
-                    onDeleteCancel={() => setConfirmingDeleteTagId(null)}
-                    onDeleteConfirm={handleDelete}
-                    onDeleteRequest={(nextTag) => {
-                      setDeleteError(null)
-                      setEditingTagId(null)
-                      setConfirmingDeleteTagId(nextTag.id)
-                    }}
-                    onEdit={(nextTag) => setEditingTagId(nextTag.id)}
-                    onEditCancel={() => setEditingTagId(null)}
-                  />
-                ))}
-                {showTagListEnd && !showFetchingMoreTags && !showInitialTagLoading && (
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    You've reached the end.
-                  </p>
-                )}
-                {showFetchingMoreTags && visibleTags.length > 0 && (
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Fetching more
-                  </p>
-                )}
-                {showInitialTagLoading && visibleTags.length === 0 && (
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Loading tags...
-                  </p>
-                )}
+                <table className="w-full min-w-[460px] table-fixed text-left text-[0.9375rem]">
+                  <colgroup>
+                    <col />
+                    <col style={{ width: '7rem' }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+                      <th
+                        scope="col"
+                        className={`app-label py-3 pl-4 pr-4 ${shouldScrollTags ? 'sticky top-0 z-10' : ''}`}
+                        style={{ background: 'var(--app-surface-soft)' }}
+                      >
+                        Tag
+                      </th>
+                      <th
+                        scope="col"
+                        className={`app-label py-3 pr-4 text-right ${shouldScrollTags ? 'sticky top-0 z-10' : ''}`}
+                        style={{ background: 'var(--app-surface-soft)' }}
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleTags.map((tag, index) => (
+                      <TagRow
+                        key={tag.id}
+                        confirmingDelete={confirmingDeleteTagId === tag.id}
+                        deleting={deletingTagId === tag.id}
+                        isEditing={editingTagId === tag.id}
+                        isLast={!showTagListEnd && !hasMoreTags && index === visibleTags.length - 1}
+                        tag={tag}
+                        onDeleteCancel={() => setConfirmingDeleteTagId(null)}
+                        onDeleteConfirm={handleDelete}
+                        onDeleteRequest={(nextTag) => {
+                          setDeleteError(null)
+                          setEditingTagId(null)
+                          setConfirmingDeleteTagId(nextTag.id)
+                        }}
+                        onEdit={(nextTag) => setEditingTagId(nextTag.id)}
+                        onEditCancel={() => setEditingTagId(null)}
+                      />
+                    ))}
+                    {showTagListEnd && !showFetchingMoreTags && !showInitialTagLoading && (
+                      <tr>
+                        <td colSpan={2}>
+                          <p
+                            className="py-4 text-center text-sm italic"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                          >
+                            You've reached the end.
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                    {showFetchingMoreTags && visibleTags.length > 0 && (
+                      <tr>
+                        <td colSpan={2}>
+                          <p
+                            className="py-4 text-center text-sm italic"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                          >
+                            Fetching more
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                    {showInitialTagLoading && visibleTags.length === 0 && (
+                      <tr>
+                        <td colSpan={2}>
+                          <p
+                            className="py-4 text-center text-sm italic"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                          >
+                            Loading tags...
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
               <AnimatePresence initial={false}>
                 {showTagListMoreIndicator && (
@@ -415,64 +453,65 @@ function TagRow({
   }
 
   return (
-    <div
-      className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"
+    <tr
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
-      <div className="min-w-0">
+      <td className="min-w-0 py-3 pl-4 pr-4 align-middle">
         <p className="truncate font-medium">{tag.name}</p>
         <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
           {scopeLabel(tag)}
         </p>
-      </div>
-      <div className="flex justify-end gap-1.5">
-        {confirmingDelete ? (
-          <>
-            <button
-              type="button"
-              className="app-icon-button"
-              disabled={deleting}
-              onClick={onDeleteCancel}
-              aria-label={`Cancel deleting ${tag.name}`}
-              title="Cancel"
-            >
-              <X size={16} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="app-icon-button"
-              disabled={deleting}
-              onClick={() => onDeleteConfirm(tag)}
-              aria-label={`Confirm delete ${tag.name}`}
-              title="Confirm delete"
-            >
-              {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="app-icon-button"
-              onClick={() => onEdit(tag)}
-              aria-label={`Edit ${tag.name}`}
-              title="Edit tag"
-            >
-              <Pencil size={16} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="app-icon-button"
-              onClick={() => onDeleteRequest(tag)}
-              aria-label={`Delete ${tag.name}`}
-              title="Delete tag"
-            >
-              <Trash2 size={16} aria-hidden />
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+      </td>
+      <td className="py-3 pr-4 align-middle">
+        <div className="flex justify-end gap-1.5">
+          {confirmingDelete ? (
+            <>
+              <button
+                type="button"
+                className="app-icon-button"
+                disabled={deleting}
+                onClick={onDeleteCancel}
+                aria-label={`Cancel deleting ${tag.name}`}
+                title="Cancel"
+              >
+                <X size={16} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="app-icon-button"
+                disabled={deleting}
+                onClick={() => onDeleteConfirm(tag)}
+                aria-label={`Confirm delete ${tag.name}`}
+                title="Confirm delete"
+              >
+                {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="app-icon-button"
+                onClick={() => onEdit(tag)}
+                aria-label={`Edit ${tag.name}`}
+                title="Edit tag"
+              >
+                <Pencil size={16} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="app-icon-button"
+                onClick={() => onDeleteRequest(tag)}
+                aria-label={`Delete ${tag.name}`}
+                title="Delete tag"
+              >
+                <Trash2 size={16} aria-hidden />
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
   )
 }
 
@@ -518,67 +557,75 @@ function InlineTagEdit({
   }
 
   return (
-    <form
-      className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2"
+    <tr
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
-      onSubmit={handleSubmit}
-      noValidate
     >
-      <div className="min-w-0">
-        <div
-          className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-within:border-[var(--app-accent-border)]"
-          style={{
-            background: 'var(--app-input-bg)',
-            borderColor: 'var(--app-input-border)',
-          }}
+      <td colSpan={2} className="py-2 pl-4 pr-4 align-top">
+        <form
+          className="grid min-h-10 grid-cols-[minmax(0,1fr)_7rem] items-start gap-3"
+          onSubmit={handleSubmit}
+          noValidate
         >
-          <input
-            className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value)
-              setFormError(null)
-            }}
-            maxLength={64}
-            aria-label={`${tag.name} name`}
-            required
-            style={{ color: 'var(--app-text)' }}
-          />
-          <Pencil
-            size={13}
-            className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-            style={{ color: 'var(--app-text-subtle)' }}
-            aria-hidden
-          />
-        </div>
-        {formError && (
-          <p className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
-            {formError}
-          </p>
-        )}
-      </div>
-      <div className="flex justify-end gap-1.5">
-        <button
-          type="submit"
-          className="app-icon-button"
-          disabled={updateTag.isPending}
-          aria-label={`Save ${tag.name}`}
-          title="Save"
-        >
-          {updateTag.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
-        </button>
-        <button
-          type="button"
-          className="app-icon-button"
-          onClick={onCancel}
-          disabled={updateTag.isPending}
-          aria-label={`Cancel editing ${tag.name}`}
-          title="Cancel"
-        >
-          <X size={16} aria-hidden />
-        </button>
-      </div>
-    </form>
+          <div className="min-w-0">
+            <div
+              className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-within:border-[var(--app-accent-border)]"
+              style={{
+                background: 'var(--app-input-bg)',
+                borderColor: 'var(--app-input-border)',
+              }}
+            >
+              <input
+                className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value)
+                  setFormError(null)
+                }}
+                maxLength={64}
+                aria-label={`${tag.name} name`}
+                required
+                style={{ color: 'var(--app-text)' }}
+              />
+              <Pencil
+                size={13}
+                className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                style={{ color: 'var(--app-text-subtle)' }}
+                aria-hidden
+              />
+            </div>
+            <p className="mt-1 truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              {scopeLabel(tag)}
+            </p>
+            {formError && (
+              <p className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
+                {formError}
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end gap-1.5">
+            <button
+              type="submit"
+              className="app-icon-button"
+              disabled={updateTag.isPending}
+              aria-label={`Save ${tag.name}`}
+              title="Save"
+            >
+              {updateTag.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+            </button>
+            <button
+              type="button"
+              className="app-icon-button"
+              onClick={onCancel}
+              disabled={updateTag.isPending}
+              aria-label={`Cancel editing ${tag.name}`}
+              title="Cancel"
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </div>
+        </form>
+      </td>
+    </tr>
   )
 }
 

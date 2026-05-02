@@ -85,7 +85,7 @@ function categoryName(categoryById: Map<string, Category>, categoryId: string | 
 }
 
 function scopeLabel(merchant: Merchant) {
-  return merchant.group_id ? 'Group merchant' : 'Personal merchant'
+  return merchant.group_id ? 'Group' : 'Personal'
 }
 
 function merchantMergeOptions(merchant: Merchant, merchants: Merchant[]): DropdownOption[] {
@@ -362,54 +362,100 @@ export default function MerchantSettingsSection() {
             <div className="relative">
               <div
                 ref={merchantListRef}
-                className={shouldScrollMerchants ? 'max-h-[35rem] overflow-y-auto pr-2' : undefined}
+                className={shouldScrollMerchants ? 'max-h-[35rem] overflow-x-auto overflow-y-auto pr-2' : 'overflow-x-auto'}
                 onScroll={shouldScrollMerchants ? handleMerchantListScroll : undefined}
               >
-                {visibleMerchants.map((merchant, index) => (
-                  <MerchantRow
-                    key={merchant.id}
-                    categoryById={categoryById}
-                    categoryOptions={options}
-                    confirmingDelete={confirmingDeleteMerchantId === merchant.id}
-                    deleting={deletingMerchantId === merchant.id}
-                    isEditing={editingMerchantId === merchant.id}
-                    isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
-                    merchant={merchant}
-                    onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
-                    onDeleteConfirm={handleDelete}
-                    onDeleteRequest={(nextMerchant) => {
-                      setDeleteError(null)
-                      setEditingMerchantId(null)
-                      setConfirmingDeleteMerchantId(nextMerchant.id)
-                    }}
-                    onEdit={(nextMerchant) => setEditingMerchantId(nextMerchant.id)}
-                    onEditCancel={() => setEditingMerchantId(null)}
-                  />
-                ))}
-                {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    You've reached the end.
-                  </p>
-                )}
-                {showFetchingMoreMerchants && visibleMerchants.length > 0 && (
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Fetching more
-                  </p>
-                )}
-                {showInitialMerchantLoading && visibleMerchants.length === 0 && (
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Loading merchants...
-                  </p>
-                )}
+                <table className="w-full min-w-[520px] table-auto text-left text-[0.9375rem]">
+                  <colgroup>
+                    <col style={{ width: '1%' }} />
+                    <col />
+                    <col style={{ width: '7rem' }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+                      <th
+                        scope="col"
+                        className={`app-label whitespace-nowrap py-3 pl-4 pr-6 ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
+                        style={{ background: 'var(--app-surface-soft)' }}
+                      >
+                        Merchant
+                      </th>
+                      <th
+                        scope="col"
+                        className={`app-label py-3 pr-4 ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
+                        style={{ background: 'var(--app-surface-soft)' }}
+                      >
+                        Default category
+                      </th>
+                      <th
+                        scope="col"
+                        className={`app-label py-3 pr-4 text-right ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
+                        style={{ background: 'var(--app-surface-soft)' }}
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleMerchants.map((merchant, index) => (
+                      <MerchantRow
+                        key={merchant.id}
+                        categoryById={categoryById}
+                        categoryOptions={options}
+                        confirmingDelete={confirmingDeleteMerchantId === merchant.id}
+                        deleting={deletingMerchantId === merchant.id}
+                        isEditing={editingMerchantId === merchant.id}
+                        isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
+                        merchant={merchant}
+                        onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
+                        onDeleteConfirm={handleDelete}
+                        onDeleteRequest={(nextMerchant) => {
+                          setDeleteError(null)
+                          setEditingMerchantId(null)
+                          setConfirmingDeleteMerchantId(nextMerchant.id)
+                        }}
+                        onEdit={(nextMerchant) => setEditingMerchantId(nextMerchant.id)}
+                        onEditCancel={() => setEditingMerchantId(null)}
+                      />
+                    ))}
+                    {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
+                      <tr>
+                        <td colSpan={3}>
+                          <p
+                            className="py-4 text-center text-sm italic"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                          >
+                            You've reached the end.
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                    {showFetchingMoreMerchants && visibleMerchants.length > 0 && (
+                      <tr>
+                        <td colSpan={3}>
+                          <p
+                            className="py-4 text-center text-sm italic"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                          >
+                            Fetching more
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                    {showInitialMerchantLoading && visibleMerchants.length === 0 && (
+                      <tr>
+                        <td colSpan={3}>
+                          <p
+                            className="py-4 text-center text-sm italic"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                          >
+                            Loading merchants...
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
               <AnimatePresence initial={false}>
                 {showMerchantListMoreIndicator && (
@@ -728,64 +774,68 @@ function MerchantRow({
   }
 
   return (
-    <div
-      className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2"
+    <tr
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
-      <div className="min-w-0">
+      <td className="w-px max-w-[14rem] whitespace-nowrap py-3 pl-4 pr-6 align-middle">
         <p className="truncate font-medium">{merchant.name}</p>
         <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          {scopeLabel(merchant)} · {categoryName(categoryById, merchant.default_category_id)}
+          {scopeLabel(merchant)}
         </p>
-      </div>
-      <div className="flex justify-end gap-1.5">
-        {confirmingDelete ? (
-          <>
-            <button
-              type="button"
-              className="app-icon-button"
-              disabled={deleting}
-              onClick={onDeleteCancel}
-              aria-label={`Cancel deleting ${merchant.name}`}
-              title="Cancel"
-            >
-              <X size={16} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="app-icon-button"
-              disabled={deleting}
-              onClick={() => onDeleteConfirm(merchant)}
-              aria-label={`Confirm delete ${merchant.name}`}
-              title="Confirm delete"
-            >
-              {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="app-icon-button"
-              onClick={() => onEdit(merchant)}
-              aria-label={`Edit ${merchant.name}`}
-              title="Edit merchant"
-            >
-              <Pencil size={16} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="app-icon-button"
-              onClick={() => onDeleteRequest(merchant)}
-              aria-label={`Delete ${merchant.name}`}
-              title="Delete merchant"
-            >
-              <Trash2 size={16} aria-hidden />
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+      </td>
+      <td className="min-w-0 py-3 pr-4 align-middle">
+        <p className="truncate font-medium">{categoryName(categoryById, merchant.default_category_id)}</p>
+      </td>
+      <td className="py-3 pr-4 align-middle">
+        <div className="flex justify-end gap-1.5">
+          {confirmingDelete ? (
+            <>
+              <button
+                type="button"
+                className="app-icon-button"
+                disabled={deleting}
+                onClick={onDeleteCancel}
+                aria-label={`Cancel deleting ${merchant.name}`}
+                title="Cancel"
+              >
+                <X size={16} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="app-icon-button"
+                disabled={deleting}
+                onClick={() => onDeleteConfirm(merchant)}
+                aria-label={`Confirm delete ${merchant.name}`}
+                title="Confirm delete"
+              >
+                {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="app-icon-button"
+                onClick={() => onEdit(merchant)}
+                aria-label={`Edit ${merchant.name}`}
+                title="Edit merchant"
+              >
+                <Pencil size={16} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="app-icon-button"
+                onClick={() => onDeleteRequest(merchant)}
+                aria-label={`Delete ${merchant.name}`}
+                title="Delete merchant"
+              >
+                <Trash2 size={16} aria-hidden />
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
   )
 }
 
@@ -846,73 +896,81 @@ function InlineMerchantEdit({
   }
 
   return (
-    <form
-      className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2"
+    <tr
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
-      onSubmit={handleSubmit}
-      noValidate
     >
-      <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)]">
-        <div className="min-w-0">
-          <div
-            className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-within:border-[var(--app-accent-border)]"
-            style={{
-              background: 'var(--app-input-bg)',
-              borderColor: 'var(--app-input-border)',
-            }}
-          >
-            <input
-              className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
-              value={form.name}
-              onChange={(event) => setField('name', event.target.value)}
-              maxLength={256}
-              aria-label={`${merchant.name} name`}
-              required
-              style={{ color: 'var(--app-text)' }}
-            />
-            <Pencil
-              size={13}
-              className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-              style={{ color: 'var(--app-text-subtle)' }}
-              aria-hidden
+      <td colSpan={3} className="py-2 pl-4 pr-4 align-top">
+        <form
+          className="grid min-h-10 grid-cols-[minmax(9rem,14rem)_minmax(0,1fr)_7rem] items-start gap-3"
+          onSubmit={handleSubmit}
+          noValidate
+        >
+          <div className="min-w-0">
+            <div
+              className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-within:border-[var(--app-accent-border)]"
+              style={{
+                background: 'var(--app-input-bg)',
+                borderColor: 'var(--app-input-border)',
+              }}
+            >
+              <input
+                className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+                value={form.name}
+                onChange={(event) => setField('name', event.target.value)}
+                maxLength={256}
+                aria-label={`${merchant.name} name`}
+                required
+                style={{ color: 'var(--app-text)' }}
+              />
+              <Pencil
+                size={13}
+                className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                style={{ color: 'var(--app-text-subtle)' }}
+                aria-hidden
+              />
+            </div>
+            {formError && (
+              <p className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
+                {formError}
+              </p>
+            )}
+            <p className="mt-1 truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              {scopeLabel(merchant)}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <Dropdown
+              className="h-9 w-full rounded-md border border-[var(--app-input-border)] bg-[var(--app-input-bg)] px-2 py-0 outline-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus:border-[var(--app-accent-border)]"
+              options={categoryOptions}
+              value={form.default_category_id}
+              onChange={(value) => setField('default_category_id', value)}
+              searchable
+              searchPlaceholder="Search categories..."
             />
           </div>
-          {formError && (
-            <p className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
-              {formError}
-            </p>
-          )}
-        </div>
-        <Dropdown
-          className="h-9 w-full rounded-md border border-[var(--app-input-border)] bg-[var(--app-input-bg)] px-2 py-0 outline-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus:border-[var(--app-accent-border)]"
-          options={categoryOptions}
-          value={form.default_category_id}
-          onChange={(value) => setField('default_category_id', value)}
-          searchable
-          searchPlaceholder="Search categories..."
-        />
-      </div>
-      <div className="flex justify-end gap-1.5">
-        <button
-          type="submit"
-          className="app-icon-button"
-          disabled={updateMerchant.isPending}
-          aria-label={`Save ${merchant.name}`}
-          title="Save"
-        >
-          {updateMerchant.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
-        </button>
-        <button
-          type="button"
-          className="app-icon-button"
-          onClick={onCancel}
-          disabled={updateMerchant.isPending}
-          aria-label={`Cancel editing ${merchant.name}`}
-          title="Cancel"
-        >
-          <X size={16} aria-hidden />
-        </button>
-      </div>
-    </form>
+          <div className="flex justify-end gap-1.5">
+            <button
+              type="submit"
+              className="app-icon-button"
+              disabled={updateMerchant.isPending}
+              aria-label={`Save ${merchant.name}`}
+              title="Save"
+            >
+              {updateMerchant.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+            </button>
+            <button
+              type="button"
+              className="app-icon-button"
+              onClick={onCancel}
+              disabled={updateMerchant.isPending}
+              aria-label={`Cancel editing ${merchant.name}`}
+              title="Cancel"
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </div>
+        </form>
+      </td>
+    </tr>
   )
 }
