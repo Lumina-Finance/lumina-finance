@@ -9,7 +9,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Tag as TagIcon,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -55,6 +54,7 @@ import DateRangeFilterPanel from '@/components/DateRangeFilterPanel'
 import Dropdown from '@/components/Dropdown'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
+import TransactionRow from '@/components/TransactionRow'
 
 const DEFAULT_CATEGORY_ICON = '🏷️'
 
@@ -1730,90 +1730,17 @@ function TransactionListSection({
 
                 <div>
                   {txns.map((t) => {
-                    const isIncome = t.amount > 0
                     const category = categoryMap.get(t.category_id)
-                    const merchantName = t.merchant_name
-                    const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
-                    const transactionTags = t.tags ?? []
                     return (
-                      <div
+                      <TransactionRow
                         key={t.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => onEditTransaction(t)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            onEditTransaction(t)
-                          }
-                        }}
-                        className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
-                        style={{ borderBottom: '1px solid var(--app-border)' }}
-                      >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-                          <span className="text-lg leading-none" aria-hidden>
-                            {categoryIcon}
-                          </span>
-                        </div>
-                        {/* Merchant cell — second line kept blank (nbsp) so row
-                            height matches the Transactions page, which uses it
-                            for account name. */}
-                        <div className="min-w-0 w-80 shrink-0">
-                          <p className="font-medium truncate">{merchantName ?? 'Transfer'}</p>
-                          <p
-                            className="text-sm mt-0.5 truncate"
-                            style={{ color: 'var(--app-text-muted)' }}
-                          >
-                            {' '}
-                          </p>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          {t.notes ? (
-                            <p
-                              className="truncate"
-                              style={{ color: 'var(--app-text-subtle)' }}
-                            >
-                              {t.notes}
-                            </p>
-                          ) : transactionTags.length === 0 ? (
-                            <p style={{ color: 'var(--app-text-subtle)' }}>{' '}</p>
-                          ) : null}
-                          {transactionTags.length > 0 && (
-                            <div className={`${t.notes ? 'mt-1' : ''} flex min-w-0 flex-wrap gap-1.5`}>
-                              {transactionTags.map((tag) => (
-                                <span
-                                  key={tag.id}
-                                  className="inline-flex max-w-[8rem] items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium"
-                                  style={{
-                                    background: 'var(--app-surface-soft)',
-                                    color: 'var(--app-text-muted)',
-                                    border: '1px solid var(--app-border)',
-                                  }}
-                                >
-                                  <TagIcon size={11} aria-hidden className="shrink-0" />
-                                  <span className="truncate">{tag.name}</span>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <span
-                          className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                          style={{
-                            background: 'var(--app-surface-soft)',
-                            color: 'var(--app-text-muted)',
-                            border: '1px solid var(--app-border)',
-                          }}
-                        >
-                          {category?.name ?? 'Uncategorized'}
-                        </span>
-                        <p
-                          className="font-financial font-medium shrink-0 tabular-nums w-28 text-right"
-                          style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
-                        >
-                          {t.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(t.amount), account.currency)}
-                        </p>
-                      </div>
+                        accountInstitution={account.institution}
+                        accountName={account.name}
+                        category={category}
+                        currency={account.currency}
+                        transaction={t}
+                        onOpen={onEditTransaction}
+                      />
                     )
                   })}
                 </div>

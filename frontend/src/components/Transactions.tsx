@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   Search,
   Plus,
-  Tag as TagIcon,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -20,7 +19,7 @@ import {
 } from 'recharts'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
-import { useAccounts } from '@/api/accounts'
+import { useAccounts, type AccountsOverview } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import {
   useInfiniteTransactions,
@@ -34,6 +33,7 @@ import CreateTransactionModal from '@/components/CreateTransactionModal'
 import DateRangeFilterPanel from '@/components/DateRangeFilterPanel'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
+import TransactionRow from '@/components/TransactionRow'
 
 const DEFAULT_CATEGORY_ICON = '🏷️'
 
@@ -446,8 +446,8 @@ export default function Transactions() {
   }, [categories])
 
   const accountMap = useMemo(() => {
-    const map = new Map<string, string>()
-    accounts?.forEach((a) => map.set(a.id, a.name))
+    const map = new Map<string, AccountsOverview>()
+    accounts?.forEach((a) => map.set(a.id, a))
     return map
   }, [accounts])
 
@@ -935,97 +935,18 @@ export default function Transactions() {
                   {/* Rows */}
                   <div>
                     {txns.map((t) => {
-                      const isIncome = t.amount > 0
                       const category = categoryMap.get(t.category_id)
-                      const merchantName = t.merchant_name
-                      const accountName = accountMap.get(t.account_id)
-                      const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
-                      const transactionTags = t.tags ?? []
+                      const account = accountMap.get(t.account_id)
                       return (
-                        <div
+                        <TransactionRow
                           key={t.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => openEditModal(t)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              openEditModal(t)
-                            }
-                          }}
-                          className="flex items-center gap-4 py-3.5 px-3 cursor-pointer transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
-                          style={{ borderBottom: '1px solid var(--app-border)' }}
-                        >
-                          {/* Category icon */}
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-                            <span className="text-lg leading-none" aria-hidden>
-                              {categoryIcon}
-                            </span>
-                          </div>
-
-                          {/* Merchant + account */}
-                          <div className="min-w-0 w-80 shrink-0">
-                            <p className="font-medium truncate">{merchantName ?? 'Transfer'}</p>
-                            <p
-                              className="text-sm mt-0.5 truncate"
-                              style={{ color: 'var(--app-text-muted)' }}
-                            >
-                              {accountName ?? '\u00A0'}
-                            </p>
-                          </div>
-
-                          {/* Notes + tags */}
-                          <div className="min-w-0 flex-1">
-                            {t.notes ? (
-                              <p
-                                className="truncate"
-                                style={{ color: 'var(--app-text-subtle)' }}
-                              >
-                                {t.notes}
-                              </p>
-                            ) : transactionTags.length === 0 ? (
-                              <p style={{ color: 'var(--app-text-subtle)' }}>{'\u00A0'}</p>
-                            ) : null}
-                            {transactionTags.length > 0 && (
-                              <div className={`${t.notes ? 'mt-1' : ''} flex min-w-0 flex-wrap gap-1.5`}>
-                                {transactionTags.map((tag) => (
-                                  <span
-                                    key={tag.id}
-                                    className="inline-flex max-w-[8rem] items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium"
-                                    style={{
-                                      background: 'var(--app-surface-soft)',
-                                      color: 'var(--app-text-muted)',
-                                      border: '1px solid var(--app-border)',
-                                    }}
-                                  >
-                                    <TagIcon size={11} aria-hidden className="shrink-0" />
-                                    <span className="truncate">{tag.name}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Category badge */}
-                          <span
-                            className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                            style={{
-                              background: 'var(--app-surface-soft)',
-                              color: 'var(--app-text-muted)',
-                              border: '1px solid var(--app-border)',
-                            }}
-                          >
-                            {category?.name ?? 'Uncategorized'}
-                          </span>
-
-                          {/* Amount */}
-                          <p
-                            className="font-financial font-medium shrink-0 tabular-nums w-28 text-right"
-                            style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
-                          >
-                            {t.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(t.amount), displayCurrency)}
-                          </p>
-                        </div>
+                          accountInstitution={account?.institution}
+                          accountName={account?.name}
+                          category={category}
+                          currency={displayCurrency}
+                          transaction={t}
+                          onOpen={openEditModal}
+                        />
                       )
                     })}
                   </div>
