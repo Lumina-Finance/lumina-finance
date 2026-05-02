@@ -16,11 +16,19 @@ from app.schemas.tag import CreateTagRequest, TagResponse, UpdateTagRequest
 router = APIRouter(prefix="/tags", tags=["tags"])
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE-special characters so user input is matched literally."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @router.get("", response_model=list[TagResponse])
 async def list_tags(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     group_id: Annotated[uuid.UUID | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    limit: Annotated[int | None, Query(ge=1, le=50)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
     """Return tags the user can access. Personal only by default, or include a group's tags."""
     query = select(Tag).where(Tag.owner_id == user.id, Tag.group_id.is_(None))
@@ -40,7 +48,15 @@ async def list_tags(
             ((Tag.owner_id == user.id) & (Tag.group_id.is_(None))) | (Tag.group_id == group_id),
         )
 
-    result = await db.execute(query.order_by(Tag.name))
+    search = q.strip() if q else ""
+    if search:
+        query = query.where(Tag.name.ilike(f"%{_escape_like(search)}%", escape="\\"))
+
+    query = query.order_by(Tag.name)
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
+
+    result = await db.execute(query)
     return result.scalars().all()
 
 

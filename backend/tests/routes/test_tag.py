@@ -125,6 +125,51 @@ async def test_list_tags_returns_user_tags(client):
     assert names == {"vacation", "reimbursable"}
 
 
+async def test_list_tags_supports_search(client):
+    """Q filters the user's tags by case-insensitive partial name."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_tag(client, headers, name="Vacation")
+    await _create_tag(client, headers, name="reimbursable")
+
+    other_headers = _get_auth_header(await _create_second_user(client))
+    await _create_tag(client, other_headers, name="reimbursable")
+
+    resp = await client.get("/tags?q=IMB", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [tag["name"] for tag in data] == ["reimbursable"]
+
+
+async def test_list_tags_supports_limit_and_offset(client):
+    """Limit and offset return deterministic name-sorted pages."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    for name in ["charlie", "alpha", "bravo"]:
+        await _create_tag(client, headers, name=name)
+
+    first_page = await client.get("/tags?limit=2", headers=headers)
+    second_page = await client.get("/tags?limit=2&offset=2", headers=headers)
+
+    assert first_page.status_code == 200
+    assert second_page.status_code == 200
+    assert [tag["name"] for tag in first_page.json()] == ["alpha", "bravo"]
+    assert [tag["name"] for tag in second_page.json()] == ["charlie"]
+
+
+async def test_list_tags_rejects_invalid_pagination_params(client):
+    """Invalid limit and offset query params return 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    for url in ["/tags?limit=0", "/tags?limit=51", "/tags?offset=-1"]:
+        resp = await client.get(url, headers=headers)
+        assert resp.status_code == 422
+
+
 async def test_list_tags_without_auth_returns_401(client):
     """GET /tags without an Authorization header returns 401."""
     resp = await client.get("/tags")
@@ -520,6 +565,31 @@ async def test_list_tags_without_group_filter_excludes_group(client):
     names = {t["name"] for t in resp.json()}
     assert "personal-tag" in names
     assert "shared-tag" not in names
+
+
+async def test_list_tags_group_filter_supports_search_and_pagination(client):
+    """group_id, q, limit, and offset compose for lazy-loaded group tag pickers."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+
+    await _create_tag(client, admin_headers, name="shared-alpha", group_id=group_id)
+    await _create_tag(client, admin_headers, name="shared-bravo", group_id=group_id)
+    await _create_tag(client, admin_headers, name="shared-charlie", group_id=group_id)
+    await _create_tag(client, admin_headers, name="personal-shared")
+    await _create_tag(client, admin_headers, name="private")
+
+    first_page = await client.get(
+        f"/tags?group_id={group_id}&q=shared&limit=2",
+        headers=admin_headers,
+    )
+    second_page = await client.get(
+        f"/tags?group_id={group_id}&q=shared&limit=2&offset=2",
+        headers=admin_headers,
+    )
+
+    assert first_page.status_code == 200
+    assert second_page.status_code == 200
+    assert [tag["name"] for tag in first_page.json()] == ["personal-shared", "shared-alpha"]
+    assert [tag["name"] for tag in second_page.json()] == ["shared-bravo", "shared-charlie"]
 
 
 async def test_list_tags_group_filter_non_member_returns_404(client):
