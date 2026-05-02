@@ -229,6 +229,12 @@ async def _create_merchant(client, headers, **overrides):
     return await client.post("/merchants", json=payload, headers=headers)
 
 
+async def _create_tag(client, headers, **overrides):
+    """Create a tag via POST /tags."""
+    payload = {"name": "vacation", **overrides}
+    return await client.post("/tags", json=payload, headers=headers)
+
+
 async def _setup_group_with_shared_account(client):
     """Create a group with admin, member, group account, category, and merchant.
 
@@ -386,6 +392,42 @@ async def test_create_transaction_with_group_merchant(client):
 
     assert resp.status_code == 201
     assert resp.json()["merchant_id"] == merchant_id
+
+
+async def test_create_transaction_with_group_tag(client):
+    """Transaction on a group account accepts group-scoped tags."""
+    admin_headers, member_headers, member_user_id, group_id, account_id, category_id, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+
+    tag_resp = await _create_tag(client, admin_headers, name="Shared Trip", group_id=group_id)
+    tag_id = tag_resp.json()["id"]
+
+    resp = await _create_transaction(client, member_headers, account_id, category_id, tag_ids=[tag_id])
+
+    assert resp.status_code == 201
+    assert resp.json()["tag_ids"] == [tag_id]
+    assert resp.json()["tags"] == [{"id": tag_id, "group_id": group_id, "name": "Shared Trip"}]
+
+
+async def test_create_transaction_with_group_tag_on_personal_account_returns_422(client):
+    """Personal-account transactions cannot use group-scoped tags."""
+    admin_headers, _, _, _, _, _, group_id = await _setup_group_with_two_members(client)
+    personal_account = await _create_account(client, admin_headers, name="Personal Chequing")
+    personal_category = await _create_category(client, admin_headers, name="Personal Groceries")
+    tag_resp = await _create_tag(client, admin_headers, name="Shared Trip", group_id=group_id)
+
+    resp = await _create_transaction(
+        client,
+        admin_headers,
+        personal_account.json()["id"],
+        personal_category.json()["id"],
+        tag_ids=[tag_resp.json()["id"]],
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Tag not found"
 
 
 async def test_list_transactions_includes_group_account_transactions(client):

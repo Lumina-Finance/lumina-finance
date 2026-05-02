@@ -180,6 +180,7 @@ async def test_create_transaction_returns_201(client):
     assert data["fx_rate"] is None
     assert data["notes"] is None
     assert data["tag_ids"] == []
+    assert data["tags"] == []
     assert data["id"] is not None
     assert data["created_at"] is not None
 
@@ -204,6 +205,7 @@ async def test_create_transaction_with_all_optional_fields(client):
     assert data["merchant_name"] == "Costco"
     assert data["notes"] == "Business lunch"
     assert set(data["tag_ids"]) == {tag1_resp.json()["id"], tag2_resp.json()["id"]}
+    assert {tag["name"] for tag in data["tags"]} == {"business", "travel"}
 
 
 async def test_create_transaction_invalid_account_returns_404(client):
@@ -769,7 +771,7 @@ async def test_list_transactions_limit_over_max_returns_422(client):
 
 
 async def test_list_transactions_includes_tag_ids(client):
-    """List endpoint returns correct tag_ids for each transaction."""
+    """List endpoint returns correct tag IDs and summaries for each transaction."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     tag_resp = await _create_tag(client, headers, name="listed-tag")
     tag_id = tag_resp.json()["id"]
@@ -783,7 +785,9 @@ async def test_list_transactions_includes_tag_ids(client):
     untagged = [t for t in resp.json() if not t["tag_ids"]]
     assert len(tagged) == 1
     assert tagged[0]["tag_ids"] == [tag_id]
+    assert tagged[0]["tags"] == [{"id": tag_id, "group_id": None, "name": "listed-tag"}]
     assert len(untagged) == 1
+    assert untagged[0]["tags"] == []
 
 
 # --- GET /transactions/{id} ---
@@ -809,10 +813,11 @@ async def test_get_transaction_returns_transaction(client):
     assert resp.json()["amount"] == -5000
     assert resp.json()["merchant_name"] == "Detail Store"
     assert resp.json()["tag_ids"] == []
+    assert resp.json()["tags"] == []
 
 
 async def test_get_transaction_includes_tag_ids(client):
-    """Get transaction returns associated tag IDs."""
+    """Get transaction returns associated tag IDs and summaries."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     tag_resp = await _create_tag(client, headers, name="tagged")
     tag_id = tag_resp.json()["id"]
@@ -824,6 +829,7 @@ async def test_get_transaction_includes_tag_ids(client):
 
     assert resp.status_code == 200
     assert resp.json()["tag_ids"] == [tag_id]
+    assert resp.json()["tags"] == [{"id": tag_id, "group_id": None, "name": "tagged"}]
 
 
 async def test_get_transaction_not_found_returns_404(client):
@@ -925,6 +931,7 @@ async def test_patch_transaction_replaces_tags(client):
 
     assert resp.status_code == 200
     assert resp.json()["tag_ids"] == [tag_b.json()["id"]]
+    assert resp.json()["tags"] == [{"id": tag_b.json()["id"], "group_id": None, "name": "tag-b"}]
 
 
 async def test_patch_transaction_clears_tags(client):
@@ -939,6 +946,7 @@ async def test_patch_transaction_clears_tags(client):
 
     assert resp.status_code == 200
     assert resp.json()["tag_ids"] == []
+    assert resp.json()["tags"] == []
 
 
 async def test_patch_transaction_updates_fx_rate(client):

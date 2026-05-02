@@ -44,6 +44,14 @@ class TransactionsOverview(BaseModel):
     outliers: list[OutlierTransaction] | None
 
 
+class TransactionTagSummary(BaseModel):
+    """Tag summary embedded in transaction responses."""
+
+    id: uuid.UUID
+    group_id: uuid.UUID | None
+    name: str
+
+
 class TransactionResponse(BaseModel):
     """Transaction returned by list and detail endpoints."""
 
@@ -61,6 +69,7 @@ class TransactionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     tag_ids: list[uuid.UUID] = []
+    tags: list[TransactionTagSummary] = []
 
     model_config = {"from_attributes": True}
 
