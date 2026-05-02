@@ -17,7 +17,7 @@ import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/Cre
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 
-const DELETE_SPINNER_MS = 1000
+const DELETE_SPINNER_MS = 800
 const NO_CATEGORY_VALUE = NO_DEFAULT_CATEGORY_VALUE
 const EASE = [0.25, 0.1, 0.25, 1] as const
 const LOADING_TEXT_MIN_MS = 300
@@ -30,6 +30,8 @@ const MERCHANT_MORE_BUTTON_INITIAL = { opacity: 0, y: 6, scale: 0.96 }
 const MERCHANT_MORE_BUTTON_ANIMATE = { opacity: 1, y: 0, scale: 1 }
 const MERCHANT_MORE_BUTTON_EXIT = { opacity: 0, y: 6, scale: 0.96 }
 const MERCHANT_MORE_BUTTON_TRANSITION = { duration: 0.2, ease: EASE }
+const MERCHANT_ROW_EXIT = { opacity: 0, y: -6, scale: 0.985 }
+const MERCHANT_ROW_EXIT_TRANSITION = { duration: 0.24, ease: EASE }
 const CATEGORY_KIND_LABELS: Record<Category['kind'], string> = {
   expense: 'Expense',
   income: 'Income',
@@ -123,6 +125,7 @@ export default function MerchantSettingsSection() {
   const [deletingMerchantId, setDeletingMerchantId] = useState<string | null>(null)
   const [mergeDeleteMerchant, setMergeDeleteMerchant] = useState<Merchant | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [locallyDeletedMerchantIds, setLocallyDeletedMerchantIds] = useState<string[]>([])
   const [visibleMerchants, setVisibleMerchants] = useState<Merchant[]>([])
   const [merchantListAtBottom, setMerchantListAtBottom] = useState(false)
   const merchantListRef = useRef<HTMLDivElement | null>(null)
@@ -135,11 +138,16 @@ export default function MerchantSettingsSection() {
     [categories],
   )
   const options = useMemo(() => categoryOptions(categories), [categories])
+  const locallyDeletedMerchantIdSet = useMemo(
+    () => new Set(locallyDeletedMerchantIds),
+    [locallyDeletedMerchantIds],
+  )
   const fetchedMerchants = useMemo(
     () => (merchantQuery.data?.pages.flat() ?? [])
+      .filter((merchant) => !locallyDeletedMerchantIdSet.has(merchant.id))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name)),
-    [merchantQuery.data],
+    [locallyDeletedMerchantIdSet, merchantQuery.data],
   )
   const fetchedMerchantKey = useMemo(
     () => fetchedMerchants.map((merchant) => merchant.id).join('|'),
@@ -290,6 +298,8 @@ export default function MerchantSettingsSection() {
     ])
 
     if (deleteResult[0].status === 'fulfilled') {
+      setLocallyDeletedMerchantIds((ids) => ids.includes(merchant.id) ? ids : [...ids, merchant.id])
+      setVisibleMerchants((merchants) => merchants.filter((item) => item.id !== merchant.id))
       queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false })
       setConfirmingDeleteMerchantId(null)
     } else {
@@ -397,27 +407,30 @@ export default function MerchantSettingsSection() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleMerchants.map((merchant, index) => (
-                      <MerchantRow
-                        key={merchant.id}
-                        categoryById={categoryById}
-                        categoryOptions={options}
-                        confirmingDelete={confirmingDeleteMerchantId === merchant.id}
-                        deleting={deletingMerchantId === merchant.id}
-                        isEditing={editingMerchantId === merchant.id}
-                        isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
-                        merchant={merchant}
-                        onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
-                        onDeleteConfirm={handleDelete}
-                        onDeleteRequest={(nextMerchant) => {
-                          setDeleteError(null)
-                          setEditingMerchantId(null)
-                          setConfirmingDeleteMerchantId(nextMerchant.id)
-                        }}
-                        onEdit={(nextMerchant) => setEditingMerchantId(nextMerchant.id)}
-                        onEditCancel={() => setEditingMerchantId(null)}
-                      />
-                    ))}
+                    <AnimatePresence initial={false}>
+                      {visibleMerchants.map((merchant, index) => (
+                        <MerchantRow
+                          key={merchant.id}
+                          categoryById={categoryById}
+                          categoryOptions={options}
+                          confirmingDelete={confirmingDeleteMerchantId === merchant.id}
+                          deleting={deletingMerchantId === merchant.id}
+                          isEditing={editingMerchantId === merchant.id}
+                          isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
+                          merchant={merchant}
+                          shouldReduceMotion={shouldReduceMotion}
+                          onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
+                          onDeleteConfirm={handleDelete}
+                          onDeleteRequest={(nextMerchant) => {
+                            setDeleteError(null)
+                            setEditingMerchantId(null)
+                            setConfirmingDeleteMerchantId(nextMerchant.id)
+                          }}
+                          onEdit={(nextMerchant) => setEditingMerchantId(nextMerchant.id)}
+                          onEditCancel={() => setEditingMerchantId(null)}
+                        />
+                      ))}
+                    </AnimatePresence>
                     {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
                       <tr>
                         <td colSpan={3}>
@@ -743,6 +756,7 @@ function MerchantRow({
   isEditing,
   isLast,
   merchant,
+  shouldReduceMotion,
   onDeleteCancel,
   onDeleteConfirm,
   onDeleteRequest,
@@ -756,6 +770,7 @@ function MerchantRow({
   isEditing: boolean
   isLast: boolean
   merchant: Merchant
+  shouldReduceMotion: boolean | null
   onDeleteCancel: () => void
   onDeleteConfirm: (merchant: Merchant) => void
   onDeleteRequest: (merchant: Merchant) => void
@@ -774,7 +789,10 @@ function MerchantRow({
   }
 
   return (
-    <tr
+    <motion.tr
+      layout={!shouldReduceMotion}
+      exit={shouldReduceMotion ? { opacity: 0 } : MERCHANT_ROW_EXIT}
+      transition={shouldReduceMotion ? { duration: 0.12 } : MERCHANT_ROW_EXIT_TRANSITION}
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
       <td className="w-px max-w-[14rem] whitespace-nowrap py-3 pl-4 pr-6 align-middle">
@@ -835,7 +853,7 @@ function MerchantRow({
           )}
         </div>
       </td>
-    </tr>
+    </motion.tr>
   )
 }
 

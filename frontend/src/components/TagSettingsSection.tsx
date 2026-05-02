@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type UIEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowDown, Check, Pencil, Plus, Search, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
+import { tagKeys } from '@/api/queryKeys'
 import {
   useCreateTag,
   useDeleteTag,
@@ -14,7 +16,7 @@ import {
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 
-const DELETE_SPINNER_MS = 1000
+const DELETE_SPINNER_MS = 800
 const CREATE_TAG_MIN_LOADING_MS = 800
 const EASE = [0.25, 0.1, 0.25, 1] as const
 const LOADING_TEXT_MIN_MS = 300
@@ -27,6 +29,8 @@ const TAG_MORE_BUTTON_INITIAL = { opacity: 0, y: 6, scale: 0.96 }
 const TAG_MORE_BUTTON_ANIMATE = { opacity: 1, y: 0, scale: 1 }
 const TAG_MORE_BUTTON_EXIT = { opacity: 0, y: 6, scale: 0.96 }
 const TAG_MORE_BUTTON_TRANSITION = { duration: 0.2, ease: EASE }
+const TAG_ROW_EXIT = { opacity: 0, y: -6, scale: 0.985 }
+const TAG_ROW_EXIT_TRANSITION = { duration: 0.24, ease: EASE }
 
 function delay(ms: number) {
   return new Promise((resolve) => {
@@ -74,6 +78,7 @@ function tagMergeOptions(tag: Tag, tags: Tag[]): DropdownOption[] {
 }
 
 export default function TagSettingsSection() {
+  const queryClient = useQueryClient()
   const shouldReduceMotion = useReducedMotion()
   const [search, setSearch] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
@@ -90,6 +95,7 @@ export default function TagSettingsSection() {
   const [deletingTagId, setDeletingTagId] = useState<string | null>(null)
   const [mergeDeleteTag, setMergeDeleteTag] = useState<Tag | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [locallyDeletedTagIds, setLocallyDeletedTagIds] = useState<string[]>([])
   const [visibleTags, setVisibleTags] = useState<Tag[]>([])
   const [tagListAtBottom, setTagListAtBottom] = useState(false)
   const tagListRef = useRef<HTMLDivElement | null>(null)
@@ -97,11 +103,16 @@ export default function TagSettingsSection() {
   const initialFetchStartedAtRef = useRef<number | null>(null)
   const fetchMoreStartedAtRef = useRef<number | null>(null)
 
+  const locallyDeletedTagIdSet = useMemo(
+    () => new Set(locallyDeletedTagIds),
+    [locallyDeletedTagIds],
+  )
   const fetchedTags = useMemo(
     () => (tagQuery.data?.pages.flat() ?? [])
+      .filter((tag) => !locallyDeletedTagIdSet.has(tag.id))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name)),
-    [tagQuery.data],
+    [locallyDeletedTagIdSet, tagQuery.data],
   )
   const fetchedTagKey = useMemo(
     () => fetchedTags.map((tag) => tag.id).join('|'),
@@ -252,6 +263,10 @@ export default function TagSettingsSection() {
     ])
 
     if (deleteResult[0].status === 'fulfilled') {
+      setLocallyDeletedTagIds((ids) => ids.includes(tag.id) ? ids : [...ids, tag.id])
+      setVisibleTags((tags) => tags.filter((item) => item.id !== tag.id))
+      queryClient.removeQueries({ queryKey: tagKeys.detail(tag.id), exact: true })
+      queryClient.invalidateQueries({ queryKey: tagKeys.all, exact: false })
       setConfirmingDeleteTagId(null)
     } else {
       const error = deleteResult[0].reason
@@ -350,25 +365,28 @@ export default function TagSettingsSection() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleTags.map((tag, index) => (
-                      <TagRow
-                        key={tag.id}
-                        confirmingDelete={confirmingDeleteTagId === tag.id}
-                        deleting={deletingTagId === tag.id}
-                        isEditing={editingTagId === tag.id}
-                        isLast={!showTagListEnd && !hasMoreTags && index === visibleTags.length - 1}
-                        tag={tag}
-                        onDeleteCancel={() => setConfirmingDeleteTagId(null)}
-                        onDeleteConfirm={handleDelete}
-                        onDeleteRequest={(nextTag) => {
-                          setDeleteError(null)
-                          setEditingTagId(null)
-                          setConfirmingDeleteTagId(nextTag.id)
-                        }}
-                        onEdit={(nextTag) => setEditingTagId(nextTag.id)}
-                        onEditCancel={() => setEditingTagId(null)}
-                      />
-                    ))}
+                    <AnimatePresence initial={false}>
+                      {visibleTags.map((tag, index) => (
+                        <TagRow
+                          key={tag.id}
+                          confirmingDelete={confirmingDeleteTagId === tag.id}
+                          deleting={deletingTagId === tag.id}
+                          isEditing={editingTagId === tag.id}
+                          isLast={!showTagListEnd && !hasMoreTags && index === visibleTags.length - 1}
+                          shouldReduceMotion={shouldReduceMotion}
+                          tag={tag}
+                          onDeleteCancel={() => setConfirmingDeleteTagId(null)}
+                          onDeleteConfirm={handleDelete}
+                          onDeleteRequest={(nextTag) => {
+                            setDeleteError(null)
+                            setEditingTagId(null)
+                            setConfirmingDeleteTagId(nextTag.id)
+                          }}
+                          onEdit={(nextTag) => setEditingTagId(nextTag.id)}
+                          onEditCancel={() => setEditingTagId(null)}
+                        />
+                      ))}
+                    </AnimatePresence>
                     {showTagListEnd && !showFetchingMoreTags && !showInitialTagLoading && (
                       <tr>
                         <td colSpan={2}>
@@ -690,6 +708,7 @@ function TagRow({
   deleting,
   isEditing,
   isLast,
+  shouldReduceMotion,
   tag,
   onDeleteCancel,
   onDeleteConfirm,
@@ -701,6 +720,7 @@ function TagRow({
   deleting: boolean
   isEditing: boolean
   isLast: boolean
+  shouldReduceMotion: boolean | null
   tag: Tag
   onDeleteCancel: () => void
   onDeleteConfirm: (tag: Tag) => void
@@ -719,7 +739,10 @@ function TagRow({
   }
 
   return (
-    <tr
+    <motion.tr
+      layout={!shouldReduceMotion}
+      exit={shouldReduceMotion ? { opacity: 0 } : TAG_ROW_EXIT}
+      transition={shouldReduceMotion ? { duration: 0.12 } : TAG_ROW_EXIT_TRANSITION}
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
       <td className="min-w-0 py-3 pl-4 pr-4 align-middle">
@@ -777,7 +800,7 @@ function TagRow({
           )}
         </div>
       </td>
-    </tr>
+    </motion.tr>
   )
 }
 

@@ -163,16 +163,11 @@ export function useUpdateTag() {
 }
 
 export function useDeleteTag() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (tagId: string) =>
       authenticatedFetch<void>(`/tags/${tagId}`, {
         method: 'DELETE',
       }),
-    onSuccess: (_, tagId) => {
-      qc.removeQueries({ queryKey: tagKeys.detail(tagId), exact: true });
-      qc.invalidateQueries({ queryKey: tagKeys.all, exact: false });
-    },
   });
 }
 
