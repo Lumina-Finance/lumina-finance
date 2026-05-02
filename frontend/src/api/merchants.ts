@@ -1,4 +1,12 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+  type QueryKey,
+} from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import {
@@ -44,6 +52,54 @@ function buildQueryString(params: Record<string, string | number | undefined>): 
   );
   if (entries.length === 0) return '';
   return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
+}
+
+function isMerchantInfiniteQueryKey(
+  queryKey: QueryKey,
+): queryKey is readonly ['merchants', 'infinite', Record<string, unknown>, number] {
+  return Array.isArray(queryKey) && queryKey[0] === 'merchants' && queryKey[1] === 'infinite';
+}
+
+function merchantMatchesFilters(merchant: Merchant, filters: Record<string, unknown>) {
+  const groupId = typeof filters.group_id === 'string' ? filters.group_id : undefined;
+  const q = typeof filters.q === 'string' ? filters.q.trim().toLowerCase() : '';
+
+  const inScope = groupId
+    ? merchant.group_id === null || merchant.group_id === groupId
+    : merchant.group_id === null;
+  const matchesSearch = !q || merchant.name.toLowerCase().includes(q);
+
+  return inScope && matchesSearch;
+}
+
+function upsertMerchantIntoInfiniteData(
+  data: InfiniteData<Merchant[]> | undefined,
+  merchant: Merchant,
+): InfiniteData<Merchant[]> | undefined {
+  if (!data) return data;
+
+  if (data.pages.length === 0) {
+    return { ...data, pages: [[merchant]], pageParams: data.pageParams.length > 0 ? data.pageParams : [0] };
+  }
+
+  const pageLengths = data.pages.map((page) => page.length);
+  const sortedMerchants = data.pages
+    .flat()
+    .filter((item) => item.id !== merchant.id)
+    .concat(merchant)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  let cursor = 0;
+  const pages = pageLengths.map((length) => {
+    const page = sortedMerchants.slice(cursor, cursor + length);
+    cursor += length;
+    return page;
+  });
+  const remainingMerchants = sortedMerchants.slice(cursor);
+  if (remainingMerchants.length > 0) {
+    pages[pages.length - 1] = [...pages[pages.length - 1], ...remainingMerchants];
+  }
+
+  return { ...data, pages };
 }
 
 function invalidateMerchantMergeQueries(qc: QueryClient) {
@@ -95,10 +151,20 @@ export function useCreateMerchant() {
       authenticatedFetch<Merchant>('/merchants', {
         method: 'POST',
         body: JSON.stringify(payload),
-      }),
+    }),
     onSuccess: (created) => {
       qc.setQueryData<Merchant>(merchantKeys.detail(created.id), created);
-      qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
+      qc.getQueryCache()
+        .findAll({ queryKey: merchantKeys.all, exact: false })
+        .forEach((query) => {
+          const queryKey = query.queryKey;
+          if (!isMerchantInfiniteQueryKey(queryKey) || !merchantMatchesFilters(created, queryKey[2])) return;
+
+          qc.setQueryData<InfiniteData<Merchant[]>>(
+            queryKey,
+            (data) => upsertMerchantIntoInfiniteData(data, created),
+          );
+        });
     },
   });
 }
