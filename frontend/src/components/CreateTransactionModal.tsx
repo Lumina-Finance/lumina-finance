@@ -1173,28 +1173,50 @@ export default function CreateTransactionModal({
                             createNewLabel={(query) => query ? `Create tag "${query}"` : 'Create tag'}
                             disabled={!form.account_id}
                           />
-                          {selectedTags.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {selectedTags.map((tag) => (
-                                <button
-                                  key={tag.id}
-                                  type="button"
-                                  onClick={() => handleRemoveTag(tag.id)}
-                                  className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-100 hover:bg-[var(--app-accent-soft)]"
-                                  style={{
-                                    background: 'var(--app-surface-soft)',
-                                    color: 'var(--app-text-muted)',
-                                    border: '1px solid var(--app-border)',
-                                  }}
-                                  aria-label={`Remove ${tag.name}`}
+                          <AnimatePresence initial={false}>
+                            {selectedTags.length > 0 && (
+                              <motion.div
+                                key="selected-tags"
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.22, ease: EASE }}
+                                style={{ overflow: 'hidden' }}
+                              >
+                                <motion.div
+                                  layout
+                                  className="mt-2 flex flex-wrap gap-2"
+                                  transition={{ layout: { duration: 0.22, ease: EASE } }}
                                 >
-                                  <TagIcon size={13} aria-hidden className="shrink-0" />
-                                  <span className="min-w-0 truncate">{tag.name}</span>
-                                  <X size={13} aria-hidden className="shrink-0" />
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                                  <AnimatePresence initial={false} mode="popLayout">
+                                    {selectedTags.map((tag) => (
+                                      <motion.button
+                                        layout
+                                        key={tag.id}
+                                        type="button"
+                                        onClick={() => handleRemoveTag(tag.id)}
+                                        className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-100 hover:bg-[var(--app-accent-soft)]"
+                                        style={{
+                                          background: 'var(--app-surface-soft)',
+                                          color: 'var(--app-text-muted)',
+                                          border: '1px solid var(--app-border)',
+                                        }}
+                                        initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                                        transition={{ duration: 0.18, ease: EASE }}
+                                        aria-label={`Remove ${tag.name}`}
+                                      >
+                                        <TagIcon size={13} aria-hidden className="shrink-0" />
+                                        <span className="min-w-0 truncate">{tag.name}</span>
+                                        <X size={13} aria-hidden className="shrink-0" />
+                                      </motion.button>
+                                    ))}
+                                  </AnimatePresence>
+                                </motion.div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       </div>
                     </section>
