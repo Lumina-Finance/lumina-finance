@@ -13,6 +13,7 @@ import {
   Search,
   Store,
   Tag,
+  Tags,
   Trash2,
   X,
   type LucideIcon,
@@ -44,6 +45,7 @@ import ActionFeedbackButton from '@/components/ActionFeedbackButton'
 import CategorySettingsSection from '@/components/CategorySettingsSection'
 import Dropdown from '@/components/Dropdown'
 import MerchantSettingsSection from '@/components/MerchantSettingsSection'
+import TagSettingsSection from '@/components/TagSettingsSection'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 
 // IANA timezone list, sourced from the browser at module-load so it stays in
@@ -74,7 +76,7 @@ const LIMIT_DELETE_BUTTON_TRANSITION = {
 }
 const EASE = [0.25, 0.1, 0.25, 1] as const
 
-type SectionId = 'profile' | 'runway' | 'categories' | 'merchants' | 'tax-advantaged-categories'
+type SectionId = 'profile' | 'runway' | 'categories' | 'merchants' | 'tags' | 'tax-advantaged-categories'
 
 interface Section {
   id: SectionId
@@ -87,6 +89,7 @@ const SECTIONS: Section[] = [
   { id: 'runway', label: 'Runway', icon: LifeBuoy },
   { id: 'categories', label: 'Categories', icon: Tag },
   { id: 'merchants', label: 'Merchants', icon: Store },
+  { id: 'tags', label: 'Tags', icon: Tags },
   { id: 'tax-advantaged-categories', label: 'Tax-Advantaged Categories', icon: Landmark },
 ]
 
@@ -283,7 +286,7 @@ export default function Settings() {
       <header className="app-page-header">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
-          Manage your profile, runway preferences, categories, and tax-advantaged categories.
+          Manage your profile, runway preferences, categories, merchants, tags, and tax-advantaged categories.
         </p>
       </header>
 
@@ -329,6 +332,8 @@ export default function Settings() {
           <CategorySettingsSection />
 
           <MerchantSettingsSection />
+
+          <TagSettingsSection />
 
           <TaxAdvantagedCategoriesSection
             accounts={accounts ?? []}
