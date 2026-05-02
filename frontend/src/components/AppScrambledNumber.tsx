@@ -34,55 +34,67 @@ export function AppScrambledNumber({
   const [scrambling, setScrambling] = useState(false)
 
   useLayoutEffect(() => {
-    const nextWidth = measureRef.current?.getBoundingClientRect().width
-    if (nextWidth !== undefined) {
-      setTargetWidth(nextWidth)
-    }
-  }, [widthText])
+    const element = measureRef.current
+    if (!element) return
+
+    const observer = new ResizeObserver(([entry]) => {
+      setTargetWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (shouldReduceMotion) {
-      setDisplayText(text)
-      setScrambling(false)
       mountedRef.current = true
       return
     }
 
-    if (!mountedRef.current && !loading) {
-      mountedRef.current = true
-      setDisplayText(text)
-      setScrambling(false)
-      return
-    }
-
+    const hasMounted = mountedRef.current
     mountedRef.current = true
 
-    if (loading) {
-      const template = loadingText ?? text
-      setScrambling(true)
-      setDisplayText(scrambleDigits(template))
-      const interval = window.setInterval(() => {
-        setDisplayText(scrambleDigits(template))
-      }, SCRAMBLE_INTERVAL_MS)
-      return () => window.clearInterval(interval)
-    }
+    if (!hasMounted && !loading) return
 
-    setScrambling(true)
-    setDisplayText(scrambleDigits(text))
-    const interval = window.setInterval(() => {
+    let interval: number | undefined
+    let settleTimeout: number | undefined
+    const kickoffTimeout = window.setTimeout(() => {
+      if (loading) {
+        const template = loadingText ?? text
+        setScrambling(true)
+        setDisplayText(scrambleDigits(template))
+        interval = window.setInterval(() => {
+          setDisplayText(scrambleDigits(template))
+        }, SCRAMBLE_INTERVAL_MS)
+        return
+      }
+
+      setScrambling(true)
       setDisplayText(scrambleDigits(text))
-    }, SCRAMBLE_INTERVAL_MS)
-    const timeout = window.setTimeout(() => {
-      window.clearInterval(interval)
-      setDisplayText(text)
-      setScrambling(false)
-    }, SETTLE_MS)
+      interval = window.setInterval(() => {
+        setDisplayText(scrambleDigits(text))
+      }, SCRAMBLE_INTERVAL_MS)
+      settleTimeout = window.setTimeout(() => {
+        if (interval !== undefined) {
+          window.clearInterval(interval)
+        }
+        setDisplayText(text)
+        setScrambling(false)
+      }, SETTLE_MS)
+    }, 0)
 
     return () => {
-      window.clearInterval(interval)
-      window.clearTimeout(timeout)
+      window.clearTimeout(kickoffTimeout)
+      if (interval !== undefined) {
+        window.clearInterval(interval)
+      }
+      if (settleTimeout !== undefined) {
+        window.clearTimeout(settleTimeout)
+      }
     }
   }, [loading, loadingText, shouldReduceMotion, text])
+
+  const visibleText = shouldReduceMotion ? text : displayText
+  const isScrambling = shouldReduceMotion ? false : scrambling
 
   return (
     <motion.span
@@ -90,7 +102,7 @@ export function AppScrambledNumber({
       style={style}
       animate={targetWidth === undefined ? undefined : { width: targetWidth }}
       transition={shouldReduceMotion ? { duration: 0 } : widthTransition}
-      aria-busy={loading || scrambling}
+      aria-busy={loading || isScrambling}
     >
       <span className="invisible block whitespace-nowrap" aria-hidden>
         {widthText}
@@ -106,11 +118,11 @@ export function AppScrambledNumber({
         className="absolute left-0 top-0 whitespace-nowrap"
         aria-hidden
         animate={{
-          filter: scrambling ? 'blur(0.35px)' : 'blur(0px)',
+          filter: isScrambling ? 'blur(0.35px)' : 'blur(0px)',
         }}
         transition={settleTransition}
       >
-        {displayText}
+        {visibleText}
       </motion.span>
       <span className="sr-only">{loading ? 'Loading' : text}</span>
     </motion.span>

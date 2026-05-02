@@ -52,6 +52,10 @@ const TRANSACTION_FILTER_KEYS = [
 ] as const
 const FILTER_LIST_LOADING_MIN_MS = 1000
 
+function currentTimeMs() {
+  return Date.now()
+}
+
 // ── Placeholder data shown when the overview has no real data ──
 
 const PLACEHOLDER_FLOW = { total_inflow: 845000, total_outflow: -623400 }
@@ -249,7 +253,7 @@ export default function Transactions() {
         clearTimeout(filterLoadingTimeoutRef.current)
         filterLoadingTimeoutRef.current = null
       }
-      filterLoadingStartedAtRef.current = Date.now()
+      filterLoadingStartedAtRef.current = currentTimeMs()
       setFilterLoadingRows(latestTransactionsRef.current)
       setFilterListLoading(true)
     } else {
@@ -369,9 +373,12 @@ export default function Transactions() {
 
   useEffect(() => {
     if (!pendingClearReveal || isFetching || txnPages === undefined) return
-    setListRevealKey((key) => key + 1)
-    setClearExitRows(null)
-    setPendingClearReveal(false)
+    const revealTimeout = window.setTimeout(() => {
+      setListRevealKey((key) => key + 1)
+      setClearExitRows(null)
+      setPendingClearReveal(false)
+    }, 0)
+    return () => window.clearTimeout(revealTimeout)
   }, [isFetching, pendingClearReveal, txnPages])
 
   useEffect(() => {

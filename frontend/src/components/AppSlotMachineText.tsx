@@ -34,11 +34,15 @@ export function AppSlotMachineText({
   const [targetWidth, setTargetWidth] = useState<number>()
 
   useLayoutEffect(() => {
-    const nextWidth = measureRef.current?.getBoundingClientRect().width
-    if (nextWidth !== undefined) {
-      setTargetWidth(nextWidth)
-    }
-  }, [widthText])
+    const element = measureRef.current
+    if (!element) return
+
+    const observer = new ResizeObserver(([entry]) => {
+      setTargetWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <motion.span
