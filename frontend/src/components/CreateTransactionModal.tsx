@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Check, Info, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
+import CreateTagModal from '@/components/CreateTagModal'
 import Dropdown from '@/components/Dropdown'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchants'
-import { useCreateTag, useInfiniteTags, type Tag } from '@/api/tags'
+import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import {
   useCreateTransaction,
@@ -219,7 +220,6 @@ export default function CreateTransactionModal({
   const createMutation = useCreateTransaction()
   const updateMutation = useUpdateTransaction()
   const deleteMutation = useDeleteTransaction()
-  const createTagMutation = useCreateTag()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
@@ -268,6 +268,9 @@ export default function CreateTransactionModal({
   const [activeTagSearch, setActiveTagSearch] = useState('')
   const [visiblePagedTags, setVisiblePagedTags] = useState<Tag[]>([])
   const [createdTags, setCreatedTags] = useState<Tag[]>([])
+  const [tagModalName, setTagModalName] = useState('')
+  const [showTagModal, setShowTagModal] = useState(false)
+  const [tagModalKey, setTagModalKey] = useState(0)
   const [showMerchantModal, setShowMerchantModal] = useState(false)
   const [merchantModalKey, setMerchantModalKey] = useState(0)
   const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
@@ -734,28 +737,19 @@ export default function CreateTransactionModal({
   }
 
   const handleCreateTag = (name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
+    setTagModalName(name)
+    setTagModalKey((key) => key + 1)
+    setShowTagModal(true)
+  }
 
-    createTagMutation.mutate(
-      {
-        name: trimmed,
-        group_id: selectedAccount?.group_id ?? null,
-      },
-      {
-        onSuccess: (tag) => {
-          setCreatedTags((tags) => [...tags.filter((item) => item.id !== tag.id), tag])
-          setForm((f) => (
-            f.tag_ids.includes(tag.id) ? f : { ...f, tag_ids: [...f.tag_ids, tag.id] }
-          ))
-          setTagSearch('')
-          setActiveTagSearch('')
-        },
-        onError: (err) => {
-          setSubmitError(err instanceof ApiError ? err.message : 'Could not create tag.')
-        },
-      },
-    )
+  const handleTagCreated = (tag: Tag) => {
+    setCreatedTags((tags) => [...tags.filter((item) => item.id !== tag.id), tag])
+    setForm((f) => (
+      f.tag_ids.includes(tag.id) ? f : { ...f, tag_ids: [...f.tag_ids, tag.id] }
+    ))
+    setTagSearch('')
+    setActiveTagSearch('')
+    setShowTagModal(false)
   }
 
   const handleAccountChange = (accountId: string) => {
@@ -1459,6 +1453,15 @@ export default function CreateTransactionModal({
         variant="secondary"
         onClose={() => setShowCategoryModal(false)}
         onCreated={handleCategoryCreated}
+      />
+      <CreateTagModal
+        key={tagModalKey}
+        open={open && showTagModal}
+        initialName={tagModalName}
+        groupId={selectedAccount?.group_id ?? null}
+        variant="secondary"
+        onClose={() => setShowTagModal(false)}
+        onCreated={handleTagCreated}
       />
     </>
   )
