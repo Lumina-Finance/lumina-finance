@@ -95,6 +95,17 @@ export const merchantKeys = {
   ] as const,
 };
 
+export const tagKeys = {
+  all: ['tags'] as const,
+  detail: (tagId: string | null | undefined) => ['tags', tagId] as const,
+  infinite: (filters: Record<string, unknown>, pageSize: number) => [
+    'tags',
+    'infinite',
+    filters,
+    pageSize,
+  ] as const,
+};
+
 export const institutionKeys = {
   list: () => ['institutions'] as const,
 };

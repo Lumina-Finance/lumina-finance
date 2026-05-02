@@ -1,13 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Check, Info, ReceiptText, Trash2, X } from 'lucide-react'
+import { Check, Info, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import Dropdown from '@/components/Dropdown'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchants'
+import { useCreateTag, useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import {
   useCreateTransaction,
@@ -30,6 +31,10 @@ const MERCHANT_DROPDOWN_PAGE_SIZE = 10
 const MERCHANT_SEARCH_LOADING_TEXT_MIN_MS = 300
 const MERCHANT_SEARCH_DEBOUNCE_MS = 300
 const MERCHANT_FETCHING_MORE_TEXT_MIN_MS = 800
+const TAG_DROPDOWN_PAGE_SIZE = 10
+const TAG_SEARCH_LOADING_TEXT_MIN_MS = 300
+const TAG_SEARCH_DEBOUNCE_MS = 300
+const TAG_FETCHING_MORE_TEXT_MIN_MS = 800
 
 type Kind = 'expense' | 'income' | 'transfer'
 
@@ -55,6 +60,7 @@ const INITIAL_FORM = {
   currency: '',
   notes: '',
   date: '',
+  tag_ids: [] as string[],
 }
 
 const conditionalField = {
@@ -156,6 +162,13 @@ function buildCategoryOptions(categories: Category[], selectedKind: string) {
   return sorted.flatMap((kind) => buildOptionsForKind(categories, kind))
 }
 
+function sameStringSet(a: string[], b: string[]) {
+  if (a.length !== b.length) return false
+  const left = [...a].sort()
+  const right = [...b].sort()
+  return left.every((value, index) => value === right[index])
+}
+
 /* ── Validation ── */
 
 interface FieldErrors {
@@ -206,6 +219,7 @@ export default function CreateTransactionModal({
   const createMutation = useCreateTransaction()
   const updateMutation = useUpdateTransaction()
   const deleteMutation = useDeleteTransaction()
+  const createTagMutation = useCreateTag()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
@@ -233,6 +247,7 @@ export default function CreateTransactionModal({
       currency: transaction.currency,
       notes: transaction.notes ?? '',
       date: transaction.dt,
+      tag_ids: transaction.tags?.map((tag) => tag.id) ?? transaction.tag_ids,
     }
   }, [transaction, categories, currencies, defaultAccountId, defaultCurrency])
 
@@ -249,6 +264,10 @@ export default function CreateTransactionModal({
   const [activeMerchantSearch, setActiveMerchantSearch] = useState('')
   const [visiblePagedMerchants, setVisiblePagedMerchants] = useState<Merchant[]>([])
   const [createdMerchant, setCreatedMerchant] = useState<Merchant | null>(null)
+  const [tagSearch, setTagSearch] = useState('')
+  const [activeTagSearch, setActiveTagSearch] = useState('')
+  const [visiblePagedTags, setVisiblePagedTags] = useState<Tag[]>([])
+  const [createdTags, setCreatedTags] = useState<Tag[]>([])
   const [showMerchantModal, setShowMerchantModal] = useState(false)
   const [merchantModalKey, setMerchantModalKey] = useState(0)
   const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
@@ -257,13 +276,28 @@ export default function CreateTransactionModal({
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
   const visibleMerchantCountRef = useRef(0)
+  const visibleTagCountRef = useRef(0)
   const merchantInitialFetchStartedAtRef = useRef<number | null>(null)
   const merchantFetchMoreStartedAtRef = useRef<number | null>(null)
+  const tagInitialFetchStartedAtRef = useRef<number | null>(null)
+  const tagFetchMoreStartedAtRef = useRef<number | null>(null)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
+  const selectedAccount = useMemo(
+    () => accounts.find((account) => account.id === form.account_id),
+    [accounts, form.account_id],
+  )
   const merchantQuery = useInfiniteMerchants(
     { q: activeMerchantSearch.trim() || undefined },
     MERCHANT_DROPDOWN_PAGE_SIZE,
     open,
+  )
+  const tagQuery = useInfiniteTags(
+    {
+      group_id: selectedAccount?.group_id ?? undefined,
+      q: activeTagSearch.trim() || undefined,
+    },
+    TAG_DROPDOWN_PAGE_SIZE,
+    open && !!form.account_id,
   )
   const showFetchingMoreMerchants = useMinimumVisibleFlag(
     merchantQuery.isFetchingNextPage,
@@ -273,23 +307,47 @@ export default function CreateTransactionModal({
     merchantQuery.isLoading,
     MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
   )
+  const showFetchingMoreTags = useMinimumVisibleFlag(
+    tagQuery.isFetchingNextPage,
+    TAG_FETCHING_MORE_TEXT_MIN_MS,
+  )
+  const showInitialTagLoading = useMinimumVisibleFlag(
+    tagQuery.isLoading,
+    TAG_SEARCH_LOADING_TEXT_MIN_MS,
+  )
   const showMerchantLoading = showInitialMerchantLoading || showFetchingMoreMerchants
+  const showTagLoading = showInitialTagLoading || showFetchingMoreTags
   const activeMerchantSearchText = activeMerchantSearch.trim()
+  const activeTagSearchText = activeTagSearch.trim()
   const merchantLoadingText = showFetchingMoreMerchants
     ? 'Fetching more'
     : activeMerchantSearchText
       ? `Searching for ${activeMerchantSearchText}`
       : 'Loading merchants...'
+  const tagLoadingText = showFetchingMoreTags
+    ? 'Fetching more'
+    : activeTagSearchText
+      ? `Searching for ${activeTagSearchText}`
+      : 'Loading tags...'
   const selectedMerchantId = form.merchant_id || null
   const { data: fetchedSelectedMerchant } = useMerchant(selectedMerchantId, open && !!selectedMerchantId)
   const fetchedMerchants = useMemo(() => merchantQuery.data?.pages.flat() ?? [], [merchantQuery.data])
+  const fetchedTags = useMemo(() => tagQuery.data?.pages.flat() ?? [], [tagQuery.data])
   const fetchedMerchantKey = useMemo(
     () => fetchedMerchants.map((merchant) => merchant.id).join('|'),
     [fetchedMerchants],
   )
+  const fetchedTagKey = useMemo(
+    () => fetchedTags.map((tag) => tag.id).join('|'),
+    [fetchedTags],
+  )
   const visibleMerchantKey = useMemo(
     () => visiblePagedMerchants.map((merchant) => merchant.id).join('|'),
     [visiblePagedMerchants],
+  )
+  const visibleTagKey = useMemo(
+    () => visiblePagedTags.map((tag) => tag.id).join('|'),
+    [visiblePagedTags],
   )
   const selectedMerchant = createdMerchant?.id === selectedMerchantId ? createdMerchant : fetchedSelectedMerchant
 
@@ -334,8 +392,25 @@ export default function CreateTransactionModal({
   }, [merchantSearch])
 
   useEffect(() => {
+    if (!tagSearch.trim()) {
+      setActiveTagSearch('')
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveTagSearch(tagSearch)
+    }, TAG_SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [tagSearch])
+
+  useEffect(() => {
     visibleMerchantCountRef.current = visiblePagedMerchants.length
   }, [visiblePagedMerchants.length])
+
+  useEffect(() => {
+    visibleTagCountRef.current = visiblePagedTags.length
+  }, [visiblePagedTags.length])
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -354,6 +429,23 @@ export default function CreateTransactionModal({
     return () => window.cancelAnimationFrame(frame)
   }, [activeMerchantSearchText])
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (!activeTagSearchText) {
+        tagInitialFetchStartedAtRef.current = null
+        tagFetchMoreStartedAtRef.current = null
+        return
+      }
+
+      setVisiblePagedTags([])
+      visibleTagCountRef.current = 0
+      tagInitialFetchStartedAtRef.current = performance.now()
+      tagFetchMoreStartedAtRef.current = null
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeTagSearchText])
+
   useLayoutEffect(() => {
     if (activeMerchantSearchText) return
     if (merchantQuery.isFetchingNextPage || merchantFetchMoreStartedAtRef.current !== null) return
@@ -370,6 +462,22 @@ export default function CreateTransactionModal({
     visibleMerchantKey,
   ])
 
+  useLayoutEffect(() => {
+    if (activeTagSearchText) return
+    if (tagQuery.isFetchingNextPage || tagFetchMoreStartedAtRef.current !== null) return
+    if (fetchedTagKey === visibleTagKey) return
+
+    setVisiblePagedTags(fetchedTags)
+    visibleTagCountRef.current = fetchedTags.length
+    tagInitialFetchStartedAtRef.current = null
+  }, [
+    activeTagSearchText,
+    fetchedTagKey,
+    fetchedTags,
+    tagQuery.isFetchingNextPage,
+    visibleTagKey,
+  ])
+
   useEffect(() => {
     if (merchantQuery.isLoading) {
       merchantInitialFetchStartedAtRef.current = performance.now()
@@ -377,10 +485,22 @@ export default function CreateTransactionModal({
   }, [merchantQuery.isLoading])
 
   useEffect(() => {
+    if (tagQuery.isLoading) {
+      tagInitialFetchStartedAtRef.current = performance.now()
+    }
+  }, [tagQuery.isLoading])
+
+  useEffect(() => {
     if (merchantQuery.isFetchingNextPage) {
       merchantFetchMoreStartedAtRef.current = performance.now()
     }
   }, [merchantQuery.isFetchingNextPage])
+
+  useEffect(() => {
+    if (tagQuery.isFetchingNextPage) {
+      tagFetchMoreStartedAtRef.current = performance.now()
+    }
+  }, [tagQuery.isFetchingNextPage])
 
   useEffect(() => {
     if (fetchedMerchantKey === visibleMerchantKey) return undefined
@@ -403,6 +523,28 @@ export default function CreateTransactionModal({
 
     return () => window.clearTimeout(timeoutId)
   }, [fetchedMerchantKey, fetchedMerchants, visibleMerchantKey])
+
+  useEffect(() => {
+    if (fetchedTagKey === visibleTagKey) return undefined
+
+    const isAppendingPage = fetchedTags.length > visibleTagCountRef.current && visibleTagCountRef.current > 0
+    const isInitialPage = fetchedTags.length > 0 && visibleTagCountRef.current === 0
+    const fetchStartedAt = isAppendingPage
+      ? tagFetchMoreStartedAtRef.current
+      : tagInitialFetchStartedAtRef.current
+    const minimumVisibleMs = isAppendingPage
+      ? TAG_FETCHING_MORE_TEXT_MIN_MS
+      : TAG_SEARCH_LOADING_TEXT_MIN_MS
+    const elapsed = fetchStartedAt === null ? minimumVisibleMs : performance.now() - fetchStartedAt
+    const delayMs = Math.max(minimumVisibleMs - elapsed, 0)
+    const timeoutId = window.setTimeout(() => {
+      setVisiblePagedTags(fetchedTags)
+      if (isInitialPage) tagInitialFetchStartedAtRef.current = null
+      if (isAppendingPage) tagFetchMoreStartedAtRef.current = null
+    }, delayMs)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [fetchedTagKey, fetchedTags, visibleTagKey])
 
   const createLoading = createMutation.isPending || createDelayPending
   const submitLoading = editing ? updateMutation.isPending : createLoading
@@ -441,6 +583,35 @@ export default function CreateTransactionModal({
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((m) => ({ value: m.id, label: m.name })),
     [merchantCandidates],
+  )
+  const selectedTagMap = useMemo(() => {
+    const map = new Map<string, Pick<Tag, 'id' | 'group_id' | 'name'>>()
+    transaction?.tags?.forEach((tag) => map.set(tag.id, tag))
+    fetchedTags.forEach((tag) => map.set(tag.id, tag))
+    visiblePagedTags.forEach((tag) => map.set(tag.id, tag))
+    createdTags.forEach((tag) => map.set(tag.id, tag))
+    return map
+  }, [createdTags, fetchedTags, transaction?.tags, visiblePagedTags])
+  const selectedTagIds = form.tag_ids
+  const tagCandidates = useMemo(() => {
+    const map = new Map<string, Tag>()
+    visiblePagedTags.forEach((tag) => map.set(tag.id, tag))
+    createdTags.forEach((tag) => map.set(tag.id, tag))
+    return [...map.values()]
+  }, [createdTags, visiblePagedTags])
+  const tagOptions = useMemo(
+    () => tagCandidates
+      .filter((tag) => !selectedTagIds.includes(tag.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((tag) => ({ value: tag.id, label: tag.name })),
+    [selectedTagIds, tagCandidates],
+  )
+  const selectedTags = useMemo(
+    () => selectedTagIds
+      .map((tagId) => selectedTagMap.get(tagId))
+      .filter((tag): tag is Pick<Tag, 'id' | 'group_id' | 'name'> => !!tag),
+    [selectedTagIds, selectedTagMap],
   )
   const selectedMerchantOption = selectedMerchant
     ? { value: selectedMerchant.id, label: selectedMerchant.name }
@@ -551,12 +722,53 @@ export default function CreateTransactionModal({
     setShowMerchantModal(false)
   }
 
+  const handleTagChange = (tagId: string) => {
+    setForm((f) => {
+      if (f.tag_ids.includes(tagId)) return f
+      return { ...f, tag_ids: [...f.tag_ids, tagId] }
+    })
+  }
+
+  const handleRemoveTag = (tagId: string) => {
+    setForm((f) => ({ ...f, tag_ids: f.tag_ids.filter((id) => id !== tagId) }))
+  }
+
+  const handleCreateTag = (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+
+    createTagMutation.mutate(
+      {
+        name: trimmed,
+        group_id: selectedAccount?.group_id ?? null,
+      },
+      {
+        onSuccess: (tag) => {
+          setCreatedTags((tags) => [...tags.filter((item) => item.id !== tag.id), tag])
+          setForm((f) => (
+            f.tag_ids.includes(tag.id) ? f : { ...f, tag_ids: [...f.tag_ids, tag.id] }
+          ))
+          setTagSearch('')
+          setActiveTagSearch('')
+        },
+        onError: (err) => {
+          setSubmitError(err instanceof ApiError ? err.message : 'Could not create tag.')
+        },
+      },
+    )
+  }
+
   const handleAccountChange = (accountId: string) => {
     const account = accounts.find((a) => a.id === accountId)
+    const accountGroupId = account?.group_id ?? null
     setForm((f) => ({
       ...f,
       account_id: accountId,
       currency: account?.currency || '',
+      tag_ids: f.tag_ids.filter((tagId) => {
+        const tag = selectedTagMap.get(tagId)
+        return !tag || tag.group_id === null || tag.group_id === accountGroupId
+      }),
     }))
     clearError('account_id')
     clearError('currency')
@@ -600,6 +812,7 @@ export default function CreateTransactionModal({
       if (signedAmount !== transaction.amount) patch.amount = signedAmount
       if (form.date !== initialForm.date) patch.dt = form.date
       if (notes !== (transaction.notes ?? null)) patch.notes = notes
+      if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids
 
       if (Object.keys(patch).length === 0) {
         onClose()
@@ -627,6 +840,7 @@ export default function CreateTransactionModal({
       currency: form.currency,
       notes,
     }
+    if (form.tag_ids.length > 0) payload.tag_ids = form.tag_ids
 
     setSubmitError('')
     setCreateDelayPending(true)
@@ -924,6 +1138,63 @@ export default function CreateTransactionModal({
                             onCreateNew={handleCreateCategory}
                             createNewLabel={(query) => query ? `Create category "${query}"` : 'Create category'}
                           />
+                        </div>
+
+                        {/* Tags */}
+                        <div>
+                          <FieldLabelRow label="Tags" />
+                          <Dropdown
+                            options={tagOptions}
+                            value=""
+                            onChange={handleTagChange}
+                            className="app-input"
+                            placeholder={form.account_id ? 'Add tags...' : 'Select account first'}
+                            searchable
+                            searchPlaceholder="Search tags..."
+                            searchValue={tagSearch}
+                            onSearchChange={setTagSearch}
+                            onSearchCommit={setActiveTagSearch}
+                            filterOptions={false}
+                            isLoading={showTagLoading}
+                            loadingText={tagLoadingText}
+                            loadingMinMs={0}
+                            hideOptionsWhileLoading={showInitialTagLoading}
+                            hasMore={!!tagQuery.hasNextPage}
+                            onLoadMore={() => {
+                              if (
+                                tagQuery.hasNextPage &&
+                                !tagQuery.isFetchingNextPage &&
+                                !showFetchingMoreTags
+                              ) {
+                                tagQuery.fetchNextPage()
+                              }
+                            }}
+                            onCreateNew={handleCreateTag}
+                            createNewLabel={(query) => query ? `Create tag "${query}"` : 'Create tag'}
+                            disabled={!form.account_id}
+                          />
+                          {selectedTags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {selectedTags.map((tag) => (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() => handleRemoveTag(tag.id)}
+                                  className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-100 hover:bg-[var(--app-accent-soft)]"
+                                  style={{
+                                    background: 'var(--app-surface-soft)',
+                                    color: 'var(--app-text-muted)',
+                                    border: '1px solid var(--app-border)',
+                                  }}
+                                  aria-label={`Remove ${tag.name}`}
+                                >
+                                  <TagIcon size={13} aria-hidden className="shrink-0" />
+                                  <span className="min-w-0 truncate">{tag.name}</span>
+                                  <X size={13} aria-hidden className="shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </section>

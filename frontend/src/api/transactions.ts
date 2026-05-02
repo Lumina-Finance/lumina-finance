@@ -36,6 +36,13 @@ export interface Transaction {
   created_at: string;
   updated_at: string;
   tag_ids: string[];
+  tags: TransactionTag[];
+}
+
+export interface TransactionTag {
+  id: string;
+  group_id: string | null;
+  name: string;
 }
 
 export interface TopCategorySpend {

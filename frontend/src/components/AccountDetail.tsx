@@ -2,7 +2,19 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, EyeOff, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp, X, ArrowLeft } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  EyeOff,
+  Pencil,
+  Plus,
+  Search,
+  Tag as TagIcon,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  X,
+} from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -1722,6 +1734,7 @@ function TransactionListSection({
                     const category = categoryMap.get(t.category_id)
                     const merchantName = t.merchant_name
                     const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
+                    const transactionTags = t.tags ?? []
                     return (
                       <div
                         key={t.id}
@@ -1754,12 +1767,36 @@ function TransactionListSection({
                             {' '}
                           </p>
                         </div>
-                        <p
-                          className="min-w-0 flex-1 truncate"
-                          style={{ color: 'var(--app-text-subtle)' }}
-                        >
-                          {t.notes ?? ' '}
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          {t.notes ? (
+                            <p
+                              className="truncate"
+                              style={{ color: 'var(--app-text-subtle)' }}
+                            >
+                              {t.notes}
+                            </p>
+                          ) : transactionTags.length === 0 ? (
+                            <p style={{ color: 'var(--app-text-subtle)' }}>{' '}</p>
+                          ) : null}
+                          {transactionTags.length > 0 && (
+                            <div className={`${t.notes ? 'mt-1' : ''} flex min-w-0 flex-wrap gap-1.5`}>
+                              {transactionTags.map((tag) => (
+                                <span
+                                  key={tag.id}
+                                  className="inline-flex max-w-[8rem] items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium"
+                                  style={{
+                                    background: 'var(--app-surface-soft)',
+                                    color: 'var(--app-text-muted)',
+                                    border: '1px solid var(--app-border)',
+                                  }}
+                                >
+                                  <TagIcon size={11} aria-hidden className="shrink-0" />
+                                  <span className="truncate">{tag.name}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <span
                           className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
                           style={{
