@@ -6,61 +6,61 @@
   :root {
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
-    --app-surface-soft: rgba(255, 252, 245, 0.72);
+    --app-surface-soft: #FBF8F0;
 
-    --app-border: rgba(75, 55, 35, 0.11);
-    --app-border-strong: rgba(75, 55, 35, 0.20);
+    --app-border: #4b37231c;
+    --app-border-strong: #4b372333;
     --app-text: #1C1510;
     --app-text-muted: #63513F;
     --app-text-subtle: #9A8878;
     --app-accent: #9B6C2C;
-    --app-accent-soft: rgba(155, 108, 44, 0.10);
-    --app-accent-border: rgba(155, 108, 44, 0.22);
+    --app-accent-soft: #9b6c2c1a;
+    --app-accent-border: #9b6c2c38;
     --app-input-bg: #FFFFFF;
-    --app-input-border: rgba(75, 55, 35, 0.22);
+    --app-input-border: #4b372338;
     --app-positive: #3A7850;
-    --app-positive-soft: rgba(58, 120, 80, 0.10);
+    --app-positive-soft: #3a78501a;
     --app-warning: #D6B400;
-    --app-warning-soft: rgba(214, 180, 0, 0.16);
+    --app-warning-soft: #d6b40029;
     --app-warning-text: #6F5700;
     --app-negative: #9A3C34;
-    --app-negative-soft: rgba(154, 60, 52, 0.10);
-    --app-negative-border: rgba(154, 60, 52, 0.30);
+    --app-negative-soft: #9a3c341a;
+    --app-negative-border: #9a3c344d;
     --app-button-primary-bg: #7F541C;
     --app-button-primary-bg-hover: #8F6124;
     --app-button-primary-text: #FFF8EC;
-    --app-nav-bg: rgba(248, 244, 236, 0.97);
-    --app-shadow-soft: 0 2px 20px rgba(28, 21, 16, 0.07), 0 1px 4px rgba(28, 21, 16, 0.04);
+    --app-nav-bg: #f8f4ecf7;
+    --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;
   }
 
   .dark {
     /* Dark — warm charcoal */
     --app-bg: #0F0E0C;
-    --app-surface-soft: rgba(20, 17, 14, 0.80);
+    --app-surface-soft: #13100E;
 
-    --app-border: rgba(210, 180, 120, 0.09);
-    --app-border-strong: rgba(210, 180, 120, 0.17);
+    --app-border: #d2b47817;
+    --app-border-strong: #d2b4782b;
     --app-text: #ECE6DA;
     --app-text-muted: #8C8074;
     --app-text-subtle: #534940;
     --app-accent: #C9A96A;
-    --app-accent-soft: rgba(201, 169, 106, 0.12);
-    --app-accent-border: rgba(201, 169, 106, 0.22);
+    --app-accent-soft: #c9a96a1f;
+    --app-accent-border: #c9a96a38;
     --app-input-bg: #241F19;
-    --app-input-border: rgba(210, 180, 120, 0.20);
+    --app-input-border: #d2b47833;
     --app-positive: #6CA07B;
-    --app-positive-soft: rgba(108, 160, 123, 0.14);
+    --app-positive-soft: #6ca07b24;
     --app-warning: #F5D547;
-    --app-warning-soft: rgba(245, 213, 71, 0.18);
+    --app-warning-soft: #f5d5472e;
     --app-warning-text: #F8E28A;
     --app-negative: #B8584E;
-    --app-negative-soft: rgba(184, 88, 78, 0.12);
-    --app-negative-border: rgba(184, 88, 78, 0.35);
+    --app-negative-soft: #b8584e1f;
+    --app-negative-border: #b8584e59;
     --app-button-primary-bg: #C9A96A;
     --app-button-primary-bg-hover: #D5B978;
     --app-button-primary-text: #100F0E;
-    --app-nav-bg: rgba(18, 16, 13, 0.98);
-    --app-shadow-soft: 0 2px 20px rgba(0, 0, 0, 0.38), 0 1px 4px rgba(0, 0, 0, 0.24);
+    --app-nav-bg: #12100dfa;
+    --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
   }
 
   * {
@@ -344,7 +344,7 @@
   .app-spinner {
     width: 22px;
     height: 22px;
-    border: 2.5px solid rgba(16, 15, 14, 0.25);
+    border: 2.5px solid #100f0e40;
     border-top-color: #100F0E;
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -439,7 +439,7 @@
 
   .app-modal-backdrop {
     @apply fixed inset-0 flex items-center justify-center p-4;
-    background: rgba(15, 14, 12, 0.56);
+    background: #0f0e0c8f;
   }
 
   .app-modal-panel {
