@@ -27,3 +27,9 @@ class UpdateTagRequest(BaseModel):
     """Partial update for a tag. Only provided fields are changed."""
 
     name: str | None = Field(None, min_length=1, max_length=64)
+
+
+class MergeTagRequest(BaseModel):
+    """Move tag references to another tag, then delete the source."""
+
+    replacement_tag_id: uuid.UUID

@@ -32,6 +32,10 @@ export interface UpdateTagPayload {
   name?: string;
 }
 
+export interface MergeTagPayload {
+  replacement_tag_id: string;
+}
+
 function buildQueryString(params: Record<string, string | number | undefined>): string {
   const entries = Object.entries(params).filter(
     (entry): entry is [string, string | number] => entry[1] !== undefined,
@@ -168,6 +172,23 @@ export function useDeleteTag() {
     onSuccess: (_, tagId) => {
       qc.removeQueries({ queryKey: tagKeys.detail(tagId), exact: true });
       qc.invalidateQueries({ queryKey: tagKeys.all, exact: false });
+    },
+  });
+}
+
+export function useMergeTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tagId, payload }: { tagId: string; payload: MergeTagPayload }) =>
+      authenticatedFetch<void>(`/tags/${tagId}/merge`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (_, { tagId }) => {
+      qc.removeQueries({ queryKey: tagKeys.detail(tagId), exact: true });
+      qc.invalidateQueries({ queryKey: tagKeys.all, exact: false });
+      qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
+      qc.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
     },
   });
 }

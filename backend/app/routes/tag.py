@@ -1,24 +1,108 @@
 import uuid
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.group import GroupMember
-from app.models.tag import Tag
+from app.models.tag import Tag, TransactionTag
 from app.models.user import User
-from app.schemas.tag import CreateTagRequest, TagResponse, UpdateTagRequest
+from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
 
 router = APIRouter(prefix="/tags", tags=["tags"])
+
+
+def _personal_tag_filter(user_id: uuid.UUID):
+    return (Tag.owner_id == user_id) & (Tag.group_id.is_(None))
+
+
+def _accessible_tag_filter(user_id: uuid.UUID):
+    group_ids = (
+        select(GroupMember.group_id).where(GroupMember.user_id == user_id)
+    ).scalar_subquery()
+    return _personal_tag_filter(user_id) | (Tag.group_id.in_(group_ids))
 
 
 def _escape_like(value: str) -> str:
     """Escape LIKE-special characters so user input is matched literally."""
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def _get_accessible_tag_or_404(db: AsyncSession, tag_id: uuid.UUID, user_id: uuid.UUID) -> Tag:
+    result = await db.execute(
+        select(Tag).where(
+            Tag.id == tag_id,
+            _accessible_tag_filter(user_id),
+        ),
+    )
+    tag = result.scalar_one_or_none()
+    if not tag:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+    return tag
+
+
+async def _require_group_tag_admin(db: AsyncSession, tag: Tag, user_id: uuid.UUID) -> None:
+    if tag.group_id is None:
+        return
+
+    member_result = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == tag.group_id,
+            GroupMember.user_id == user_id,
+        ),
+    )
+    member = member_result.scalar_one_or_none()
+    if not member or not member.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
+
+async def _get_merge_replacement_tag(
+    db: AsyncSession, source: Tag, replacement_tag_id: uuid.UUID, user_id: uuid.UUID,
+) -> Tag:
+    if source.id == replacement_tag_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Replacement tag must be different",
+        )
+
+    replacement_filter = Tag.id == replacement_tag_id
+    if source.group_id is None:
+        replacement_filter = replacement_filter & _personal_tag_filter(user_id)
+    else:
+        replacement_filter = replacement_filter & (Tag.group_id == source.group_id)
+
+    replacement_result = await db.execute(select(Tag).where(replacement_filter))
+    replacement = replacement_result.scalar_one_or_none()
+    if not replacement:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Replacement tag not found",
+        )
+    return replacement
+
+
+async def _move_tag_references(db: AsyncSession, source_id: uuid.UUID, replacement_id: uuid.UUID) -> None:
+    replacement_link = aliased(TransactionTag)
+    await db.execute(
+        sa.delete(TransactionTag).where(
+            TransactionTag.tag_id == source_id,
+            sa.exists().where(
+                replacement_link.transaction_id == TransactionTag.transaction_id,
+                replacement_link.tag_id == replacement_id,
+            ),
+        ),
+    )
+    await db.execute(
+        sa.update(TransactionTag)
+        .where(TransactionTag.tag_id == source_id)
+        .values(tag_id=replacement_id),
+    )
 
 
 @router.get("", response_model=list[TagResponse])
@@ -169,6 +253,22 @@ async def update_tag(
         ) from e
     await db.refresh(tag)
     return tag
+
+
+@router.post("/{tag_id}/merge", status_code=status.HTTP_204_NO_CONTENT)
+async def merge_tag(
+    tag_id: uuid.UUID,
+    data: MergeTagRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Move transaction references to another tag, then delete the source tag."""
+    tag = await _get_accessible_tag_or_404(db, tag_id, user.id)
+    await _require_group_tag_admin(db, tag, user.id)
+    replacement = await _get_merge_replacement_tag(db, tag, data.replacement_tag_id, user.id)
+    await _move_tag_references(db, tag.id, replacement.id)
+    await db.delete(tag)
+    await db.commit()
 
 
 @router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)

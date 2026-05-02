@@ -445,6 +445,103 @@ async def test_delete_tag_referenced_by_transaction_returns_409(client):
     assert resp.json()["detail"] == "Tag is referenced by existing transactions"
 
 
+# --- POST /tags/{tag_id}/merge ---
+
+
+async def test_merge_tag_moves_transaction_references_and_deletes_source(client):
+    """Merge rewrites transaction tag references and deletes the source tag."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    source_resp = await _create_tag(client, headers, name="source")
+    replacement_resp = await _create_tag(client, headers, name="replacement")
+    source_id = source_resp.json()["id"]
+    replacement_id = replacement_resp.json()["id"]
+
+    account_resp = await _create_account(client, headers)
+    category_resp = await client.post("/categories", json={
+        "name": "Misc", "kind": "expense",
+    }, headers=headers)
+    transaction_resp = await client.post("/transactions", json={
+        "account_id": account_resp.json()["id"],
+        "category_id": category_resp.json()["id"],
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+        "tag_ids": [source_id],
+    }, headers=headers)
+    transaction_id = transaction_resp.json()["id"]
+
+    resp = await client.post(
+        f"/tags/{source_id}/merge",
+        json={"replacement_tag_id": replacement_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 204
+
+    get_transaction_resp = await client.get(f"/transactions/{transaction_id}", headers=headers)
+    assert get_transaction_resp.status_code == 200
+    assert get_transaction_resp.json()["tag_ids"] == [replacement_id]
+
+    source_check = await client.get(f"/tags/{source_id}", headers=headers)
+    assert source_check.status_code == 404
+
+
+async def test_merge_tag_deduplicates_existing_replacement_reference(client):
+    """Merge does not violate the transaction/tag primary key when replacement is already linked."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    source_resp = await _create_tag(client, headers, name="source")
+    replacement_resp = await _create_tag(client, headers, name="replacement")
+    source_id = source_resp.json()["id"]
+    replacement_id = replacement_resp.json()["id"]
+
+    account_resp = await _create_account(client, headers)
+    category_resp = await client.post("/categories", json={
+        "name": "Misc", "kind": "expense",
+    }, headers=headers)
+    transaction_resp = await client.post("/transactions", json={
+        "account_id": account_resp.json()["id"],
+        "category_id": category_resp.json()["id"],
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+        "tag_ids": [source_id, replacement_id],
+    }, headers=headers)
+    transaction_id = transaction_resp.json()["id"]
+
+    resp = await client.post(
+        f"/tags/{source_id}/merge",
+        json={"replacement_tag_id": replacement_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 204
+
+    get_transaction_resp = await client.get(f"/transactions/{transaction_id}", headers=headers)
+    assert get_transaction_resp.status_code == 200
+    assert get_transaction_resp.json()["tag_ids"] == [replacement_id]
+
+
+async def test_merge_tag_rejects_same_tag_replacement(client):
+    """A tag cannot be merged into itself."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    tag_resp = await _create_tag(client, headers)
+    tag_id = tag_resp.json()["id"]
+
+    resp = await client.post(
+        f"/tags/{tag_id}/merge",
+        json={"replacement_tag_id": tag_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Replacement tag must be different"
+
+
 # --- Group tags: POST /tags ---
 
 
