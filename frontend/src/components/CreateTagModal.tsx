@@ -41,13 +41,6 @@ export default function CreateTagModal({
   const isSecondary = variant === 'secondary'
 
   useEffect(() => {
-    if (!open) return
-    setName(initialName)
-    setFormError(null)
-    setCreateInProgress(false)
-  }, [initialName, open])
-
-  useEffect(() => {
     if (!open || isSecondary) return undefined
 
     document.body.style.overflow = 'hidden'
