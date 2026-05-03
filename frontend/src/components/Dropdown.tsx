@@ -31,6 +31,7 @@ interface DropdownProps {
   onLoadMore?: () => void;
   onSearchCommit?: (value: string) => void;
   disabled?: boolean;
+  blankWhenEmpty?: boolean;
   /** Called when the user clicks the dropdown create action. Receives the current search text. */
   onCreateNew?: (query: string) => void;
   createNewLabel?: string | ((query: string) => string);
@@ -59,6 +60,7 @@ const Dropdown = ({
   onLoadMore,
   onSearchCommit,
   disabled = false,
+  blankWhenEmpty = false,
   onCreateNew,
   createNewLabel,
 }: DropdownProps) => {
@@ -74,6 +76,7 @@ const Dropdown = ({
   const selected = options.find((o) => o.value === value) ?? (
     selectedOption?.value === value ? selectedOption : undefined
   );
+  const emptySelectionIsBlank = blankWhenEmpty && value === '';
   const searchText = searchValue ?? search;
   const heldLoading = useMinimumVisibleFlag(isLoading, loadingMinMs);
   const showLoading = loadingMinMs <= 0 ? isLoading : heldLoading;
@@ -97,7 +100,7 @@ const Dropdown = ({
     let current: string | undefined;
 
     visibleFiltered.forEach((option, i) => {
-      if (option.group !== current) {
+      if (groups.length === 0 || option.group !== current) {
         current = option.group;
         groups.push({ label: option.group ?? '', items: [] });
       }
@@ -234,14 +237,14 @@ const Dropdown = ({
       >
         <span
           className="flex min-w-0 flex-1 items-center gap-2"
-          style={{ color: selected ? 'var(--app-text)' : 'var(--app-text-subtle)' }}
+          style={{ color: selected && !emptySelectionIsBlank ? 'var(--app-text)' : 'var(--app-text-subtle)' }}
         >
-          {selected?.icon && (
+          {selected?.icon && !emptySelectionIsBlank && (
             <span className="shrink-0 text-base leading-none" aria-hidden>
               {selected.icon}
             </span>
           )}
-          <span className="min-w-0 flex-1 truncate">{selected?.label ?? placeholder}</span>
+          <span className="min-w-0 flex-1 truncate">{emptySelectionIsBlank ? '' : selected?.label ?? placeholder}</span>
         </span>
         <ChevronDown
           size={16}
@@ -318,8 +321,8 @@ const Dropdown = ({
                   No results
                 </li>
               ) : groupedFiltered ? (
-                groupedFiltered.map((group) => (
-                  <li key={group.label}>
+                groupedFiltered.map((group, groupIndex) => (
+                  <li key={`${group.label}-${groupIndex}`}>
                     <div
                       className="sticky top-0 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide z-10"
                       style={{

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import {
@@ -15,6 +16,7 @@ import {
   Tag,
   Tags,
   Trash2,
+  Upload,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -96,6 +98,7 @@ const SECTIONS: Section[] = [
 /* ── Top-level page ── */
 
 export default function Settings() {
+  const navigate = useNavigate()
   const { user, setUser } = useAuth()
   const { data: accounts, isLoading: accountsLoading } = useAccounts()
   const { data: serverSelection, isLoading: selectionLoading } = useRunwayAccounts()
@@ -309,9 +312,20 @@ export default function Settings() {
                 </button>
               )
             })}
+
           </nav>
           <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
             {saveControls}
+          </div>
+          <div className="fixed bottom-6 left-[calc(260px+1.5rem)] w-[260px]">
+            <button
+              type="button"
+              onClick={() => navigate('/settings/imports')}
+              className="app-nav-link"
+            >
+              <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
+              Import
+            </button>
           </div>
         </aside>
 

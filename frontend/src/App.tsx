@@ -12,6 +12,7 @@ import AccountDetail from '@/components/AccountDetail'
 import Transactions from '@/components/Transactions'
 import Budgets from '@/components/Budgets'
 import Settings from '@/components/Settings'
+import TransactionImportPage from '@/components/TransactionImportPage'
 import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
 
@@ -28,7 +29,7 @@ function isProtectedPath(pathname: string) {
     pathname.startsWith('/accounts') ||
     pathname === '/transactions' ||
     pathname === '/budgets' ||
-    pathname === '/settings'
+    pathname.startsWith('/settings')
   );
 }
 
@@ -38,8 +39,10 @@ let hasShownLoadingScreen = false;
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
 function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTransitionPhase }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   const pageTransitioning = pageTransitionPhase !== 'idle';
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
+  const isFocusedPage = location.pathname === '/settings/imports';
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
@@ -68,9 +71,9 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
           className="flex min-h-screen"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
-          <Navigation />
+          {!isFocusedPage && <Navigation />}
           <main
-            className="relative ml-[260px] flex-1 px-4 pb-8 pt-6 lg:px-6 lg:pb-12 lg:pt-12"
+            className={`relative flex-1 ${isFocusedPage ? 'p-0' : 'ml-[260px] px-4 pb-8 pt-6 lg:px-6 lg:pb-12 lg:pt-12'}`}
             aria-busy={pageTransitioning}
           >
             <AnimatePresence>
@@ -176,6 +179,7 @@ function AnimatedRoutes() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/imports" element={<TransactionImportPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
