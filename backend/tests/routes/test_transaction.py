@@ -323,6 +323,28 @@ async def test_create_transaction_returns_201(client):
     assert data["created_at"] is not None
 
 
+async def test_create_transaction_accepts_debit_and_credit_for_all_category_kinds(client):
+    """Category kind classifies a transaction; amount sign stores debit/credit direction."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+
+    categories = {}
+    for kind in ("expense", "income", "transfer"):
+        category_resp = await _create_category(client, headers, name=f"Direction {kind}", kind=kind)
+        categories[kind] = category_resp.json()["id"]
+
+    for category_id in categories.values():
+        for amount in (-1234, 5678):
+            resp = await _create_transaction(client, headers, account_id, category_id, amount=amount)
+
+            assert resp.status_code == 201
+            data = resp.json()
+            assert data["category_id"] == category_id
+            assert data["amount"] == amount
+
+
 async def test_create_transaction_with_all_optional_fields(client):
     """Transaction created with merchant, notes, and tags returns correct values."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -1012,6 +1034,33 @@ async def test_patch_transaction_updates_amount(client):
 
     assert resp.status_code == 200
     assert resp.json()["amount"] == -9999
+
+
+async def test_patch_transaction_accepts_sign_changes_for_all_category_kinds(client):
+    """Editing direction is a signed amount change, independent of category kind."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_resp = await _create_account(client, headers)
+    account_id = account_resp.json()["id"]
+
+    for kind in ("expense", "income", "transfer"):
+        category_resp = await _create_category(client, headers, name=f"Patch Direction {kind}", kind=kind)
+        create_resp = await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_resp.json()["id"],
+            amount=-1000,
+        )
+        txn_id = create_resp.json()["id"]
+
+        credit_resp = await client.patch(f"/transactions/{txn_id}", json={"amount": 2500}, headers=headers)
+        assert credit_resp.status_code == 200
+        assert credit_resp.json()["amount"] == 2500
+
+        debit_resp = await client.patch(f"/transactions/{txn_id}", json={"amount": -1500}, headers=headers)
+        assert debit_resp.status_code == 200
+        assert debit_resp.json()["amount"] == -1500
 
 
 async def test_patch_transaction_updates_notes(client):
