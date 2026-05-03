@@ -10,7 +10,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import {
   accountKeys,
+  categoryKeys,
   dashboardKeys,
+  merchantKeys,
+  tagKeys,
   taxAdvantagedPlanKeys,
   transactionKeys,
   transactionOverviewKeys,
@@ -115,6 +118,63 @@ export interface UpdateTransactionPayload {
   fx_rate?: number | null;
   notes?: string | null;
   tag_ids?: string[];
+}
+
+export interface TransactionImportCreateAccount {
+  name: string;
+  account_type: Account['account_type'];
+  currency: string;
+}
+
+export interface TransactionImportAccountMapping {
+  source: string;
+  account_id?: string | null;
+  create?: TransactionImportCreateAccount | null;
+}
+
+export interface TransactionImportCreateCategory {
+  name: string;
+  kind: 'expense' | 'income' | 'transfer';
+  icon?: string | null;
+}
+
+export interface TransactionImportCategoryMapping {
+  source: string;
+  category_id?: string | null;
+  create?: TransactionImportCreateCategory | null;
+}
+
+export interface TransactionImportRow {
+  account_source: string;
+  category_source: string;
+  dt: string;
+  amount: string;
+  merchant_name?: string | null;
+  notes?: string | null;
+  tag_names: string[];
+}
+
+export interface TransactionImportPayload {
+  accounts: TransactionImportAccountMapping[];
+  categories: TransactionImportCategoryMapping[];
+  rows: TransactionImportRow[];
+}
+
+export interface TransactionImportResponse {
+  transactions_created: number;
+  accounts_created: number;
+  accounts_reused: number;
+  categories_created: number;
+  categories_reused: number;
+  merchants_created: number;
+  merchants_reused: number;
+  tags_created: number;
+  tags_reused: number;
+  affected_account_ids: string[];
+  created_account_ids: string[];
+  created_category_ids: string[];
+  created_merchant_ids: string[];
+  created_tag_ids: string[];
 }
 
 // ── Helpers ──
@@ -299,6 +359,37 @@ export function useCreateTransaction() {
       invalidateAccountActivity(queryClient, accountIds);
       invalidateDashboardActivity(queryClient);
       invalidateTaxAdvantagedActivity(queryClient, accountIds);
+    },
+  });
+}
+
+export function useImportTransactions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: TransactionImportPayload) =>
+      authenticatedFetch<TransactionImportResponse>('/transactions/import', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (result) => {
+      invalidateTransactionLists(queryClient);
+      invalidateTransactionOverview(queryClient);
+      invalidateAccountActivity(queryClient, result.affected_account_ids);
+      invalidateDashboardActivity(queryClient);
+      invalidateTaxAdvantagedActivity(queryClient, result.affected_account_ids);
+
+      if (result.created_account_ids.length > 0) {
+        queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
+      }
+      if (result.created_category_ids.length > 0) {
+        queryClient.invalidateQueries({ queryKey: categoryKeys.list(), exact: true });
+      }
+      if (result.created_merchant_ids.length > 0) {
+        queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
+      }
+      if (result.created_tag_ids.length > 0) {
+        queryClient.invalidateQueries({ queryKey: tagKeys.all, exact: false });
+      }
     },
   });
 }
