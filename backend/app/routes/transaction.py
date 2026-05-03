@@ -25,11 +25,14 @@ from app.schemas.transaction import (
     DailyCashFlow,
     OutlierTransaction,
     TopCategorySpend,
+    TransactionImportRequest,
+    TransactionImportResponse,
     TransactionResponse,
     TransactionsOverview,
     UpdateTransactionRequest,
 )
 from app.services.snapshots import recompute_snapshots_from
+from app.services.transaction_imports import import_transactions
 from app.services.transaction_responses import (
     build_transaction_response,
     get_merchant_names_batch,
@@ -342,6 +345,16 @@ async def get_transaction(
         merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
         tag_summary_map[txn.id],
     )
+
+
+@router.post("/import", response_model=TransactionImportResponse, status_code=status.HTTP_201_CREATED)
+async def import_transaction_batch(
+    data: TransactionImportRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Import frontend-compiled transactions and rebuild affected account snapshots once."""
+    return await import_transactions(db, user, data)
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

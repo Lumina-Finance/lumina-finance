@@ -99,3 +99,74 @@ class UpdateTransactionRequest(BaseModel):
     fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] | None = None
+
+
+class TransactionImportCreateAccount(BaseModel):
+    """New personal account to create during a transaction import."""
+
+    name: str = Field(min_length=1, max_length=256)
+    account_type: str
+    currency: str = Field(min_length=3, max_length=3)
+
+
+class TransactionImportAccountMapping(BaseModel):
+    """Resolve one imported account source to an existing or new account."""
+
+    source: str = Field(min_length=1, max_length=256)
+    account_id: uuid.UUID | None = None
+    create: TransactionImportCreateAccount | None = None
+
+
+class TransactionImportCreateCategory(BaseModel):
+    """New personal category to create during a transaction import."""
+
+    name: str = Field(min_length=1, max_length=256)
+    kind: str
+    icon: str | None = None
+
+
+class TransactionImportCategoryMapping(BaseModel):
+    """Resolve one imported category source to an existing or new category."""
+
+    source: str = Field(min_length=1, max_length=256)
+    category_id: uuid.UUID | None = None
+    create: TransactionImportCreateCategory | None = None
+
+
+class TransactionImportRow(BaseModel):
+    """One frontend-compiled import row. Amount is the raw CSV value, not minor units."""
+
+    account_source: str = Field(min_length=1, max_length=256)
+    category_source: str = Field(min_length=1, max_length=256)
+    dt: date
+    amount: str = Field(min_length=1, max_length=64)
+    merchant_name: str | None = Field(None, max_length=256)
+    notes: str | None = None
+    tag_names: list[str] = []
+
+
+class TransactionImportRequest(BaseModel):
+    """Batch import frontend-compiled CSV transactions."""
+
+    accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
+    categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
+    rows: list[TransactionImportRow] = Field(min_length=1)
+
+
+class TransactionImportResponse(BaseModel):
+    """Summary of records created or reused by a transaction import."""
+
+    transactions_created: int
+    accounts_created: int
+    accounts_reused: int
+    categories_created: int
+    categories_reused: int
+    merchants_created: int
+    merchants_reused: int
+    tags_created: int
+    tags_reused: int
+    affected_account_ids: list[uuid.UUID]
+    created_account_ids: list[uuid.UUID]
+    created_category_ids: list[uuid.UUID]
+    created_merchant_ids: list[uuid.UUID]
+    created_tag_ids: list[uuid.UUID]
