@@ -116,6 +116,7 @@ async def test_list_categories_returns_seeded_defaults(client):
     assert "Capital Gains" in names
     assert {
         "Advertising & Marketing",
+        "Business Expenses",
         "Business Insurance",
         "Business Meals",
         "Business Taxes",
@@ -124,6 +125,7 @@ async def test_list_categories_returns_seeded_defaults(client):
         "Dental",
         "Digital News",
         "Electricity",
+        "Electronics",
         "Equipment",
         "Financial Fees",
         "Propane/LNG",
@@ -134,7 +136,7 @@ async def test_list_categories_returns_seeded_defaults(client):
         "Income Taxes",
         "Internet",
         "Legal Fees",
-        "Mobile Plans",
+        "Phone Plan",
         "Office Supplies",
         "Parking",
         "Payroll Taxes",

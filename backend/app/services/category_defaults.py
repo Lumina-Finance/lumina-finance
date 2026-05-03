@@ -20,13 +20,13 @@ SYSTEM_CATEGORY_DEFAULTS: tuple[SystemCategoryDefault, ...] = tuple(
     for name, kind, icon in [
         # Business expenses
         ("Advertising & Marketing", CategoryKind.EXPENSE, "📣"),
+        ("Business Expenses", CategoryKind.EXPENSE, "💼"),
         ("Business Insurance", CategoryKind.EXPENSE, "🛡️"),
         ("Business Meals", CategoryKind.EXPENSE, "🍱"),
         ("Business Travel", CategoryKind.EXPENSE, "🧳"),
         ("Equipment", CategoryKind.EXPENSE, "🖥️"),
         ("Office Supplies", CategoryKind.EXPENSE, "📎"),
         ("Professional Services", CategoryKind.EXPENSE, "🤝"),
-        ("Software", CategoryKind.EXPENSE, "💿"),
         # Family, health, and education
         ("Childcare", CategoryKind.EXPENSE, "🧸"),
         ("Dental", CategoryKind.EXPENSE, "🦷"),
@@ -58,10 +58,12 @@ SYSTEM_CATEGORY_DEFAULTS: tuple[SystemCategoryDefault, ...] = tuple(
         ("Other Income", CategoryKind.INCOME, "💵"),
         ("Salary", CategoryKind.INCOME, "💼"),
         # Lifestyle and discretionary
+        ("Electronics", CategoryKind.EXPENSE, "🔌"),
         ("Entertainment", CategoryKind.EXPENSE, "🎬"),
         ("Gifts & Donations", CategoryKind.EXPENSE, "🎁"),
         ("Shopping", CategoryKind.EXPENSE, "🛍️"),
         ("Travel", CategoryKind.EXPENSE, "✈️"),
+        ("Software", CategoryKind.EXPENSE, "💿"),
         # Living expenses
         ("Condo Maintenance", CategoryKind.EXPENSE, "🧰"),
         ("Digital News", CategoryKind.EXPENSE, "📰"),
@@ -73,7 +75,7 @@ SYSTEM_CATEGORY_DEFAULTS: tuple[SystemCategoryDefault, ...] = tuple(
         ("Home Repairs", CategoryKind.EXPENSE, "🛠️"),
         ("Housing", CategoryKind.EXPENSE, "🏠"),
         ("Internet", CategoryKind.EXPENSE, "🌐"),
-        ("Mobile Plans", CategoryKind.EXPENSE, "📱"),
+        ("Phone Plan", CategoryKind.EXPENSE, "📱"),
         ("HOA Fees", CategoryKind.EXPENSE, "🏢"),
         ("Rent", CategoryKind.EXPENSE, "🏡"),
         ("Water", CategoryKind.EXPENSE, "🚰"),
