@@ -133,6 +133,7 @@ async def test_list_categories_returns_seeded_defaults(client):
         "Home Improvement",
         "Home Phone",
         "Home Repairs",
+        "Hobby",
         "Income Taxes",
         "Internet",
         "Legal Fees",
@@ -140,7 +141,8 @@ async def test_list_categories_returns_seeded_defaults(client):
         "Office Supplies",
         "Parking",
         "Payroll Taxes",
-        "Pharmacy",
+        "Medical",
+        "Medicine",
         "Print News",
         "Professional Services",
         "Property Taxes",
@@ -155,6 +157,7 @@ async def test_list_categories_returns_seeded_defaults(client):
     assert {"Utilities", "Taxes"}.isdisjoint(names)
     assert "Gas" not in names
     assert "Capital Gains/Losses" not in names
+    assert "Pharmacy" not in names
 
     by_name = {c["name"]: c for c in data}
     assert by_name["Groceries"]["icon"] == "🛒"

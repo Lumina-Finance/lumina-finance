@@ -32,7 +32,8 @@ SYSTEM_CATEGORY_DEFAULTS: tuple[SystemCategoryDefault, ...] = tuple(
         ("Dental", CategoryKind.EXPENSE, "🦷"),
         ("Education", CategoryKind.EXPENSE, "🎓"),
         ("Health", CategoryKind.EXPENSE, "🏥"),
-        ("Pharmacy", CategoryKind.EXPENSE, "💊"),
+        ("Medical", CategoryKind.EXPENSE, "🩺"),
+        ("Medicine", CategoryKind.EXPENSE, "💊"),
         ("Personal Care", CategoryKind.EXPENSE, "✂️"),
         ("Pets", CategoryKind.EXPENSE, "🐾"),
         # Financial obligations
@@ -61,6 +62,7 @@ SYSTEM_CATEGORY_DEFAULTS: tuple[SystemCategoryDefault, ...] = tuple(
         ("Electronics", CategoryKind.EXPENSE, "🔌"),
         ("Entertainment", CategoryKind.EXPENSE, "🎬"),
         ("Gifts & Donations", CategoryKind.EXPENSE, "🎁"),
+        ("Hobby", CategoryKind.EXPENSE, "🎨"),
         ("Shopping", CategoryKind.EXPENSE, "🛍️"),
         ("Travel", CategoryKind.EXPENSE, "✈️"),
         ("Software", CategoryKind.EXPENSE, "💿"),
