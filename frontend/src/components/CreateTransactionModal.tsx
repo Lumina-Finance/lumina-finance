@@ -45,15 +45,22 @@ const KIND_OPTIONS: { value: Kind; label: string }[] = [
   { value: 'transfer', label: 'Transfer' },
 ]
 
-// Transfers can go either way on a single account — pulling money out
-// (e.g. paying a credit card from checking) or bringing it in (receiving a
-// repayment, moving savings back). The sign on `amount` encodes this on the
-// backend; the modal tracks it explicitly via `transfer_direction`.
-type TransferDirection = 'in' | 'out'
+type TransactionDirection = 'debit' | 'credit'
+
+const DIRECTION_OPTIONS: { value: TransactionDirection; label: string }[] = [
+  { value: 'debit', label: 'Debit' },
+  { value: 'credit', label: 'Credit' },
+]
+
+const DEFAULT_DIRECTION_BY_KIND: Record<Kind, TransactionDirection> = {
+  expense: 'debit',
+  income: 'credit',
+  transfer: 'debit',
+}
 
 const INITIAL_FORM = {
   kind: 'expense' as Kind,
-  transfer_direction: 'out' as TransferDirection,
+  direction: DEFAULT_DIRECTION_BY_KIND.expense,
   account_id: '',
   category_id: '',
   merchant_id: '',
@@ -64,12 +71,7 @@ const INITIAL_FORM = {
   tag_ids: [] as string[],
 }
 
-const conditionalField = {
-  initial: { height: 0, opacity: 0 },
-  animate: { height: 'auto', opacity: 1 },
-  exit: { height: 0, opacity: 0 },
-  transition: { duration: 0.25, ease: EASE },
-}
+type TransactionForm = typeof INITIAL_FORM
 
 /* ── Helpers ── */
 
@@ -170,6 +172,10 @@ function sameStringSet(a: string[], b: string[]) {
   return left.every((value, index) => value === right[index])
 }
 
+function defaultDirectionForKind(kind: Kind): TransactionDirection {
+  return DEFAULT_DIRECTION_BY_KIND[kind]
+}
+
 /* ── Validation ── */
 
 interface FieldErrors {
@@ -181,7 +187,7 @@ interface FieldErrors {
   date?: string
 }
 
-function validate(form: typeof INITIAL_FORM): FieldErrors {
+function validate(form: TransactionForm): FieldErrors {
   const errors: FieldErrors = {}
   if (!form.account_id) errors.account_id = 'Select an account'
   if (!form.category_id) errors.category_id = 'Select a category'
@@ -225,7 +231,7 @@ export default function CreateTransactionModal({
   const { data: currencies = [] } = useCurrencies()
 
   // Build the initial form from the existing transaction (edit) or sensible defaults (create).
-  const initialForm = useMemo(() => {
+  const initialForm = useMemo<TransactionForm>(() => {
     if (!transaction) {
       return {
         ...INITIAL_FORM,
@@ -239,7 +245,7 @@ export default function CreateTransactionModal({
     return {
       kind: (category?.kind as Kind) ?? 'expense',
       // Recover direction from the stored sign so the toggle reflects reality.
-      transfer_direction: (transaction.amount >= 0 ? 'in' : 'out') as TransferDirection,
+      direction: transaction.amount >= 0 ? 'credit' : 'debit',
       account_id: transaction.account_id,
       category_id: transaction.category_id,
       merchant_id: transaction.merchant_id ?? '',
@@ -275,6 +281,7 @@ export default function CreateTransactionModal({
   const [merchantModalKey, setMerchantModalKey] = useState(0)
   const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
   const [createDelayPending, setCreateDelayPending] = useState(false)
+  const [directionHighlightKey, setDirectionHighlightKey] = useState(0)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
@@ -652,17 +659,27 @@ export default function CreateTransactionModal({
   }
 
   const handleKindChange = (kind: Kind) => {
-    setForm((f) => ({ ...f, kind }))
+    const kindChanged = kind !== form.kind
+    setForm((f) => ({
+      ...f,
+      kind,
+      direction: kind === f.kind ? f.direction : defaultDirectionForKind(kind),
+    }))
+    if (kindChanged) setDirectionHighlightKey((key) => key + 1)
   }
 
   const handleCategoryChange = (categoryId: string) => {
     const category = categoryById.get(categoryId)
+    const nextKind = (category?.kind as Kind | undefined) ?? form.kind
+    const kindChanged = nextKind !== form.kind
     setForm((f) => ({
       ...f,
       category_id: categoryId,
       // Auto-switch the kind toggle to match the chosen category
-      kind: (category?.kind as Kind) ?? f.kind,
+      kind: nextKind,
+      direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
     }))
+    if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
   }
 
@@ -673,11 +690,15 @@ export default function CreateTransactionModal({
   }
 
   const handleCategoryCreated = (category: Category) => {
+    const nextKind = category.kind as Kind
+    const kindChanged = nextKind !== form.kind
     setForm((f) => ({
       ...f,
       category_id: category.id,
-      kind: category.kind as Kind,
+      kind: nextKind,
+      direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
     }))
+    if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
     setShowCategoryModal(false)
   }
@@ -686,16 +707,20 @@ export default function CreateTransactionModal({
     const merchant = merchantCandidates.find((m) => m.id === merchantId)
     const defaultCategoryId = merchant?.default_category_id
     const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
+    const nextKind = (defaultCategory?.kind as Kind | undefined) ?? form.kind
+    const kindChanged = !!defaultCategoryId && nextKind !== form.kind
     setForm((f) => ({
       ...f,
       merchant_id: merchantId,
       ...(defaultCategoryId
         ? {
             category_id: defaultCategoryId,
-            kind: (defaultCategory?.kind as Kind) ?? f.kind,
+            kind: nextKind,
+            direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
           }
         : {}),
     }))
+    if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('merchant_id')
     if (defaultCategoryId) clearError('category_id')
   }
@@ -710,16 +735,20 @@ export default function CreateTransactionModal({
     setCreatedMerchant(merchant)
     const defaultCategoryId = merchant.default_category_id
     const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
+    const nextKind = (defaultCategory?.kind as Kind | undefined) ?? form.kind
+    const kindChanged = !!defaultCategoryId && nextKind !== form.kind
     setForm((f) => ({
       ...f,
       merchant_id: merchant.id,
       ...(defaultCategoryId
         ? {
             category_id: defaultCategoryId,
-            kind: (defaultCategory?.kind as Kind) ?? f.kind,
+            kind: nextKind,
+            direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
           }
         : {}),
     }))
+    if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('merchant_id')
     if (defaultCategoryId) clearError('category_id')
     setShowMerchantModal(false)
@@ -768,7 +797,7 @@ export default function CreateTransactionModal({
     clearError('currency')
   }
 
-  const handleField = <K extends keyof typeof INITIAL_FORM>(field: K, value: typeof INITIAL_FORM[K]) => {
+  const handleField = <K extends keyof TransactionForm>(field: K, value: TransactionForm[K]) => {
     setForm((f) => ({ ...f, [field]: value }))
     if (field in fieldErrors) clearError(field as keyof FieldErrors)
   }
@@ -790,11 +819,7 @@ export default function CreateTransactionModal({
     const selectedCurrency = currencies.find((c) => c.id === form.currency)
     const minorMultiplier = Math.pow(10, selectedCurrency?.minor_unit_exponent ?? 2)
     const magnitude = Math.round(parseFloat(form.amount) * minorMultiplier)
-    // Sign comes from kind + (for transfers) direction. Income is always +;
-    // expense is always −; transfers depend on which way money moved.
-    const isInflow =
-      form.kind === 'income' || (form.kind === 'transfer' && form.transfer_direction === 'in')
-    const signedAmount = isInflow ? magnitude : -magnitude
+    const signedAmount = form.direction === 'credit' ? magnitude : -magnitude
     const notes = form.notes.trim() || null
 
     if (editing && transaction) {
@@ -854,7 +879,7 @@ export default function CreateTransactionModal({
       setForm({
         ...INITIAL_FORM,
         kind: form.kind,
-        transfer_direction: form.transfer_direction,
+        direction: form.direction,
         account_id: form.account_id,
         currency: form.currency,
         date: form.date,
@@ -1005,39 +1030,34 @@ export default function CreateTransactionModal({
                           })}
                         </div>
 
-                        {/* Transfer direction — only meaningful when the transaction
-                            is a transfer. Stays editable in edit mode so a mis-signed
-                            transfer can be corrected without deleting the row. */}
-                        <AnimatePresence initial={false}>
-                          {form.kind === 'transfer' && (
-                            <motion.div
-                              className="overflow-hidden"
-                              {...conditionalField}
-                            >
-                              <div>
-                                <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Direction</label>
-                                <div className="app-segmented-control w-full">
-                                  {([
-                                    { value: 'out', label: 'Money Out' },
-                                    { value: 'in', label: 'Money In' },
-                                  ] as const).map((opt) => {
-                                    const selected = form.transfer_direction === opt.value
-                                    return (
-                                      <button
-                                        key={opt.value}
-                                        type="button"
-                                        onClick={() => handleField('transfer_direction', opt.value)}
-                                        className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''}`}
-                                      >
-                                        {opt.label}
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                        <div>
+                          <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Direction</label>
+                          <motion.div
+                            key={directionHighlightKey}
+                            className="rounded-lg"
+                            initial={directionHighlightKey === 0 ? false : { boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
+                            animate={directionHighlightKey === 0
+                              ? undefined
+                              : { boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
+                            transition={{ duration: 0.45, ease: EASE }}
+                          >
+                            <div className="app-segmented-control w-full">
+                              {DIRECTION_OPTIONS.map((opt) => {
+                                const selected = form.direction === opt.value
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => handleField('direction', opt.value)}
+                                    className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''}`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </motion.div>
+                        </div>
 
                         {/* Date */}
                         <div>
