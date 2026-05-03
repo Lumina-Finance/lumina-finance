@@ -1,5 +1,7 @@
 from datetime import UTC, date, datetime
 
+from sqlalchemy import select
+
 import app.services.tax_advantaged_plans as plan_services
 from app.models.base import CategoryKind
 from app.models.category import Category
@@ -54,6 +56,16 @@ async def _seed_category(owner_id, kind: CategoryKind, name: str):
         await session.commit()
         await session.refresh(category)
         return category.id
+
+
+async def _get_system_category_id(name: str):
+    """Return a seeded system category ID by name."""
+    async with TestSession() as session:
+        category_id = await session.scalar(
+            select(Category.id).where(Category.name == name, Category.is_system.is_(True)),
+        )
+        assert category_id is not None
+        return category_id
 
 
 async def _seed_transaction(account_id, category_id, created_by_user_id, amount: int, dt: date) -> None:
@@ -258,7 +270,7 @@ async def test_plan_metrics_use_plan_owner_timezone_for_current_year(client, mon
     user_id = signup_resp.json()["user"]["id"]
     plan_id = (await _create_plan(client, headers)).json()["id"]
     account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
-    transfer_id = await _seed_category(user_id, CategoryKind.TRANSFER, "Timezone Transfer")
+    transfer_id = await _get_system_category_id("Transfer")
 
     await client.post(
         f"/tax-advantaged-plans/{plan_id}/limits",
@@ -289,7 +301,7 @@ async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(c
     plan_id = (await _create_plan(client, headers)).json()["id"]
     first_account_id = (await _create_account(client, headers, name="TFSA A", tax_advantaged_plan_id=plan_id)).json()["id"]
     second_account_id = (await _create_account(client, headers, name="TFSA B", tax_advantaged_plan_id=plan_id)).json()["id"]
-    transfer_id = await _seed_category(user_id, CategoryKind.TRANSFER, "Plan Transfer")
+    transfer_id = await _get_system_category_id("Transfer")
     expense_id = await _seed_category(user_id, CategoryKind.EXPENSE, "Plan Groceries")
     income_id = await _seed_category(user_id, CategoryKind.INCOME, "Plan Salary")
     current_year = datetime.now(UTC).year
@@ -311,6 +323,33 @@ async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(c
     assert resp.json()["lifetime_withdrawals"] == 15_000
 
 
+async def test_plan_metrics_only_count_transfer_category(client):
+    """Only the seeded Transfer category counts as TAC activity."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    plan_id = (await _create_plan(client, headers)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    transfer_id = await _get_system_category_id("Transfer")
+    balance_adjustment_id = await _get_system_category_id("Balance Adjustment")
+    credit_card_payment_id = await _get_system_category_id("Credit Card Payment")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(account_id, transfer_id, user_id, 50_000, date(current_year, 2, 1))
+    await _seed_transaction(account_id, transfer_id, user_id, -10_000, date(current_year, 3, 1))
+    await _seed_transaction(account_id, balance_adjustment_id, user_id, 999_000, date(current_year, 4, 1))
+    await _seed_transaction(account_id, balance_adjustment_id, user_id, -888_000, date(current_year, 5, 1))
+    await _seed_transaction(account_id, credit_card_payment_id, user_id, 777_000, date(current_year - 1, 6, 1))
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_contributions"] == 50_000
+    assert resp.json()["ytd_withdrawals"] == 10_000
+    assert resp.json()["lifetime_contributions"] == 50_000
+    assert resp.json()["lifetime_withdrawals"] == 10_000
+
+
 async def test_group_plan_counts_transaction_created_by_non_owner(client):
     """Group account activity tallies to the linked plan owner, not transaction creator."""
     owner_resp = await _create_user(client)
@@ -325,7 +364,7 @@ async def test_group_plan_counts_transaction_created_by_non_owner(client):
 
     plan_id = (await _create_plan(client, owner_headers, group_id=group_id)).json()["id"]
     account_id = (await _create_account(client, owner_headers, group_id=group_id, tax_advantaged_plan_id=plan_id)).json()["id"]
-    transfer_id = await _seed_category(owner_id, CategoryKind.TRANSFER, "Plan Transfer")
+    transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
     await _seed_transaction(account_id, transfer_id, member_user_id, 123_000, date(current_year, 2, 1))
 

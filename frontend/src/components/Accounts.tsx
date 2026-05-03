@@ -80,20 +80,22 @@ function humanizeAccountType(type: string): string {
 }
 
 function limitUsageColor(used: number, limit: number): string {
-  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-subtle)'
+  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-muted)'
   const ratio = used / limit
   if (ratio > 1) return 'var(--app-negative)'
-  if (ratio >= 0.85) return 'var(--app-accent)'
-  return 'var(--app-positive)'
+  if (limit - used === 0) return 'var(--app-text-muted)'
+  return 'var(--app-accent)'
 }
 
 function limitUsagePercent(used: number, limit: number): number {
-  if (limit <= 0) return used > 0 ? 100 : 0
+  if (limit <= 0) return 100
   return Math.min(Math.max((used / limit) * 100, 0), 100)
 }
 
-function limitRoomPercent(used: number, limit: number): number {
-  return 100 - limitUsagePercent(used, limit)
+function limitRemainingColor(remaining: number): string {
+  if (remaining < 0) return 'var(--app-negative)'
+  if (remaining === 0) return 'var(--app-text-muted)'
+  return 'var(--app-accent)'
 }
 
 function TaxLimitLedgerRow({
@@ -126,7 +128,8 @@ function TaxLimitLedgerRow({
   const color = limitUsageColor(used, limit)
   const remaining = limit - used
   const overLimit = remaining < 0
-  const barWidth = overLimit ? 100 : limitRoomPercent(used, limit)
+  const barWidth = limitUsagePercent(used, limit)
+  const amountColor = limitRemainingColor(remaining)
 
   return (
     <div>
@@ -134,7 +137,7 @@ function TaxLimitLedgerRow({
         <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
           {label}
         </p>
-        <p className="truncate font-financial text-sm font-semibold tabular-nums" style={{ color }}>
+        <p className="truncate font-financial text-sm font-semibold tabular-nums" style={{ color: amountColor }}>
           {overLimit
             ? `${formatCurrency(Math.abs(remaining), currency)} over`
             : `${formatCurrency(remaining, currency)} left`}

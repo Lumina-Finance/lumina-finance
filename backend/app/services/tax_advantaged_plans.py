@@ -12,6 +12,8 @@ from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
 
+_TAC_TRANSFER_CATEGORY_NAME = "Transfer"
+
 
 async def attach_tax_advantaged_plan_metrics(
     db: AsyncSession,
@@ -86,6 +88,7 @@ async def attach_tax_advantaged_plan_metrics(
         .where(
             Account.tax_advantaged_plan_id.in_(plan_ids),
             Category.kind == CategoryKind.TRANSFER,
+            Category.name == _TAC_TRANSFER_CATEGORY_NAME,
         )
         .group_by(Account.tax_advantaged_plan_id, "year"),
     )

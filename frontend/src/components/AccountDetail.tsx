@@ -255,15 +255,15 @@ function DetailInstitutionLogo({ institution }: { institution: Account['institut
 }
 
 function taxAdvantagedUsageColor(used: number, limit: number): string {
-  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-subtle)'
+  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-muted)'
   const ratio = used / limit
   if (ratio > 1) return 'var(--app-negative)'
-  if (ratio >= 0.85) return 'var(--app-accent)'
-  return 'var(--app-positive)'
+  if (limit - used === 0) return 'var(--app-text-muted)'
+  return 'var(--app-accent)'
 }
 
 function taxAdvantagedUsagePercent(used: number, limit: number): number {
-  if (limit <= 0) return used > 0 ? 100 : 0
+  if (limit <= 0) return 100
   return Math.min(Math.max((used / limit) * 100, 0), 100)
 }
 
