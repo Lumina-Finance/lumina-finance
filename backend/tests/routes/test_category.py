@@ -114,11 +114,51 @@ async def test_list_categories_returns_seeded_defaults(client):
     assert "Fuel" in names
     assert "Miscellaneous" in names
     assert "Capital Gains" in names
+    assert {
+        "Advertising & Marketing",
+        "Business Insurance",
+        "Business Meals",
+        "Business Taxes",
+        "Business Travel",
+        "Condo Maintenance",
+        "Dental",
+        "Digital News",
+        "Electricity",
+        "Equipment",
+        "Financial Fees",
+        "Propane/LNG",
+        "HOA Fees",
+        "Home Improvement",
+        "Home Phone",
+        "Home Repairs",
+        "Income Taxes",
+        "Internet",
+        "Legal Fees",
+        "Mobile Plans",
+        "Office Supplies",
+        "Parking",
+        "Payroll Taxes",
+        "Pharmacy",
+        "Print News",
+        "Professional Services",
+        "Property Taxes",
+        "Rent",
+        "Ride Hailing",
+        "Sales Taxes",
+        "Software",
+        "Taxis",
+        "Tolls",
+        "Water",
+    } <= names
+    assert {"Utilities", "Taxes"}.isdisjoint(names)
     assert "Gas" not in names
     assert "Capital Gains/Losses" not in names
 
     by_name = {c["name"]: c for c in data}
     assert by_name["Groceries"]["icon"] == "🛒"
+    assert by_name["Electricity"]["kind"] == "expense"
+    assert by_name["Income Taxes"]["kind"] == "expense"
+    assert by_name["Advertising & Marketing"]["is_system"] is True
     assert by_name["Miscellaneous"]["kind"] == "expense"
     assert by_name["Debt Payment"]["kind"] == "expense"
     assert by_name["Debt Payment"]["is_system"] is True
