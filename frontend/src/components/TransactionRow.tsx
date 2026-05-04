@@ -126,19 +126,19 @@ export default function TransactionRow({
       </span>
 
       <span className="min-w-0">
-        <span className="block truncate font-medium">{title}</span>
+        <span className="block truncate font-medium">{categoryName}</span>
         <span
           className="mt-0.5 block truncate text-sm"
           style={{ color: 'var(--app-text-muted)' }}
         >
-          {categoryName}
+          {title}
         </span>
       </span>
 
-      <span className="min-w-0">
+      <span className="flex min-w-0 items-center self-stretch">
         {hasAccountMeta ? (
           <span
-            className="inline-flex max-w-full items-center gap-2 text-sm font-medium"
+            className="inline-flex max-w-full items-center gap-2 text-sm font-medium leading-none"
             style={{ color: 'var(--app-text-muted)' }}
           >
             <AccountLogo accountName={accountName} institution={accountInstitution} />
@@ -150,10 +150,12 @@ export default function TransactionRow({
       </span>
 
       <span
-        className="min-w-0 truncate text-sm"
+        className="flex min-w-0 items-center self-stretch overflow-hidden text-sm leading-none"
         style={{ color: 'var(--app-text-muted)' }}
       >
-        {transaction.notes || '\u00A0'}
+        <span className="min-w-0 truncate whitespace-nowrap">
+          {transaction.notes || '\u00A0'}
+        </span>
       </span>
 
       <span className="flex min-w-0 justify-end gap-1.5">
