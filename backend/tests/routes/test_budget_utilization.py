@@ -187,7 +187,7 @@ async def test_list_latest_budget_utilizations_returns_latest_period_only(client
     headers = _get_auth_header(signup_resp)
 
     account_id = (await _create_account(client, headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers)
 
     base_id, old_budget_id = await _create_base_with_instance(
         client,
@@ -228,7 +228,7 @@ async def test_list_latest_budget_utilizations_excludes_inaccessible_budgets(cli
 
     account_id = (await _create_account(client, headers)).json()["id"]
     other_account_id = (await _create_account(client, other_headers)).json()["id"]
-    groceries = await _create_category(client, headers, name="Groceries")
+    groceries = await _create_category(client, headers)
     other_groceries = await _create_category(client, other_headers, name="Other Groceries")
 
     _, budget_id = await _create_base_with_instance(client, headers, category_ids=[groceries])

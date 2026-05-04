@@ -280,9 +280,6 @@ async def test_income_expense_and_non_adjustment_transfers_contribute_to_cash_fl
         client, headers, name="Test Internal Transfer", kind="transfer",
     )).json()
     balance_adjustment_id = await _get_category_id(client, headers, "Balance Adjustment")
-    custom_balance_adjustment_cat = (await _create_category(
-        client, headers, name="Balance Adjustment", kind="transfer",
-    )).json()
 
     today = _today_utc().isoformat()
     await _create_transaction(
@@ -300,10 +297,6 @@ async def test_income_expense_and_non_adjustment_transfers_contribute_to_cash_fl
     await _create_transaction(
         client, headers, account_id, balance_adjustment_id,
         dt=today, amount=-6000,
-    )
-    await _create_transaction(
-        client, headers, account_id, custom_balance_adjustment_cat["id"],
-        dt=today, amount=7000,
     )
 
     resp = await client.get(

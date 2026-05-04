@@ -44,6 +44,31 @@ def _accessible_category_filter(user_id: uuid.UUID):
     return _system_or_personal_category_filter(user_id) | (Category.group_id.in_(group_ids))
 
 
+def _category_name_conflict_filter(name: str, user_id: uuid.UUID, group_id: uuid.UUID | None):
+    scope_filter = Category.is_system.is_(True)
+    if group_id:
+        scope_filter = scope_filter | (Category.group_id == group_id)
+    else:
+        scope_filter = scope_filter | _personal_category_filter(user_id)
+
+    return (sa.func.lower(Category.name) == name.casefold()) & scope_filter
+
+
+async def _require_category_name_available(
+    db: AsyncSession,
+    name: str,
+    user_id: uuid.UUID,
+    group_id: uuid.UUID | None,
+    exclude_category_id: uuid.UUID | None = None,
+) -> None:
+    conflict_query = select(Category.id).where(_category_name_conflict_filter(name, user_id, group_id)).limit(1)
+    if exclude_category_id is not None:
+        conflict_query = conflict_query.where(Category.id != exclude_category_id)
+
+    if (await db.execute(conflict_query)).scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category with this name already exists")
+
+
 async def _get_accessible_category_or_404(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category:
     result = await db.execute(
         select(Category).where(
@@ -205,13 +230,7 @@ async def create_category(
         if not member_result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
-    dup_query = select(Category).where(Category.name == data.name)
-    if group_id:
-        dup_query = dup_query.where(Category.group_id == group_id)
-    else:
-        dup_query = dup_query.where(_personal_category_filter(user.id))
-    if (await db.execute(dup_query)).scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category with this name already exists")
+    await _require_category_name_available(db, data.name, user.id, group_id)
 
     category = Category(
         owner_id=None if group_id else user.id,
@@ -272,6 +291,9 @@ async def update_category(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return category
+
+    if "name" in updates and updates["name"] is not None:
+        await _require_category_name_available(db, updates["name"], user.id, category.group_id, category.id)
 
     for field, value in updates.items():
         setattr(category, field, value)

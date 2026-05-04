@@ -289,6 +289,18 @@ async def test_create_category_duplicate_name_returns_409(client):
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_create_category_duplicate_name_case_insensitive_returns_409(client):
+    """Same name with different casing for the same user returns 409."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_category(client, headers, name="Duplicate Test", kind="expense")
+    resp = await _create_category(client, headers, name="duplicate test", kind="expense")
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
 async def test_create_category_same_name_different_kind_returns_409(client):
     """Same name with a different kind is still a duplicate."""
     signup_resp = await _create_user(client)
@@ -299,6 +311,30 @@ async def test_create_category_same_name_different_kind_returns_409(client):
 
     assert resp1.status_code == 201
     assert resp2.status_code == 409
+
+
+async def test_create_category_same_name_as_system_returns_409(client):
+    """Custom categories cannot reuse system category names, regardless of kind or casing."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_category(client, headers, name="transfer", kind="expense")
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+async def test_create_category_same_name_for_different_users_returns_201(client):
+    """Custom category names are unique per user, not globally."""
+    headers = _get_auth_header(await _create_user(client))
+    other_headers = _get_auth_header(await _create_second_user(client))
+
+    resp1 = await _create_category(client, headers, name="Test", kind="expense")
+    resp2 = await _create_category(client, other_headers, name="Test", kind="expense")
+
+    assert resp1.status_code == 201
+    assert resp2.status_code == 201
+    assert resp1.json()["id"] != resp2.json()["id"]
 
 
 async def test_create_category_invalid_kind_returns_422(client):
@@ -399,6 +435,23 @@ async def test_patch_category_rename_to_duplicate_returns_409(client):
     # Verify the category was not mutated
     get_resp = await client.get(f"/categories/{category_id}", headers=headers)
     assert get_resp.json()["name"] == "Beta Unique"
+
+
+async def test_patch_category_rename_to_system_name_returns_409(client):
+    """Renaming a custom category to a system category name returns 409."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_category(client, headers, name="Custom Transfer")
+    category_id = create_resp.json()["id"]
+
+    resp = await client.patch(f"/categories/{category_id}", json={"name": "transfer"}, headers=headers)
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+    get_resp = await client.get(f"/categories/{category_id}", headers=headers)
+    assert get_resp.json()["name"] == "Custom Transfer"
 
 
 async def test_patch_system_category_returns_403(client):
@@ -543,6 +596,16 @@ async def test_create_group_category_duplicate_returns_409(client):
 
     await _create_category(client, admin_headers, name="Food", kind="expense", group_id=group_id)
     resp = await _create_category(client, admin_headers, name="Food", kind="expense", group_id=group_id)
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+async def test_create_group_category_same_name_as_system_returns_409(client):
+    """Group categories cannot reuse system category names, regardless of kind or casing."""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+
+    resp = await _create_category(client, admin_headers, name="transfer", kind="expense", group_id=group_id)
 
     assert resp.status_code == 409
     assert "already exists" in resp.json()["detail"]
@@ -914,7 +977,7 @@ async def test_merge_category_rejects_different_kind_replacement(client):
     headers = _get_auth_header(signup_resp)
     source_resp = await _create_category(client, headers, name="Old Groceries", kind="expense")
     source_id = source_resp.json()["id"]
-    replacement_resp = await _create_category(client, headers, name="Bonus", kind="income")
+    replacement_resp = await _create_category(client, headers, name="Side Income", kind="income")
     replacement_id = replacement_resp.json()["id"]
 
     resp = await client.post(
