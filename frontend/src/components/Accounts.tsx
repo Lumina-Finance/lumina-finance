@@ -525,7 +525,7 @@ export default function Accounts() {
   // Top-line debts aggregate revolving + amortizing — the detail list below
   // splits them into separate sections.
   const totalDebts = sumByKind(rows, 'revolving') + sumByKind(rows, 'amortizing')
-  const netWorth = totalAssets - totalDebts
+  const netWorth = totalAssets + totalDebts
   const assetCount = rows.filter((a) => a.account_kind === 'asset').length
   const debtCount = rows.filter(isDebtAccount).length
 
