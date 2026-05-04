@@ -950,7 +950,7 @@ export default function Transactions() {
               key={`error-${listRevealKey}`}
               className="py-2 font-medium"
               style={{ color: 'var(--app-negative)' }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
             >
               Unable to load transactions.
@@ -960,9 +960,9 @@ export default function Transactions() {
               key={`empty-${listRevealKey}`}
               className="py-8 text-center italic text-sm"
               style={{ color: 'var(--app-text-subtle)' }}
-              initial={listRevealKey === 0 || prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              initial={listRevealKey === 0 || prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: [0.25, 0.1, 0.25, 1] }}
             >
               {search ? 'No transactions match your search.' : 'No transactions yet.'}
@@ -971,7 +971,7 @@ export default function Transactions() {
             <motion.section
               key={`list-${listRevealKey}`}
               className="space-y-4"
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             >
               {dateGroups.map(({ dateLabel, transactions: txns }, groupIndex) => {
@@ -983,9 +983,9 @@ export default function Transactions() {
                     initial={
                       listRevealKey === 0 || prefersReducedMotion
                         ? false
-                        : { opacity: 0, y: 8 }
+                        : { opacity: 0 }
                     }
-                    animate={{ opacity: 1, y: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{
                       duration: prefersReducedMotion ? 0 : 0.28,
                       delay: prefersReducedMotion ? 0 : Math.min(groupIndex * 0.035, 0.18),
