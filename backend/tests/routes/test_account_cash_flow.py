@@ -57,6 +57,16 @@ async def _create_category(client, headers, **overrides):
     return await client.post("/categories", json=payload, headers=headers)
 
 
+async def _get_category_id(client, headers, name: str) -> str:
+    """Return a visible category ID by name."""
+    resp = await client.get("/categories", headers=headers)
+    assert resp.status_code == 200
+    for category in resp.json():
+        if category["name"] == name:
+            return category["id"]
+    raise AssertionError(f"category not found: {name}")
+
+
 async def _create_merchant(client, headers, **overrides):
     """Create a merchant via POST /merchants."""
     payload = {"name": "Costco", **overrides}
@@ -254,17 +264,24 @@ async def test_account_with_activity_only_in_current_month_zero_fills_others(cli
     assert data[-1]["expenses"] == 1500
 
 
-# --- Category-kind routing: income vs. expense ---
+# --- Category filtering ---
 
 
-async def test_income_and_expense_land_in_their_respective_fields(client):
-    """An income txn contributes to ``income``; an expense txn contributes to ``expenses``."""
+async def test_income_expense_and_non_adjustment_transfers_contribute_to_cash_flow(client):
+    """Income, expense, and transfer movement count except Balance Adjustment."""
     headers, account_id = await _setup_account(client)
     income_cat = (await _create_category(
         client, headers, name="Test Salary", kind="income",
     )).json()
     expense_cat = (await _create_category(
         client, headers, name="Test Groceries", kind="expense",
+    )).json()
+    custom_transfer_cat = (await _create_category(
+        client, headers, name="Test Internal Transfer", kind="transfer",
+    )).json()
+    balance_adjustment_id = await _get_category_id(client, headers, "Balance Adjustment")
+    custom_balance_adjustment_cat = (await _create_category(
+        client, headers, name="Balance Adjustment", kind="transfer",
     )).json()
 
     today = _today_utc().isoformat()
@@ -276,6 +293,18 @@ async def test_income_and_expense_land_in_their_respective_fields(client):
         client, headers, account_id, expense_cat["id"],
         dt=today, amount=-4500,
     )
+    await _create_transaction(
+        client, headers, account_id, custom_transfer_cat["id"],
+        dt=today, amount=-5000,
+    )
+    await _create_transaction(
+        client, headers, account_id, balance_adjustment_id,
+        dt=today, amount=-6000,
+    )
+    await _create_transaction(
+        client, headers, account_id, custom_balance_adjustment_cat["id"],
+        dt=today, amount=7000,
+    )
 
     resp = await client.get(
         f"/accounts/{account_id}/cash-flow",
@@ -286,21 +315,14 @@ async def test_income_and_expense_land_in_their_respective_fields(client):
     data = resp.json()
     current = data[-1]
     assert current["income"] == 300_000
-    assert current["expenses"] == 4500
+    assert current["expenses"] == 9500
 
 
 # --- Transfers: routed by sign just like any other transaction ---
 
 
 async def test_transfer_transactions_contribute_to_cash_flow_by_sign(client):
-    """Transfers are bucketed by amount sign like any other transaction.
-
-    Per-account cash flow reflects real balance movement, so a negative
-    transfer (money leaving the account) lands in ``expenses`` and a
-    positive transfer (money arriving) lands in ``income``. This is the
-    opposite of the household savings-rate widget, which excludes transfers
-    because they net to zero across the user's own accounts.
-    """
+    """Transfers are bucketed by amount sign like income and expense transactions."""
     headers, account_id = await _setup_account(client)
     transfer_cat = (await _create_category(
         client, headers, name="Test Internal Transfer", kind="transfer",
@@ -363,13 +385,7 @@ async def test_expense_amount_is_returned_as_positive_minor_units(client):
 
 
 async def test_negative_amount_on_income_category_routes_to_expenses_by_sign(client):
-    """Category kind doesn't steer the bucket — sign does.
-
-    A clawback on an income-kind category (negative amount) shows up as an
-    outflow because it really did leave the account. The earlier kind-based
-    behaviour would have surfaced a negative number in ``income``; under the
-    sign-based model the bucket is driven by amount direction only.
-    """
+    """Category kind doesn't steer the bucket — sign does."""
     headers, account_id = await _setup_account(client)
     income_category = (await _create_category(
         client, headers, name="Test Salary", kind="income",
@@ -400,17 +416,17 @@ async def test_other_accounts_of_the_same_user_do_not_leak_into_the_series(clien
     other_account_id = (await _create_account(
         client, headers, name="Secondary Chequing",
     )).json()["id"]
-    category = (await _create_category(client, headers)).json()
+    category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc().isoformat()
     # Queried account — should appear.
     await _create_transaction(
-        client, headers, account_id, category["id"],
+        client, headers, account_id, category_id,
         dt=today, amount=-1000,
     )
     # Other account — same user, same category, must NOT appear.
     await _create_transaction(
-        client, headers, other_account_id, category["id"],
+        client, headers, other_account_id, category_id,
         dt=today, amount=-9999,
     )
 
@@ -431,17 +447,17 @@ async def test_other_accounts_of_the_same_user_do_not_leak_into_the_series(clien
 async def test_prior_month_transaction_lands_in_second_to_last_entry(client):
     """A transaction in the prior calendar month lands in the second-to-last bucket."""
     headers, account_id = await _setup_account(client)
-    category = (await _create_category(client, headers)).json()
+    category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc()
     # Seed an expense on the 15th of last month (safe across month-length boundaries).
     await _create_transaction(
-        client, headers, account_id, category["id"],
+        client, headers, account_id, category_id,
         dt=_mid_of_prior_month(today).isoformat(), amount=-3000,
     )
     # And a different expense in the current month — confirms both buckets compute independently.
     await _create_transaction(
-        client, headers, account_id, category["id"],
+        client, headers, account_id, category_id,
         dt=today.isoformat(), amount=-700,
     )
 
@@ -468,12 +484,12 @@ async def test_prior_month_transaction_lands_in_second_to_last_entry(client):
 async def test_transaction_outside_the_window_does_not_contribute(client):
     """With ?months=3, a transaction 5 months ago is outside the window and excluded."""
     headers, account_id = await _setup_account(client)
-    category = (await _create_category(client, headers)).json()
+    category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc()
     out_of_window = _first_of_month_n_back(today, 5).replace(day=15)
     await _create_transaction(
-        client, headers, account_id, category["id"],
+        client, headers, account_id, category_id,
         dt=out_of_window.isoformat(), amount=-9999,
     )
 
@@ -498,12 +514,12 @@ async def test_transaction_on_window_start_is_included(client):
     window_start itself rather than the comfortable interior.
     """
     headers, account_id = await _setup_account(client)
-    category = (await _create_category(client, headers)).json()
+    category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc()
     window_start = _first_of_month_n_back(today, 5)
     await _create_transaction(
-        client, headers, account_id, category["id"],
+        client, headers, account_id, category_id,
         dt=window_start.isoformat(), amount=-1000,
     )
 
@@ -525,13 +541,13 @@ async def test_transaction_on_day_before_window_start_is_excluded(client):
     window_start.
     """
     headers, account_id = await _setup_account(client)
-    category = (await _create_category(client, headers)).json()
+    category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc()
     window_start = _first_of_month_n_back(today, 5)
     day_before = window_start - timedelta(days=1)
     await _create_transaction(
-        client, headers, account_id, category["id"],
+        client, headers, account_id, category_id,
         dt=day_before.isoformat(), amount=-9999,
     )
 
@@ -698,10 +714,10 @@ async def test_group_member_with_explicit_read_permission_succeeds(client):
 async def test_closed_account_still_returns_cash_flow(client):
     """Closed accounts remain readable — the handler does not require require_open."""
     headers, account_id = await _setup_account(client)
-    category = (await _create_category(client, headers)).json()
+    category_id = await _get_category_id(client, headers, "Transfer")
 
     await _create_transaction(
-        client, headers, account_id, category["id"],
+        client, headers, account_id, category_id,
         dt=_today_utc().isoformat(), amount=-1000,
     )
 

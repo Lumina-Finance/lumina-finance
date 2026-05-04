@@ -2,7 +2,7 @@
 import uuid
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import CategoryKind
@@ -17,6 +17,7 @@ from app.schemas.account import (
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
 
 _TOP_N = 5
+_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 
 
 def _range_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
@@ -193,12 +194,10 @@ async def get_account_cash_flow_history(
 ) -> list[MonthlyIncomeExpense]:
     """Return per-month cash-in / cash-out totals for a single account.
 
-    Bucketed by transaction SIGN, not by category kind: positive amounts add
-    to ``income`` and negative amounts add to ``expenses``. That makes the
-    series match the account's actual balance movement — transfers count,
-    refunds count — which is the per-account view the detail page wants.
-    (The household-level savings-rate widget keeps the kind-based split
-    since cross-account transfers net to zero at that scope.)
+    Bucketed by transaction SIGN: positive amounts add to ``income`` and
+    negative amounts add to ``expenses``. Income and expense categories count
+    normally; transfer-kind categories count except Balance Adjustment, which
+    is a reconciliation row rather than cash flow.
 
     Covers ``months`` calendar months ending with the current (in-progress)
     month, ordered oldest-first. Months without activity emit zeros so the
@@ -226,10 +225,18 @@ async def get_account_cash_flow_history(
                 0,
             ).label("expenses"),
         )
+        .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id == account_id,
             Transaction.dt >= window_start,
             Transaction.dt < window_end,
+            or_(
+                Category.kind.in_((CategoryKind.INCOME, CategoryKind.EXPENSE)),
+                (
+                    (Category.kind == CategoryKind.TRANSFER)
+                    & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)
+                ),
+            ),
         )
         .group_by(month_start_expr),
     )
