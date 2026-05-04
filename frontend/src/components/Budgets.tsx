@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSearchParams } from 'react-router-dom'
-import { Check, CircleAlert, CircleCheck, OctagonAlert, Pencil, PiggyBank, Plus, Search, Trash2, TriangleAlert, X } from 'lucide-react'
+import { Check, CircleAlert, CircleCheck, OctagonAlert, Pencil, PiggyBank, Plus, Search, Trash2, X } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -31,6 +31,7 @@ import { useCategories, type Category } from '@/api/categories'
 import { useCurrencies, type Currency } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import Dropdown from '@/components/Dropdown'
+import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { ApiError } from '@/api/auth'
 
@@ -1767,18 +1768,9 @@ function BudgetCreateModal({
                               label={(
                                 <span className="inline-flex items-center gap-2">
                                   Currency
-                                  <span className="group relative inline-flex">
-                                    <TriangleAlert
-                                      size={17}
-                                      strokeWidth={2.75}
-                                      aria-label="Budget currency limitation"
-                                      className="cursor-help"
-                                      style={{ color: 'var(--app-negative)' }}
-                                    />
-                                    <span className="app-tooltip-panel app-hover-tooltip">
-                                      Budgets currently track only accounts in the same currency.
-                                    </span>
-                                  </span>
+                                  <IconTooltip label="Budget currency limitation" level="important">
+                                    Budgets currently track only accounts in the same currency
+                                  </IconTooltip>
                                 </span>
                               )}
                               error={showError('currency')}
