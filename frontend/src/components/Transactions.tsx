@@ -53,6 +53,9 @@ const TRANSACTION_FILTER_KEYS = [
   'to_date',
 ] as const
 const FILTER_LIST_LOADING_MIN_MS = 1000
+const TOP_CATEGORY_AXIS_MIN_WIDTH = 110
+const TOP_CATEGORY_AXIS_LABEL_PADDING = 18
+const TOP_CATEGORY_AXIS_AVG_CHAR_WIDTH = 7.4
 
 function currentTimeMs() {
   return Date.now()
@@ -500,6 +503,14 @@ export default function Transactions() {
       }))
     : PLACEHOLDER_CATEGORIES
   const topCategoryChartHeight = Math.max(24, categorySpend.length * 26)
+  const topCategoryAxisWidth = Math.max(
+    TOP_CATEGORY_AXIS_MIN_WIDTH,
+    Math.ceil(
+      categorySpend.reduce((longest, category) => Math.max(longest, category.name.length), 0)
+      * TOP_CATEGORY_AXIS_AVG_CHAR_WIDTH
+      + TOP_CATEGORY_AXIS_LABEL_PADDING,
+    ),
+  )
 
   const dailyFlow = useMemo(() => {
     if (!hasOverviewData) return PLACEHOLDER_DAILY_FLOW
@@ -699,8 +710,9 @@ export default function Transactions() {
                       <YAxis
                         type="category"
                         dataKey="name"
-                        width={110}
+                        width={topCategoryAxisWidth}
                         interval={0}
+                        tickMargin={6}
                         tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
                         axisLine={false}
                         tickLine={false}
