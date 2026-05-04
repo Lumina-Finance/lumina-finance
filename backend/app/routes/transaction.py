@@ -197,6 +197,7 @@ async def get_transactions_overview(
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(base_where)
+        .where(Category.kind == CategoryKind.EXPENSE)
         .where(Transaction.amount < 0)
         .group_by(Transaction.category_id, Category.name)
         .order_by(sa.func.sum(Transaction.amount).asc())
