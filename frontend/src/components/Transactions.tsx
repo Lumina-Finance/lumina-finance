@@ -35,6 +35,7 @@ import CreateTransactionModal from '@/components/CreateTransactionModal'
 import DateRangeFilterPanel from '@/components/DateRangeFilterPanel'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList from '@/components/FilterOptionList'
+import InfoTooltip from '@/components/InfoTooltip'
 import TransactionRow from '@/components/TransactionRow'
 
 const DEFAULT_CATEGORY_ICON = '🏷️'
@@ -641,7 +642,16 @@ export default function Transactions() {
 
             {/* Unusual Spending */}
             <div className="px-6 flex flex-col" style={{ borderInline: '1px solid var(--app-border)' }}>
-              <p className="app-label mb-1">Most Expensive Transactions</p>
+              <p className="app-label mb-1 inline-flex items-center gap-2">
+                Most Expensive Transactions
+                <InfoTooltip
+                  label="How most expensive transactions are calculated"
+                  placement="bottom"
+                  widthClassName="w-64"
+                >
+                  Shows the three largest expense transactions in the selected period
+                </InfoTooltip>
+              </p>
               <div className="mt-2 flex flex-col gap-2.5">
                 <AnimatePresence initial={false}>
                   {outliers.map((t) => {
@@ -696,7 +706,16 @@ export default function Transactions() {
 
             {/* Top Categories */}
             <div className="pl-6 flex flex-col">
-              <p className="app-label mb-1">Top Categories</p>
+              <p className="app-label mb-1 inline-flex items-center gap-2">
+                Top Categories
+                <InfoTooltip
+                  label="How top categories are calculated"
+                  placement="bottom"
+                  widthClassName="w-64"
+                >
+                  The top 5 categories as ranked by total amount spent in the selected period. The progress bar is relative to the highest-spend category, not an absolute scale.
+                </InfoTooltip>
+              </p>
               <div className="mt-2">
                 <div style={{ height: topCategoryChartHeight }}>
                   <ResponsiveContainer width="100%" height="100%">
