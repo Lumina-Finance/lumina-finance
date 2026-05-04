@@ -11,7 +11,7 @@ from sqlalchemy.orm import MappedColumn
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountPermission
-from app.models.base import PermissionLevel
+from app.models.base import CategoryKind, PermissionLevel
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import GroupMember
@@ -217,7 +217,7 @@ async def get_transactions_overview(
     )
     daily_rows = (await db.execute(daily_query)).all()
 
-    # Top 3 largest outflow transactions
+    # Top 3 largest expense transactions
     outlier_query = (
         select(
             Transaction.id,
@@ -227,7 +227,9 @@ async def get_transactions_overview(
             Transaction.dt,
         )
         .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
+        .join(Category, Transaction.category_id == Category.id)
         .where(base_where)
+        .where(Category.kind == CategoryKind.EXPENSE)
         .where(Transaction.amount < 0)
         .order_by(Transaction.amount.asc())
         .limit(3)
