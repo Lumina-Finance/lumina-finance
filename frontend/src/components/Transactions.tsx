@@ -844,7 +844,7 @@ export default function Transactions() {
 
       {/* Toolbar */}
       <div
-        className="sticky top-0 z-20 flex items-center gap-3 py-3 mb-2"
+        className="sticky top-0 z-20 !mt-2 mb-2 flex items-center gap-3 pb-3 pt-5"
         style={{ background: 'var(--app-bg)' }}
       >
         <div className="relative flex-1">
@@ -994,7 +994,7 @@ export default function Transactions() {
                   >
                   {/* Date header */}
                   <div
-                    className="sticky top-[6rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
+                    className="sticky top-[5.25rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
                     style={{
                       background: 'var(--app-input-bg)',
                       borderBottom: '1px solid var(--app-border)',
