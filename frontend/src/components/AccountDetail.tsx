@@ -1064,6 +1064,8 @@ interface BreakdownRow {
   isOther: boolean
 }
 
+const BREAKDOWN_CARD_LIST_MIN_HEIGHT = 270
+
 // Append an "Other (N)" row when the backend signals more entries exist
 // beyond the top 5. Its total = grand_total - sum(top 5), which the card
 // also uses to size the row's proportional fill.
@@ -1101,7 +1103,7 @@ function BreakdownCard({
 
   return (
     <section
-      className="app-card flex flex-col"
+      className="app-card flex h-[400px] flex-col"
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
@@ -1143,7 +1145,7 @@ function BreakdownCard({
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-1.5" style={{ minHeight: 224 }}>
+          <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
             {rows.map((item, idx) => {
               // Bar width = this row's share of total — so a row at 50% of
               // total fills halfway. 4% minimum keeps tiny slivers visible.
@@ -1396,7 +1398,7 @@ function MonthlyCashFlowCard({ account }: { account: Account }) {
 
   return (
     <section
-      className="app-card flex flex-col"
+      className="app-card flex h-[400px] flex-col"
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Monthly Cash Flow</p>
