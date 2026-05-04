@@ -330,6 +330,8 @@ export function useAccountSpendingBreakdown(
         `/accounts/${accountId}/spending-breakdown?range=${range}`,
       ),
     enabled: !!accessToken && !!accountId,
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[1] === accountId ? previousData : undefined,
     staleTime: 5 * 60 * 1000,
   });
 }

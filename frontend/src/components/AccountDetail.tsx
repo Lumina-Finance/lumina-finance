@@ -1065,6 +1065,8 @@ interface BreakdownRow {
 }
 
 const BREAKDOWN_CARD_LIST_MIN_HEIGHT = 270
+const BREAKDOWN_RANGE_LOADING_DELAY_MS = 500
+const BREAKDOWN_LOADING_ROW_WIDTHS = ['72%', '58%', '66%', '50%', '62%', '44%'] as const
 
 // Append an "Other (N)" row when the backend signals more entries exist
 // beyond the top 5. Its total = grand_total - sum(top 5), which the card
@@ -1074,6 +1076,101 @@ function withOtherRow(rows: BreakdownRow[], otherCount: number, grandTotal: numb
   const topSum = rows.reduce((sum, r) => sum + r.total, 0)
   const otherTotal = Math.max(grandTotal - topSum, 0)
   return [...rows, { key: 'other', name: `Other (${otherCount})`, total: otherTotal, isOther: true }]
+}
+
+function useBreakdownRangeTransition(isFetching: boolean) {
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [showLoading, setShowLoading] = useState(false)
+
+  useEffect(() => {
+    if (startedAt === null) return undefined
+
+    const elapsed = performance.now() - startedAt
+    const remaining = Math.max(BREAKDOWN_RANGE_LOADING_DELAY_MS - elapsed, 0)
+
+    if (isFetching) {
+      if (showLoading) return undefined
+
+      const timeoutId = window.setTimeout(() => setShowLoading(true), remaining)
+      return () => window.clearTimeout(timeoutId)
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setStartedAt(null)
+      setShowLoading(false)
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [isFetching, showLoading, startedAt])
+
+  return {
+    loading: showLoading,
+    startTransition: () => {
+      setStartedAt(performance.now())
+      setShowLoading(false)
+    },
+  }
+}
+
+function BreakdownLoadingOverlay({ shouldReduceMotion }: { shouldReduceMotion: boolean }) {
+  return (
+    <motion.div
+      key="breakdown-loading"
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-10 flex flex-col"
+      style={{ background: 'var(--app-surface-soft)' }}
+      initial={false}
+      animate={{ opacity: 1 }}
+      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
+      transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: EASE }}
+    >
+      <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
+        {BREAKDOWN_LOADING_ROW_WIDTHS.map((width) => (
+          <div
+            key={width}
+            className="relative h-10 overflow-hidden rounded-xl"
+            style={{ background: 'var(--app-bg)' }}
+          >
+            <span
+              className="absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full"
+              style={{ background: 'var(--app-accent-soft)' }}
+            />
+            <span
+              className="absolute left-8 top-1/2 h-2.5 -translate-y-1/2 rounded-full"
+              style={{ width, background: 'var(--app-border)' }}
+            />
+            {!shouldReduceMotion && (
+              <motion.span
+                className="absolute inset-y-0 w-1/3"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, var(--app-surface-soft), transparent)',
+                }}
+                animate={{ x: ['-140%', '360%'] }}
+                transition={{ duration: 1.1, ease: EASE, repeat: Infinity }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex-1" />
+
+      <div
+        className="flex items-center gap-3 pt-3"
+        style={{ borderTop: '1px solid var(--app-border)' }}
+      >
+        <div className="w-2 shrink-0" />
+        <span
+          className="h-2.5 w-12 rounded-full"
+          style={{ background: 'var(--app-border)' }}
+        />
+        <span className="flex-1" />
+        <span
+          className="h-3 w-24 rounded-full"
+          style={{ background: 'var(--app-border)' }}
+        />
+      </div>
+    </motion.div>
+  )
 }
 
 // Shared presentation for the spending-by-category and top-merchants cards.
@@ -1089,6 +1186,8 @@ function BreakdownCard({
   grandTotal,
   currency,
   emptyLabel,
+  loading,
+  contentKey,
 }: {
   title: string
   rangeLabel: string
@@ -1098,12 +1197,15 @@ function BreakdownCard({
   grandTotal: number
   currency: string
   emptyLabel: string
+  loading: boolean
+  contentKey: string
 }) {
-  const shouldReduceMotion = useReducedMotion()
+  const shouldReduceMotion = useReducedMotion() ?? false
 
   return (
     <section
       className="app-card flex h-[400px] flex-col"
+      aria-busy={loading}
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
@@ -1136,77 +1238,101 @@ function BreakdownCard({
         </div>
       </div>
 
-      {rows.length === 0 ? (
-        <div
-          className="flex-1 flex items-center justify-center text-sm"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          {emptyLabel}
-        </div>
-      ) : (
-        <>
-          <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
-            {rows.map((item, idx) => {
-              // Bar width = this row's share of total — so a row at 50% of
-              // total fills halfway. 4% minimum keeps tiny slivers visible.
-              // Uses absolute values because totals are signed negatives.
-              const totalAbs = Math.abs(grandTotal)
-              const barPct = totalAbs > 0 ? Math.max((Math.abs(item.total) / totalAbs) * 100, 4) : 0
-              const color = item.isOther ? '#8C8074' : CATEGORY_COLORS[idx % CATEGORY_COLORS.length]
-              return (
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <AnimatePresence initial={false} mode="wait">
+          <motion.div
+            key={contentKey}
+            className="flex min-h-0 flex-1 flex-col"
+            initial={shouldReduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
+            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: EASE }}
+          >
+            {rows.length === 0 ? (
+              <div
+                className="flex-1 flex items-center justify-center text-sm"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                {emptyLabel}
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
+                  {rows.map((item, idx) => {
+                    // Bar width = this row's share of total — so a row at 50% of
+                    // total fills halfway. 4% minimum keeps tiny slivers visible.
+                    // Uses absolute values because totals are signed negatives.
+                    const totalAbs = Math.abs(grandTotal)
+                    const barPct = totalAbs > 0 ? Math.max((Math.abs(item.total) / totalAbs) * 100, 4) : 0
+                    const color = item.isOther ? '#8C8074' : CATEGORY_COLORS[idx % CATEGORY_COLORS.length]
+                    return (
+                      <div
+                        key={item.key}
+                        className="relative flex items-center gap-3 rounded-xl py-2.5 px-3 overflow-hidden"
+                        style={{ background: 'var(--app-bg)' }}
+                      >
+                        <div
+                          className="absolute inset-y-0 left-0"
+                          style={{ width: `${barPct}%`, backgroundColor: color, opacity: 0.35 }}
+                        />
+                        <div
+                          className="w-2 h-2 rounded-full shrink-0 relative"
+                          style={{ backgroundColor: color }}
+                        />
+                        <span
+                          className={`flex-1 truncate relative text-sm font-medium ${item.isOther ? 'italic' : ''}`}
+                        >
+                          {item.name}
+                        </span>
+                        <span className="font-financial font-medium tabular-nums relative text-sm">
+                          {formatCurrency(item.total, currency)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Spacer pushes the Total row to the bottom regardless of row count. */}
+                <div className="flex-1" />
+
                 <div
-                  key={item.key}
-                  className="relative flex items-center gap-3 rounded-xl py-2.5 px-3 overflow-hidden"
-                  style={{ background: 'var(--app-bg)' }}
+                  className="flex items-center gap-3 pt-3"
+                  style={{ borderTop: '1px solid var(--app-border)' }}
                 >
-                  <div
-                    className="absolute inset-y-0 left-0"
-                    style={{ width: `${barPct}%`, backgroundColor: color, opacity: 0.35 }}
-                  />
-                  <div
-                    className="w-2 h-2 rounded-full shrink-0 relative"
-                    style={{ backgroundColor: color }}
-                  />
+                  <div className="w-2 shrink-0" />
                   <span
-                    className={`flex-1 truncate relative text-sm font-medium ${item.isOther ? 'italic' : ''}`}
+                    className="flex-1 text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: 'var(--app-text-muted)' }}
                   >
-                    {item.name}
+                    Total
                   </span>
-                  <span className="font-financial font-medium tabular-nums relative text-sm">
-                    {formatCurrency(item.total, currency)}
+                  <span className="font-financial font-semibold tabular-nums text-sm">
+                    {formatCurrency(grandTotal, currency)}
                   </span>
                 </div>
-              )
-            })}
-          </div>
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
 
-          {/* Spacer pushes the Total row to the bottom regardless of row count. */}
-          <div className="flex-1" />
-
-          <div
-            className="flex items-center gap-3 pt-3"
-            style={{ borderTop: '1px solid var(--app-border)' }}
-          >
-            <div className="w-2 shrink-0" />
-            <span
-              className="flex-1 text-xs font-semibold uppercase tracking-wide"
-              style={{ color: 'var(--app-text-muted)' }}
-            >
-              Total
-            </span>
-            <span className="font-financial font-semibold tabular-nums text-sm">
-              {formatCurrency(grandTotal, currency)}
-            </span>
-          </div>
-        </>
-      )}
+        <AnimatePresence>
+          {loading && <BreakdownLoadingOverlay shouldReduceMotion={shouldReduceMotion} />}
+        </AnimatePresence>
+      </div>
     </section>
   )
 }
 
 function TopCategoriesBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data } = useAccountSpendingBreakdown(account.id, range)
+  const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
+  const { loading, startTransition } = useBreakdownRangeTransition(isFetching)
+
+  const handleRangeChange = (nextRange: SpendingRange) => {
+    if (nextRange === range) return
+    startTransition()
+    setRange(nextRange)
+  }
 
   const rows = breakdownToRows(
     data,
@@ -1221,18 +1347,27 @@ function TopCategoriesBySpendingCard({ account }: { account: Account }) {
       title="Categories by Spending"
       rangeLabel="Spending range"
       range={range}
-      onRangeChange={setRange}
+      onRangeChange={handleRangeChange}
       rows={rows}
       grandTotal={data?.grand_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No spending in this range"
+      loading={loading}
+      contentKey={`categories-${data?.range ?? range}`}
     />
   )
 }
 
 function TopMerchantsBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data } = useAccountSpendingBreakdown(account.id, range)
+  const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
+  const { loading, startTransition } = useBreakdownRangeTransition(isFetching)
+
+  const handleRangeChange = (nextRange: SpendingRange) => {
+    if (nextRange === range) return
+    startTransition()
+    setRange(nextRange)
+  }
 
   const rows = breakdownToRows(
     data,
@@ -1247,11 +1382,13 @@ function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       title="Merchants by Spending"
       rangeLabel="Merchant range"
       range={range}
-      onRangeChange={setRange}
+      onRangeChange={handleRangeChange}
       rows={rows}
       grandTotal={data?.grand_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No merchant activity in this range"
+      loading={loading}
+      contentKey={`merchants-${data?.range ?? range}`}
     />
   )
 }
