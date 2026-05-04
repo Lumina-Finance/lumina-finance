@@ -46,6 +46,7 @@ import {
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
 import CategorySettingsSection from '@/components/CategorySettingsSection'
 import Dropdown from '@/components/Dropdown'
+import IconTooltip from '@/components/IconTooltip'
 import MerchantSettingsSection from '@/components/MerchantSettingsSection'
 import TagSettingsSection from '@/components/TagSettingsSection'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
@@ -388,18 +389,13 @@ function SettingsCard({ children }: { children: React.ReactNode }) {
 
 function TaxAdvantagedCurrencyWarning() {
   return (
-    <div className="group relative inline-flex">
-      <AlertTriangle
-        size={15}
-        strokeWidth={2.75}
-        aria-label="Tax-advantaged category currency limitation"
-        className="cursor-help"
-        style={{ color: 'var(--app-negative)' }}
-      />
-      <div className="app-tooltip-panel app-hover-tooltip w-56">
-        Tax-advantaged categories currently link only accounts in the same currency.
-      </div>
-    </div>
+    <IconTooltip
+      label="Tax-advantaged category currency limitation"
+      level="important"
+      widthClassName="w-56"
+    >
+      Tax-advantaged categories currently link only accounts in the same currency.
+    </IconTooltip>
   )
 }
 
