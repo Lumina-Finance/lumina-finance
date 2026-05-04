@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import update
 
@@ -14,6 +15,10 @@ class _FixedClock:
 
     def now(self, tz=None):
         return self.instant.astimezone(tz) if tz else self.instant
+
+
+def _owner_local_creation_day(account):
+    return datetime.fromisoformat(account["created_at"]).astimezone(ZoneInfo("America/Toronto")).date()
 
 
 async def _create_category(client, headers, **overrides):
@@ -129,7 +134,7 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
                 update(AccountBalanceSnapshot)
                 .where(
                     AccountBalanceSnapshot.account_id == UUID(account["id"]),
-                    AccountBalanceSnapshot.dt == date.fromisoformat(account["created_at"][:10]),
+                    AccountBalanceSnapshot.dt == _owner_local_creation_day(account),
                 )
                 .values(balance=balance),
             )

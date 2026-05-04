@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import update
 
@@ -17,6 +18,10 @@ from tests.routes.conftest import (
 )
 
 # --- Helpers ---
+
+
+def _owner_local_creation_day(account):
+    return datetime.fromisoformat(account["created_at"]).astimezone(ZoneInfo("America/Toronto")).date()
 
 
 async def _seed_usd():
@@ -374,7 +379,7 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
                 update(AccountBalanceSnapshot)
                 .where(
                     AccountBalanceSnapshot.account_id == UUID(account["id"]),
-                    AccountBalanceSnapshot.dt == date.fromisoformat(account["created_at"][:10]),
+                    AccountBalanceSnapshot.dt == _owner_local_creation_day(account),
                 )
                 .values(balance=balance),
             )

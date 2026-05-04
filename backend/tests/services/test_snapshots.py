@@ -1,5 +1,6 @@
 """Tests for the account balance snapshot recomputation service."""
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import select
@@ -88,13 +89,13 @@ async def _get_snapshots(db, account_id):
 # --- Tests ---
 
 
-async def test_recompute_with_no_transactions_restores_zero_anchor(db, account):
+async def test_recompute_with_no_transactions_restores_zero_anchor(db, user, account):
     """Empty transaction history leaves the account with its zero anchor."""
     await recompute_snapshots_from(db, account.id, date(2026, 3, 1))
 
     snapshots = await _get_snapshots(db, account.id)
     assert [(s.dt, s.balance) for s in snapshots] == [
-        (account.created_at.astimezone(UTC).date(), 0),
+        (account.created_at.astimezone(ZoneInfo(user.tz)).date(), 0),
     ]
 
 

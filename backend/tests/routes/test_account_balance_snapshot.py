@@ -1,6 +1,7 @@
 """Route tests for the account balance snapshot endpoints and lifecycle hooks."""
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -14,8 +15,8 @@ from tests.routes.conftest import _create_account, _create_user, _get_auth_heade
 
 
 def _creation_day(account_resp):
-    """Return the account's creation date from the API timestamp."""
-    return datetime.fromisoformat(account_resp.json()["created_at"]).astimezone(UTC).date()
+    """Return the account owner's local creation date from the API timestamp."""
+    return datetime.fromisoformat(account_resp.json()["created_at"]).astimezone(ZoneInfo("America/Toronto")).date()
 
 
 async def _get_snapshots_for(account_id):
