@@ -1,11 +1,12 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Check, Info, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
+import { Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import CreateTagModal from '@/components/CreateTagModal'
 import Dropdown from '@/components/Dropdown'
+import IconTooltip from '@/components/IconTooltip'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchants'
@@ -1255,18 +1256,9 @@ export default function CreateTransactionModal({
                           <div>
                             <div className="mb-1.5 flex items-center gap-2">
                               <label className="app-label block text-[0.9375rem] leading-5">Currency</label>
-                              <div className="group relative inline-flex">
-                                <Info
-                                  size={17}
-                                  strokeWidth={2.5}
-                                  aria-label="Transaction currency limitation"
-                                  className="cursor-help"
-                                  style={{ color: 'var(--app-accent)' }}
-                                />
-                                <div className="app-tooltip-panel app-hover-tooltip">
-                                  Locked to the selected account currency. FX currency transactions will be supported soon.
-                                </div>
-                              </div>
+                              <IconTooltip label="Transaction currency limitation">
+                                Locked to the selected account currency. FX currency transactions will be supported soon
+                              </IconTooltip>
                             </div>
                             <Dropdown
                               options={currencyOptions}
