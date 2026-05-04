@@ -296,6 +296,10 @@ function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: s
 
 // ── Hooks ──
 
+export function fetchTransaction(transactionId: string) {
+  return authenticatedFetch<Transaction>(`/transactions/${transactionId}`);
+}
+
 export function useTransactions(filters: TransactionFilters = {}) {
   const { accessToken } = useAuth();
   return useQuery({

@@ -37,6 +37,7 @@ export const accountKeys = {
 
 export const transactionKeys = {
   all: ['transactions'] as const,
+  detail: (transactionId: string | undefined) => ['transactions', transactionId] as const,
   list: (filters: Record<string, unknown>) => ['transactions', 'list', filters] as const,
   infinite: (filters: Record<string, unknown>, pageSize: number) => [
     'transactions',

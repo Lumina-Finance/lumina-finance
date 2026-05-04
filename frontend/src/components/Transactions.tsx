@@ -5,6 +5,7 @@ import {
   Search,
   Plus,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   AreaChart,
   Area,
@@ -22,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import {
+  fetchTransaction,
   useInfiniteTransactions,
   useTransactionsOverview,
   type Transaction,
@@ -196,6 +198,7 @@ function TransactionFilterLoadingOverlay({
 
 export default function Transactions() {
   const prefersReducedMotion = useReducedMotion()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   // `search` tracks what the user is typing in real time; `activeSearch` is
   // what actually gets sent to the API. It catches up 1 second after typing
@@ -209,6 +212,8 @@ export default function Transactions() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [openingOutlierId, setOpeningOutlierId] = useState<string | null>(null)
+  const [outlierOpenError, setOutlierOpenError] = useState<string | null>(null)
   const latestTransactionsRef = useRef<Transaction[]>([])
   const filterLoadingStartedAtRef = useRef(0)
   const filterLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -226,6 +231,28 @@ export default function Transactions() {
     setEditingTransaction(txn)
     setCreateModalKey((k) => k + 1)
     setShowCreateModal(true)
+  }
+  const openOutlierTransaction = async (transactionId: string) => {
+    const loadedTransaction = latestTransactionsRef.current.find((txn) => txn.id === transactionId)
+    if (loadedTransaction) {
+      openEditModal(loadedTransaction)
+      return
+    }
+
+    setOutlierOpenError(null)
+    setOpeningOutlierId(transactionId)
+    try {
+      const transaction = await queryClient.fetchQuery({
+        queryKey: transactionKeys.detail(transactionId),
+        queryFn: () => fetchTransaction(transactionId),
+        staleTime: 10 * 60 * 1000,
+      })
+      openEditModal(transaction)
+    } catch {
+      setOutlierOpenError('Unable to open transaction')
+    } finally {
+      setOpeningOutlierId((current) => (current === transactionId ? null : current))
+    }
   }
   const [filters, setFilters] = useState<TransactionFilterValues>({})
   const filtersRef = useRef(filters)
@@ -606,31 +633,53 @@ export default function Transactions() {
               <p className="app-label mb-1">Most Expensive Transactions</p>
               <div className="mt-2 flex flex-col gap-2.5">
                 <AnimatePresence initial={false}>
-                  {outliers.map((t) => (
-                    <motion.div
-                      key={t.id}
-                      className="flex items-center justify-between gap-3 rounded-md px-2.5 py-2"
-                      style={{
-                        borderLeft: '2px solid var(--app-accent)',
-                        background: 'var(--app-accent-soft)',
-                      }}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: prefersReducedMotion ? 0 : 0.28 }}
-                    >
-                      <p className="truncate min-w-0 text-sm font-medium">
-                        {t.merchant_name ?? t.notes ?? 'Unknown'}
-                      </p>
-                      <p
-                        className="font-financial text-sm font-medium shrink-0"
-                        style={{ color: 'var(--app-negative)' }}
+                  {outliers.map((t) => {
+                    const loading = openingOutlierId === t.id
+                    const label = t.merchant_name ?? t.notes ?? 'Unknown'
+                    return (
+                      <motion.button
+                        key={t.id}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+                        style={{
+                          borderLeft: '2px solid var(--app-accent)',
+                          background: 'var(--app-accent-soft)',
+                        }}
+                        aria-busy={loading}
+                        aria-label={`Edit transaction: ${label}`}
+                        disabled={openingOutlierId !== null}
+                        onClick={() => { void openOutlierTransaction(t.id) }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: prefersReducedMotion ? 0 : 0.28 }}
                       >
-                        {formatCurrency(Math.abs(t.amount), displayCurrency)}
-                      </p>
-                    </motion.div>
-                  ))}
+                        <p className="truncate min-w-0 text-sm font-medium">
+                          {label}
+                        </p>
+                        {loading ? (
+                          <span
+                            className="app-spinner shrink-0"
+                            aria-label="Loading transaction"
+                            style={{ width: 16, height: 16, borderWidth: 2 }}
+                          />
+                        ) : (
+                          <p
+                            className="font-financial text-sm font-medium shrink-0"
+                            style={{ color: 'var(--app-negative)' }}
+                          >
+                            {formatCurrency(Math.abs(t.amount), displayCurrency)}
+                          </p>
+                        )}
+                      </motion.button>
+                    )
+                  })}
                 </AnimatePresence>
+                {outlierOpenError && (
+                  <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
+                    {outlierOpenError}
+                  </p>
+                )}
               </div>
             </div>
 
