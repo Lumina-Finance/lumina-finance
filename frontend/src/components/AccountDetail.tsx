@@ -222,6 +222,17 @@ function buildChartSeries(
   return points
 }
 
+function rezeroSeriesToPeriod(
+  series: { date: string; dateLabel: string; tooltipLabel: string; balance: number }[],
+): { date: string; dateLabel: string; tooltipLabel: string; balance: number; periodBalance: number }[] {
+  if (series.length === 0) return []
+  const baseline = series[0].balance
+  return series.map((point) => ({
+    ...point,
+    periodBalance: point.balance - baseline,
+  }))
+}
+
 // Larger version of the accounts-list logo — 64px square so the detail card
 // reads as "this one account" rather than a row in a list.
 function DetailInstitutionLogo({ institution }: { institution: Account['institution'] }) {
@@ -1785,6 +1796,7 @@ function BalanceChartCard({ account }: { account: Account }) {
     () => buildChartSeries(snapshots ?? [], fromDate, granularity),
     [snapshots, fromDate, granularity],
   )
+  const chartSeries = useMemo(() => rezeroSeriesToPeriod(series), [series])
 
   // First chart point whose year differs from the previous point — drives the
   // dashed year-boundary marker so the user can tell where one year ends.
@@ -1890,7 +1902,7 @@ function BalanceChartCard({ account }: { account: Account }) {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={series} margin={{ top: 18, right: 4, bottom: 0, left: 4 }}>
+            <AreaChart data={chartSeries} margin={{ top: 18, right: 4, bottom: 0, left: 4 }}>
               <defs>
                 <linearGradient id={`balanceFill-${account.id}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={lineColor} stopOpacity={0.22} />
@@ -1916,7 +1928,7 @@ function BalanceChartCard({ account }: { account: Account }) {
                 labelFormatter={(value) =>
                   series.find((s) => s.date === value)?.tooltipLabel ?? String(value)
                 }
-                formatter={(value) => [formatCurrency(Number(value), account.currency), 'Balance']}
+                formatter={(value) => [formatCurrency(Number(value), account.currency), 'Change']}
               />
               <ReferenceLine
                 y={0}
@@ -1927,7 +1939,7 @@ function BalanceChartCard({ account }: { account: Account }) {
               />
               <Area
                 type="monotone"
-                dataKey="balance"
+                dataKey="periodBalance"
                 stroke={lineColor}
                 strokeWidth={2}
                 fill={`url(#balanceFill-${account.id})`}
