@@ -695,6 +695,20 @@ function BudgetEditModal({
             </div>
 
             <div className="px-6 pb-3 pt-4 sm:px-7">
+              <div
+                className="mb-5 flex items-start gap-3 rounded-lg px-4 py-3 text-sm"
+                style={{
+                  background: 'var(--app-warning-soft)',
+                  border: '1px solid var(--app-warning)',
+                  color: 'var(--app-warning-text)',
+                }}
+              >
+                <CircleAlert className="mt-0.5 shrink-0" size={18} aria-hidden />
+                <p className="leading-6">
+                  Changes apply from now forward. Past periods stay unchanged. To back propagate changes, create a new budget instead.
+                </p>
+              </div>
+
               <div className="grid min-h-0 items-stretch gap-7 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                 <div className="flex min-h-0 flex-col gap-5">
                   <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
@@ -1506,7 +1520,6 @@ function BudgetCreateModal({
   onCreated: () => void
 }) {
   const createBaseBudget = useCreateBaseBudget()
-  const createBudget = useCreateBudgetInstance()
   const initialForm = useMemo<BudgetFormState>(() => ({
     name: '',
     currency: defaultCurrency,
@@ -1528,7 +1541,7 @@ function BudgetCreateModal({
   const [form, setForm] = useState<BudgetFormState>(initialForm)
   const [createInProgress, setCreateInProgress] = useState(false)
 
-  const isPending = createBaseBudget.isPending || createBudget.isPending || createInProgress
+  const isPending = createBaseBudget.isPending || createInProgress
   const selectedCurrencySymbol = currencySymbol(currencies, form.currency)
   const filteredExpenseCategories = useMemo(() => {
     const query = categorySearch.trim().toLowerCase()
@@ -1630,7 +1643,7 @@ function BudgetCreateModal({
 
     try {
       const createBudgetFlow = async () => {
-        const baseBudget = await createBaseBudget.mutateAsync({
+        await createBaseBudget.mutateAsync({
           name: form.name.trim(),
           currency: form.currency,
           recurrence_freq: form.recurrenceFreq,
@@ -1638,9 +1651,6 @@ function BudgetCreateModal({
           ...recurrenceAnchorsFromStart(form.recurrenceFreq, form.periodStart),
           recurs: form.recurs,
           category_ids: form.categoryIds,
-        })
-        await createBudget.mutateAsync({
-          baseBudgetId: baseBudget.id,
           period_start: form.periodStart,
           overall_limit: limitMinorUnits,
         })
@@ -1888,7 +1898,7 @@ function BudgetCreateModal({
                           </div>
 
                           <div>
-                            <FieldLabelRow htmlFor="budget-period-start" label="Period start" error={showError('periodStart')} />
+                            <FieldLabelRow htmlFor="budget-period-start" label="First period start" error={showError('periodStart')} />
                             <input
                               id="budget-period-start"
                               className={`app-input ${showError('periodStart') ? 'app-input-error' : ''}`}

@@ -1,8 +1,9 @@
+import uuid
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
 
-from app.models.budget import BudgetTrackedCategory
+from app.models.budget import Budget, BudgetTrackedCategory
 from app.models.currency import Currency
 from tests.conftest import TestSession
 from tests.routes.conftest import _create_user, _get_auth_header
@@ -117,6 +118,66 @@ async def test_create_base_budget_with_system_category(client):
 
     assert resp.status_code == 201
     assert resp.json()["category_ids"] == [cat_id]
+
+
+async def test_create_base_budget_materializes_recurring_periods_through_today(client, monkeypatch):
+    """Initial recurring budget creation creates historical periods through local today."""
+    from app.routes import base_budget as base_budget_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 5, 4, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(base_budget_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    cat_id = await _create_category(client, headers)
+
+    resp = await _create_base_budget(
+        client,
+        headers,
+        category_ids=[cat_id],
+        recurs=True,
+        period_start="2026-01-01",
+        overall_limit=75000,
+    )
+
+    assert resp.status_code == 201
+    base_budget_id = resp.json()["id"]
+    async with TestSession() as session:
+        periods = (await session.execute(
+            sa.select(Budget)
+            .where(Budget.base_budget_id == uuid.UUID(base_budget_id))
+            .order_by(Budget.period_start),
+        )).scalars().all()
+        tracked = (await session.execute(
+            sa.select(BudgetTrackedCategory).where(BudgetTrackedCategory.category_id == cat_id),
+        )).scalar_one()
+
+    assert [
+        (period.period_start.isoformat(), period.period_end.isoformat(), period.overall_limit)
+        for period in periods
+    ] == [
+        ("2026-01-01", "2026-01-31", 75000),
+        ("2026-02-01", "2026-02-28", 75000),
+        ("2026-03-01", "2026-03-31", 75000),
+        ("2026-04-01", "2026-04-30", 75000),
+        ("2026-05-01", "2026-05-31", 75000),
+    ]
+    assert tracked.added_at.isoformat() == "2026-01-01"
+
+
+async def test_create_base_budget_initial_period_requires_limit(client):
+    """The atomic create path requires period_start and overall_limit together."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_base_budget(client, headers, period_start="2026-01-01")
+
+    assert resp.status_code == 422
 
 
 async def test_create_base_budget_dedupes_category_ids(client):

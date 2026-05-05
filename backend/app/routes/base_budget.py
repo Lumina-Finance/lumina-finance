@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -85,6 +85,27 @@ async def _build_base_budget_response(
     """Build a BaseBudgetResponse for a single base budget (convenience wrapper)."""
     cats = await load_tracked_categories(db, [base_budget.id])
     return build_base_budget_response(base_budget, cats.get(base_budget.id, []))
+
+
+def _initial_budget_period_starts(base_budget: BaseBudget, period_start: date, today: date) -> list[date]:
+    """Return the period starts to create when a base budget is created with an initial period."""
+    starts = [period_start]
+    if not base_budget.recurs:
+        return starts
+
+    next_start = period_start
+    while True:
+        period_end = compute_period_end(
+            next_start,
+            base_budget.recurrence_freq,
+            base_budget.instance_length,
+            dom=base_budget.recurrence_dom,
+            month=base_budget.recurrence_month,
+        )
+        next_start = period_end + timedelta(days=1)
+        if next_start > today:
+            return starts
+        starts.append(next_start)
 
 
 @router.patch("/{base_budget_id}", response_model=BaseBudgetResponse)
@@ -218,6 +239,20 @@ async def create_base_budget(
     # Validate tracked category IDs
     validated_cat_ids = await _validate_category_ids(db, data.category_ids, user.id, group_id)
 
+    if data.period_start is not None:
+        alignment_error = validate_period_start(
+            data.period_start,
+            data.recurrence_freq,
+            weekday=data.recurrence_weekday,
+            dom=data.recurrence_dom,
+            month=data.recurrence_month,
+        )
+        if alignment_error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=alignment_error,
+            )
+
     base_budget = BaseBudget(
         owner_id=owner_id,
         group_id=group_id,
@@ -235,8 +270,26 @@ async def create_base_budget(
 
     # Link tracked categories
     today = datetime.now(ZoneInfo(user.tz)).date()
+    category_added_at = data.period_start or today
     for cat_id in validated_cat_ids:
-        db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat_id, added_at=today))
+        db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat_id, added_at=category_added_at))
+
+    if data.period_start is not None and data.overall_limit is not None:
+        for period_start in _initial_budget_period_starts(base_budget, data.period_start, today):
+            db.add(
+                Budget(
+                    base_budget_id=base_budget.id,
+                    period_start=period_start,
+                    period_end=compute_period_end(
+                        period_start,
+                        base_budget.recurrence_freq,
+                        base_budget.instance_length,
+                        dom=base_budget.recurrence_dom,
+                        month=base_budget.recurrence_month,
+                    ),
+                    overall_limit=data.overall_limit,
+                ),
+            )
 
     await db.commit()
     await db.refresh(base_budget)

@@ -1,6 +1,6 @@
 """Route tests for budget utilization endpoints."""
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 
@@ -248,6 +248,51 @@ async def test_list_latest_budget_utilizations_excludes_inaccessible_budgets(cli
     budget_ids = {item["budget_id"] for item in resp.json()}
     assert budget_ids == {budget_id}
     assert other_budget_id not in budget_ids
+
+
+async def test_created_recurring_budget_counts_existing_historical_transactions(client, monkeypatch):
+    """Atomic budget creation backfills periods that can use existing transaction history."""
+    from app.routes import base_budget as base_budget_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 5, 4, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(base_budget_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers)).json()["id"]
+    takeout = await _create_category(client, headers, name="Historical Takeout")
+
+    await _create_transaction(client, headers, account_id, takeout, dt="2026-01-15", amount=-4200)
+    create_resp = await _create_base_budget(
+        client,
+        headers,
+        name="Takeout Budget",
+        category_ids=[takeout],
+        recurs=True,
+        period_start="2026-01-01",
+        overall_limit=100000,
+    )
+    assert create_resp.status_code == 201
+
+    periods_resp = await client.get("/budgets", headers=headers)
+    january_budget = next(
+        budget for budget in periods_resp.json()
+        if budget["base_budget_id"] == create_resp.json()["id"] and budget["period_start"] == "2026-01-01"
+    )
+
+    resp = await client.get(f"/budgets/{january_budget['id']}/utilization", headers=headers)
+    assert resp.status_code == 200
+
+    data = resp.json()
+    assert data["period_start"] == "2026-01-01"
+    assert data["period_end"] == "2026-01-31"
+    assert data["total_spent"] == 4200
+    assert {category["category_id"]: category["spent"] for category in data["categories"]} == {takeout: 4200}
 
 
 async def test_get_budget_utilization_returns_per_category_breakdown(client):

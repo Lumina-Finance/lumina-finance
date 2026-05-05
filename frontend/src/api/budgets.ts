@@ -61,6 +61,8 @@ export interface CreateBaseBudgetPayload {
   recurrence_month: number | null;
   recurs: boolean;
   category_ids: string[];
+  period_start?: string;
+  overall_limit?: number;
 }
 
 export interface CreateBudgetPayload {

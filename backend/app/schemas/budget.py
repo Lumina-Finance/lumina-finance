@@ -19,6 +19,8 @@ class CreateBaseBudgetRequest(BaseModel):
     recurrence_month: int | None = Field(None, ge=1, le=12)
     recurs: bool = False
     category_ids: list[uuid.UUID] = Field(min_length=1)
+    period_start: date | None = None
+    overall_limit: int | None = Field(None, gt=0)
 
     @model_validator(mode="after")
     def _validate_recurrence_field_pairing(self):
@@ -45,6 +47,9 @@ class CreateBaseBudgetRequest(BaseModel):
             if self.recurrence_weekday is not None:
                 msg = "recurrence_weekday must be null for yearly budgets"
                 raise ValueError(msg)
+        if (self.period_start is None) != (self.overall_limit is None):
+            msg = "period_start and overall_limit must be provided together"
+            raise ValueError(msg)
         return self
 
 
