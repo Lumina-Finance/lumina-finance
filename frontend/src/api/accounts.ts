@@ -198,7 +198,7 @@ export function useUpdateAccount() {
         queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
         queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
         queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
@@ -242,7 +242,7 @@ export function useDeleteAccount() {
       queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) });
       queryClient.invalidateQueries({ queryKey: transactionKeys.all });
       queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all });
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll });

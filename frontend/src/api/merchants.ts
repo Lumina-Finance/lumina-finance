@@ -106,7 +106,6 @@ function invalidateMerchantMergeQueries(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: accountKeys.all, exact: false });
-  qc.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });

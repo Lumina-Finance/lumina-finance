@@ -17,7 +17,6 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import (
     CreditWidgetResponse,
-    DashboardResponse,
     NetWorthWidgetResponse,
     RangeKind,
     RecentActivityWidgetResponse,
@@ -27,7 +26,6 @@ from app.schemas.dashboard import (
 )
 from app.services.dashboard import (
     get_accessible_accounts,
-    get_active_budgets,
     get_credit_widget,
     get_net_worth_history,
     get_recent_transactions,
@@ -37,23 +35,6 @@ from app.services.dashboard import (
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-
-
-@router.get("", response_model=DashboardResponse)
-async def get_dashboard(
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Return the aggregated landing payload for the dashboard."""
-    now = datetime.now(ZoneInfo(user.tz))
-
-    active_budgets = await get_active_budgets(db, user, now)
-
-    return DashboardResponse(
-        upcoming_bills=None,
-        runway_months=None,
-        active_budgets=active_budgets,
-    )
 
 
 @router.get("/recent-activity", response_model=RecentActivityWidgetResponse)

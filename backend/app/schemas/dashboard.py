@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel
@@ -71,24 +71,6 @@ class MonthlyIncomeExpense(BaseModel):
     expenses: int
 
 
-class ActiveBudgetSummary(BaseModel):
-    """Slim per-budget payload for the dashboard's active budgets widget.
-
-    Carries only what the widget renders: budget identity, period bounds,
-    overall limit, and total spent so far. Per-category breakdowns live on
-    `GET /budgets/{id}/utilization` — the dashboard doesn't need them.
-    """
-
-    budget_id: uuid.UUID
-    base_budget_id: uuid.UUID
-    name: str
-    currency: str
-    period_start: datetime
-    period_end: datetime
-    overall_limit: int
-    total_spent: int
-
-
 class CreditWidgetResponse(BaseModel):
     """Credit usage totals for the dashboard credit widget.
 
@@ -138,20 +120,3 @@ class RecentActivityWidgetResponse(BaseModel):
 
     recent_transactions: list[TransactionResponse]
     transaction_window_days: int
-
-
-class DashboardResponse(BaseModel):
-    """Aggregated payload for `GET /dashboard`.
-
-    Bundles the remaining shared dashboard landing widgets in one round trip.
-    The net worth, credit, savings-rate, and recent activity widgets live on
-    dedicated `GET /dashboard/*` routes so they can be cached separately.
-    Individual sub-queries mirror default aggregate scoping: readable,
-    non-hidden accounts plus readable budgets. Hidden accounts remain
-    inspectable on direct account views but are excluded here.
-    """
-
-    upcoming_bills: list[dict] | None = None
-    runway_months: float | None = None
-
-    active_budgets: list[ActiveBudgetSummary]

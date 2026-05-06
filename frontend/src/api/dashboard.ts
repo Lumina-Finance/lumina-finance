@@ -13,24 +13,6 @@ export interface MonthlyIncomeExpense {
   expenses: number;
 }
 
-export interface ActiveBudgetSummary {
-  budget_id: string;
-  base_budget_id: string;
-  name: string;
-  currency: string;
-  period_start: string;
-  period_end: string;
-  overall_limit: number;
-  total_spent: number;
-}
-
-export interface DashboardResponse {
-  upcoming_bills: unknown[] | null;
-  runway_months: number | null;
-
-  active_budgets: ActiveBudgetSummary[];
-}
-
 export interface CreditWidgetResponse {
   credit_limit_total: number;
   credit_used: number;
@@ -79,16 +61,6 @@ export interface SpendingComparisonResponse {
 }
 
 // ── Hooks ──
-
-export function useDashboard(windowDays = 90) {
-  const { accessToken } = useAuth();
-  return useQuery({
-    queryKey: dashboardKeys.summary(windowDays),
-    queryFn: () => authenticatedFetch<DashboardResponse>('/dashboard'),
-    enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
-  });
-}
 
 export function useDashboardCredit() {
   const { accessToken } = useAuth();

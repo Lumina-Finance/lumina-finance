@@ -1,6 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/api/client';
-import { budgetKeys, dashboardKeys } from '@/api/queryKeys';
+import { budgetKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 export type RecurrenceFreq = 'weekly' | 'monthly' | 'yearly';
@@ -145,7 +145,6 @@ function updateBudget({ id, patch }: UpdateBudgetPayload) {
 
 function invalidateBudgetActivity(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
 }
 
 export function useBaseBudgets() {

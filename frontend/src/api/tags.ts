@@ -7,7 +7,7 @@ import {
   type QueryKey,
 } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/api/client';
-import { dashboardKeys, tagKeys, transactionKeys } from '@/api/queryKeys';
+import { tagKeys, transactionKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 export interface Tag {
@@ -157,7 +157,6 @@ export function useUpdateTag() {
       qc.setQueryData<Tag>(tagKeys.detail(updated.id), updated);
       qc.invalidateQueries({ queryKey: tagKeys.all, exact: false });
       qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
-      qc.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
     },
   });
 }
@@ -183,7 +182,6 @@ export function useMergeTag() {
       qc.removeQueries({ queryKey: tagKeys.detail(tagId), exact: true });
       qc.invalidateQueries({ queryKey: tagKeys.all, exact: false });
       qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
-      qc.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
     },
   });
 }

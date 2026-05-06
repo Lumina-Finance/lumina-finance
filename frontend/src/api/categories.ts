@@ -42,7 +42,6 @@ function invalidateCategoryMergeQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
   queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
   queryClient.invalidateQueries({ queryKey: accountKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });

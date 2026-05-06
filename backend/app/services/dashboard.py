@@ -27,13 +27,11 @@ from app.config import (
 )
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
 from app.models.base import AccountKind, CategoryKind
-from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.dashboard import (
-    ActiveBudgetSummary,
     CategoryBreakdownEntry,
     MonthlyIncomeExpense,
     RangeKind,
@@ -252,103 +250,6 @@ async def get_recent_transactions(
             tag_summary_map[t.id],
         )
         for t in transactions
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Active budgets widget
-# ---------------------------------------------------------------------------
-
-async def _fetch_active_budget_instances(
-    db: AsyncSession, user: User, now: datetime,
-) -> list[tuple[Budget, BaseBudget]]:
-    """Return in-flight budget instances the user can read, with their base budgets.
-
-    Active = ``period_start <= now <= period_end``. Scope mirrors
-    ``list_budgets`` (owner / group admin / explicit permission).
-    """
-    result = await db.execute(
-        select(Budget, BaseBudget)
-        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
-        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
-        .outerjoin(
-            BudgetPermission,
-            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user.id),
-        )
-        .where(
-            Budget.period_start <= now,
-            Budget.period_end >= now,
-        )
-        .where(
-            (BaseBudget.owner_id == user.id)
-            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
-            | (BudgetPermission.user_id == user.id),
-        )
-        .order_by(BaseBudget.name),
-    )
-    return list(result.unique().all())
-
-
-async def _aggregate_spent_per_active_budget(
-    db: AsyncSession, budget_ids: list[uuid.UUID],
-) -> dict[uuid.UUID, int]:
-    """Return ``{budget_id: total_spent}`` for the given budgets, in one query.
-
-    Mirrors ``get_budget_utilization``'s scoping: tracked-category membership
-    as of ``period_end`` (historical-accuracy predicate), account/base
-    currency match, and owner/group scope filter. Batches across every active
-    budget by grouping on ``Budget.id``. Expenses are stored as negative
-    amounts, so the sum is flipped so ``total_spent`` is positive.
-    """
-    if not budget_ids:
-        return {}
-
-    result = await db.execute(
-        select(Budget.id, func.sum(Transaction.amount).label("amount_sum"))
-        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
-        .join(BudgetTrackedCategory, BudgetTrackedCategory.base_budget_id == BaseBudget.id)
-        .join(Transaction, Transaction.category_id == BudgetTrackedCategory.category_id)
-        .join(Account, Transaction.account_id == Account.id)
-        .where(
-            Budget.id.in_(budget_ids),
-            BudgetTrackedCategory.added_at <= Budget.period_end,
-            (BudgetTrackedCategory.removed_at.is_(None)) | (BudgetTrackedCategory.removed_at > Budget.period_end),
-            Transaction.dt >= Budget.period_start,
-            Transaction.dt <= Budget.period_end,
-            Account.is_hidden.is_(False),
-            Account.currency == BaseBudget.currency,
-            (
-                (BaseBudget.group_id.is_not(None) & (Account.group_id == BaseBudget.group_id))
-                | (BaseBudget.owner_id.is_not(None) & (Account.owner_id == BaseBudget.owner_id))
-            ),
-        )
-        .group_by(Budget.id),
-    )
-    return {row.id: -int(row.amount_sum) for row in result}
-
-
-async def get_active_budgets(
-    db: AsyncSession, user: User, now: datetime,
-) -> list[ActiveBudgetSummary]:
-    """Return active budgets with current utilization, scoped like ``list_budgets``."""
-    rows = await _fetch_active_budget_instances(db, user, now)
-    if not rows:
-        return []
-    spent_by_budget = await _aggregate_spent_per_active_budget(
-        db, [budget.id for budget, _ in rows],
-    )
-    return [
-        ActiveBudgetSummary(
-            budget_id=budget.id,
-            base_budget_id=base.id,
-            name=base.name,
-            currency=base.currency,
-            period_start=budget.period_start,
-            period_end=budget.period_end,
-            overall_limit=budget.overall_limit,
-            total_spent=spent_by_budget.get(budget.id, 0),
-        )
-        for budget, base in rows
     ]
 
 
