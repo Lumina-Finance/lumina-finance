@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import {
   accountKeys,
+  budgetKeys,
   categoryKeys,
   dashboardKeys,
   merchantKeys,
@@ -276,6 +277,7 @@ function invalidateAccountActivity(queryClient: QueryClient, accountIds: string[
 }
 
 function invalidateDashboardActivity(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
