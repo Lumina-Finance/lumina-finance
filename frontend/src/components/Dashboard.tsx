@@ -33,9 +33,9 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import {
   type SpendingRange,
-  useDashboard,
   useDashboardCredit,
   useDashboardNetWorth,
+  useDashboardRecentActivity,
   useDashboardSavingsRate,
   useSpendingBreakdown,
   useSpendingComparison,
@@ -346,10 +346,10 @@ export default function Dashboard() {
       : 'Here is your financial overview.'
 
   const { user } = useAuth()
-  const { data: dashboard } = useDashboard()
   const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
   const { data: dashboardNetWorth } = useDashboardNetWorth()
   const { data: dashboardSavingsRate } = useDashboardSavingsRate()
+  const { data: dashboardRecentActivity } = useDashboardRecentActivity()
   const { data: latestBudgetUtilizations, isLoading: latestBudgetUtilizationsLoading } = useLatestBudgetUtilizations()
   const { data: categories } = useCategories()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
@@ -483,7 +483,7 @@ export default function Dashboard() {
     spendingDeltaPct == null
       ? '+00.0%'
       : `${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`
-  // Recent activity widget — top 5 transactions from the dashboard payload.
+  // Recent activity widget — top 5 transactions from the dedicated dashboard payload.
   // Transaction rows already include merchant names; categories still come
   // from the shared category lookup for labels and kind coloring.
   const categoryMap = useMemo(() => {
@@ -491,7 +491,7 @@ export default function Dashboard() {
     categories?.forEach((c) => m.set(c.id, { name: c.name, kind: c.kind }))
     return m
   }, [categories])
-  const recentActivity = (dashboard?.recent_transactions ?? []).slice(0, 5)
+  const recentActivity = (dashboardRecentActivity?.recent_transactions ?? []).slice(0, 5)
 
   // Runway — months of expense coverage from the user's selected liquid
   // accounts. Computed server-side so the dashboard card only needs the

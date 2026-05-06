@@ -28,9 +28,7 @@ export interface DashboardResponse {
   upcoming_bills: unknown[] | null;
   runway_months: number | null;
 
-  recent_transactions: Transaction[];
   active_budgets: ActiveBudgetSummary[];
-  transaction_window_days: number;
 }
 
 export interface CreditWidgetResponse {
@@ -46,6 +44,11 @@ export interface NetWorthWidgetResponse {
 
 export interface SavingsRateWidgetResponse {
   savings_rate_history: MonthlyIncomeExpense[];
+}
+
+export interface RecentActivityWidgetResponse {
+  recent_transactions: Transaction[];
+  transaction_window_days: number;
 }
 
 // ── Spending comparison ──
@@ -81,8 +84,7 @@ export function useDashboard(windowDays = 90) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.summary(windowDays),
-    queryFn: () =>
-      authenticatedFetch<DashboardResponse>(`/dashboard?window_days=${windowDays}`),
+    queryFn: () => authenticatedFetch<DashboardResponse>('/dashboard'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -116,6 +118,19 @@ export function useDashboardSavingsRate() {
   return useQuery({
     queryKey: dashboardKeys.savingsRate(),
     queryFn: () => authenticatedFetch<SavingsRateWidgetResponse>('/dashboard/savings-rate'),
+    enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useDashboardRecentActivity(windowDays = 90) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: dashboardKeys.recentActivity(windowDays),
+    queryFn: () =>
+      authenticatedFetch<RecentActivityWidgetResponse>(
+        `/dashboard/recent-activity?window_days=${windowDays}`,
+      ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });

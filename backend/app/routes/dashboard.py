@@ -20,6 +20,7 @@ from app.schemas.dashboard import (
     DashboardResponse,
     NetWorthWidgetResponse,
     RangeKind,
+    RecentActivityWidgetResponse,
     SavingsRateWidgetResponse,
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
@@ -42,22 +43,32 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 async def get_dashboard(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    window_days: Annotated[int, Query(ge=1, le=365)] = 90,
 ):
     """Return the aggregated landing payload for the dashboard."""
     now = datetime.now(ZoneInfo(user.tz))
 
-    accounts = await get_accessible_accounts(db, user)
-    all_account_ids = [a.id for a in accounts]
-
-    recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
     active_budgets = await get_active_budgets(db, user, now)
 
     return DashboardResponse(
         upcoming_bills=None,
         runway_months=None,
-        recent_transactions=recent_transactions,
         active_budgets=active_budgets,
+    )
+
+
+@router.get("/recent-activity", response_model=RecentActivityWidgetResponse)
+async def get_recent_activity_widget_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    window_days: Annotated[int, Query(ge=1, le=365)] = 90,
+):
+    """Return recent transaction rows for the dashboard recent activity widget."""
+    now = datetime.now(ZoneInfo(user.tz))
+    accounts = await get_accessible_accounts(db, user)
+    all_account_ids = [a.id for a in accounts]
+    recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
+    return RecentActivityWidgetResponse(
+        recent_transactions=recent_transactions,
         transaction_window_days=window_days,
     )
 

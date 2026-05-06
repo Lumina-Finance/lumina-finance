@@ -66,6 +66,8 @@ export const dashboardKeys = {
   netWorthAll: ['dashboard-net-worth'] as const,
   savingsRate: () => ['dashboard-savings-rate'] as const,
   savingsRateAll: ['dashboard-savings-rate'] as const,
+  recentActivity: (windowDays: number) => ['dashboard-recent-activity', windowDays] as const,
+  recentActivityAll: ['dashboard-recent-activity'] as const,
   credit: () => ['dashboard', 'credit'] as const,
   spendingComparison: (range: string) => ['spending-comparison', range] as const,
   spendingComparisonAll: ['spending-comparison'] as const,

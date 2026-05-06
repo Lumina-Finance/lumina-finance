@@ -133,22 +133,25 @@ class SavingsRateWidgetResponse(BaseModel):
     savings_rate_history: list[MonthlyIncomeExpense]
 
 
+class RecentActivityWidgetResponse(BaseModel):
+    """Recent transaction rows for the dashboard recent activity widget."""
+
+    recent_transactions: list[TransactionResponse]
+    transaction_window_days: int
+
+
 class DashboardResponse(BaseModel):
     """Aggregated payload for `GET /dashboard`.
 
     Bundles the remaining shared dashboard landing widgets in one round trip.
-    The net worth, credit, and savings-rate widgets live on dedicated `GET /dashboard/*`
-    routes so they can be cached separately.
+    The net worth, credit, savings-rate, and recent activity widgets live on
+    dedicated `GET /dashboard/*` routes so they can be cached separately.
     Individual sub-queries mirror default aggregate scoping: readable,
     non-hidden accounts plus readable budgets. Hidden accounts remain
     inspectable on direct account views but are excluded here.
-
-    Recent activity is scoped to readable, non-hidden accounts.
     """
 
     upcoming_bills: list[dict] | None = None
     runway_months: float | None = None
 
-    recent_transactions: list[TransactionResponse]
     active_budgets: list[ActiveBudgetSummary]
-    transaction_window_days: int

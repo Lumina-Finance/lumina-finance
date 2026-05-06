@@ -107,6 +107,7 @@ function invalidateMerchantMergeQueries(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: accountKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+  qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
 }
@@ -180,6 +181,7 @@ export function useUpdateMerchant() {
     onSuccess: (updated) => {
       qc.setQueryData<Merchant>(merchantKeys.detail(updated.id), updated);
       qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
+      qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
     },
   });
 }
