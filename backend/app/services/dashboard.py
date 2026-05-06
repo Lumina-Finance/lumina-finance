@@ -200,8 +200,9 @@ async def get_credit_widget(
     """Return ``(credit_limit_total, credit_used)`` summed across eligible accounts.
 
     Only base-currency revolving-credit accounts with ``credit_limit`` set
-    contribute. Liability balances are stored as negatives, so ``credit_used``
-    takes the absolute value of each balance.
+    contribute. Account balances stay signed from the user's perspective:
+    negative means debt, positive means stored credit. Stored credit does not
+    reduce the usage total below zero.
     """
     credit_accounts = [
         a for a in base_currency_accounts
@@ -212,7 +213,7 @@ async def get_credit_widget(
 
     balances = await get_current_balances(db, [a.id for a in credit_accounts])
     credit_limit_total = sum(a.credit_limit for a in credit_accounts)
-    credit_used = sum(abs(balances.get(a.id, 0)) for a in credit_accounts)
+    credit_used = sum(max(-balances.get(a.id, 0), 0) for a in credit_accounts)
     return credit_limit_total, credit_used
 
 

@@ -392,12 +392,13 @@ export default function Dashboard() {
   const utilization = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0
   const hasCredit = creditLimit > 0
 
-  // Mode-dependent display values: "used" shows utilization%/used $; "available"
-  // shows the inverse — both still over the same total limit.
-  const availableAmount = Math.max(creditLimit - creditUsed, 0)
-  const availablePct = creditLimit > 0 ? 100 - utilization : 0
-  const displayPct = creditMode === 'used' ? utilization : availablePct
-  const displayAmount = creditMode === 'used' ? creditUsed : availableAmount
+  // Credit available is the limit-only base. Used is clamped by the backend,
+  // and remaining is derived from that used amount.
+  const creditAvailable = creditLimit
+  const creditRemaining = creditAvailable - creditUsed
+  const remainingPct = creditAvailable > 0 ? 100 - utilization : 0
+  const displayPct = creditMode === 'used' ? utilization : remainingPct
+  const displayAmount = creditMode === 'used' ? creditUsed : creditRemaining
   const amountLoadingText = formatCurrency(888888, displayCurrency)
   const creditLoadingText = formatDashboardMoney(88888800, displayCurrency, 'credit')
   const breakdownLoadingText = formatDashboardMoney(88888800, displayCurrency, 'breakdown')
@@ -409,7 +410,7 @@ export default function Dashboard() {
   const strokeWidth = 10
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
-  const filled = (Math.min(displayPct, 100) / 100) * circumference
+  const filled = (Math.max(0, Math.min(displayPct, 100)) / 100) * circumference
   const tier = getCreditTier(utilization)
   const tierColor = `var(--app-${tier})`
   const tierSoft = `var(--app-${tier}-soft)`
@@ -668,14 +669,14 @@ export default function Dashboard() {
                 <CreditCard size={16} style={{ color: tierColor }} aria-hidden />
               </div>
               <span className="app-label">
-                Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Available'} reserveText="Available" />
+                Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} reserveText="Remaining" />
               </span>
               {hasCredit && (
                 <button
                   type="button"
                   onClick={() => setCreditMode((m) => (m === 'used' ? 'available' : 'used'))}
-                  title={creditMode === 'used' ? 'Show available credit' : 'Show credit used'}
-                  aria-label={creditMode === 'used' ? 'Show available credit' : 'Show credit used'}
+                  title={creditMode === 'used' ? 'Show credit remaining' : 'Show credit used'}
+                  aria-label={creditMode === 'used' ? 'Show credit remaining' : 'Show credit used'}
                   className="app-icon-button ml-auto"
                 >
                   <Repeat size={12} />
@@ -725,7 +726,7 @@ export default function Dashboard() {
                   <p className="font-financial mt-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                     of{' '}
                     <AppScrambledNumber
-                      text={formatDashboardMoney(creditLimit, displayCurrency, 'credit')}
+                      text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit')}
                       loading={dashboardLoading}
                       loadingText={creditLoadingText}
                     />

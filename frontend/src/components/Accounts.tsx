@@ -613,17 +613,20 @@ export default function Accounts() {
   const amortizingRows = filteredRows.filter((a) => a.account_kind === 'amortizing').sort(byBalanceDesc)
 
   // Credit usage — scoped to revolving-credit products (credit cards, LOCs,
-  // HELOCs). Amortizing debt doesn't have a limit concept. Liability balances
-  // are stored signed (negative for debt), so flip sign so totalCreditUsed
-  // reads as a positive "amount currently owed". Three states drive the
-  // widget: no revolving accounts at all, revolving accounts but no limits
-  // entered, and fully usable data — without this split the first two cases
-  // collapse into a misleading green 0%.
+  // HELOCs). Amortizing debt doesn't have a limit concept. Balances are stored
+  // signed from the user's perspective: negative means debt, positive means
+  // stored credit. Stored credit does not reduce the usage total below zero.
+  // Three states drive the widget: no revolving accounts at all, revolving
+  // accounts but no limits entered, and fully usable data — without this split
+  // the first two cases collapse into a misleading green 0%.
   const revolvingAccounts = rows.filter((a) => a.account_kind === 'revolving')
   const creditAccountsWithLimits = revolvingAccounts.filter((a) => a.credit_limit !== null)
   const hasCreditAccounts = revolvingAccounts.length > 0
   const hasCreditData = creditAccountsWithLimits.length > 0
-  const totalCreditUsed = creditAccountsWithLimits.reduce((sum, a) => sum - a.current_balance, 0)
+  const totalCreditUsed = creditAccountsWithLimits.reduce(
+    (sum, a) => sum + Math.max(-a.current_balance, 0),
+    0,
+  )
   const totalCreditLimit = creditAccountsWithLimits.reduce((sum, a) => sum + (a.credit_limit ?? 0), 0)
   const creditUtilization =
     totalCreditLimit > 0 ? Math.round((totalCreditUsed / totalCreditLimit) * 100) : 0

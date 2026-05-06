@@ -147,7 +147,45 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
     assert data["current_net_worth"] == 70_000
     assert data["net_worth_history"][-1] == 70_000
     assert data["credit_limit_total"] == 200_000
-    assert data["credit_used"] == 30_000
+    assert data["credit_used"] == 0
+
+
+async def test_dashboard_credit_used_ignores_positive_card_balances(client, monkeypatch):
+    """Stored credit on a card does not count as used credit."""
+    from app.routes import dashboard as dashboard_routes
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    credit_card = (await _create_account(
+        client, headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Credit Balance Card",
+        credit_limit=1_500_000,
+    )).json()
+
+    async with TestSession() as session:
+        session.add_all([
+            AccountBalanceSnapshot(account_id=UUID(credit_card["id"]), dt=date(2026, 3, 20), balance=42_604),
+        ])
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(
+                AccountBalanceSnapshot.account_id == UUID(credit_card["id"]),
+                AccountBalanceSnapshot.dt == _owner_local_creation_day(credit_card),
+            )
+            .values(balance=42_604),
+        )
+        await session.commit()
+
+    resp = await client.get("/dashboard", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["credit_limit_total"] == 1_500_000
+    assert data["credit_used"] == 0
 
 
 async def test_dashboard_spending_savings_and_activity_exclude_hidden_accounts(client, monkeypatch):
