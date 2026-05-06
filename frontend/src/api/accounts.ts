@@ -199,6 +199,7 @@ export function useUpdateAccount() {
         queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
         queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
         queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
@@ -240,6 +241,7 @@ export function useDeleteAccount() {
       queryClient.invalidateQueries({ queryKey: transactionKeys.all });
       queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll });
       queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts() });
       queryClient.invalidateQueries({ queryKey: userKeys.runway() });
       invalidateTaxAdvantagedPlanCaches(queryClient, [previousPlanId]);

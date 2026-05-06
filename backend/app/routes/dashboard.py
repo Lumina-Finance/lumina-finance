@@ -1,9 +1,9 @@
 """Dashboard aggregation endpoint.
 
 Thin orchestrator that composes the per-widget service helpers in
-``app/services/dashboard.py`` into the :class:`DashboardResponse` payload.
-The heavy SQL, date math, and widget-specific computation live in the
-service module — this file just wires the results together.
+``app/services/dashboard.py`` into dashboard response payloads. The heavy SQL,
+date math, and widget-specific computation live in the service module — this
+file just wires the results together.
 """
 from datetime import datetime
 from typing import Annotated
@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.dashboard import (
     CreditWidgetResponse,
     DashboardResponse,
+    NetWorthWidgetResponse,
     RangeKind,
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
@@ -46,11 +47,8 @@ async def get_dashboard(
     now = datetime.now(ZoneInfo(user.tz))
 
     accounts = await get_accessible_accounts(db, user)
-    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
     all_account_ids = [a.id for a in accounts]
-    base_currency_account_ids = [a.id for a in base_currency_accounts]
-
-    current_net_worth, net_worth_history = await get_net_worth_history(db, base_currency_accounts, window_days, now)
+    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
 
     recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
     active_budgets = await get_active_budgets(db, user, now)
@@ -58,9 +56,6 @@ async def get_dashboard(
     savings_rate_history = await get_savings_rate_history(db, base_currency_account_ids, now)
 
     return DashboardResponse(
-        current_net_worth=current_net_worth,
-        net_worth_history=net_worth_history,
-        net_worth_window_days=window_days,
         recurring_expenses_estimate=None,
         savings_rate_history=savings_rate_history,
         upcoming_bills=None,
@@ -68,6 +63,29 @@ async def get_dashboard(
         recent_transactions=recent_transactions,
         active_budgets=active_budgets,
         transaction_window_days=window_days,
+    )
+
+
+@router.get("/net-worth", response_model=NetWorthWidgetResponse)
+async def get_net_worth_widget_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    window_days: Annotated[int, Query(ge=1, le=365)] = 90,
+):
+    """Return net worth totals and trend for the dashboard net worth widget."""
+    now = datetime.now(ZoneInfo(user.tz))
+    accounts = await get_accessible_accounts(db, user)
+    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
+    current_net_worth, net_worth_history = await get_net_worth_history(
+        db,
+        base_currency_accounts,
+        window_days,
+        now,
+    )
+    return NetWorthWidgetResponse(
+        current_net_worth=current_net_worth,
+        net_worth_history=net_worth_history,
+        net_worth_window_days=window_days,
     )
 
 

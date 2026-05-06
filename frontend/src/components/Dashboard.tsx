@@ -35,6 +35,7 @@ import {
   type SpendingRange,
   useDashboard,
   useDashboardCredit,
+  useDashboardNetWorth,
   useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard'
@@ -346,6 +347,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const { data: dashboard } = useDashboard()
   const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
+  const { data: dashboardNetWorth } = useDashboardNetWorth()
   const { data: latestBudgetUtilizations, isLoading: latestBudgetUtilizationsLoading } = useLatestBudgetUtilizations()
   const { data: categories } = useCategories()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
@@ -368,7 +370,7 @@ export default function Dashboard() {
   // Net worth history — backend returns a forward-filled day-by-day series
   // over the trailing window_days. We attach dates client-side for the x-axis.
   const netWorthData = useMemo(() => {
-    const history = dashboard?.net_worth_history ?? []
+    const history = dashboardNetWorth?.net_worth_history ?? []
     if (history.length === 0) return []
     const today = new Date()
     return history.map((value, i) => {
@@ -379,9 +381,9 @@ export default function Dashboard() {
         value,
       }
     })
-  }, [dashboard])
+  }, [dashboardNetWorth])
 
-  const netWorth = dashboard?.current_net_worth ?? 0
+  const netWorth = dashboardNetWorth?.current_net_worth ?? 0
   const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
   const netWorthTrendUp =
     netWorthData.length >= 2 &&

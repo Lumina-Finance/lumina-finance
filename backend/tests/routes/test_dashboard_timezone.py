@@ -140,7 +140,7 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
             )
         await session.commit()
 
-    resp = await client.get("/dashboard", params={"window_days": 3}, headers=headers)
+    resp = await client.get("/dashboard/net-worth", params={"window_days": 3}, headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()

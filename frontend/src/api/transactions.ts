@@ -277,6 +277,7 @@ function invalidateAccountActivity(queryClient: QueryClient, accountIds: string[
 
 function invalidateDashboardActivity(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: dashboardKeys.all, exact: false });
+  queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
   queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });

@@ -102,16 +102,9 @@ class CreditWidgetResponse(BaseModel):
     credit_used: int
 
 
-class DashboardResponse(BaseModel):
-    """Aggregated payload for `GET /dashboard`.
+class NetWorthWidgetResponse(BaseModel):
+    """Net worth totals and trend for the dashboard net worth widget.
 
-    Bundles the main dashboard landing widgets in one round trip. The credit
-    widget lives on `GET /dashboard/credit` so it can be cached separately.
-    Individual sub-queries mirror default aggregate scoping: readable,
-    non-hidden accounts plus readable budgets. Hidden accounts remain
-    inspectable on direct account views but are excluded here.
-
-    Net worth widget:
     - `current_net_worth` is the sum of latest balances across every readable
       non-hidden account in the user's base currency, with liability balances subtracted.
     - `net_worth_history` is a day-by-day series of net worth over the last
@@ -119,6 +112,22 @@ class DashboardResponse(BaseModel):
       earliest day, final index = today). Forward-filled from
       `AccountBalanceSnapshot` rows so days without activity carry the previous
       day's balance.
+    """
+
+    current_net_worth: int
+    net_worth_history: list[int]
+    net_worth_window_days: int
+
+
+class DashboardResponse(BaseModel):
+    """Aggregated payload for `GET /dashboard`.
+
+    Bundles the remaining shared dashboard landing widgets in one round trip.
+    The net worth and credit widgets live on dedicated `GET /dashboard/*`
+    routes so they can be cached separately.
+    Individual sub-queries mirror default aggregate scoping: readable,
+    non-hidden accounts plus readable budgets. Hidden accounts remain
+    inspectable on direct account views but are excluded here.
 
     Recurring / savings rate:
     - `recurring_expenses_estimate` is reserved for an estimated monthly total
@@ -135,10 +144,6 @@ class DashboardResponse(BaseModel):
     currency matches the user's base currency; foreign-currency activity is
     excluded until fx data is connected.
     """
-
-    current_net_worth: int
-    net_worth_history: list[int]
-    net_worth_window_days: int
 
     recurring_expenses_estimate: int | None
     savings_rate_history: list[MonthlyIncomeExpense]

@@ -820,7 +820,7 @@ async def test_delete_only_transaction_on_day_removes_snapshot(client):
     assert accounts_resp.status_code == 200
     assert accounts_resp.json()[0]["current_balance"] == 0
 
-    dashboard_resp = await client.get("/dashboard", headers=headers)
+    dashboard_resp = await client.get("/dashboard/net-worth", headers=headers)
     assert dashboard_resp.status_code == 200
     assert dashboard_resp.json()["current_net_worth"] == 0
 

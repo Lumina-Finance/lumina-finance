@@ -1,4 +1,4 @@
-"""Data helpers for the ``GET /dashboard`` aggregation endpoint.
+"""Data helpers for the dashboard aggregation endpoints.
 
 Each public function in this module builds one widget of the dashboard
 payload. Helpers take the signed-in user (or a derived account list) plus
