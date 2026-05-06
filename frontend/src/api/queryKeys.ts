@@ -62,6 +62,7 @@ export const taxAdvantagedPlanKeys = {
 export const dashboardKeys = {
   all: ['dashboard'] as const,
   summary: (windowDays: number) => ['dashboard', windowDays] as const,
+  credit: () => ['dashboard', 'credit'] as const,
   spendingComparison: (range: string) => ['spending-comparison', range] as const,
   spendingComparisonAll: ['spending-comparison'] as const,
   spendingBreakdown: (range: string) => ['spending-breakdown', range] as const,

@@ -89,10 +89,24 @@ class ActiveBudgetSummary(BaseModel):
     total_spent: int
 
 
+class CreditWidgetResponse(BaseModel):
+    """Credit usage totals for the dashboard credit widget.
+
+    - `credit_limit_total` sums `credit_limit` across readable non-hidden
+      revolving-credit accounts in the user's base currency that have a limit set.
+    - `credit_used` flips negative account balances into positive usage and
+      treats positive stored-credit balances as zero used.
+    """
+
+    credit_limit_total: int
+    credit_used: int
+
+
 class DashboardResponse(BaseModel):
     """Aggregated payload for `GET /dashboard`.
 
-    Bundles every widget the dashboard landing page renders in one round trip.
+    Bundles the main dashboard landing widgets in one round trip. The credit
+    widget lives on `GET /dashboard/credit` so it can be cached separately.
     Individual sub-queries mirror default aggregate scoping: readable,
     non-hidden accounts plus readable budgets. Hidden accounts remain
     inspectable on direct account views but are excluded here.
@@ -106,12 +120,6 @@ class DashboardResponse(BaseModel):
       `AccountBalanceSnapshot` rows so days without activity carry the previous
       day's balance.
 
-    Credit widget:
-    - `credit_limit_total` sums `credit_limit` across readable non-hidden
-      liability accounts in the user's base currency that have a limit set.
-    - `credit_used` is the absolute value of the current outstanding balance on
-      those same accounts (liability balances are stored as negatives).
-
     Recurring / savings rate:
     - `recurring_expenses_estimate` is reserved for an estimated monthly total
       of recurring expenses over the trailing three months. Ships as `None`
@@ -123,7 +131,7 @@ class DashboardResponse(BaseModel):
       cases (real rate, ``-inf`` when expenses exist without income, ``0``
       when both are zero) without having to serialize non-finite floats.
 
-    Spending, credit, and savings fields sum only activity on accounts whose
+    Spending and savings fields sum only activity on accounts whose
     currency matches the user's base currency; foreign-currency activity is
     excluded until fx data is connected.
     """
@@ -131,9 +139,6 @@ class DashboardResponse(BaseModel):
     current_net_worth: int
     net_worth_history: list[int]
     net_worth_window_days: int
-
-    credit_limit_total: int
-    credit_used: int
 
     recurring_expenses_estimate: int | None
     savings_rate_history: list[MonthlyIncomeExpense]

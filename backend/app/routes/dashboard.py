@@ -16,6 +16,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import (
+    CreditWidgetResponse,
     DashboardResponse,
     RangeKind,
     SpendingBreakdownResponse,
@@ -50,7 +51,6 @@ async def get_dashboard(
     base_currency_account_ids = [a.id for a in base_currency_accounts]
 
     current_net_worth, net_worth_history = await get_net_worth_history(db, base_currency_accounts, window_days, now)
-    credit_limit_total, credit_used = await get_credit_widget(db, base_currency_accounts)
 
     recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
     active_budgets = await get_active_budgets(db, user, now)
@@ -61,8 +61,6 @@ async def get_dashboard(
         current_net_worth=current_net_worth,
         net_worth_history=net_worth_history,
         net_worth_window_days=window_days,
-        credit_limit_total=credit_limit_total,
-        credit_used=credit_used,
         recurring_expenses_estimate=None,
         savings_rate_history=savings_rate_history,
         upcoming_bills=None,
@@ -70,6 +68,21 @@ async def get_dashboard(
         recent_transactions=recent_transactions,
         active_budgets=active_budgets,
         transaction_window_days=window_days,
+    )
+
+
+@router.get("/credit", response_model=CreditWidgetResponse)
+async def get_credit_widget_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return credit usage totals for the dashboard credit widget."""
+    accounts = await get_accessible_accounts(db, user)
+    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
+    credit_limit_total, credit_used = await get_credit_widget(db, base_currency_accounts)
+    return CreditWidgetResponse(
+        credit_limit_total=credit_limit_total,
+        credit_used=credit_used,
     )
 
 

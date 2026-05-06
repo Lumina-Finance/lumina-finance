@@ -153,6 +153,14 @@ function getCachedIsHidden(queryClient: QueryClient, accountId: string): boolean
   return accounts?.find((account) => account.id === accountId)?.is_hidden;
 }
 
+function getCachedCreditLimit(queryClient: QueryClient, accountId: string): number | null | undefined {
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
+  if (detail) return detail.credit_limit;
+
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
+  return accounts?.find((account) => account.id === accountId)?.credit_limit;
+}
+
 function invalidateTaxAdvantagedPlanCaches(queryClient: QueryClient, planIds: Array<string | null | undefined>) {
   const uniquePlanIds = [...new Set(planIds.filter((planId): planId is string => !!planId))];
   if (uniquePlanIds.length === 0) return;
@@ -181,6 +189,7 @@ export function useUpdateAccount() {
     onSuccess: (account, variables) => {
       const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, account.id);
       const previousIsHidden = getCachedIsHidden(queryClient, account.id);
+      const previousCreditLimit = getCachedCreditLimit(queryClient, account.id);
 
       queryClient.setQueryData(accountKeys.detail(account.id), account);
       updateCachedAccountList(queryClient, account);
@@ -194,6 +203,14 @@ export function useUpdateAccount() {
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
         queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
         queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
+      }
+
+      if (
+        'credit_limit' in variables.payload
+        && previousCreditLimit !== account.credit_limit
+      ) {
+        queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
       }
 
       if (

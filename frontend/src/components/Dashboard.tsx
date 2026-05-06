@@ -34,6 +34,7 @@ import { useAuth } from '@/hooks/useAuth'
 import {
   type SpendingRange,
   useDashboard,
+  useDashboardCredit,
   useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard'
@@ -343,7 +344,8 @@ export default function Dashboard() {
       : 'Here is your financial overview.'
 
   const { user } = useAuth()
-  const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
+  const { data: dashboard } = useDashboard()
+  const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
   const { data: latestBudgetUtilizations, isLoading: latestBudgetUtilizationsLoading } = useLatestBudgetUtilizations()
   const { data: categories } = useCategories()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
@@ -387,8 +389,8 @@ export default function Dashboard() {
   const netWorthLineColor = netWorthTrendUp ? 'var(--app-positive)' : 'var(--app-negative)'
 
   // Credit data — backend returns base-currency-scoped totals.
-  const creditLimit = dashboard?.credit_limit_total ?? 0
-  const creditUsed = dashboard?.credit_used ?? 0
+  const creditLimit = dashboardCredit?.credit_limit_total ?? 0
+  const creditUsed = dashboardCredit?.credit_used ?? 0
   const utilization = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0
   const hasCredit = creditLimit > 0
 
@@ -684,7 +686,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            {dashboardLoading || hasCredit ? (
+            {dashboardCreditLoading || hasCredit ? (
               <div className="flex flex-1 min-h-0 items-center justify-center gap-4">
                 <div className="relative shrink-0 aspect-square h-full">
                   <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90">
@@ -709,7 +711,7 @@ export default function Dashboard() {
                     <span className="font-financial font-medium tracking-tight text-2xl">
                       <AppScrambledNumber
                         text={`${displayPct}%`}
-                        loading={dashboardLoading}
+                        loading={dashboardCreditLoading}
                         loadingText="00%"
                       />
                     </span>
@@ -719,7 +721,7 @@ export default function Dashboard() {
                   <p className="font-financial font-normal tracking-tight leading-none text-3xl">
                     <AppScrambledNumber
                       text={formatDashboardMoney(displayAmount, displayCurrency, 'credit')}
-                      loading={dashboardLoading}
+                      loading={dashboardCreditLoading}
                       loadingText={creditLoadingText}
                     />
                   </p>
@@ -727,7 +729,7 @@ export default function Dashboard() {
                     of{' '}
                     <AppScrambledNumber
                       text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit')}
-                      loading={dashboardLoading}
+                      loading={dashboardCreditLoading}
                       loadingText={creditLoadingText}
                     />
                   </p>

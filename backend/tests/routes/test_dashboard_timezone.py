@@ -146,8 +146,13 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
     data = resp.json()
     assert data["current_net_worth"] == 70_000
     assert data["net_worth_history"][-1] == 70_000
-    assert data["credit_limit_total"] == 200_000
-    assert data["credit_used"] == 0
+
+    credit_resp = await client.get("/dashboard/credit", headers=headers)
+
+    assert credit_resp.status_code == 200
+    credit_data = credit_resp.json()
+    assert credit_data["credit_limit_total"] == 200_000
+    assert credit_data["credit_used"] == 0
 
 
 async def test_dashboard_credit_used_ignores_positive_card_balances(client, monkeypatch):
@@ -180,7 +185,7 @@ async def test_dashboard_credit_used_ignores_positive_card_balances(client, monk
         )
         await session.commit()
 
-    resp = await client.get("/dashboard", headers=headers)
+    resp = await client.get("/dashboard/credit", headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()

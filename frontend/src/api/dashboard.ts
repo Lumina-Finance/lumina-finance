@@ -29,9 +29,6 @@ export interface DashboardResponse {
   net_worth_history: number[];
   net_worth_window_days: number;
 
-  credit_limit_total: number;
-  credit_used: number;
-
   recurring_expenses_estimate: number | null;
   savings_rate_history: MonthlyIncomeExpense[];
 
@@ -41,6 +38,11 @@ export interface DashboardResponse {
   recent_transactions: Transaction[];
   active_budgets: ActiveBudgetSummary[];
   transaction_window_days: number;
+}
+
+export interface CreditWidgetResponse {
+  credit_limit_total: number;
+  credit_used: number;
 }
 
 // ── Spending comparison ──
@@ -78,6 +80,16 @@ export function useDashboard(windowDays = 90) {
     queryKey: dashboardKeys.summary(windowDays),
     queryFn: () =>
       authenticatedFetch<DashboardResponse>(`/dashboard?window_days=${windowDays}`),
+    enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useDashboardCredit() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: dashboardKeys.credit(),
+    queryFn: () => authenticatedFetch<CreditWidgetResponse>('/dashboard/credit'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
