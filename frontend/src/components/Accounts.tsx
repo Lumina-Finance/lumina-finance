@@ -10,7 +10,7 @@ import {
   type AccountsOverview,
 } from '@/api/accounts'
 import { useTaxAdvantagedPlans, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
-import { useDashboard } from '@/api/dashboard'
+import { useDashboardSavingsRate } from '@/api/dashboard'
 import { useRunway } from '@/api/user'
 import { accountKeys, dashboardKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys'
 import { useFocusRefetch } from '@/hooks/useFocusRefetch'
@@ -510,7 +510,7 @@ export default function Accounts() {
   const { data: taxAdvantagedPlans } = useTaxAdvantagedPlans()
   useFocusRefetch([
     accountKeys.list(),
-    { queryKey: dashboardKeys.all, exact: false },
+    { queryKey: dashboardKeys.savingsRateAll, exact: false },
     taxAdvantagedPlanKeys.list(),
   ])
 
@@ -639,7 +639,7 @@ export default function Accounts() {
         : 'var(--app-negative)'
   const displayCurrency = user!.base_currency
 
-  const { data: dashboard } = useDashboard()
+  const { data: dashboardSavingsRate } = useDashboardSavingsRate()
 
   const { data: runway } = useRunway()
   const runwayMonths = runway?.months ?? null
@@ -656,7 +656,7 @@ export default function Accounts() {
           ? 'Need 1+ month of expense data'
           : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo · ${runway.months_covered}mo basis`
 
-  const savingsRatePeriod = dashboard?.savings_rate_history.at(-1)
+  const savingsRatePeriod = dashboardSavingsRate?.savings_rate_history.at(-1)
   const savingsRateIncome = savingsRatePeriod?.income ?? 0
   const savingsRateExpenses = savingsRatePeriod?.expenses ?? 0
   const savingsRateNet = savingsRateIncome - savingsRateExpenses

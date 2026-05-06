@@ -20,6 +20,7 @@ from app.schemas.dashboard import (
     DashboardResponse,
     NetWorthWidgetResponse,
     RangeKind,
+    SavingsRateWidgetResponse,
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
 )
@@ -48,22 +49,30 @@ async def get_dashboard(
 
     accounts = await get_accessible_accounts(db, user)
     all_account_ids = [a.id for a in accounts]
-    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
 
     recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
     active_budgets = await get_active_budgets(db, user, now)
 
-    savings_rate_history = await get_savings_rate_history(db, base_currency_account_ids, now)
-
     return DashboardResponse(
-        recurring_expenses_estimate=None,
-        savings_rate_history=savings_rate_history,
         upcoming_bills=None,
         runway_months=None,
         recent_transactions=recent_transactions,
         active_budgets=active_budgets,
         transaction_window_days=window_days,
     )
+
+
+@router.get("/savings-rate", response_model=SavingsRateWidgetResponse)
+async def get_savings_rate_widget_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return savings-rate history for the dashboard savings-rate widget."""
+    now = datetime.now(ZoneInfo(user.tz))
+    accounts = await get_accessible_accounts(db, user)
+    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
+    savings_rate_history = await get_savings_rate_history(db, base_currency_account_ids, now)
+    return SavingsRateWidgetResponse(savings_rate_history=savings_rate_history)
 
 
 @router.get("/net-worth", response_model=NetWorthWidgetResponse)

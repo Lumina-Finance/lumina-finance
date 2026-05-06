@@ -119,34 +119,32 @@ class NetWorthWidgetResponse(BaseModel):
     net_worth_window_days: int
 
 
+class SavingsRateWidgetResponse(BaseModel):
+    """Savings-rate history for the dashboard savings-rate widget.
+
+    `savings_rate_history` is a per-month series of raw income and expense
+    totals covering the current (in-progress) calendar month plus the prior
+    six months, ordered oldest-first. Base-currency accounts only. The rate
+    itself is derived on the frontend so it can handle the three zero-income
+    cases (real rate, ``-inf`` when expenses exist without income, ``0``
+    when both are zero) without having to serialize non-finite floats.
+    """
+
+    savings_rate_history: list[MonthlyIncomeExpense]
+
+
 class DashboardResponse(BaseModel):
     """Aggregated payload for `GET /dashboard`.
 
     Bundles the remaining shared dashboard landing widgets in one round trip.
-    The net worth and credit widgets live on dedicated `GET /dashboard/*`
+    The net worth, credit, and savings-rate widgets live on dedicated `GET /dashboard/*`
     routes so they can be cached separately.
     Individual sub-queries mirror default aggregate scoping: readable,
     non-hidden accounts plus readable budgets. Hidden accounts remain
     inspectable on direct account views but are excluded here.
 
-    Recurring / savings rate:
-    - `recurring_expenses_estimate` is reserved for an estimated monthly total
-      of recurring expenses over the trailing three months. Ships as `None`
-      until the `ScheduledTransaction` model lands.
-    - `savings_rate_history` is a per-month series of raw income and expense
-      totals covering the current (in-progress) calendar month plus the prior
-      six months, ordered oldest-first. Base-currency accounts only. The rate
-      itself is derived on the frontend so it can handle the three zero-income
-      cases (real rate, ``-inf`` when expenses exist without income, ``0``
-      when both are zero) without having to serialize non-finite floats.
-
-    Spending and savings fields sum only activity on accounts whose
-    currency matches the user's base currency; foreign-currency activity is
-    excluded until fx data is connected.
+    Recent activity is scoped to readable, non-hidden accounts.
     """
-
-    recurring_expenses_estimate: int | None
-    savings_rate_history: list[MonthlyIncomeExpense]
 
     upcoming_bills: list[dict] | None = None
     runway_months: float | None = None

@@ -36,6 +36,7 @@ import {
   useDashboard,
   useDashboardCredit,
   useDashboardNetWorth,
+  useDashboardSavingsRate,
   useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard'
@@ -348,6 +349,7 @@ export default function Dashboard() {
   const { data: dashboard } = useDashboard()
   const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
   const { data: dashboardNetWorth } = useDashboardNetWorth()
+  const { data: dashboardSavingsRate } = useDashboardSavingsRate()
   const { data: latestBudgetUtilizations, isLoading: latestBudgetUtilizationsLoading } = useLatestBudgetUtilizations()
   const { data: categories } = useCategories()
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
@@ -426,7 +428,7 @@ export default function Dashboard() {
   // still reads as a negative bar. The tooltip relies on the raw totals to
   // show the true rate, including −∞%.
   const savingsData = useMemo(() => {
-    const history = dashboard?.savings_rate_history ?? []
+    const history = dashboardSavingsRate?.savings_rate_history ?? []
     return history.map((row, i, arr) => {
       let rate: number | null
       if (row.income > 0) {
@@ -446,7 +448,7 @@ export default function Dashboard() {
         isCurrent: i === arr.length - 1,
       }
     })
-  }, [dashboard])
+  }, [dashboardSavingsRate])
 
   // Spending comparison — the selected range maps to a cumulative current-vs-prior
   // series the backend returns in positive minor units. slot_labels drives the

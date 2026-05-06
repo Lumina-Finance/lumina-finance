@@ -25,9 +25,6 @@ export interface ActiveBudgetSummary {
 }
 
 export interface DashboardResponse {
-  recurring_expenses_estimate: number | null;
-  savings_rate_history: MonthlyIncomeExpense[];
-
   upcoming_bills: unknown[] | null;
   runway_months: number | null;
 
@@ -45,6 +42,10 @@ export interface NetWorthWidgetResponse {
   current_net_worth: number;
   net_worth_history: number[];
   net_worth_window_days: number;
+}
+
+export interface SavingsRateWidgetResponse {
+  savings_rate_history: MonthlyIncomeExpense[];
 }
 
 // ── Spending comparison ──
@@ -105,6 +106,16 @@ export function useDashboardNetWorth(windowDays = 90) {
       authenticatedFetch<NetWorthWidgetResponse>(
         `/dashboard/net-worth?window_days=${windowDays}`,
       ),
+    enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useDashboardSavingsRate() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: dashboardKeys.savingsRate(),
+    queryFn: () => authenticatedFetch<SavingsRateWidgetResponse>('/dashboard/savings-rate'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
