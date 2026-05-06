@@ -57,6 +57,12 @@ import FilterOptionList from '@/components/FilterOptionList'
 import TransactionRow from '@/components/TransactionRow'
 
 const DEFAULT_CATEGORY_ICON = '🏷️'
+const TRANSACTION_FILTER_KEYS = [
+  'category_id',
+  'from_date',
+  'to_date',
+] as const
+const FILTER_LIST_LOADING_MIN_MS = 1000
 
 const ACCOUNT_KIND_LABEL: Record<string, string> = {
   asset: 'Asset',
@@ -1607,19 +1613,21 @@ function parseYmdLocal(ymd: string): Date {
 // reads identically across pages.
 function formatDateRangeLabel(from?: string, to?: string): string | null {
   if (!from && !to) return null
-  const parse = (s: string) => parseYmdLocal(s)
-  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
-    d.toLocaleDateString('en-US', opts)
+  const monthDay = (ymd: string) => parseYmdLocal(ymd).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+  const fullYear = (ymd: string) => parseYmdLocal(ymd).getFullYear()
+  const shortYear = (ymd: string) => `'${ymd.slice(2, 4)}`
+
   if (from && to) {
-    const fromDate = parse(from)
-    const toDate = parse(to)
-    const sameYear = fromDate.getFullYear() === toDate.getFullYear()
-    return sameYear
-      ? `${fmt(fromDate, { month: 'short', day: 'numeric' })} – ${fmt(toDate, { month: 'short', day: 'numeric', year: 'numeric' })}`
-      : `${fmt(fromDate, { month: 'short', day: 'numeric', year: 'numeric' })} – ${fmt(toDate, { month: 'short', day: 'numeric', year: 'numeric' })}`
+    if (fullYear(from) === fullYear(to)) {
+      return `${monthDay(from)} – ${monthDay(to)}, ${fullYear(to)}`
+    }
+    return `${monthDay(from)}, ${shortYear(from)} – ${monthDay(to)}, ${shortYear(to)}`
   }
-  if (from) return `From ${fmt(parse(from), { month: 'short', day: 'numeric', year: 'numeric' })}`
-  return `Until ${fmt(parse(to!), { month: 'short', day: 'numeric', year: 'numeric' })}`
+  if (from) return `From ${monthDay(from)}, ${fullYear(from)}`
+  return `Until ${monthDay(to!)}, ${fullYear(to!)}`
 }
 
 // Filter values exposed to the user on the per-account transactions section.
@@ -1629,6 +1637,61 @@ interface AccountTransactionFilters {
   category_id?: string
   from_date?: string
   to_date?: string
+}
+
+function currentTimeMs() {
+  return Date.now()
+}
+
+function normalizeAccountTransactionFilters(
+  filters: AccountTransactionFilters,
+): AccountTransactionFilters {
+  const next = { ...filters }
+  for (const key of TRANSACTION_FILTER_KEYS) {
+    if (!next[key]) delete next[key]
+  }
+  return next
+}
+
+function TransactionFilterLoadingOverlay({
+  placement = 'top',
+  reducedMotion,
+}: {
+  placement?: 'center' | 'top'
+  reducedMotion: boolean | null
+}) {
+  return (
+    <motion.div
+      className={`absolute inset-0 z-30 flex min-h-64 flex-col items-center gap-4 ${
+        placement === 'center' ? 'justify-center' : 'justify-start pt-24'
+      }`}
+      style={{
+        background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
+        backdropFilter: 'blur(3px)',
+        touchAction: 'none',
+      }}
+      role="status"
+      aria-live="polite"
+      initial={reducedMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: reducedMotion ? 0 : 0.18 }}
+      onWheel={(event) => event.preventDefault()}
+      onTouchMove={(event) => event.preventDefault()}
+    >
+      <div
+        className="h-9 w-9 rounded-full border-2 animate-spin motion-reduce:animate-none"
+        style={{ borderColor: 'var(--app-border-strong)', borderTopColor: 'var(--app-accent)' }}
+        aria-hidden
+      />
+      <p
+        className="text-xs font-medium uppercase tracking-[0.2em]"
+        style={{ color: 'var(--app-text-subtle)' }}
+      >
+        Loading transactions
+      </p>
+    </motion.div>
+  )
 }
 
 // Group transactions by calendar day, preserving input order within each group.
@@ -1669,15 +1732,52 @@ function TransactionListSection({
     return () => clearTimeout(timer)
   }, [search])
 
+  const prefersReducedMotion = useReducedMotion()
+  const latestTransactionsRef = useRef<Transaction[]>([])
+  const filterLoadingStartedAtRef = useRef(0)
+  const filterLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [filters, setFilters] = useState<AccountTransactionFilters>({})
+  const filtersRef = useRef(filters)
+  const [filterListLoading, setFilterListLoading] = useState(false)
+  const [filterLoadingRows, setFilterLoadingRows] = useState<Transaction[] | null>(null)
+  const [pendingClearReveal, setPendingClearReveal] = useState(false)
+  const [clearExitRows, setClearExitRows] = useState<Transaction[] | null>(null)
+  const [listRevealKey, setListRevealKey] = useState(0)
+
+  useEffect(() => {
+    filtersRef.current = filters
+  }, [filters])
+
   const setFilter = (patch: Partial<AccountTransactionFilters>) => {
-    setFilters((f) => {
-      const next = { ...f, ...patch }
-      for (const key of Object.keys(next) as (keyof AccountTransactionFilters)[]) {
-        if (!next[key]) delete next[key]
+    const current = filtersRef.current
+    const next = normalizeAccountTransactionFilters({ ...current, ...patch })
+    const changed = TRANSACTION_FILTER_KEYS.some((key) => current[key] !== next[key])
+    if (!changed) return
+
+    const isApplyingFilter = Object.values(patch).some(Boolean)
+    if (isApplyingFilter) {
+      setPendingClearReveal(false)
+      setClearExitRows(null)
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+        filterLoadingTimeoutRef.current = null
       }
-      return next
-    })
+      filterLoadingStartedAtRef.current = currentTimeMs()
+      setFilterLoadingRows(latestTransactionsRef.current)
+      setFilterListLoading(true)
+    } else {
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+        filterLoadingTimeoutRef.current = null
+      }
+      filterLoadingStartedAtRef.current = 0
+      setFilterListLoading(false)
+      setFilterLoadingRows(null)
+      setClearExitRows(latestTransactionsRef.current)
+      setPendingClearReveal(true)
+    }
+
+    setFilters(next)
   }
 
   // Date-range chip — drafts (`pendingFrom` / `pendingTo`) only become applied
@@ -1718,12 +1818,19 @@ function TransactionListSection({
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    isFetching,
   } = useInfiniteTransactions({
     account_id: account.id,
     ...filters,
     q: activeSearch || undefined,
   })
   const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
+  const transactionsLoaded = txnPages !== undefined
+  const displayedTransactions = filterListLoading && filterLoadingRows
+    ? filterLoadingRows
+    : clearExitRows ?? transactions
+  const displayedTransactionsLoaded =
+    transactionsLoaded || (filterListLoading && filterLoadingRows !== null) || clearExitRows !== null
 
   const { data: categories } = useCategories()
   const categoryMap = useMemo(
@@ -1731,35 +1838,90 @@ function TransactionListSection({
     [categories],
   )
 
-  const dateGroups = useMemo(() => groupByDate(transactions), [transactions])
-  const transactionsLoaded = txnPages !== undefined
+  const dateGroups = useMemo(() => groupByDate(displayedTransactions), [displayedTransactions])
+
+  useEffect(() => {
+    return () => {
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!filterListLoading && !pendingClearReveal && clearExitRows === null && transactionsLoaded) {
+      latestTransactionsRef.current = transactions
+    }
+  }, [clearExitRows, filterListLoading, pendingClearReveal, transactions, transactionsLoaded])
+
+  useEffect(() => {
+    if (!pendingClearReveal || isFetching || txnPages === undefined) return
+    const revealTimeout = window.setTimeout(() => {
+      setListRevealKey((key) => key + 1)
+      setClearExitRows(null)
+      setPendingClearReveal(false)
+    }, 0)
+    return () => window.clearTimeout(revealTimeout)
+  }, [isFetching, pendingClearReveal, txnPages])
+
+  useEffect(() => {
+    if (!filterListLoading) return
+    if (!isFetching && (txnPages !== undefined || error)) {
+      const elapsed = Date.now() - filterLoadingStartedAtRef.current
+      const remaining = Math.max(FILTER_LIST_LOADING_MIN_MS - elapsed, 0)
+      if (filterLoadingTimeoutRef.current !== null) {
+        clearTimeout(filterLoadingTimeoutRef.current)
+      }
+      filterLoadingTimeoutRef.current = setTimeout(() => {
+        setFilterListLoading(false)
+        setFilterLoadingRows(null)
+        filterLoadingStartedAtRef.current = 0
+        filterLoadingTimeoutRef.current = null
+      }, remaining)
+    }
+  }, [error, filterListLoading, isFetching, txnPages])
 
   // Infinite scroll — keep fetching as the sentinel enters the viewport.
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const [pendingFetch, setPendingFetch] = useState(false)
   useEffect(() => {
-    if (!hasNextPage || isFetchingNextPage) return
+    if (!hasNextPage || isFetchingNextPage || filterListLoading) return
     const el = sentinelRef.current
     if (!el) return
-    let requested = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && !requested) {
-        requested = true
-        fetchNextPage()
+      if (entries[0].isIntersecting) {
+        if (timeoutId === null) {
+          setPendingFetch(true)
+          timeoutId = setTimeout(() => {
+            setPendingFetch(false)
+            fetchNextPage()
+          }, 1000)
+        }
+      } else if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+        setPendingFetch(false)
       }
     }, { rootMargin: '200px' })
     observer.observe(el)
     return () => {
+      if (timeoutId !== null) clearTimeout(timeoutId)
       observer.disconnect()
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [hasNextPage, isFetchingNextPage, filterListLoading, fetchNextPage])
+  const showPendingFetch = pendingFetch && hasNextPage && !isFetchingNextPage
 
   return (
     <>
       {/* Sticky toolbar — mirrors the main Transactions page so search +
           filter chips behave identically across both surfaces. */}
       <div
-        className="sticky top-0 z-20 flex items-center gap-3 py-3 mb-2"
-        style={{ background: 'var(--app-bg)' }}
+        className="sticky top-0 z-30 !mt-2 mb-2 flex items-center gap-3 pb-2 pt-5"
+        style={{
+          background: 'var(--app-bg)',
+          boxShadow: '0 0.25rem 0 var(--app-bg)',
+        }}
       >
         <div className="relative flex-1">
           <Search
@@ -1834,78 +1996,122 @@ function TransactionListSection({
           className="app-primary-button"
           onClick={onCreateTransaction}
         >
-          <Plus size={16} aria-hidden />
+          <Plus size={18} aria-hidden />
           Add Transaction
         </button>
       </div>
 
-      {error ? (
-        <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>
-          Unable to load transactions.
-        </p>
-      ) : transactionsLoaded && dateGroups.length === 0 ? (
-        <p
-          className="py-8 text-center italic text-sm"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          {search ? 'No transactions match your search.' : 'No transactions yet.'}
-        </p>
-      ) : transactionsLoaded ? (
-        <section className="space-y-4">
-          {dateGroups.map(({ dateLabel, transactions: txns }) => {
-            const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
-            const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
-            return (
-              <div key={dateLabel}>
-                <div
-                  className="sticky top-[6rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
-                  style={{
-                    background: 'var(--app-input-bg)',
-                    borderBottom: '1px solid var(--app-border)',
-                  }}
+      <div className="relative" aria-busy={filterListLoading}>
+        <AnimatePresence>
+          {filterListLoading && <TransactionFilterLoadingOverlay reducedMotion={prefersReducedMotion} />}
+        </AnimatePresence>
+
+        <AnimatePresence initial={false} mode="wait">
+          {error ? (
+            <motion.p
+              key={`error-${listRevealKey}`}
+              className="py-2 font-medium"
+              style={{ color: 'var(--app-negative)' }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+            >
+              Unable to load transactions.
+            </motion.p>
+          ) : displayedTransactionsLoaded && dateGroups.length === 0 ? (
+            <motion.p
+              key={`empty-${listRevealKey}`}
+              className="py-8 text-center italic text-sm"
+              style={{ color: 'var(--app-text-subtle)' }}
+              initial={listRevealKey === 0 || prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: EASE }}
+            >
+              {search ? 'No transactions match your search.' : 'No transactions yet.'}
+            </motion.p>
+          ) : displayedTransactionsLoaded ? (
+            <motion.section
+              key={`list-${listRevealKey}`}
+              className="space-y-4"
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: EASE }}
+            >
+              {dateGroups.map(({ dateLabel, transactions: txns }, groupIndex) => {
+                const dailyTotal = txns.reduce((sum, t) => sum + t.amount, 0)
+                const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+                return (
+                  <motion.div
+                    key={`${dateLabel}-${listRevealKey}`}
+                    initial={
+                      listRevealKey === 0 || prefersReducedMotion
+                        ? false
+                        : { opacity: 0 }
+                    }
+                    animate={{ opacity: 1 }}
+                    transition={{
+                      duration: prefersReducedMotion ? 0 : 0.28,
+                      delay: prefersReducedMotion ? 0 : Math.min(groupIndex * 0.035, 0.18),
+                      ease: EASE,
+                    }}
+                  >
+                    <div
+                      className="sticky top-[4.5rem] z-20 flex items-center justify-between px-3 py-2 rounded-lg"
+                      style={{
+                        background: 'var(--app-input-bg)',
+                        borderBottom: '1px solid var(--app-border)',
+                      }}
+                    >
+                      <p
+                        className="text-sm font-semibold uppercase tracking-wide"
+                        style={{ color: 'var(--app-text-subtle)' }}
+                      >
+                        {dateLabel}
+                      </p>
+                      <p
+                        className="font-financial text-sm font-medium"
+                        style={{ color: dailyColor }}
+                      >
+                        {formatCurrency(dailyTotal, account.currency)}
+                      </p>
+                    </div>
+
+                    <div>
+                      {txns.map((t) => {
+                        const category = categoryMap.get(t.category_id)
+                        return (
+                          <TransactionRow
+                            key={t.id}
+                            accountInstitution={account.institution}
+                            accountName={account.name}
+                            category={category}
+                            currency={account.currency}
+                            transaction={t}
+                            onOpen={onEditTransaction}
+                          />
+                        )
+                      })}
+                    </div>
+                  </motion.div>
+                )
+              })}
+
+              <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+              {isFetchingNextPage || showPendingFetch ? (
+                <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  Loading more transactions...
+                </p>
+              ) : hasNextPage === false ? (
+                <p
+                  className="py-4 text-center text-sm italic"
+                  style={{ color: 'var(--app-text-subtle)' }}
                 >
-                  <p
-                    className="text-sm font-semibold uppercase tracking-wide"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    {dateLabel}
-                  </p>
-                  <p
-                    className="font-financial text-sm font-medium"
-                    style={{ color: dailyColor }}
-                  >
-                    {formatCurrency(dailyTotal, account.currency)}
-                  </p>
-                </div>
-
-                <div>
-                  {txns.map((t) => {
-                    const category = categoryMap.get(t.category_id)
-                    return (
-                      <TransactionRow
-                        key={t.id}
-                        accountInstitution={account.institution}
-                        accountName={account.name}
-                        category={category}
-                        currency={account.currency}
-                        transaction={t}
-                        onOpen={onEditTransaction}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-
-          <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
-          {hasNextPage === false ? (
-            <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-              You've reached the end.
-            </p>
+                  You've reached the end.
+                </p>
+              ) : null}
+            </motion.section>
           ) : null}
-        </section>
-      ) : null}
+        </AnimatePresence>
+      </div>
     </>
   )
 }

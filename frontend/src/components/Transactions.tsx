@@ -844,8 +844,11 @@ export default function Transactions() {
 
       {/* Toolbar */}
       <div
-        className="sticky top-0 z-20 !mt-2 mb-2 flex items-center gap-3 pb-3 pt-5"
-        style={{ background: 'var(--app-bg)' }}
+        className="sticky top-0 z-30 !mt-2 mb-2 flex items-center gap-3 pb-2 pt-5"
+        style={{
+          background: 'var(--app-bg)',
+          boxShadow: '0 0.25rem 0 var(--app-bg)',
+        }}
       >
         <div className="relative flex-1">
           <Search
@@ -994,7 +997,7 @@ export default function Transactions() {
                   >
                   {/* Date header */}
                   <div
-                    className="sticky top-[5.25rem] z-10 flex items-center justify-between px-3 py-2 rounded-lg"
+                    className="sticky top-[4.5rem] z-20 flex items-center justify-between px-3 py-2 rounded-lg"
                     style={{
                       background: 'var(--app-input-bg)',
                       borderBottom: '1px solid var(--app-border)',
