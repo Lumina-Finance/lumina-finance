@@ -15,6 +15,8 @@ import {
 } from '@/api/tags'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import SectionHeader from '@/settings/components/SectionHeader'
+import SettingsCard from '@/settings/components/SettingsCard'
 
 const DELETE_SPINNER_MS = 800
 const CREATE_TAG_MIN_LOADING_MS = 800
@@ -36,25 +38,6 @@ function delay(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
-}
-
-function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
-  return (
-    <div className="app-section-header">
-      <h2 className="app-section-title">{title}</h2>
-      <div className="app-section-description">
-        <p>{description}</p>
-      </div>
-    </div>
-  )
-}
-
-function SettingsCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="app-card">
-      {children}
-    </div>
-  )
 }
 
 function scopeLabel(tag: Tag) {

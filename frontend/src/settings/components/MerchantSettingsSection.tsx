@@ -16,6 +16,8 @@ import { merchantKeys } from '@/api/queryKeys'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import SectionHeader from '@/settings/components/SectionHeader'
+import SettingsCard from '@/settings/components/SettingsCard'
 
 const DELETE_SPINNER_MS = 800
 const NO_CATEGORY_VALUE = NO_DEFAULT_CATEGORY_VALUE
@@ -43,25 +45,6 @@ function delay(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
-}
-
-function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
-  return (
-    <div className="app-section-header">
-      <h2 className="app-section-title">{title}</h2>
-      <div className="app-section-description">
-        <p>{description}</p>
-      </div>
-    </div>
-  )
-}
-
-function SettingsCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="app-card">
-      {children}
-    </div>
-  )
 }
 
 function categoryOptions(categories: Category[]): DropdownOption[] {

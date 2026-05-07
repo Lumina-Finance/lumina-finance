@@ -14,6 +14,8 @@ import {
 import { categoryKeys } from '@/api/queryKeys'
 import CreateCategoryModal, { CategoryIconSelector } from '@/components/CreateCategoryModal'
 import Dropdown from '@/components/Dropdown'
+import SectionHeader from '@/settings/components/SectionHeader'
+import SettingsCard from '@/settings/components/SettingsCard'
 
 type CategoryKind = Category['kind']
 
@@ -775,24 +777,5 @@ function InlineCategoryEdit({
         </button>
       </div>
     </form>
-  )
-}
-
-function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
-  return (
-    <div className="app-section-header">
-      <h2 className="app-section-title">{title}</h2>
-      <div className="app-section-description space-y-2">
-        {typeof description === 'string' ? <p>{description}</p> : description}
-      </div>
-    </div>
-  )
-}
-
-function SettingsCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="app-card">
-      {children}
-    </div>
   )
 }

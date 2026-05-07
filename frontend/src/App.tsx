@@ -11,7 +11,7 @@ import AccountsPage from '@/accounts/AccountsPage'
 import AccountDetailPage from '@/accounts/detail/AccountDetailPage'
 import TransactionsPage from '@/transactions/TransactionsPage'
 import BudgetsPage from '@/budgets/BudgetsPage'
-import Settings from '@/components/Settings'
+import SettingsPage from '@/settings/SettingsPage'
 import TransactionImportPage from '@/components/TransactionImportPage'
 import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
@@ -176,14 +176,14 @@ function AnimatedRoutes() {
           <Route path="/signup" element={<Auth />} />
         </Route>
 
-        {/* Protected routes — app shell with sidebar */}
+        {/* Protected app routes */}
         <Route element={<ProtectedRoute pageTransitionPhase={pageTransitionPhase} />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/imports" element={<TransactionImportPage />} />
         </Route>
 
