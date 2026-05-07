@@ -74,7 +74,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
         >
           {!isFocusedPage && <Navigation />}
           <main
-            className={`relative flex-1 ${isFocusedPage ? 'p-0' : 'ml-[260px] px-4 pb-8 pt-6 lg:px-6 lg:pb-12 lg:pt-12'}`}
+            className={`relative flex-1 ${isFocusedPage ? 'p-0' : 'px-4 pb-8 pt-6 min-[1050px]:ml-[260px] lg:px-6 lg:pb-12 lg:pt-12'}`}
             aria-busy={pageTransitioning}
           >
             <AnimatePresence>

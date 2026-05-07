@@ -29,7 +29,7 @@
     --app-button-primary-bg: #7F541C;
     --app-button-primary-bg-hover: #8F6124;
     --app-button-primary-text: #FFF8EC;
-    --app-nav-bg: #f8f4ecf7;
+    --app-nav-bg: #F8F4EC;
     --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;
   }
 
@@ -59,7 +59,7 @@
     --app-button-primary-bg: #C9A96A;
     --app-button-primary-bg-hover: #D5B978;
     --app-button-primary-text: #100F0E;
-    --app-nav-bg: #12100dfa;
+    --app-nav-bg: #12100D;
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
   }
 
@@ -84,6 +84,31 @@
     background-color: var(--app-bg);
     color: var(--app-text);
     font-family: "DM Sans", system-ui, sans-serif;
+  }
+
+  html,
+  body,
+  #root,
+  #root > div {
+    transition: background-color 480ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  body.app-mobile-nav-open,
+  body.app-mobile-nav-open #root,
+  body.app-mobile-nav-open #root > div {
+    background-color: var(--app-mobile-nav-bg-current, var(--app-nav-bg)) !important;
+  }
+
+  @media (max-width: 1049.98px) {
+    body.app-mobile-nav-open main {
+      opacity: 0;
+      transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+    }
+
+    main {
+      transition: opacity 220ms ease-out;
+    }
   }
 }
 

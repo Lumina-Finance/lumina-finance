@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   CreditCard,
   LayoutDashboard,
@@ -28,6 +30,371 @@ const navItems: NavigationItem[] = [
   { to: '/budgets', icon: PieChart, label: 'Budgets' },
 ];
 
+const primaryNavItems = [...navItems, { to: '/settings', icon: Settings, label: 'Settings' }];
+
+const mobileMenuFadeMs = 260;
+
+function NavigationBrand() {
+  return (
+    <div className="px-2">
+      <h1 className="font-serif text-[1.85rem] font-medium leading-none tracking-[-0.02em]">
+        Lumina
+      </h1>
+      <p
+        className="mt-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.24em]"
+        style={{ color: 'var(--app-accent)' }}
+      >
+        Finance
+      </p>
+    </div>
+  );
+}
+
+function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <ul className="list-none space-y-1 p-0 m-0">
+      {primaryNavItems.map((item) => {
+        const Icon = item.icon;
+        const isSettings = item.to === '/settings';
+        return (
+          <li key={item.label}>
+            {isSettings && (
+              <div aria-hidden className="mx-2 my-3 h-px" style={{ background: 'var(--app-border)' }} />
+            )}
+            <NavLink
+              to={item.to}
+              end
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                `app-nav-link ${isActive ? 'app-nav-link-active' : ''}`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden />
+                  {item.label}
+                </>
+              )}
+            </NavLink>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ThemeToggle({
+  theme,
+  setTheme,
+  onThemeChange,
+}: {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  onThemeChange?: () => void;
+}) {
+  return (
+    <div
+      className="app-segmented-control w-full"
+      role="group"
+      aria-label="Theme selection"
+    >
+      {([
+        { value: 'light' as Theme, icon: Sun, label: 'Light theme' },
+        { value: 'system' as Theme, icon: Monitor, label: 'System theme' },
+        { value: 'dark' as Theme, icon: Moon, label: 'Dark theme' },
+      ]).map(({ value, icon: Icon, label }) => {
+        const isActive = theme === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => {
+              if (value === theme) return;
+              setTheme(value);
+              onThemeChange?.();
+            }}
+            aria-pressed={isActive}
+            aria-label={label}
+            className={`app-segmented-option flex-1 px-0 ${isActive ? 'app-segmented-option-active' : ''}`}
+          >
+            <Icon size={16} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function UserProfile({
+  displayName,
+  initials,
+  logout,
+}: {
+  displayName: string;
+  initials: string;
+  logout: () => Promise<void>;
+}) {
+  return (
+    <div
+      className="app-nav-link"
+      style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
+    >
+      <div
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+        style={{
+          background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
+          color: '#1C1510',
+        }}
+      >
+        {initials}
+      </div>
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <p className="truncate text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+          {displayName}
+        </p>
+        <p className="truncate text-[0.6875rem]" style={{ color: 'var(--app-text-subtle)' }}>
+          Premium Plan
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => { void logout(); }}
+        aria-label="Log out"
+        className="app-icon-button shrink-0"
+      >
+        <LogOut size={14} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function AnimatedMobileMenuIcon({
+  isOpen,
+  shouldReduceMotion,
+}: {
+  isOpen: boolean;
+  shouldReduceMotion: boolean | null;
+}) {
+  const transition = shouldReduceMotion
+    ? { duration: 0 }
+    : { duration: 0.24, ease: 'easeOut' as const };
+
+  return (
+    <span className="relative block h-5 w-5" aria-hidden>
+      <motion.span
+        className="absolute left-1/2 top-1/2 h-0.5 w-5 rounded-full"
+        style={{ background: 'currentColor', transformOrigin: 'center' }}
+        initial={false}
+        animate={isOpen ? { x: '-50%', y: '-50%', rotate: 45 } : { x: '-50%', y: '-0.5rem', rotate: 0 }}
+        transition={transition}
+      />
+      <motion.span
+        className="absolute left-1/2 top-1/2 h-0.5 w-5 rounded-full"
+        style={{ background: 'currentColor', transformOrigin: 'center' }}
+        initial={false}
+        animate={
+          isOpen
+            ? { x: '-50%', y: '-50%', opacity: 0, scaleX: 0.35 }
+            : { x: '-50%', y: '-50%', opacity: 1, scaleX: 1 }
+        }
+        transition={transition}
+      />
+      <motion.span
+        className="absolute left-1/2 top-1/2 h-0.5 w-5 rounded-full"
+        style={{ background: 'currentColor', transformOrigin: 'center' }}
+        initial={false}
+        animate={isOpen ? { x: '-50%', y: '-50%', rotate: -45 } : { x: '-50%', y: '0.375rem', rotate: 0 }}
+        transition={transition}
+      />
+    </span>
+  );
+}
+
+function DesktopNavigation({
+  theme,
+  setTheme,
+  displayName,
+  initials,
+  logout,
+}: {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  displayName: string;
+  initials: string;
+  logout: () => Promise<void>;
+}) {
+  return (
+    <nav
+      aria-label="Primary"
+      className="fixed left-5 top-5 z-30 hidden h-[calc(100vh-2.5rem)] w-60 flex-col rounded-2xl px-4 py-7 min-[1050px]:flex"
+      style={{
+        background: 'var(--app-nav-bg)',
+        border: '1px solid var(--app-border)',
+        boxShadow: 'var(--app-shadow-soft)',
+      }}
+    >
+      <div className="mb-8">
+        <NavigationBrand />
+      </div>
+
+      <NavigationLinks />
+
+      <div className="mt-auto pt-4">
+        <ThemeToggle theme={theme} setTheme={setTheme} />
+      </div>
+
+      <div className="pt-3">
+        <UserProfile displayName={displayName} initials={initials} logout={logout} />
+      </div>
+    </nav>
+  );
+}
+
+function MobileNavigation({
+  theme,
+  setTheme,
+  displayName,
+  initials,
+  logout,
+}: {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  displayName: string;
+  initials: string;
+  logout: () => Promise<void>;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const root = document.documentElement;
+    const navBackground = getComputedStyle(root).getPropertyValue('--app-nav-bg').trim() || '#F8F4EC';
+    const previousOverflow = document.body.style.overflow;
+    const previousRootOverflow = root.style.overflow;
+    const previousRootBackground = root.style.backgroundColor;
+    const previousRootOverscroll = root.style.overscrollBehavior;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    let themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const hadThemeColorMeta = Boolean(themeColorMeta);
+    const previousThemeColor = themeColorMeta?.content ?? '';
+
+    root.style.overflow = 'hidden';
+    root.style.overscrollBehavior = 'none';
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    document.body.style.setProperty('--app-mobile-nav-bg-current', navBackground);
+    document.body.classList.add('app-mobile-nav-open');
+    root.style.backgroundColor = navBackground;
+
+    if (!themeColorMeta) {
+      themeColorMeta = document.createElement('meta');
+      themeColorMeta.name = 'theme-color';
+      document.head.appendChild(themeColorMeta);
+    }
+    themeColorMeta.content = navBackground;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const menu = document.getElementById('mobile-primary-navigation');
+      if (menu?.contains(event.target as Node)) return;
+      event.preventDefault();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      root.style.overflow = previousRootOverflow;
+      root.style.overscrollBehavior = previousRootOverscroll;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.body.classList.remove('app-mobile-nav-open');
+      document.body.style.removeProperty('--app-mobile-nav-bg-current');
+      root.style.backgroundColor = previousRootBackground;
+      if (themeColorMeta) {
+        if (hadThemeColorMeta) {
+          themeColorMeta.content = previousThemeColor;
+        } else {
+          themeColorMeta.remove();
+        }
+      }
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isOpen, theme]);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-controls="mobile-primary-navigation"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        className="app-icon-button fixed right-4 top-4 z-50 h-11 w-11 min-[1050px]:hidden"
+        style={{
+          background: 'var(--app-nav-bg)',
+          border: '1px solid var(--app-border)',
+          boxShadow: 'var(--app-shadow-soft)',
+          color: 'var(--app-text)',
+        }}
+      >
+        <AnimatedMobileMenuIcon isOpen={isOpen} shouldReduceMotion={shouldReduceMotion} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.nav
+            id="mobile-primary-navigation"
+            aria-label="Primary"
+            className="fixed inset-x-0 -bottom-40 top-0 z-40 flex overscroll-contain flex-col overflow-y-auto px-5 pt-6 min-[1050px]:hidden"
+            style={{
+              background: 'var(--app-nav-bg)',
+              color: 'var(--app-text)',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0.16 : mobileMenuFadeMs / 1000, ease: 'easeOut' }}
+          >
+            <motion.div
+              className="flex min-h-[100dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.22, delay: shouldReduceMotion ? 0 : 0.16, ease: 'easeOut' }}
+            >
+              <div className="pr-14">
+                <NavigationBrand />
+              </div>
+
+              <div className="mt-10">
+                <NavigationLinks onNavigate={() => setIsOpen(false)} />
+              </div>
+
+              <div className="mt-auto pt-8">
+                <ThemeToggle
+                  theme={theme}
+                  setTheme={setTheme}
+                  onThemeChange={() => setIsOpen(false)}
+                />
+              </div>
+
+              <div className="pt-3">
+                <UserProfile displayName={displayName} initials={initials} logout={logout} />
+              </div>
+            </motion.div>
+          </motion.nav>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
 const Navigation = () => {
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
@@ -43,119 +410,22 @@ const Navigation = () => {
     : '';
 
   return (
-    <nav
-      aria-label="Primary"
-      className="fixed left-5 top-5 z-30 flex h-[calc(100vh-2.5rem)] w-60 flex-col rounded-2xl px-4 py-7"
-      style={{
-        background: 'var(--app-nav-bg)',
-        border: '1px solid var(--app-border)',
-        boxShadow: 'var(--app-shadow-soft)',
-      }}
-    >
-      {/* Logo and subtitle */}
-      <div className="mb-8 px-2">
-        <h1 className="font-serif text-[1.85rem] font-medium leading-none tracking-[-0.02em]">
-          Lumina
-        </h1>
-        <p
-          className="mt-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.24em]"
-          style={{ color: 'var(--app-accent)' }}
-        >
-          Finance
-        </p>
-      </div>
-
-      <ul className="list-none space-y-1 p-0 m-0">
-        {[...navItems, { to: '/settings', icon: Settings, label: 'Settings' }].map((item) => {
-          const Icon = item.icon;
-          const isSettings = item.to === '/settings';
-          return (
-            <li key={item.label}>
-              {isSettings && (
-                <div aria-hidden className="mx-2 my-3 h-px" style={{ background: 'var(--app-border)' }} />
-              )}
-              <NavLink
-                to={item.to}
-                end
-                className={({ isActive }) =>
-                  `app-nav-link ${isActive ? 'app-nav-link-active' : ''}`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden />
-                    {item.label}
-                  </>
-                )}
-              </NavLink>
-            </li>
-          );
-        })}
-      </ul>
-
-      {/* Theme toggle */}
-      <div className="mt-auto pt-4">
-        <div
-          className="app-segmented-control w-full"
-          role="group"
-          aria-label="Theme selection"
-        >
-          {([
-            { value: 'light' as Theme, icon: Sun, label: 'Light theme' },
-            { value: 'system' as Theme, icon: Monitor, label: 'System theme' },
-            { value: 'dark' as Theme, icon: Moon, label: 'Dark theme' },
-          ]).map(({ value, icon: Icon, label }) => {
-            const isActive = theme === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTheme(value)}
-                aria-pressed={isActive}
-                aria-label={label}
-                className={`app-segmented-option flex-1 px-0 ${isActive ? 'app-segmented-option-active' : ''}`}
-              >
-                <Icon size={16} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* User profile */}
-      <div className="pt-3">
-        <div
-          className="app-nav-link"
-          style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
-        >
-          <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-            style={{
-              background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
-              color: '#1C1510',
-            }}
-          >
-            {initials}
-          </div>
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-              {displayName}
-            </p>
-            <p className="truncate text-[0.6875rem]" style={{ color: 'var(--app-text-subtle)' }}>
-              Premium Plan
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => { void logout(); }}
-            aria-label="Log out"
-            className="app-icon-button shrink-0"
-          >
-            <LogOut size={14} aria-hidden />
-          </button>
-        </div>
-      </div>
-    </nav>
+    <>
+      <DesktopNavigation
+        theme={theme}
+        setTheme={setTheme}
+        displayName={displayName}
+        initials={initials}
+        logout={logout}
+      />
+      <MobileNavigation
+        theme={theme}
+        setTheme={setTheme}
+        displayName={displayName}
+        initials={initials}
+        logout={logout}
+      />
+    </>
   );
 };
 
