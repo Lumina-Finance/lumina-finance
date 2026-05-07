@@ -31,6 +31,10 @@
     --app-button-primary-text: #FFF8EC;
     --app-nav-bg: #F8F4EC;
     --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;
+    --app-page-title-size: 3.4rem;
+    --app-page-description-size: 1.0625rem;
+    --app-label-size: 1.0625rem;
+    --app-label-compact-size: 0.75rem;
   }
 
   .dark {
@@ -61,6 +65,15 @@
     --app-button-primary-text: #100F0E;
     --app-nav-bg: #12100D;
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
+  }
+
+  @media (max-width: 1000px) {
+    :root {
+      --app-page-title-size: 3.06rem;
+      --app-page-description-size: 0.956rem;
+      --app-label-size: 0.956rem;
+      --app-label-compact-size: 0.675rem;
+    }
   }
 
   * {
@@ -403,8 +416,12 @@
 
   .app-label {
     @apply font-semibold lg:font-medium normal-case;
-    font-size: 1.0625rem;
+    font-size: var(--app-label-size);
     color: var(--app-text-muted);
+  }
+
+  .app-label-compact {
+    font-size: var(--app-label-compact-size);
   }
 
   .app-card {
@@ -533,7 +550,7 @@
   }
 
   .app-page-title {
-    font-size: clamp(1.6rem, 4vw, 3.4rem);
+    font-size: var(--app-page-title-size);
     line-height: 1;
     font-family: "Cormorant Garamond", Georgia, serif;
     font-weight: 400;
@@ -543,7 +560,7 @@
 
   .app-page-description {
     @apply max-w-2xl leading-relaxed;
-    font-size: clamp(0.9375rem, 1.3vw, 1.0625rem);
+    font-size: var(--app-page-description-size);
     color: var(--app-text-muted);
   }
 

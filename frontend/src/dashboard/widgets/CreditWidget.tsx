@@ -85,7 +85,7 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="font-financial font-medium tracking-tight text-2xl">
+              <span className="font-financial font-medium tracking-tight text-2xl max-[1000px]:text-[1.35rem]">
                 <AppScrambledNumber
                   text={`${displayPct}%`}
                   loading={dashboardCreditLoading}
@@ -95,14 +95,14 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
             </div>
           </div>
           <div className="min-w-0">
-            <p className="font-financial font-normal tracking-tight leading-none text-3xl">
+            <p className="font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]">
               <AppScrambledNumber
                 text={formatDashboardMoney(displayAmount, displayCurrency, 'credit')}
                 loading={dashboardCreditLoading}
                 loadingText={creditLoadingText}
               />
             </p>
-            <p className="font-financial mt-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
               of{' '}
               <AppScrambledNumber
                 text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit')}
@@ -114,7 +114,7 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
         </div>
       ) : (
         <p
-          className="my-auto text-center text-sm italic"
+          className="my-auto text-center text-sm italic max-[1000px]:text-[0.7875rem]"
           style={{ color: 'var(--app-text-subtle)' }}
         >
           No credit accounts

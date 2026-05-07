@@ -17,10 +17,10 @@ export default function DashboardPage() {
   return (
     <div className="min-[1050px]:-mt-7">
       <header className="app-page-header">
-        <h1 className="app-page-title text-[3.4rem]">
+        <h1 className="app-page-title">
           {greeting}
         </h1>
-        <p className="app-page-description text-[1.0625rem]">{subtitle}</p>
+        <p className="app-page-description">{subtitle}</p>
       </header>
 
       <div className="space-y-6">

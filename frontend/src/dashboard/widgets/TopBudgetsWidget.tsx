@@ -62,7 +62,7 @@ export function TopBudgetsWidget() {
         </div>
       ) : budgets.length === 0 ? (
         <div
-          className="flex-1 flex items-center justify-center text-sm italic"
+          className="flex-1 flex items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
           style={{ color: 'var(--app-text-subtle)' }}
         >
           No budgets
@@ -85,9 +85,9 @@ export function TopBudgetsWidget() {
                 >
                   <div className="flex items-baseline justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{budget.name}</p>
+                      <p className="text-sm font-semibold truncate max-[1000px]:text-[0.7875rem]">{budget.name}</p>
                       <p
-                        className="mt-0.5 text-xs"
+                        className="mt-0.5 text-xs max-[1000px]:text-[0.675rem]"
                         style={{ color: 'var(--app-text-muted)' }}
                       >
                         {formatCurrency(budget.total_spent, budget.currency)}
@@ -96,10 +96,10 @@ export function TopBudgetsWidget() {
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-lg font-semibold leading-none" style={{ color: attention.textColor }}>
+                      <p className="text-lg font-semibold leading-none max-[1000px]:text-[1.0125rem]" style={{ color: attention.textColor }}>
                         {budget.usagePct}%
                       </p>
-                      <p className="mt-1 text-xs font-medium" style={{ color: attention.textColor }}>
+                      <p className="mt-1 text-xs font-medium max-[1000px]:text-[0.675rem]" style={{ color: attention.textColor }}>
                         {attention.label}
                       </p>
                     </div>
@@ -118,7 +118,7 @@ export function TopBudgetsWidget() {
                         }}
                       />
                     </div>
-                    <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                    <span className="shrink-0 text-xs max-[1000px]:text-[0.675rem]" style={{ color: 'var(--app-text-subtle)' }}>
                       Ends {formatDashboardShortDate(budget.period_end)}
                     </span>
                   </div>
@@ -128,7 +128,7 @@ export function TopBudgetsWidget() {
           </div>
           <Link
             to="/budgets"
-            className="app-secondary-button mt-3 h-9 text-xs"
+            className="app-secondary-button mt-3 h-9 text-xs max-[1000px]:text-[0.675rem]"
           >
             View all budgets
           </Link>

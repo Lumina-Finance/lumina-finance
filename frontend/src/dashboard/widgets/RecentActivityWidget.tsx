@@ -28,7 +28,7 @@ export function RecentActivityWidget() {
 
       {recentActivity.length === 0 ? (
         <div
-          className="flex-1 flex items-center justify-center text-sm italic"
+          className="flex-1 flex items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
           style={{ color: 'var(--app-text-subtle)' }}
         >
           No recent transactions
@@ -53,7 +53,7 @@ export function RecentActivityWidget() {
                   }
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">
+                    <p className="text-sm font-medium truncate max-[1000px]:text-[0.7875rem]">
                       {title}
                       {category && (
                         <>
@@ -63,7 +63,7 @@ export function RecentActivityWidget() {
                       )}
                     </p>
                     <p
-                      className="text-xs mt-0.5"
+                      className="text-xs mt-0.5 max-[1000px]:text-[0.675rem]"
                       style={{ color: 'var(--app-text-muted)' }}
                     >
                       {new Date(`${transaction.dt}T00:00:00`).toLocaleDateString('en-US', {
@@ -73,7 +73,7 @@ export function RecentActivityWidget() {
                     </p>
                   </div>
                   <span
-                    className="font-financial font-medium text-sm shrink-0 tabular-nums"
+                    className="font-financial font-medium text-sm shrink-0 tabular-nums max-[1000px]:text-[0.7875rem]"
                     style={{ color: isIncome ? 'var(--app-positive)' : 'var(--app-text)' }}
                   >
                     {transaction.amount >= 0 ? '+' : '-'}
@@ -85,7 +85,7 @@ export function RecentActivityWidget() {
           </div>
           <Link
             to="/transactions"
-            className="app-secondary-button mt-3 h-9 text-xs"
+            className="app-secondary-button mt-3 h-9 text-xs max-[1000px]:text-[0.675rem]"
           >
             View all transactions
           </Link>

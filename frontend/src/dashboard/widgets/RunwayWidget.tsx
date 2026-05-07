@@ -56,7 +56,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
         <span className="app-label">Runway</span>
         {runwayStyle && (
           <span
-            className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
+            className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold max-[1000px]:text-[0.675rem]"
             style={{ background: runwayStyle.bg, color: runwayStyle.fg }}
           >
             {runwayStyle.label}
@@ -64,7 +64,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
         )}
       </div>
       <p
-        className="font-financial font-normal tracking-tight leading-none text-3xl"
+        className="font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
         style={{ color: runwayMonths === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
       >
         {formatCompactRunway(runwayMonths)}
@@ -86,7 +86,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
               ))
             ) : (
               <div
-                className="flex-1 flex items-center justify-center text-sm italic"
+                className="flex-1 flex items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
                 style={{
                   background: 'var(--app-border)',
                   color: 'var(--app-text-subtle)',
@@ -109,14 +109,14 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
               }}
             >
               <div
-                className="font-medium truncate"
-                style={{ color: 'var(--app-text)', fontSize: 13 }}
+                className="font-medium truncate text-[0.8125rem] max-[1000px]:text-[0.73125rem]"
+                style={{ color: 'var(--app-text)' }}
               >
                 {hoveredSegment.name}
               </div>
               <div
-                className="font-financial"
-                style={{ color: 'var(--app-text-muted)', fontSize: 13 }}
+                className="font-financial text-[0.8125rem] max-[1000px]:text-[0.73125rem]"
+                style={{ color: 'var(--app-text-muted)' }}
               >
                 {formatCurrency(hoveredSegment.amount, displayCurrency)}
               </div>
@@ -125,7 +125,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
         </div>
       </div>
       {runwaySegments.length > 0 && (
-        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        <p className="text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
           {runwayCaption}
         </p>
       )}

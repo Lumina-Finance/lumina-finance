@@ -86,7 +86,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
         />
       </div>
       <div className="flex items-baseline gap-2">
-        <p className="font-financial font-normal tracking-tight leading-none text-3xl">
+        <p className="font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]">
           <AppScrambledNumber
             text={formatCurrency(spentToDate, displayCurrency)}
             loading={spendingComparisonLoading}
@@ -95,7 +95,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
         </p>
         {(spendingComparisonLoading || spendingDeltaPct != null) && (
           <div
-            className="flex items-center text-sm font-medium"
+            className="flex items-center text-sm font-medium max-[1000px]:text-[0.7875rem]"
             style={{
               color: spendingComparisonLoading || spendingDeltaPct == null
                 ? 'var(--app-text-muted)'
@@ -129,7 +129,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
             }}
           />
           <span
-            className="text-xs"
+            className="text-xs max-[1000px]:text-[0.675rem]"
             style={{
               color: 'var(--app-text-muted)',
               fontStyle: currentHasData ? 'normal' : 'italic',
@@ -149,7 +149,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
             }}
           />
           <span
-            className="text-xs"
+            className="text-xs max-[1000px]:text-[0.675rem]"
             style={{
               color: 'var(--app-text-muted)',
               fontStyle: previousHasData ? 'normal' : 'italic',

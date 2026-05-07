@@ -86,7 +86,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
 
       {breakdownEntries.length === 0 && !spendingBreakdownLoading ? (
         <div
-          className="flex-1 flex items-center justify-center text-sm italic"
+          className="flex-1 flex items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
           style={{ color: 'var(--app-text-subtle)' }}
         >
           No {breakdownMode === 'spending' ? 'expense' : 'income'} activity in this range
@@ -99,10 +99,10 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
             onMouseLeave={handleBreakdownMouseLeave}
           >
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="app-label" style={{ fontSize: 12 }}>
+              <span className="app-label app-label-compact">
                 Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
               </span>
-              <span className="font-financial font-normal tracking-tight text-3xl mt-1">
+              <span className="font-financial font-normal tracking-tight text-3xl mt-1 max-[1000px]:text-[1.6875rem]">
                 <AppScrambledNumber
                   text={formatDashboardMoney(breakdownTotal, displayCurrency, 'breakdown')}
                   loading={spendingBreakdownLoading}
@@ -164,7 +164,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                     style={{ background: BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length] }}
                   />
                   <span
-                    className="text-xs font-medium whitespace-nowrap"
+                    className="text-xs font-medium whitespace-nowrap max-[1000px]:text-[0.675rem]"
                     style={{ color: 'var(--app-text-muted)' }}
                   >
                     {entry.name}

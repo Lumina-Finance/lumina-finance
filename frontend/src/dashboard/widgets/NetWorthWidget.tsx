@@ -39,7 +39,7 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
         <span className="app-label">Net Worth</span>
       </div>
       <p
-        className="font-financial font-normal tracking-tight leading-none text-3xl"
+        className="font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
         style={{ color: netWorthColor }}
       >
         {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
