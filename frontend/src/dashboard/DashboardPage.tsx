@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const displayCurrency = user!.base_currency
 
   return (
-    <div className="min-[1050px]:-mt-7">
+    <div>
       <header className="app-page-header">
         <h1 className="app-page-title">
           {greeting}
