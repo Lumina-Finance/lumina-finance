@@ -1,0 +1,33 @@
+interface BudgetFormFooterProps {
+  className: string
+  isPending: boolean
+  submitDisabled: boolean
+  submitLabel: string
+  onClose: () => void
+}
+
+export default function BudgetFormFooter({
+  className,
+  isPending,
+  submitDisabled,
+  submitLabel,
+  onClose,
+}: BudgetFormFooterProps) {
+  return (
+    <div
+      className={className}
+      style={{ borderTop: '1px solid var(--app-border)' }}
+    >
+      <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={isPending}>
+        Cancel
+      </button>
+      <button
+        type="submit"
+        className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading' : 'w-full sm:w-36'}`}
+        disabled={submitDisabled}
+      >
+        {isPending ? <div className="app-spinner" /> : submitLabel}
+      </button>
+    </div>
+  )
+}

@@ -10,7 +10,7 @@ import DashboardPage from '@/dashboard/DashboardPage'
 import AccountsPage from '@/accounts/AccountsPage'
 import AccountDetailPage from '@/accounts/detail/AccountDetailPage'
 import TransactionsPage from '@/transactions/TransactionsPage'
-import Budgets from '@/components/Budgets'
+import BudgetsPage from '@/budgets/BudgetsPage'
 import Settings from '@/components/Settings'
 import TransactionImportPage from '@/components/TransactionImportPage'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -182,7 +182,7 @@ function AnimatedRoutes() {
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
-          <Route path="/budgets" element={<Budgets />} />
+          <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/imports" element={<TransactionImportPage />} />
         </Route>
