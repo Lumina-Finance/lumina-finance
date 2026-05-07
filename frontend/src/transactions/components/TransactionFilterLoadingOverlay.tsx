@@ -1,0 +1,42 @@
+import { motion } from 'motion/react'
+
+export default function TransactionFilterLoadingOverlay({
+  placement = 'top',
+  reducedMotion,
+}: {
+  placement?: 'center' | 'top'
+  reducedMotion: boolean | null
+}) {
+  return (
+    <motion.div
+      className={`absolute inset-0 z-30 flex min-h-64 flex-col items-center gap-4 ${
+        placement === 'center' ? 'justify-center' : 'justify-start pt-24'
+      }`}
+      style={{
+        background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
+        backdropFilter: 'blur(3px)',
+        touchAction: 'none',
+      }}
+      role="status"
+      aria-live="polite"
+      initial={reducedMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: reducedMotion ? 0 : 0.18 }}
+      onWheel={(event) => event.preventDefault()}
+      onTouchMove={(event) => event.preventDefault()}
+    >
+      <div
+        className="h-9 w-9 rounded-full border-2 animate-spin motion-reduce:animate-none"
+        style={{ borderColor: 'var(--app-border-strong)', borderTopColor: 'var(--app-accent)' }}
+        aria-hidden
+      />
+      <p
+        className="text-xs font-medium uppercase tracking-[0.2em]"
+        style={{ color: 'var(--app-text-subtle)' }}
+      >
+        Loading transactions
+      </p>
+    </motion.div>
+  )
+}

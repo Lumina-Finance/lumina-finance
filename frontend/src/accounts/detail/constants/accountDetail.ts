@@ -1,0 +1,22 @@
+import type { SnapshotGranularity } from '@/api/accounts'
+
+export const ACCOUNT_KIND_LABEL: Record<string, string> = {
+  asset: 'Asset',
+  revolving: 'Revolving credit',
+  amortizing: 'Amortizing debt',
+}
+
+export const EASE = [0.25, 0.1, 0.25, 1] as const
+
+export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
+export const BALANCE_RANGES: BalanceRange[] = ['7D', '30D', '90D', '1Y']
+export const TIME_SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.7 } as const
+export const RANGE_CONFIG: Record<
+  BalanceRange,
+  { days: number; granularity: SnapshotGranularity }
+> = {
+  '7D': { days: 7, granularity: 'day' },
+  '30D': { days: 30, granularity: 'day' },
+  '90D': { days: 90, granularity: 'week' },
+  '1Y': { days: 365, granularity: 'month' },
+}

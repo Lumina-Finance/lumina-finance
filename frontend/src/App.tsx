@@ -8,7 +8,7 @@ import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/Navigation'
 import DashboardPage from '@/dashboard/DashboardPage'
 import AccountsPage from '@/accounts/AccountsPage'
-import AccountDetail from '@/components/AccountDetail'
+import AccountDetailPage from '@/accounts/detail/AccountDetailPage'
 import Transactions from '@/components/Transactions'
 import Budgets from '@/components/Budgets'
 import Settings from '@/components/Settings'
@@ -47,6 +47,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
 
+  // Enforce the first-session loading-screen minimum before revealing the app.
   useEffect(() => {
     if (hasShownLoadingScreen || !shouldShowLoading) return;
     const timer = setTimeout(() => {
@@ -114,6 +115,7 @@ function AnimatedRoutes() {
   const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('idle');
   const loadingStartedAtRef = useRef<number | null>(null);
 
+  // Keep rendering the previous protected route until its exit fade completes.
   useEffect(() => {
     if (location.pathname === displayLocation.pathname) return;
 
@@ -134,6 +136,8 @@ function AnimatedRoutes() {
     return () => window.clearTimeout(timer);
   }, [displayLocation.pathname, location]);
 
+  // Hold the route-level loading state until queries settle and the minimum
+  // transition duration has elapsed.
   useEffect(() => {
     if (pageTransitionPhase !== 'loading') return;
 
@@ -150,6 +154,7 @@ function AnimatedRoutes() {
     return () => window.clearTimeout(timer);
   }, [fetchingCount, pageTransitionPhase]);
 
+  // Finish the enter phase after the content fade-in completes.
   useEffect(() => {
     if (pageTransitionPhase !== 'entering') return;
 
@@ -175,7 +180,7 @@ function AnimatedRoutes() {
         <Route element={<ProtectedRoute pageTransitionPhase={pageTransitionPhase} />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
-          <Route path="/accounts/:accountId" element={<AccountDetail />} />
+          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/settings" element={<Settings />} />

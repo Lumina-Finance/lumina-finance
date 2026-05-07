@@ -1,0 +1,255 @@
+import { Pencil } from 'lucide-react'
+import type { Account } from '@/api/accounts'
+import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import { formatCurrency } from '@/utils/formatCurrency'
+import { ACCOUNT_KIND_LABEL } from '@/accounts/detail/constants/accountDetail'
+import { humanizeAccountType } from '@/accounts/detail/utils/formatAccountType'
+
+// Reuse the list logo treatment at a larger size for the account identity card.
+function DetailInstitutionLogo({ institution }: { institution: Account['institution'] }) {
+  const faviconUrl = institution?.website
+    ? `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(institution.website)}&size=256`
+    : null
+  return (
+    <div
+      className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+      style={
+        faviconUrl
+          ? undefined
+          : {
+              background: 'var(--app-accent-soft)',
+              border: '1px solid var(--app-border)',
+            }
+      }
+    >
+      {faviconUrl ? (
+        <img
+          src={faviconUrl}
+          alt={`${institution!.name} logo`}
+          className="h-full w-full object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <span className="select-none text-xl font-semibold" style={{ color: 'var(--app-accent)' }}>$</span>
+      )}
+    </div>
+  )
+}
+
+function taxAdvantagedUsageColor(used: number, limit: number): string {
+  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-muted)'
+  const ratio = used / limit
+  if (ratio > 1) return 'var(--app-negative)'
+  if (limit - used === 0) return 'var(--app-text-muted)'
+  return 'var(--app-accent)'
+}
+
+function taxAdvantagedUsagePercent(used: number, limit: number): number {
+  if (limit <= 0) return 100
+  return Math.min(Math.max((used / limit) * 100, 0), 100)
+}
+
+function DetailLimitUsage({
+  label,
+  used,
+  limit,
+  currency,
+}: {
+  label: string
+  used: number
+  limit: number | null
+  currency: string
+}) {
+  if (limit === null) {
+    return (
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+            {label}
+          </p>
+          <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+            N/A
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const color = taxAdvantagedUsageColor(used, limit)
+  const usageLabel = `${formatCurrency(used, currency)} / ${formatCurrency(limit, currency)}`
+  const usagePercent = taxAdvantagedUsagePercent(used, limit)
+
+  return (
+    <div className="group relative">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+          {label}
+        </p>
+        <p className="font-financial text-sm font-semibold tabular-nums" style={{ color }}>
+          {Math.round(usagePercent)}%
+        </p>
+      </div>
+      <div className="relative mt-1">
+        <div
+          className="h-1.5 overflow-hidden rounded-full"
+          style={{ background: 'var(--app-border)' }}
+          role="progressbar"
+          aria-label={`${label} usage`}
+          aria-valuemin={0}
+          aria-valuemax={Math.max(limit, 0)}
+          aria-valuenow={Math.min(Math.max(used, 0), Math.max(limit, 0))}
+          aria-valuetext={usageLabel}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              background: color,
+              width: `${usagePercent}%`,
+            }}
+          />
+        </div>
+        <div
+          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100"
+          style={{
+            background: 'var(--app-bg)',
+            border: '1px solid var(--app-border-strong)',
+            color: 'var(--app-text)',
+          }}
+        >
+          {usageLabel}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TaxAdvantagedCategoryBand({
+  plan,
+  hasError,
+}: {
+  plan: TaxAdvantagedPlan | undefined
+  hasError: boolean
+}) {
+  return (
+    <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+      {hasError || !plan ? (
+        <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          Linked category unavailable
+        </p>
+      ) : (
+        <>
+          <div className="min-w-0">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{plan.name}</p>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Across linked accounts
+              </p>
+            </div>
+          </div>
+
+          {plan.current_year_contribution_limit === null &&
+          plan.current_year_withdrawal_limit === null ? (
+            <p className="mt-3 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              No current-year limits set
+            </p>
+          ) : (
+            <div className="mt-3 space-y-3">
+              <DetailLimitUsage
+                label="Contribution limit"
+                used={plan.ytd_contributions}
+                limit={plan.current_year_contribution_limit}
+                currency={plan.currency}
+              />
+              <DetailLimitUsage
+                label="Withdrawal limit"
+                used={plan.ytd_withdrawals}
+                limit={plan.current_year_withdrawal_limit}
+                currency={plan.currency}
+              />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function StandardAccountBand() {
+  return (
+    <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+      <p className="text-sm font-semibold">Standard account</p>
+      <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+        No contribution or withdrawal limits
+      </p>
+    </div>
+  )
+}
+
+export default function AccountIdentityCard({
+  account,
+  linkedTaxAdvantagedPlan,
+  linkedTaxAdvantagedPlanError,
+  onEdit,
+}: {
+  account: Account
+  linkedTaxAdvantagedPlan: TaxAdvantagedPlan | undefined
+  linkedTaxAdvantagedPlanError: unknown
+  onEdit: () => void
+}) {
+  const linkedTaxAdvantagedPlanId = account.group_id === null ? account.tax_advantaged_plan_id : null
+  const closedLabel = account.closed_at
+    ? ' · Closed ' + new Date(account.closed_at).toLocaleDateString()
+    : ''
+  const identityFacts: { label: string; value: string }[] = [
+    { label: 'Kind', value: ACCOUNT_KIND_LABEL[account.account_kind] ?? account.account_kind },
+    { label: 'Type', value: humanizeAccountType(account.account_type) },
+    { label: 'Currency', value: account.currency },
+    {
+      label: 'Credit limit',
+      value: account.credit_limit === null ? '—' : formatCurrency(account.credit_limit, account.currency),
+    },
+  ]
+
+  return (
+    <section className="app-card relative flex min-h-[440px] flex-col">
+      {!account.closed_at && (
+        <button
+          type="button"
+          aria-label="Edit account"
+          className="app-icon-button absolute right-2 top-2"
+          onClick={onEdit}
+        >
+          <Pencil size={14} aria-hidden />
+        </button>
+      )}
+
+      <DetailInstitutionLogo institution={account.institution} />
+
+      <h1 className="mt-4 font-serif text-[1.375rem] font-semibold leading-tight">{account.name}</h1>
+      <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        {account.institution?.name ?? 'No institution'}
+        {closedLabel}
+      </p>
+
+      <dl className="mt-5 grid grid-cols-2 gap-x-5 gap-y-3">
+        {identityFacts.map((fact) => (
+          <div key={fact.label} className="min-w-0">
+            <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+              {fact.label}
+            </dt>
+            <dd className="mt-0.5 truncate text-sm font-medium">{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {linkedTaxAdvantagedPlanId ? (
+        <TaxAdvantagedCategoryBand
+          plan={linkedTaxAdvantagedPlan}
+          hasError={!!linkedTaxAdvantagedPlanError}
+        />
+      ) : (
+        <StandardAccountBand />
+      )}
+    </section>
+  )
+}
