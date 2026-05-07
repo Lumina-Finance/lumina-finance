@@ -4,14 +4,6 @@ export type SavingsTier = 'positive' | 'accent' | 'negative'
 
 export type DashboardMoneyFormat = 'raw' | 'netWorth' | 'credit' | 'breakdown'
 
-export type CompactMoneyRule = {
-  threshold: number
-  divisor: number
-  suffix: 'K' | 'M'
-  fractionDigits: number
-  rounding?: 'ceil'
-}
-
 export type TopBudget = {
   budget_id: string
   base_budget_id: string

@@ -1,5 +1,13 @@
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
 import type { TaxAdvantagedLimitSummary } from '@/accounts/types/accounts'
+
+const TAX_LIMIT_MONEY_RULES: CompactMoneyRule[] = [
+  { threshold: 100_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
+  { threshold: 10_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
+  { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 2 },
+  { threshold: 100_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
+  { threshold: 10_000, divisor: 1_000, suffix: 'K', fractionDigits: 1 },
+]
 
 function limitUsageColor(used: number, limit: number): string {
   if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-muted)'
@@ -52,6 +60,9 @@ function TaxLimitLedgerRow({
   const overLimit = remaining < 0
   const barWidth = limitUsagePercent(used, limit)
   const amountColor = limitRemainingColor(remaining)
+  const remainingLabel = formatCompactMoney(Math.abs(remaining), currency, TAX_LIMIT_MONEY_RULES, {
+    prefix: '',
+  })
 
   return (
     <div>
@@ -60,9 +71,7 @@ function TaxLimitLedgerRow({
           {label}
         </p>
         <p className="font-financial truncate text-sm font-semibold tabular-nums" style={{ color: amountColor }}>
-          {overLimit
-            ? `${formatCurrency(Math.abs(remaining), currency)} over`
-            : `${formatCurrency(remaining, currency)} left`}
+          {overLimit ? `${remainingLabel} over` : `${remainingLabel} left`}
         </p>
       </div>
       <div className="mt-1">
