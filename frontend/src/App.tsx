@@ -9,7 +9,7 @@ import Navigation from '@/components/Navigation'
 import DashboardPage from '@/dashboard/DashboardPage'
 import AccountsPage from '@/accounts/AccountsPage'
 import AccountDetailPage from '@/accounts/detail/AccountDetailPage'
-import Transactions from '@/components/Transactions'
+import TransactionsPage from '@/transactions/TransactionsPage'
 import Budgets from '@/components/Budgets'
 import Settings from '@/components/Settings'
 import TransactionImportPage from '@/components/TransactionImportPage'
@@ -181,7 +181,7 @@ function AnimatedRoutes() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-          <Route path="/transactions" element={<Transactions />} />
+          <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/imports" element={<TransactionImportPage />} />
