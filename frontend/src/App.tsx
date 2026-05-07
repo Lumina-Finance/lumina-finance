@@ -6,7 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/Navigation'
-import Dashboard from '@/components/Dashboard'
+import DashboardPage from '@/dashboard/DashboardPage'
 import Accounts from '@/components/Accounts'
 import AccountDetail from '@/components/AccountDetail'
 import Transactions from '@/components/Transactions'
@@ -173,7 +173,7 @@ function AnimatedRoutes() {
 
         {/* Protected routes — app shell with sidebar */}
         <Route element={<ProtectedRoute pageTransitionPhase={pageTransitionPhase} />}>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/:accountId" element={<AccountDetail />} />
           <Route path="/transactions" element={<Transactions />} />

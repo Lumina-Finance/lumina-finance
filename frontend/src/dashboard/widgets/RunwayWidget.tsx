@@ -1,0 +1,134 @@
+import { useMemo } from 'react'
+import { LifeBuoy } from 'lucide-react'
+import { useAccounts } from '@/api/accounts'
+import { useRunway, useRunwayAccounts } from '@/api/user'
+import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  RUNWAY_BAND_STYLE,
+  formatCompactRunway,
+  runwayBand,
+} from '@/utils/runway'
+import { useRunwayHover } from '@/dashboard/hooks/useRunwayHover'
+import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
+
+type RunwayWidgetProps = {
+  displayCurrency: string
+}
+
+function getRunwayCaption(
+  runway: ReturnType<typeof useRunway>['data'],
+  displayCurrency: string,
+) {
+  if (!runway) return ''
+
+  if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
+  if (runway.reason === 'insufficient_history') return 'Need 1+ month of expense data'
+
+  return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo \u00B7 ${runway.months_covered}mo basis`
+}
+
+export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
+  const { data: runway } = useRunway()
+  const { data: runwayAccountIds } = useRunwayAccounts()
+  const { data: accounts } = useAccounts()
+  const runwayMonths = runway?.months ?? null
+  const runwayBandKey = runwayBand(runwayMonths)
+  const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
+  const runwayCaption = getRunwayCaption(runway, displayCurrency)
+  const runwaySegments = useMemo(
+    () => getRunwaySegments(accounts, runwayAccountIds, runway),
+    [accounts, runwayAccountIds, runway],
+  )
+  const {
+    hoveredSegment,
+    runwayBarRef,
+    runwayHoverXPct,
+    handleRunwayMouseLeave,
+    handleRunwayMouseMove,
+  } = useRunwayHover(runwaySegments)
+
+  return (
+    <div className="app-card h-[14rem] flex flex-col">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
+          <LifeBuoy size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
+        </div>
+        <span className="app-label">Runway</span>
+        {runwayStyle && (
+          <span
+            className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
+            style={{ background: runwayStyle.bg, color: runwayStyle.fg }}
+          >
+            {runwayStyle.label}
+          </span>
+        )}
+      </div>
+      <p
+        className="font-financial font-normal tracking-tight leading-none text-3xl"
+        style={{ color: runwayMonths === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
+      >
+        {formatCompactRunway(runwayMonths)}
+      </p>
+      <div className="flex-1 min-h-0 flex items-center">
+        <div className="relative h-12 w-full">
+          <div
+            ref={runwayBarRef}
+            className="flex h-full gap-0.5 rounded-xl overflow-hidden"
+            onMouseMove={handleRunwayMouseMove}
+            onMouseLeave={handleRunwayMouseLeave}
+          >
+            {runwaySegments.length > 0 ? (
+              runwaySegments.map((segment) => (
+                <div
+                  key={segment.id}
+                  style={{ width: `${segment.pct}%`, background: segment.color }}
+                />
+              ))
+            ) : (
+              <div
+                className="flex-1 flex items-center justify-center text-sm italic"
+                style={{
+                  background: 'var(--app-border)',
+                  color: 'var(--app-text-subtle)',
+                }}
+              >
+                {runwayCaption}
+              </div>
+            )}
+          </div>
+          {hoveredSegment && runwayHoverXPct !== null && (
+            <div
+              className="absolute -top-2 -translate-y-full whitespace-nowrap rounded-md px-2.5 py-1.5 pointer-events-none z-10 w-[11rem]"
+              style={{
+                left: `clamp(5.5rem, ${runwayHoverXPct}%, calc(100% - 5.5rem))`,
+                transform: 'translateX(-50%)',
+                transition: 'left 280ms cubic-bezier(0.22, 1, 0.36, 1)',
+                background: 'var(--app-bg)',
+                border: '1px solid var(--app-border-strong)',
+                boxShadow: 'var(--app-shadow-soft)',
+              }}
+            >
+              <div
+                className="font-medium truncate"
+                style={{ color: 'var(--app-text)', fontSize: 13 }}
+              >
+                {hoveredSegment.name}
+              </div>
+              <div
+                className="font-financial"
+                style={{ color: 'var(--app-text-muted)', fontSize: 13 }}
+              >
+                {formatCurrency(hoveredSegment.amount, displayCurrency)}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {runwaySegments.length > 0 && (
+        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          {runwayCaption}
+        </p>
+      )}
+    </div>
+  )
+}
