@@ -14,14 +14,14 @@ import {
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
-  TIME_SELECTOR_SPRING,
 } from '@/dashboard/constants/animation'
 import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
-import { DASHBOARD_RANGE_OPTIONS } from '@/dashboard/constants/ranges'
+import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { useBreakdownTooltipPosition } from '@/dashboard/hooks/useBreakdownTooltipPosition'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 
@@ -49,7 +49,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
 
   return (
     <div className="app-card h-[420px] flex flex-col">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
         </div>
@@ -66,33 +66,22 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
         >
           <Repeat size={12} />
         </button>
-        <div
-          className="app-segmented-control app-segmented-control-compact app-time-selector"
-          role="tablist"
-          aria-label="Breakdown range"
-        >
-          <motion.span
-            className="app-time-selector-indicator"
-            aria-hidden
-            animate={{ x: `${DASHBOARD_RANGE_OPTIONS.indexOf(breakdownRange) * 100}%` }}
-            transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
-          />
-          {DASHBOARD_RANGE_OPTIONS.map((option) => {
-            const active = option === breakdownRange
-            return (
-              <button
-                key={option}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setBreakdownRange(option)}
-                className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
-              >
-                {option}
-              </button>
-            )
-          })}
-        </div>
+        <TimeRangeSelector
+          value={breakdownRange}
+          options={DASHBOARD_RANGE_SELECT_OPTIONS}
+          onChange={setBreakdownRange}
+          ariaLabel="Breakdown range"
+          className="hidden min-[730px]:inline-flex"
+        />
+        <TimeRangeSelector
+          value={breakdownRange}
+          options={DASHBOARD_RANGE_SELECT_OPTIONS}
+          onChange={setBreakdownRange}
+          ariaLabel="Breakdown range"
+          variant="mobile"
+          className="w-full min-[730px]:hidden"
+          sheetTitle="Breakdown range"
+        />
       </div>
 
       {breakdownEntries.length === 0 && !spendingBreakdownLoading ? (

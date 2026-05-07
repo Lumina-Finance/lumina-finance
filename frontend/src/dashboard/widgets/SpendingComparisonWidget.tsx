@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { motion, useReducedMotion } from 'motion/react'
 import {
   Area,
   AreaChart,
@@ -19,11 +18,11 @@ import {
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { TIME_SELECTOR_SPRING } from '@/dashboard/constants/animation'
 import {
   CURRENT_LABEL_BY_RANGE,
-  DASHBOARD_RANGE_OPTIONS,
+  DASHBOARD_RANGE_SELECT_OPTIONS,
   PREVIOUS_LABEL_BY_RANGE,
   PREVIOUS_PERIOD_LABEL_BY_RANGE,
 } from '@/dashboard/constants/ranges'
@@ -34,7 +33,6 @@ type SpendingComparisonWidgetProps = {
 }
 
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
-  const shouldReduceMotion = useReducedMotion()
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison, isLoading: spendingComparisonLoading } = useSpendingComparison(spendingRange)
   const spendingChartData = useMemo(
@@ -62,7 +60,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
 
   return (
     <div className="app-card h-[420px] flex flex-col">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <BarChart3 size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
         </div>
@@ -70,33 +68,22 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
           Spending vs. Last&nbsp;
           <AppSlotMachineText text={PREVIOUS_PERIOD_LABEL_BY_RANGE[spendingRange]} />
         </span>
-        <div
-          className="app-segmented-control app-segmented-control-compact app-time-selector ml-auto"
-          role="tablist"
-          aria-label="Spending range"
-        >
-          <motion.span
-            className="app-time-selector-indicator"
-            aria-hidden
-            animate={{ x: `${DASHBOARD_RANGE_OPTIONS.indexOf(spendingRange) * 100}%` }}
-            transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
-          />
-          {DASHBOARD_RANGE_OPTIONS.map((option) => {
-            const active = option === spendingRange
-            return (
-              <button
-                key={option}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setSpendingRange(option)}
-                className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
-              >
-                {option}
-              </button>
-            )
-          })}
-        </div>
+        <TimeRangeSelector
+          value={spendingRange}
+          options={DASHBOARD_RANGE_SELECT_OPTIONS}
+          onChange={setSpendingRange}
+          ariaLabel="Spending range"
+          className="ml-auto hidden min-[730px]:inline-flex"
+        />
+        <TimeRangeSelector
+          value={spendingRange}
+          options={DASHBOARD_RANGE_SELECT_OPTIONS}
+          onChange={setSpendingRange}
+          ariaLabel="Spending range"
+          variant="mobile"
+          className="w-full min-[730px]:hidden"
+          sheetTitle="Spending range"
+        />
       </div>
       <div className="flex items-baseline gap-2">
         <p className="font-financial font-normal tracking-tight leading-none text-3xl">
