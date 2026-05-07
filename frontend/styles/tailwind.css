@@ -403,7 +403,7 @@
 
   .app-label {
     @apply font-semibold lg:font-medium normal-case;
-    font-size: clamp(0.9375rem, 1.2vw, 1.0625rem);
+    font-size: 1.0625rem;
     color: var(--app-text-muted);
   }
 

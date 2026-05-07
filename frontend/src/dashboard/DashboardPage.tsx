@@ -17,26 +17,26 @@ export default function DashboardPage() {
   return (
     <div>
       <header className="app-page-header">
-        <h1 className="app-page-title">
+        <h1 className="app-page-title text-[3.4rem]">
           {greeting}
         </h1>
-        <p className="app-page-description">{subtitle}</p>
+        <p className="app-page-description text-[1.0625rem]">{subtitle}</p>
       </header>
 
       <div className="space-y-6">
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[730px]:grid-cols-2 min-[1750px]:grid-cols-4">
           <NetWorthWidget displayCurrency={displayCurrency} />
           <CreditWidget displayCurrency={displayCurrency} />
           <SavingsRateWidget />
           <RunwayWidget displayCurrency={displayCurrency} />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[1001px]:grid-cols-2">
           <SpendingComparisonWidget displayCurrency={displayCurrency} />
           <SpendingBreakdownWidget displayCurrency={displayCurrency} />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[1001px]:grid-cols-2">
           <TopBudgetsWidget />
           <RecentActivityWidget />
         </div>
