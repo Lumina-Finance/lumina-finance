@@ -5,8 +5,8 @@ type LoadingScreenProps = {
 };
 
 const loadingScreenClassNames = {
-  screen: 'fixed inset-0 z-50 flex flex-col items-center justify-center gap-6',
-  main: 'fixed bottom-0 left-[260px] right-0 top-0 z-30 flex flex-col items-center justify-center gap-6',
+  screen: 'fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6',
+  main: 'fixed inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6 min-[1050px]:left-[260px]',
 };
 
 const LoadingScreen = ({ variant = 'screen' }: LoadingScreenProps) => (
@@ -26,7 +26,7 @@ const LoadingScreen = ({ variant = 'screen' }: LoadingScreenProps) => (
       aria-hidden
     />
     <p
-      className="text-xs font-medium uppercase tracking-[0.2em]"
+      className="max-w-64 text-[0.6875rem] font-medium uppercase tracking-[0.18em] min-[730px]:text-xs min-[730px]:tracking-[0.2em]"
       style={{ color: 'var(--app-text-subtle)' }}
     >
       Your financial future awaits
