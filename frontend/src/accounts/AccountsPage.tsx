@@ -55,6 +55,9 @@ export default function AccountsPage() {
     <div>
       <header className="app-page-header">
         <h1 className="app-page-title">My Accounts</h1>
+        <p className="app-page-description">
+          Review balances, account groups, contribution limits, and hidden accounts in one place.
+        </p>
       </header>
 
       <div className="space-y-4">

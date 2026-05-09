@@ -106,7 +106,7 @@ export default function TaxAdvantagedLimitsSection({
 
   return (
     <section>
-      <div className="grid gap-x-10 gap-y-0 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-x-10 gap-y-0 min-[1100px]:grid-cols-2 min-[1500px]:grid-cols-3">
         {summaries.map(({ plan, linkedAccountCount }) => {
           return (
             <div

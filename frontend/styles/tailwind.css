@@ -559,7 +559,7 @@
   }
 
   .app-page-description {
-    @apply max-w-2xl leading-relaxed;
+    @apply leading-relaxed;
     font-size: var(--app-page-description-size);
     color: var(--app-text-muted);
   }

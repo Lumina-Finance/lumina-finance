@@ -330,6 +330,7 @@ function MobileNavigation({
   return (
     <>
       <button
+        id="app-mobile-navigation-toggle"
         type="button"
         aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
         aria-controls="mobile-primary-navigation"
