@@ -109,13 +109,13 @@ export default function BudgetsPage() {
 
   return (
     <div>
-      <header className="app-page-header">
+      <header className="app-page-header relative min-[750px]:pr-44">
         <h1 className="app-page-title">Budgets</h1>
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-          <p className="app-page-description">
-            Plan ahead and keep your spending in check.
-          </p>
-          <button type="button" className="app-primary-button" onClick={() => setCreateOpen(true)}>
+        <p className="app-page-description">
+          Plan ahead and keep your spending in check.
+        </p>
+        <div className="mt-4 flex min-[750px]:absolute min-[750px]:bottom-0 min-[750px]:right-0 min-[750px]:mt-0 min-[750px]:justify-end">
+          <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => setCreateOpen(true)}>
             <Plus size={18} aria-hidden />
             New Budget
           </button>
@@ -132,7 +132,7 @@ export default function BudgetsPage() {
           </p>
         </section>
       ) : budgetCards.length > 0 ? (
-        <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <section className="app-budget-grid">
           {budgetCards.map(({ baseBudget, latestPeriod, categoryNames }) => (
             <BudgetCard
               key={baseBudget.id}

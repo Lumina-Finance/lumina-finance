@@ -430,6 +430,53 @@
     border-color: var(--app-border);
   }
 
+  .app-budget-grid {
+    @apply grid gap-4;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr));
+  }
+
+  .app-budget-card {
+    container: budget-card / inline-size;
+  }
+
+  .app-budget-card-summary {
+    @apply flex flex-col gap-2;
+  }
+
+  .app-budget-card-details {
+    @apply grid gap-4;
+  }
+
+  .app-budget-card-categories {
+    order: 1;
+  }
+
+  .app-budget-card-periods {
+    order: 2;
+  }
+
+  @container budget-card (min-width: 32rem) {
+    .app-budget-card-summary {
+      @apply flex-row items-baseline justify-between gap-4;
+    }
+
+    .app-budget-card-used {
+      @apply shrink-0 text-right;
+    }
+
+    .app-budget-card-details {
+      grid-template-columns: minmax(0, 1fr) 12rem;
+    }
+
+    .app-budget-card-periods {
+      order: 1;
+    }
+
+    .app-budget-card-categories {
+      order: 2;
+    }
+  }
+
   .recharts-tooltip-wrapper {
     pointer-events: none !important;
     transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease-out !important;

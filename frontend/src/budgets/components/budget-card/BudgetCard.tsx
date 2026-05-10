@@ -31,7 +31,7 @@ export default function BudgetCard({
 
   return (
     <article
-      className="app-card flex h-[21.5rem] w-full cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+      className="app-card app-budget-card flex min-h-[21.5rem] w-full min-w-0 cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
       style={{
         borderTop: `5px solid ${attention.indicatorColor}`,
       }}
@@ -64,7 +64,7 @@ export default function BudgetCard({
       </div>
 
       <div className="mt-5">
-        <div className="flex items-baseline justify-between gap-4">
+        <div className="app-budget-card-summary">
           <p className="flex min-w-0 items-baseline gap-2 text-3xl font-semibold tracking-tight" style={{ color: 'var(--app-text)' }}>
             <span className="truncate">{latestPeriod ? formatCurrency(displayBalance, baseBudget.currency) : 'Not set'}</span>
             {latestPeriod && (
@@ -73,7 +73,7 @@ export default function BudgetCard({
               </span>
             )}
           </p>
-          <p className="shrink-0 text-right text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          <p className="app-budget-card-used text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {latestPeriod
               ? `${formatCurrency(spent, baseBudget.currency)} used of ${formatCurrency(latestPeriod.overall_limit, baseBudget.currency)}`
               : 'Create a period to start tracking spending.'}
@@ -87,8 +87,8 @@ export default function BudgetCard({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem]">
-        <div className="min-w-0">
+      <div className="app-budget-card-details mt-5">
+        <div className="app-budget-card-periods min-w-0">
           <p className="text-sm font-medium" style={{ color: 'var(--app-text-subtle)' }}>
             Current period
           </p>
@@ -107,7 +107,7 @@ export default function BudgetCard({
           </div>
         </div>
 
-        <div className="min-w-0">
+        <div className="app-budget-card-categories min-w-0">
           <p className="mb-2 text-sm font-medium" style={{ color: 'var(--app-text-subtle)' }}>
             Categories
           </p>
