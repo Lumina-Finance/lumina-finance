@@ -10,6 +10,7 @@ export default function MostExpensiveTransactionsPanel({
   openingOutlierId,
   outlierOpenError,
   onOpenOutlierTransaction,
+  className = '',
 }: {
   outliers: OutlierTransaction[]
   displayCurrency: string
@@ -17,9 +18,10 @@ export default function MostExpensiveTransactionsPanel({
   openingOutlierId: string | null
   outlierOpenError: string | null
   onOpenOutlierTransaction: (transactionId: string) => void
+  className?: string
 }) {
   return (
-    <div className="px-6 flex flex-col" style={{ borderInline: '1px solid var(--app-border)' }}>
+    <div className={`flex min-w-0 flex-col ${className}`}>
       <p className="app-label mb-1 inline-flex items-center gap-2">
         Most Expensive Transactions
         <IconTooltip

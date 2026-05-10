@@ -102,11 +102,15 @@ export default function TransactionsTopBand({
         transition={metricsLayoutTransition}
         style={{ overflow: 'hidden' }}
       >
-        <div ref={metricsBandContentRef} className="grid grid-cols-3 items-start pb-2 pt-5">
+        <div
+          ref={metricsBandContentRef}
+          className="grid grid-cols-1 items-start gap-y-5 pb-2 pt-5 min-[730px]:grid-cols-2 min-[730px]:gap-y-6 min-[1750px]:grid-cols-3 min-[1750px]:gap-y-0"
+        >
           <NetFlowSummary
             inflow={inflow}
             outflow={outflow}
             displayCurrency={displayCurrency}
+            className="min-[730px]:col-span-2 min-[1750px]:col-span-1 min-[1750px]:pr-6"
           />
           <MostExpensiveTransactionsPanel
             outliers={outliers}
@@ -115,12 +119,14 @@ export default function TransactionsTopBand({
             openingOutlierId={openingOutlierId}
             outlierOpenError={outlierOpenError}
             onOpenOutlierTransaction={onOpenOutlierTransaction}
+            className="border-t border-[var(--app-border)] pt-5 min-[730px]:border-r min-[730px]:pr-6 min-[1750px]:border-x min-[1750px]:border-t-0 min-[1750px]:px-6 min-[1750px]:pt-0"
           />
           <TopCategoriesChart
             categorySpend={categorySpend}
             displayCurrency={displayCurrency}
             chartAnimationKey={chartAnimationKey}
             prefersReducedMotion={prefersReducedMotion}
+            className="border-t border-[var(--app-border)] pt-5 min-[730px]:pl-6 min-[1750px]:border-t-0 min-[1750px]:pt-0"
           />
         </div>
       </motion.div>

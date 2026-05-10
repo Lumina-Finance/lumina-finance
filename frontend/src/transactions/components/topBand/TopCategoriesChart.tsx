@@ -21,11 +21,13 @@ export default function TopCategoriesChart({
   displayCurrency,
   chartAnimationKey,
   prefersReducedMotion,
+  className = '',
 }: {
   categorySpend: OverviewCategorySpend[]
   displayCurrency: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
+  className?: string
 }) {
   const topCategoryChartHeight = Math.max(24, categorySpend.length * 26)
   // Recharts needs an explicit Y-axis width; estimate it from label length to avoid clipping.
@@ -40,7 +42,7 @@ export default function TopCategoriesChart({
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
 
   return (
-    <div className="pl-6 flex flex-col">
+    <div className={`flex min-w-0 flex-col ${className}`}>
       <p className="app-label mb-1 inline-flex items-center gap-2">
         Top Categories
         <IconTooltip

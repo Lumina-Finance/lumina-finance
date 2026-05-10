@@ -1,4 +1,4 @@
-import { Tag as TagIcon } from 'lucide-react'
+import { StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
@@ -109,105 +109,228 @@ export default function TransactionRow({
   const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
   const fallbackTitle = category?.kind === 'transfer' ? 'Transfer' : 'Transaction'
   const title = transaction.merchant_name ?? fallbackTitle
+  const hasNotes = Boolean(transaction.notes?.trim())
   const tags = [...(transaction.tags ?? [])].sort((a, b) => a.name.localeCompare(b.name))
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
   const extraTagCount = Math.max(tags.length - visibleTags.length, 0)
+  const hasVisibleTags = visibleTags.length > 0
+  const hasSupplementalMeta = hasNotes || hasVisibleTags
   const hasAccountMeta = !!accountName || !!accountInstitution
+  const formattedAmount = `${transaction.amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount), currency)}`
+  const transactionAmountColor = amountColor(category)
 
   return (
     <button
       type="button"
       onClick={() => onOpen(transaction)}
-      className="grid w-full cursor-pointer grid-cols-[2.5rem_minmax(0,0.7fr)_minmax(13rem,17rem)_minmax(13rem,1.3fr)_minmax(7rem,10rem)_8rem] items-center gap-3 px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none"
+      className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none"
       style={{ borderBottom: '1px solid var(--app-border)' }}
     >
-      <span className="text-2xl leading-none" aria-hidden>
-        {categoryIcon}
-      </span>
-
-      <span className="min-w-0">
-        <span className="block truncate font-medium">{categoryName}</span>
-        <span
-          className="mt-0.5 block truncate text-sm"
-          style={{ color: 'var(--app-text-muted)' }}
-        >
-          {title}
+      <span className="hidden min-[1300px]:grid min-[1300px]:grid-cols-[2.5rem_14rem_13rem_minmax(2.75rem,1fr)_max-content_minmax(8rem,1fr)] min-[1300px]:items-center min-[1300px]:gap-3">
+        <span className="text-2xl leading-none" aria-hidden>
+          {categoryIcon}
         </span>
-      </span>
 
-      <span className="flex min-w-0 items-center self-stretch">
-        {hasAccountMeta ? (
+        <span className="min-w-0">
+          <span className="block truncate font-medium">{categoryName}</span>
           <span
-            className="inline-flex max-w-full items-center gap-2 text-sm font-medium leading-none"
+            className="mt-0.5 block truncate text-sm"
             style={{ color: 'var(--app-text-muted)' }}
           >
-            <AccountLogo accountName={accountName} institution={accountInstitution} />
-            {accountName && <span className="truncate">{accountName}</span>}
+            {title}
           </span>
-        ) : (
-          <span aria-hidden>&nbsp;</span>
-        )}
-      </span>
+        </span>
 
-      <span
-        className="flex min-w-0 items-center self-stretch overflow-hidden text-sm leading-none"
-        style={{ color: 'var(--app-text-muted)' }}
-      >
-        <span className="min-w-0 truncate whitespace-nowrap">
-          {transaction.notes || '\u00A0'}
+        <span className="flex min-w-0 items-center self-stretch">
+          {hasAccountMeta ? (
+            <span
+              className="inline-flex max-w-full items-center gap-2 text-sm font-medium leading-none"
+              style={{ color: 'var(--app-text-muted)' }}
+            >
+              <AccountLogo accountName={accountName} institution={accountInstitution} />
+              {accountName && <span className="truncate">{accountName}</span>}
+            </span>
+          ) : (
+            <span aria-hidden>&nbsp;</span>
+          )}
+        </span>
+
+        <span
+          className="flex min-w-0 items-center self-stretch overflow-hidden text-sm leading-none"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          <span className="min-w-0 truncate whitespace-nowrap">
+            {transaction.notes || '\u00A0'}
+          </span>
+        </span>
+
+        <span className="flex min-w-0 justify-end gap-1.5">
+          {hasVisibleTags && (
+            <>
+              {visibleTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="group relative inline-flex max-w-[8rem] shrink-0"
+                >
+                  <span
+                    className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
+                    style={{
+                      background: 'var(--app-surface-soft)',
+                      color: 'var(--app-text-muted)',
+                      border: '1px solid var(--app-border)',
+                    }}
+                  >
+                    <TagIcon size={11} aria-hidden className="shrink-0" />
+                    <span className="truncate">{tag.name}</span>
+                  </span>
+                  <TagTooltip tags={tags} />
+                </span>
+              ))}
+              {extraTagCount > 0 && (
+                <span className="group relative inline-flex shrink-0">
+                  <span
+                    className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
+                    style={{
+                      background: 'var(--app-surface-soft)',
+                      color: 'var(--app-text-muted)',
+                      border: '1px solid var(--app-border)',
+                    }}
+                  >
+                    +{extraTagCount}
+                  </span>
+                  <TagTooltip tags={tags} />
+                </span>
+              )}
+            </>
+          )}
+        </span>
+
+        <span
+          className="justify-self-end font-financial text-base font-semibold tabular-nums"
+          style={{ color: transactionAmountColor }}
+        >
+          {formattedAmount}
         </span>
       </span>
 
-      <span className="flex min-w-0 justify-end gap-1.5">
-        {visibleTags.length > 0 ? (
-          <>
-            {visibleTags.map((tag) => (
-              <span
-                key={tag.id}
-                className="group relative inline-flex max-w-[8rem] shrink-0"
-              >
-                <span
-                  className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
-                  style={{
-                    background: 'var(--app-surface-soft)',
-                    color: 'var(--app-text-muted)',
-                    border: '1px solid var(--app-border)',
-                  }}
-                >
-                  <TagIcon size={11} aria-hidden className="shrink-0" />
-                  <span className="truncate">{tag.name}</span>
-                </span>
-                <TagTooltip tags={tags} />
+      <span className="grid grid-cols-[2rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-1 min-[750px]:hidden">
+        <span className="row-span-3 pt-0.5 text-[1.35rem] leading-none" aria-hidden>
+          {categoryIcon}
+        </span>
+
+        <span className="col-start-2 row-start-1 min-w-0 truncate text-[0.9375rem] font-medium leading-5">
+          {title}
+        </span>
+
+        <span
+          className="col-start-3 row-start-1 ml-2 justify-self-end font-financial text-[0.9375rem] font-semibold leading-5 tabular-nums"
+          style={{ color: transactionAmountColor }}
+        >
+          {formattedAmount}
+        </span>
+
+        <span
+          className="col-start-2 col-span-2 row-start-2 min-w-0 truncate text-sm leading-5"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          {categoryName}
+        </span>
+
+        {(hasAccountMeta || hasSupplementalMeta) && (
+          <span
+            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-center gap-2 text-sm leading-5"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
+            {hasAccountMeta ? (
+              <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
+                <AccountLogo accountName={accountName} institution={accountInstitution} />
+                {accountName && <span className="truncate">{accountName}</span>}
               </span>
-            ))}
-            {extraTagCount > 0 && (
-              <span
-                className="group relative inline-flex shrink-0"
-              >
-                <span
-                  className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
-                  style={{
-                    background: 'var(--app-surface-soft)',
-                    color: 'var(--app-text-muted)',
-                    border: '1px solid var(--app-border)',
-                  }}
-                >
-                  +{extraTagCount}
-                </span>
-                <TagTooltip tags={tags} />
+            ) : (
+              <span className="min-w-0 flex-1" aria-hidden />
+            )}
+
+            {hasSupplementalMeta && (
+              <span className="inline-flex shrink-0 items-center gap-2">
+                {hasNotes && (
+                  <span className="inline-flex" aria-label="Has note">
+                    <StickyNote size={14} strokeWidth={2} aria-hidden />
+                  </span>
+                )}
+                {hasVisibleTags && (
+                  <span
+                    className="inline-flex items-center gap-1"
+                    aria-label={`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`}
+                  >
+                    <TagIcon size={14} strokeWidth={2} aria-hidden />
+                    {tags.length > 1 && (
+                      <span className="text-xs font-medium">{tags.length}</span>
+                    )}
+                  </span>
+                )}
               </span>
             )}
-          </>
-        ) : (
-          <span aria-hidden>&nbsp;</span>
+          </span>
         )}
       </span>
 
-      <span
-        className="justify-self-end font-financial text-base font-semibold tabular-nums"
-        style={{ color: amountColor(category) }}
-      >
-        {transaction.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount), currency)}
+      <span className="hidden grid-cols-[2.5rem_minmax(0,1fr)_max-content] items-start gap-x-3 gap-y-1.5 min-[750px]:grid min-[1300px]:hidden">
+        <span className="row-span-3 text-2xl leading-none" aria-hidden>
+          {categoryIcon}
+        </span>
+
+        <span className="col-start-2 row-start-1 min-w-0 truncate font-medium">
+          {title}
+        </span>
+
+        <span
+          className="col-start-3 row-start-1 justify-self-end font-financial text-base font-semibold tabular-nums"
+          style={{ color: transactionAmountColor }}
+        >
+          {formattedAmount}
+        </span>
+
+        <span
+          className="col-start-2 col-span-2 row-start-2 flex min-w-0 items-center gap-2 text-sm leading-none"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          <span className="min-w-0 truncate">{categoryName}</span>
+          {hasAccountMeta && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <AccountLogo accountName={accountName} institution={accountInstitution} />
+                {accountName && <span className="truncate">{accountName}</span>}
+              </span>
+            </>
+          )}
+        </span>
+
+        {hasSupplementalMeta && (
+          <span
+            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-center gap-2 text-sm leading-none"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
+            {hasNotes && (
+              <>
+                <span className="min-w-0 truncate whitespace-nowrap">
+                  {transaction.notes}
+                </span>
+              </>
+            )}
+            {hasVisibleTags && (
+              <span
+                className="ml-auto inline-flex shrink-0 items-center gap-1"
+                aria-label={`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`}
+              >
+                <TagIcon size={14} strokeWidth={2} aria-hidden />
+                {tags.length > 1 && (
+                  <span className="text-xs font-medium">{tags.length}</span>
+                )}
+              </span>
+            )}
+          </span>
+        )}
       </span>
     </button>
   )

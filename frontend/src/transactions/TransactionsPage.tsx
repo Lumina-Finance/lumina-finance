@@ -129,44 +129,46 @@ export default function TransactionsPage() {
   }, [])
 
   return (
-    <div className="space-y-6">
+    <div>
       <header className="app-page-header">
         <h1 className="app-page-title">Transactions</h1>
         <p className="app-page-description">Every transaction, all in one place.</p>
       </header>
 
-      <TransactionsTopBand
-        overview={overview}
-        displayCurrency={displayCurrency}
-        filterListLoading={filterListLoading}
-        rangeLabel={rangeLabel}
-        chartAnimationKey={chartAnimationKey}
-        prefersReducedMotion={prefersReducedMotion}
-        openingOutlierId={openingOutlierId}
-        outlierOpenError={outlierOpenError}
-        onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
-      />
+      <div className="space-y-6">
+        <TransactionsTopBand
+          overview={overview}
+          displayCurrency={displayCurrency}
+          filterListLoading={filterListLoading}
+          rangeLabel={rangeLabel}
+          chartAnimationKey={chartAnimationKey}
+          prefersReducedMotion={prefersReducedMotion}
+          openingOutlierId={openingOutlierId}
+          outlierOpenError={outlierOpenError}
+          onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
+        />
 
-      <div
-        style={{
-          height: 2,
-          background: 'var(--app-accent)',
-          opacity: 0.35,
-          borderRadius: 1,
-        }}
-      />
+        <div
+          style={{
+            height: 2,
+            background: 'var(--app-accent)',
+            opacity: 0.35,
+            borderRadius: 1,
+          }}
+        />
 
-      <TransactionListSection
-        accounts={transactionAccounts}
-        currency={displayCurrency}
-        filters={filters}
-        onFiltersChange={setFilters}
-        isExternalFetching={isOverviewFetching}
-        onFilterLoadingChange={setFilterListLoading}
-        onSettledTransactionsChange={handleSettledTransactionsChange}
-        onCreateTransaction={openCreateModal}
-        onEditTransaction={openEditModal}
-      />
+        <TransactionListSection
+          accounts={transactionAccounts}
+          currency={displayCurrency}
+          filters={filters}
+          onFiltersChange={setFilters}
+          isExternalFetching={isOverviewFetching}
+          onFilterLoadingChange={setFilterListLoading}
+          onSettledTransactionsChange={handleSettledTransactionsChange}
+          onCreateTransaction={openCreateModal}
+          onEditTransaction={openEditModal}
+        />
+      </div>
 
       <CreateTransactionModal
         key={createModalKey}
