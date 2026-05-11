@@ -89,6 +89,8 @@ export default function SettingsPage() {
   const profileSaveFeedback = useActionFeedback()
   const runwaySaveFeedback = useActionFeedback()
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const [settingsMenuStuck, setSettingsMenuStuck] = useState(false)
+  const mobileSettingsStickySentinelRef = useRef<HTMLDivElement>(null)
   const mobileSettingsMenuRef = useRef<HTMLDivElement>(null)
   const isProfilePending = profileSaveFeedback.isPending || updateProfile.isPending
   const isRunwayPending = runwaySaveFeedback.isPending || updateRunway.isPending
@@ -207,6 +209,19 @@ export default function SettingsPage() {
     }
   }, [settingsMenuOpen])
 
+  useEffect(() => {
+    const sentinel = mobileSettingsStickySentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setSettingsMenuStuck(!entry.isIntersecting),
+      { threshold: 0 },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
+
   const paneActions = ({
     canSave,
     dirty,
@@ -297,6 +312,8 @@ export default function SettingsPage() {
         </p>
       </header>
 
+      <div ref={mobileSettingsStickySentinelRef} aria-hidden className="h-px min-[1200px]:hidden" />
+
       <div
         className="sticky top-0 z-20 -mx-2 mb-4 px-2 pt-5 max-[1049px]:pt-4 min-[1200px]:hidden"
         style={{
@@ -307,7 +324,7 @@ export default function SettingsPage() {
       >
         <div
           ref={mobileSettingsMenuRef}
-          className="relative max-[1049px]:mr-16"
+          className={`relative transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${settingsMenuStuck ? 'max-[1049px]:mr-16' : 'max-[1049px]:mr-0'}`}
         >
           <button
             type="button"
