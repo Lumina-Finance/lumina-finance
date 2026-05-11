@@ -82,7 +82,7 @@ export default function BudgetFormCadenceSection({
         </div>
 
         <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,1fr)]">
-          <div className={recurrenceControlsLocked || !form.recurs ? 'opacity-60' : ''}>
+          <div className={`min-w-0 ${recurrenceControlsLocked || !form.recurs ? 'opacity-60' : ''}`}>
             <FieldLabelRow
               htmlFor={ids.interval}
               label="Period length"
@@ -100,7 +100,7 @@ export default function BudgetFormCadenceSection({
             />
           </div>
 
-          <div className={recurrenceControlsLocked ? 'opacity-60' : ''}>
+          <div className={`min-w-0 ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
             <FieldLabelRow htmlFor={ids.periodStart} label={periodStartLabel} error={showError('periodStart')} />
             <input
               id={ids.periodStart}

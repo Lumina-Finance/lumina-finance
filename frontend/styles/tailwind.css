@@ -148,7 +148,7 @@
   }
 
   .app-input {
-    @apply h-10 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
+    @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
     font-size: 0.9375rem;
     background: var(--app-input-bg);
     border-color: var(--app-input-border);
@@ -157,6 +157,17 @@
 
   .app-input::placeholder {
     color: var(--app-text-subtle);
+  }
+
+  .app-input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    max-width: 100%;
+  }
+
+  .app-input[type="date"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
   }
 
   .app-input:hover {
@@ -581,6 +592,38 @@
     background: var(--app-bg);
     border: 1px solid var(--app-border-strong);
     box-shadow: var(--app-shadow-soft);
+  }
+
+  @media (max-width: 1049.98px) {
+    body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]) {
+      align-items: stretch !important;
+      justify-content: stretch !important;
+      padding: 0 !important;
+    }
+
+    .app-modal-panel[role="dialog"][aria-modal="true"] {
+      width: 100dvw !important;
+      max-width: none !important;
+      height: 100dvh !important;
+      min-height: 100dvh !important;
+      max-height: none !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+
+    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child {
+      display: block !important;
+      width: 0.375rem !important;
+      min-width: 0.375rem !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border-radius: 0 !important;
+    }
+
+    .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child > * {
+      display: none !important;
+    }
   }
 
   .app-selection-list {

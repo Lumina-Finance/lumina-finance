@@ -30,7 +30,7 @@ const CREATE_SHELL_APPEARANCE: BudgetFormShellAppearance = {
   backdropStyle: { background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' },
   backdropDuration: 0.2,
   stageClassName: 'fixed inset-0 z-50 flex items-center justify-center p-4',
-  panelClassName: 'flex max-h-[86vh] w-full max-w-5xl overflow-hidden rounded-2xl',
+  panelClassName: 'app-modal-panel flex max-h-[86vh] w-full max-w-5xl overflow-hidden rounded-2xl',
   surfaceInitial: { opacity: 0, scale: 0.96, y: 12 },
   surfaceExit: { opacity: 0, scale: 0.96, y: 12 },
   surfaceDuration: MODAL_SURFACE_TRANSITION_SECONDS,
@@ -42,7 +42,7 @@ const CREATE_SHELL_APPEARANCE: BudgetFormShellAppearance = {
   sideRailIconSize: 20,
   sideLabelClassName: 'rotate-180 text-xs font-semibold uppercase',
   headerClassName: 'shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7',
-  bodyClassName: 'px-6 pb-3 pt-4 sm:px-8',
+  bodyClassName: 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8',
 }
 
 const CREATE_FOOTER_CLASS_NAME = 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8'
@@ -256,7 +256,7 @@ export default function BudgetCreateModal({
         />
       )}
     >
-      <div className="grid min-h-0 items-stretch gap-7 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-h-0 flex-col gap-5">
           <BudgetFormScopeSection
             state={state}

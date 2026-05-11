@@ -39,8 +39,8 @@ export default function BudgetFormCategorySection({
   ))
 
   return (
-    <div className="flex min-h-0 overflow-hidden">
-      <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-3 overflow-hidden">
+    <div className="flex min-h-0 min-[1050px]:overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-3 min-[1050px]:overflow-hidden">
         <div className="flex min-h-0 flex-col items-center">
           <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
             03
@@ -60,7 +60,7 @@ export default function BudgetFormCategorySection({
             </span>
           </div>
 
-          <div className="mt-4 flex min-h-0 flex-1 flex-col">
+          <div className="mt-4 flex min-h-0 flex-col min-[1050px]:flex-1">
             <div className="flex items-start">
               <div className="min-w-0 flex-1">
                 <AnimatePresence initial={false}>
@@ -98,9 +98,9 @@ export default function BudgetFormCategorySection({
                 placeholder="Search categories..."
               />
             </div>
-            <div className="relative mb-1 mt-3 min-h-0 flex-1">
+            <div className="relative mb-1 mt-3 min-h-0 min-[1050px]:flex-1">
               <motion.div
-                className="app-selection-list absolute inset-0 m-0 max-h-none"
+                className="app-selection-list m-0 min-[1050px]:absolute min-[1050px]:inset-0 min-[1050px]:max-h-none"
                 style={categoryIdsError ? { borderColor: 'var(--app-negative-border)', background: 'var(--app-negative-soft)' } : undefined}
                 layout={animateOptions}
               >
