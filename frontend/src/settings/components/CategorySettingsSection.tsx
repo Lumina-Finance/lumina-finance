@@ -725,6 +725,7 @@ function InlineCategoryEdit({
           value={form.icon}
           categoryName={category.name}
           onChange={(icon) => setField('icon', icon)}
+          pickerAnchor="row"
         />
         <div className="min-w-0 flex-1">
           <div

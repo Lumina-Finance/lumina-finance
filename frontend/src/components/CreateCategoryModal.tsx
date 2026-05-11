@@ -10,6 +10,12 @@ type CategoryKind = Category['kind']
 type CreateCategoryField = 'icon' | 'name'
 type CreateCategoryFieldErrors = Partial<Record<CreateCategoryField, string>>
 type CreateCategoryModalVariant = 'primary' | 'secondary'
+type EmojiPickerPosition = {
+  left: number
+  maxHeight: number
+  top: number
+  width: number
+}
 
 interface CreateCategoryModalProps {
   open: boolean
@@ -31,6 +37,10 @@ interface EmojiMartSelection {
 const EASE = [0.25, 0.1, 0.25, 1] as const
 const CREATE_CATEGORY_MIN_LOADING_MS = 800
 const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
+const EMOJI_PICKER_GAP = 8
+const EMOJI_PICKER_HEIGHT = 350
+const EMOJI_PICKER_PADDING = 12
+const EMOJI_PICKER_WIDTH = 280
 
 const KIND_LABELS: Record<CategoryKind, string> = {
   expense: 'Expense',
@@ -422,26 +432,67 @@ export function CategoryIconSelector({
   categoryName,
   hasError = false,
   onChange,
+  pickerAnchor = 'button',
   value,
 }: {
   buttonClassName?: string
   categoryName: string
   hasError?: boolean
   onChange: (icon: string) => void
+  pickerAnchor?: 'button' | 'row'
   value: string
 }) {
   const [open, setOpen] = useState(false)
+  const [pickerPosition, setPickerPosition] = useState<EmojiPickerPosition | null>(null)
   const selectorRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
     const onPointerDown = (event: PointerEvent) => {
       if (selectorRef.current?.contains(event.target as Node)) return
+      if (event.composedPath().some((node) => node instanceof HTMLElement && node.dataset.categoryEmojiPicker === 'true')) return
       setOpen(false)
     }
     window.addEventListener('pointerdown', onPointerDown)
     return () => window.removeEventListener('pointerdown', onPointerDown)
   }, [open])
+
+  useEffect(() => {
+    if (!open) return
+
+    const updatePosition = () => {
+      const selector = selectorRef.current
+      if (!selector) return
+
+      const anchor = pickerAnchor === 'row' ? selector.closest('form') ?? selector : selector
+      const rect = selector.getBoundingClientRect()
+      const anchorRect = anchor.getBoundingClientRect()
+      const width = Math.min(EMOJI_PICKER_WIDTH, window.innerWidth - EMOJI_PICKER_PADDING * 2)
+      const spaceBelow = window.innerHeight - anchorRect.bottom - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
+      const spaceAbove = anchorRect.top - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
+      const openAbove = spaceBelow < 220 && spaceAbove > spaceBelow
+      const availableHeight = Math.max(180, openAbove ? spaceAbove : spaceBelow)
+      const maxHeight = Math.min(EMOJI_PICKER_HEIGHT, availableHeight, window.innerHeight - EMOJI_PICKER_PADDING * 2)
+      const top = openAbove
+        ? Math.max(EMOJI_PICKER_PADDING, anchorRect.top - maxHeight - EMOJI_PICKER_GAP)
+        : Math.min(anchorRect.bottom + EMOJI_PICKER_GAP, window.innerHeight - maxHeight - EMOJI_PICKER_PADDING)
+      const preferredLeft = pickerAnchor === 'row' ? anchorRect.left : rect.left
+      const left = Math.min(
+        Math.max(preferredLeft, EMOJI_PICKER_PADDING),
+        window.innerWidth - width - EMOJI_PICKER_PADDING,
+      )
+
+      setPickerPosition({ left, maxHeight, top, width })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open, pickerAnchor])
 
   return (
     <div ref={selectorRef} className="relative shrink-0">
@@ -462,11 +513,12 @@ export function CategoryIconSelector({
         </span>
       </button>
 
-      {open && (
+      {open && pickerPosition && (
         <EmojiMartIconPicker
           categoryName={categoryName}
           onChange={onChange}
           onClose={() => setOpen(false)}
+          position={pickerPosition}
         />
       )}
     </div>
@@ -477,10 +529,12 @@ function EmojiMartIconPicker({
   categoryName,
   onChange,
   onClose,
+  position,
 }: {
   categoryName: string
   onChange: (icon: string) => void
   onClose: () => void
+  position: EmojiPickerPosition
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [data, setData] = useState<EmojiMartData | null>(null)
@@ -540,6 +594,7 @@ function EmojiMartIconPicker({
     })
     const pickerElement = picker as unknown as HTMLElement
     const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
+    pickerElement.style.width = '100%'
     pickerElement.style.setProperty('--font-family', '"DM Sans", system-ui, sans-serif')
     pickerElement.style.setProperty('--font-size', '14px')
     pickerElement.style.setProperty('--border-radius', '0.75rem')
@@ -551,37 +606,43 @@ function EmojiMartIconPicker({
     pickerElement.style.setProperty('--rgb-input', theme.input)
     pickerElement.style.setProperty('--color-border', theme.border)
     pickerElement.style.setProperty('--color-border-over', theme.borderOver)
-    pickerElement.style.height = '21rem'
+    pickerElement.style.height = `${Math.max(position.maxHeight - 14, 220)}px`
     container.appendChild(pickerElement)
 
     return () => {
       pickerElement.remove()
       container.innerHTML = ''
     }
-  }, [data, isDark, onChange, onClose])
+  }, [data, isDark, onChange, onClose, position.maxHeight])
 
-  return (
+  return createPortal(
     <div
-      className="absolute left-0 top-10 z-20 inline-block rounded-xl pb-2 pl-1 pr-1 pt-1"
+      className="fixed z-[110] inline-block rounded-xl pb-2 pl-1 pr-1 pt-1"
+      data-category-emoji-picker="true"
       role="dialog"
       aria-label={`Select ${categoryName} icon`}
       style={{
         background: isDark ? 'rgb(15, 14, 12)' : 'rgb(242, 237, 228)',
         border: '1px solid var(--app-border-strong)',
         boxShadow: 'var(--app-shadow-soft)',
+        left: position.left,
+        maxHeight: position.maxHeight,
+        top: position.top,
+        width: position.width,
       }}
     >
       {loadError ? (
-        <p className="w-48 p-2 text-sm" style={{ color: 'var(--app-negative)' }}>
+        <p className="p-2 text-sm" style={{ color: 'var(--app-negative)' }}>
           {loadError}
         </p>
       ) : !data ? (
-        <div className="flex h-20 w-48 items-center justify-center">
+        <div className="flex h-20 items-center justify-center">
           <div className="app-spinner" aria-label="Loading emoji picker" />
         </div>
       ) : (
         <div ref={containerRef} />
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }
