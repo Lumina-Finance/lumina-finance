@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { motion } from 'motion/react'
 import { Pencil, Trash2, X } from 'lucide-react'
 import {
@@ -18,6 +18,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import BudgetChartTooltip from '@/budgets/components/budget-details-modal/BudgetChartTooltip'
 import BudgetEditModal from '@/budgets/components/budget-form/BudgetEditModal'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
+import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
 import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFACE_TRANSITION_SECONDS } from '@/budgets/constants'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { formatCalendarDate, parseYmd } from '@/budgets/utils/date'
@@ -50,7 +51,10 @@ export default function BudgetDetailsModal({
   const [deleteInProgress, setDeleteInProgress] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const modalScrollRef = useRef<HTMLDivElement | null>(null)
+  const trackedCategoryListRef = useRef<HTMLDivElement | null>(null)
   const [historyCanScroll, setHistoryCanScroll] = useState(false)
+  const [trackedCategoryListScrollable, setTrackedCategoryListScrollable] = useState(false)
+  const [trackedCategoryListAtBottom, setTrackedCategoryListAtBottom] = useState(false)
   const sortedPeriods = periods.slice().sort((a, b) => a.period_start.localeCompare(b.period_start))
   const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
   const periodIds = useMemo(() => periods.map((period) => period.id), [periods])
@@ -104,6 +108,7 @@ export default function BudgetDetailsModal({
     .sort((a, b) => b.spent - a.spent)
   const attention = attentionState(latestPeriod, latestUtilization)
   const isDeleting = deleteBaseBudget.isPending || deleteInProgress
+  const showTrackedCategoryListMoreIndicator = trackedCategoryListScrollable && !trackedCategoryListAtBottom
   const refetchUtilizationHistory = () => {
     utilizationQueries.forEach((query) => {
       void query.refetch()
@@ -115,12 +120,46 @@ export default function BudgetDetailsModal({
     const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
     setHistoryCanScroll(scrollContainer.scrollTop >= maxScrollTop - 1)
   }, [])
+  const syncTrackedCategoryListState = useCallback(() => {
+    const list = trackedCategoryListRef.current
+    if (!list) return
+    const isScrollable = list.scrollHeight > list.clientHeight + 4
+    const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 4
+    setTrackedCategoryListScrollable(isScrollable)
+    setTrackedCategoryListAtBottom(!isScrollable || atBottom)
+  }, [])
 
   useEffect(() => {
     syncHistoryScrollState()
     window.addEventListener('resize', syncHistoryScrollState)
     return () => window.removeEventListener('resize', syncHistoryScrollState)
   }, [syncHistoryScrollState])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(syncTrackedCategoryListState)
+    window.addEventListener('resize', syncTrackedCategoryListState)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', syncTrackedCategoryListState)
+    }
+  }, [baseBudget.id, latestCategories.length, syncTrackedCategoryListState])
+
+  const handleTrackedCategoryListScroll = (event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    const isScrollable = target.scrollHeight > target.clientHeight + 4
+    const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 4
+    setTrackedCategoryListScrollable(isScrollable)
+    setTrackedCategoryListAtBottom(!isScrollable || atBottom)
+  }
+
+  const handleTrackedCategoryListMoreClick = () => {
+    setTrackedCategoryListAtBottom(false)
+    window.requestAnimationFrame(() => {
+      const list = trackedCategoryListRef.current
+      if (!list) return
+      list.scrollBy({ top: list.clientHeight * 0.45, behavior: 'smooth' })
+    })
+  }
 
   const handleDelete = async () => {
     if (!confirmDelete) {
@@ -263,21 +302,32 @@ export default function BudgetDetailsModal({
                     </span>
                   )}
                 </div>
-                <div className="mt-3 max-h-[15rem] overflow-y-auto pr-2">
-                  {latestCategories.length > 0 ? latestCategories.map((category) => (
-                    <div
-                      key={category.category_id}
-                      className="flex items-center justify-between gap-3 py-2.5 text-sm"
-                      style={{ borderTop: '1px solid var(--app-border)' }}
-                    >
-                      <span className="truncate" style={{ color: 'var(--app-text-muted)' }}>{categoryById.get(category.category_id) ?? 'Uncategorized'}</span>
-                      <span className="shrink-0 font-medium" style={{ color: 'var(--app-text)' }}>{formatCurrency(category.spent, baseBudget.currency)}</span>
-                    </div>
-                  )) : (
-                    <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                      No category spending for the current period.
-                    </p>
-                  )}
+                <div className="relative mt-3">
+                  <div
+                    ref={trackedCategoryListRef}
+                    className="max-h-[15rem] overflow-y-auto pr-2"
+                    onScroll={handleTrackedCategoryListScroll}
+                  >
+                    {latestCategories.length > 0 ? latestCategories.map((category) => (
+                      <div
+                        key={category.category_id}
+                        className="flex items-center justify-between gap-3 py-2.5 text-sm"
+                        style={{ borderTop: '1px solid var(--app-border)' }}
+                      >
+                        <span className="truncate" style={{ color: 'var(--app-text-muted)' }}>{categoryById.get(category.category_id) ?? 'Uncategorized'}</span>
+                        <span className="shrink-0 font-medium" style={{ color: 'var(--app-text)' }}>{formatCurrency(category.spent, baseBudget.currency)}</span>
+                      </div>
+                    )) : (
+                      <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                        No category spending for the current period.
+                      </p>
+                    )}
+                  </div>
+                  <ScrollableListMoreButton
+                    show={showTrackedCategoryListMoreIndicator}
+                    onClick={handleTrackedCategoryListMoreClick}
+                    ariaLabel="Scroll tracked categories down"
+                  />
                 </div>
               </section>
 

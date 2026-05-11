@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type UIEvent } fr
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ArrowDown, Check, Pencil, Plus, Search, Store, Trash2, X } from 'lucide-react'
+import { Check, Pencil, Plus, Search, Store, Trash2, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCategories, type Category } from '@/api/categories'
 import {
@@ -16,6 +16,7 @@ import { merchantKeys } from '@/api/queryKeys'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import MarqueeText from '@/components/MarqueeText'
+import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import SectionHeader from '@/settings/components/SectionHeader'
 import SettingsCard from '@/settings/components/SettingsCard'
@@ -29,10 +30,6 @@ const MERCHANT_SEARCH_DEBOUNCE_MS = 300
 const MERCHANT_LIST_VISIBLE_ROWS = 10
 const MERCHANT_LIST_PAGE_SIZE = MERCHANT_LIST_VISIBLE_ROWS
 const MERCHANT_MERGE_PAGE_SIZE = 10
-const MERCHANT_MORE_BUTTON_INITIAL = { opacity: 0, y: 6, scale: 0.96 }
-const MERCHANT_MORE_BUTTON_ANIMATE = { opacity: 1, y: 0, scale: 1 }
-const MERCHANT_MORE_BUTTON_EXIT = { opacity: 0, y: 6, scale: 0.96 }
-const MERCHANT_MORE_BUTTON_TRANSITION = { duration: 0.2, ease: EASE }
 const MERCHANT_ROW_EXIT = { opacity: 0, y: -6, scale: 0.985 }
 const MERCHANT_ROW_EXIT_TRANSITION = { duration: 0.24, ease: EASE }
 const CATEGORY_KIND_LABELS: Record<Category['kind'], string> = {
@@ -505,24 +502,11 @@ export default function MerchantSettingsSection() {
                   </tbody>
                 </table>
               </div>
-              <AnimatePresence initial={false}>
-                {showMerchantListMoreIndicator && (
-                  <motion.button
-                    type="button"
-                    className="absolute bottom-2 left-[calc(50%-1rem)] z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[var(--app-button-primary-bg)] text-[var(--app-button-primary-text)] transition-colors duration-150 hover:bg-[var(--app-button-primary-bg-hover)] active:bg-[var(--app-button-primary-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]"
-                    onClick={handleMerchantListMoreClick}
-                    aria-label={hasMoreMerchants ? 'Show more merchants' : 'Scroll merchants down'}
-                    initial={shouldReduceMotion ? false : MERCHANT_MORE_BUTTON_INITIAL}
-                    animate={shouldReduceMotion ? { opacity: 1 } : MERCHANT_MORE_BUTTON_ANIMATE}
-                    exit={shouldReduceMotion ? { opacity: 0 } : MERCHANT_MORE_BUTTON_EXIT}
-                    transition={MERCHANT_MORE_BUTTON_TRANSITION}
-                  >
-                    <span className="app-merchant-more-glyph flex items-center justify-center">
-                      <ArrowDown size={19} strokeWidth={2.5} aria-hidden />
-                    </span>
-                  </motion.button>
-                )}
-              </AnimatePresence>
+              <ScrollableListMoreButton
+                show={showMerchantListMoreIndicator}
+                onClick={handleMerchantListMoreClick}
+                ariaLabel={hasMoreMerchants ? 'Show more merchants' : 'Scroll merchants down'}
+              />
             </div>
           )}
         </div>
