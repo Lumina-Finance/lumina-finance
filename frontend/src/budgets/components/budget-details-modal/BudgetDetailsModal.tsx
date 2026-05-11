@@ -216,10 +216,10 @@ export default function BudgetDetailsModal({
             onScroll={syncHistoryScrollState}
           >
             <aside
-              className="sticky top-0 z-10 flex shrink-0 flex-col gap-5 p-5 min-[750px]:gap-7 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:overflow-y-auto"
+              className="sticky top-0 z-10 flex shrink-0 flex-col gap-5 p-5 min-[750px]:gap-7 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:h-full min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:overflow-hidden"
               style={{ background: 'var(--app-accent-soft)', color: 'var(--app-text)' }}
             >
-              <header className="flex items-start justify-between gap-4">
+              <header className="flex shrink-0 items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h2 className="truncate text-2xl font-semibold">
                     {baseBudget.name}
@@ -242,7 +242,7 @@ export default function BudgetDetailsModal({
                 </div>
               </header>
 
-              <section>
+              <section className="shrink-0">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
                     Current budget
@@ -291,7 +291,7 @@ export default function BudgetDetailsModal({
                 </div>
               </section>
 
-              <section className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
+              <section className="border-t pt-6 min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col" style={{ borderColor: 'var(--app-border)' }}>
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
                     Tracked categories
@@ -302,10 +302,10 @@ export default function BudgetDetailsModal({
                     </span>
                   )}
                 </div>
-                <div className="relative mt-3">
+                <div className="relative mt-3 min-[1050px]:min-h-0 min-[1050px]:flex-1">
                   <div
                     ref={trackedCategoryListRef}
-                    className="max-h-[15rem] overflow-y-auto pr-2"
+                    className="max-h-[15rem] overflow-y-auto pr-2 min-[1050px]:h-full min-[1050px]:max-h-none"
                     onScroll={handleTrackedCategoryListScroll}
                   >
                     {latestCategories.length > 0 ? latestCategories.map((category) => (
@@ -331,7 +331,7 @@ export default function BudgetDetailsModal({
                 </div>
               </section>
 
-              <div className="min-[1050px]:mt-auto">
+              <div className="shrink-0 min-[1050px]:mt-auto">
                 {confirmDelete && !isDeleting && (
                   <p className="mb-3 text-sm" style={{ color: 'var(--app-negative)' }}>
                     This will delete all historical data.
@@ -367,10 +367,10 @@ export default function BudgetDetailsModal({
             </aside>
 
             <section
-              className={`sticky top-[5.5rem] z-20 h-[calc(100dvh-5.5rem)] shrink-0 space-y-6 p-5 min-[750px]:top-24 min-[750px]:h-[calc(100dvh-6rem)] min-[750px]:space-y-8 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:h-auto min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:overflow-y-auto ${historyCanScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
+              className={`sticky top-[5.5rem] z-20 h-[calc(100dvh-5.5rem)] shrink-0 space-y-6 p-5 min-[750px]:top-24 min-[750px]:h-[calc(100dvh-6rem)] min-[750px]:space-y-8 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:flex min-[1050px]:h-full min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:flex-col min-[1050px]:gap-6 min-[1050px]:space-y-0 min-[1050px]:overflow-hidden ${historyCanScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
               style={{ background: 'var(--app-surface-soft)' }}
             >
-              <header className="flex items-start justify-between gap-4">
+              <header className="flex shrink-0 items-start justify-between gap-4">
                 <div>
                   <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
                   <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
@@ -382,7 +382,7 @@ export default function BudgetDetailsModal({
                 </button>
               </header>
 
-              <section>
+              <section className="shrink-0">
                 <div className="h-48 min-[750px]:h-80">
                   {utilizationHistoryLoading ? (
                     <div
@@ -440,7 +440,7 @@ export default function BudgetDetailsModal({
                 </div>
               </section>
 
-              <section>
+              <section className="min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col">
                 <h3 className="text-base font-semibold" style={{ color: 'var(--app-text)' }}>Period history</h3>
                 <div className="mt-3 space-y-3 min-[750px]:hidden">
                   {utilizationHistoryLoading ? (
@@ -475,8 +475,8 @@ export default function BudgetDetailsModal({
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 hidden overflow-hidden min-[750px]:block" style={{ borderTop: '1px solid var(--app-border)' }}>
-                  <div className="max-h-[12rem] overflow-y-auto pr-3">
+                <div className="mt-3 hidden overflow-hidden min-[750px]:block min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col" style={{ borderTop: '1px solid var(--app-border)' }}>
+                  <div className="max-h-[12rem] overflow-y-auto pr-3 min-[1050px]:h-full min-[1050px]:max-h-none min-[1050px]:min-h-0">
                     <table className="w-full text-sm">
                       <thead
                         className="sticky top-0 z-10"
