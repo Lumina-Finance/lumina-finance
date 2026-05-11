@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Building2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import Dropdown from '@/components/Dropdown';
 import { useCreateInstitution } from '@/api/institutions';
 import { ApiError } from '@/api/auth';
@@ -172,7 +172,7 @@ export default function CreateInstitutionModal({
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-institution-title"
-              className="flex max-h-[84vh] w-full max-w-xl overflow-hidden rounded-2xl"
+              className="app-modal-panel flex max-h-[84vh] w-full max-w-xl overflow-hidden rounded-2xl"
               style={{
                 background: 'var(--app-bg)',
                 border: '1px solid var(--app-border-strong)',
@@ -180,21 +180,6 @@ export default function CreateInstitutionModal({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div
-                className="hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex"
-                style={{
-                  background: 'var(--app-surface-soft)',
-                  borderRight: '1px solid var(--app-border)',
-                  color: 'var(--app-accent)',
-                }}
-                aria-hidden
-              >
-                <Building2 size={18} strokeWidth={2} />
-                <span className="rotate-180 text-[0.6875rem] font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
-                  Linked
-                </span>
-              </div>
-
               <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
                 <div
                   className="shrink-0 px-6 pb-5 pt-6 sm:px-7"
