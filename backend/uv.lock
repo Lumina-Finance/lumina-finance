@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.14"
 
 [manifest]
-constraints = [{ name = "mako", specifier = ">=1.3.11" }]
+constraints = [{ name = "mako", specifier = ">=1.3.12" }]
 
 [[package]]
 name = "alembic"
