@@ -281,7 +281,7 @@ export default function BudgetDetailsModal({
                 </div>
               </section>
 
-              <div className="hidden min-[1050px]:mt-auto min-[1050px]:block">
+              <div className="min-[1050px]:mt-auto">
                 {confirmDelete && !isDeleting && (
                   <p className="mb-3 text-sm" style={{ color: 'var(--app-negative)' }}>
                     This will delete all historical data.
@@ -475,39 +475,6 @@ export default function BudgetDetailsModal({
                 </div>
               </section>
 
-              <section className="min-[1050px]:hidden">
-                {confirmDelete && !isDeleting && (
-                  <p className="mb-3 text-sm" style={{ color: 'var(--app-negative)' }}>
-                    This will delete all historical data.
-                  </p>
-                )}
-                {deleteError && (
-                  <p className="mb-3 text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-                    {deleteError}
-                  </p>
-                )}
-                <div className="flex gap-3">
-                  <button type="button" className="app-primary-button flex-1" onClick={() => setEditOpen(true)}>
-                    <Pencil size={16} aria-hidden />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className={`app-danger-button overflow-hidden whitespace-nowrap duration-300 ${isDeleting ? 'app-primary-button-loading shrink-0' : 'flex-1'}`}
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                  >
-                    {isDeleting ? (
-                      <div className="app-spinner" />
-                    ) : (
-                      <>
-                        <Trash2 size={16} aria-hidden />
-                        {confirmDelete ? 'Confirm' : 'Delete'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </section>
             </section>
           </div>
         </div>
