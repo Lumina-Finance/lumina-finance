@@ -67,7 +67,7 @@
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
   }
 
-  @media (max-width: 1000px) {
+  @media (max-width: 750px) {
     :root {
       --app-page-title-size: 3.06rem;
       --app-page-description-size: 0.956rem;
@@ -583,7 +583,7 @@
 
   .app-section-title {
     @apply font-serif font-medium tracking-tight;
-    font-size: clamp(1.5rem, 2.2vw, 2rem);
+    font-size: 2rem;
     line-height: 1.1;
   }
 
