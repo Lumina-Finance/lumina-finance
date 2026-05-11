@@ -102,6 +102,18 @@ function upsertMerchantIntoInfiniteData(
   return { ...data, pages };
 }
 
+function removeMerchantFromInfiniteData(
+  data: InfiniteData<Merchant[]> | undefined,
+  merchantId: string,
+): InfiniteData<Merchant[]> | undefined {
+  if (!data) return data;
+
+  return {
+    ...data,
+    pages: data.pages.map((page) => page.filter((merchant) => merchant.id !== merchantId)),
+  };
+}
+
 function invalidateMerchantMergeQueries(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
@@ -179,6 +191,19 @@ export function useUpdateMerchant() {
       }),
     onSuccess: (updated) => {
       qc.setQueryData<Merchant>(merchantKeys.detail(updated.id), updated);
+      qc.getQueryCache()
+        .findAll({ queryKey: merchantKeys.all, exact: false })
+        .forEach((query) => {
+          const queryKey = query.queryKey;
+          if (!isMerchantInfiniteQueryKey(queryKey)) return;
+
+          qc.setQueryData<InfiniteData<Merchant[]>>(
+            queryKey,
+            (data) => merchantMatchesFilters(updated, queryKey[2])
+              ? upsertMerchantIntoInfiniteData(data, updated)
+              : removeMerchantFromInfiniteData(data, updated.id),
+          );
+        });
       qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
       qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
     },

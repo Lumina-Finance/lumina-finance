@@ -38,11 +38,19 @@ export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
     [locallyDeletedMerchantIdSet, merchantQuery.data],
   )
   const fetchedMerchantKey = useMemo(
-    () => fetchedMerchants.map((merchant) => merchant.id).join('|'),
+    () => JSON.stringify(fetchedMerchants.map((merchant) => [
+      merchant.id,
+      merchant.name,
+      merchant.default_category_id,
+    ])),
     [fetchedMerchants],
   )
   const visibleMerchantKey = useMemo(
-    () => visibleMerchants.map((merchant) => merchant.id).join('|'),
+    () => JSON.stringify(visibleMerchants.map((merchant) => [
+      merchant.id,
+      merchant.name,
+      merchant.default_category_id,
+    ])),
     [visibleMerchants],
   )
   const hasUndisplayedFetchedMerchants = (
