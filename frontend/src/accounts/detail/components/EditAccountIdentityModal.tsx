@@ -265,7 +265,7 @@ export default function EditAccountIdentityModal({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="edit-account-identity-title"
-                className="flex max-h-[84vh] w-full max-w-2xl overflow-hidden rounded-2xl"
+                className="app-modal-panel flex max-h-[84vh] w-full max-w-2xl overflow-hidden rounded-2xl"
                 style={{
                   background: 'var(--app-bg)',
                   border: '1px solid var(--app-border-strong)',
@@ -275,7 +275,7 @@ export default function EditAccountIdentityModal({
                 onClick={(event) => event.stopPropagation()}
               >
                 <div
-                  className="hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex"
+                  className="hidden w-12 shrink-0 flex-col items-center justify-between py-5 min-[1050px]:flex"
                   style={{
                     background: 'var(--app-surface-soft)',
                     borderRight: '1px solid var(--app-border)',
