@@ -186,10 +186,10 @@ export default function CreateCategoryModal({
   const panelInitial = isSecondary ? { opacity: 0, scale: 0.94, y: 16 } : { opacity: 0, scale: 0.96, y: 12 }
   const panelTransition = isSecondary ? { duration: 0.22, ease: EASE } : { duration: 0.25, ease: EASE }
   const modalClassName = isSecondary
-    ? 'flex max-h-[84vh] w-full max-w-xl rounded-2xl'
-    : 'flex max-h-[86vh] w-full max-w-2xl rounded-2xl'
+    ? 'app-modal-panel flex max-h-[84vh] w-full max-w-xl rounded-2xl'
+    : 'app-modal-panel flex max-h-[86vh] w-full max-w-2xl rounded-2xl'
   const railClassName = isSecondary
-    ? 'hidden w-12 shrink-0 flex-col items-center justify-between rounded-l-2xl py-5 sm:flex'
+    ? 'app-secondary-modal-rail hidden w-12 shrink-0 flex-col items-center justify-between rounded-l-2xl py-5 sm:flex'
     : 'hidden w-16 shrink-0 flex-col items-center justify-between rounded-l-2xl py-6 sm:flex'
   const railStyle = isSecondary
     ? {

@@ -28,11 +28,11 @@ const EDIT_SHELL_APPEARANCE: BudgetFormShellAppearance = {
   backdropStyle: { background: 'rgba(0, 0, 0, 0.22)', backdropFilter: 'blur(6px)' },
   backdropDuration: 0.15,
   stageClassName: 'fixed inset-0 z-[100] flex items-center justify-center p-4',
-  panelClassName: 'flex max-h-[84vh] w-full max-w-5xl overflow-hidden rounded-2xl',
+  panelClassName: 'app-modal-panel flex max-h-[84vh] w-full max-w-5xl overflow-hidden rounded-2xl',
   surfaceInitial: { opacity: 0, scale: 0.94, y: 16 },
   surfaceExit: { opacity: 0, scale: 0.94, y: 16 },
   surfaceDuration: 0.22,
-  sideRailClassName: 'hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex',
+  sideRailClassName: 'app-secondary-modal-rail hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex',
   sideRailStyle: {
     background: 'var(--app-surface-soft)',
     borderRight: '1px solid var(--app-border)',
@@ -41,7 +41,7 @@ const EDIT_SHELL_APPEARANCE: BudgetFormShellAppearance = {
   sideRailIconSize: 18,
   sideLabelClassName: 'rotate-180 text-[0.6875rem] font-semibold uppercase',
   headerClassName: 'shrink-0 px-6 pb-5 pt-6 sm:px-7',
-  bodyClassName: 'px-6 pb-3 pt-4 sm:px-7',
+  bodyClassName: 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-7',
 }
 
 const EDIT_FOOTER_CLASS_NAME = 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-7'
@@ -271,7 +271,7 @@ export default function BudgetEditModal({
         />
       )}
     >
-      <div className="grid min-h-0 items-stretch gap-7 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-h-0 flex-col gap-5">
           <BudgetFormScopeSection
             state={state}

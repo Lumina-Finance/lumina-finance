@@ -624,6 +624,12 @@
     .app-modal-panel[role="dialog"][aria-modal="true"] > [aria-hidden="true"]:first-child > * {
       display: none !important;
     }
+
+    .app-modal-panel[role="dialog"][aria-modal="true"] > .app-secondary-modal-rail:first-child {
+      display: none !important;
+      width: 0 !important;
+      min-width: 0 !important;
+    }
   }
 
   .app-selection-list {
