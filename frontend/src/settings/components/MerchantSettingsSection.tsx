@@ -15,6 +15,7 @@ import {
 import { merchantKeys } from '@/api/queryKeys'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
+import MarqueeText from '@/components/MarqueeText'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import SectionHeader from '@/settings/components/SectionHeader'
 import SettingsCard from '@/settings/components/SettingsCard'
@@ -355,10 +356,61 @@ export default function MerchantSettingsSection() {
             <div className="relative">
               <div
                 ref={merchantListRef}
-                className={shouldScrollMerchants ? 'max-h-[35rem] overflow-x-auto overflow-y-auto pr-2' : 'overflow-x-auto'}
+                className={shouldScrollMerchants ? 'max-h-[35rem] min-w-0 overflow-x-auto overflow-y-auto pr-2' : 'min-w-0 overflow-x-auto'}
                 onScroll={shouldScrollMerchants ? handleMerchantListScroll : undefined}
               >
-                <table className="w-full min-w-[520px] table-auto text-left text-[0.9375rem]">
+                <div className="min-[750px]:hidden">
+                  <AnimatePresence initial={false}>
+                    {visibleMerchants.map((merchant, index) => (
+                      <MobileMerchantRow
+                        key={merchant.id}
+                        categoryById={categoryById}
+                        categoryOptions={options}
+                        confirmingDelete={confirmingDeleteMerchantId === merchant.id}
+                        deleting={deletingMerchantId === merchant.id}
+                        isEditing={editingMerchantId === merchant.id}
+                        isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
+                        merchant={merchant}
+                        shouldReduceMotion={shouldReduceMotion}
+                        onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
+                        onDeleteConfirm={handleDelete}
+                        onDeleteRequest={(nextMerchant) => {
+                          setDeleteError(null)
+                          setEditingMerchantId(null)
+                          setConfirmingDeleteMerchantId(nextMerchant.id)
+                        }}
+                        onEdit={(nextMerchant) => setEditingMerchantId(nextMerchant.id)}
+                        onEditCancel={() => setEditingMerchantId(null)}
+                      />
+                    ))}
+                  </AnimatePresence>
+                  {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
+                    <p
+                      className="py-4 text-center text-sm italic"
+                      style={{ color: 'var(--app-text-subtle)' }}
+                    >
+                      You've reached the end.
+                    </p>
+                  )}
+                  {showFetchingMoreMerchants && visibleMerchants.length > 0 && (
+                    <p
+                      className="py-4 text-center text-sm italic"
+                      style={{ color: 'var(--app-text-subtle)' }}
+                    >
+                      Fetching more
+                    </p>
+                  )}
+                  {showInitialMerchantLoading && visibleMerchants.length === 0 && (
+                    <p
+                      className="py-4 text-center text-sm italic"
+                      style={{ color: 'var(--app-text-subtle)' }}
+                    >
+                      Loading merchants...
+                    </p>
+                  )}
+                </div>
+
+                <table className="hidden w-full table-auto text-left text-[0.9375rem] min-[750px]:table">
                   <colgroup>
                     <col style={{ width: '1%' }} />
                     <col />
@@ -776,10 +828,11 @@ function MerchantRow({
       layout={!shouldReduceMotion}
       exit={shouldReduceMotion ? { opacity: 0 } : MERCHANT_ROW_EXIT}
       transition={shouldReduceMotion ? { duration: 0.12 } : MERCHANT_ROW_EXIT_TRANSITION}
+      className="app-marquee-trigger"
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
       <td className="w-px max-w-[14rem] whitespace-nowrap py-3 pl-4 pr-6 align-middle">
-        <p className="truncate font-medium">{merchant.name}</p>
+        <MarqueeText className="font-medium">{merchant.name}</MarqueeText>
         <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
           {scopeLabel(merchant)}
         </p>
@@ -837,6 +890,125 @@ function MerchantRow({
         </div>
       </td>
     </motion.tr>
+  )
+}
+
+function MobileMerchantRow({
+  categoryById,
+  categoryOptions,
+  confirmingDelete,
+  deleting,
+  isEditing,
+  isLast,
+  merchant,
+  shouldReduceMotion,
+  onDeleteCancel,
+  onDeleteConfirm,
+  onDeleteRequest,
+  onEdit,
+  onEditCancel,
+}: {
+  categoryById: Map<string, Category>
+  categoryOptions: DropdownOption[]
+  confirmingDelete: boolean
+  deleting: boolean
+  isEditing: boolean
+  isLast: boolean
+  merchant: Merchant
+  shouldReduceMotion: boolean | null
+  onDeleteCancel: () => void
+  onDeleteConfirm: (merchant: Merchant) => void
+  onDeleteRequest: (merchant: Merchant) => void
+  onEdit: (merchant: Merchant) => void
+  onEditCancel: () => void
+}) {
+  if (isEditing) {
+    return (
+      <MobileInlineMerchantEdit
+        categoryOptions={categoryOptions}
+        merchant={merchant}
+        isLast={isLast}
+        onCancel={onEditCancel}
+      />
+    )
+  }
+
+  return (
+    <motion.div
+      layout={!shouldReduceMotion}
+      exit={shouldReduceMotion ? { opacity: 0 } : MERCHANT_ROW_EXIT}
+      transition={shouldReduceMotion ? { duration: 0.12 } : MERCHANT_ROW_EXIT_TRANSITION}
+      className="app-marquee-trigger py-3"
+      style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
+    >
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <MarqueeText active className="font-medium">{merchant.name}</MarqueeText>
+          <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            {scopeLabel(merchant)}
+          </p>
+        </div>
+        <div className="flex justify-end gap-1.5">
+          {confirmingDelete ? (
+            <>
+              <button
+                type="button"
+                className="app-icon-button"
+                disabled={deleting}
+                onClick={onDeleteCancel}
+                aria-label={`Cancel deleting ${merchant.name}`}
+                title="Cancel"
+              >
+                <X size={16} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="app-icon-button"
+                disabled={deleting}
+                onClick={() => onDeleteConfirm(merchant)}
+                aria-label={`Confirm delete ${merchant.name}`}
+                title="Confirm delete"
+              >
+                {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="app-icon-button"
+                onClick={() => onEdit(merchant)}
+                aria-label={`Edit ${merchant.name}`}
+                title="Edit merchant"
+              >
+                <Pencil size={16} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="app-icon-button"
+                onClick={() => onDeleteRequest(merchant)}
+                aria-label={`Delete ${merchant.name}`}
+                title="Delete merchant"
+              >
+                <Trash2 size={16} aria-hidden />
+              </button>
+            </>
+          )}
+        </div>
+        <div className="col-span-2 min-w-0">
+          <span
+            className="inline-flex max-w-full rounded-md px-2.5 py-1 text-sm font-medium"
+            style={{
+              background: 'var(--app-input-bg)',
+              color: 'var(--app-text-muted)',
+              border: '1px solid var(--app-input-border)',
+            }}
+          >
+            <span className="truncate">{categoryName(categoryById, merchant.default_category_id)}</span>
+          </span>
+        </div>
+      </div>
+    </motion.div>
   )
 }
 
@@ -973,5 +1145,140 @@ function InlineMerchantEdit({
         </form>
       </td>
     </tr>
+  )
+}
+
+function MobileInlineMerchantEdit({
+  categoryOptions,
+  isLast,
+  merchant,
+  onCancel,
+}: {
+  categoryOptions: DropdownOption[]
+  isLast: boolean
+  merchant: Merchant
+  onCancel: () => void
+}) {
+  const updateMerchant = useUpdateMerchant()
+  const [form, setForm] = useState({
+    name: merchant.name,
+    default_category_id: merchant.default_category_id ?? NO_CATEGORY_VALUE,
+  })
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    setFormError(null)
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (updateMerchant.isPending) return
+
+    const name = form.name.trim()
+    if (!name) {
+      setFormError('Name is required.')
+      return
+    }
+
+    const defaultCategoryId = form.default_category_id === NO_CATEGORY_VALUE ? null : form.default_category_id
+    if (name === merchant.name && defaultCategoryId === merchant.default_category_id) {
+      onCancel()
+      return
+    }
+
+    updateMerchant.mutate(
+      {
+        merchantId: merchant.id,
+        payload: {
+          name,
+          default_category_id: defaultCategoryId,
+        },
+      },
+      {
+        onSuccess: onCancel,
+        onError: (error) => {
+          setFormError(error instanceof Error ? error.message : 'Failed to update merchant.')
+        },
+      },
+    )
+  }
+
+  return (
+    <form
+      className="space-y-3 py-3"
+      style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
+      onSubmit={handleSubmit}
+      noValidate
+    >
+      <div className="space-y-3">
+        <div>
+          <span className="app-label-compact mb-1 block">Merchant</span>
+          <div
+            className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-within:border-[var(--app-accent-border)]"
+            style={{
+              background: 'var(--app-input-bg)',
+              borderColor: 'var(--app-input-border)',
+            }}
+          >
+            <input
+              className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+              value={form.name}
+              onChange={(event) => setField('name', event.target.value)}
+              maxLength={256}
+              aria-label={`${merchant.name} name`}
+              required
+              style={{ color: 'var(--app-text)' }}
+            />
+            <Pencil
+              size={13}
+              className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+              style={{ color: 'var(--app-text-subtle)' }}
+              aria-hidden
+            />
+          </div>
+          <p className="mt-1 truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            {scopeLabel(merchant)}
+          </p>
+        </div>
+        <div>
+          <span className="app-label-compact mb-1 block">Default category</span>
+          <Dropdown
+            className="h-9 w-full rounded-md border border-[var(--app-input-border)] bg-[var(--app-input-bg)] px-2 py-0 outline-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus:border-[var(--app-accent-border)]"
+            options={categoryOptions}
+            value={form.default_category_id}
+            onChange={(value) => setField('default_category_id', value)}
+            searchable
+            searchPlaceholder="Search categories..."
+          />
+        </div>
+      </div>
+      {formError && (
+        <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+          {formError}
+        </p>
+      )}
+      <div className="flex justify-end gap-1.5">
+        <button
+          type="submit"
+          className="app-icon-button"
+          disabled={updateMerchant.isPending}
+          aria-label={`Save ${merchant.name}`}
+          title="Save"
+        >
+          {updateMerchant.isPending ? <div className="app-spinner" aria-label="Saving" /> : <Check size={16} aria-hidden />}
+        </button>
+        <button
+          type="button"
+          className="app-icon-button"
+          onClick={onCancel}
+          disabled={updateMerchant.isPending}
+          aria-label={`Cancel editing ${merchant.name}`}
+          title="Cancel"
+        >
+          <X size={16} aria-hidden />
+        </button>
+      </div>
+    </form>
   )
 }

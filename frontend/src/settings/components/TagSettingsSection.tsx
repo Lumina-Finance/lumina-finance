@@ -14,6 +14,7 @@ import {
   type Tag,
 } from '@/api/tags'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
+import MarqueeText from '@/components/MarqueeText'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import SectionHeader from '@/settings/components/SectionHeader'
 import SettingsCard from '@/settings/components/SettingsCard'
@@ -321,10 +322,10 @@ export default function TagSettingsSection() {
             <div className="relative">
               <div
                 ref={tagListRef}
-                className={shouldScrollTags ? 'max-h-[35rem] overflow-x-auto overflow-y-auto pr-2' : 'overflow-x-auto'}
+                className={shouldScrollTags ? 'max-h-[35rem] min-w-0 overflow-x-auto overflow-y-auto pr-2' : 'min-w-0 overflow-x-auto'}
                 onScroll={shouldScrollTags ? handleTagListScroll : undefined}
               >
-                <table className="w-full min-w-[460px] table-fixed text-left text-[0.9375rem]">
+                <table className="w-full table-fixed text-left text-[0.9375rem]">
                   <colgroup>
                     <col />
                     <col style={{ width: '7rem' }} />
@@ -726,10 +727,11 @@ function TagRow({
       layout={!shouldReduceMotion}
       exit={shouldReduceMotion ? { opacity: 0 } : TAG_ROW_EXIT}
       transition={shouldReduceMotion ? { duration: 0.12 } : TAG_ROW_EXIT_TRANSITION}
+      className="app-marquee-trigger"
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
       <td className="min-w-0 py-3 pl-4 pr-4 align-middle">
-        <p className="truncate font-medium">{tag.name}</p>
+        <MarqueeText active className="font-medium">{tag.name}</MarqueeText>
         <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
           {scopeLabel(tag)}
         </p>

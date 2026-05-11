@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload } from 'lucide-react'
+import { ChevronDown, Upload } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import {
@@ -9,7 +10,7 @@ import {
   useUpdateRunwayAccounts,
   type UpdateProfilePayload,
 } from '@/api/user'
-import ActionFeedbackButton from '@/components/ActionFeedbackButton'
+import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import CategorySettingsSection from '@/settings/components/CategorySettingsSection'
 import MerchantSettingsSection from '@/settings/components/MerchantSettingsSection'
@@ -84,56 +85,56 @@ export default function SettingsPage() {
     return false
   }, [runwayDraft, runwayServerSet])
 
-  // ── Combined save/discard ──
-  const saveFeedback = useActionFeedback()
-  const saveStatus = saveFeedback.status
-  const isDirty = isProfileDirty || isRunwayDirty
-  const isPending = saveFeedback.isPending
-  const canSave = isDirty && !isPending && (!isProfileDirty || firstNameValid)
+  // ── Pane-level save/discard ──
+  const profileSaveFeedback = useActionFeedback()
+  const runwaySaveFeedback = useActionFeedback()
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const mobileSettingsMenuRef = useRef<HTMLDivElement>(null)
+  const isProfilePending = profileSaveFeedback.isPending || updateProfile.isPending
+  const isRunwayPending = runwaySaveFeedback.isPending || updateRunway.isPending
+  const canSaveProfile = isProfileDirty && !isProfilePending && firstNameValid
+  const canSaveRunway = isRunwayDirty && !isRunwayPending
 
-  const handleSave = async () => {
-    if (!canSave || !user) return
+  const handleSaveProfile = async () => {
+    if (!canSaveProfile || !user) return
 
     try {
-      await saveFeedback.run(async () => {
-        const requests: Promise<unknown>[] = []
+      await profileSaveFeedback.run(async () => {
+        // Patch only the fields that actually changed. last_name translates ""
+        // → null so the backend clears the column instead of storing "".
+        const patch: UpdateProfilePayload = {}
+        if (profileForm.first_name !== user.first_name) patch.first_name = profileForm.first_name.trim()
+        const nextLast = profileForm.last_name === '' ? null : profileForm.last_name
+        if (nextLast !== user.last_name) patch.last_name = nextLast
+        if (profileForm.tz !== user.tz) patch.tz = profileForm.tz
 
-        if (isProfileDirty) {
-          // Patch only the fields that actually changed. last_name translates ""
-          // → null so the backend clears the column instead of storing "".
-          const patch: UpdateProfilePayload = {}
-          if (profileForm.first_name !== user.first_name) patch.first_name = profileForm.first_name.trim()
-          const nextLast = profileForm.last_name === '' ? null : profileForm.last_name
-          if (nextLast !== user.last_name) patch.last_name = nextLast
-          if (profileForm.tz !== user.tz) patch.tz = profileForm.tz
-
-          requests.push(
-            updateProfile.mutateAsync(patch).then((updated) => {
-              setUser(updated)
-              setProfileOverrides({})
-            }),
-          )
-        }
-
-        if (isRunwayDirty && runwayDraft) {
-          requests.push(
-            updateRunway.mutateAsync(Array.from(runwayDraft)).then(() => {
-              setRunwayDraft(null)
-            }),
-          )
-        }
-
-        const results = await Promise.allSettled(requests)
-        const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-        if (failed) throw failed.reason
+        const updated = await updateProfile.mutateAsync(patch)
+        setUser(updated)
+        setProfileOverrides({})
       })
     } catch {
-      // Mutation errors already surface through the existing save error text.
+      // Mutation errors surface through the pane-level save error text.
     }
   }
 
-  const handleDiscard = () => {
+  const handleDiscardProfile = () => {
     setProfileOverrides({})
+  }
+
+  const handleSaveRunway = async () => {
+    if (!canSaveRunway || !runwayDraft) return
+
+    try {
+      await runwaySaveFeedback.run(async () => {
+        await updateRunway.mutateAsync(Array.from(runwayDraft))
+        setRunwayDraft(null)
+      })
+    } catch {
+      // Mutation errors surface through the pane-level save error text.
+    }
+  }
+
+  const handleDiscardRunway = () => {
     setRunwayDraft(null)
   }
 
@@ -150,6 +151,16 @@ export default function SettingsPage() {
     setActiveSection(id)
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     window.setTimeout(() => { skipObserverRef.current = false }, 600)
+  }
+
+  const navigateFromMobileMenu = (id: SettingsSectionId) => {
+    setSettingsMenuOpen(false)
+    navigateToSection(id)
+  }
+
+  const navigateToImport = () => {
+    setSettingsMenuOpen(false)
+    navigate('/settings/imports')
   }
 
   useEffect(() => {
@@ -171,38 +182,70 @@ export default function SettingsPage() {
     return () => observer.disconnect()
   }, [])
 
-  // Pick whichever save-path failed to surface above the buttons. Both at
-  // once is rare (independent endpoints, parallel mutations) but we still
-  // render profile first if present.
-  const saveError = updateProfile.isError
-    ? ((updateProfile.error as Error)?.message ?? 'Failed to save profile.')
-    : updateRunway.isError
-      ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway selection.')
-      : null
+  useEffect(() => {
+    if (!settingsMenuOpen) return
 
-  const saveControls = (
-    <div className="space-y-2">
-      {saveError && (
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (mobileSettingsMenuRef.current?.contains(target)) return
+      setSettingsMenuOpen(false)
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSettingsMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [settingsMenuOpen])
+
+  const paneActions = ({
+    canSave,
+    dirty,
+    error,
+    onDiscard,
+    onSave,
+    pending,
+    status,
+  }: {
+    canSave: boolean
+    dirty: boolean
+    error?: string | null
+    onDiscard: () => void
+    onSave: () => void
+    pending: boolean
+    status: ActionFeedbackStatus
+  }) => (
+    <div className="space-y-2 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
+      {error && (
         <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-          {saveError}
+          {error}
         </p>
       )}
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           className="app-secondary-button"
-          onClick={handleDiscard}
-          disabled={!isDirty || isPending}
+          onClick={onDiscard}
+          disabled={!dirty || pending}
         >
           Discard
         </button>
         <ActionFeedbackButton
           type="button"
           className="app-primary-button w-[72px]"
-          onClick={handleSave}
-          disabled={!canSave && saveStatus === 'idle'}
+          onClick={onSave}
+          disabled={!canSave && status === 'idle'}
           loadingLabel="Saving"
-          status={saveStatus}
+          status={status}
         >
           Save
         </ActionFeedbackButton>
@@ -210,18 +253,131 @@ export default function SettingsPage() {
     </div>
   )
 
+  const profileSaveError = updateProfile.isError
+    ? ((updateProfile.error as Error)?.message ?? 'Failed to save profile.')
+    : null
+  const runwaySaveError = updateRunway.isError
+    ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway selection.')
+    : null
+  const profileActions = paneActions({
+    canSave: canSaveProfile,
+    dirty: isProfileDirty,
+    error: profileSaveError,
+    onDiscard: handleDiscardProfile,
+    onSave: handleSaveProfile,
+    pending: isProfilePending,
+    status: profileSaveFeedback.status,
+  })
+  const emailPasswordActions = paneActions({
+    canSave: false,
+    dirty: false,
+    onDiscard: () => undefined,
+    onSave: () => undefined,
+    pending: false,
+    status: 'idle',
+  })
+  const runwayActions = paneActions({
+    canSave: canSaveRunway,
+    dirty: isRunwayDirty,
+    error: runwaySaveError,
+    onDiscard: handleDiscardRunway,
+    onSave: handleSaveRunway,
+    pending: isRunwayPending,
+    status: runwaySaveFeedback.status,
+  })
+  const activeSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0]
+  const ActiveSettingsIcon = activeSettingsSection.icon
+
   return (
     <div>
-      <header className="app-page-header">
+      <header className="app-page-header !mb-4 min-[1200px]:!mb-8">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
           Manage your profile, runway preferences, categories, merchants, tags, and tax-advantaged categories.
         </p>
       </header>
 
-      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 lg:items-start">
+      <div
+        className="sticky top-0 z-20 -mx-2 mb-4 px-2 pt-5 max-[1049px]:pt-4 min-[1200px]:hidden"
+        style={{
+          background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+        }}
+      >
+        <div
+          ref={mobileSettingsMenuRef}
+          className="relative max-[1049px]:mr-16"
+        >
+          <button
+            type="button"
+            className="relative flex h-11 w-full items-center gap-3 rounded-xl border px-4 text-left font-medium shadow-sm transition-colors duration-150"
+            style={{
+              background: 'var(--app-surface-soft)',
+              borderColor: 'var(--app-border)',
+              color: 'var(--app-text)',
+            }}
+            aria-expanded={settingsMenuOpen}
+            aria-controls="settings-mobile-section-menu"
+            onClick={() => setSettingsMenuOpen((open) => !open)}
+          >
+            <ActiveSettingsIcon size={18} aria-hidden className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{activeSettingsSection.label}</span>
+            <ChevronDown
+              size={18}
+              aria-hidden
+              className={`shrink-0 transition-transform duration-200 ${settingsMenuOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          <AnimatePresence>
+            {settingsMenuOpen && (
+              <motion.div
+                id="settings-mobile-section-menu"
+                initial={{ opacity: 0, y: -6, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                className="absolute left-0 right-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-xl border p-1 shadow-lg"
+                style={{
+                  background: 'var(--app-surface-soft)',
+                  borderColor: 'var(--app-border)',
+                }}
+              >
+                <nav className="space-y-0.5" aria-label="Settings sections">
+                  {SETTINGS_SECTIONS.map((section) => {
+                    const Icon = section.icon
+                    const isActive = activeSection === section.id
+                    return (
+                      <button
+                        key={section.id}
+                        type="button"
+                        onClick={() => navigateFromMobileMenu(section.id)}
+                        className={`app-nav-link ${isActive ? 'app-nav-link-active' : ''}`}
+                      >
+                        <Icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden />
+                        {section.label}
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={navigateToImport}
+                    className="app-nav-link"
+                  >
+                    <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
+                    Import
+                  </button>
+                </nav>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      <div className="min-[1200px]:grid min-[1200px]:grid-cols-[260px_minmax(0,1fr)] min-[1200px]:gap-10 min-[1200px]:items-start">
         {/* Sidebar — sticky on desktop, hidden on mobile (sections just stack) */}
-        <aside className="hidden lg:block sticky top-6">
+        <aside className="sticky top-6 hidden min-[1200px]:block">
           <nav className="space-y-0.5" aria-label="Settings sections">
           {SETTINGS_SECTIONS.map((s) => {
               const Icon = s.icon
@@ -240,9 +396,6 @@ export default function SettingsPage() {
             })}
 
           </nav>
-          <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
-            {saveControls}
-          </div>
           <div className="fixed bottom-6 left-[calc(260px+1.5rem)] w-[260px]">
             <button
               type="button"
@@ -261,12 +414,15 @@ export default function SettingsPage() {
             form={profileForm}
             onFieldChange={setProfileField}
             firstNameValid={firstNameValid}
+            userInformationActions={profileActions}
+            emailPasswordActions={emailPasswordActions}
           />
           <RunwaySection
             loading={accountsLoading || selectionLoading}
             accounts={selectableAccounts}
             selection={runwaySelection}
             onToggle={toggleRunwayAccount}
+            actions={runwayActions}
           />
 
           <CategorySettingsSection />
@@ -280,11 +436,6 @@ export default function SettingsPage() {
             userBaseCurrency={user?.base_currency}
             userTimezone={user?.tz}
           />
-
-          {/* Unified save bar — covers both profile + runway in parallel */}
-          <div className="pt-2 lg:hidden">
-            {saveControls}
-          </div>
         </div>
       </div>
     </div>

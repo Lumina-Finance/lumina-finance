@@ -82,6 +82,7 @@
 
   html {
     min-height: 100dvh;
+    scrollbar-gutter: stable;
     background-color: var(--app-bg);
     color: var(--app-text);
   }
@@ -106,23 +107,10 @@
     transition: background-color 480ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  body.app-mobile-nav-open,
-  body.app-mobile-nav-open #root,
-  body.app-mobile-nav-open #root > div {
+  body.app-mobile-nav-open {
     background-color: var(--app-mobile-nav-bg-current, var(--app-nav-bg)) !important;
   }
 
-  @media (max-width: 1049.98px) {
-    body.app-mobile-nav-open main {
-      opacity: 0;
-      transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);
-      pointer-events: none;
-    }
-
-    main {
-      transition: opacity 220ms ease-out;
-    }
-  }
 }
 
 @layer components {
@@ -428,6 +416,50 @@
     @apply rounded-2xl border p-4;
     background: var(--app-surface-soft);
     border-color: var(--app-border);
+  }
+
+  .app-marquee-text-track {
+    opacity: 0;
+    transform: translateX(0);
+  }
+
+  .app-marquee-trigger:hover .app-marquee-text[data-overflow="true"] .app-marquee-text-track,
+  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow="true"] .app-marquee-text-track,
+  .app-marquee-text[data-active="true"][data-overflow="true"] .app-marquee-text-track {
+    opacity: 1;
+    animation: app-marquee-text var(--app-marquee-duration) ease-in-out infinite;
+  }
+
+  .app-marquee-trigger:hover .app-marquee-text[data-overflow="true"] .app-marquee-text-static,
+  .app-marquee-trigger:focus-visible .app-marquee-text[data-overflow="true"] .app-marquee-text-static,
+  .app-marquee-text[data-active="true"][data-overflow="true"] .app-marquee-text-static {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-marquee-text-track {
+      animation: none !important;
+      opacity: 0 !important;
+      transform: translateX(0) !important;
+    }
+
+    .app-marquee-text-static {
+      opacity: 1 !important;
+    }
+  }
+
+  @keyframes app-marquee-text {
+    0%,
+    14% {
+      transform: translateX(0);
+    }
+    48%,
+    68% {
+      transform: translateX(calc(-1 * var(--app-marquee-distance)));
+    }
+    100% {
+      transform: translateX(0);
+    }
   }
 
   .app-budget-grid {

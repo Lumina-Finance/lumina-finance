@@ -1,5 +1,7 @@
 import { Check } from 'lucide-react'
+import type React from 'react'
 import type { AccountsOverview } from '@/api/accounts'
+import MarqueeText from '@/components/MarqueeText'
 import { formatCurrency } from '@/utils/formatCurrency'
 import SectionHeader from '@/settings/components/SectionHeader'
 import SettingsCard from '@/settings/components/SettingsCard'
@@ -11,9 +13,10 @@ interface RunwaySectionProps {
   accounts: AccountsOverview[]
   selection: Set<string>
   onToggle: (id: string) => void
+  actions: React.ReactNode
 }
 
-export default function RunwaySection({ loading, accounts, selection, onToggle }: RunwaySectionProps) {
+export default function RunwaySection({ loading, accounts, selection, onToggle, actions }: RunwaySectionProps) {
   return (
     <section id="runway" className="scroll-mt-8">
       <SectionHeader
@@ -31,27 +34,30 @@ export default function RunwaySection({ loading, accounts, selection, onToggle }
       />
 
       <SettingsCard>
-        {loading ? null : accounts.length === 0 ? (
-          <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-            No eligible accounts yet. Add an asset account to configure runway.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {accounts.map((account) => (
-                <RunwayAccountTile
-                  key={account.id}
-                  account={account}
-                  selected={selection.has(account.id)}
-                  onToggle={() => onToggle(account.id)}
-                />
-              ))}
-            </div>
-            <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-              {selection.size} of {accounts.length} selected
+        <div className="space-y-4">
+          {loading ? null : accounts.length === 0 ? (
+            <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              No eligible accounts yet. Add an asset account to configure runway.
             </p>
-          </div>
-        )}
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-2 min-[1500px]:grid-cols-2">
+                {accounts.map((account) => (
+                  <RunwayAccountTile
+                    key={account.id}
+                    account={account}
+                    selected={selection.has(account.id)}
+                    onToggle={() => onToggle(account.id)}
+                  />
+                ))}
+              </div>
+              <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                {selection.size} of {accounts.length} selected
+              </p>
+            </div>
+          )}
+          {actions}
+        </div>
       </SettingsCard>
     </section>
   )
@@ -73,7 +79,7 @@ function RunwayAccountTile({
       role="checkbox"
       aria-checked={selected}
       onClick={onToggle}
-      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-200"
+      className="app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-left transition-colors duration-200"
       style={{
         background: selected ? 'var(--app-accent-soft)' : 'var(--app-input-bg)',
         border: `1px solid ${selected ? 'var(--app-accent-border)' : 'var(--app-input-border)'}`,
@@ -89,8 +95,8 @@ function RunwayAccountTile({
       >
         {selected && <Check size={13} strokeWidth={3} aria-hidden />}
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-medium truncate">{account.name}</span>
+      <span className="min-w-0 flex-1 overflow-hidden">
+        <MarqueeText active className="font-medium">{account.name}</MarqueeText>
         <span className="block text-xs truncate" style={{ color: 'var(--app-text-muted)' }}>
           {institutionName}
         </span>

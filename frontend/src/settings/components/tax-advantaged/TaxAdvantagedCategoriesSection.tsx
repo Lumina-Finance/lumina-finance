@@ -520,15 +520,15 @@ function TaxAdvantagedCategoriesTable({
   plans: TaxAdvantagedPlan[]
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[660px] table-fixed text-left text-[0.9375rem]">
-        <colgroup>
-          <col />
-          <col style={{ width: '10rem' }} />
-          <col style={{ width: '12rem' }} />
-          <col style={{ width: '7rem' }} />
+    <div className="min-w-0">
+      <table className="block w-full text-left text-[0.9375rem] min-[750px]:table min-[750px]:table-fixed">
+        <colgroup className="hidden min-[750px]:table-column-group">
+          <col style={{ width: '34%' }} />
+          <col style={{ width: '24%' }} />
+          <col style={{ width: '27%' }} />
+          <col style={{ width: '15%' }} />
         </colgroup>
-        <thead>
+        <thead className="hidden min-[750px]:table-header-group">
           <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
             <th className="app-label px-4 py-3">Category</th>
             <th className="app-label py-3 pr-4">Current year</th>
@@ -536,7 +536,7 @@ function TaxAdvantagedCategoriesTable({
             <th className="app-label py-3 pr-4 text-right">Accounts</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="block space-y-2 min-[750px]:table-row-group min-[750px]:space-y-0">
           {plans.map((plan, index) => (
             <TaxAdvantagedCategoryRow
               key={plan.id}
@@ -569,13 +569,21 @@ function TaxAdvantagedCategoryRow({
   const { data: limits = [], isLoading } = useTaxAdvantagedPlanLimits(plan.id)
   const hasCurrentYearLimit = limits.some((limit) => limit.year === currentYear)
   const limitYearsLabel = formatLimitYears(limits.map((limit) => limit.year))
+  const statusLabel = isLoading
+    ? 'Loading'
+    : hasCurrentYearLimit
+      ? `${currentYear} configured`
+      : `Missing ${currentYear}`
+  const statusStyle = isLoading
+    ? { background: 'var(--app-input-bg)', color: 'var(--app-text-muted)' }
+    : hasCurrentYearLimit
+      ? { background: 'var(--app-positive-soft)', color: 'var(--app-positive)' }
+      : { background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }
 
   return (
     <tr
-      className="cursor-pointer transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
-      style={{
-        borderBottom: isLast ? 'none' : '1px solid var(--app-border)',
-      }}
+      className={`block cursor-pointer rounded-xl border p-3 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${isLast ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
+      style={{ borderColor: 'var(--app-border)' }}
       tabIndex={0}
       onClick={() => onSelect(plan.id)}
       onKeyDown={(event) => {
@@ -585,13 +593,49 @@ function TaxAdvantagedCategoryRow({
         }
       }}
     >
-      <td className="min-w-0 px-4 py-4">
-        <span className="block truncate font-serif text-xl font-medium tracking-tight">{plan.name}</span>
-        <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          {formatTaxTreatment(plan.tax_treatment)} · {plan.currency}
-        </span>
+      <td className="block min-w-0 px-0 py-0 min-[750px]:table-cell min-[750px]:px-4 min-[750px]:py-4">
+        <div className="flex items-start justify-between gap-3 min-[750px]:hidden">
+          <span className="min-w-0">
+            <span className="block truncate font-serif text-xl font-medium tracking-tight">{plan.name}</span>
+            <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {formatTaxTreatment(plan.tax_treatment)} · {plan.currency}
+            </span>
+          </span>
+          <span
+            className="mt-1 shrink-0 rounded-full px-2.5 py-1 text-xs font-medium"
+            style={statusStyle}
+          >
+            {statusLabel}
+          </span>
+        </div>
+        <div className="hidden min-[750px]:block">
+          <span className="block truncate font-serif text-xl font-medium tracking-tight">{plan.name}</span>
+          <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            {formatTaxTreatment(plan.tax_treatment)} · {plan.currency}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3 min-[750px]:hidden">
+          <span className="min-w-0">
+            <span className="app-label mb-1 block">Limit years</span>
+            <span
+              className="block truncate text-sm"
+              style={limitYearsLabel === 'None' ? { color: 'var(--app-text-muted)' } : undefined}
+            >
+              {isLoading ? 'Loading' : limitYearsLabel}
+            </span>
+          </span>
+          <span className="min-w-0 text-right">
+            <span className="app-label mb-1 block">Accounts</span>
+            <span className="block truncate text-sm">
+              <span className="font-medium">{accountCount}</span>
+              <span className="ml-1" style={{ color: 'var(--app-text-muted)' }}>
+                linked
+              </span>
+            </span>
+          </span>
+        </div>
       </td>
-      <td className="py-4 pr-4 font-medium">
+      <td className="hidden py-4 pr-4 font-medium min-[750px]:table-cell">
         {isLoading ? (
           <span style={{ color: 'var(--app-text-muted)' }}>Loading</span>
         ) : hasCurrentYearLimit ? (
@@ -600,12 +644,12 @@ function TaxAdvantagedCategoryRow({
           <span style={{ color: 'var(--app-negative)' }}>Missing {currentYear}</span>
         )}
       </td>
-      <td className="py-4 pr-4">
+      <td className="hidden py-4 pr-4 min-[750px]:table-cell">
         <span style={limitYearsLabel === 'None' ? { color: 'var(--app-text-muted)' } : undefined}>
           {isLoading ? 'Loading' : limitYearsLabel}
         </span>
       </td>
-      <td className="py-4 pr-4 text-right">
+      <td className="hidden py-4 pr-4 text-right min-[750px]:table-cell">
         <span className="font-medium">{accountCount}</span>
         <span className="ml-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
           linked
@@ -1628,14 +1672,14 @@ function TaxAdvantagedCategoryModal({
                     </div>
 
                     <div className={hasScrollableLimitRows ? 'max-h-[22rem] overflow-y-auto overflow-x-hidden pr-1' : 'overflow-hidden'}>
-                      <table className="w-full table-fixed text-left text-[0.9375rem]">
-                        <colgroup>
+                      <table className="block w-full text-left text-[0.9375rem] min-[750px]:table min-[750px]:table-fixed">
+                        <colgroup className="hidden min-[750px]:table-column-group">
                           <col style={{ width: '6.5rem' }} />
                           <col style={{ width: 'calc((100% - 11.5rem) / 2)' }} />
                           <col style={{ width: 'calc((100% - 11.5rem) / 2)' }} />
                           <col style={{ width: '5rem' }} />
                         </colgroup>
-                        <thead>
+                        <thead className="hidden min-[750px]:table-header-group">
                           <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
                             <th
                               className="sticky top-0 z-10 py-2 pr-4 font-medium"
@@ -1662,15 +1706,17 @@ function TaxAdvantagedCategoryModal({
                             />
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="block space-y-3 min-[750px]:table-row-group min-[750px]:space-y-0">
                           {showAddTaxYear && (
                             <tr
-                              style={{ borderBottom: '1px solid var(--app-border)' }}
+                              className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 rounded-xl border p-3 min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0"
+                              style={{ borderColor: 'var(--app-border)' }}
                               onBlur={(event) => saveWhenFocusLeaves(event, handleCreateLimit)}
                             >
-                              <td className="min-w-0 py-3 pr-5">
+                              <td className="col-start-1 row-start-1 min-w-0 py-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pr-5">
+                                <span className="app-label mb-1 block min-[750px]:hidden">Year</span>
                                 <div
-                                  className="group flex h-9 w-20 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+                                  className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)] min-[750px]:w-20"
                                   style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
                                 >
                                   <input
@@ -1691,7 +1737,8 @@ function TaxAdvantagedCategoryModal({
                                   />
                                 </div>
                               </td>
-                              <td className="min-w-0 py-3 pl-0 pr-4">
+                              <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-0 min-[750px]:pr-4">
+                                <span className="app-label mb-1 block min-[750px]:hidden">Contribution limit</span>
                                 <CompactCurrencyInput
                                   ariaLabel="New tax-year contribution limit"
                                   currencies={currencies}
@@ -1701,7 +1748,8 @@ function TaxAdvantagedCategoryModal({
                                   placeholder="Contribution limit"
                                 />
                               </td>
-                              <td className="min-w-0 py-3 pl-4 pr-0">
+                              <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
+                                <span className="app-label mb-1 block min-[750px]:hidden">Withdrawal limit</span>
                                 <CompactCurrencyInput
                                   ariaLabel="New tax-year withdrawal limit"
                                   currencies={currencies}
@@ -1711,7 +1759,7 @@ function TaxAdvantagedCategoryModal({
                                   placeholder="Optional"
                                 />
                               </td>
-                              <td className="py-3 pl-2">
+                              <td className="col-start-2 row-start-1 py-0 pl-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-2">
                                 <div className="flex items-center justify-center gap-1">
                                   <button
                                     type="button"
@@ -1740,20 +1788,28 @@ function TaxAdvantagedCategoryModal({
                             </tr>
                           )}
                           {limitsLoading ? null : sortedLimits.length === 0 && !showAddTaxYear ? (
-                            <tr>
-                              <td className="py-4 text-sm italic" colSpan={4} style={{ color: 'var(--app-text-subtle)' }}>
+                            <tr className="block min-[750px]:table-row">
+                              <td className="block py-4 text-sm italic min-[750px]:table-cell" colSpan={4} style={{ color: 'var(--app-text-subtle)' }}>
                                 No limit entries yet.
                               </td>
                             </tr>
                           ) : (
-                            sortedLimits.map((limit) => {
+                            sortedLimits.map((limit, index) => {
                               const draft = limitDraft(limit.year)
                               const confirmingDelete = deleteConfirmYear === limit.year
                               const deletingLimit = pendingDeleteLimitYear === limit.year
                               return (
-                                <tr key={limit.year} style={{ borderBottom: '1px solid var(--app-border)' }}>
-                                  <td className="py-3 pr-4 font-medium">{limit.year}</td>
-                                  <td className="min-w-0 py-3 pl-0 pr-4">
+                                <tr
+                                  key={limit.year}
+                                  className={`grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 rounded-xl border p-3 min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
+                                  style={{ borderColor: 'var(--app-border)' }}
+                                >
+                                  <td className="col-start-1 row-start-1 py-0 pr-0 font-medium min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pr-4">
+                                    <span className="app-label mb-1 block min-[750px]:hidden">Year</span>
+                                    {limit.year}
+                                  </td>
+                                  <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-0 min-[750px]:pr-4">
+                                    <span className="app-label mb-1 block min-[750px]:hidden">Contribution limit</span>
                                     <CompactCurrencyInput
                                       ariaLabel={`${limit.year} contribution limit`}
                                       currencies={currencies}
@@ -1763,7 +1819,8 @@ function TaxAdvantagedCategoryModal({
                                       onChange={(value) => setLimitField(limit.year, 'contribution_limit', value)}
                                     />
                                   </td>
-                                  <td className="min-w-0 py-3 pl-4 pr-0">
+                                  <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
+                                    <span className="app-label mb-1 block min-[750px]:hidden">Withdrawal limit</span>
                                     <CompactCurrencyInput
                                       ariaLabel={`${limit.year} withdrawal limit`}
                                       currencies={currencies}
@@ -1774,7 +1831,7 @@ function TaxAdvantagedCategoryModal({
                                       placeholder="Optional"
                                     />
                                   </td>
-                                  <td className="py-3 pl-2">
+                                  <td className="col-start-2 row-start-1 py-0 pl-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-2">
                                     <div className="flex items-center justify-center">
                                       <button
                                         ref={confirmingDelete ? limitDeleteButtonRef : undefined}

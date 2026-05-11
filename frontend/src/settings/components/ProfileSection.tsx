@@ -21,9 +21,18 @@ interface ProfileSectionProps {
   form: ProfileFormState
   onFieldChange: <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => void
   firstNameValid: boolean
+  userInformationActions: React.ReactNode
+  emailPasswordActions: React.ReactNode
 }
 
-export default function ProfileSection({ user, form, onFieldChange, firstNameValid }: ProfileSectionProps) {
+export default function ProfileSection({
+  user,
+  form,
+  onFieldChange,
+  firstNameValid,
+  userInformationActions,
+  emailPasswordActions,
+}: ProfileSectionProps) {
   const { data: currencies } = useCurrencies()
   const initials = user
     ? `${user.first_name[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
@@ -71,7 +80,7 @@ export default function ProfileSection({ user, form, onFieldChange, firstNameVal
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 min-[1500px]:grid-cols-2">
               <Field label="First name">
                 <input
                   className="app-input"
@@ -106,6 +115,8 @@ export default function ProfileSection({ user, form, onFieldChange, firstNameVal
                 />
               </Field>
             </div>
+
+            {userInformationActions}
           </div>
         </SettingsCard>
 
@@ -118,7 +129,7 @@ export default function ProfileSection({ user, form, onFieldChange, firstNameVal
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 min-[1500px]:grid-cols-2">
               <Field label="Email" hint="Planned, currently not supported to change">
                 <input
                   className="app-input"
@@ -156,6 +167,8 @@ export default function ProfileSection({ user, form, onFieldChange, firstNameVal
                 />
               </Field>
             </div>
+
+            {emailPasswordActions}
           </div>
         </SettingsCard>
       </div>

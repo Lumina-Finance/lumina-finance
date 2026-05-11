@@ -585,7 +585,9 @@ function CategoryRow({
         </span>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="truncate font-medium">{category.name}</p>
+            <p className="line-clamp-2 font-medium leading-tight min-[750px]:truncate min-[750px]:leading-normal">
+              {category.name}
+            </p>
           </div>
           <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
             {scopeLabel}
