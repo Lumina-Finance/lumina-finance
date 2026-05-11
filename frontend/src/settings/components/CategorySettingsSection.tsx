@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
@@ -671,6 +671,7 @@ function InlineCategoryEdit({
   onCancel: () => void
 }) {
   const updateCategory = useUpdateCategory()
+  const formRef = useRef<HTMLFormElement | null>(null)
   const [form, setForm] = useState({
     name: category.name,
     icon: editableEmoji(category.icon),
@@ -715,6 +716,7 @@ function InlineCategoryEdit({
 
   return (
     <form
+      ref={formRef}
       className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2"
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
       onSubmit={handleSubmit}
@@ -726,6 +728,7 @@ function InlineCategoryEdit({
           categoryName={category.name}
           onChange={(icon) => setField('icon', icon)}
           pickerAnchor="row"
+          pickerAnchorRef={formRef}
         />
         <div className="min-w-0 flex-1">
           <div

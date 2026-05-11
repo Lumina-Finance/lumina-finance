@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Picker } from 'emoji-mart'
 import { AnimatePresence, motion } from 'motion/react'
@@ -433,6 +433,7 @@ export function CategoryIconSelector({
   hasError = false,
   onChange,
   pickerAnchor = 'button',
+  pickerAnchorRef,
   value,
 }: {
   buttonClassName?: string
@@ -440,6 +441,7 @@ export function CategoryIconSelector({
   hasError?: boolean
   onChange: (icon: string) => void
   pickerAnchor?: 'button' | 'row'
+  pickerAnchorRef?: RefObject<HTMLElement | null>
   value: string
 }) {
   const [open, setOpen] = useState(false)
@@ -452,6 +454,7 @@ export function CategoryIconSelector({
       if (selectorRef.current?.contains(event.target as Node)) return
       if (event.composedPath().some((node) => node instanceof HTMLElement && node.dataset.categoryEmojiPicker === 'true')) return
       setOpen(false)
+      setPickerPosition(null)
     }
     window.addEventListener('pointerdown', onPointerDown)
     return () => window.removeEventListener('pointerdown', onPointerDown)
@@ -464,35 +467,47 @@ export function CategoryIconSelector({
       const selector = selectorRef.current
       if (!selector) return
 
-      const anchor = pickerAnchor === 'row' ? selector.closest('form') ?? selector : selector
+      const anchor = pickerAnchorRef?.current ?? (pickerAnchor === 'row' ? selector.closest('form') ?? selector : selector)
       const rect = selector.getBoundingClientRect()
       const anchorRect = anchor.getBoundingClientRect()
-      const width = Math.min(EMOJI_PICKER_WIDTH, window.innerWidth - EMOJI_PICKER_PADDING * 2)
-      const spaceBelow = window.innerHeight - anchorRect.bottom - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
-      const spaceAbove = anchorRect.top - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
+      const visualViewport = window.visualViewport
+      const viewportTop = visualViewport?.offsetTop ?? 0
+      const viewportLeft = visualViewport?.offsetLeft ?? 0
+      const viewportWidth = visualViewport?.width ?? window.innerWidth
+      const viewportHeight = visualViewport?.height ?? window.innerHeight
+      const viewportBottom = viewportTop + viewportHeight
+      const viewportRight = viewportLeft + viewportWidth
+      const width = Math.min(EMOJI_PICKER_WIDTH, viewportWidth - EMOJI_PICKER_PADDING * 2)
+      const spaceBelow = viewportBottom - anchorRect.bottom - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
+      const spaceAbove = anchorRect.top - viewportTop - EMOJI_PICKER_GAP - EMOJI_PICKER_PADDING
       const openAbove = spaceBelow < 220 && spaceAbove > spaceBelow
       const availableHeight = Math.max(180, openAbove ? spaceAbove : spaceBelow)
-      const maxHeight = Math.min(EMOJI_PICKER_HEIGHT, availableHeight, window.innerHeight - EMOJI_PICKER_PADDING * 2)
+      const maxHeight = Math.min(EMOJI_PICKER_HEIGHT, availableHeight, viewportHeight - EMOJI_PICKER_PADDING * 2)
       const top = openAbove
-        ? Math.max(EMOJI_PICKER_PADDING, anchorRect.top - maxHeight - EMOJI_PICKER_GAP)
-        : Math.min(anchorRect.bottom + EMOJI_PICKER_GAP, window.innerHeight - maxHeight - EMOJI_PICKER_PADDING)
+        ? Math.max(viewportTop + EMOJI_PICKER_PADDING, anchorRect.top - maxHeight - EMOJI_PICKER_GAP)
+        : Math.min(anchorRect.bottom + EMOJI_PICKER_GAP, viewportBottom - maxHeight - EMOJI_PICKER_PADDING)
       const preferredLeft = pickerAnchor === 'row' ? anchorRect.left : rect.left
       const left = Math.min(
-        Math.max(preferredLeft, EMOJI_PICKER_PADDING),
-        window.innerWidth - width - EMOJI_PICKER_PADDING,
+        Math.max(preferredLeft, viewportLeft + EMOJI_PICKER_PADDING),
+        viewportRight - width - EMOJI_PICKER_PADDING,
       )
 
       setPickerPosition({ left, maxHeight, top, width })
     }
 
-    updatePosition()
+    const frame = window.requestAnimationFrame(updatePosition)
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, true)
+    window.visualViewport?.addEventListener('resize', updatePosition)
+    window.visualViewport?.addEventListener('scroll', updatePosition)
     return () => {
+      window.cancelAnimationFrame(frame)
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
+      window.visualViewport?.removeEventListener('resize', updatePosition)
+      window.visualViewport?.removeEventListener('scroll', updatePosition)
     }
-  }, [open, pickerAnchor])
+  }, [open, pickerAnchor, pickerAnchorRef])
 
   return (
     <div ref={selectorRef} className="relative shrink-0">
@@ -503,7 +518,10 @@ export function CategoryIconSelector({
           background: hasError ? 'var(--app-negative-soft)' : 'var(--app-input-bg)',
           borderColor: hasError ? 'var(--app-negative-border)' : 'var(--app-input-border)',
         }}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          setPickerPosition(null)
+          setOpen((current) => !current)
+        }}
         aria-label={`Select ${categoryName} icon`}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -517,7 +535,10 @@ export function CategoryIconSelector({
         <EmojiMartIconPicker
           categoryName={categoryName}
           onChange={onChange}
-          onClose={() => setOpen(false)}
+          onClose={() => {
+            setOpen(false)
+            setPickerPosition(null)
+          }}
           position={pickerPosition}
         />
       )}
@@ -570,7 +591,7 @@ function EmojiMartIconPicker({
     container.innerHTML = ''
     const picker = new Picker({
       data,
-      autoFocus: true,
+      autoFocus: false,
       emojiButtonColors: ['var(--app-accent-soft)'],
       emojiButtonRadius: '6px',
       emojiButtonSize: 32,
