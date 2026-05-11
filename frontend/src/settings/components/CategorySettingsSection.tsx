@@ -317,7 +317,7 @@ function MergeDeleteCategoryModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="merge-delete-category-title"
-          className="flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
+          className="app-modal-panel flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
             border: '1px solid var(--app-border-strong)',
