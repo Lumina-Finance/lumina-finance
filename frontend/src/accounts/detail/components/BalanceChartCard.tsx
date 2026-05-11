@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { motion, useReducedMotion } from 'motion/react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import {
   Area,
@@ -11,18 +10,23 @@ import {
   YAxis,
 } from 'recharts'
 import { useAccountSnapshots, type Account } from '@/api/accounts'
+import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
-  BALANCE_RANGES,
   RANGE_CONFIG,
-  TIME_SELECTOR_SPRING,
   type BalanceRange,
 } from '@/accounts/detail/constants/accountDetail'
 import { buildChartSeries, rezeroSeriesToPeriod } from '@/accounts/detail/utils/balanceChartSeries'
 import { toISODate } from '@/accounts/detail/utils/date'
 
+const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
+  { value: '7D', label: '7D', description: 'Last 7 days' },
+  { value: '30D', label: '30D', description: 'Last 30 days' },
+  { value: '90D', label: '90D', description: 'Last 90 days' },
+  { value: '1Y', label: '1Y', description: 'Last year' },
+]
+
 export default function BalanceChartCard({ account }: { account: Account }) {
-  const shouldReduceMotion = useReducedMotion()
   const [range, setRange] = useState<BalanceRange>('30D')
 
   // Derive the snapshot query window from the selected range.
@@ -80,33 +84,22 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Current Balance</p>
-        <div
-          className="app-segmented-control app-segmented-control-compact app-time-selector"
-          role="tablist"
-          aria-label="Balance range"
-        >
-          <motion.span
-            className="app-time-selector-indicator"
-            aria-hidden
-            animate={{ x: `${BALANCE_RANGES.indexOf(range) * 100}%` }}
-            transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
-          />
-          {BALANCE_RANGES.map((r) => {
-            const active = range === r
-            return (
-              <button
-                key={r}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setRange(r)}
-                className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
-              >
-                {r}
-              </button>
-            )
-          })}
-        </div>
+        <TimeRangeSelector
+          value={range}
+          options={BALANCE_RANGE_OPTIONS}
+          onChange={setRange}
+          ariaLabel="Balance range"
+          className="hidden min-[750px]:inline-flex"
+        />
+        <TimeRangeSelector
+          value={range}
+          options={BALANCE_RANGE_OPTIONS}
+          onChange={setRange}
+          ariaLabel="Balance range"
+          variant="mobile"
+          className="w-full min-[750px]:hidden"
+          sheetTitle="Balance range"
+        />
       </div>
 
       <div className="mb-4">

@@ -61,7 +61,7 @@ export default function AccountDetailPage() {
     <div>
       <BackLink />
 
-      <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-5">
+      <div className="grid grid-cols-1 gap-5 min-[750px]:grid-cols-[320px_minmax(0,1fr)]">
         <AccountIdentityCard
           account={account}
           linkedTaxAdvantagedPlan={linkedTaxAdvantagedPlan}
@@ -72,10 +72,12 @@ export default function AccountDetailPage() {
         <BalanceChartCard account={account} />
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-5">
+      <div className="mt-5 grid grid-cols-1 gap-5 min-[750px]:grid-cols-2 min-[1600px]:grid-cols-3">
         <TopCategoriesBySpendingCard account={account} />
         <TopMerchantsBySpendingCard account={account} />
-        <MonthlyCashFlowCard account={account} />
+        <div className="min-[750px]:col-span-2 min-[1600px]:col-span-1">
+          <MonthlyCashFlowCard account={account} />
+        </div>
       </div>
 
       <div className="mt-5">

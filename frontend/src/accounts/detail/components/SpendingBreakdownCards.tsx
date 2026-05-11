@@ -6,8 +6,9 @@ import {
   type AccountSpendingBreakdown,
   type SpendingRange,
 } from '@/api/accounts'
+import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { EASE, TIME_SELECTOR_SPRING } from '@/accounts/detail/constants/accountDetail'
+import { EASE } from '@/accounts/detail/constants/accountDetail'
 
 // Matches the dashboard spending palette so category swatches stay consistent.
 const CATEGORY_COLORS = [
@@ -16,7 +17,12 @@ const CATEGORY_COLORS = [
 
 // Spending range tabs. `SpendingRange` is imported from the API layer so
 // the select options stay in lockstep with the backend's accepted values.
-const SPENDING_RANGES: SpendingRange[] = ['WTD', 'MTD', 'QTD', 'YTD']
+const SPENDING_RANGE_OPTIONS: TimeRangeSelectorOption<SpendingRange>[] = [
+  { value: 'WTD', label: 'WTD', description: 'Week to date' },
+  { value: 'MTD', label: 'MTD', description: 'Month to date' },
+  { value: 'QTD', label: 'QTD', description: 'Quarter to date' },
+  { value: 'YTD', label: 'YTD', description: 'Year to date' },
+]
 
 interface BreakdownRow {
   key: string
@@ -167,38 +173,27 @@ function BreakdownCard({
 
   return (
     <section
-      className="app-card flex h-[400px] flex-col"
+      className="app-card flex h-[440px] flex-col min-[1200px]:h-[400px]"
       aria-busy={loading}
     >
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">{title}</p>
-        <div
-          className="app-segmented-control app-segmented-control-compact app-time-selector"
-          role="tablist"
-          aria-label={rangeLabel}
-        >
-          <motion.span
-            className="app-time-selector-indicator"
-            aria-hidden
-            animate={{ x: `${SPENDING_RANGES.indexOf(range) * 100}%` }}
-            transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
-          />
-          {SPENDING_RANGES.map((r) => {
-            const active = range === r
-            return (
-              <button
-                key={r}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => onRangeChange(r)}
-                className={`app-segmented-option app-segmented-option-compact ${active ? 'app-segmented-option-active' : ''}`}
-              >
-                {r}
-              </button>
-            )
-          })}
-        </div>
+        <TimeRangeSelector
+          value={range}
+          options={SPENDING_RANGE_OPTIONS}
+          onChange={onRangeChange}
+          ariaLabel={rangeLabel}
+          className="hidden min-[1200px]:inline-flex"
+        />
+        <TimeRangeSelector
+          value={range}
+          options={SPENDING_RANGE_OPTIONS}
+          onChange={onRangeChange}
+          ariaLabel={rangeLabel}
+          variant="mobile"
+          className="w-full min-[1200px]:hidden"
+          sheetTitle={rangeLabel}
+        />
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">

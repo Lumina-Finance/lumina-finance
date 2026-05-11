@@ -131,7 +131,7 @@ function TaxAdvantagedCategoryBand({
   hasError: boolean
 }) {
   return (
-    <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+    <div className="mt-5 pt-4 min-[750px]:mt-auto" style={{ borderTop: '1px solid var(--app-border)' }}>
       {hasError || !plan ? (
         <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           Linked category unavailable
@@ -176,7 +176,7 @@ function TaxAdvantagedCategoryBand({
 
 function StandardAccountBand() {
   return (
-    <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+    <div className="mt-5 pt-4 min-[750px]:mt-auto" style={{ borderTop: '1px solid var(--app-border)' }}>
       <p className="text-sm font-semibold">Standard account</p>
       <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
         No contribution or withdrawal limits
@@ -211,7 +211,7 @@ export default function AccountIdentityCard({
   ]
 
   return (
-    <section className="app-card relative flex min-h-[440px] flex-col">
+    <section className="app-card relative flex flex-col min-[750px]:min-h-[440px]">
       {!account.closed_at && (
         <button
           type="button"
