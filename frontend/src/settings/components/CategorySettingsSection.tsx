@@ -758,10 +758,10 @@ function InlineCategoryEdit({
           )}
         </div>
       </div>
-      <div className="flex justify-end gap-1.5">
+      <div className="flex h-9 items-center justify-end gap-1.5">
         <button
           type="submit"
-          className="app-icon-button"
+          className="app-icon-button h-9 w-9"
           disabled={updateCategory.isPending}
           aria-label={`Save ${category.name}`}
           title="Save"
@@ -770,7 +770,7 @@ function InlineCategoryEdit({
         </button>
         <button
           type="button"
-          className="app-icon-button"
+          className="app-icon-button h-9 w-9"
           onClick={onCancel}
           disabled={updateCategory.isPending}
           aria-label={`Cancel editing ${category.name}`}
