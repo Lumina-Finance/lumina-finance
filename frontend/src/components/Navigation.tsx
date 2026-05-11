@@ -340,7 +340,6 @@ function MobileNavigation({
         style={{
           background: 'var(--app-nav-bg)',
           border: '1px solid var(--app-border)',
-          boxShadow: 'var(--app-shadow-soft)',
           color: 'var(--app-text)',
         }}
       >

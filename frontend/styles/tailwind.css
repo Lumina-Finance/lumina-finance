@@ -107,8 +107,21 @@
     transition: background-color 480ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  body.app-mobile-nav-open {
+  body.app-mobile-nav-open,
+  body.app-mobile-nav-open #root,
+  body.app-mobile-nav-open #root > div {
     background-color: var(--app-mobile-nav-bg-current, var(--app-nav-bg)) !important;
+  }
+
+  #app-page-content {
+    transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @media (max-width: 1049.98px) {
+    body.app-mobile-nav-open #app-page-content {
+      opacity: 0;
+      pointer-events: none;
+    }
   }
 
 }
