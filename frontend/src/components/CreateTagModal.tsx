@@ -213,7 +213,6 @@ export default function CreateTagModal({
                             setFormError(null)
                           }}
                           maxLength={64}
-                          autoFocus
                           required
                         />
                       </div>
