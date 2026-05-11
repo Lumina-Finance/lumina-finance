@@ -711,7 +711,7 @@ function CreateTaxAdvantagedCategoryModal({
       return
     }
     if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-      setCreateError('Lifetime limit must be zero or higher.')
+      setCreateError('Lifetime contribution limit must be zero or higher.')
       return
     }
 
@@ -761,7 +761,7 @@ function CreateTaxAdvantagedCategoryModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-tax-advantaged-category-title"
-          className="flex max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-2xl"
+          className="app-modal-panel flex max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
             border: '1px solid var(--app-border-strong)',
@@ -878,7 +878,7 @@ function CreateTaxAdvantagedCategoryModal({
                         />
                       </div>
                       <div>
-                        <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime contribution limit</span>
+                        <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime Contribution Limit</span>
                         <CurrencyInput
                           currencies={currencies}
                           currency={selectedCurrency}
@@ -1130,7 +1130,7 @@ function TaxAdvantagedCategoryModal({
       return 'Name is required.'
     }
     if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-      return 'Lifetime limit must be zero or higher.'
+      return 'Lifetime contribution limit must be zero or higher.'
     }
     return null
   }
@@ -1192,6 +1192,9 @@ function TaxAdvantagedCategoryModal({
   }, [limits, pendingCreateLimitYear, pendingDeletedLimit])
   const hasScrollableLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
   const creatingLimit = pendingCreateLimitYear !== null || createLimit.isPending
+  const mobileTaxTreatmentLabel = categoryEditOpen
+    ? formatTaxTreatment(planForm.tax_treatment)
+    : formatTaxTreatment(plan.tax_treatment)
   const bindableAccounts = accounts.filter(
     (account) =>
       account.closed_at === null
@@ -1414,7 +1417,7 @@ function TaxAdvantagedCategoryModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="tax-advantaged-category-title"
-          className="w-full max-w-[64rem] max-h-[86vh] overflow-y-auto rounded-2xl lg:overflow-hidden"
+          className="app-modal-panel flex max-h-[86vh] w-full max-w-[64rem] overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
             border: '1px solid var(--app-border-strong)',
@@ -1422,53 +1425,135 @@ function TaxAdvantagedCategoryModal({
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="lg:grid lg:max-h-[86vh] lg:min-h-[580px] lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="flex h-full min-h-0 w-full flex-col min-[1050px]:grid min-[1050px]:max-h-[86vh] min-[1050px]:min-h-[580px] min-[1050px]:grid-cols-[280px_minmax(0,1fr)]">
             <aside
-              className="flex min-w-0 flex-col gap-6 border-b p-6 sm:p-7 lg:min-h-0 lg:border-b-0 lg:border-r"
+              className="flex shrink-0 min-w-0 flex-col gap-5 border-b p-5 min-[750px]:gap-6 min-[750px]:p-7 min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:border-b-0 min-[1050px]:border-r"
               style={{ background: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
             >
-              <div className="h-10 min-w-0 overflow-hidden">
-                <h3 id="tax-advantaged-category-title" className="h-10 font-serif text-3xl font-medium leading-10 tracking-tight">
-                  <div className="relative h-10 min-w-0">
-                    <motion.div
-                      className={`absolute inset-0 group flex h-10 min-w-0 items-center gap-2 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                      style={{ borderBottom: '1px solid var(--app-border-strong)' }}
+              <div className="flex min-w-0 items-start justify-between gap-4">
+                <div className="h-10 min-w-0 flex-1 overflow-hidden">
+                  <h3 id="tax-advantaged-category-title" className="h-10 font-serif text-3xl font-medium leading-10 tracking-tight">
+                    <div className="relative h-10 min-w-0">
+                      <motion.div
+                        className={`absolute inset-0 group flex h-10 min-w-0 items-center gap-2 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
+                        style={{ borderBottom: '1px solid var(--app-border-strong)' }}
+                        animate={{ opacity: categoryEditOpen ? 1 : 0 }}
+                        initial={false}
+                        transition={CATEGORY_FIELD_TRANSITION}
+                        aria-hidden={!categoryEditOpen}
+                      >
+                        <input
+                          aria-label="Category name"
+                          className="block h-10 min-w-0 flex-1 bg-transparent font-serif text-3xl font-medium leading-10 tracking-tight outline-none"
+                          maxLength={256}
+                          onChange={(event) => setPlanField('name', event.target.value)}
+                          required
+                          style={{ color: 'var(--app-text)' }}
+                          tabIndex={categoryEditOpen ? undefined : -1}
+                          value={planForm.name}
+                        />
+                        <Pencil
+                          size={15}
+                          className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                          style={{ color: 'var(--app-text-subtle)' }}
+                          aria-hidden
+                        />
+                      </motion.div>
+                      <motion.span
+                        className={`absolute inset-0 block h-10 truncate leading-10 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
+                        animate={{ opacity: categoryEditOpen ? 0 : 1 }}
+                        initial={false}
+                        transition={CATEGORY_FIELD_TRANSITION}
+                        aria-hidden={categoryEditOpen}
+                      >
+                        {planForm.name.trim() || plan.name}
+                      </motion.span>
+                    </div>
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="app-icon-button shrink-0 min-[1050px]:hidden"
+                  aria-label="Close"
+                >
+                  <X size={18} aria-hidden />
+                </button>
+              </div>
+
+              <div className="space-y-3 min-[750px]:hidden">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[0.9375rem] font-medium">
+                  <span className="relative inline-block h-6 min-w-0 max-w-[8rem] align-bottom">
+                    <span className={`invisible flex h-6 items-center leading-6 ${categoryEditOpen ? 'gap-1' : ''}`} aria-hidden>
+                      <span className="truncate">{mobileTaxTreatmentLabel}</span>
+                      {categoryEditOpen && <Pencil size={13} className="shrink-0" />}
+                    </span>
+                    <motion.span
+                      className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
                       animate={{ opacity: categoryEditOpen ? 1 : 0 }}
                       initial={false}
                       transition={CATEGORY_FIELD_TRANSITION}
                       aria-hidden={!categoryEditOpen}
                     >
-                      <input
-                        aria-label="Category name"
-                        className="block h-10 min-w-0 flex-1 bg-transparent font-serif text-3xl font-medium leading-10 tracking-tight outline-none"
-                        maxLength={256}
-                        onChange={(event) => setPlanField('name', event.target.value)}
-                        required
-                        style={{ color: 'var(--app-text)' }}
-                        tabIndex={categoryEditOpen ? undefined : -1}
-                        value={planForm.name}
+                      <InlineTaxTreatmentSelect
+                        value={planForm.tax_treatment}
+                        onChange={(value) => setPlanField('tax_treatment', value)}
                       />
-                      <Pencil
-                        size={15}
-                        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-                        style={{ color: 'var(--app-text-subtle)' }}
-                        aria-hidden
-                      />
-                    </motion.div>
+                    </motion.span>
                     <motion.span
-                      className={`absolute inset-0 block h-10 truncate leading-10 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
+                      className={`absolute inset-0 flex h-6 items-center truncate leading-6 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
                       animate={{ opacity: categoryEditOpen ? 0 : 1 }}
                       initial={false}
                       transition={CATEGORY_FIELD_TRANSITION}
                       aria-hidden={categoryEditOpen}
                     >
-                      {planForm.name.trim() || plan.name}
+                      {formatTaxTreatment(plan.tax_treatment)}
                     </motion.span>
-                  </div>
-                </h3>
+                  </span>
+                  <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>·</span>
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    {plan.currency}
+                    <TaxAdvantagedCurrencyWarning />
+                  </span>
+                  <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>·</span>
+                  <span className="truncate">
+                    {plan.group_id ? 'Group' : 'Personal'}
+                  </span>
+                </div>
+
+                <div className="flex min-w-0 items-center justify-between gap-4 border-t pt-3" style={{ borderColor: 'var(--app-border)' }}>
+                  <span className="app-label min-w-0">Lifetime Contribution Limit</span>
+                  <span className="relative block h-6 min-w-[7rem] flex-1">
+                    <motion.span
+                      className={`absolute inset-y-0 right-0 w-full max-w-[10rem] ${categoryEditOpen ? '' : 'pointer-events-none'}`}
+                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={!categoryEditOpen}
+                    >
+                      <InlineCurrencyInput
+                        ariaLabel="Lifetime contribution limit"
+                        currencies={currencies}
+                        currency={plan.currency}
+                        value={planForm.lifetime_contribution_limit}
+                        onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
+                        placeholder="Optional"
+                      />
+                    </motion.span>
+                    <motion.span
+                      className={`flex h-6 items-center justify-end truncate text-right text-[0.9375rem] font-medium leading-6 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
+                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
+                      initial={false}
+                      transition={CATEGORY_FIELD_TRANSITION}
+                      aria-hidden={categoryEditOpen}
+                    >
+                      {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
+                    </motion.span>
+                  </span>
+                </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="hidden min-[750px]:grid min-[750px]:grid-cols-4 min-[750px]:gap-x-4 min-[750px]:gap-y-3 min-[1050px]:block min-[1050px]:space-y-4">
                 <div className="relative h-14 min-w-0 overflow-hidden">
                   <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Type</p>
                   <div className="relative h-6 min-w-0">
@@ -1504,7 +1589,7 @@ function TaxAdvantagedCategoryModal({
                 <InfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
 
                 <div className="relative h-14 min-w-0 overflow-hidden">
-                  <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Lifetime limit</p>
+                  <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Lifetime Contribution Limit</p>
                   <div className="relative h-6 min-w-0">
                     <motion.div
                       className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
@@ -1541,7 +1626,7 @@ function TaxAdvantagedCategoryModal({
                 </p>
               )}
 
-              <div className="mt-auto flex items-center justify-between border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
+              <div className="flex items-center justify-between border-t pt-4 min-[1050px]:mt-auto" style={{ borderColor: 'var(--app-border)' }}>
                 <ActionFeedbackButton
                   type="button"
                   className="app-secondary-button w-[72px]"
@@ -1613,9 +1698,9 @@ function TaxAdvantagedCategoryModal({
 
             </aside>
 
-            <div className="flex min-w-0 flex-col lg:min-h-0">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <div
-                className="flex items-stretch justify-between gap-3 border-b px-5 sm:px-6"
+                className="flex shrink-0 items-stretch justify-between gap-3 border-b px-5 min-[750px]:px-6"
                 style={{ borderColor: 'var(--app-border)' }}
               >
                 <div
@@ -1646,23 +1731,23 @@ function TaxAdvantagedCategoryModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="app-icon-button my-3 shrink-0"
+                  className="app-icon-button my-3 hidden shrink-0 min-[1050px]:inline-flex"
                   aria-label="Close"
                 >
                   <X size={18} aria-hidden />
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 min-[750px]:p-6">
                 {activeTab === 'limits' ? (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-3 min-[750px]:flex-row min-[750px]:items-center min-[750px]:justify-between">
                       <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
                         Configure annual contribution and withdrawal limits.
                       </p>
                       <button
                         type="button"
-                        className="app-secondary-button shrink-0"
+                        className="app-secondary-button w-full shrink-0 justify-center min-[750px]:w-auto"
                         onClick={startNewLimitForm}
                         disabled={showAddTaxYear}
                       >
