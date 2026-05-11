@@ -1,0 +1,11 @@
+export const DELETE_SPINNER_MS = 800
+export const CREATE_TAG_MIN_LOADING_MS = 800
+export const EASE = [0.25, 0.1, 0.25, 1] as const
+export const LOADING_TEXT_MIN_MS = 300
+export const FETCHING_MORE_TEXT_MIN_MS = 800
+export const TAG_SEARCH_DEBOUNCE_MS = 300
+export const TAG_LIST_VISIBLE_ROWS = 10
+export const TAG_LIST_PAGE_SIZE = TAG_LIST_VISIBLE_ROWS
+export const TAG_MERGE_PAGE_SIZE = 10
+export const TAG_ROW_EXIT = { opacity: 0, y: -6, scale: 0.985 }
+export const TAG_ROW_EXIT_TRANSITION = { duration: 0.24, ease: EASE }
