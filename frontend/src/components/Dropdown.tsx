@@ -38,6 +38,11 @@ interface DropdownProps {
 }
 
 const LOADING_TEXT_MIN_MS = 300;
+const DROPDOWN_GAP = 6;
+const DROPDOWN_MAX_HEIGHT = 336;
+const DROPDOWN_MIN_HEIGHT = 160;
+const DROPDOWN_SEARCH_HEIGHT = 56;
+const DROPDOWN_VIEWPORT_PADDING = 12;
 
 const Dropdown = ({
   id,
@@ -67,7 +72,12 @@ const Dropdown = ({
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [search, setSearch] = useState('');
-  const [listPos, setListPos] = useState({ top: 0, left: 0, width: 0 });
+  const [listPos, setListPos] = useState({
+    left: 0,
+    listMaxHeight: 208,
+    top: 0,
+    width: 0,
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -110,11 +120,39 @@ const Dropdown = ({
     return groups;
   }, [visibleFiltered]);
 
-  const updateListPosition = () => {
+  const updateListPosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setListPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
-  };
+    const visualViewport = window.visualViewport;
+    const viewportTop = visualViewport?.offsetTop ?? 0;
+    const viewportLeft = visualViewport?.offsetLeft ?? 0;
+    const viewportWidth = visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = visualViewport?.height ?? window.innerHeight;
+    const viewportBottom = viewportTop + viewportHeight;
+    const viewportRight = viewportLeft + viewportWidth;
+    const left = Math.min(
+      Math.max(rect.left, viewportLeft + DROPDOWN_VIEWPORT_PADDING),
+      viewportRight - rect.width - DROPDOWN_VIEWPORT_PADDING,
+    );
+    const spaceBelow = viewportBottom - rect.bottom - DROPDOWN_GAP - DROPDOWN_VIEWPORT_PADDING;
+    const spaceAbove = rect.top - viewportTop - DROPDOWN_GAP - DROPDOWN_VIEWPORT_PADDING;
+    const openAbove = spaceBelow < DROPDOWN_MIN_HEIGHT && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(
+      DROPDOWN_MIN_HEIGHT,
+      openAbove ? spaceAbove : spaceBelow,
+    );
+    const maxHeight = Math.min(DROPDOWN_MAX_HEIGHT, availableHeight);
+    const top = openAbove
+      ? Math.max(viewportTop + DROPDOWN_VIEWPORT_PADDING, rect.top - maxHeight - DROPDOWN_GAP)
+      : Math.min(rect.bottom + DROPDOWN_GAP, viewportBottom - maxHeight - DROPDOWN_VIEWPORT_PADDING);
+
+    setListPos({
+      left,
+      listMaxHeight: Math.max(96, maxHeight - (searchable ? DROPDOWN_SEARCH_HEIGHT : 0)),
+      top,
+      width: rect.width,
+    });
+  }, [searchable]);
 
   const setSearchText = useCallback((nextSearch: string) => {
     if (searchValue === undefined) setSearch(nextSearch);
@@ -141,6 +179,29 @@ const Dropdown = ({
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open, close]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let frame = 0;
+    const updateOnFrame = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(updateListPosition);
+    };
+
+    updateOnFrame();
+    window.addEventListener('resize', updateOnFrame);
+    window.addEventListener('scroll', updateOnFrame, true);
+    window.visualViewport?.addEventListener('resize', updateOnFrame);
+    window.visualViewport?.addEventListener('scroll', updateOnFrame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updateOnFrame);
+      window.removeEventListener('scroll', updateOnFrame, true);
+      window.visualViewport?.removeEventListener('resize', updateOnFrame);
+      window.visualViewport?.removeEventListener('scroll', updateOnFrame);
+    };
+  }, [open, updateListPosition]);
 
   // Scroll highlighted option into view
   useEffect(() => {
@@ -265,6 +326,7 @@ const Dropdown = ({
               top: listPos.top,
               left: listPos.left,
               width: listPos.width,
+              maxHeight: listPos.listMaxHeight + (searchable ? DROPDOWN_SEARCH_HEIGHT : 0),
               background: 'var(--app-input-bg)',
               border: '1px solid var(--app-border-strong)',
               boxShadow: 'var(--app-shadow-soft)',
@@ -313,7 +375,8 @@ const Dropdown = ({
             <ul
               ref={listRef}
               role="listbox"
-              className="max-h-52 overflow-auto"
+              className="overflow-auto"
+              style={{ maxHeight: listPos.listMaxHeight }}
               onScroll={handleListScroll}
             >
               {visibleFiltered.length === 0 && !showLoading ? (
