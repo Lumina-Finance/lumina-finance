@@ -1,11 +1,13 @@
-import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { Check, LoaderCircle, Pencil, Trash2, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import MarqueeText from '@/components/MarqueeText'
 import InlineTagEdit from '@/settings/components/TagSettingsSection/InlineTagEdit'
 import {
+  TAG_ROW_ANIMATE,
   TAG_ROW_EXIT,
-  TAG_ROW_EXIT_TRANSITION,
+  TAG_ROW_INITIAL,
+  TAG_ROW_TRANSITION,
 } from '@/settings/components/TagSettingsSection/tagSettingsConstants'
 import { scopeLabel } from '@/settings/components/TagSettingsSection/tagSettingsUtils'
 
@@ -47,8 +49,10 @@ export default function TagRow({
   return (
     <motion.tr
       layout={!shouldReduceMotion}
+      initial={shouldReduceMotion ? false : TAG_ROW_INITIAL}
+      animate={shouldReduceMotion ? undefined : TAG_ROW_ANIMATE}
       exit={shouldReduceMotion ? { opacity: 0 } : TAG_ROW_EXIT}
-      transition={shouldReduceMotion ? { duration: 0.12 } : TAG_ROW_EXIT_TRANSITION}
+      transition={shouldReduceMotion ? { duration: 0.12 } : TAG_ROW_TRANSITION}
       className="app-marquee-trigger"
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
@@ -80,7 +84,13 @@ export default function TagRow({
                 aria-label={`Confirm delete ${tag.name}`}
                 title="Confirm delete"
               >
-                {deleting ? <div className="app-spinner" aria-label="Deleting" /> : <Check size={16} aria-hidden />}
+                {deleting ? (
+                  <span className="inline-flex items-center justify-center" aria-label="Deleting">
+                    <LoaderCircle size={16} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
+                  </span>
+                ) : (
+                  <Check size={16} aria-hidden />
+                )}
               </button>
             </>
           ) : (

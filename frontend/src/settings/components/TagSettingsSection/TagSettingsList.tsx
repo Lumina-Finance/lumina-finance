@@ -1,8 +1,9 @@
-import type { RefObject, UIEvent } from 'react'
-import { AnimatePresence, useReducedMotion } from 'motion/react'
+import { useLayoutEffect, useRef, useState, type RefObject, type UIEvent } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
 import TagRow from '@/settings/components/TagSettingsSection/TagRow'
+import { TAG_LIST_HEIGHT_TRANSITION } from '@/settings/components/TagSettingsSection/tagSettingsConstants'
 
 export default function TagSettingsList({
   activeSearch,
@@ -46,16 +47,37 @@ export default function TagSettingsList({
   onListScroll: (event: UIEvent<HTMLDivElement>) => void
 }) {
   const shouldReduceMotion = useReducedMotion()
+  const contentRef = useRef<HTMLDivElement | null>(null)
+  const [contentHeight, setContentHeight] = useState<number | null>(null)
 
-  if (visibleTags.length === 0 && !showInitialTagLoading) {
-    return (
-      <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-        {activeSearch.trim() ? 'No tags match your search.' : 'No tags yet.'}
-      </p>
-    )
-  }
+  useLayoutEffect(() => {
+    const element = contentRef.current
+    if (!element) return undefined
 
-  return (
+    let frameId: number | null = null
+    const updateHeight = () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null
+        setContentHeight(element.getBoundingClientRect().height)
+      })
+    }
+
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(element)
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+      observer.disconnect()
+    }
+  }, [])
+
+  const content = visibleTags.length === 0 && !showInitialTagLoading ? (
+    <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+      {activeSearch.trim() ? 'No tags match your search.' : 'No tags yet.'}
+    </p>
+  ) : (
     <div className="relative">
       <div
         ref={tagListRef}
@@ -149,5 +171,18 @@ export default function TagSettingsList({
         ariaLabel={hasMoreTags ? 'Show more tags' : 'Scroll tags down'}
       />
     </div>
+  )
+
+  return (
+    <motion.div
+      animate={contentHeight === null || shouldReduceMotion ? undefined : { height: contentHeight }}
+      initial={false}
+      transition={TAG_LIST_HEIGHT_TRANSITION}
+      style={shouldReduceMotion ? undefined : { overflow: 'hidden' }}
+    >
+      <div ref={contentRef}>
+        {content}
+      </div>
+    </motion.div>
   )
 }

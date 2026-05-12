@@ -18,6 +18,7 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
   )
   const [visibleTags, setVisibleTags] = useState<Tag[]>([])
   const [tagListAtBottom, setTagListAtBottom] = useState(false)
+  const [pageFetchPending, setPageFetchPending] = useState(false)
   const tagListRef = useRef<HTMLDivElement | null>(null)
   const visibleTagCountRef = useRef(0)
   const initialFetchStartedAtRef = useRef<number | null>(null)
@@ -45,7 +46,8 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
   const hasUndisplayedFetchedTags = (
     fetchedTagKey !== visibleTagKey &&
     fetchedTags.length > visibleTags.length &&
-    visibleTags.length > 0
+    visibleTags.length > 0 &&
+    pageFetchPending
   )
   const showInitialTagLoading = useMinimumVisibleFlag(
     tagQuery.isLoading,
@@ -104,7 +106,11 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
   useEffect(() => {
     if (fetchedTagKey === visibleTagKey) return undefined
 
-    const isAppendingPage = fetchedTags.length > visibleTagCountRef.current && visibleTagCountRef.current > 0
+    const isAppendingPage = (
+      fetchedTags.length > visibleTagCountRef.current &&
+      visibleTagCountRef.current > 0 &&
+      pageFetchPending
+    )
     const isInitialPage = fetchedTags.length > 0 && visibleTagCountRef.current === 0
     const now = performance.now()
     const fetchStartedAt = isAppendingPage
@@ -117,11 +123,21 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
     const timeoutId = window.setTimeout(() => {
       setVisibleTags(fetchedTags)
       if (isInitialPage) initialFetchStartedAtRef.current = null
-      if (isAppendingPage) fetchMoreStartedAtRef.current = null
+      if (isAppendingPage) {
+        fetchMoreStartedAtRef.current = null
+        setPageFetchPending(false)
+      }
     }, delayMs)
 
     return () => window.clearTimeout(timeoutId)
-  }, [fetchedTagKey, fetchedTags, visibleTagKey])
+  }, [fetchedTagKey, fetchedTags, pageFetchPending, visibleTagKey])
+
+  useEffect(() => {
+    if (!pageFetchPending || tagQuery.isFetchingNextPage || fetchedTagKey !== visibleTagKey) return undefined
+
+    const frame = window.requestAnimationFrame(() => setPageFetchPending(false))
+    return () => window.cancelAnimationFrame(frame)
+  }, [fetchedTagKey, pageFetchPending, tagQuery.isFetchingNextPage, visibleTagKey])
 
   useEffect(() => {
     if (hasMoreTags || !shouldScrollTags) return
@@ -147,6 +163,7 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
 
     if (canFetchMoreTags) {
       fetchMoreStartedAtRef.current = performance.now()
+      setPageFetchPending(true)
       tagQuery.fetchNextPage()
       setTagListAtBottom(false)
     } else if (!hasMoreTags && !showFetchingMoreTags) {
@@ -164,6 +181,7 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
       if (list.scrollTop >= maxScrollTop - 4) {
         if (canFetchMoreTags) {
           fetchMoreStartedAtRef.current = performance.now()
+          setPageFetchPending(true)
           tagQuery.fetchNextPage()
         }
         return
