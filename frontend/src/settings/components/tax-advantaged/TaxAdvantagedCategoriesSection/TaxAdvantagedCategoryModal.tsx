@@ -25,6 +25,7 @@ import {
   CATEGORY_SUMMARY_LABEL_CLASS,
   CATEGORY_SUMMARY_VALUE_CLASS,
   DEFAULT_NEW_LIMIT_YEAR,
+  DELETE_TAX_CATEGORY_MIN_LOADING_MS,
   LIMIT_DELETE_BUTTON_TRANSITION,
   LIMIT_DELETE_FEEDBACK_MS,
   LIMIT_SAVE_FEEDBACK_MS,
@@ -56,7 +57,7 @@ export default function TaxAdvantagedCategoryModal({
   currencies: Currency[]
 }) {
   const updatePlan = useUpdateTaxAdvantagedPlan(plan.id)
-  const deletePlan = useDeleteTaxAdvantagedPlan()
+  const deletePlan = useDeleteTaxAdvantagedPlan({ minimumPendingMs: DELETE_TAX_CATEGORY_MIN_LOADING_MS })
   const updateAccount = useUpdateAccount()
   const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedPlanLimits(plan.id)
   const createLimit = useCreateTaxAdvantagedPlanLimit()
@@ -146,7 +147,7 @@ export default function TaxAdvantagedCategoryModal({
   }, [])
 
   useEffect(() => {
-    if (!confirmingPlanDelete) return
+    if (!confirmingPlanDelete || deletePlan.isPending) return
     const onPointerDown = (event: PointerEvent) => {
       if (planDeleteButtonRef.current && !planDeleteButtonRef.current.contains(event.target as Node)) {
         setConfirmingPlanDelete(false)
@@ -157,7 +158,7 @@ export default function TaxAdvantagedCategoryModal({
       window.clearTimeout(timer)
       window.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [confirmingPlanDelete])
+  }, [confirmingPlanDelete, deletePlan.isPending])
 
   useEffect(() => {
     if (deleteConfirmYear === null || pendingDeleteLimitYear !== null) return
@@ -282,6 +283,7 @@ export default function TaxAdvantagedCategoryModal({
   }
 
   const handleDeletePlan = () => {
+    setPlanError(null)
     deletePlan.mutate(plan.id, {
       onSuccess: onClose,
       onError: (error) => {

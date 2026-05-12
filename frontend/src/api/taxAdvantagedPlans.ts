@@ -59,6 +59,12 @@ export interface UpdateTaxAdvantagedPlanLimitPayload {
   withdrawal_limit?: number | null;
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function upsertTaxAdvantagedPlan(queryClient: QueryClient, plan: TaxAdvantagedPlan) {
   queryClient.setQueryData(taxAdvantagedPlanKeys.detail(plan.id), plan);
   queryClient.setQueryData<TaxAdvantagedPlan[]>(taxAdvantagedPlanKeys.list(), (plans) => {
@@ -170,13 +176,22 @@ export function useUpdateTaxAdvantagedPlan(planId: string) {
   });
 }
 
-export function useDeleteTaxAdvantagedPlan() {
+export function useDeleteTaxAdvantagedPlan({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (planId: string) =>
-      authenticatedFetch<void>(`/tax-advantaged-plans/${planId}`, {
-        method: 'DELETE',
-      }),
+    mutationFn: async (planId: string) => {
+      const minimumPending = delay(minimumPendingMs);
+      try {
+        const result = await authenticatedFetch<void>(`/tax-advantaged-plans/${planId}`, {
+          method: 'DELETE',
+        });
+        await minimumPending;
+        return result;
+      } catch (error) {
+        await minimumPending;
+        throw error;
+      }
+    },
     onSuccess: (_data, planId) => {
       queryClient.setQueryData<TaxAdvantagedPlan[]>(
         taxAdvantagedPlanKeys.list(),
