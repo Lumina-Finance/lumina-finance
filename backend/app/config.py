@@ -3,7 +3,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(_REPO_ROOT / ".env")
 
 
 def _require(key: str) -> str:
