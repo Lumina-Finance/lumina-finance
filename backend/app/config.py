@@ -32,11 +32,6 @@ DB_PORT = _require("DB_PORT")
 DB_NAME = _require("DB_NAME")
 DB_USER = _require("DB_USER")
 DB_PASSWORD = _require("DB_PASSWORD")
-APP_ENV = _require("APP_ENV")
-if APP_ENV not in ("development", "staging", "production"):
-    raise RuntimeError(
-        f"Invalid APP_ENV={APP_ENV!r}. Must be one of: development, staging, production"
-    )
 
 RUNTIME = _require("RUNTIME")
 if RUNTIME not in ("server", "lambda"):

@@ -5,14 +5,13 @@ import jwt
 
 # Derive public keys for verifying tokens
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.config import (
-    APP_ENV,
     JWT_ACCESS_KID,
     JWT_ACCESS_PRIVATE_KEY,
     JWT_ALGORITHM,
@@ -37,10 +36,19 @@ _COOKIE_KEY = "refresh_token"
 _COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_HOURS * 3600  # Convert hours to seconds for browser cookie
 
 
-def _set_refresh_cookie(response: Response, token: str) -> None:
+def _request_is_secure(request: Request) -> bool:
+    """Return whether the original client request used HTTPS."""
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        return forwarded_proto.split(",", 1)[0].strip().lower() == "https"
+    return request.url.scheme == "https"
+
+
+def _set_refresh_cookie(request: Request, response: Response, token: str) -> None:
     """Set the refresh token as an httpOnly cookie on the response.
 
     Args:
+        request: FastAPI request object.
         response: FastAPI response object.
         token: The encoded refresh JWT string.
     """
@@ -48,7 +56,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         key=_COOKIE_KEY,
         value=token,
         httponly=True,
-        secure=APP_ENV != "development",
+        secure=_request_is_secure(request),
         samesite="lax",
         max_age=_COOKIE_MAX_AGE,
         path="/auth",  # Only sent to auth endpoints
@@ -65,12 +73,13 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 
 async def _issue_and_store_tokens(
-    db: AsyncSession, response: Response, user: User, session_id: uuid.UUID | None = None,
+    db: AsyncSession, request: Request, response: Response, user: User, session_id: uuid.UUID | None = None,
 ) -> AuthResponse:
     """Create a token pair, register them in active_tokens, and set the refresh cookie.
 
     Args:
         db: Async database session.
+        request: FastAPI request object.
         response: FastAPI response object for setting the refresh cookie.
         user: The authenticated user.
         session_id: Reuse an existing session id when rotating tokens on refresh so the session
@@ -92,13 +101,14 @@ async def _issue_and_store_tokens(
     db.add(ActiveToken(jti=refresh_jti, user_id=user.id, session_id=session_id, expires_at=refresh_exp))
     await db.commit()
 
-    _set_refresh_cookie(response, refresh_token)
+    _set_refresh_cookie(request, response, refresh_token)
     return AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
 
 
 @router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def signup_route(
     data: SignupRequest,
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -106,6 +116,7 @@ async def signup_route(
 
     Args:
         data: Signup payload with email, password, name, timezone, and currency.
+        request: FastAPI request object.
         response: FastAPI response object for setting the refresh cookie.
         db: Async database session.
 
@@ -116,12 +127,13 @@ async def signup_route(
         HTTPException 409: Email is already registered.
     """
     user = await signup(db, data)
-    return await _issue_and_store_tokens(db, response, user)
+    return await _issue_and_store_tokens(db, request, response, user)
 
 
 @router.post("/login", response_model=AuthResponse)
 async def login_route(
     data: LoginRequest,
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -129,6 +141,7 @@ async def login_route(
 
     Args:
         data: Login payload with email and password.
+        request: FastAPI request object.
         response: FastAPI response object for setting the refresh cookie.
         db: Async database session.
 
@@ -140,11 +153,12 @@ async def login_route(
         HTTPException 423: Account temporarily locked.
     """
     user = await login(db, data)
-    return await _issue_and_store_tokens(db, response, user)
+    return await _issue_and_store_tokens(db, request, response, user)
 
 
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh_route(
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
     refresh_token: str | None = Cookie(None),
@@ -156,6 +170,7 @@ async def refresh_route(
 
     Args:
         response: FastAPI response object for setting the new refresh cookie.
+        request: FastAPI request object.
         db: Async database session.
         refresh_token: Refresh token read from the cookie by FastAPI.
 
@@ -201,7 +216,7 @@ async def refresh_route(
     # Revoke the old access + refresh pair for this session, then mint a fresh pair that keeps the same session id
     session_id = uuid.UUID(sid)
     await db.execute(delete(ActiveToken).where(ActiveToken.session_id == session_id))
-    return await _issue_and_store_tokens(db, response, user, session_id=session_id)
+    return await _issue_and_store_tokens(db, request, response, user, session_id=session_id)
 
 
 @router.post("/logout")

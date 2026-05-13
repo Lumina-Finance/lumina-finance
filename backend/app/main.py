@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import ALLOWED_ORIGINS, APP_ENV, RUNTIME
+from app.config import ALLOWED_ORIGINS, RUNTIME
 from app.routes.account import router as account_router
 from app.routes.auth import router as auth_router
 from app.routes.base_budget import router as base_budget_router
@@ -19,13 +19,12 @@ from app.routes.user import router as user_router
 
 app = FastAPI(title="Lumina Finance API")
 
-# CORS — origins from env; allow any origin in development for LAN testing
+# CORS — origins from env
 _allowed_origins = list(ALLOWED_ORIGINS)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_origin_regex=r"^https?://(localhost|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$" if APP_ENV == "development" else None,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
