@@ -47,7 +47,7 @@ DB_NAME = _require("DB_NAME")
 DB_USER = _require("DB_USER")
 DB_PASSWORD = _require("DB_PASSWORD")
 
-RUNTIME = _require("RUNTIME")
+RUNTIME = os.getenv("RUNTIME", "server").strip() or "server"
 if RUNTIME not in ("server", "lambda"):
     raise RuntimeError(
         f"Invalid RUNTIME={RUNTIME!r}. Must be one of: server, lambda"
