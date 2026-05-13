@@ -1,7 +1,6 @@
 import * as authApi from './auth';
 import { ApiError, type AuthResponse } from './auth';
-
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+import { API_BASE } from './config';
 
 interface AuthBindings {
   getAccessToken: () => string | null;
