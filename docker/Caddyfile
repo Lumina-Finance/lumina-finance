@@ -1,0 +1,13 @@
+:80 {
+	encode zstd gzip
+	root * /srv/lumina/frontend
+
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
