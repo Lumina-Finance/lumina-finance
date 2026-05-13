@@ -39,6 +39,16 @@ def _bool_env(key: str, default: bool) -> bool:
     raise RuntimeError(f"Invalid {key}={value!r}. Must be either true or false")
 
 
+def _optional_csv_env(key: str) -> list[str]:
+    """Return a comma-separated environment variable as a list."""
+    return [value.strip() for value in os.getenv(key, "").split(",") if value.strip()]
+
+
+def _unique_values(values: list[str]) -> list[str]:
+    """Return values with duplicates removed while preserving order."""
+    return list(dict.fromkeys(values))
+
+
 # --- Database ---
 
 DB_HOST = _require("DB_HOST")
@@ -56,21 +66,23 @@ FORCE_HTTPS = _bool_env("FORCE_HTTPS", False)
 
 # --- CORS ---
 
-# Comma-separated list of allowed origins (e.g., "https://domain.com")
-ALLOWED_ORIGINS = [o.strip() for o in _require("ALLOWED_ORIGINS").split(",")]
+APP_URL = os.getenv("APP_URL", "").strip()
+
+# APP_URL is the public CORS origin. ALLOWED_ORIGINS appends extra internal origins.
+_configured_origins = [APP_URL, *_optional_csv_env("ALLOWED_ORIGINS")]
+ALLOWED_ORIGINS = _unique_values([origin for origin in _configured_origins if origin]) or ["*"]
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # --- JWT ---
 
 JWT_ALGORITHM = "RS256"
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
-JWT_REFRESH_TOKEN_EXPIRE_HOURS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_HOURS", "24"))
+JWT_ACCESS_TOKEN_EXPIRE_SECONDS = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_SECONDS", "900"))
+JWT_REFRESH_TOKEN_EXPIRE_SECONDS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_SECONDS", "86400"))
 JWT_ISSUER = os.getenv("JWT_ISSUER", "lumina-finance")
 
 # Separate RSA key pairs for access and refresh tokens.
-# Falls back to backend/keys/ for local dev.
-_keys_dir = Path(__file__).resolve().parent.parent / "keys"
+_keys_dir = Path("/data/keys")
 
 
 def _load_key(env_var: str, default_path: Path) -> str:
@@ -89,7 +101,7 @@ def _load_key(env_var: str, default_path: Path) -> str:
     Raises:
         RuntimeError: If the key file does not exist.
     """
-    key_path = Path(os.getenv(env_var, default_path))
+    key_path = Path(os.getenv(env_var) or default_path)
     if not key_path.exists():
         raise RuntimeError(
             f"JWT key not found at {key_path}. "
@@ -101,9 +113,9 @@ def _load_key(env_var: str, default_path: Path) -> str:
 JWT_ACCESS_PRIVATE_KEY = _load_key("JWT_ACCESS_PRIVATE_KEY_PATH", _keys_dir / "access_private.pem")
 JWT_REFRESH_PRIVATE_KEY = _load_key("JWT_REFRESH_PRIVATE_KEY_PATH", _keys_dir / "refresh_private.pem")
 
-# Key IDs for JWKS matching — bump version and date when rotating keys
-JWT_ACCESS_KID = _require("JWT_ACCESS_KID")
-JWT_REFRESH_KID = _require("JWT_REFRESH_KID")
+# Key IDs for JWT headers and JWKS matching. These do not need to match key filenames.
+JWT_ACCESS_KID = os.getenv("JWT_ACCESS_KID", "access-kid").strip() or "access-kid"
+JWT_REFRESH_KID = os.getenv("JWT_REFRESH_KID", "refresh-kid").strip() or "refresh-kid"
 
 # --- Dashboard ---
 

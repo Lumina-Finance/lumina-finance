@@ -18,7 +18,7 @@ from app.config import (
     JWT_ISSUER,
     JWT_REFRESH_KID,
     JWT_REFRESH_PRIVATE_KEY,
-    JWT_REFRESH_TOKEN_EXPIRE_HOURS,
+    JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
 )
 from app.database import get_db
 from app.models.active_token import ActiveToken
@@ -34,7 +34,8 @@ _security = HTTPBearer()
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _COOKIE_KEY = "refresh_token"
-_COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_HOURS * 3600  # Convert hours to seconds for browser cookie
+_COOKIE_PATH = "/"
+_COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_SECONDS
 
 
 def _set_refresh_cookie(request: Request, response: Response, token: str) -> None:
@@ -52,7 +53,7 @@ def _set_refresh_cookie(request: Request, response: Response, token: str) -> Non
         secure=request_is_https(request),
         samesite="lax",
         max_age=_COOKIE_MAX_AGE,
-        path="/auth",  # Only sent to auth endpoints
+        path=_COOKIE_PATH,
     )
 
 
@@ -62,7 +63,7 @@ def _clear_refresh_cookie(response: Response) -> None:
     Args:
         response: FastAPI response object.
     """
-    response.delete_cookie(key=_COOKIE_KEY, path="/auth")
+    response.delete_cookie(key=_COOKIE_KEY, path=_COOKIE_PATH)
 
 
 async def _issue_and_store_tokens(

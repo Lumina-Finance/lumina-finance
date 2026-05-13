@@ -11,12 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import (
     JWT_ACCESS_KID,
     JWT_ACCESS_PRIVATE_KEY,
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
+    JWT_ACCESS_TOKEN_EXPIRE_SECONDS,
     JWT_ALGORITHM,
     JWT_ISSUER,
     JWT_REFRESH_KID,
     JWT_REFRESH_PRIVATE_KEY,
-    JWT_REFRESH_TOKEN_EXPIRE_HOURS,
+    JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
 )
 from app.models.auth import AuthIdentity, PasswordCredential
 from app.models.base import AuthProvider
@@ -73,7 +73,7 @@ def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str,
     """
     now = datetime.now(UTC)
     jti = uuid.uuid4()
-    expires_at = now + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    expires_at = now + timedelta(seconds=JWT_ACCESS_TOKEN_EXPIRE_SECONDS)
     payload = {
         "sub": str(user_id),
         "jti": str(jti),
@@ -99,7 +99,7 @@ def create_refresh_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str
     """
     now = datetime.now(UTC)
     jti = uuid.uuid4()
-    expires_at = now + timedelta(hours=JWT_REFRESH_TOKEN_EXPIRE_HOURS)
+    expires_at = now + timedelta(seconds=JWT_REFRESH_TOKEN_EXPIRE_SECONDS)
     payload = {
         "sub": str(user_id),
         "jti": str(jti),
