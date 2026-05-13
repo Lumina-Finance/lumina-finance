@@ -23,6 +23,7 @@ from app.config import (
 from app.database import get_db
 from app.models.active_token import ActiveToken
 from app.models.user import User
+from app.request_security import request_is_https
 from app.schemas.auth import AuthResponse, LoginRequest, SignupRequest, UserInfo
 from app.services.auth import create_access_token, create_refresh_token, login, signup
 
@@ -34,14 +35,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 _COOKIE_KEY = "refresh_token"
 _COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_HOURS * 3600  # Convert hours to seconds for browser cookie
-
-
-def _request_is_secure(request: Request) -> bool:
-    """Return whether the original client request used HTTPS."""
-    forwarded_proto = request.headers.get("x-forwarded-proto")
-    if forwarded_proto:
-        return forwarded_proto.split(",", 1)[0].strip().lower() == "https"
-    return request.url.scheme == "https"
 
 
 def _set_refresh_cookie(request: Request, response: Response, token: str) -> None:
@@ -56,7 +49,7 @@ def _set_refresh_cookie(request: Request, response: Response, token: str) -> Non
         key=_COOKIE_KEY,
         value=token,
         httponly=True,
-        secure=_request_is_secure(request),
+        secure=request_is_https(request),
         samesite="lax",
         max_age=_COOKIE_MAX_AGE,
         path="/auth",  # Only sent to auth endpoints

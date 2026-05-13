@@ -25,6 +25,20 @@ def _require(key: str) -> str:
     return value
 
 
+def _bool_env(key: str, default: bool) -> bool:
+    """Return a boolean environment variable or raise if invalid."""
+    value = os.getenv(key)
+    if value is None:
+        return default
+
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise RuntimeError(f"Invalid {key}={value!r}. Must be either true or false")
+
+
 # --- Database ---
 
 DB_HOST = _require("DB_HOST")
@@ -38,6 +52,7 @@ if RUNTIME not in ("server", "lambda"):
     raise RuntimeError(
         f"Invalid RUNTIME={RUNTIME!r}. Must be one of: server, lambda"
     )
+FORCE_HTTPS = _bool_env("FORCE_HTTPS", False)
 
 # --- CORS ---
 

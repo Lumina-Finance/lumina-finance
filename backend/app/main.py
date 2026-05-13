@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from app.config import ALLOWED_ORIGINS, RUNTIME
+from app.config import ALLOWED_ORIGINS, FORCE_HTTPS, RUNTIME
+from app.request_security import request_is_https
 from app.routes.account import router as account_router
 from app.routes.auth import router as auth_router
 from app.routes.base_budget import router as base_budget_router
@@ -18,6 +20,17 @@ from app.routes.transaction import router as transaction_router
 from app.routes.user import router as user_router
 
 app = FastAPI(title="Lumina Finance API")
+
+
+@app.middleware("http")
+async def enforce_https(request: Request, call_next):
+    """Reject non-HTTPS requests when FORCE_HTTPS is enabled."""
+    if FORCE_HTTPS and not request_is_https(request):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "HTTPS is required"},
+        )
+    return await call_next(request)
 
 # CORS — origins from env
 _allowed_origins = list(ALLOWED_ORIGINS)
