@@ -13,7 +13,6 @@ services:
       DB_USER: "${DB_USER}"
       DB_PASSWORD: "${DB_PASSWORD}"
       APP_URL: "${APP_URL:-}"
-      FORCE_HTTPS: "${FORCE_HTTPS:-false}"
     volumes:
       - lumina_data:/data
 

@@ -25,20 +25,6 @@ def _require(key: str) -> str:
     return value
 
 
-def _bool_env(key: str, default: bool) -> bool:
-    """Return a boolean environment variable or raise if invalid."""
-    value = os.getenv(key)
-    if value is None:
-        return default
-
-    normalized = value.strip().lower()
-    if normalized == "true":
-        return True
-    if normalized == "false":
-        return False
-    raise RuntimeError(f"Invalid {key}={value!r}. Must be either true or false")
-
-
 def _optional_csv_env(key: str) -> list[str]:
     """Return a comma-separated environment variable as a list."""
     return [value.strip() for value in os.getenv(key, "").split(",") if value.strip()]
@@ -62,7 +48,6 @@ if RUNTIME not in ("server", "lambda"):
     raise RuntimeError(
         f"Invalid RUNTIME={RUNTIME!r}. Must be one of: server, lambda"
     )
-FORCE_HTTPS = _bool_env("FORCE_HTTPS", False)
 
 # --- CORS ---
 
