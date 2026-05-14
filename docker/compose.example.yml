@@ -1,6 +1,6 @@
 services:
   app:
-    image: lumina-finance:latest
+    image: luminahq/lumina-finance:latest
     depends_on:
       postgres:
         condition: service_healthy
