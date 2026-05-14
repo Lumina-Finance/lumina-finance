@@ -46,7 +46,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 
 ### Docker
 
-If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and 2 recommended variables that should be set.
+If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL` value.
 
 ### Bare Metal
 
@@ -56,7 +56,6 @@ If you'd like to deploy this bare metal, please clone the repo. The frontend is 
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 | --- | --- | --- | --- | --- |
-| `FORCE_HTTPS` | No | `true`, `false` | `false` | Rejects requests unless the request scheme is HTTPS, or `X-Forwarded-Proto` is `https` when that header is present. |
 | `APP_URL` | No | URL origin | None | Public frontend origin. Automatically included in the backend CORS allowed origins. If unset, CORS allows all origins. |
 | `DB_HOST` | Yes | Hostname or IP | None | PostgreSQL host. |
 | `DB_PORT` | Yes | Port number | None | PostgreSQL port. |
