@@ -1,0 +1,37 @@
+services:
+  app:
+    image: "${TEST_INSTANCE_IMAGE:-lumina-finance:testing}"
+    container_name: lumina-finance-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${TEST_INSTANCE_BIND_HOST:?TEST_INSTANCE_BIND_HOST is required}:${TEST_INSTANCE_PORT:-8080}:80"
+    environment:
+      DB_HOST: "${DB_HOST}"
+      DB_PORT: "${DB_PORT}"
+      DB_NAME: "${DB_NAME}"
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      APP_URL: "${APP_URL:-}"
+    volumes:
+      - lumina_data:/data
+
+  postgres:
+    image: postgres:17
+    container_name: lumina-finance-db
+    environment:
+      POSTGRES_DB: "${DB_NAME:?DB_NAME is required}"
+      POSTGRES_USER: "${DB_USER:?DB_USER is required}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  lumina_data:
+  postgres_data:
