@@ -20,7 +20,6 @@ ARG UV_VERSION=0.11.14
 WORKDIR /app/backend
 
 ENV PATH="/opt/uv/bin:$PATH"
-ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV UV_PYTHON_DOWNLOADS=never
 
@@ -36,7 +35,7 @@ FROM dhi.io/caddy:2-debian13-dev AS caddy
 
 
 # Assemble the final one-image runtime.
-FROM dhi.io/python:3-debian13-sfw-dev AS runtime
+FROM dhi.io/python:3-debian13-dev AS runtime
 
 ENV PATH="/app/backend/.venv/bin:$PATH"
 ENV PYTHONDONTWRITEBYTECODE=1
