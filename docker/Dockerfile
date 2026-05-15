@@ -1,5 +1,5 @@
 # Build the Vite frontend into static assets.
-FROM node:24-bookworm-slim AS frontend-builder
+FROM dhi.io/node:26-debian13-sfw-dev AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -13,23 +13,29 @@ RUN npm run build
 
 
 # Install locked Python production dependencies into a virtualenv.
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS backend-deps
+FROM dhi.io/python:3-debian13-sfw-dev AS backend-deps
+
+ARG UV_VERSION=0.11.14
 
 WORKDIR /app/backend
 
-ENV UV_COMPILE_BYTECODE=1
+ENV PATH="/opt/uv/bin:$PATH"
 ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_DOWNLOADS=never
+
+RUN python -m venv /opt/uv \
+    && /opt/uv/bin/pip install --no-cache-dir "uv==${UV_VERSION}"
 
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 
 # Source the Caddy binary for the final image.
-FROM caddy:2 AS caddy
+FROM dhi.io/caddy:2-debian13-dev AS caddy
 
 
 # Assemble the final one-image runtime.
-FROM python:3.14-slim AS runtime
+FROM dhi.io/python:3-debian13-dev AS runtime
 
 ENV PATH="/app/backend/.venv/bin:$PATH"
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -44,7 +50,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built artifacts and runtime dependencies from prior stages.
-COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
+COPY --from=caddy /usr/local/bin/caddy /usr/local/bin/caddy
 COPY --from=backend-deps /app/backend/.venv /app/backend/.venv
 COPY --from=frontend-builder /app/frontend/dist /srv/lumina/frontend
 
