@@ -100,11 +100,11 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 
     There are already great personal finance tools out there, including some that are self-hostable, but many feel outdated, too simplistic, overly complicated, or too focused on one specific workflow.
 
-    We are building Lumina Finance because we want a modern, feature-rich, and accessible alterantive that helps peopleunderstand their finances more clearly without needing to fight the software. Our goal is to combine strong financial tracking, a clean and modern user experience, privacy conscious design, and practical insights in one product. Essentially, we want to bulid something that "just works."
+    We are building Lumina Finance because we want a modern, feature-rich, and accessible alterantive that helps people understand their finances more clearly without needing to fight the software. Our goal is to combine strong financial tracking, a clean and modern user experience, privacy conscious design, and practical insights in one product. Essentially, we want to bulid something that "just works."
 
 2. **Is this open source, and will self-hosting be free?**
 
-    Yes. We are committed to keeping Lumina Finance free to self-host for non-commercial personal use, excluding features and services that require requre external data, paid APIs, or external compute.
+    We are committed to keeping Lumina Finance free to self-host for non-commercial personal use, excluding features and services that require external data, paid APIs, or external compute.
 
     Our goal is to eventually make Lumina Finance open source, but because we may commercialize the project in the future, we are still evaluating the best licensing structure with legal professionals. We want to choose a license that supports community use while keeping the project sustainable.
 
