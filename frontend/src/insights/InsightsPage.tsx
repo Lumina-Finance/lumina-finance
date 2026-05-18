@@ -35,6 +35,7 @@ import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { useAuth } from '@/hooks/useAuth'
 import { InsightsRangeSelector, type InsightsRangeSelectorOption } from './components/InsightsRangeSelector'
+import { PeriodGlanceCard } from './components/PeriodGlanceCard'
 
 type BreakdownMode = 'expense' | 'income'
 type FlowNodeKind = 'income' | 'expense' | 'summary' | 'retained'
@@ -2098,6 +2099,9 @@ export default function InsightsPage() {
   const periodBrief = useMemo(() => getPeriodBrief(data, expenseCategoryDrivers), [data, expenseCategoryDrivers])
   const primaryBriefMetric = periodBrief.metrics[0]
   const secondaryBriefMetric = periodBrief.metrics[1]
+  const primaryBriefMetricValue = primaryBriefMetric.signed
+    ? formatSignedCurrency(primaryBriefMetric.value, displayCurrency)
+    : formatCurrency(primaryBriefMetric.value, displayCurrency)
   const briefSupportItems = [
     {
       label: secondaryBriefMetric.label,
@@ -2144,82 +2148,19 @@ export default function InsightsPage() {
       />
 
       <div className="space-y-4">
-        <section className="app-card">
-          <SectionHeader icon={Sparkles} label="This Period at a Glance" />
-          <div className="grid gap-4 min-[1040px]:grid-cols-[minmax(280px,0.82fr)_minmax(0,1fr)]">
-            <div
-              className="flex min-h-52 flex-col justify-between rounded-xl border p-4"
-              style={{ background: 'var(--app-accent-soft)', borderColor: 'var(--app-accent-border)' }}
-            >
-              <div>
-                <p className="app-label">{primaryBriefMetric.label}</p>
-                <p
-                  className="mt-3 font-financial font-normal tracking-tight leading-none text-5xl max-[1000px]:text-4xl"
-                  style={{
-                    color: primaryBriefMetric.tone === 'positive'
-                      ? 'var(--app-positive)'
-                      : primaryBriefMetric.tone === 'negative'
-                        ? 'var(--app-negative)'
-                        : undefined,
-                  }}
-                >
-                  {primaryBriefMetric.signed
-                    ? formatSignedCurrency(primaryBriefMetric.value, displayCurrency)
-                    : formatCurrency(primaryBriefMetric.value, displayCurrency)}
-                </p>
-                <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  {primaryBriefMetric.detail}
-                </p>
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3">
-                <div>
-                  <p className="app-label app-label-compact">Income</p>
-                  <p className="mt-1 font-financial text-lg">{formatCurrency(data.income, displayCurrency)}</p>
-                </div>
-                <div>
-                  <p className="app-label app-label-compact">Expenses</p>
-                  <p className="mt-1 font-financial text-lg">{formatCurrency(data.expenses, displayCurrency)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid min-[720px]:grid-cols-2">
-              {briefSupportItems.map((item, index) => (
-                <div
-                  key={item.label}
-                  className={[
-                    'border-[var(--app-border)] py-3 min-[720px]:p-4 min-[720px]:border-t-0',
-                    index > 0 ? 'border-t' : '',
-                    index === 0 ? 'pt-0 min-[720px]:border-b min-[720px]:border-r min-[720px]:pl-0 min-[720px]:pt-0' : '',
-                    index === 1 ? 'min-[720px]:border-b min-[720px]:pr-0 min-[720px]:pt-0' : '',
-                    index === 2 ? 'min-[720px]:border-r min-[720px]:pb-0 min-[720px]:pl-0' : '',
-                    index === 3 ? 'pb-0 min-[720px]:pb-0 min-[720px]:pr-0' : '',
-                  ].join(' ')}
-                >
-                  <div className="flex min-h-28 flex-col items-center justify-start text-center">
-                    <p className="app-label">{item.label}</p>
-                    <p
-                      className="mt-1 text-2xl font-semibold leading-tight max-[1000px]:text-xl"
-                      style={{
-                        color: item.tone === 'positive'
-                          ? 'var(--app-positive)'
-                          : item.tone === 'negative'
-                            ? 'var(--app-negative)'
-                            : undefined,
-                      }}
-                    >
-                      {item.value}
-                    </p>
-                    <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
-                      {item.detail}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <PeriodGlanceCard
+          header={<SectionHeader icon={Sparkles} label="This Period at a Glance" />}
+          primaryMetric={{
+            label: primaryBriefMetric.label,
+            value: primaryBriefMetricValue,
+            detail: primaryBriefMetric.detail,
+            tone: primaryBriefMetric.tone,
+          }}
+          supportItems={briefSupportItems}
+          income={data.income}
+          expenses={data.expenses}
+          displayCurrency={displayCurrency}
+        />
 
         <section className="app-card">
           <SectionHeader icon={Network} label="Income to Expenses" />
