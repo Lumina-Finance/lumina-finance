@@ -29,6 +29,7 @@ import {
   type SankeyNodeProps,
 } from 'recharts'
 import type { SpendingRange } from '@/api/dashboard'
+import { useInsightsPeriodGlance, type InsightsPeriodGlanceResponse } from '@/api/insights'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
@@ -1066,12 +1067,7 @@ function getCategoryDriverDescriptor(changePct: number) {
   return changePct > 0 ? 'increase' : 'decrease'
 }
 
-function getPeriodBrief(
-  data: InsightScaffoldData,
-  drivers: CategoryDriver[],
-): PeriodBrief {
-  const largestIncrease = drivers.find((driver) => driver.changePct > 0) ?? drivers[0]
-  const topCategory = [...data.expenseBreakdown].sort((a, b) => b.amount - a.amount)[0]
+function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrency: string): PeriodBrief {
   const netSavings = data.income - data.expenses
   const savingsRate = getSavingsRate(data.income, data.expenses)
 
@@ -1087,32 +1083,81 @@ function getPeriodBrief(
       },
       {
         label: 'Net Worth Changed By',
-        value: data.netWorthChange,
+        value: data.net_worth_change,
         detail: 'Across tracked account balances in the selected range.',
-        tone: data.netWorthChange >= 0 ? 'positive' : 'negative',
+        tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
         signed: true,
       },
     ],
     signals: [
       {
         label: 'Biggest Change',
-        value: largestIncrease.name,
-        detail: `${Math.abs(largestIncrease.changePct)}% ${largestIncrease.changePct >= 0 ? 'higher' : 'lower'} than the previous comparable period.`,
+        value: data.biggest_change_name ?? 'N/A',
+        detail: data.biggest_change_name && data.biggest_change_amount !== undefined
+          ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency)
+          : 'No comparable category movement in this range.',
       },
       {
         label: 'Top Category',
-        value: topCategory.name,
-        detail: `${getPct(topCategory.amount, data.expenses)}% of recorded expenses.`,
+        value: data.top_category_name ?? 'N/A',
+        detail: data.top_category_share_pct === undefined
+          ? 'No recorded expenses in this range.'
+          : `${data.top_category_share_pct}% of recorded expenses.`,
       },
       {
         label: 'Savings Rate',
-        value: savingsRate === null ? 'N/A' : `${savingsRate}%`,
+        value: formatSavingsRateValue(savingsRate),
         detail: savingsRate === null
           ? 'No recorded income in the selected range.'
           : 'Income kept after recorded expenses, excluding transfers.',
       },
     ],
   }
+}
+
+function getLoadingPeriodGlanceBrief(): PeriodBrief {
+  return {
+    metrics: [
+      {
+        label: 'You Kept',
+        value: 0,
+        detail: 'Loading period summary...',
+        tone: 'neutral',
+      },
+      {
+        label: 'Net Worth Changed By',
+        value: 0,
+        detail: 'Loading tracked balance movement...',
+        tone: 'neutral',
+        signed: true,
+      },
+    ],
+    signals: [
+      {
+        label: 'Biggest Change',
+        value: 'Loading',
+        detail: 'Fetching comparable category movement.',
+      },
+      {
+        label: 'Top Category',
+        value: 'Loading',
+        detail: 'Fetching recorded expense categories.',
+      },
+      {
+        label: 'Savings Rate',
+        value: 'Loading',
+        detail: 'Fetching income and expense totals.',
+      },
+    ],
+  }
+}
+
+function getPeriodGlanceChangeDetail(changeAmount: number, changePct: number | undefined, displayCurrency: string) {
+  const amount = formatSignedCurrency(changeAmount, displayCurrency)
+  if (changePct === undefined) {
+    return `${amount} compared with no spend in the previous matching period.`
+  }
+  return `${amount} (${changePct > 0 ? '+' : ''}${changePct}%) vs the previous matching period.`
 }
 
 function getMerchantChange(merchant: MerchantBubble, range: SpendingRange) {
@@ -2082,12 +2127,14 @@ export default function InsightsPage() {
     && customFrom !== ''
     && customTo !== ''
     && getCustomRangeDays(customFrom, customTo) === null
+  const rangeInputDates = useMemo(() => getRangeInputDates(rangePreset, customFrom, customTo), [rangePreset, customFrom, customTo])
+  const periodGlanceEnabled = !customInvalid && rangeInputDates.from !== '' && rangeInputDates.to !== ''
+  const periodGlanceQuery = useInsightsPeriodGlance(rangeInputDates.from, rangeInputDates.to, periodGlanceEnabled)
   const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
   const selectedBreakdown = breakdownMode === 'expense' ? data.expenseBreakdown : data.incomeBreakdown
   const selectedTotal = getTotal(selectedBreakdown)
   const flowData = useMemo(() => getFlowData(data), [data])
-  const expenseCategoryDrivers = useMemo(() => getCategoryDrivers(data, range, 'expense'), [data, range])
   const selectedCategoryDrivers = useMemo(
     () => getCategoryDrivers(data, range, breakdownMode),
     [data, range, breakdownMode],
@@ -2096,12 +2143,19 @@ export default function InsightsPage() {
     () => getCategoryDriverGroups(selectedCategoryDrivers),
     [selectedCategoryDrivers],
   )
-  const periodBrief = useMemo(() => getPeriodBrief(data, expenseCategoryDrivers), [data, expenseCategoryDrivers])
+  const periodBrief = useMemo(() => {
+    if (periodGlanceQuery.data) {
+      return getPeriodGlanceBrief(periodGlanceQuery.data, displayCurrency)
+    }
+    return getLoadingPeriodGlanceBrief()
+  }, [displayCurrency, periodGlanceQuery.data])
   const primaryBriefMetric = periodBrief.metrics[0]
   const secondaryBriefMetric = periodBrief.metrics[1]
   const primaryBriefMetricValue = primaryBriefMetric.signed
     ? formatSignedCurrency(primaryBriefMetric.value, displayCurrency)
     : formatCurrency(primaryBriefMetric.value, displayCurrency)
+  const periodGlanceIncome = periodGlanceQuery.data?.income ?? 0
+  const periodGlanceExpenses = periodGlanceQuery.data?.expenses ?? 0
   const briefSupportItems = [
     {
       label: secondaryBriefMetric.label,
@@ -2157,8 +2211,8 @@ export default function InsightsPage() {
             tone: primaryBriefMetric.tone,
           }}
           supportItems={briefSupportItems}
-          income={data.income}
-          expenses={data.expenses}
+          income={periodGlanceIncome}
+          expenses={periodGlanceExpenses}
           displayCurrency={displayCurrency}
         />
 
