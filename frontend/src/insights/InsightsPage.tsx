@@ -22,11 +22,9 @@ import {
   PieChart,
   ReferenceLine,
   ResponsiveContainer,
-  Sankey,
   Tooltip,
   XAxis,
   YAxis,
-  type SankeyNodeProps,
 } from 'recharts'
 import type { SpendingRange } from '@/api/dashboard'
 import { useInsightsPeriodGlance, type InsightsPeriodGlanceResponse } from '@/api/insights'
@@ -36,34 +34,16 @@ import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { useAuth } from '@/hooks/useAuth'
 import { InsightsRangeSelector, type InsightsRangeSelectorOption } from './components/InsightsRangeSelector'
+import { IncomeExpenseSankeyCard, type IncomeExpenseFlowNode } from './components/IncomeExpenseSankeyCard'
 import { PeriodGlanceCard } from './components/PeriodGlanceCard'
 
 type BreakdownMode = 'expense' | 'income'
-type FlowNodeKind = 'income' | 'expense' | 'summary' | 'retained'
 type InsightsRangePreset = 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'LAST_WEEK' | 'LAST_MONTH' | 'CUSTOM'
 
 type BreakdownEntry = {
   id: string
   name: string
   amount: number
-}
-
-type FlowNode = {
-  name: string
-  kind: FlowNodeKind
-}
-
-type FlowTooltipPayload = Partial<FlowNode> & {
-  value?: number | string
-  source?: FlowNode
-  target?: FlowNode
-  payload?: FlowTooltipPayload
-}
-
-type FlowTooltipItem = {
-  name?: string
-  value?: number | string
-  payload?: FlowTooltipPayload
 }
 
 type MerchantBubble = {
@@ -954,7 +934,7 @@ function getFlowData(data: InsightScaffoldData) {
   const otherIncome = getOtherEntry(data.incomeBreakdown, 'Other income')
   const expenseEntries = data.expenseBreakdown.slice(0, 5)
   const otherExpenses = getOtherEntry(data.expenseBreakdown, 'Other expenses')
-  const nodes: FlowNode[] = [
+  const nodes: IncomeExpenseFlowNode[] = [
     ...incomeEntries.map((entry) => ({ name: entry.name, kind: 'income' as const })),
     ...(otherIncome ? [{ name: otherIncome.name, kind: 'income' as const }] : []),
     { name: 'Income', kind: 'summary' },
@@ -990,30 +970,6 @@ function getFlowData(data: InsightScaffoldData) {
   ]
 
   return { nodes, links }
-}
-
-function normalizeGeneratedFlowName(name?: string) {
-  if (!name) return 'Flow'
-  const [source, target] = name.split(' - ')
-  if (!source || !target) return name
-  if ((target === 'Income' || target === 'Expenses') && source !== 'Income' && source !== 'Expenses') return source
-  if (source === 'Income' || source === 'Expenses') return target
-  return target
-}
-
-function getFlowTooltipName(item: FlowTooltipItem) {
-  const payload = item.payload
-  const nestedPayload = payload?.payload
-  const source = payload?.source ?? nestedPayload?.source
-  const target = payload?.target ?? nestedPayload?.target
-
-  if (!source || !target) {
-    return normalizeGeneratedFlowName(item.name ?? payload?.name ?? nestedPayload?.name)
-  }
-
-  if (source.kind !== 'summary' && target.kind === 'summary') return source.name
-  if (target.kind !== 'summary') return target.name
-  return target.name
 }
 
 function getCategoryDrivers(
@@ -1374,69 +1330,6 @@ function InsightsFloatingRangeControl({
         </div>
       </div>
     </>
-  )
-}
-
-function FlowNodeShape({ x, y, width, height, payload }: SankeyNodeProps) {
-  const node = payload as unknown as FlowNode
-  const fillByKind: Record<FlowNodeKind, string> = {
-    income: 'var(--app-positive)',
-    expense: 'var(--app-negative)',
-    summary: 'var(--app-accent)',
-    retained: 'var(--app-text-muted)',
-  }
-  const labelOnRight = node.kind === 'income' || (node.kind === 'summary' && node.name !== 'Expenses')
-  const labelX = labelOnRight ? x + width + 10 : x - 10
-  const anchor = labelOnRight ? 'start' : 'end'
-
-  return (
-    <g>
-      <rect
-        x={x}
-        y={y}
-        width={Math.max(width, 6)}
-        height={Math.max(height, 4)}
-        rx={3}
-        fill={fillByKind[node.kind]}
-        opacity={node.kind === 'summary' ? 0.95 : 0.82}
-      />
-      {height >= 16 && (
-        <text
-          x={labelX}
-          y={y + height / 2}
-          textAnchor={anchor}
-          dominantBaseline="middle"
-          fontSize={15}
-          fontWeight={600}
-          fill="var(--app-text-muted)"
-        >
-          {node.name}
-        </text>
-      )}
-    </g>
-  )
-}
-
-function SankeyFlowTooltip({
-  active,
-  payload,
-  displayCurrency,
-}: {
-  active?: boolean
-  payload?: FlowTooltipItem[]
-  displayCurrency: string
-}) {
-  const item = payload?.[0]
-  const amount = item?.value ?? item?.payload?.value ?? item?.payload?.payload?.value
-  if (!active || !item || amount === undefined) return null
-
-  return (
-    <div className="app-chart-tooltip-default-content">
-      <div className="flex min-w-36 justify-between gap-4">
-        <span className="app-tooltip-muted">{getFlowTooltipName(item)}</span>
-        <span className="font-financial">{formatCurrency(Number(amount), displayCurrency)}</span>
-      </div>
-    </div>
   )
 }
 
@@ -2216,41 +2109,13 @@ export default function InsightsPage() {
           displayCurrency={displayCurrency}
         />
 
-        <section className="app-card">
-          <SectionHeader icon={Network} label="Income to Expenses" />
-          <div className="h-[450px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <Sankey
-                data={flowData}
-                node={FlowNodeShape}
-                nodePadding={18}
-                nodeWidth={6}
-                verticalAlign="top"
-                link={{ stroke: 'var(--app-accent)', strokeOpacity: 0.24 }}
-                margin={{ top: 18, right: 12, bottom: 18, left: 12 }}
-              >
-                <Tooltip
-                  wrapperClassName="app-chart-tooltip-default"
-                  content={<SankeyFlowTooltip displayCurrency={displayCurrency} />}
-                />
-              </Sankey>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-6 border-t border-[var(--app-border)] pt-3">
-            <div>
-              <p className="app-label app-label-compact">Income Sources</p>
-              <p className="mt-1 font-financial text-xl">
-                {data.incomeBreakdown.length}
-              </p>
-            </div>
-            <div>
-              <p className="app-label app-label-compact">Expense Categories</p>
-              <p className="mt-1 font-financial text-xl">
-                {data.expenseBreakdown.length}
-              </p>
-            </div>
-          </div>
-        </section>
+        <IncomeExpenseSankeyCard
+          header={<SectionHeader icon={Network} label="Income to Expenses" />}
+          flowData={flowData}
+          incomeSourceCount={data.incomeBreakdown.length}
+          expenseCategoryCount={data.expenseBreakdown.length}
+          displayCurrency={displayCurrency}
+        />
 
         <section className="app-card">
           <SectionHeader
