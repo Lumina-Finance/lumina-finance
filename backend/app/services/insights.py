@@ -29,9 +29,9 @@ async def _query_period_totals(
     from_date: date,
     to_date: date,
 ) -> tuple[int, int]:
-    """Return income and expenses for the period."""
+    """Return kind-aware net income and expense totals for the period."""
     result = await db.execute(
-        select(Category.kind, func.sum(Transaction.amount).label("total"))
+        select(Category.id, Category.kind, func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(account_ids),
@@ -39,7 +39,7 @@ async def _query_period_totals(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.kind),
+        .group_by(Category.id, Category.kind),
     )
 
     income = 0
@@ -47,9 +47,9 @@ async def _query_period_totals(
     for row in result:
         total = int(row.total or 0)
         if row.kind == CategoryKind.INCOME:
-            income = total
-        elif row.kind == CategoryKind.EXPENSE:
-            expenses = abs(total)
+            income += total
+        else:
+            expenses += max(-total, 0)
 
     return income, expenses
 
@@ -60,7 +60,7 @@ async def _query_expense_category_totals(
     from_date: date,
     to_date: date,
 ) -> dict[uuid.UUID, tuple[str, int]]:
-    """Return positive expense totals keyed by category id for an inclusive period."""
+    """Return positive expense-kind totals keyed by category id for an inclusive period."""
     result = await db.execute(
         select(
             Category.id,
@@ -79,7 +79,7 @@ async def _query_expense_category_totals(
 
     totals: dict[uuid.UUID, tuple[str, int]] = {}
     for row in result:
-        amount = abs(int(row.total or 0))
+        amount = max(-int(row.total or 0), 0)
         if amount:
             totals[row.id] = (row.name, amount)
     return totals
@@ -92,7 +92,7 @@ def _top_category(
     """Return the largest current expense category, if present."""
     if not current_totals:
         return None
-    _category_id, (name, amount) = max(current_totals.items(), key=lambda item: item[1][1])
+    name, amount = sorted(current_totals.values(), key=lambda item: (-item[1], item[0]))[0]
     return name, round((amount / expenses) * 100) if expenses > 0 else None
 
 
@@ -105,13 +105,12 @@ def _biggest_category_change(
     if not category_ids:
         return None
 
-    category_id = max(
-        category_ids,
-        key=lambda candidate: abs(
-            current_totals.get(candidate, ("", 0))[1]
-            - previous_totals.get(candidate, ("", 0))[1]
-        ),
-    )
+    def change_sort_key(candidate: uuid.UUID) -> tuple[int, str]:
+        current_name, current_amount = current_totals.get(candidate, ("", 0))
+        previous_name, previous_amount = previous_totals.get(candidate, ("", 0))
+        return -abs(current_amount - previous_amount), current_name or previous_name
+
+    category_id = sorted(category_ids, key=change_sort_key)[0]
     name = current_totals.get(category_id, previous_totals.get(category_id, ("", 0)))[0]
     current_amount = current_totals.get(category_id, ("", 0))[1]
     previous_amount = previous_totals.get(category_id, ("", 0))[1]

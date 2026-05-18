@@ -225,6 +225,116 @@ async def test_period_glance_nets_expense_refunds(client):
     assert data["top_category_share_pct"] == 100
 
 
+async def test_period_glance_keeps_totals_kind_aware(client):
+    """The glance card keeps income-kind reversals out of expense stats."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    income_reversal_id, income_reversal = _category(user_id, "Income Reversal", CategoryKind.INCOME)
+    groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
+    over_refund_id, over_refund = _category(user_id, "Over-refunded", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            income_reversal,
+            groceries,
+            over_refund,
+            _transaction(user_id, account_id, salary_id, date(2026, 10, 2), 200_000),
+            _transaction(user_id, account_id, income_reversal_id, date(2026, 10, 3), -5_000),
+            _transaction(user_id, account_id, groceries_id, date(2026, 10, 4), -100_000),
+            _transaction(user_id, account_id, groceries_id, date(2026, 10, 5), 40_000),
+            _transaction(user_id, account_id, over_refund_id, date(2026, 10, 6), 20_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-10-01", "to_date": "2026-10-31"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income"] == 195_000
+    assert data["expenses"] == 60_000
+    assert data["top_category_name"] == "Groceries"
+    assert data["top_category_share_pct"] == 100
+    assert data["biggest_change_name"] == "Groceries"
+    assert data["biggest_change_amount"] == 60_000
+    assert "biggest_change_pct" not in data
+
+
+async def test_period_glance_keeps_negative_capital_gains_in_income(client):
+    """Negative income-kind totals reduce income instead of becoming expenses."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Investment Cash")).json()["id"])
+    capital_gains_id, capital_gains = _category(user_id, "Capital Gains", CategoryKind.INCOME)
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+
+    async with TestSession() as session:
+        session.add_all([
+            capital_gains,
+            salary,
+            _transaction(user_id, account_id, capital_gains_id, date(2026, 12, 4), -80_000),
+            _transaction(user_id, account_id, salary_id, date(2026, 12, 5), 300_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-12-01", "to_date": "2026-12-31"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income"] == 220_000
+    assert data["expenses"] == 0
+    assert "top_category_name" not in data
+    assert "top_category_share_pct" not in data
+    assert "biggest_change_name" not in data
+    assert "biggest_change_amount" not in data
+    assert "biggest_change_pct" not in data
+
+
+async def test_period_glance_uses_stable_tie_breakers(client):
+    """Equal top and movement values are ordered by category name for stable output."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    beta_id, beta = _category(user_id, "Beta", CategoryKind.EXPENSE)
+    alpha_id, alpha = _category(user_id, "Alpha", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            beta,
+            alpha,
+            _transaction(user_id, account_id, beta_id, date(2026, 11, 4), -50_000),
+            _transaction(user_id, account_id, alpha_id, date(2026, 11, 5), -50_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-11-01", "to_date": "2026-11-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["expenses"] == 100_000
+    assert data["top_category_name"] == "Alpha"
+    assert data["top_category_share_pct"] == 50
+    assert data["biggest_change_name"] == "Alpha"
+    assert data["biggest_change_amount"] == 50_000
+
+
 async def test_period_glance_reports_previous_only_category_as_decrease(client):
     """Categories that disappear in the current period are still change candidates."""
     signup_resp = await _create_user(client)
