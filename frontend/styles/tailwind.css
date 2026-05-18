@@ -170,6 +170,19 @@
     text-align: left;
   }
 
+  .app-date-input-balanced[type="date"] {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.5rem;
+    margin-right: 0;
+    padding: 0;
+  }
+
   .app-input:hover {
     border-color: var(--app-border-strong);
     background: var(--app-input-bg);
