@@ -11,7 +11,7 @@ from app.models.base import AccountKind, CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.insights import InsightsPeriodGlanceResponse
+from app.schemas.insights import InsightsIncomeExpenseFlowResponse, InsightsPeriodGlanceResponse
 from app.services.dashboard import get_accessible_accounts
 
 
@@ -83,6 +83,61 @@ async def _query_expense_category_totals(
         if amount:
             totals[row.id] = (row.name, amount)
     return totals
+
+
+async def _query_flow_entries(
+    db: AsyncSession,
+    account_ids: list[uuid.UUID],
+    from_date: date,
+    to_date: date,
+) -> tuple[
+    list[tuple[str, int]],
+    list[tuple[str, int]],
+    list[tuple[str, int]],
+    list[tuple[str, int]],
+]:
+    """Return sign-directed category totals for the Sankey card."""
+    result = await db.execute(
+        select(
+            Category.name,
+            Category.kind,
+            func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id.in_(account_ids),
+            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
+            Transaction.dt >= from_date,
+            Transaction.dt <= to_date,
+        )
+        .group_by(Category.id, Category.name, Category.kind),
+    )
+
+    inflows: list[tuple[str, int]] = []
+    outflows: list[tuple[str, int]] = []
+    expense_inflows: list[tuple[str, int]] = []
+    income_outflows: list[tuple[str, int]] = []
+    for row in result:
+        total = int(row.total or 0)
+        if total > 0:
+            inflows.append((row.name, total))
+            if row.kind == CategoryKind.EXPENSE:
+                expense_inflows.append((row.name, total))
+        elif total < 0:
+            amount = -total
+            outflows.append((row.name, amount))
+            if row.kind == CategoryKind.INCOME:
+                income_outflows.append((row.name, amount))
+
+    def sorted_entries(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
+        return sorted(entries, key=lambda entry: (-entry[1], entry[0]))
+
+    return (
+        sorted_entries(inflows),
+        sorted_entries(outflows),
+        sorted_entries(income_outflows),
+        sorted_entries(expense_inflows),
+    )
 
 
 def _top_category(
@@ -197,4 +252,42 @@ async def get_period_glance(
         biggest_change_name=biggest_change[0] if biggest_change else None,
         biggest_change_amount=biggest_change[1] if biggest_change else None,
         biggest_change_pct=biggest_change[2] if biggest_change else None,
+    )
+
+
+async def get_income_expense_flow(
+    db: AsyncSession,
+    user: User,
+    from_date: date,
+    to_date: date,
+) -> InsightsIncomeExpenseFlowResponse:
+    """Return all positive entries for the income-to-expenses Sankey card."""
+    accounts = await get_accessible_accounts(db, user)
+    base_currency_accounts = [account for account in accounts if account.currency == user.base_currency]
+    account_ids = [account.id for account in base_currency_accounts]
+
+    if not account_ids:
+        return InsightsIncomeExpenseFlowResponse(
+            income_sources=[],
+            expense_categories=[],
+            income_outflows=[],
+            expense_inflows=[],
+            income_source_count=0,
+            expense_category_count=0,
+        )
+
+    income_sources, expense_categories, income_outflows, expense_inflows = await _query_flow_entries(
+        db,
+        account_ids,
+        from_date,
+        to_date,
+    )
+
+    return InsightsIncomeExpenseFlowResponse(
+        income_sources=income_sources,
+        expense_categories=expense_categories,
+        income_outflows=income_outflows,
+        expense_inflows=expense_inflows,
+        income_source_count=len(income_sources),
+        expense_category_count=len(expense_categories),
     )
