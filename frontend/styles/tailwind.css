@@ -20,6 +20,8 @@
     --app-input-border: #4b372338;
     --app-positive: #3A7850;
     --app-positive-soft: #3a78501a;
+    --app-chart-positive: #5D8F6D;
+    --app-chart-negative: #AB5E56;
     --app-warning: #D6B400;
     --app-warning-soft: #d6b40029;
     --app-warning-text: #6F5700;
@@ -54,6 +56,8 @@
     --app-input-border: #d2b47833;
     --app-positive: #6CA07B;
     --app-positive-soft: #6ca07b24;
+    --app-chart-positive: #5D8F6D;
+    --app-chart-negative: #AB5E56;
     --app-warning: #F5D547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #F8E28A;

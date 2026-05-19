@@ -55,11 +55,11 @@ type NetWorthCardProps = {
 
 const groupColors: Record<string, string> = {
   cash: '#2F80A7',
-  tax_advantaged: '#5D8F6D',
+  tax_advantaged: 'var(--app-chart-positive)',
   term_deposits: '#D67A45',
   investments: '#37434F',
   other_assets: '#8F989F',
-  revolving_debt: '#AB5E56',
+  revolving_debt: 'var(--app-chart-negative)',
   loans: '#D0717D',
   mortgages: '#9E4F4A',
   other_debt: '#7F4D52',
@@ -67,10 +67,10 @@ const groupColors: Record<string, string> = {
 
 const netWorthChartLeftMargin = 8
 const netWorthChangeColor = '#1F3F73'
-const assetContributionColor = '#5D8F6D'
-const debtContributionColor = '#AB5E56'
+const assetContributionColor = 'var(--app-chart-positive)'
+const debtContributionColor = 'var(--app-chart-negative)'
 const compositionAssetFallbackColor = '#6F98B7'
-const compositionDebtFallbackColor = '#AB5E56'
+const compositionDebtFallbackColor = 'var(--app-chart-negative)'
 
 const netWorthLegendContainerVariants = {
   initial: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
