@@ -25,6 +25,18 @@ export interface InsightsIncomeExpenseFlowResponse {
   expense_category_count: number;
 }
 
+export type InsightsBreakdownEntry = [string, string, number];
+export type InsightsCategoryTrendEntry = [string, string, number, number, number | null, number];
+
+export interface InsightsIncomeExpenseBreakdownResponse {
+  expense: InsightsBreakdownEntry[];
+  income: InsightsBreakdownEntry[];
+  expense_increases: InsightsCategoryTrendEntry[];
+  expense_decreases: InsightsCategoryTrendEntry[];
+  income_increases: InsightsCategoryTrendEntry[];
+  income_decreases: InsightsCategoryTrendEntry[];
+}
+
 export function useInsightsPeriodGlance(fromDate: string, toDate: string, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
@@ -32,6 +44,19 @@ export function useInsightsPeriodGlance(fromDate: string, toDate: string, enable
     queryFn: () =>
       authenticatedFetch<InsightsPeriodGlanceResponse>(
         `/insights/period-glance?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+      ),
+    enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInsightsIncomeExpenseBreakdown(fromDate: string, toDate: string, enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: insightsKeys.incomeExpenseBreakdown(fromDate, toDate),
+    queryFn: () =>
+      authenticatedFetch<InsightsIncomeExpenseBreakdownResponse>(
+        `/insights/income-expense-breakdown?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,

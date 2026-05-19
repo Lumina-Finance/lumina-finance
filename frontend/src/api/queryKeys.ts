@@ -76,6 +76,7 @@ export const dashboardKeys = {
 export const insightsKeys = {
   periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', fromDate, toDate] as const,
   incomeExpenseFlow: (fromDate: string, toDate: string) => ['insights-income-expense-flow', fromDate, toDate] as const,
+  incomeExpenseBreakdown: (fromDate: string, toDate: string) => ['insights-income-expense-breakdown', fromDate, toDate] as const,
 };
 
 export const budgetKeys = {
