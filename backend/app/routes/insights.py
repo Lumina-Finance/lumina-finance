@@ -9,8 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.insights import InsightsIncomeExpenseFlowResponse, InsightsPeriodGlanceResponse
-from app.services.insights import get_income_expense_flow, get_period_glance
+from app.schemas.insights import (
+    InsightsIncomeExpenseBreakdownResponse,
+    InsightsIncomeExpenseFlowResponse,
+    InsightsPeriodGlanceResponse,
+)
+from app.services.insights import get_income_expense_breakdown, get_income_expense_flow, get_period_glance
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -48,3 +52,15 @@ async def get_income_expense_flow_route(
     """Return income and expense entries for the insights Sankey card."""
     _validate_date_range(from_date, to_date)
     return await get_income_expense_flow(db, user, from_date, to_date)
+
+
+@router.get("/income-expense-breakdown", response_model=InsightsIncomeExpenseBreakdownResponse)
+async def get_income_expense_breakdown_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_date: Annotated[date, Query()],
+    to_date: Annotated[date, Query()],
+):
+    """Return category breakdown and trend rows for the insights breakdown card."""
+    _validate_date_range(from_date, to_date)
+    return await get_income_expense_breakdown(db, user, from_date, to_date)

@@ -11,8 +11,16 @@ from app.models.base import AccountKind, CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.insights import InsightsIncomeExpenseFlowResponse, InsightsPeriodGlanceResponse
+from app.schemas.insights import (
+    InsightsIncomeExpenseBreakdownResponse,
+    InsightsIncomeExpenseFlowResponse,
+    InsightsPeriodGlanceResponse,
+)
 from app.services.dashboard import get_accessible_accounts
+
+BREAKDOWN_CATEGORY_LIMIT = 7
+CATEGORY_TREND_LIMIT = 3
+CategoryStats = dict[uuid.UUID, tuple[str, int, int]]
 
 
 def _previous_period_bounds(from_date: date, to_date: date) -> tuple[date, date]:
@@ -138,6 +146,119 @@ async def _query_flow_entries(
         sorted_entries(income_outflows),
         sorted_entries(expense_inflows),
     )
+
+
+async def _query_breakdown_category_stats(
+    db: AsyncSession,
+    account_ids: list[uuid.UUID],
+    kind: CategoryKind,
+    from_date: date,
+    to_date: date,
+) -> CategoryStats:
+    """Return display amount and transaction count by category for one card mode."""
+    result = await db.execute(
+        select(
+            Category.id,
+            Category.name,
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("transaction_count"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id.in_(account_ids),
+            Category.kind == kind,
+            Transaction.dt >= from_date,
+            Transaction.dt <= to_date,
+        )
+        .group_by(Category.id, Category.name),
+    )
+
+    stats: CategoryStats = {}
+    for row in result:
+        total = int(row.total or 0)
+        amount = max(total, 0) if kind == CategoryKind.INCOME else max(-total, 0)
+        stats[row.id] = (row.name, amount, int(row.transaction_count or 0))
+    return stats
+
+
+def _category_sort_key(entry: tuple[uuid.UUID, str, int, int]) -> tuple[int, str]:
+    _category_id, name, amount, _transaction_count = entry
+    return -amount, name
+
+
+def _breakdown_entries(
+    stats: CategoryStats,
+    kind: CategoryKind,
+) -> list[tuple[str, str, int]]:
+    """Return top category rows plus a compact Other row when needed."""
+    positive_entries = [
+        (category_id, name, amount, transaction_count)
+        for category_id, (name, amount, transaction_count) in stats.items()
+        if amount > 0
+    ]
+    positive_entries.sort(key=_category_sort_key)
+
+    visible_entries = positive_entries[:BREAKDOWN_CATEGORY_LIMIT]
+    other_amount = sum(entry[2] for entry in positive_entries[BREAKDOWN_CATEGORY_LIMIT:])
+    rows = [
+        (str(category_id), name, amount)
+        for category_id, name, amount, _transaction_count in visible_entries
+    ]
+    if other_amount > 0:
+        rows.append((f"{kind.value}-other", "Other", other_amount))
+    return rows
+
+
+def _change_pct(current_amount: int, previous_amount: int) -> int | None:
+    if previous_amount <= 0:
+        return None
+    return round(((current_amount - previous_amount) / previous_amount) * 100)
+
+
+def _category_trends(
+    current_stats: CategoryStats,
+    previous_stats: CategoryStats,
+) -> tuple[
+    list[tuple[str, str, int, int, int | None, int]],
+    list[tuple[str, str, int, int, int | None, int]],
+]:
+    """Return top increases and decreases by dollar movement."""
+    increases: list[tuple[uuid.UUID, str, int, int, int | None, int, int]] = []
+    decreases: list[tuple[uuid.UUID, str, int, int, int | None, int, int]] = []
+    for category_id in set(current_stats) | set(previous_stats):
+        current_name, current_amount, transaction_count = current_stats.get(category_id, ("", 0, 0))
+        previous_name, previous_amount, _previous_count = previous_stats.get(category_id, ("", 0, 0))
+        change_amount = current_amount - previous_amount
+        if change_amount == 0:
+            continue
+
+        row = (
+            category_id,
+            current_name or previous_name,
+            current_amount,
+            previous_amount,
+            _change_pct(current_amount, previous_amount),
+            transaction_count,
+            change_amount,
+        )
+        if change_amount > 0:
+            increases.append(row)
+        else:
+            decreases.append(row)
+
+    increases.sort(key=lambda row: (-row[6], row[1]))
+    decreases.sort(key=lambda row: (row[6], row[1]))
+
+    def response_rows(
+        rows: list[tuple[uuid.UUID, str, int, int, int | None, int, int]],
+    ) -> list[tuple[str, str, int, int, int | None, int]]:
+        return [
+            (str(category_id), name, current_amount, previous_amount, change_pct, transaction_count)
+            for category_id, name, current_amount, previous_amount, change_pct, transaction_count, _change_amount
+            in rows[:CATEGORY_TREND_LIMIT]
+        ]
+
+    return response_rows(increases), response_rows(decreases)
 
 
 def _top_category(
@@ -290,4 +411,68 @@ async def get_income_expense_flow(
         expense_inflows=expense_inflows,
         income_source_count=len(income_sources),
         expense_category_count=len(expense_categories),
+    )
+
+
+async def get_income_expense_breakdown(
+    db: AsyncSession,
+    user: User,
+    from_date: date,
+    to_date: date,
+) -> InsightsIncomeExpenseBreakdownResponse:
+    """Return category breakdown and trend rows for the income/expense card."""
+    previous_from_date, previous_to_date = _previous_period_bounds(from_date, to_date)
+    accounts = await get_accessible_accounts(db, user)
+    base_currency_accounts = [account for account in accounts if account.currency == user.base_currency]
+    account_ids = [account.id for account in base_currency_accounts]
+
+    if not account_ids:
+        return InsightsIncomeExpenseBreakdownResponse(
+            expense=[],
+            income=[],
+            expense_increases=[],
+            expense_decreases=[],
+            income_increases=[],
+            income_decreases=[],
+        )
+
+    current_expense_stats = await _query_breakdown_category_stats(
+        db,
+        account_ids,
+        CategoryKind.EXPENSE,
+        from_date,
+        to_date,
+    )
+    previous_expense_stats = await _query_breakdown_category_stats(
+        db,
+        account_ids,
+        CategoryKind.EXPENSE,
+        previous_from_date,
+        previous_to_date,
+    )
+    current_income_stats = await _query_breakdown_category_stats(
+        db,
+        account_ids,
+        CategoryKind.INCOME,
+        from_date,
+        to_date,
+    )
+    previous_income_stats = await _query_breakdown_category_stats(
+        db,
+        account_ids,
+        CategoryKind.INCOME,
+        previous_from_date,
+        previous_to_date,
+    )
+
+    expense_increases, expense_decreases = _category_trends(current_expense_stats, previous_expense_stats)
+    income_increases, income_decreases = _category_trends(current_income_stats, previous_income_stats)
+
+    return InsightsIncomeExpenseBreakdownResponse(
+        expense=_breakdown_entries(current_expense_stats, CategoryKind.EXPENSE),
+        income=_breakdown_entries(current_income_stats, CategoryKind.INCOME),
+        expense_increases=expense_increases,
+        expense_decreases=expense_decreases,
+        income_increases=income_increases,
+        income_decreases=income_decreases,
     )

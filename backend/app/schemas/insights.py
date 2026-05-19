@@ -23,3 +23,14 @@ class InsightsIncomeExpenseFlowResponse(BaseModel):
     expense_inflows: list[tuple[str, int]]
     income_source_count: int
     expense_category_count: int
+
+
+class InsightsIncomeExpenseBreakdownResponse(BaseModel):
+    """Payload for the insights income/expense breakdown card."""
+
+    expense: list[tuple[str, str, int]]
+    income: list[tuple[str, str, int]]
+    expense_increases: list[tuple[str, str, int, int, int | None, int]]
+    expense_decreases: list[tuple[str, str, int, int, int | None, int]]
+    income_increases: list[tuple[str, str, int, int, int | None, int]]
+    income_decreases: list[tuple[str, str, int, int, int | None, int]]
