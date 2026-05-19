@@ -235,9 +235,9 @@ export function NetWorthCard({
   const legendAnimationKey = `${mode}-${legendItems.map((item) => item.id).join('|')}`
   const latestChange = deltaSeries.at(-1)?.totalChange ?? 0
   const netWorthTrendColor = latestChange > 0
-    ? 'var(--app-positive)'
+    ? 'var(--app-chart-positive)'
     : latestChange < 0
-      ? 'var(--app-negative)'
+      ? 'var(--app-chart-negative)'
       : 'var(--app-text-muted)'
   const NetWorthTrendIcon = latestChange > 0 ? TrendingUp : latestChange < 0 ? TrendingDown : Minus
 

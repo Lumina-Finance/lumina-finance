@@ -7,7 +7,6 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 export type BreakdownMode = 'expense' | 'income'
@@ -56,6 +55,16 @@ const pieLegendItemVariants = {
 
 const pieLegendItemTransition = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
 
+const insightsBreakdownColors = [
+  '#C9A96A',
+  'var(--app-chart-positive)',
+  '#D4906A',
+  '#9B8FC8',
+  'var(--app-chart-negative)',
+  '#7AAEC8',
+  '#8C8074',
+] as const
+
 const categoryTrendListVariants = {
   initial: { transition: { staggerChildren: 0.03 } },
   enter: { transition: { staggerChildren: 0.045, delayChildren: 0.03 } },
@@ -78,8 +87,8 @@ function formatSignedCurrency(amount: number, currency: string) {
 
 function getCategoryDriverColor(mode: BreakdownMode, changeAmount: number) {
   if (changeAmount === 0) return 'var(--app-text-muted)'
-  if (mode === 'income') return changeAmount > 0 ? 'var(--app-positive)' : 'var(--app-negative)'
-  return changeAmount > 0 ? 'var(--app-negative)' : 'var(--app-positive)'
+  if (mode === 'income') return changeAmount > 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)'
+  return changeAmount > 0 ? 'var(--app-chart-negative)' : 'var(--app-chart-positive)'
 }
 
 function getCategoryDriverDescriptor(changeAmount: number) {
@@ -126,7 +135,7 @@ export function IncomeExpenseBreakdownCard({
                   stroke="none"
                 >
                   {entries.map((entry, index) => (
-                    <Cell key={entry.id} fill={BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length]} />
+                    <Cell key={entry.id} fill={insightsBreakdownColors[index % insightsBreakdownColors.length]} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -155,7 +164,7 @@ export function IncomeExpenseBreakdownCard({
                   >
                     <span
                       className="h-2.5 w-2.5 rounded-full"
-                      style={{ background: BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length] }}
+                      style={{ background: insightsBreakdownColors[index % insightsBreakdownColors.length] }}
                     />
                     <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--app-text-muted)' }}>
                       {entry.name}

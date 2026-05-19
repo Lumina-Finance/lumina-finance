@@ -33,6 +33,12 @@ function formatSignedCurrency(amount: number, currency: string) {
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
 }
 
+function getSignedAmountColor(amount: number) {
+  if (amount > 0) return 'var(--app-positive)'
+  if (amount < 0) return 'var(--app-negative)'
+  return 'var(--app-text)'
+}
+
 function CashFlowBarTooltip({
   active,
   payload,
@@ -50,15 +56,21 @@ function CashFlowBarTooltip({
       <p className="app-tooltip-muted">{bucket.rangeLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
         <span>Net</span>
-        <span className="font-financial">{formatSignedCurrency(bucket.net, displayCurrency)}</span>
+        <span className="font-financial" style={{ color: getSignedAmountColor(bucket.net) }}>
+          {formatSignedCurrency(bucket.net, displayCurrency)}
+        </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
         <span>Inflow</span>
-        <span className="font-financial">{formatCurrency(bucket.inflow, displayCurrency)}</span>
+        <span className="font-financial" style={{ color: 'var(--app-positive)' }}>
+          {formatCurrency(bucket.inflow, displayCurrency)}
+        </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
         <span>Outflow</span>
-        <span className="font-financial">{formatCurrency(bucket.outflow, displayCurrency)}</span>
+        <span className="font-financial" style={{ color: 'var(--app-negative)' }}>
+          {formatCurrency(bucket.outflow, displayCurrency)}
+        </span>
       </div>
     </div>
   )
@@ -134,8 +146,7 @@ export function CashFlowCard({
                   {buckets.map((bucket) => (
                     <Cell
                       key={bucket.rangeLabel}
-                      fill={bucket.net >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'}
-                      opacity={0.82}
+                      fill={bucket.net >= 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)'}
                     />
                   ))}
                 </Bar>
@@ -149,11 +160,11 @@ export function CashFlowCard({
           </p>
           <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-positive)' }} />
+              <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
               Net positive
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-negative)' }} />
+              <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
               Net negative
             </span>
           </div>

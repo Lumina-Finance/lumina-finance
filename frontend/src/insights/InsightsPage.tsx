@@ -461,6 +461,12 @@ function getSavingsTier(rate: number | null) {
   return 'negative'
 }
 
+function getSavingsTierColor(tier: ReturnType<typeof getSavingsTier>) {
+  if (tier === 'positive') return 'var(--app-chart-positive)'
+  if (tier === 'negative') return 'var(--app-chart-negative)'
+  return 'var(--app-accent)'
+}
+
 function formatSavingsRateValue(rate: number | null) {
   return rate === null ? 'N/A' : `${rate}%`
 }
@@ -940,7 +946,7 @@ function getMerchantMarketColor(changePct: number) {
   if (changePct === 0) {
     return 'color-mix(in srgb, var(--app-accent) 14%, var(--app-input-bg))'
   }
-  const variable = changePct < 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+  const variable = changePct < 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)'
   const mix = Math.min(72, 24 + Math.abs(changePct) * 2.2)
   return `color-mix(in srgb, ${variable} ${mix}%, var(--app-input-bg))`
 }
@@ -1235,9 +1241,6 @@ function SavingsRateHistoryChart({
     ? Math.round(ratedPoints.reduce((sum, point) => sum + (point.rate ?? 0), 0) / ratedPoints.length)
     : null
   const latestPoint = series.at(-1)
-  const latestDelta = latestPoint?.rate !== null && latestPoint?.rate !== undefined && averageRate !== null
-    ? latestPoint.rate - averageRate
-    : null
   const bestPoint = ratedPoints.reduce<SavingsRateHistoryPoint | null>(
     (best, point) => (best === null || (point.rate ?? -Infinity) > (best.rate ?? -Infinity) ? point : best),
     null,
@@ -1297,16 +1300,7 @@ function SavingsRateHistoryChart({
         </div>
         <div>
           <p className="app-label">Latest vs Average</p>
-          <p
-            className="mt-1 font-financial text-3xl leading-none tracking-tight"
-            style={{
-              color: latestDelta === null || latestDelta === 0
-                ? 'var(--app-text)'
-                : latestDelta > 0
-                  ? 'var(--app-positive)'
-                  : 'var(--app-negative)',
-            }}
-          >
+          <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
             {latestComparison}
           </p>
           <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
@@ -1347,7 +1341,7 @@ function SavingsRateHistoryChart({
                     <rect
                       width={3}
                       height={6}
-                      style={{ fill: `var(--app-${tier})` }}
+                      style={{ fill: getSavingsTierColor(tier) }}
                     />
                   </pattern>
                 ))}
@@ -1398,7 +1392,7 @@ function SavingsRateHistoryChart({
                         fill={
                           entry.isCurrent
                             ? `url(#insights-savings-stripes-${tier})`
-                            : `var(--app-${tier})`
+                            : getSavingsTierColor(tier)
                         }
                       />
                     )
@@ -1429,7 +1423,7 @@ function SavingsRateHistoryChart({
         </p>
         <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-positive)' }} />
+            <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
             20%+
           </span>
           <span className="flex items-center gap-1.5">
@@ -1437,7 +1431,7 @@ function SavingsRateHistoryChart({
             1-19%
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-negative)' }} />
+            <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
             0% or less
           </span>
         </div>
@@ -1797,11 +1791,11 @@ export default function InsightsPage() {
               <span>Tile size shows total spend. Color shows change vs. the comparable period.</span>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-positive)' }} />
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
                   Spend down
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-negative)' }} />
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
                   Spend up
                 </span>
                 <span className="inline-flex items-center gap-1.5">
@@ -1840,9 +1834,9 @@ export default function InsightsPage() {
                       className="font-financial text-xs"
                       style={{
                         color: getMerchantChange(merchant, range) > 0
-                          ? 'var(--app-negative)'
+                          ? 'var(--app-chart-negative)'
                           : getMerchantChange(merchant, range) < 0
-                            ? 'var(--app-positive)'
+                            ? 'var(--app-chart-positive)'
                             : 'var(--app-text-muted)',
                       }}
                     >

@@ -92,8 +92,8 @@ function getFlowTooltipName(item: FlowTooltipItem) {
 function FlowNodeShape({ x, y, width, height, payload }: SankeyNodeProps) {
   const node = payload as unknown as IncomeExpenseFlowNode
   const fillByKind: Record<IncomeExpenseFlowNodeKind, string> = {
-    income: 'var(--app-positive)',
-    expense: 'var(--app-negative)',
+    income: 'var(--app-chart-positive)',
+    expense: 'var(--app-chart-negative)',
     summary: 'var(--app-accent)',
     retained: 'var(--app-text-muted)',
   }
@@ -114,7 +114,7 @@ function FlowNodeShape({ x, y, width, height, payload }: SankeyNodeProps) {
         height={nodeHeight}
         rx={3}
         fill={fillByKind[node.kind]}
-        opacity={node.kind === 'summary' ? 0.95 : 0.82}
+        opacity={node.kind === 'summary' ? 0.95 : 1}
       />
       <text
         x={labelX}
