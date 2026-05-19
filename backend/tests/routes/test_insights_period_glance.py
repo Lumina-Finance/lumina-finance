@@ -225,8 +225,8 @@ async def test_period_glance_nets_expense_refunds(client):
     assert data["top_category_share_pct"] == 100
 
 
-async def test_period_glance_keeps_totals_kind_aware(client):
-    """The glance card keeps income-kind reversals out of expense stats."""
+async def test_period_glance_nets_refunds_for_savings_rate_but_not_category_share(client):
+    """Expense refunds affect the total expense figure without distorting top-category share."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -259,7 +259,7 @@ async def test_period_glance_keeps_totals_kind_aware(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["income"] == 195_000
-    assert data["expenses"] == 60_000
+    assert data["expenses"] == 40_000
     assert data["top_category_name"] == "Groceries"
     assert data["top_category_share_pct"] == 100
     assert data["biggest_change_name"] == "Groceries"

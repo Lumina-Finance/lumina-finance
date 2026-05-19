@@ -23,7 +23,7 @@ async def _query_period_totals(
 ) -> tuple[int, int]:
     """Return kind-aware net income and expense totals for the period."""
     result = await db.execute(
-        select(Category.id, Category.kind, func.sum(Transaction.amount).label("total"))
+        select(Category.kind, func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(account_ids),
@@ -31,7 +31,7 @@ async def _query_period_totals(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.id, Category.kind),
+        .group_by(Category.kind),
     )
 
     income = 0
@@ -41,9 +41,9 @@ async def _query_period_totals(
         if row.kind == CategoryKind.INCOME:
             income += total
         else:
-            expenses += max(-total, 0)
+            expenses += total
 
-    return income, expenses
+    return income, max(-expenses, 0)
 
 
 async def _query_expense_category_totals(
@@ -79,13 +79,13 @@ async def _query_expense_category_totals(
 
 def _top_category(
     current_totals: dict[uuid.UUID, tuple[str, int]],
-    expenses: int,
 ) -> tuple[str, int | None] | None:
     """Return the largest current expense category, if present."""
     if not current_totals:
         return None
+    total_positive_expenses = sum(amount for _name, amount in current_totals.values())
     name, amount = sorted(current_totals.values(), key=lambda item: (-item[1], item[0]))[0]
-    return name, round((amount / expenses) * 100) if expenses > 0 else None
+    return name, round((amount / total_positive_expenses) * 100) if total_positive_expenses > 0 else None
 
 
 def _biggest_category_change(
@@ -176,7 +176,7 @@ async def get_period_glance(
     )
     start_net_worth = await _net_worth_at(db, base_currency_accounts, from_date)
     end_net_worth = await _net_worth_at(db, base_currency_accounts, to_date)
-    top_category = _top_category(current_category_totals, expenses)
+    top_category = _top_category(current_category_totals)
     biggest_change = _biggest_category_change(current_category_totals, previous_category_totals)
 
     return InsightsPeriodGlanceResponse(
