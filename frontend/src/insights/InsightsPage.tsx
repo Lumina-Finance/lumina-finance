@@ -27,14 +27,24 @@ import {
   YAxis,
 } from 'recharts'
 import type { SpendingRange } from '@/api/dashboard'
-import { useInsightsPeriodGlance, type InsightsPeriodGlanceResponse } from '@/api/insights'
+import {
+  useInsightsIncomeExpenseFlow,
+  useInsightsPeriodGlance,
+  type InsightsFlowEntry,
+  type InsightsIncomeExpenseFlowResponse,
+  type InsightsPeriodGlanceResponse,
+} from '@/api/insights'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { useAuth } from '@/hooks/useAuth'
 import { InsightsRangeSelector, type InsightsRangeSelectorOption } from './components/InsightsRangeSelector'
-import { IncomeExpenseSankeyCard, type IncomeExpenseFlowNode } from './components/IncomeExpenseSankeyCard'
+import {
+  IncomeExpenseSankeyCard,
+  type IncomeExpenseFlowData,
+  type IncomeExpenseFlowNode,
+} from './components/IncomeExpenseSankeyCard'
 import { PeriodGlanceCard } from './components/PeriodGlanceCard'
 
 type BreakdownMode = 'expense' | 'income'
@@ -923,53 +933,74 @@ function getNetWorthDeltaSeries(series: NetWorthPoint[]): NetWorthDeltaPoint[] {
   })
 }
 
-function getOtherEntry(entries: BreakdownEntry[], label: string): BreakdownEntry | null {
-  const otherAmount = entries.slice(5).reduce((sum, entry) => sum + entry.amount, 0)
-  if (otherAmount <= 0) return null
-  return { id: label.toLowerCase().replaceAll(' ', '-'), name: label, amount: otherAmount }
-}
+function getFlowDataFromEntries(
+  incomeEntries: InsightsFlowEntry[],
+  expenseEntries: InsightsFlowEntry[],
+): IncomeExpenseFlowData {
+  if (incomeEntries.length === 0 && expenseEntries.length === 0) {
+    return { nodes: [], links: [] }
+  }
 
-function getFlowData(data: InsightScaffoldData) {
-  const incomeEntries = data.incomeBreakdown.slice(0, 5)
-  const otherIncome = getOtherEntry(data.incomeBreakdown, 'Other income')
-  const expenseEntries = data.expenseBreakdown.slice(0, 5)
-  const otherExpenses = getOtherEntry(data.expenseBreakdown, 'Other expenses')
+  const incomeTotal = incomeEntries.reduce((sum, [, amount]) => sum + amount, 0)
+  const expenseTotal = expenseEntries.reduce((sum, [, amount]) => sum + amount, 0)
   const nodes: IncomeExpenseFlowNode[] = [
-    ...incomeEntries.map((entry) => ({ name: entry.name, kind: 'income' as const })),
-    ...(otherIncome ? [{ name: otherIncome.name, kind: 'income' as const }] : []),
+    ...incomeEntries.map((entry) => {
+      const [name] = entry
+      return {
+        name,
+        kind: 'income' as const,
+        labelSide: 'right' as const,
+      }
+    }),
     { name: 'Income', kind: 'summary' },
     { name: 'Expenses', kind: 'summary' },
-    ...expenseEntries.map((entry) => ({ name: entry.name, kind: 'expense' as const })),
-    ...(otherExpenses ? [{ name: otherExpenses.name, kind: 'expense' as const }] : []),
+    ...expenseEntries.map((entry) => {
+      const [name] = entry
+      return {
+        name,
+        kind: 'expense' as const,
+        labelSide: 'left' as const,
+      }
+    }),
   ]
-  const incomeSummaryIndex = incomeEntries.length + (otherIncome ? 1 : 0)
+  const incomeSummaryIndex = incomeEntries.length
   const expenseSummaryIndex = incomeSummaryIndex + 1
   const retainedIndex = nodes.length
-  const retained = Math.max(data.income - data.expenses, 0)
+  const retained = Math.max(incomeTotal - expenseTotal, 0)
   if (retained > 0) {
     nodes.push({ name: 'Retained', kind: 'retained' })
   }
 
   const links = [
-    ...[...incomeEntries, ...(otherIncome ? [otherIncome] : [])].map((entry, index) => ({
+    ...incomeEntries.map(([, amount], index) => ({
       source: index,
       target: incomeSummaryIndex,
-      value: entry.amount,
+      value: amount,
     })),
     ...(retained > 0 ? [{ source: incomeSummaryIndex, target: retainedIndex, value: retained }] : []),
-    {
+    ...(incomeTotal > 0 && expenseTotal > 0 ? [{
       source: incomeSummaryIndex,
       target: expenseSummaryIndex,
-      value: Math.min(data.income, data.expenses),
-    },
-    ...[...expenseEntries, ...(otherExpenses ? [otherExpenses] : [])].map((entry, index) => ({
+      value: Math.min(incomeTotal, expenseTotal),
+    }] : []),
+    ...expenseEntries.map(([, amount], index) => ({
       source: expenseSummaryIndex,
       target: expenseSummaryIndex + 1 + index,
-      value: entry.amount,
+      value: amount,
     })),
   ]
 
   return { nodes, links }
+}
+
+function getFlowData(data: InsightsIncomeExpenseFlowResponse | undefined): IncomeExpenseFlowData {
+  if (!data) {
+    return { nodes: [], links: [] }
+  }
+  return getFlowDataFromEntries(
+    data.income_sources,
+    data.expense_categories,
+  )
 }
 
 function getCategoryDrivers(
@@ -2021,13 +2052,27 @@ export default function InsightsPage() {
     && customTo !== ''
     && getCustomRangeDays(customFrom, customTo) === null
   const rangeInputDates = useMemo(() => getRangeInputDates(rangePreset, customFrom, customTo), [rangePreset, customFrom, customTo])
-  const periodGlanceEnabled = !customInvalid && rangeInputDates.from !== '' && rangeInputDates.to !== ''
-  const periodGlanceQuery = useInsightsPeriodGlance(rangeInputDates.from, rangeInputDates.to, periodGlanceEnabled)
+  const insightsCardQueriesEnabled = !customInvalid && rangeInputDates.from !== '' && rangeInputDates.to !== ''
+  const periodGlanceQuery = useInsightsPeriodGlance(rangeInputDates.from, rangeInputDates.to, insightsCardQueriesEnabled)
+  const incomeExpenseFlowQuery = useInsightsIncomeExpenseFlow(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    insightsCardQueriesEnabled,
+  )
   const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
   const selectedBreakdown = breakdownMode === 'expense' ? data.expenseBreakdown : data.incomeBreakdown
   const selectedTotal = getTotal(selectedBreakdown)
-  const flowData = useMemo(() => getFlowData(data), [data])
+  const flowData = useMemo(() => getFlowData(incomeExpenseFlowQuery.data), [incomeExpenseFlowQuery.data])
+  const flowIncomeSources = incomeExpenseFlowQuery.data?.income_sources ?? []
+  const flowExpenseCategories = incomeExpenseFlowQuery.data?.expense_categories ?? []
+  const flowIncomeOutflows = incomeExpenseFlowQuery.data?.income_outflows ?? []
+  const flowExpenseInflows = incomeExpenseFlowQuery.data?.expense_inflows ?? []
+  const flowIncomeSourceCount = incomeExpenseFlowQuery.data?.income_source_count ?? 0
+  const flowExpenseCategoryCount = incomeExpenseFlowQuery.data?.expense_category_count ?? 0
+  const flowEmptyLabel = incomeExpenseFlowQuery.isLoading
+    ? 'Loading income and expense flow...'
+    : 'No income or expenses in this range.'
   const selectedCategoryDrivers = useMemo(
     () => getCategoryDrivers(data, range, breakdownMode),
     [data, range, breakdownMode],
@@ -2112,9 +2157,14 @@ export default function InsightsPage() {
         <IncomeExpenseSankeyCard
           header={<SectionHeader icon={Network} label="Income to Expenses" />}
           flowData={flowData}
-          incomeSourceCount={data.incomeBreakdown.length}
-          expenseCategoryCount={data.expenseBreakdown.length}
+          incomeSources={flowIncomeSources}
+          expenseCategories={flowExpenseCategories}
+          incomeOutflows={flowIncomeOutflows}
+          expenseInflows={flowExpenseInflows}
+          incomeSourceCount={flowIncomeSourceCount}
+          expenseCategoryCount={flowExpenseCategoryCount}
           displayCurrency={displayCurrency}
+          emptyLabel={flowEmptyLabel}
         />
 
         <section className="app-card">
