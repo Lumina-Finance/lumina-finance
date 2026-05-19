@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -63,6 +65,20 @@ const groupColors: Record<string, string> = {
 }
 
 const netWorthChartLeftMargin = 8
+
+const netWorthLegendContainerVariants = {
+  initial: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
+  enter: { transition: { staggerChildren: 0.045, staggerDirection: 1, delayChildren: 0.03 } },
+  exit: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
+} as const
+
+const netWorthLegendItemVariants = {
+  initial: { opacity: 0, x: -10 },
+  enter: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: 10 },
+} as const
+
+const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
 
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
@@ -195,6 +211,7 @@ export function NetWorthCard({
   displayCurrency,
   emptyLabel = 'No net worth history in this range.',
 }: NetWorthCardProps) {
+  const shouldReduceMotion = useReducedMotion()
   const latest = series.at(-1)
   const chartItems = useMemo(
     () => (mode === 'overview' ? getOverviewItems(groups) : getCompositionItems(groups)),
@@ -202,6 +219,14 @@ export function NetWorthCard({
   )
   const deltaSeries = useMemo(() => getChartData(series, chartItems), [chartItems, series])
   const hasChartData = groups.length > 0 && deltaSeries.length > 0
+  const legendAnimationKey = `${mode}-${chartItems.map((item) => item.id).join('|')}`
+  const latestChange = deltaSeries.at(-1)?.totalChange ?? 0
+  const netWorthTrendColor = latestChange > 0
+    ? 'var(--app-positive)'
+    : latestChange < 0
+      ? 'var(--app-negative)'
+      : 'var(--app-text-muted)'
+  const NetWorthTrendIcon = latestChange > 0 ? TrendingUp : latestChange < 0 ? TrendingDown : Minus
 
   return (
     <section className="app-card">
@@ -210,9 +235,16 @@ export function NetWorthCard({
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div className="pl-4">
             <p className="app-label app-label-compact">Current Net Worth</p>
-            <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
-              {formatCurrency(latest?.total ?? 0, displayCurrency)}
-            </p>
+            <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+              <p className="font-financial text-3xl leading-none tracking-tight">
+                {formatCurrency(latest?.total ?? 0, displayCurrency)}
+              </p>
+              <div className="flex items-center gap-1.5 pb-0.5 text-sm font-medium" style={{ color: netWorthTrendColor }}>
+                <NetWorthTrendIcon size={14} aria-hidden />
+                <span className="font-financial">{formatSignedCurrency(latestChange, displayCurrency)}</span>
+                <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
+              </div>
+            </div>
           </div>
         </div>
         <div className="min-h-0 flex-1">
@@ -267,16 +299,33 @@ export function NetWorthCard({
             </ResponsiveContainer>
           )}
         </div>
-        {hasChartData && (
-          <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1">
-            {chartItems.map((item) => (
-              <div key={item.id} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />
-                <span>{item.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="mt-3 overflow-hidden">
+          <AnimatePresence initial={false} mode="wait">
+            {hasChartData && (
+              <motion.div
+                key={legendAnimationKey}
+                className="flex flex-wrap justify-center gap-x-4 gap-y-1"
+                variants={shouldReduceMotion ? undefined : netWorthLegendContainerVariants}
+                initial={shouldReduceMotion ? false : 'initial'}
+                animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
+                exit={shouldReduceMotion ? undefined : 'exit'}
+              >
+                {chartItems.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    className="flex items-center gap-1.5 text-xs"
+                    style={{ color: 'var(--app-text-muted)' }}
+                    variants={shouldReduceMotion ? undefined : netWorthLegendItemVariants}
+                    transition={shouldReduceMotion ? { duration: 0 } : netWorthLegendItemTransition}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />
+                    <span>{item.name}</span>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </section>
   )
