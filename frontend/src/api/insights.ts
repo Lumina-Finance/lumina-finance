@@ -37,6 +37,14 @@ export interface InsightsIncomeExpenseBreakdownResponse {
   income_decreases: InsightsCategoryTrendEntry[];
 }
 
+export type InsightsNetWorthGroup = [string, string, 'asset' | 'debt'];
+export type InsightsNetWorthPoint = [string, string, number[]];
+
+export interface InsightsNetWorthResponse {
+  groups: InsightsNetWorthGroup[];
+  points: InsightsNetWorthPoint[];
+}
+
 export function useInsightsPeriodGlance(fromDate: string, toDate: string, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
@@ -44,6 +52,19 @@ export function useInsightsPeriodGlance(fromDate: string, toDate: string, enable
     queryFn: () =>
       authenticatedFetch<InsightsPeriodGlanceResponse>(
         `/insights/period-glance?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+      ),
+    enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInsightsNetWorth(fromDate: string, toDate: string, enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: insightsKeys.netWorth(fromDate, toDate),
+    queryFn: () =>
+      authenticatedFetch<InsightsNetWorthResponse>(
+        `/insights/net-worth?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,

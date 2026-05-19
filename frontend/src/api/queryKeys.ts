@@ -77,6 +77,7 @@ export const insightsKeys = {
   periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', fromDate, toDate] as const,
   incomeExpenseFlow: (fromDate: string, toDate: string) => ['insights-income-expense-flow', fromDate, toDate] as const,
   incomeExpenseBreakdown: (fromDate: string, toDate: string) => ['insights-income-expense-breakdown', fromDate, toDate] as const,
+  netWorth: (fromDate: string, toDate: string) => ['insights-net-worth', 'groups-v1', fromDate, toDate] as const,
 };
 
 export const budgetKeys = {

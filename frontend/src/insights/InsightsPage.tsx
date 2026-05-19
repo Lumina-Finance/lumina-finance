@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
+  ArrowLeftRight,
   ArrowUpToLine,
   CalendarDays,
   ListChecks,
@@ -26,12 +27,14 @@ import type { SpendingRange } from '@/api/dashboard'
 import {
   useInsightsIncomeExpenseBreakdown,
   useInsightsIncomeExpenseFlow,
+  useInsightsNetWorth,
   useInsightsPeriodGlance,
   type InsightsBreakdownEntry,
   type InsightsCategoryTrendEntry,
   type InsightsFlowEntry,
   type InsightsIncomeExpenseBreakdownResponse,
   type InsightsIncomeExpenseFlowResponse,
+  type InsightsNetWorthResponse,
   type InsightsPeriodGlanceResponse,
 } from '@/api/insights'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
@@ -53,8 +56,9 @@ import {
 } from './components/IncomeExpenseSankeyCard'
 import {
   NetWorthCard,
-  type NetWorthAccountKey,
+  type NetWorthGroup,
   type NetWorthPoint,
+  type NetWorthViewMode,
 } from './components/NetWorthCard'
 import { PeriodGlanceCard } from './components/PeriodGlanceCard'
 
@@ -81,7 +85,6 @@ type InsightScaffoldData = {
   expenses: number
   cashInflow: number
   cashOutflow: number
-  netWorthChange: number
   transactionCount: number
   activeMerchants: number
   incomeBreakdown: BreakdownEntry[]
@@ -253,7 +256,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
     expenses: 112400,
     cashInflow: 297000,
     cashOutflow: 134400,
-    netWorthChange: 154200,
     transactionCount: 34,
     activeMerchants: 16,
     incomeBreakdown: [
@@ -288,7 +290,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
     expenses: 456300,
     cashInflow: 852600,
     cashOutflow: 521300,
-    netWorthChange: 482900,
     transactionCount: 126,
     activeMerchants: 42,
     incomeBreakdown: [
@@ -328,7 +329,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
     expenses: 1394500,
     cashInflow: 2394800,
     cashOutflow: 1590500,
-    netWorthChange: 1376400,
     transactionCount: 362,
     activeMerchants: 68,
     incomeBreakdown: [
@@ -370,7 +370,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
     expenses: 3698600,
     cashInflow: 6258400,
     cashOutflow: 4196600,
-    netWorthChange: 3297800,
     transactionCount: 914,
     activeMerchants: 96,
     incomeBreakdown: [
@@ -576,45 +575,6 @@ function getNetWorthGranularity(dayCount: number): NetWorthGranularity {
   return 'month'
 }
 
-function getNetWorthBucketStart(date: Date, granularity: NetWorthGranularity) {
-  if (granularity === 'day') {
-    const copy = new Date(date)
-    copy.setHours(0, 0, 0, 0)
-    return copy
-  }
-  if (granularity === 'week') return getStartOfWeek(date)
-  return getStartOfMonth(date)
-}
-
-function getNextNetWorthBucketStart(date: Date, granularity: NetWorthGranularity) {
-  if (granularity === 'day') return addDays(date, 1)
-  if (granularity === 'week') return addDays(date, 7)
-  return addMonths(date, 1)
-}
-
-function getNetWorthBuckets(dates: Date[]) {
-  const startDate = dates[0]
-  const endDate = dates.at(-1)
-  if (!startDate || !endDate) return []
-
-  const granularity = getNetWorthGranularity(dates.length)
-  const buckets: Array<{ labelDate: Date; valueDate: Date; granularity: NetWorthGranularity }> = []
-  let cursor = getNetWorthBucketStart(startDate, granularity)
-
-  while (cursor <= endDate) {
-    const nextStart = getNextNetWorthBucketStart(cursor, granularity)
-    const bucketEnd = addDays(nextStart, -1)
-    buckets.push({
-      labelDate: new Date(cursor),
-      valueDate: bucketEnd > endDate ? endDate : bucketEnd,
-      granularity,
-    })
-    cursor = nextStart
-  }
-
-  return buckets
-}
-
 function getIsoWeek(date: Date) {
   const normalized = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   normalized.setUTCDate(normalized.getUTCDate() + 4 - (normalized.getUTCDay() || 7))
@@ -729,50 +689,6 @@ function getSavingsRateHistory(): SavingsRateHistoryPoint[] {
   })
 }
 
-function getNetWorthAccountSeries(dates: Date[], periodChange: number): NetWorthPoint[] {
-  const buckets = getNetWorthBuckets(dates)
-  const finalBalances: Record<NetWorthAccountKey, number> = {
-    chequing: 436000,
-    savings: 1720000,
-    investments: 6412000,
-    retirement: 2480000,
-  }
-  const changeAllocation: Record<NetWorthAccountKey, number> = {
-    chequing: 0.16,
-    savings: 0.24,
-    investments: 0.42,
-    retirement: 0.18,
-  }
-  const safeCount = Math.max(buckets.length - 1, 1)
-
-  return buckets.map((bucket, index) => {
-    const progress = index / safeCount
-    const remainingChange = periodChange * (1 - progress)
-    const wave = Math.sin(index / 5) * 9000
-    const point = {
-      chequing: Math.round(finalBalances.chequing - (remainingChange * changeAllocation.chequing) + wave),
-      savings: Math.round(finalBalances.savings - (remainingChange * changeAllocation.savings) + Math.sin(index / 11) * 14000),
-      investments: Math.round(finalBalances.investments - (remainingChange * changeAllocation.investments) + Math.sin(index / 9) * 26000),
-      retirement: Math.round(finalBalances.retirement - (remainingChange * changeAllocation.retirement) + Math.sin(index / 13) * 18000),
-    }
-
-    return {
-      ...point,
-      date: formatYmd(bucket.labelDate),
-      dateLabel: bucket.labelDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: bucket.granularity === 'month' ? undefined : 'numeric',
-      }),
-      tooltipLabel: bucket.valueDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      }),
-      total: point.chequing + point.savings + point.investments + point.retirement,
-    }
-  })
-}
-
 function getFlowDataFromEntries(
   incomeEntries: InsightsFlowEntry[],
   expenseEntries: InsightsFlowEntry[],
@@ -881,6 +797,44 @@ function getCategoryTrendSections(
       drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_decreases : data?.income_decreases),
     },
   ]
+}
+
+function getNetWorthCardData(
+  response: InsightsNetWorthResponse | undefined,
+  fromDate: string,
+  toDate: string,
+): { groups: NetWorthGroup[]; series: NetWorthPoint[] } {
+  if (!response) return { groups: [], series: [] }
+
+  const groups = response.groups ?? []
+  const points = response.points ?? []
+  const dayCount = getCustomRangeDays(fromDate, toDate) ?? 1
+  const granularity = getNetWorthGranularity(dayCount)
+  return {
+    groups: groups.map(([id, name, kind]) => ({ id, name, kind })),
+    series: points.map(([labelDate, valueDate, values]) => {
+      const label = parseYmd(labelDate)
+      const tooltip = parseYmd(valueDate)
+      return {
+        date: labelDate,
+        dateLabel: label
+          ? label.toLocaleDateString('en-US', {
+              month: 'short',
+              day: granularity === 'month' ? undefined : 'numeric',
+            })
+          : labelDate,
+        tooltipLabel: tooltip
+          ? tooltip.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
+          : valueDate,
+        total: values.reduce((sum, value) => sum + value, 0),
+        values,
+      }
+    }),
+  }
 }
 
 function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrency: string): PeriodBrief {
@@ -1754,6 +1708,7 @@ export default function InsightsPage() {
   const [customFrom, setCustomFrom] = useState(defaultCustomRange.from)
   const [customTo, setCustomTo] = useState(defaultCustomRange.to)
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('expense')
+  const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const range = getScaffoldRange(rangePreset, customFrom, customTo)
   const customInvalid = rangePreset === 'CUSTOM'
@@ -1769,6 +1724,11 @@ export default function InsightsPage() {
     insightsCardQueriesEnabled,
   )
   const incomeExpenseBreakdownQuery = useInsightsIncomeExpenseBreakdown(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    insightsCardQueriesEnabled,
+  )
+  const netWorthQuery = useInsightsNetWorth(
     rangeInputDates.from,
     rangeInputDates.to,
     insightsCardQueriesEnabled,
@@ -1823,7 +1783,10 @@ export default function InsightsPage() {
     })),
   ]
   const rangeDates = useMemo(() => getRangeDates(rangePreset, customFrom, customTo), [rangePreset, customFrom, customTo])
-  const netWorthSeries = useMemo(() => getNetWorthAccountSeries(rangeDates, data.netWorthChange), [rangeDates, data.netWorthChange])
+  const netWorthCardData = useMemo(
+    () => getNetWorthCardData(netWorthQuery.data, rangeInputDates.from, rangeInputDates.to),
+    [netWorthQuery.data, rangeInputDates.from, rangeInputDates.to],
+  )
   const cashFlowBars = useMemo(() => getCashFlowBarData(data, rangeDates), [data, rangeDates])
   const savingsRateHistory = useMemo(() => getSavingsRateHistory(), [])
   const merchantMarketLayout = useMemo(() => getMerchantMarketLayout(data.merchantBubbles, range), [data.merchantBubbles, range])
@@ -1905,9 +1868,28 @@ export default function InsightsPage() {
         />
 
         <NetWorthCard
-          header={<SectionHeader icon={Wallet} label="Net Worth" />}
-          series={netWorthSeries}
+          header={(
+            <SectionHeader
+              icon={Wallet}
+              label="Net Worth"
+              action={(
+                <button
+                  type="button"
+                  onClick={() => setNetWorthMode((mode) => (mode === 'overview' ? 'composition' : 'overview'))}
+                  title={netWorthMode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+                  aria-label={netWorthMode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+                  className="app-icon-button"
+                >
+                  <ArrowLeftRight size={12} />
+                </button>
+              )}
+            />
+          )}
+          mode={netWorthMode}
+          groups={netWorthCardData.groups}
+          series={netWorthCardData.series}
           displayCurrency={displayCurrency}
+          emptyLabel={netWorthQuery.isLoading ? 'Loading net worth history...' : undefined}
         />
 
         <section className="app-card">
