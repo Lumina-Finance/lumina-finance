@@ -46,3 +46,9 @@ class InsightsNetWorthResponse(BaseModel):
 
     groups: list[tuple[str, str, NetWorthGroupKind]]
     points: list[tuple[date, date, list[int]]]
+
+
+class InsightsSavingsRateTrendResponse(BaseModel):
+    """Payload for the insights savings-rate trend card."""
+
+    points: list[tuple[date, int, int]]

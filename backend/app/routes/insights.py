@@ -1,7 +1,8 @@
 """Insights aggregation endpoints."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,8 +15,15 @@ from app.schemas.insights import (
     InsightsIncomeExpenseFlowResponse,
     InsightsNetWorthResponse,
     InsightsPeriodGlanceResponse,
+    InsightsSavingsRateTrendResponse,
 )
-from app.services.insights import get_income_expense_breakdown, get_income_expense_flow, get_net_worth, get_period_glance
+from app.services.insights import (
+    get_income_expense_breakdown,
+    get_income_expense_flow,
+    get_net_worth,
+    get_period_glance,
+    get_savings_rate_trend,
+)
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -77,3 +85,12 @@ async def get_net_worth_route(
     """Return signed asset/debt group history for the insights net-worth card."""
     _validate_date_range(from_date, to_date)
     return await get_net_worth(db, user, from_date, to_date)
+
+
+@router.get("/savings-rate-trend", response_model=InsightsSavingsRateTrendResponse)
+async def get_savings_rate_trend_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return monthly income and expense totals for the insights savings-rate trend card."""
+    return await get_savings_rate_trend(db, user, datetime.now(ZoneInfo(user.tz)))

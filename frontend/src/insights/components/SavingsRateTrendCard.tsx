@@ -38,6 +38,7 @@ type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]
   displayCurrency: string
   capRates: boolean
+  emptyLabel?: string
 }
 
 const savingsRateHistoryLimit = 12
@@ -124,6 +125,7 @@ export function SavingsRateTrendCard({
   series,
   displayCurrency,
   capRates,
+  emptyLabel = 'No savings-rate history available',
 }: SavingsRateTrendCardProps) {
   const shouldReduceMotion = useReducedMotion()
   const hasActivity = series.some((point) => point.income > 0 || point.expenses > 0)
@@ -218,7 +220,7 @@ export function SavingsRateTrendCard({
               className="flex h-full w-full items-center justify-center text-sm"
               style={{ color: 'var(--app-text-subtle)' }}
             >
-              No savings-rate history in this range
+              {emptyLabel}
             </div>
           ) : (
             <div className="relative h-full">

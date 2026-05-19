@@ -18,6 +18,7 @@ import {
   useInsightsIncomeExpenseFlow,
   useInsightsNetWorth,
   useInsightsPeriodGlance,
+  useInsightsSavingsRateTrend,
   type InsightsBreakdownEntry,
   type InsightsCategoryTrendEntry,
   type InsightsFlowEntry,
@@ -25,6 +26,7 @@ import {
   type InsightsIncomeExpenseFlowResponse,
   type InsightsNetWorthResponse,
   type InsightsPeriodGlanceResponse,
+  type InsightsSavingsRateTrendResponse,
 } from '@/api/insights'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -137,25 +139,6 @@ const presetScaffoldRange: Record<Exclude<InsightsRangePreset, 'CUSTOM'>, Spendi
   LAST_WEEK: 'WTD',
   LAST_MONTH: 'MTD',
 }
-
-const savingsRateHistoryLimit = 12
-
-const savingsRateHistoryScaffold = [
-  { income: 642000, expenses: 528000 },
-  { income: 651000, expenses: 492000 },
-  { income: 636000, expenses: 548000 },
-  { income: 664000, expenses: 501000 },
-  { income: 702000, expenses: 593000 },
-  { income: 648000, expenses: 486000 },
-  { income: 672000, expenses: 559000 },
-  { income: 689000, expenses: 511000 },
-  { income: 655000, expenses: 534000 },
-  { income: 714000, expenses: 608000 },
-  { income: 682000, expenses: 497000 },
-  { income: 735000, expenses: 574000 },
-  { income: 694000, expenses: 522000 },
-  { income: 758000, expenses: 585000 },
-]
 
 const merchantChangeByRange: Record<SpendingRange, Record<string, number>> = {
   WTD: {
@@ -393,10 +376,6 @@ function addDays(date: Date, days: number) {
   return next
 }
 
-function addMonths(date: Date, months: number) {
-  return new Date(date.getFullYear(), date.getMonth() + months, 1)
-}
-
 function getDefaultCustomRange() {
   const today = new Date()
   return {
@@ -516,14 +495,6 @@ function getMonthLabel(date: Date) {
   return date.toLocaleDateString('en-US', { month: 'short' })
 }
 
-function getMonthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-}
-
-function getStartOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
 function getNetWorthGranularity(dayCount: number): NetWorthGranularity {
   if (dayCount <= 30) return 'day'
   if (dayCount <= 90) return 'week'
@@ -615,20 +586,16 @@ function getCashFlowBarData(data: InsightScaffoldData, dates: Date[]) {
   }
 }
 
-function getSavingsRateHistory(): SavingsRateHistoryPoint[] {
-  const rows = savingsRateHistoryScaffold.slice(-savingsRateHistoryLimit)
-  const newestMonth = getStartOfMonth(new Date())
+function getSavingsRateHistory(response: InsightsSavingsRateTrendResponse | undefined): SavingsRateHistoryPoint[] {
+  const rows = response?.points ?? []
 
-  return rows.map((row, index) => {
-    const month = addMonths(newestMonth, index - rows.length + 1)
-    const income = row.income
-    const expenses = row.expenses
+  return rows.map(([monthKey, income, expenses], index) => {
+    const month = new Date(`${monthKey}T00:00:00`)
     const rate = income > 0
       ? Math.round(((income - expenses) / income) * 100)
       : expenses > 0
         ? -100
         : null
-    const monthKey = getMonthKey(month)
     const monthLabel = getMonthLabel(month)
 
     return {
@@ -1274,6 +1241,7 @@ export default function InsightsPage() {
     rangeInputDates.to,
     insightsCardQueriesEnabled,
   )
+  const savingsRateTrendQuery = useInsightsSavingsRateTrend()
   const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
   const selectedBreakdown = useMemo(
@@ -1329,7 +1297,10 @@ export default function InsightsPage() {
     [netWorthQuery.data, rangeInputDates.from, rangeInputDates.to],
   )
   const cashFlowBars = useMemo(() => getCashFlowBarData(data, rangeDates), [data, rangeDates])
-  const savingsRateHistory = useMemo(() => getSavingsRateHistory(), [])
+  const savingsRateHistory = useMemo(
+    () => getSavingsRateHistory(savingsRateTrendQuery.data),
+    [savingsRateTrendQuery.data],
+  )
   const merchantMarketLayout = useMemo(() => getMerchantMarketLayout(data.merchantBubbles, range), [data.merchantBubbles, range])
   const rankedMerchants = [...data.merchantBubbles].sort((a, b) => b.totalAmount - a.totalAmount)
   return (
@@ -1464,6 +1435,7 @@ export default function InsightsPage() {
           series={savingsRateHistory}
           displayCurrency={displayCurrency}
           capRates={capSavingsRateChart}
+          emptyLabel={savingsRateTrendQuery.isLoading ? 'Loading savings-rate history...' : undefined}
         />
 
         <section className="grid grid-cols-1 gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_360px]">

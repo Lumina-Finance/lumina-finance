@@ -45,6 +45,12 @@ export interface InsightsNetWorthResponse {
   points: InsightsNetWorthPoint[];
 }
 
+export type InsightsSavingsRateTrendPoint = [string, number, number];
+
+export interface InsightsSavingsRateTrendResponse {
+  points: InsightsSavingsRateTrendPoint[];
+}
+
 export function useInsightsPeriodGlance(fromDate: string, toDate: string, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
@@ -67,6 +73,17 @@ export function useInsightsNetWorth(fromDate: string, toDate: string, enabled = 
         `/insights/net-worth?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInsightsSavingsRateTrend(enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: insightsKeys.savingsRateTrend(),
+    queryFn: () =>
+      authenticatedFetch<InsightsSavingsRateTrendResponse>('/insights/savings-rate-trend'),
+    enabled: !!accessToken && enabled,
     staleTime: 5 * 60 * 1000,
   });
 }
