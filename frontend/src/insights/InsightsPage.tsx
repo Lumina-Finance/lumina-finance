@@ -26,9 +26,13 @@ import {
 } from 'recharts'
 import type { SpendingRange } from '@/api/dashboard'
 import {
+  useInsightsIncomeExpenseBreakdown,
   useInsightsIncomeExpenseFlow,
   useInsightsPeriodGlance,
+  type InsightsBreakdownEntry,
+  type InsightsCategoryTrendEntry,
   type InsightsFlowEntry,
+  type InsightsIncomeExpenseBreakdownResponse,
   type InsightsIncomeExpenseFlowResponse,
   type InsightsPeriodGlanceResponse,
 } from '@/api/insights'
@@ -80,11 +84,6 @@ type InsightScaffoldData = {
   incomeBreakdown: BreakdownEntry[]
   expenseBreakdown: BreakdownEntry[]
   merchantBubbles: MerchantBubble[]
-}
-
-type CategoryDriverGroups = {
-  increases: CategoryDriver[]
-  decreases: CategoryDriver[]
 }
 
 type NetWorthAccountKey = 'chequing' | 'savings' | 'investments' | 'retirement'
@@ -194,7 +193,6 @@ const netWorthAccounts: NetWorthAccount[] = [
   { key: 'investments', label: 'Investments', color: 'var(--app-warning)' },
   { key: 'retirement', label: 'Retirement', color: 'var(--app-text-muted)' },
 ]
-const categoryDriverDirectionLimit = 3
 const savingsRateHistoryLimit = 12
 const netWorthChartLeftMargin = 8
 
@@ -271,75 +269,6 @@ const merchantChangeByRange: Record<SpendingRange, Record<string, number>> = {
     'fit-studio': 0,
     'pet-pantry': 8,
     'home-hardware': 13,
-  },
-}
-
-const categoryMovementByRange: Record<SpendingRange, Record<string, { previousAmount: number; transactionCount: number }>> = {
-  WTD: {
-    groceries: { previousAmount: 28600, transactionCount: 5 },
-    dining: { previousAmount: 14200, transactionCount: 7 },
-    transportation: { previousAmount: 16400, transactionCount: 8 },
-    subscriptions: { previousAmount: 15400, transactionCount: 2 },
-    shopping: { previousAmount: 18800, transactionCount: 3 },
-    health: { previousAmount: 7600, transactionCount: 1 },
-  },
-  MTD: {
-    housing: { previousAmount: 210000, transactionCount: 1 },
-    groceries: { previousAmount: 62900, transactionCount: 9 },
-    dining: { previousAmount: 30400, transactionCount: 14 },
-    shopping: { previousAmount: 38700, transactionCount: 3 },
-    transportation: { previousAmount: 25800, transactionCount: 16 },
-    subscriptions: { previousAmount: 17700, transactionCount: 4 },
-    health: { previousAmount: 13200, transactionCount: 2 },
-    software: { previousAmount: 36000, transactionCount: 2 },
-  },
-  QTD: {
-    housing: { previousAmount: 630000, transactionCount: 3 },
-    groceries: { previousAmount: 204800, transactionCount: 29 },
-    dining: { previousAmount: 98200, transactionCount: 42 },
-    shopping: { previousAmount: 126500, transactionCount: 9 },
-    transportation: { previousAmount: 84600, transactionCount: 48 },
-    travel: { previousAmount: 42000, transactionCount: 2 },
-    subscriptions: { previousAmount: 53100, transactionCount: 12 },
-    health: { previousAmount: 39100, transactionCount: 6 },
-    software: { previousAmount: 31200, transactionCount: 3 },
-  },
-  YTD: {
-    housing: { previousAmount: 1680000, transactionCount: 8 },
-    groceries: { previousAmount: 548000, transactionCount: 73 },
-    dining: { previousAmount: 276000, transactionCount: 96 },
-    shopping: { previousAmount: 318200, transactionCount: 24 },
-    transportation: { previousAmount: 231400, transactionCount: 122 },
-    travel: { previousAmount: 176500, transactionCount: 5 },
-    subscriptions: { previousAmount: 132600, transactionCount: 31 },
-    health: { previousAmount: 118900, transactionCount: 17 },
-    software: { previousAmount: 84200, transactionCount: 8 },
-  },
-}
-
-const incomeMovementByRange: Record<SpendingRange, Record<string, { previousAmount: number; transactionCount: number }>> = {
-  WTD: {
-    salary: { previousAmount: 262000, transactionCount: 1 },
-    freelance: { previousAmount: 24000, transactionCount: 1 },
-    interest: { previousAmount: 5400, transactionCount: 1 },
-  },
-  MTD: {
-    salary: { previousAmount: 665000, transactionCount: 2 },
-    freelance: { previousAmount: 92000, transactionCount: 3 },
-    dividends: { previousAmount: 24000, transactionCount: 2 },
-    interest: { previousAmount: 10400, transactionCount: 1 },
-  },
-  QTD: {
-    salary: { previousAmount: 1900000, transactionCount: 6 },
-    freelance: { previousAmount: 230000, transactionCount: 7 },
-    dividends: { previousAmount: 46200, transactionCount: 5 },
-    interest: { previousAmount: 32000, transactionCount: 3 },
-  },
-  YTD: {
-    salary: { previousAmount: 5000000, transactionCount: 15 },
-    freelance: { previousAmount: 624000, transactionCount: 22 },
-    dividends: { previousAmount: 196800, transactionCount: 13 },
-    interest: { previousAmount: 94000, transactionCount: 8 },
   },
 }
 
@@ -503,11 +432,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
       { id: 'home-hardware', name: 'Neighbourhood Home Hardware', totalAmount: 104600, transactionCount: 12, averageAmount: 8717 },
     ],
   },
-}
-
-function getPct(amount: number, total: number) {
-  if (total <= 0) return 0
-  return Math.round((amount / total) * 100)
 }
 
 function formatYmd(date: Date) {
@@ -968,44 +892,44 @@ function getFlowData(data: InsightsIncomeExpenseFlowResponse | undefined): Incom
   )
 }
 
-function getCategoryDrivers(
-  data: InsightScaffoldData,
-  range: SpendingRange,
-  mode: BreakdownMode,
-): CategoryDriver[] {
-  const movement = mode === 'expense' ? categoryMovementByRange[range] : incomeMovementByRange[range]
-  const entries = mode === 'expense' ? data.expenseBreakdown : data.incomeBreakdown
-  const total = mode === 'expense' ? data.expenses : data.income
-
-  return entries
-    .map((entry) => {
-      const movementEntry = movement[entry.id]
-      const previousAmount = movementEntry?.previousAmount ?? Math.round(entry.amount * 0.9)
-      const changePct = previousAmount > 0
-        ? Math.round(((entry.amount - previousAmount) / previousAmount) * 100)
-        : 0
-      return {
-        name: entry.name,
-        amount: entry.amount,
-        previousAmount,
-        changePct,
-        transactionCount: movementEntry?.transactionCount ?? Math.max(1, getPct(entry.amount, total)),
-      }
-    })
-    .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
+function getBreakdownEntries(entries: InsightsBreakdownEntry[] | undefined): BreakdownEntry[] {
+  return (entries ?? []).map(([id, name, amount]) => ({ id, name, amount }))
 }
 
-function getCategoryDriverGroups(drivers: CategoryDriver[]): CategoryDriverGroups {
-  return {
-    increases: drivers
-      .filter((driver) => driver.changePct > 0)
-      .sort((a, b) => b.changePct - a.changePct)
-      .slice(0, categoryDriverDirectionLimit),
-    decreases: drivers
-      .filter((driver) => driver.changePct < 0)
-      .sort((a, b) => a.changePct - b.changePct)
-      .slice(0, categoryDriverDirectionLimit),
-  }
+function getCategoryDrivers(entries: InsightsCategoryTrendEntry[] | undefined): CategoryDriver[] {
+  return (entries ?? []).map(([id, name, amount, previousAmount, changePct, transactionCount]) => ({
+    id,
+    name,
+    amount,
+    previousAmount,
+    changePct,
+    transactionCount,
+  }))
+}
+
+function getBreakdownEntriesForMode(
+  data: InsightsIncomeExpenseBreakdownResponse | undefined,
+  mode: BreakdownMode,
+): BreakdownEntry[] {
+  return getBreakdownEntries(mode === 'expense' ? data?.expense : data?.income)
+}
+
+function getCategoryTrendSections(
+  data: InsightsIncomeExpenseBreakdownResponse | undefined,
+  mode: BreakdownMode,
+): CategoryTrendSection[] {
+  return [
+    {
+      id: 'increases',
+      label: 'Top Increases',
+      drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_increases : data?.income_increases),
+    },
+    {
+      id: 'decreases',
+      label: 'Top Decreases',
+      drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_decreases : data?.income_decreases),
+    },
+  ]
 }
 
 function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrency: string): PeriodBrief {
@@ -2012,9 +1936,17 @@ export default function InsightsPage() {
     rangeInputDates.to,
     insightsCardQueriesEnabled,
   )
+  const incomeExpenseBreakdownQuery = useInsightsIncomeExpenseBreakdown(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    insightsCardQueriesEnabled,
+  )
   const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
-  const selectedBreakdown = breakdownMode === 'expense' ? data.expenseBreakdown : data.incomeBreakdown
+  const selectedBreakdown = useMemo(
+    () => getBreakdownEntriesForMode(incomeExpenseBreakdownQuery.data, breakdownMode),
+    [breakdownMode, incomeExpenseBreakdownQuery.data],
+  )
   const flowData = useMemo(() => getFlowData(incomeExpenseFlowQuery.data), [incomeExpenseFlowQuery.data])
   const flowIncomeSources = incomeExpenseFlowQuery.data?.income_sources ?? []
   const flowExpenseCategories = incomeExpenseFlowQuery.data?.expense_categories ?? []
@@ -2025,13 +1957,9 @@ export default function InsightsPage() {
   const flowEmptyLabel = incomeExpenseFlowQuery.isLoading
     ? 'Loading income and expense flow...'
     : 'No income or expenses in this range.'
-  const selectedCategoryDrivers = useMemo(
-    () => getCategoryDrivers(data, range, breakdownMode),
-    [data, range, breakdownMode],
-  )
-  const selectedCategoryDriverGroups = useMemo(
-    () => getCategoryDriverGroups(selectedCategoryDrivers),
-    [selectedCategoryDrivers],
+  const selectedCategoryTrendSections = useMemo(
+    () => getCategoryTrendSections(incomeExpenseBreakdownQuery.data, breakdownMode),
+    [breakdownMode, incomeExpenseBreakdownQuery.data],
   )
   const periodBrief = useMemo(() => {
     if (periodGlanceQuery.data) {
@@ -2068,11 +1996,6 @@ export default function InsightsPage() {
   const savingsRateHistory = useMemo(() => getSavingsRateHistory(), [])
   const merchantMarketLayout = useMemo(() => getMerchantMarketLayout(data.merchantBubbles, range), [data.merchantBubbles, range])
   const rankedMerchants = [...data.merchantBubbles].sort((a, b) => b.totalAmount - a.totalAmount)
-  const selectedCategoryTrendSections: CategoryTrendSection[] = [
-    { id: 'increases', label: 'Top Increases', drivers: selectedCategoryDriverGroups.increases },
-    { id: 'decreases', label: 'Top Decreases', drivers: selectedCategoryDriverGroups.decreases },
-  ]
-
   return (
     <div className="relative">
       <header className="app-page-header min-[760px]:pr-[25rem]">

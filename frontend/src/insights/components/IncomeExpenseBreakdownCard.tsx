@@ -19,10 +19,11 @@ export type BreakdownEntry = {
 }
 
 export type CategoryDriver = {
+  id: string
   name: string
   amount: number
   previousAmount: number
-  changePct: number
+  changePct: number | null
   transactionCount: number
 }
 
@@ -75,15 +76,15 @@ function formatSignedCurrency(amount: number, currency: string) {
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
 }
 
-function getCategoryDriverColor(mode: BreakdownMode, changePct: number) {
-  if (changePct === 0) return 'var(--app-text-muted)'
-  if (mode === 'income') return changePct > 0 ? 'var(--app-positive)' : 'var(--app-negative)'
-  return changePct > 0 ? 'var(--app-negative)' : 'var(--app-positive)'
+function getCategoryDriverColor(mode: BreakdownMode, changeAmount: number) {
+  if (changeAmount === 0) return 'var(--app-text-muted)'
+  if (mode === 'income') return changeAmount > 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+  return changeAmount > 0 ? 'var(--app-negative)' : 'var(--app-positive)'
 }
 
-function getCategoryDriverDescriptor(changePct: number) {
-  if (changePct === 0) return 'flat'
-  return changePct > 0 ? 'increase' : 'decrease'
+function getCategoryDriverDescriptor(changeAmount: number) {
+  if (changeAmount === 0) return 'flat'
+  return changeAmount > 0 ? 'increase' : 'decrease'
 }
 
 export function IncomeExpenseBreakdownCard({
@@ -200,11 +201,14 @@ export function IncomeExpenseBreakdownCard({
                           No {section.id === 'increases' ? 'increases' : 'decreases'} in this period.
                         </motion.p>
                       ) : section.drivers.map((driver) => {
-                        const driverColor = getCategoryDriverColor(mode, driver.changePct)
                         const changeAmount = driver.amount - driver.previousAmount
+                        const driverColor = getCategoryDriverColor(mode, changeAmount)
+                        const changePctLabel = driver.changePct === null
+                          ? null
+                          : `(${driver.changePct > 0 ? '+' : ''}${driver.changePct}%)`
                         return (
                           <motion.div
-                            key={driver.name}
+                            key={driver.id}
                             className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-md border border-[var(--app-border)] px-3 py-2.5"
                             variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
                             transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
@@ -223,10 +227,14 @@ export function IncomeExpenseBreakdownCard({
                               </p>
                               <p className="mt-1 font-financial text-sm" style={{ color: driverColor }}>
                                 {formatSignedCurrency(changeAmount, displayCurrency)}
+                                {changePctLabel && (
+                                  <>
+                                    {' '}
+                                    {changePctLabel}
+                                  </>
+                                )}
                                 {' '}
-                                ({driver.changePct > 0 ? '+' : ''}{driver.changePct}%)
-                                {' '}
-                                {getCategoryDriverDescriptor(driver.changePct)}
+                                {getCategoryDriverDescriptor(changeAmount)}
                               </p>
                             </div>
                           </motion.div>
