@@ -10,11 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, AccountBalanceSnapshot
 from app.models.base import AccountKind, AccountType
 from app.models.user import User
-from app.schemas.insights import InsightsNetWorthResponse
+from app.schemas.insights import InsightsNetWorthResponse, NetWorthGroupKind
 from app.services.insights.common import get_base_currency_accounts
 
 NetWorthGranularity = Literal["day", "week", "month"]
-NetWorthGroupKind = Literal["asset", "debt"]
 
 
 @dataclass(frozen=True)
@@ -101,10 +100,6 @@ def _group_id_for_account(account: Account) -> str:
     return "other_debt"
 
 
-def _account_contribution(account: Account, balance: int) -> int:
-    return balance if account.account_kind == AccountKind.ASSET else -balance
-
-
 async def _query_net_worth_points(
     db: AsyncSession,
     accounts: list[Account],
@@ -117,7 +112,6 @@ async def _query_net_worth_points(
         return []
 
     account_ids = [account.id for account in accounts]
-    account_by_id = {account.id: account for account in accounts}
     group_index_by_account_id = {
         account.id: GROUP_INDEX_BY_ID[_group_id_for_account(account)]
         for account in accounts
@@ -161,9 +155,8 @@ async def _query_net_worth_points(
 
         values = [0] * len(NET_WORTH_GROUPS)
         for account_id in account_ids:
-            account = account_by_id[account_id]
             group_index = group_index_by_account_id[account_id]
-            values[group_index] += _account_contribution(account, running[account_id])
+            values[group_index] += running[account_id]
         points.append((label_date, value_date, values))
 
     return points

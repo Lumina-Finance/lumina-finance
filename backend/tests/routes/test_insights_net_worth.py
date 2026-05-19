@@ -22,7 +22,7 @@ async def _seed_usd_currency():
 
 
 async def test_net_worth_returns_compact_daily_signed_group_series(client):
-    """Daily buckets group balances, sign debts, and exclude hidden/non-base accounts."""
+    """Daily buckets group balances, preserve debt signs, and exclude hidden/non-base accounts."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     await _seed_usd_currency()
@@ -51,8 +51,8 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
             _snapshot(cash_account_id, date(2026, 5, 2), 120_000),
             _snapshot(savings_account_id, date(2026, 4, 30), 20_000),
             _snapshot(savings_account_id, date(2026, 5, 2), 30_000),
-            _snapshot(card_account_id, date(2026, 4, 30), 50_000),
-            _snapshot(card_account_id, date(2026, 5, 3), 80_000),
+            _snapshot(card_account_id, date(2026, 4, 30), -50_000),
+            _snapshot(card_account_id, date(2026, 5, 3), -80_000),
             _snapshot(hidden_account_id, date(2026, 5, 2), 9_000_000),
             _snapshot(usd_account_id, date(2026, 5, 2), 8_000_000),
         ])

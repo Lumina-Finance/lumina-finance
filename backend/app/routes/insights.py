@@ -74,6 +74,6 @@ async def get_net_worth_route(
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
 ):
-    """Return account-level net worth history for the insights net-worth card."""
+    """Return signed asset/debt group history for the insights net-worth card."""
     _validate_date_range(from_date, to_date)
     return await get_net_worth(db, user, from_date, to_date)

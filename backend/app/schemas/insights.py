@@ -1,6 +1,9 @@
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel
+
+NetWorthGroupKind = Literal["asset", "debt"]
 
 
 class InsightsPeriodGlanceResponse(BaseModel):
@@ -41,5 +44,5 @@ class InsightsIncomeExpenseBreakdownResponse(BaseModel):
 class InsightsNetWorthResponse(BaseModel):
     """Payload for the insights net-worth card."""
 
-    groups: list[tuple[str, str, str]]
+    groups: list[tuple[str, str, NetWorthGroupKind]]
     points: list[tuple[date, date, list[int]]]
