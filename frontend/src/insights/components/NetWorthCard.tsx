@@ -3,8 +3,9 @@ import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import {
-  Area,
-  AreaChart,
+  Bar,
+  ComposedChart,
+  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -33,7 +34,7 @@ type NetWorthChartItem = {
   id: string
   name: string
   color: string
-  kind: 'total' | 'asset' | 'debt'
+  kind: 'asset' | 'debt'
   getValue: (point: NetWorthPoint) => number
 }
 
@@ -53,18 +54,23 @@ type NetWorthCardProps = {
 }
 
 const groupColors: Record<string, string> = {
-  cash: '#2563eb',
-  tax_advantaged: '#16a34a',
-  term_deposits: '#d97706',
-  investments: '#7c3aed',
-  other_assets: '#0891b2',
-  revolving_debt: '#dc2626',
-  loans: '#be123c',
-  mortgages: '#9333ea',
-  other_debt: '#64748b',
+  cash: '#2F80A7',
+  tax_advantaged: '#5D8F6D',
+  term_deposits: '#D67A45',
+  investments: '#37434F',
+  other_assets: '#8F989F',
+  revolving_debt: '#AB5E56',
+  loans: '#D0717D',
+  mortgages: '#9E4F4A',
+  other_debt: '#7F4D52',
 }
 
 const netWorthChartLeftMargin = 8
+const netWorthChangeColor = '#1F3F73'
+const assetContributionColor = '#5D8F6D'
+const debtContributionColor = '#AB5E56'
+const compositionAssetFallbackColor = '#6F98B7'
+const compositionDebtFallbackColor = '#AB5E56'
 
 const netWorthLegendContainerVariants = {
   initial: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
@@ -93,19 +99,16 @@ function getChangeKey(index: number) {
   return `series${index}Change`
 }
 
+function getChartKey(index: number) {
+  return `series${index}Chart`
+}
+
 function getOverviewItems(groups: NetWorthGroup[]): NetWorthChartItem[] {
   return [
     {
-      id: 'total',
-      name: 'Net Worth',
-      color: '#2563eb',
-      kind: 'total',
-      getValue: (point) => point.total,
-    },
-    {
       id: 'assets',
       name: 'Assets',
-      color: '#16a34a',
+      color: assetContributionColor,
       kind: 'asset',
       getValue: (point) => groups.reduce((sum, group, index) => (
         group.kind === 'asset' ? sum + (point.values[index] ?? 0) : sum
@@ -114,7 +117,7 @@ function getOverviewItems(groups: NetWorthGroup[]): NetWorthChartItem[] {
     {
       id: 'debt',
       name: 'Debt',
-      color: '#dc2626',
+      color: debtContributionColor,
       kind: 'debt',
       getValue: (point) => groups.reduce((sum, group, index) => (
         group.kind === 'debt' ? sum + (point.values[index] ?? 0) : sum
@@ -128,7 +131,9 @@ function getCompositionItems(groups: NetWorthGroup[]): NetWorthChartItem[] {
     id: group.id,
     name: group.name,
     kind: group.kind,
-    color: groupColors[group.id] ?? (group.kind === 'asset' ? '#2563eb' : '#dc2626'),
+    color: groupColors[group.id] ?? (
+      group.kind === 'asset' ? compositionAssetFallbackColor : compositionDebtFallbackColor
+    ),
     getValue: (point) => point.values[index] ?? 0,
   }))
 }
@@ -147,8 +152,10 @@ function getChartData(series: NetWorthPoint[], items: NetWorthChartItem[]): NetW
 
     items.forEach((item, index) => {
       const value = item.getValue(point)
+      const change = value - startValues[index]
       deltaPoint[getValueKey(index)] = value
-      deltaPoint[getChangeKey(index)] = value - startValues[index]
+      deltaPoint[getChangeKey(index)] = change
+      deltaPoint[getChartKey(index)] = change
     })
 
     return deltaPoint
@@ -168,9 +175,7 @@ function NetWorthChartTooltip({
 }) {
   const point = payload?.[0]?.payload
   if (!active || !point) return null
-  const detailItems = items
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => item.id !== 'total')
+  const detailItems = items.map((item, index) => ({ item, index }))
 
   return (
     <div className="app-chart-tooltip-default-content min-w-64">
@@ -187,11 +192,12 @@ function NetWorthChartTooltip({
         {detailItems.map(({ item, index }) => {
           const value = Number(point[getValueKey(index)] ?? 0)
           const change = Number(point[getChangeKey(index)] ?? 0)
+          const displayValue = item.kind === 'debt' ? Math.abs(value) : value
           return (
             <div key={item.id} className="flex justify-between gap-4">
               <span className="app-tooltip-muted">{item.name}</span>
               <span className="font-financial">
-                {formatCurrency(value, displayCurrency)}
+                {formatCurrency(displayValue, displayCurrency)}
                 {' '}
                 ({formatSignedCurrency(change, displayCurrency)})
               </span>
@@ -219,7 +225,14 @@ export function NetWorthCard({
   )
   const deltaSeries = useMemo(() => getChartData(series, chartItems), [chartItems, series])
   const hasChartData = groups.length > 0 && deltaSeries.length > 0
-  const legendAnimationKey = `${mode}-${chartItems.map((item) => item.id).join('|')}`
+  const legendItems = useMemo(
+    () => [
+      { id: 'net-worth-change', name: 'Net Worth Change', color: netWorthChangeColor },
+      ...chartItems.map((item) => ({ id: item.id, name: item.name, color: item.color })),
+    ],
+    [chartItems],
+  )
+  const legendAnimationKey = `${mode}-${legendItems.map((item) => item.id).join('|')}`
   const latestChange = deltaSeries.at(-1)?.totalChange ?? 0
   const netWorthTrendColor = latestChange > 0
     ? 'var(--app-positive)'
@@ -257,7 +270,10 @@ export function NetWorthCard({
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={deltaSeries} margin={{ top: 4, right: 8, bottom: 0, left: netWorthChartLeftMargin }}>
+              <ComposedChart
+                data={deltaSeries}
+                margin={{ top: 4, right: 8, bottom: 0, left: netWorthChartLeftMargin }}
+              >
                 <XAxis
                   dataKey="date"
                   axisLine={false}
@@ -283,19 +299,24 @@ export function NetWorthCard({
                   content={<NetWorthChartTooltip items={chartItems} displayCurrency={displayCurrency} />}
                 />
                 {chartItems.map((item, index) => (
-                  <Area
+                  <Bar
                     key={item.id}
-                    type="monotone"
-                    dataKey={getChangeKey(index)}
-                    stackId={mode === 'composition' ? 'net-worth' : undefined}
-                    stroke={item.color}
-                    strokeWidth={item.id === 'total' ? 2 : 1.4}
+                    dataKey={getChartKey(index)}
+                    stackId="net-worth-contribution"
                     fill={item.color}
-                    fillOpacity={item.id === 'total' ? 0.16 : 0.18}
-                    dot={false}
+                    maxBarSize={34}
+                    radius={4}
                   />
                 ))}
-              </AreaChart>
+                <Line
+                  type="monotone"
+                  dataKey="totalChange"
+                  stroke={netWorthChangeColor}
+                  strokeWidth={2.5}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           )}
         </div>
@@ -310,7 +331,7 @@ export function NetWorthCard({
                 animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
                 exit={shouldReduceMotion ? undefined : 'exit'}
               >
-                {chartItems.map((item) => (
+                {legendItems.map((item) => (
                   <motion.div
                     key={item.id}
                     className="flex items-center gap-1.5 text-xs"
