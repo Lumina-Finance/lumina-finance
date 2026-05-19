@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -34,3 +36,10 @@ class InsightsIncomeExpenseBreakdownResponse(BaseModel):
     expense_decreases: list[tuple[str, str, int, int, int | None, int]]
     income_increases: list[tuple[str, str, int, int, int | None, int]]
     income_decreases: list[tuple[str, str, int, int, int | None, int]]
+
+
+class InsightsNetWorthResponse(BaseModel):
+    """Payload for the insights net-worth card."""
+
+    groups: list[tuple[str, str, str]]
+    points: list[tuple[date, date, list[int]]]

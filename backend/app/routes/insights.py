@@ -12,9 +12,10 @@ from app.models.user import User
 from app.schemas.insights import (
     InsightsIncomeExpenseBreakdownResponse,
     InsightsIncomeExpenseFlowResponse,
+    InsightsNetWorthResponse,
     InsightsPeriodGlanceResponse,
 )
-from app.services.insights import get_income_expense_breakdown, get_income_expense_flow, get_period_glance
+from app.services.insights import get_income_expense_breakdown, get_income_expense_flow, get_net_worth, get_period_glance
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -64,3 +65,15 @@ async def get_income_expense_breakdown_route(
     """Return category breakdown and trend rows for the insights breakdown card."""
     _validate_date_range(from_date, to_date)
     return await get_income_expense_breakdown(db, user, from_date, to_date)
+
+
+@router.get("/net-worth", response_model=InsightsNetWorthResponse)
+async def get_net_worth_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_date: Annotated[date, Query()],
+    to_date: Annotated[date, Query()],
+):
+    """Return account-level net worth history for the insights net-worth card."""
+    _validate_date_range(from_date, to_date)
+    return await get_net_worth(db, user, from_date, to_date)

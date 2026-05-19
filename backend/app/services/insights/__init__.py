@@ -2,10 +2,12 @@
 
 from app.services.insights.income_expense_breakdown import get_income_expense_breakdown
 from app.services.insights.income_expense_flow import get_income_expense_flow
+from app.services.insights.net_worth import get_net_worth
 from app.services.insights.period_glance import get_period_glance
 
 __all__ = [
     "get_income_expense_breakdown",
     "get_income_expense_flow",
+    "get_net_worth",
     "get_period_glance",
 ]
