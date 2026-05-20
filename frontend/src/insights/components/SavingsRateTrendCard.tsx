@@ -161,15 +161,16 @@ export function SavingsRateTrendCard({
   const currentPoint = displaySnapshot.series.find((point) => point.isCurrent)
   const tickLabels = new Map(displaySnapshot.series.map((point) => [point.monthKey, point.tickLabel]))
   const ratedPoints = displaySnapshot.series.filter((point) => point.rate !== null)
-  const averageRate = ratedPoints.length > 0
-    ? Math.round(ratedPoints.reduce((sum, point) => sum + (point.rate ?? 0), 0) / ratedPoints.length)
+  const completedRatedPoints = ratedPoints.filter((point) => !point.isCurrent)
+  const averageRate = completedRatedPoints.length > 0
+    ? Math.round(completedRatedPoints.reduce((sum, point) => sum + (point.rate ?? 0), 0) / completedRatedPoints.length)
     : null
   const latestPoint = displaySnapshot.series.at(-1)
-  const bestPoint = ratedPoints.reduce<SavingsRateHistoryPoint | null>(
+  const bestPoint = completedRatedPoints.reduce<SavingsRateHistoryPoint | null>(
     (best, point) => (best === null || (point.rate ?? -Infinity) > (best.rate ?? -Infinity) ? point : best),
     null,
   )
-  const worstPoint = ratedPoints.reduce<SavingsRateHistoryPoint | null>(
+  const worstPoint = completedRatedPoints.reduce<SavingsRateHistoryPoint | null>(
     (worst, point) => (worst === null || (point.rate ?? Infinity) < (worst.rate ?? Infinity) ? point : worst),
     null,
   )
@@ -229,7 +230,7 @@ export function SavingsRateTrendCard({
                       {formatSavingsRateValue(averageRate)}
                     </p>
                     <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      Last 12 months
+                      Completed months
                     </p>
                   </div>
                 </div>
