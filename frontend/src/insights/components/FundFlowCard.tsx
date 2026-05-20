@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import {
@@ -43,6 +43,19 @@ type FlowTooltipItem = {
 
 type SignAdjustedFlowEntry = [string, number]
 
+type FundFlowSnapshot = {
+  flowData: FundFlowData
+  incomeSources: SignAdjustedFlowEntry[]
+  expenseCategories: SignAdjustedFlowEntry[]
+  incomeOutflows: SignAdjustedFlowEntry[]
+  expenseInflows: SignAdjustedFlowEntry[]
+  incomeSourceCount: number
+  expenseCategoryCount: number
+  displayCurrency: string
+  emptyLabel: string
+  chartHeight: number
+}
+
 type FundFlowCardProps = {
   header: ReactNode
   flowData: FundFlowData
@@ -53,16 +66,29 @@ type FundFlowCardProps = {
   incomeSourceCount: number
   expenseCategoryCount: number
   displayCurrency: string
+  loading?: boolean
+  transitionKey: string
   emptyLabel?: string
 }
 
 const MIN_CHART_HEIGHT = 450
 const SANKEY_ROW_HEIGHT = 56
 const SANKEY_VERTICAL_CHROME = 112
+const CHART_LOADING_MIN_MS = 800
+const CHART_HEIGHT_DURATION_MS = 750
 const listTransition = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
+const chartHeightTransition = { duration: CHART_HEIGHT_DURATION_MS / 1000, ease: [0.22, 1, 0.36, 1] } as const
+const chartVisibilityTransition = { duration: 0.32, ease: [0.22, 1, 0.36, 1] } as const
 
 function joinClassNames(...classNames: Array<string | undefined | false>) {
   return classNames.filter(Boolean).join(' ')
+}
+
+function getFundFlowChartHeight(incomeSourceCount: number, expenseCategoryCount: number) {
+  return Math.max(
+    MIN_CHART_HEIGHT,
+    Math.max(incomeSourceCount, expenseCategoryCount) * SANKEY_ROW_HEIGHT + SANKEY_VERTICAL_CHROME,
+  )
 }
 
 function normalizeGeneratedFlowName(name?: string) {
@@ -282,16 +308,81 @@ export function FundFlowCard({
   incomeSourceCount,
   expenseCategoryCount,
   displayCurrency,
+  loading = false,
+  transitionKey,
   emptyLabel = 'No income or expenses in this range.',
 }: FundFlowCardProps) {
+  const incomingSnapshot = useMemo<FundFlowSnapshot>(() => ({
+    flowData,
+    incomeSources,
+    expenseCategories,
+    incomeOutflows,
+    expenseInflows,
+    incomeSourceCount,
+    expenseCategoryCount,
+    displayCurrency,
+    emptyLabel,
+    chartHeight: getFundFlowChartHeight(incomeSourceCount, expenseCategoryCount),
+  }), [
+    displayCurrency,
+    emptyLabel,
+    expenseCategories,
+    expenseCategoryCount,
+    expenseInflows,
+    flowData,
+    incomeOutflows,
+    incomeSourceCount,
+    incomeSources,
+  ])
   const [incomeListOpen, setIncomeListOpen] = useState(false)
   const [expenseListOpen, setExpenseListOpen] = useState(false)
-  const normalIncomeSources = withoutMatchingEntries(incomeSources, expenseInflows)
-  const normalExpenseCategories = withoutMatchingEntries(expenseCategories, incomeOutflows)
-  const chartHeight = Math.max(
-    MIN_CHART_HEIGHT,
-    Math.max(incomeSourceCount, expenseCategoryCount) * SANKEY_ROW_HEIGHT + SANKEY_VERTICAL_CHROME,
-  )
+  const [displaySnapshot, setDisplaySnapshot] = useState(incomingSnapshot)
+  const [displayedChartHeight, setDisplayedChartHeight] = useState(incomingSnapshot.chartHeight)
+  const [chartConcealed, setChartConcealed] = useState(loading)
+  const [loadingVisible, setLoadingVisible] = useState(loading)
+  const loadingStartedAtRef = useRef<number | null>(null)
+  const transitionKeyRef = useRef(transitionKey)
+  const shouldReduceMotion = useReducedMotion()
+  const normalIncomeSources = withoutMatchingEntries(displaySnapshot.incomeSources, displaySnapshot.expenseInflows)
+  const normalExpenseCategories = withoutMatchingEntries(displaySnapshot.expenseCategories, displaySnapshot.incomeOutflows)
+
+  useEffect(() => {
+    const transitionChanged = transitionKeyRef.current !== transitionKey
+    if (transitionChanged) {
+      transitionKeyRef.current = transitionKey
+    }
+
+    if (!loading && !transitionChanged) return undefined
+
+    loadingStartedAtRef.current = Date.now()
+    const frameId = window.requestAnimationFrame(() => {
+      setChartConcealed(true)
+      setLoadingVisible(true)
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [loading, transitionKey])
+
+  useEffect(() => {
+    if (loading) return undefined
+
+    const loadingStartedAt = loadingStartedAtRef.current
+    const remainingLoadingMs = loadingStartedAt === null
+      ? 0
+      : Math.max(0, CHART_LOADING_MIN_MS - (Date.now() - loadingStartedAt))
+
+    const finishTimeoutId = window.setTimeout(() => {
+      setDisplaySnapshot(incomingSnapshot)
+      setDisplayedChartHeight(incomingSnapshot.chartHeight)
+      setLoadingVisible(false)
+      setChartConcealed(false)
+      loadingStartedAtRef.current = null
+    }, shouldReduceMotion ? 0 : remainingLoadingMs)
+
+    return () => {
+      window.clearTimeout(finishTimeoutId)
+    }
+  }, [incomingSnapshot, loading, shouldReduceMotion, transitionKey])
 
   return (
     <section
@@ -306,48 +397,76 @@ export function FundFlowCard({
         <FlowCategoryList
           title="Income Sources"
           normalEntries={normalIncomeSources}
-          flippedEntries={expenseInflows}
+          flippedEntries={displaySnapshot.expenseInflows}
           flippedLabel="Expense Inflow"
           normalLabel="Income Source"
-          displayCurrency={displayCurrency}
+          displayCurrency={displaySnapshot.displayCurrency}
           open={incomeListOpen}
           onToggle={() => setIncomeListOpen((current) => !current)}
         />
         <FlowCategoryList
           title="Expense Categories"
           normalEntries={normalExpenseCategories}
-          flippedEntries={incomeOutflows}
+          flippedEntries={displaySnapshot.incomeOutflows}
           flippedLabel="Income Outflow"
           normalLabel="Expense Category"
-          displayCurrency={displayCurrency}
+          displayCurrency={displaySnapshot.displayCurrency}
           open={expenseListOpen}
           onToggle={() => setExpenseListOpen((current) => !current)}
         />
       </div>
-      <div className="w-full" style={{ height: chartHeight }}>
-        {flowData.nodes.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <Sankey
-              data={flowData}
-              node={FlowNodeShape}
-              nodePadding={18}
-              nodeWidth={6}
-              verticalAlign="top"
-              link={{ stroke: 'var(--app-accent)', strokeOpacity: 0.24 }}
-              margin={{ top: 18, right: 12, bottom: 18, left: 12 }}
+      <motion.div
+        className="relative w-full overflow-hidden"
+        initial={false}
+        animate={{ height: displayedChartHeight }}
+        transition={shouldReduceMotion ? { duration: 0 } : chartHeightTransition}
+      >
+        <motion.div
+          className="relative w-full"
+          animate={{
+            filter: chartConcealed ? 'blur(8px)' : 'blur(0px)',
+            opacity: chartConcealed ? 0 : 1,
+          }}
+          transition={shouldReduceMotion ? { duration: 0 } : chartVisibilityTransition}
+          style={{ height: displaySnapshot.chartHeight }}
+        >
+          {displaySnapshot.flowData.nodes.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <Sankey
+                data={displaySnapshot.flowData}
+                node={FlowNodeShape}
+                nodePadding={18}
+                nodeWidth={6}
+                verticalAlign="top"
+                link={{ stroke: 'var(--app-accent)', strokeOpacity: 0.24 }}
+                margin={{ top: 18, right: 12, bottom: 18, left: 12 }}
+              >
+                <Tooltip
+                  wrapperClassName="app-chart-tooltip-default"
+                  content={<SankeyFlowTooltip displayCurrency={displaySnapshot.displayCurrency} />}
+                />
+              </Sankey>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {displaySnapshot.emptyLabel}
+            </div>
+          )}
+        </motion.div>
+        <AnimatePresence>
+          {loadingVisible && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center"
+              initial={shouldReduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
+              transition={shouldReduceMotion ? { duration: 0 } : chartVisibilityTransition}
             >
-              <Tooltip
-                wrapperClassName="app-chart-tooltip-default"
-                content={<SankeyFlowTooltip displayCurrency={displayCurrency} />}
-              />
-            </Sankey>
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            {emptyLabel}
-          </div>
-        )}
-      </div>
+              <div className="app-spinner" aria-label="Loading fund flow" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </section>
   )
 }

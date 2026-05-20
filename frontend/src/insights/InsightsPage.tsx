@@ -128,6 +128,8 @@ const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[]
   { value: 'CUSTOM', label: 'Custom' },
 ]
 
+const EMPTY_FLOW_ENTRIES: InsightsFlowEntry[] = []
+
 const presetScaffoldRange: Record<Exclude<InsightsRangePreset, 'CUSTOM'>, SpendingRange> = {
   THIS_WEEK: 'WTD',
   THIS_MONTH: 'MTD',
@@ -987,10 +989,10 @@ export default function InsightsPage() {
     [breakdownMode, incomeExpenseBreakdownQuery.data],
   )
   const flowData = useMemo(() => getFlowData(incomeExpenseFlowQuery.data), [incomeExpenseFlowQuery.data])
-  const flowIncomeSources = incomeExpenseFlowQuery.data?.income_sources ?? []
-  const flowExpenseCategories = incomeExpenseFlowQuery.data?.expense_categories ?? []
-  const flowIncomeOutflows = incomeExpenseFlowQuery.data?.income_outflows ?? []
-  const flowExpenseInflows = incomeExpenseFlowQuery.data?.expense_inflows ?? []
+  const flowIncomeSources = incomeExpenseFlowQuery.data?.income_sources ?? EMPTY_FLOW_ENTRIES
+  const flowExpenseCategories = incomeExpenseFlowQuery.data?.expense_categories ?? EMPTY_FLOW_ENTRIES
+  const flowIncomeOutflows = incomeExpenseFlowQuery.data?.income_outflows ?? EMPTY_FLOW_ENTRIES
+  const flowExpenseInflows = incomeExpenseFlowQuery.data?.expense_inflows ?? EMPTY_FLOW_ENTRIES
   const flowIncomeSourceCount = incomeExpenseFlowQuery.data?.income_source_count ?? 0
   const flowExpenseCategoryCount = incomeExpenseFlowQuery.data?.expense_category_count ?? 0
   const flowEmptyLabel = incomeExpenseFlowQuery.isLoading
@@ -1090,6 +1092,8 @@ export default function InsightsPage() {
           incomeSourceCount={flowIncomeSourceCount}
           expenseCategoryCount={flowExpenseCategoryCount}
           displayCurrency={displayCurrency}
+          loading={incomeExpenseFlowQuery.isFetching}
+          transitionKey={`${rangeInputDates.from}:${rangeInputDates.to}`}
           emptyLabel={flowEmptyLabel}
         />
 
