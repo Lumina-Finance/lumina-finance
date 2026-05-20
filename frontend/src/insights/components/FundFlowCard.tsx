@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useId, useMemo, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import {
@@ -8,6 +8,11 @@ import {
   type SankeyNodeProps,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  InsightLoadingContent,
+  InsightLoadingOverlay,
+} from './InsightLoadingTransition'
+import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 type FundFlowNodeKind = 'income' | 'expense' | 'summary' | 'retained'
 
@@ -74,11 +79,9 @@ type FundFlowCardProps = {
 const MIN_CHART_HEIGHT = 450
 const SANKEY_ROW_HEIGHT = 56
 const SANKEY_VERTICAL_CHROME = 112
-const CHART_LOADING_MIN_MS = 800
 const CHART_HEIGHT_DURATION_MS = 750
 const listTransition = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
 const chartHeightTransition = { duration: CHART_HEIGHT_DURATION_MS / 1000, ease: [0.22, 1, 0.36, 1] } as const
-const chartVisibilityTransition = { duration: 0.32, ease: [0.22, 1, 0.36, 1] } as const
 
 function joinClassNames(...classNames: Array<string | undefined | false>) {
   return classNames.filter(Boolean).join(' ')
@@ -336,53 +339,18 @@ export function FundFlowCard({
   ])
   const [incomeListOpen, setIncomeListOpen] = useState(false)
   const [expenseListOpen, setExpenseListOpen] = useState(false)
-  const [displaySnapshot, setDisplaySnapshot] = useState(incomingSnapshot)
-  const [displayedChartHeight, setDisplayedChartHeight] = useState(incomingSnapshot.chartHeight)
-  const [chartConcealed, setChartConcealed] = useState(loading)
-  const [loadingVisible, setLoadingVisible] = useState(loading)
-  const loadingStartedAtRef = useRef<number | null>(null)
-  const transitionKeyRef = useRef(transitionKey)
-  const shouldReduceMotion = useReducedMotion()
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useInsightLoadingSnapshot({
+    snapshot: incomingSnapshot,
+    loading,
+    transitionKey,
+  })
   const normalIncomeSources = withoutMatchingEntries(displaySnapshot.incomeSources, displaySnapshot.expenseInflows)
   const normalExpenseCategories = withoutMatchingEntries(displaySnapshot.expenseCategories, displaySnapshot.incomeOutflows)
-
-  useEffect(() => {
-    const transitionChanged = transitionKeyRef.current !== transitionKey
-    if (transitionChanged) {
-      transitionKeyRef.current = transitionKey
-    }
-
-    if (!loading && !transitionChanged) return undefined
-
-    loadingStartedAtRef.current = Date.now()
-    const frameId = window.requestAnimationFrame(() => {
-      setChartConcealed(true)
-      setLoadingVisible(true)
-    })
-
-    return () => window.cancelAnimationFrame(frameId)
-  }, [loading, transitionKey])
-
-  useEffect(() => {
-    if (loading) return undefined
-
-    const loadingStartedAt = loadingStartedAtRef.current
-    const remainingLoadingMs = loadingStartedAt === null
-      ? 0
-      : Math.max(0, CHART_LOADING_MIN_MS - (Date.now() - loadingStartedAt))
-
-    const finishTimeoutId = window.setTimeout(() => {
-      setDisplaySnapshot(incomingSnapshot)
-      setDisplayedChartHeight(incomingSnapshot.chartHeight)
-      setLoadingVisible(false)
-      setChartConcealed(false)
-      loadingStartedAtRef.current = null
-    }, shouldReduceMotion ? 0 : remainingLoadingMs)
-
-    return () => {
-      window.clearTimeout(finishTimeoutId)
-    }
-  }, [incomingSnapshot, loading, shouldReduceMotion, transitionKey])
 
   return (
     <section
@@ -418,16 +386,13 @@ export function FundFlowCard({
       <motion.div
         className="relative w-full overflow-hidden"
         initial={false}
-        animate={{ height: displayedChartHeight }}
+        animate={{ height: displaySnapshot.chartHeight }}
         transition={shouldReduceMotion ? { duration: 0 } : chartHeightTransition}
       >
-        <motion.div
+        <InsightLoadingContent
           className="relative w-full"
-          animate={{
-            filter: chartConcealed ? 'blur(8px)' : 'blur(0px)',
-            opacity: chartConcealed ? 0 : 1,
-          }}
-          transition={shouldReduceMotion ? { duration: 0 } : chartVisibilityTransition}
+          concealed={contentConcealed}
+          shouldReduceMotion={shouldReduceMotion}
           style={{ height: displaySnapshot.chartHeight }}
         >
           {displaySnapshot.flowData.nodes.length > 0 ? (
@@ -452,20 +417,12 @@ export function FundFlowCard({
               {displaySnapshot.emptyLabel}
             </div>
           )}
-        </motion.div>
-        <AnimatePresence>
-          {loadingVisible && (
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center"
-              initial={shouldReduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
-              transition={shouldReduceMotion ? { duration: 0 } : chartVisibilityTransition}
-            >
-              <div className="app-spinner" aria-label="Loading fund flow" />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </InsightLoadingContent>
+        <InsightLoadingOverlay
+          visible={loadingVisible}
+          shouldReduceMotion={shouldReduceMotion}
+          label="Loading fund flow"
+        />
       </motion.div>
     </section>
   )
