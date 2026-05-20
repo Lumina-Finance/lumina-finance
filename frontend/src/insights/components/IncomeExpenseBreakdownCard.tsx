@@ -145,7 +145,7 @@ export function IncomeExpenseBreakdownCard({
       {header}
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <div className="grid gap-6 min-[1180px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+          <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
             <div className="flex min-h-[620px] flex-col">
               <div className="relative h-[450px] shrink-0">
                 <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
@@ -214,8 +214,8 @@ export function IncomeExpenseBreakdownCard({
               </div>
             </div>
 
-            <div className="flex min-h-[620px] flex-col border-t border-[var(--app-border)] pt-4 min-[1180px]:border-t-0 min-[1180px]:pt-0">
-              <div className="grid min-h-0 flex-1 grid-rows-2 gap-4">
+            <div className="flex min-h-[620px] flex-col border-t border-[var(--app-border)] pt-3 min-[1350px]:border-t-0 min-[1350px]:pt-0">
+              <div className="grid gap-4 min-[1350px]:min-h-0 min-[1350px]:flex-1 min-[1350px]:grid-rows-2">
                 {displaySnapshot.trendSections.map((section) => (
                   <div
                     key={section.id}
@@ -228,7 +228,7 @@ export function IncomeExpenseBreakdownCard({
                       <AnimatePresence initial={false} mode="wait">
                         <motion.div
                           key={`${section.id}-${displaySnapshot.animationKey}`}
-                          className="space-y-2"
+                          className={section.drivers.length === 0 ? 'h-36 min-[1350px]:h-full' : 'space-y-2'}
                           variants={shouldReduceMotion ? undefined : categoryTrendListVariants}
                           initial={shouldReduceMotion ? false : 'initial'}
                           animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
@@ -237,7 +237,7 @@ export function IncomeExpenseBreakdownCard({
                           {section.drivers.length === 0 ? (
                             <motion.p
                               key={`${section.id}-empty`}
-                              className="rounded-md border border-[var(--app-border)] px-3 py-2.5 text-sm"
+                              className="flex h-full items-center justify-center rounded-md border border-[var(--app-border)] px-3 py-2.5 text-sm"
                               style={{ color: 'var(--app-text-muted)' }}
                               variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
                               transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
