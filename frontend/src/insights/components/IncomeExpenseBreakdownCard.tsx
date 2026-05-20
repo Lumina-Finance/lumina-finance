@@ -111,6 +111,10 @@ function getCategoryDriverDescriptor(changeAmount: number) {
   return changeAmount > 0 ? 'increase' : 'decrease'
 }
 
+function getTransactionCountLabel(count: number) {
+  return `${count} ${count === 1 ? 'transaction' : 'transactions'}`
+}
+
 export function IncomeExpenseBreakdownCard({
   header,
   mode,
@@ -253,23 +257,36 @@ export function IncomeExpenseBreakdownCard({
                             return (
                               <motion.div
                                 key={driver.id}
-                                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-md border border-[var(--app-border)] px-3 py-2.5"
+                                className="grid gap-2 rounded-md border border-[var(--app-border)] px-3 py-2.5 min-[750px]:grid-cols-[minmax(0,1fr)_auto] min-[750px]:items-center min-[750px]:gap-4"
                                 variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
                                 transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
                               >
                                 <div className="min-w-0">
-                                  <p className="truncate font-semibold">
-                                    {driver.name}
+                                  <div className="flex items-start justify-between gap-3 min-[750px]:block">
+                                    <p className="min-w-0 truncate font-semibold">
+                                      {driver.name}
+                                    </p>
+                                    <p className="shrink-0 font-financial text-base min-[750px]:hidden">
+                                      {formatCurrency(driver.amount, displaySnapshot.displayCurrency)}
+                                    </p>
+                                  </div>
+                                  <p className="mt-1 text-sm min-[750px]:hidden" style={{ color: 'var(--app-text-muted)' }}>
+                                    {getTransactionCountLabel(driver.transactionCount)}
+                                    <span className="px-1.5" aria-hidden>·</span>
+                                    Previous {formatCurrency(driver.previousAmount, displaySnapshot.displayCurrency)}
                                   </p>
-                                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                                    {driver.transactionCount} transactions | previous {formatCurrency(driver.previousAmount, displaySnapshot.displayCurrency)}
+                                  <p className="hidden text-sm min-[750px]:block" style={{ color: 'var(--app-text-muted)' }}>
+                                    {getTransactionCountLabel(driver.transactionCount)} | previous {formatCurrency(driver.previousAmount, displaySnapshot.displayCurrency)}
                                   </p>
                                 </div>
-                                <div className="text-right">
-                                  <p className="font-financial text-base">
+                                <div className="flex items-baseline justify-between gap-3 min-[750px]:block min-[750px]:text-right">
+                                  <span className="text-xs font-semibold uppercase min-[750px]:hidden" style={{ color: 'var(--app-text-subtle)' }}>
+                                    Change
+                                  </span>
+                                  <p className="hidden font-financial text-base min-[750px]:block">
                                     {formatCurrency(driver.amount, displaySnapshot.displayCurrency)}
                                   </p>
-                                  <p className="mt-1 font-financial text-sm" style={{ color: driverColor }}>
+                                  <p className="font-financial text-sm min-[750px]:mt-1" style={{ color: driverColor }}>
                                     {formatSignedCurrency(changeAmount, displaySnapshot.displayCurrency)}
                                     {changePctLabel && (
                                       <>
@@ -277,8 +294,10 @@ export function IncomeExpenseBreakdownCard({
                                         {changePctLabel}
                                       </>
                                     )}
-                                    {' '}
-                                    {getCategoryDriverDescriptor(changeAmount)}
+                                    <span className="hidden min-[750px]:inline">
+                                      {' '}
+                                      {getCategoryDriverDescriptor(changeAmount)}
+                                    </span>
                                   </p>
                                 </div>
                               </motion.div>
