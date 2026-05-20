@@ -17,6 +17,7 @@ import {
   useInsightsIncomeExpenseBreakdown,
   useInsightsIncomeExpenseFlow,
   useInsightsMerchantDistribution,
+  useInsightsMerchantRanking,
   useInsightsNetWorth,
   useInsightsPeriodGlance,
   useInsightsSavingsRateTrend,
@@ -26,6 +27,7 @@ import {
   type InsightsIncomeExpenseBreakdownResponse,
   type InsightsIncomeExpenseFlowResponse,
   type InsightsMerchantDistributionResponse,
+  type InsightsMerchantRankingResponse,
   type InsightsNetWorthResponse,
   type InsightsPeriodGlanceResponse,
   type InsightsSavingsRateTrendResponse,
@@ -73,14 +75,6 @@ import {
 
 type InsightsRangePreset = 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'LAST_WEEK' | 'LAST_MONTH' | 'CUSTOM'
 
-type MerchantBubble = {
-  id: string
-  name: string
-  totalAmount: number
-  transactionCount: number
-  averageAmount: number
-}
-
 type MerchantMarketEntry = {
   id: string
   name: string
@@ -106,7 +100,6 @@ type InsightScaffoldData = {
   activeMerchants: number
   incomeBreakdown: BreakdownEntry[]
   expenseBreakdown: BreakdownEntry[]
-  merchantBubbles: MerchantBubble[]
 }
 
 type NetWorthGranularity = 'day' | 'week' | 'month'
@@ -143,65 +136,6 @@ const presetScaffoldRange: Record<Exclude<InsightsRangePreset, 'CUSTOM'>, Spendi
   LAST_MONTH: 'MTD',
 }
 
-const merchantChangeByRange: Record<SpendingRange, Record<string, number>> = {
-  WTD: {
-    'green-market': 11,
-    'metro-ride': -6,
-    'cafe-luna': 8,
-    streamline: 0,
-    'north-pharmacy': 14,
-    'urban-outfit': -5,
-    'book-nook': 18,
-    'city-parking': -9,
-    'fit-studio': 0,
-    'home-hardware': 6,
-  },
-  MTD: {
-    rentco: 0,
-    'green-market': 18,
-    'cafe-luna': 27,
-    'ride-grid': -4,
-    streamline: 6,
-    cloudforge: 0,
-    'north-pharmacy': 13,
-    'urban-outfit': -9,
-    'book-nook': 16,
-    'city-parking': -7,
-    'fit-studio': 0,
-    'pet-pantry': 11,
-  },
-  QTD: {
-    rentco: 0,
-    'green-market': 10,
-    'cafe-luna': 19,
-    'ride-grid': -12,
-    'skyline-air': 34,
-    streamline: 3,
-    'north-pharmacy': 9,
-    'urban-outfit': -10,
-    'book-nook': 14,
-    'city-parking': -8,
-    'fit-studio': 0,
-    'pet-pantry': 12,
-    'home-hardware': 7,
-  },
-  YTD: {
-    rentco: 0,
-    'green-market': 7,
-    'cafe-luna': 13,
-    'ride-grid': -18,
-    'skyline-air': 29,
-    streamline: 6,
-    'north-pharmacy': 12,
-    'urban-outfit': -11,
-    'book-nook': 10,
-    'city-parking': -9,
-    'fit-studio': 0,
-    'pet-pantry': 8,
-    'home-hardware': 13,
-  },
-}
-
 const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
   WTD: {
     periodLabel: 'This week',
@@ -223,18 +157,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
       { id: 'subscriptions', name: 'Subscriptions', amount: 15400 },
       { id: 'shopping', name: 'Shopping', amount: 15200 },
       { id: 'health', name: 'Health', amount: 12000 },
-    ],
-    merchantBubbles: [
-      { id: 'green-market', name: 'Green Market', totalAmount: 28200, transactionCount: 5, averageAmount: 5640 },
-      { id: 'metro-ride', name: 'Metro Ride', totalAmount: 18400, transactionCount: 8, averageAmount: 2300 },
-      { id: 'cafe-luna', name: 'Cafe Luna', totalAmount: 12100, transactionCount: 4, averageAmount: 3025 },
-      { id: 'streamline', name: 'Streamline', totalAmount: 15400, transactionCount: 2, averageAmount: 7700 },
-      { id: 'north-pharmacy', name: 'North Pharmacy', totalAmount: 12000, transactionCount: 1, averageAmount: 12000 },
-      { id: 'urban-outfit', name: 'Urban Outfit', totalAmount: 8200, transactionCount: 1, averageAmount: 8200 },
-      { id: 'book-nook', name: 'Book Nook', totalAmount: 5400, transactionCount: 2, averageAmount: 2700 },
-      { id: 'city-parking', name: 'City Parking', totalAmount: 4800, transactionCount: 3, averageAmount: 1600 },
-      { id: 'fit-studio', name: 'Fit Studio', totalAmount: 3900, transactionCount: 1, averageAmount: 3900 },
-      { id: 'home-hardware', name: 'Neighbourhood Home Hardware', totalAmount: 4000, transactionCount: 1, averageAmount: 4000 },
     ],
   },
   MTD: {
@@ -260,20 +182,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
       { id: 'subscriptions', name: 'Subscriptions', amount: 18800 },
       { id: 'health', name: 'Health', amount: 14900 },
       { id: 'software', name: 'Software', amount: 36000 },
-    ],
-    merchantBubbles: [
-      { id: 'rentco', name: 'RentCo Living', totalAmount: 210000, transactionCount: 1, averageAmount: 210000 },
-      { id: 'green-market', name: 'Green Market', totalAmount: 74200, transactionCount: 9, averageAmount: 8244 },
-      { id: 'cafe-luna', name: 'Cafe Luna', totalAmount: 28600, transactionCount: 10, averageAmount: 2860 },
-      { id: 'ride-grid', name: 'Ride Grid', totalAmount: 24800, transactionCount: 14, averageAmount: 1771 },
-      { id: 'streamline', name: 'Streamline', totalAmount: 18800, transactionCount: 4, averageAmount: 4700 },
-      { id: 'cloudforge', name: 'CloudForge', totalAmount: 36000, transactionCount: 2, averageAmount: 18000 },
-      { id: 'north-pharmacy', name: 'North Pharmacy', totalAmount: 14900, transactionCount: 2, averageAmount: 7450 },
-      { id: 'urban-outfit', name: 'Urban Outfit', totalAmount: 35200, transactionCount: 3, averageAmount: 11733 },
-      { id: 'book-nook', name: 'Book Nook', totalAmount: 4200, transactionCount: 2, averageAmount: 2100 },
-      { id: 'city-parking', name: 'City Parking', totalAmount: 3600, transactionCount: 4, averageAmount: 900 },
-      { id: 'fit-studio', name: 'Fit Studio', totalAmount: 3200, transactionCount: 1, averageAmount: 3200 },
-      { id: 'pet-pantry', name: 'Pet Pantry', totalAmount: 2800, transactionCount: 1, averageAmount: 2800 },
     ],
   },
   QTD: {
@@ -301,21 +209,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
       { id: 'health', name: 'Health', amount: 42600 },
       { id: 'software', name: 'Software', amount: 29900 },
     ],
-    merchantBubbles: [
-      { id: 'rentco', name: 'RentCo Living', totalAmount: 630000, transactionCount: 3, averageAmount: 210000 },
-      { id: 'green-market', name: 'Green Market', totalAmount: 225600, transactionCount: 29, averageAmount: 7779 },
-      { id: 'cafe-luna', name: 'Cafe Luna', totalAmount: 85100, transactionCount: 32, averageAmount: 2659 },
-      { id: 'ride-grid', name: 'Ride Grid', totalAmount: 74200, transactionCount: 46, averageAmount: 1613 },
-      { id: 'skyline-air', name: 'Skyline Air', totalAmount: 88000, transactionCount: 2, averageAmount: 44000 },
-      { id: 'streamline', name: 'Streamline', totalAmount: 54500, transactionCount: 12, averageAmount: 4542 },
-      { id: 'north-pharmacy', name: 'North Pharmacy', totalAmount: 42600, transactionCount: 6, averageAmount: 7100 },
-      { id: 'urban-outfit', name: 'Urban Outfit', totalAmount: 114200, transactionCount: 9, averageAmount: 12689 },
-      { id: 'book-nook', name: 'Book Nook', totalAmount: 18600, transactionCount: 6, averageAmount: 3100 },
-      { id: 'city-parking', name: 'City Parking', totalAmount: 14200, transactionCount: 17, averageAmount: 835 },
-      { id: 'fit-studio', name: 'Fit Studio', totalAmount: 9600, transactionCount: 3, averageAmount: 3200 },
-      { id: 'pet-pantry', name: 'Pet Pantry', totalAmount: 12900, transactionCount: 4, averageAmount: 3225 },
-      { id: 'home-hardware', name: 'Neighbourhood Home Hardware', totalAmount: 25000, transactionCount: 3, averageAmount: 8333 },
-    ],
   },
   YTD: {
     periodLabel: 'This year',
@@ -341,21 +234,6 @@ const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
       { id: 'subscriptions', name: 'Subscriptions', amount: 141300 },
       { id: 'health', name: 'Health', amount: 132900 },
       { id: 'software', name: 'Software', amount: 90000 },
-    ],
-    merchantBubbles: [
-      { id: 'rentco', name: 'RentCo Living', totalAmount: 1680000, transactionCount: 8, averageAmount: 210000 },
-      { id: 'green-market', name: 'Green Market', totalAmount: 584400, transactionCount: 73, averageAmount: 8005 },
-      { id: 'cafe-luna', name: 'Cafe Luna', totalAmount: 215600, transactionCount: 89, averageAmount: 2422 },
-      { id: 'ride-grid', name: 'Ride Grid', totalAmount: 188900, transactionCount: 117, averageAmount: 1615 },
-      { id: 'skyline-air', name: 'Skyline Air', totalAmount: 228000, transactionCount: 5, averageAmount: 45600 },
-      { id: 'streamline', name: 'Streamline', totalAmount: 141300, transactionCount: 31, averageAmount: 4558 },
-      { id: 'north-pharmacy', name: 'North Pharmacy', totalAmount: 132900, transactionCount: 17, averageAmount: 7818 },
-      { id: 'urban-outfit', name: 'Urban Outfit', totalAmount: 284700, transactionCount: 24, averageAmount: 11863 },
-      { id: 'book-nook', name: 'Book Nook', totalAmount: 42800, transactionCount: 13, averageAmount: 3292 },
-      { id: 'city-parking', name: 'City Parking', totalAmount: 32400, transactionCount: 39, averageAmount: 831 },
-      { id: 'fit-studio', name: 'Fit Studio', totalAmount: 25600, transactionCount: 8, averageAmount: 3200 },
-      { id: 'pet-pantry', name: 'Pet Pantry', totalAmount: 37400, transactionCount: 11, averageAmount: 3400 },
-      { id: 'home-hardware', name: 'Neighbourhood Home Hardware', totalAmount: 104600, transactionCount: 12, averageAmount: 8717 },
     ],
   },
 }
@@ -855,10 +733,6 @@ function getPeriodGlanceChangeDetail(changeAmount: number, changePct: number | u
   return `${amount} (${changePct > 0 ? '+' : ''}${changePct}%) vs the previous matching period.`
 }
 
-function getMerchantChange(merchant: MerchantBubble, range: SpendingRange) {
-  return merchantChangeByRange[range][merchant.id] ?? 0
-}
-
 function getMerchantDistributionEntries(
   response: InsightsMerchantDistributionResponse | undefined,
 ): MerchantMarketEntry[] {
@@ -868,6 +742,19 @@ function getMerchantDistributionEntries(
     totalAmount,
     changePct,
     changeAmount,
+  }))
+}
+
+function getMerchantRankingRows(
+  response: InsightsMerchantRankingResponse | undefined,
+): MerchantRankingRow[] {
+  return (response?.merchants ?? []).map(([id, name, totalAmount, transactionCount, changePct]) => ({
+    id,
+    name,
+    totalAmount,
+    transactionCount,
+    averageAmount: transactionCount > 0 ? Math.round(totalAmount / transactionCount) : 0,
+    changePct,
   }))
 }
 
@@ -1087,6 +974,11 @@ export default function InsightsPage() {
     rangeInputDates.to,
     insightsCardQueriesEnabled,
   )
+  const merchantRankingQuery = useInsightsMerchantRanking(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    insightsCardQueriesEnabled,
+  )
   const savingsRateTrendQuery = useInsightsSavingsRateTrend()
   const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
@@ -1151,12 +1043,10 @@ export default function InsightsPage() {
     () => getMerchantMarketLayout(getMerchantDistributionEntries(merchantDistributionQuery.data)),
     [merchantDistributionQuery.data],
   )
-  const rankedMerchants: MerchantRankingRow[] = [...data.merchantBubbles]
-    .sort((a, b) => b.totalAmount - a.totalAmount)
-    .map((merchant) => ({
-      ...merchant,
-      changePct: getMerchantChange(merchant, range),
-    }))
+  const rankedMerchants = useMemo(
+    () => getMerchantRankingRows(merchantRankingQuery.data),
+    [merchantRankingQuery.data],
+  )
   return (
     <div className="relative">
       <header className="app-page-header min-[760px]:pr-[25rem]">
@@ -1304,6 +1194,7 @@ export default function InsightsPage() {
             header={<SectionHeader icon={ListChecks} label="Merchant Ranking" />}
             merchants={rankedMerchants}
             currency={displayCurrency}
+            emptyLabel={merchantRankingQuery.isLoading ? 'Loading merchant ranking...' : undefined}
           />
         </section>
 
