@@ -14,6 +14,7 @@ from app.schemas.insights import (
     InsightsIncomeExpenseBreakdownResponse,
     InsightsIncomeExpenseFlowResponse,
     InsightsMerchantDistributionResponse,
+    InsightsMerchantRankingResponse,
     InsightsNetWorthResponse,
     InsightsPeriodGlanceResponse,
     InsightsSavingsRateTrendResponse,
@@ -22,6 +23,7 @@ from app.services.insights import (
     get_income_expense_breakdown,
     get_income_expense_flow,
     get_merchant_distribution,
+    get_merchant_ranking,
     get_net_worth,
     get_period_glance,
     get_savings_rate_trend,
@@ -108,3 +110,15 @@ async def get_merchant_distribution_route(
     """Return merchant spend rows for the insights merchant distribution card."""
     _validate_date_range(from_date, to_date)
     return await get_merchant_distribution(db, user, from_date, to_date)
+
+
+@router.get("/merchant-ranking", response_model=InsightsMerchantRankingResponse)
+async def get_merchant_ranking_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_date: Annotated[date, Query()],
+    to_date: Annotated[date, Query()],
+):
+    """Return merchant ranking rows for the insights merchant ranking card."""
+    _validate_date_range(from_date, to_date)
+    return await get_merchant_ranking(db, user, from_date, to_date)

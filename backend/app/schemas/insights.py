@@ -58,3 +58,9 @@ class InsightsMerchantDistributionResponse(BaseModel):
     """Payload for the insights merchant distribution card."""
 
     merchants: list[tuple[str, str, int, int | None, int | None]]
+
+
+class InsightsMerchantRankingResponse(BaseModel):
+    """Payload for the insights merchant ranking card."""
+
+    merchants: list[tuple[str, str, int, int, int | None]]
