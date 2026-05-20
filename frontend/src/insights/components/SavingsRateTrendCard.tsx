@@ -191,13 +191,16 @@ export function SavingsRateTrendCard({
   const yAxisDomain = displaySnapshot.capRates
     ? [showCappedNegativeSection ? -100 : 0, showCappedPositiveSection ? 100 : 0]
     : [hasNegativeRate ? Math.min(-100, lowestRate) : 0, Math.max(highestRate, 0)]
-  const yAxisTicks = Array.from(new Set([
-    ...((displaySnapshot.capRates ? showCappedNegativeSection : hasNegativeRate) ? [-100] : []),
-    ...(displaySnapshot.capRates ? [0] : []),
+  const yAxisTicks = Array.from(new Set(displaySnapshot.capRates ? [
+    ...(showCappedNegativeSection ? [-100] : []),
+    0,
+    ...(showCappedPositiveSection ? [100] : []),
+  ] : [
+    ...(hasNegativeRate ? [-100] : []),
     lowestRate,
     ...(averageChartRate !== null ? [averageChartRate] : []),
-    highestRate,
-    ...((displaySnapshot.capRates ? showCappedPositiveSection : hasFullRate) ? [100] : []),
+    0,
+    ...(hasFullRate ? [100] : []),
   ]))
     .filter((tick) => tick >= yAxisDomain[0] && tick <= yAxisDomain[1])
     .sort((a, b) => a - b)
@@ -207,8 +210,8 @@ export function SavingsRateTrendCard({
       {header}
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <div className="flex h-[430px] flex-col">
-            <div className="mb-4 grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] items-center gap-6 border-b border-[var(--app-border)] pb-4">
+          <div className="flex flex-col min-[750px]:h-[430px]">
+            <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[750px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] min-[750px]:items-center min-[750px]:gap-6">
               <div className="min-w-0">
                 <p className="app-label">Latest Savings Rate</p>
                 <p className="mt-1 font-financial text-4xl leading-none tracking-tight">
@@ -218,37 +221,43 @@ export function SavingsRateTrendCard({
                   {latestPoint?.fullLabel ?? 'No recent month'}
                 </p>
               </div>
-              <div className="grid min-w-0 grid-cols-3 gap-4">
-                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-3 py-2.5">
+              <div className="grid min-w-0 gap-2 min-[550px]:grid-cols-3 min-[750px]:gap-4">
+                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className="app-label app-label-compact">Average</p>
-                  <p className="mt-1 font-financial text-2xl leading-none tracking-tight">
-                    {formatSavingsRateValue(averageRate)}
-                  </p>
-                  <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    Last 12 months
-                  </p>
+                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                    <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
+                      {formatSavingsRateValue(averageRate)}
+                    </p>
+                    <p className="truncate text-right text-xs min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                      Last 12 months
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-3 py-2.5">
+                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className="app-label app-label-compact">Best</p>
-                  <p className="mt-1 font-financial text-2xl leading-none tracking-tight">
-                    {formatSavingsRateValue(bestPoint?.rate ?? null)}
-                  </p>
-                  <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    {bestPoint?.fullLabel ?? 'N/A'}
-                  </p>
+                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                    <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
+                      {formatSavingsRateValue(bestPoint?.rate ?? null)}
+                    </p>
+                    <p className="truncate text-right text-xs min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                      {bestPoint?.fullLabel ?? 'N/A'}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-3 py-2.5">
+                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className="app-label app-label-compact">Worst</p>
-                  <p className="mt-1 font-financial text-2xl leading-none tracking-tight">
-                    {formatSavingsRateValue(worstPoint?.rate ?? null)}
-                  </p>
-                  <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    {worstPoint?.fullLabel ?? 'N/A'}
-                  </p>
+                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                    <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
+                      {formatSavingsRateValue(worstPoint?.rate ?? null)}
+                    </p>
+                    <p className="truncate text-right text-xs min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                      {worstPoint?.fullLabel ?? 'N/A'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="min-h-0 flex-1">
+            <div className="h-[300px] shrink-0 min-[750px]:h-auto min-[750px]:min-h-0 min-[750px]:flex-1 min-[750px]:shrink">
               {!hasActivity ? (
                 <div
                   className="flex h-full w-full items-center justify-center text-sm"
@@ -296,7 +305,7 @@ export function SavingsRateTrendCard({
                     tickLine={false}
                     domain={yAxisDomain}
                     ticks={yAxisTicks}
-                    tick={<SavingsRateYAxisTick maximum={highestRate} />}
+                    tick={<SavingsRateYAxisTick maximum={Number.NaN} />}
                   />
                   <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
                   {averageChartRate !== null && (
@@ -352,7 +361,7 @@ export function SavingsRateTrendCard({
               )}
             </AnimatePresence>
           </p>
-          <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          <div className="flex w-full items-center justify-center gap-4 text-xs min-[750px]:w-auto" style={{ color: 'var(--app-text-muted)' }}>
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
               20%+
