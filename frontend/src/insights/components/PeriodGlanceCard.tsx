@@ -44,7 +44,7 @@ export function PeriodGlanceCard({
     <section className="app-card">
       {header}
 
-      <div className="grid gap-4 min-[1040px]:grid-cols-[minmax(280px,0.82fr)_minmax(0,1fr)]">
+      <div className="grid gap-4 min-[1040px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
         <div
           className="flex min-h-52 flex-col justify-between rounded-xl border p-4"
           style={{ background: 'var(--app-accent-soft)', borderColor: 'var(--app-accent-border)' }}
@@ -74,7 +74,7 @@ export function PeriodGlanceCard({
           </div>
         </div>
 
-        <div className="grid min-[720px]:grid-cols-2">
+        <div className="grid min-[720px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
           {supportItems.map((item, index) => (
             <div
               key={item.label}
@@ -87,7 +87,7 @@ export function PeriodGlanceCard({
                 index === 3 ? 'pb-0 min-[720px]:pb-0 min-[720px]:pr-0' : '',
               ].join(' ')}
             >
-              <div className="flex min-h-28 flex-col items-center justify-start text-center">
+              <div className="flex min-h-28 flex-col items-center justify-center text-center">
                 <p className="app-label">{item.label}</p>
                 <p
                   className="mt-1 text-2xl font-semibold leading-tight max-[1000px]:text-xl"
@@ -95,7 +95,7 @@ export function PeriodGlanceCard({
                 >
                   {item.value}
                 </p>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
+                <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
                   {item.detail}
                 </p>
               </div>

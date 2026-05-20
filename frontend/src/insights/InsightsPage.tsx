@@ -650,14 +650,14 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         label: netSavings >= 0 ? 'You Kept' : 'You Overspent',
         value: netSavings,
         detail: netSavings >= 0
-          ? 'Recorded income exceeds recorded expenses in the selected range, excluding transfers.'
-          : 'Recorded expenses exceed recorded income in the selected range, excluding transfers.',
+          ? 'Recorded income exceeds recorded expenses in the selected range, excluding transfers'
+          : 'Recorded expenses exceed recorded income in the selected range, excluding transfers',
         tone: netSavings >= 0 ? 'positive' : 'negative',
       },
       {
         label: 'Net Worth Changed By',
         value: data.net_worth_change,
-        detail: 'Across tracked account balances in the selected range.',
+        detail: 'Across all accounts',
         tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
         signed: true,
       },
@@ -668,21 +668,21 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         value: data.biggest_change_name ?? 'N/A',
         detail: data.biggest_change_name && data.biggest_change_amount !== undefined
           ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency)
-          : 'No comparable category movement in this range.',
+          : 'No comparable category movement in this range',
       },
       {
         label: 'Top Category',
         value: data.top_category_name ?? 'N/A',
         detail: data.top_category_share_pct === undefined
-          ? 'No recorded expenses in this range.'
-          : `${data.top_category_share_pct}% of recorded expenses.`,
+          ? 'No recorded expenses in this range'
+          : `${data.top_category_share_pct}% of recorded expenses`,
       },
       {
         label: 'Savings Rate',
         value: formatSavingsRateValue(savingsRate),
         detail: savingsRate === null
-          ? 'No recorded income in the selected range.'
-          : 'Income kept after recorded expenses, excluding transfers.',
+          ? 'No recorded income in the selected range'
+          : 'Income kept after expenses, excluding transfers',
       },
     ],
   }
@@ -694,13 +694,13 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
       {
         label: 'You Kept',
         value: 0,
-        detail: 'Loading period summary...',
+        detail: 'Loading period summary',
         tone: 'neutral',
       },
       {
         label: 'Net Worth Changed By',
         value: 0,
-        detail: 'Loading tracked balance movement...',
+        detail: 'Loading tracked balance movement',
         tone: 'neutral',
         signed: true,
       },
@@ -709,17 +709,17 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
       {
         label: 'Biggest Change',
         value: 'Loading',
-        detail: 'Fetching comparable category movement.',
+        detail: 'Fetching comparable category movement',
       },
       {
         label: 'Top Category',
         value: 'Loading',
-        detail: 'Fetching recorded expense categories.',
+        detail: 'Fetching recorded expense categories',
       },
       {
         label: 'Savings Rate',
         value: 'Loading',
-        detail: 'Fetching income and expense totals.',
+        detail: 'Fetching income and expense totals',
       },
     ],
   }
@@ -728,9 +728,9 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
 function getPeriodGlanceChangeDetail(changeAmount: number, changePct: number | undefined, displayCurrency: string) {
   const amount = formatSignedCurrency(changeAmount, displayCurrency)
   if (changePct === undefined) {
-    return `${amount} compared with no spend in the previous matching period.`
+    return `${amount} vs previous matching period`
   }
-  return `${amount} (${changePct > 0 ? '+' : ''}${changePct}%) vs the previous matching period.`
+  return `${amount} (${changePct > 0 ? '+' : ''}${changePct}%) vs previous matching period`
 }
 
 function getMerchantDistributionEntries(
