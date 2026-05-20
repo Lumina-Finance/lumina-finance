@@ -63,14 +63,29 @@ function MerchantMarketMap({
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div className="h-full overflow-hidden rounded-lg border border-[var(--app-border)]">
+      <div className="relative h-full overflow-hidden rounded-lg border border-[var(--app-border)]">
         <svg
           viewBox="0 0 1000 460"
           preserveAspectRatio="none"
           role="img"
           aria-label="Merchant market map"
-          className="h-full w-full"
+          className="pointer-events-none h-full w-full"
         >
+          {merchants.map((merchant) => (
+            <rect
+              key={merchant.id}
+              x={merchant.x + 2}
+              y={merchant.y + 2}
+              width={Math.max(merchant.width - 4, 0)}
+              height={Math.max(merchant.height - 4, 0)}
+              rx={6}
+              fill={getMerchantTileColor(merchant)}
+              stroke="var(--app-surface-soft)"
+              strokeWidth={4}
+            />
+          ))}
+        </svg>
+        <div className="absolute inset-0">
           {merchants.map((merchant) => {
             const area = merchant.width * merchant.height
             const labelSize = area > 110000 ? 20 : area > 42000 ? 17 : 15
@@ -84,10 +99,18 @@ function MerchantMarketMap({
             const showDetailsIndicator = !showName && !showAmount && contentWidth >= 18 && contentHeight >= 18
             const detailsIndicatorSize = Math.min(20, Math.max(15, Math.min(contentWidth, contentHeight) * 0.58))
             return (
-              <g
+              <div
                 key={merchant.id}
+                className="absolute flex min-w-0 cursor-default flex-col items-center justify-center overflow-hidden p-2 text-center"
+                style={{
+                  color: 'var(--app-text)',
+                  left: `${merchant.x / 10}%`,
+                  top: `${(merchant.y / 460) * 100}%`,
+                  width: `${merchant.width / 10}%`,
+                  height: `${(merchant.height / 460) * 100}%`,
+                }}
                 onMouseEnter={(event) => {
-                  const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
+                  const rect = event.currentTarget.parentElement?.getBoundingClientRect()
                   if (!rect) return
                   setHoveredTile({
                     merchant,
@@ -96,7 +119,7 @@ function MerchantMarketMap({
                   })
                 }}
                 onMouseMove={(event) => {
-                  const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
+                  const rect = event.currentTarget.parentElement?.getBoundingClientRect()
                   if (!rect) return
                   setHoveredTile({
                     merchant,
@@ -106,70 +129,48 @@ function MerchantMarketMap({
                 }}
                 onMouseLeave={() => setHoveredTile(null)}
               >
-                <rect
-                  x={merchant.x + 2}
-                  y={merchant.y + 2}
-                  width={Math.max(merchant.width - 4, 0)}
-                  height={Math.max(merchant.height - 4, 0)}
-                  rx={6}
-                  fill={getMerchantTileColor(merchant)}
-                  stroke="var(--app-surface-soft)"
-                  strokeWidth={4}
-                />
-                <foreignObject
-                  x={merchant.x + 10}
-                  y={merchant.y + 10}
-                  width={contentWidth}
-                  height={contentHeight}
-                >
-                  <div
-                    className="flex h-full min-w-0 flex-col items-center justify-center overflow-hidden text-center"
-                    style={{ color: 'var(--app-text)' }}
+                {showName && (
+                  <p
+                    className="max-w-full overflow-hidden font-bold leading-tight"
+                    style={{
+                      fontSize: labelSize,
+                      overflowWrap: 'normal',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: compactName ? 'nowrap' : undefined,
+                      wordBreak: 'normal',
+                      ...(!compactName
+                        ? {
+                            display: '-webkit-box',
+                            WebkitBoxOrient: 'vertical',
+                            WebkitLineClamp: 2,
+                          }
+                        : {}),
+                    }}
                   >
-                    {showName && (
-                      <p
-                        className="max-w-full overflow-hidden font-bold leading-tight"
-                        style={{
-                          fontSize: labelSize,
-                          overflowWrap: 'normal',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: compactName ? 'nowrap' : undefined,
-                          wordBreak: 'normal',
-                          ...(!compactName
-                            ? {
-                                display: '-webkit-box',
-                                WebkitBoxOrient: 'vertical',
-                                WebkitLineClamp: 2,
-                              }
-                            : {}),
-                        }}
-                      >
-                        {merchant.name}
-                      </p>
-                    )}
-                    {showAmount && (
-                      <p
-                        className={`${showName ? 'mt-1' : ''} max-w-full truncate font-financial leading-tight`}
-                        style={{ color: 'var(--app-text-muted)', fontSize: amountSize }}
-                      >
-                        {amountText}
-                      </p>
-                    )}
-                    {showDetailsIndicator && (
-                      <span
-                        aria-hidden
-                        className="font-bold leading-none"
-                        style={{ color: 'var(--app-text-muted)', fontSize: detailsIndicatorSize }}
-                      >
-                        ...
-                      </span>
-                    )}
-                  </div>
-                </foreignObject>
-              </g>
+                    {merchant.name}
+                  </p>
+                )}
+                {showAmount && (
+                  <p
+                    className={`${showName ? 'mt-1' : ''} max-w-full truncate font-financial leading-tight`}
+                    style={{ color: 'var(--app-text-muted)', fontSize: amountSize }}
+                  >
+                    {amountText}
+                  </p>
+                )}
+                {showDetailsIndicator && (
+                  <span
+                    aria-hidden
+                    className="font-bold leading-none"
+                    style={{ color: 'var(--app-text-muted)', fontSize: detailsIndicatorSize }}
+                  >
+                    ...
+                  </span>
+                )}
+              </div>
             )
           })}
-        </svg>
+        </div>
       </div>
       {hoveredTile && (
         <div
