@@ -954,6 +954,7 @@ export default function InsightsPage() {
     && customTo !== ''
     && getCustomRangeDays(customFrom, customTo) === null
   const rangeInputDates = useMemo(() => getRangeInputDates(rangePreset, customFrom, customTo), [rangePreset, customFrom, customTo])
+  const cardTransitionKey = `${rangeInputDates.from}:${rangeInputDates.to}`
   const insightsCardQueriesEnabled = !customInvalid && rangeInputDates.from !== '' && rangeInputDates.to !== ''
   const periodGlanceQuery = useInsightsPeriodGlance(rangeInputDates.from, rangeInputDates.to, insightsCardQueriesEnabled)
   const incomeExpenseFlowQuery = useInsightsIncomeExpenseFlow(
@@ -1081,7 +1082,7 @@ export default function InsightsPage() {
           expenses={periodGlanceExpenses}
           displayCurrency={displayCurrency}
           loading={periodGlanceQuery.isFetching}
-          transitionKey={`${rangeInputDates.from}:${rangeInputDates.to}`}
+          transitionKey={cardTransitionKey}
         />
 
         <FundFlowCard
@@ -1095,7 +1096,7 @@ export default function InsightsPage() {
           expenseCategoryCount={flowExpenseCategoryCount}
           displayCurrency={displayCurrency}
           loading={incomeExpenseFlowQuery.isFetching}
-          transitionKey={`${rangeInputDates.from}:${rangeInputDates.to}`}
+          transitionKey={cardTransitionKey}
           emptyLabel={flowEmptyLabel}
         />
 
@@ -1127,6 +1128,8 @@ export default function InsightsPage() {
           trendSections={selectedCategoryTrendSections}
           displayCurrency={displayCurrency}
           animationKey={`${breakdownMode}-${range}`}
+          loading={incomeExpenseBreakdownQuery.isFetching}
+          transitionKey={cardTransitionKey}
         />
 
         <NetWorthCard
@@ -1152,6 +1155,8 @@ export default function InsightsPage() {
           series={netWorthCardData.series}
           displayCurrency={displayCurrency}
           emptyLabel={netWorthQuery.isLoading ? 'Loading net worth history...' : undefined}
+          loading={netWorthQuery.isFetching}
+          transitionKey={cardTransitionKey}
         />
 
         <CashFlowCard
@@ -1159,6 +1164,7 @@ export default function InsightsPage() {
           granularity={cashFlowBars.granularity}
           buckets={cashFlowBars.buckets}
           displayCurrency={displayCurrency}
+          transitionKey={cardTransitionKey}
         />
 
         <SavingsRateTrendCard
@@ -1186,6 +1192,8 @@ export default function InsightsPage() {
           displayCurrency={displayCurrency}
           capRates={capSavingsRateChart}
           emptyLabel={savingsRateTrendQuery.isLoading ? 'Loading savings-rate history...' : undefined}
+          loading={savingsRateTrendQuery.isFetching}
+          transitionKey="savings-rate-trend"
         />
 
         <section className="grid grid-cols-1 gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_360px]">
@@ -1194,6 +1202,8 @@ export default function InsightsPage() {
             merchants={merchantMarketLayout}
             currency={displayCurrency}
             emptyLabel={merchantDistributionQuery.isLoading ? 'Loading merchant spending...' : undefined}
+            loading={merchantDistributionQuery.isFetching}
+            transitionKey={cardTransitionKey}
           />
 
           <MerchantRankingCard
@@ -1201,6 +1211,8 @@ export default function InsightsPage() {
             merchants={rankedMerchants}
             currency={displayCurrency}
             emptyLabel={merchantRankingQuery.isLoading ? 'Loading merchant ranking...' : undefined}
+            loading={merchantRankingQuery.isFetching}
+            transitionKey={cardTransitionKey}
           />
         </section>
 

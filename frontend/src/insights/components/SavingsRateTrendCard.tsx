@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useMemo, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   Bar,
   BarChart,
@@ -12,6 +12,11 @@ import {
 } from 'recharts'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  InsightLoadingContent,
+  InsightLoadingOverlay,
+} from './InsightLoadingTransition'
+import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type SavingsRateHistoryPoint = {
   monthKey: string
@@ -39,6 +44,15 @@ type SavingsRateTrendCardProps = {
   displayCurrency: string
   capRates: boolean
   emptyLabel?: string
+  loading?: boolean
+  transitionKey: string
+}
+
+type SavingsRateTrendSnapshot = {
+  series: SavingsRateHistoryPoint[]
+  displayCurrency: string
+  capRates: boolean
+  emptyLabel: string
 }
 
 const savingsRateHistoryLimit = 12
@@ -126,16 +140,33 @@ export function SavingsRateTrendCard({
   displayCurrency,
   capRates,
   emptyLabel = 'No savings-rate history available',
+  loading = false,
+  transitionKey,
 }: SavingsRateTrendCardProps) {
-  const shouldReduceMotion = useReducedMotion()
-  const hasActivity = series.some((point) => point.income > 0 || point.expenses > 0)
-  const currentPoint = series.find((point) => point.isCurrent)
-  const tickLabels = new Map(series.map((point) => [point.monthKey, point.tickLabel]))
-  const ratedPoints = series.filter((point) => point.rate !== null)
+  const incomingSnapshot = useMemo<SavingsRateTrendSnapshot>(() => ({
+    series,
+    displayCurrency,
+    capRates,
+    emptyLabel,
+  }), [capRates, displayCurrency, emptyLabel, series])
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useInsightLoadingSnapshot<SavingsRateTrendSnapshot>({
+    snapshot: incomingSnapshot,
+    loading,
+    transitionKey,
+  })
+  const hasActivity = displaySnapshot.series.some((point) => point.income > 0 || point.expenses > 0)
+  const currentPoint = displaySnapshot.series.find((point) => point.isCurrent)
+  const tickLabels = new Map(displaySnapshot.series.map((point) => [point.monthKey, point.tickLabel]))
+  const ratedPoints = displaySnapshot.series.filter((point) => point.rate !== null)
   const averageRate = ratedPoints.length > 0
     ? Math.round(ratedPoints.reduce((sum, point) => sum + (point.rate ?? 0), 0) / ratedPoints.length)
     : null
-  const latestPoint = series.at(-1)
+  const latestPoint = displaySnapshot.series.at(-1)
   const bestPoint = ratedPoints.reduce<SavingsRateHistoryPoint | null>(
     (best, point) => (best === null || (point.rate ?? -Infinity) > (best.rate ?? -Infinity) ? point : best),
     null,
@@ -144,39 +175,39 @@ export function SavingsRateTrendCard({
     (worst, point) => (worst === null || (point.rate ?? Infinity) < (worst.rate ?? Infinity) ? point : worst),
     null,
   )
-  const windowMonths = Math.min(savingsRateHistoryLimit, series.length)
-  const firstPoint = series[0]
+  const windowMonths = Math.min(savingsRateHistoryLimit, displaySnapshot.series.length)
+  const firstPoint = displaySnapshot.series[0]
   const averagePeriodLabel = firstPoint && latestPoint
     ? firstPoint.fullLabel === latestPoint.fullLabel
       ? firstPoint.fullLabel
       : `${firstPoint.fullLabel} to ${latestPoint.fullLabel}`
     : 'No available history'
   const latestComparison = `${formatSavingsRateValue(latestPoint?.rate ?? null)} vs ${formatSavingsRateValue(averageRate)}`
-  const chartSeries = series.map((point) => ({
+  const chartSeries = displaySnapshot.series.map((point) => ({
     ...point,
-    chartRate: capRates ? clampSavingsRate(point.rate) : point.rate,
+    chartRate: displaySnapshot.capRates ? clampSavingsRate(point.rate) : point.rate,
   }))
   const chartRates = chartSeries
     .map((point) => point.chartRate)
     .filter((rate): rate is number => rate !== null)
-  const averageChartRate = capRates ? clampSavingsRate(averageRate) : averageRate
+  const averageChartRate = displaySnapshot.capRates ? clampSavingsRate(averageRate) : averageRate
   const highestRate = chartRates.length > 0 ? Math.max(...chartRates) : 100
   const lowestRate = chartRates.length > 0 ? Math.min(...chartRates) : -100
   const hasPositiveRate = chartRates.some((rate) => rate > 0)
   const hasNegativeRate = chartRates.some((rate) => rate < 0)
   const hasFullRate = chartRates.some((rate) => rate >= 100)
-  const showCappedPositiveSection = capRates && (hasPositiveRate || !hasNegativeRate)
-  const showCappedNegativeSection = capRates && hasNegativeRate
-  const yAxisDomain = capRates
+  const showCappedPositiveSection = displaySnapshot.capRates && (hasPositiveRate || !hasNegativeRate)
+  const showCappedNegativeSection = displaySnapshot.capRates && hasNegativeRate
+  const yAxisDomain = displaySnapshot.capRates
     ? [showCappedNegativeSection ? -100 : 0, showCappedPositiveSection ? 100 : 0]
     : [hasNegativeRate ? Math.min(-100, lowestRate) : 0, Math.max(highestRate, 0)]
   const yAxisTicks = Array.from(new Set([
-    ...((capRates ? showCappedNegativeSection : hasNegativeRate) ? [-100] : []),
-    ...(capRates ? [0] : []),
+    ...((displaySnapshot.capRates ? showCappedNegativeSection : hasNegativeRate) ? [-100] : []),
+    ...(displaySnapshot.capRates ? [0] : []),
     lowestRate,
     ...(averageChartRate !== null ? [averageChartRate] : []),
     highestRate,
-    ...((capRates ? showCappedPositiveSection : hasFullRate) ? [100] : []),
+    ...((displaySnapshot.capRates ? showCappedPositiveSection : hasFullRate) ? [100] : []),
   ]))
     .filter((tick) => tick >= yAxisDomain[0] && tick <= yAxisDomain[1])
     .sort((a, b) => a - b)
@@ -184,46 +215,48 @@ export function SavingsRateTrendCard({
   return (
     <section className="app-card">
       {header}
-      <div className="flex h-[430px] flex-col">
-        <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[760px]:grid-cols-3">
-          <div className="pl-4">
-            <p className="app-label">{windowMonths}-Month Average</p>
-            <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
-              {formatSavingsRateValue(averageRate)}
-            </p>
-            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-              {averagePeriodLabel}
-            </p>
-          </div>
-          <div>
-            <p className="app-label">Latest vs Average</p>
-            <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
-              {latestComparison}
-            </p>
-            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-              {latestPoint?.fullLabel ?? 'No recent month'}
-            </p>
-          </div>
-          <div>
-            <p className="app-label">Best / Worst</p>
-            <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
-              {formatSavingsRateValue(bestPoint?.rate ?? null)} / {formatSavingsRateValue(worstPoint?.rate ?? null)}
-            </p>
-            <p className="mt-2 truncate text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-              {bestPoint?.fullLabel ?? 'N/A'} high, {worstPoint?.fullLabel ?? 'N/A'} low
-            </p>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1">
-          {!hasActivity ? (
-            <div
-              className="flex h-full w-full items-center justify-center text-sm"
-              style={{ color: 'var(--app-text-subtle)' }}
-            >
-              {emptyLabel}
+      <div className="relative overflow-hidden">
+        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+          <div className="flex h-[430px] flex-col">
+            <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[760px]:grid-cols-3">
+              <div className="pl-4">
+                <p className="app-label">{windowMonths}-Month Average</p>
+                <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
+                  {formatSavingsRateValue(averageRate)}
+                </p>
+                <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+                  {averagePeriodLabel}
+                </p>
+              </div>
+              <div>
+                <p className="app-label">Latest vs Average</p>
+                <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
+                  {latestComparison}
+                </p>
+                <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+                  {latestPoint?.fullLabel ?? 'No recent month'}
+                </p>
+              </div>
+              <div>
+                <p className="app-label">Best / Worst</p>
+                <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
+                  {formatSavingsRateValue(bestPoint?.rate ?? null)} / {formatSavingsRateValue(worstPoint?.rate ?? null)}
+                </p>
+                <p className="mt-2 truncate text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+                  {bestPoint?.fullLabel ?? 'N/A'} high, {worstPoint?.fullLabel ?? 'N/A'} low
+                </p>
+              </div>
             </div>
-          ) : (
-            <div className="relative h-full">
+            <div className="min-h-0 flex-1">
+              {!hasActivity ? (
+                <div
+                  className="flex h-full w-full items-center justify-center text-sm"
+                  style={{ color: 'var(--app-text-subtle)' }}
+                >
+                  {displaySnapshot.emptyLabel}
+                </div>
+              ) : (
+                <div className="relative h-full">
               <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
                 <defs>
                   {(['positive', 'accent', 'negative'] as const).map((tier) => (
@@ -278,7 +311,7 @@ export function SavingsRateTrendCard({
                   <Tooltip
                     wrapperClassName="app-chart-tooltip-default"
                     cursor={{ fill: 'var(--app-border)', opacity: 0.4 }}
-                    content={<SavingsRateHistoryTooltip displayCurrency={displayCurrency} />}
+                    content={<SavingsRateHistoryTooltip displayCurrency={displaySnapshot.displayCurrency} />}
                   />
                   <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={30}>
                     {chartSeries.map((entry) => {
@@ -305,7 +338,7 @@ export function SavingsRateTrendCard({
             <span>Latest 12 months, up to available data.</span>
             {' '}
             <AnimatePresence initial={false}>
-              {capRates && (
+              {displaySnapshot.capRates && (
                 <motion.span
                   className="inline-block font-semibold"
                   initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
@@ -333,6 +366,15 @@ export function SavingsRateTrendCard({
             </span>
           </div>
         </div>
+          </div>
+        </InsightLoadingContent>
+
+        <InsightLoadingOverlay
+          visible={loadingVisible}
+          shouldReduceMotion={shouldReduceMotion}
+          label="Loading savings rate trend"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-surface-soft)]"
+        />
       </div>
     </section>
   )

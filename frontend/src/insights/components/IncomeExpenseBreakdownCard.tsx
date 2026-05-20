@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useMemo, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   Cell,
   Pie,
@@ -8,6 +8,11 @@ import {
   Tooltip,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  InsightLoadingContent,
+  InsightLoadingOverlay,
+} from './InsightLoadingTransition'
+import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type BreakdownMode = 'expense' | 'income'
 
@@ -34,6 +39,16 @@ export type CategoryTrendSection = {
 
 type IncomeExpenseBreakdownCardProps = {
   header: ReactNode
+  mode: BreakdownMode
+  entries: BreakdownEntry[]
+  trendSections: CategoryTrendSection[]
+  displayCurrency: string
+  animationKey: string
+  loading?: boolean
+  transitionKey: string
+}
+
+type IncomeExpenseBreakdownSnapshot = {
   mode: BreakdownMode
   entries: BreakdownEntry[]
   trendSections: CategoryTrendSection[]
@@ -103,159 +118,188 @@ export function IncomeExpenseBreakdownCard({
   trendSections,
   displayCurrency,
   animationKey,
+  loading = false,
+  transitionKey,
 }: IncomeExpenseBreakdownCardProps) {
-  const shouldReduceMotion = useReducedMotion()
-  const total = getTotal(entries)
+  const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
+    mode,
+    entries,
+    trendSections,
+    displayCurrency,
+    animationKey,
+  }), [animationKey, displayCurrency, entries, mode, trendSections])
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useInsightLoadingSnapshot<IncomeExpenseBreakdownSnapshot>({
+    snapshot: incomingSnapshot,
+    loading,
+    transitionKey,
+  })
+  const total = getTotal(displaySnapshot.entries)
 
   return (
     <section className="app-card">
       {header}
-      <div className="grid gap-6 min-[1180px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
-        <div className="flex min-h-[620px] flex-col">
-          <div className="relative h-[450px] shrink-0">
-            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
-              <span className="app-label app-label-compact">
-                Total {mode === 'expense' ? 'Expense' : 'Income'}
-              </span>
-              <span className="font-financial text-3xl leading-none tracking-tight">
-                {formatCurrency(total, displayCurrency)}
-              </span>
-            </div>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={entries}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius="62%"
-                  outerRadius="90%"
-                  paddingAngle={3}
-                  dataKey="amount"
-                  nameKey="name"
-                  stroke="none"
-                >
-                  {entries.map((entry, index) => (
-                    <Cell key={entry.id} fill={insightsBreakdownColors[index % insightsBreakdownColors.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  wrapperClassName="app-chart-tooltip-default"
-                  formatter={(value, name) => [formatCurrency(Number(value), displayCurrency), name]}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="relative mt-auto min-h-[136px] overflow-hidden">
-            <AnimatePresence initial={false} mode="wait">
-              <motion.div
-                key={animationKey}
-                className="absolute inset-x-5 bottom-0 space-y-2"
-                variants={shouldReduceMotion ? undefined : pieLegendContainerVariants}
-                initial={shouldReduceMotion ? false : 'initial'}
-                animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
-                exit={shouldReduceMotion ? undefined : 'exit'}
-              >
-                {entries.slice(0, 5).map((entry, index) => (
-                  <motion.div
-                    key={entry.id}
-                    className="flex items-center gap-3 text-sm"
-                    variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
-                    transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
-                  >
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ background: insightsBreakdownColors[index % insightsBreakdownColors.length] }}
-                    />
-                    <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--app-text-muted)' }}>
-                      {entry.name}
-                    </span>
-                    <span className="font-financial">
-                      {getPct(entry.amount, total)}%
-                    </span>
-                  </motion.div>
-                ))}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-
-        <div className="flex min-h-[620px] flex-col border-t border-[var(--app-border)] pt-4 min-[1180px]:border-t-0 min-[1180px]:pt-0">
-          <div className="grid min-h-0 flex-1 grid-rows-2 gap-4">
-            {trendSections.map((section) => (
-              <div
-                key={section.id}
-                className="flex min-h-0 flex-col"
-              >
-                <p className="app-label mb-2">
-                  {section.label}
-                </p>
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <AnimatePresence initial={false} mode="wait">
-                    <motion.div
-                      key={`${section.id}-${animationKey}`}
-                      className="space-y-2"
-                      variants={shouldReduceMotion ? undefined : categoryTrendListVariants}
-                      initial={shouldReduceMotion ? false : 'initial'}
-                      animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
-                      exit={shouldReduceMotion ? undefined : 'exit'}
-                    >
-                      {section.drivers.length === 0 ? (
-                        <motion.p
-                          key={`${section.id}-empty`}
-                          className="rounded-md border border-[var(--app-border)] px-3 py-2.5 text-sm"
-                          style={{ color: 'var(--app-text-muted)' }}
-                          variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
-                          transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
-                        >
-                          No {section.id === 'increases' ? 'increases' : 'decreases'} in this period.
-                        </motion.p>
-                      ) : section.drivers.map((driver) => {
-                        const changeAmount = driver.amount - driver.previousAmount
-                        const driverColor = getCategoryDriverColor(mode, changeAmount)
-                        const changePctLabel = driver.changePct === null
-                          ? null
-                          : `(${driver.changePct > 0 ? '+' : ''}${driver.changePct}%)`
-                        return (
-                          <motion.div
-                            key={driver.id}
-                            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-md border border-[var(--app-border)] px-3 py-2.5"
-                            variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
-                            transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
-                          >
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold">
-                                {driver.name}
-                              </p>
-                              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                                {driver.transactionCount} transactions | previous {formatCurrency(driver.previousAmount, displayCurrency)}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-financial text-base">
-                                {formatCurrency(driver.amount, displayCurrency)}
-                              </p>
-                              <p className="mt-1 font-financial text-sm" style={{ color: driverColor }}>
-                                {formatSignedCurrency(changeAmount, displayCurrency)}
-                                {changePctLabel && (
-                                  <>
-                                    {' '}
-                                    {changePctLabel}
-                                  </>
-                                )}
-                                {' '}
-                                {getCategoryDriverDescriptor(changeAmount)}
-                              </p>
-                            </div>
-                          </motion.div>
-                        )
-                      })}
-                    </motion.div>
-                  </AnimatePresence>
+      <div className="relative overflow-hidden">
+        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+          <div className="grid gap-6 min-[1180px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+            <div className="flex min-h-[620px] flex-col">
+              <div className="relative h-[450px] shrink-0">
+                <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
+                  <span className="app-label app-label-compact">
+                    Total {displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'}
+                  </span>
+                  <span className="font-financial text-3xl leading-none tracking-tight">
+                    {formatCurrency(total, displaySnapshot.displayCurrency)}
+                  </span>
                 </div>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={displaySnapshot.entries}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="62%"
+                      outerRadius="90%"
+                      paddingAngle={3}
+                      dataKey="amount"
+                      nameKey="name"
+                      stroke="none"
+                    >
+                      {displaySnapshot.entries.map((entry, index) => (
+                        <Cell key={entry.id} fill={insightsBreakdownColors[index % insightsBreakdownColors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      wrapperClassName="app-chart-tooltip-default"
+                      formatter={(value, name) => [formatCurrency(Number(value), displaySnapshot.displayCurrency), name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
+              <div className="relative mt-auto min-h-[136px] overflow-hidden">
+                <AnimatePresence initial={false} mode="wait">
+                  <motion.div
+                    key={displaySnapshot.animationKey}
+                    className="absolute inset-x-5 bottom-0 space-y-2"
+                    variants={shouldReduceMotion ? undefined : pieLegendContainerVariants}
+                    initial={shouldReduceMotion ? false : 'initial'}
+                    animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
+                    exit={shouldReduceMotion ? undefined : 'exit'}
+                  >
+                    {displaySnapshot.entries.slice(0, 5).map((entry, index) => (
+                      <motion.div
+                        key={entry.id}
+                        className="flex items-center gap-3 text-sm"
+                        variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
+                        transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
+                      >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: insightsBreakdownColors[index % insightsBreakdownColors.length] }}
+                        />
+                        <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--app-text-muted)' }}>
+                          {entry.name}
+                        </span>
+                        <span className="font-financial">
+                          {getPct(entry.amount, total)}%
+                        </span>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+
+            <div className="flex min-h-[620px] flex-col border-t border-[var(--app-border)] pt-4 min-[1180px]:border-t-0 min-[1180px]:pt-0">
+              <div className="grid min-h-0 flex-1 grid-rows-2 gap-4">
+                {displaySnapshot.trendSections.map((section) => (
+                  <div
+                    key={section.id}
+                    className="flex min-h-0 flex-col"
+                  >
+                    <p className="app-label mb-2">
+                      {section.label}
+                    </p>
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <AnimatePresence initial={false} mode="wait">
+                        <motion.div
+                          key={`${section.id}-${displaySnapshot.animationKey}`}
+                          className="space-y-2"
+                          variants={shouldReduceMotion ? undefined : categoryTrendListVariants}
+                          initial={shouldReduceMotion ? false : 'initial'}
+                          animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
+                          exit={shouldReduceMotion ? undefined : 'exit'}
+                        >
+                          {section.drivers.length === 0 ? (
+                            <motion.p
+                              key={`${section.id}-empty`}
+                              className="rounded-md border border-[var(--app-border)] px-3 py-2.5 text-sm"
+                              style={{ color: 'var(--app-text-muted)' }}
+                              variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
+                              transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
+                            >
+                              No {section.id === 'increases' ? 'increases' : 'decreases'} in this period.
+                            </motion.p>
+                          ) : section.drivers.map((driver) => {
+                            const changeAmount = driver.amount - driver.previousAmount
+                            const driverColor = getCategoryDriverColor(displaySnapshot.mode, changeAmount)
+                            const changePctLabel = driver.changePct === null
+                              ? null
+                              : `(${driver.changePct > 0 ? '+' : ''}${driver.changePct}%)`
+                            return (
+                              <motion.div
+                                key={driver.id}
+                                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-md border border-[var(--app-border)] px-3 py-2.5"
+                                variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
+                                transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate font-semibold">
+                                    {driver.name}
+                                  </p>
+                                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                                    {driver.transactionCount} transactions | previous {formatCurrency(driver.previousAmount, displaySnapshot.displayCurrency)}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-financial text-base">
+                                    {formatCurrency(driver.amount, displaySnapshot.displayCurrency)}
+                                  </p>
+                                  <p className="mt-1 font-financial text-sm" style={{ color: driverColor }}>
+                                    {formatSignedCurrency(changeAmount, displaySnapshot.displayCurrency)}
+                                    {changePctLabel && (
+                                      <>
+                                        {' '}
+                                        {changePctLabel}
+                                      </>
+                                    )}
+                                    {' '}
+                                    {getCategoryDriverDescriptor(changeAmount)}
+                                  </p>
+                                </div>
+                              </motion.div>
+                            )
+                          })}
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        </InsightLoadingContent>
+
+        <InsightLoadingOverlay
+          visible={loadingVisible}
+          shouldReduceMotion={shouldReduceMotion}
+          label="Loading income and expense breakdown"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-surface-soft)]"
+        />
       </div>
     </section>
   )

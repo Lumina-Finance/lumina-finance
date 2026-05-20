@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import {
   Bar,
@@ -13,6 +13,11 @@ import {
   YAxis,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  InsightLoadingContent,
+  InsightLoadingOverlay,
+} from './InsightLoadingTransition'
+import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type NetWorthViewMode = 'overview' | 'composition'
 
@@ -51,6 +56,16 @@ type NetWorthCardProps = {
   series: NetWorthPoint[]
   displayCurrency: string
   emptyLabel?: string
+  loading?: boolean
+  transitionKey: string
+}
+
+type NetWorthSnapshot = {
+  mode: NetWorthViewMode
+  groups: NetWorthGroup[]
+  series: NetWorthPoint[]
+  displayCurrency: string
+  emptyLabel: string
 }
 
 const groupColors: Record<string, string> = {
@@ -216,15 +231,35 @@ export function NetWorthCard({
   series,
   displayCurrency,
   emptyLabel = 'No net worth history in this range.',
+  loading = false,
+  transitionKey,
 }: NetWorthCardProps) {
-  const shouldReduceMotion = useReducedMotion()
-  const latest = series.at(-1)
+  const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
+    mode,
+    groups,
+    series,
+    displayCurrency,
+    emptyLabel,
+  }), [displayCurrency, emptyLabel, groups, mode, series])
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useInsightLoadingSnapshot<NetWorthSnapshot>({
+    snapshot: incomingSnapshot,
+    loading,
+    transitionKey,
+  })
+  const latest = displaySnapshot.series.at(-1)
   const chartItems = useMemo(
-    () => (mode === 'overview' ? getOverviewItems(groups) : getCompositionItems(groups)),
-    [groups, mode],
+    () => (displaySnapshot.mode === 'overview'
+      ? getOverviewItems(displaySnapshot.groups)
+      : getCompositionItems(displaySnapshot.groups)),
+    [displaySnapshot.groups, displaySnapshot.mode],
   )
-  const deltaSeries = useMemo(() => getChartData(series, chartItems), [chartItems, series])
-  const hasChartData = groups.length > 0 && deltaSeries.length > 0
+  const deltaSeries = useMemo(() => getChartData(displaySnapshot.series, chartItems), [chartItems, displaySnapshot.series])
+  const hasChartData = displaySnapshot.groups.length > 0 && deltaSeries.length > 0
   const legendItems = useMemo(
     () => [
       { id: 'net-worth-change', name: 'Net Worth Change', color: netWorthChangeColor },
@@ -232,7 +267,7 @@ export function NetWorthCard({
     ],
     [chartItems],
   )
-  const legendAnimationKey = `${mode}-${legendItems.map((item) => item.id).join('|')}`
+  const legendAnimationKey = `${displaySnapshot.mode}-${legendItems.map((item) => item.id).join('|')}`
   const latestChange = deltaSeries.at(-1)?.totalChange ?? 0
   const netWorthTrendColor = latestChange > 0
     ? 'var(--app-chart-positive)'
@@ -244,17 +279,19 @@ export function NetWorthCard({
   return (
     <section className="app-card">
       {header}
-      <div className="flex h-[360px] flex-col">
+      <div className="relative overflow-hidden">
+        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+          <div className="flex h-[360px] flex-col">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div className="pl-4">
             <p className="app-label app-label-compact">Current Net Worth</p>
             <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
               <p className="font-financial text-3xl leading-none tracking-tight">
-                {formatCurrency(latest?.total ?? 0, displayCurrency)}
+                {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
               </p>
               <div className="flex items-center gap-1.5 pb-0.5 text-sm font-medium" style={{ color: netWorthTrendColor }}>
                 <NetWorthTrendIcon size={14} aria-hidden />
-                <span className="font-financial">{formatSignedCurrency(latestChange, displayCurrency)}</span>
+                <span className="font-financial">{formatSignedCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
                 <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
               </div>
             </div>
@@ -266,7 +303,7 @@ export function NetWorthCard({
               className="flex h-full w-full items-center justify-center rounded-lg text-sm"
               style={{ color: 'var(--app-text-subtle)' }}
             >
-              {emptyLabel}
+              {displaySnapshot.emptyLabel}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -296,7 +333,7 @@ export function NetWorthCard({
                 <Tooltip
                   wrapperClassName="app-chart-tooltip-default"
                   cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-                  content={<NetWorthChartTooltip items={chartItems} displayCurrency={displayCurrency} />}
+                  content={<NetWorthChartTooltip items={chartItems} displayCurrency={displaySnapshot.displayCurrency} />}
                 />
                 {chartItems.map((item, index) => (
                   <Bar
@@ -347,6 +384,15 @@ export function NetWorthCard({
             )}
           </AnimatePresence>
         </div>
+          </div>
+        </InsightLoadingContent>
+
+        <InsightLoadingOverlay
+          visible={loadingVisible}
+          shouldReduceMotion={shouldReduceMotion}
+          label="Loading net worth"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-surface-soft)]"
+        />
       </div>
     </section>
   )

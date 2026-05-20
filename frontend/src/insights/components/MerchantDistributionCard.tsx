@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  InsightLoadingContent,
+  InsightLoadingOverlay,
+} from './InsightLoadingTransition'
+import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type MerchantMarketTile = {
   id: string
@@ -25,6 +30,14 @@ type MerchantDistributionCardProps = {
   merchants: MerchantMarketTile[]
   currency: string
   emptyLabel?: string
+  loading?: boolean
+  transitionKey: string
+}
+
+type MerchantDistributionSnapshot = {
+  merchants: MerchantMarketTile[]
+  currency: string
+  emptyLabel: string
 }
 
 function formatSignedCurrency(amount: number, currency: string) {
@@ -212,34 +225,67 @@ export function MerchantDistributionCard({
   merchants,
   currency,
   emptyLabel = 'No merchant spending in this range.',
+  loading = false,
+  transitionKey,
 }: MerchantDistributionCardProps) {
+  const incomingSnapshot = useMemo<MerchantDistributionSnapshot>(() => ({
+    merchants,
+    currency,
+    emptyLabel,
+  }), [currency, emptyLabel, merchants])
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useInsightLoadingSnapshot<MerchantDistributionSnapshot>({
+    snapshot: incomingSnapshot,
+    loading,
+    transitionKey,
+  })
+
   return (
     <div className="app-card flex min-h-[560px] flex-col">
       {header}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-        <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover.</span>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
-            Spend down
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
-            Spend up
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-accent)' }} />
-            Flat
-          </span>
-        </div>
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <InsightLoadingContent
+          className="flex min-h-0 flex-1 flex-col"
+          concealed={contentConcealed}
+          shouldReduceMotion={shouldReduceMotion}
+        >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover.</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
+                Spend down
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
+                Spend up
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-accent)' }} />
+                Flat
+              </span>
+            </div>
+          </div>
+          {displaySnapshot.merchants.length > 0 ? (
+            <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {displaySnapshot.emptyLabel}
+            </div>
+          )}
+        </InsightLoadingContent>
+
+        <InsightLoadingOverlay
+          visible={loadingVisible}
+          shouldReduceMotion={shouldReduceMotion}
+          label="Loading merchant spending distribution"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-surface-soft)]"
+        />
       </div>
-      {merchants.length > 0 ? (
-        <MerchantMarketMap merchants={merchants} currency={currency} />
-      ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          {emptyLabel}
-        </div>
-      )}
     </div>
   )
 }
