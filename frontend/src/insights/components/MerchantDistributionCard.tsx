@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -40,9 +40,55 @@ type MerchantDistributionSnapshot = {
   emptyLabel: string
 }
 
+const DEFAULT_MAP_WIDTH = 1000
+const DEFAULT_MAP_HEIGHT = 460
+
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
+}
+
+function splitTreemapItems(
+  items: MerchantMarketTile[],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): MerchantMarketTile[] {
+  if (items.length <= 1) {
+    const item = items[0]
+    return item ? [{ ...item, x, y, width, height }] : []
+  }
+
+  const total = items.reduce((sum, item) => sum + item.totalAmount, 0)
+  let running = 0
+  let splitIndex = 1
+  for (let index = 0; index < items.length - 1; index += 1) {
+    running += items[index].totalAmount
+    if (running >= total / 2) {
+      splitIndex = index + 1
+      break
+    }
+  }
+
+  const firstGroup = items.slice(0, splitIndex)
+  const secondGroup = items.slice(splitIndex)
+  const firstTotal = firstGroup.reduce((sum, item) => sum + item.totalAmount, 0)
+  const firstShare = total > 0 ? firstTotal / total : 0.5
+
+  if (width >= height) {
+    const firstWidth = width * firstShare
+    return [
+      ...splitTreemapItems(firstGroup, x, y, firstWidth, height),
+      ...splitTreemapItems(secondGroup, x + firstWidth, y, width - firstWidth, height),
+    ]
+  }
+
+  const firstHeight = height * firstShare
+  return [
+    ...splitTreemapItems(firstGroup, x, y, width, firstHeight),
+    ...splitTreemapItems(secondGroup, x, y + firstHeight, width, height - firstHeight),
+  ]
 }
 
 function getMerchantMarketColor(changePct: number | null, changeAmount: number | null) {
@@ -65,6 +111,25 @@ function getMerchantTileColor(merchant: MerchantMarketTile) {
   return getMerchantMarketColor(merchant.changePct, merchant.changeAmount)
 }
 
+function MerchantDistributionLegend({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex flex-wrap items-center gap-3 ${className}`} style={{ color: 'var(--app-text-muted)' }}>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
+        Spend down
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
+        Spend up
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-accent)' }} />
+        Flat
+      </span>
+    </div>
+  )
+}
+
 function MerchantMarketMap({
   merchants,
   currency,
@@ -73,18 +138,49 @@ function MerchantMarketMap({
   currency: string
 }) {
   const [hoveredTile, setHoveredTile] = useState<MerchantMarketHover | null>(null)
+  const mapRef = useRef<HTMLDivElement | null>(null)
+  const [mapSize, setMapSize] = useState({ width: DEFAULT_MAP_WIDTH, height: DEFAULT_MAP_HEIGHT })
+  const layoutWidth = Math.max(mapSize.width, 1)
+  const layoutHeight = Math.max(mapSize.height, 1)
+  const laidOutMerchants = useMemo(
+    () => splitTreemapItems(merchants, 0, 0, layoutWidth, layoutHeight),
+    [layoutHeight, layoutWidth, merchants],
+  )
+
+  useEffect(() => {
+    const element = mapRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return undefined
+
+    const updateSize = (width: number, height: number) => {
+      const nextWidth = Math.max(Math.round(width), 1)
+      const nextHeight = Math.max(Math.round(height), 1)
+      setMapSize((current) => {
+        if (current.width === nextWidth && current.height === nextHeight) return current
+        return { width: nextWidth, height: nextHeight }
+      })
+    }
+
+    const rect = element.getBoundingClientRect()
+    updateSize(rect.width, rect.height)
+
+    const observer = new ResizeObserver(([entry]) => {
+      updateSize(entry.contentRect.width, entry.contentRect.height)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   return (
-    <div className="relative min-h-0 flex-1">
-      <div className="relative h-full overflow-hidden rounded-lg border border-[var(--app-border)]">
+    <div ref={mapRef} className="relative min-h-0 flex-1">
+      <div className="absolute inset-0 overflow-hidden rounded-lg border border-[var(--app-border)]">
         <svg
-          viewBox="0 0 1000 460"
+          viewBox={`0 0 ${layoutWidth} ${layoutHeight}`}
           preserveAspectRatio="none"
           role="img"
           aria-label="Merchant market map"
           className="pointer-events-none h-full w-full"
         >
-          {merchants.map((merchant) => (
+          {laidOutMerchants.map((merchant) => (
             <rect
               key={merchant.id}
               x={merchant.x + 2}
@@ -99,7 +195,7 @@ function MerchantMarketMap({
           ))}
         </svg>
         <div className="absolute inset-0">
-          {merchants.map((merchant) => {
+          {laidOutMerchants.map((merchant) => {
             const area = merchant.width * merchant.height
             const labelSize = area > 110000 ? 20 : area > 42000 ? 17 : 15
             const amountSize = Math.max(labelSize - 3, 12)
@@ -117,10 +213,10 @@ function MerchantMarketMap({
                 className="absolute flex min-w-0 cursor-default flex-col items-center justify-center overflow-hidden p-2 text-center"
                 style={{
                   color: 'var(--app-text)',
-                  left: `${merchant.x / 10}%`,
-                  top: `${(merchant.y / 460) * 100}%`,
-                  width: `${merchant.width / 10}%`,
-                  height: `${(merchant.height / 460) * 100}%`,
+                  left: `${(merchant.x / layoutWidth) * 100}%`,
+                  top: `${(merchant.y / layoutHeight) * 100}%`,
+                  width: `${(merchant.width / layoutWidth) * 100}%`,
+                  height: `${(merchant.height / layoutHeight) * 100}%`,
                 }}
                 onMouseEnter={(event) => {
                   const rect = event.currentTarget.parentElement?.getBoundingClientRect()
@@ -245,7 +341,7 @@ export function MerchantDistributionCard({
   })
 
   return (
-    <div className="app-card flex min-h-[560px] flex-col">
+    <div className="app-card flex h-[560px] flex-col min-[1300px]:h-full">
       {header}
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <InsightLoadingContent
@@ -255,20 +351,7 @@ export function MerchantDistributionCard({
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
             <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover.</span>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
-                Spend down
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
-                Spend up
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-accent)' }} />
-                Flat
-              </span>
-            </div>
+            <MerchantDistributionLegend className="hidden min-[750px]:flex" />
           </div>
           {displaySnapshot.merchants.length > 0 ? (
             <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />
@@ -277,6 +360,7 @@ export function MerchantDistributionCard({
               {displaySnapshot.emptyLabel}
             </div>
           )}
+          <MerchantDistributionLegend className="mt-3 justify-center text-xs min-[750px]:hidden" />
         </InsightLoadingContent>
 
         <InsightLoadingOverlay

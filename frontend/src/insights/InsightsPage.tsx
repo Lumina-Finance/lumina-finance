@@ -1077,7 +1077,7 @@ export default function InsightsPage() {
           />
         </div>
 
-        <section className="grid grid-cols-1 gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="grid gap-4 min-[1300px]:grid-cols-[minmax(0,1fr)_360px]">
           <div ref={merchantDistributionCardRef} className="min-w-0">
             <MerchantDistributionCard
               header={<SectionHeader icon={Store} label="Spending Distribution by Merchant" />}
