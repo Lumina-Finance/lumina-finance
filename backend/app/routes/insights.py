@@ -12,8 +12,8 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.insights import (
     InsightsCashFlowResponse,
+    InsightsFundFlowResponse,
     InsightsIncomeExpenseBreakdownResponse,
-    InsightsIncomeExpenseFlowResponse,
     InsightsMerchantDistributionResponse,
     InsightsMerchantRankingResponse,
     InsightsNetWorthResponse,
@@ -22,8 +22,8 @@ from app.schemas.insights import (
 )
 from app.services.insights import (
     get_cash_flow,
+    get_fund_flow,
     get_income_expense_breakdown,
-    get_income_expense_flow,
     get_merchant_distribution,
     get_merchant_ranking,
     get_net_worth,
@@ -57,16 +57,16 @@ async def get_period_glance_route(
     return await get_period_glance(db, user, from_date, to_date)
 
 
-@router.get("/income-expense-flow", response_model=InsightsIncomeExpenseFlowResponse)
-async def get_income_expense_flow_route(
+@router.get("/fund-flow", response_model=InsightsFundFlowResponse)
+async def get_fund_flow_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
 ):
-    """Return income and expense entries for the insights Sankey card."""
+    """Return entries for the insights Fund Flow card."""
     _validate_date_range(from_date, to_date)
-    return await get_income_expense_flow(db, user, from_date, to_date)
+    return await get_fund_flow(db, user, from_date, to_date)
 
 
 @router.get("/income-expense-breakdown", response_model=InsightsIncomeExpenseBreakdownResponse)

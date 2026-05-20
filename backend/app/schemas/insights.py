@@ -19,8 +19,8 @@ class InsightsPeriodGlanceResponse(BaseModel):
     biggest_change_pct: int | None = None
 
 
-class InsightsIncomeExpenseFlowResponse(BaseModel):
-    """Payload for the insights income-to-expenses Sankey card."""
+class InsightsFundFlowResponse(BaseModel):
+    """Payload for the insights Fund Flow card."""
 
     income_sources: list[tuple[str, int]]
     expense_categories: list[tuple[str, int]]

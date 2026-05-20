@@ -1,4 +1,4 @@
-"""Route tests for insights income-expense flow endpoint."""
+"""Route tests for the insights Fund Flow endpoint."""
 
 from datetime import date
 from uuid import UUID, uuid4
@@ -36,7 +36,7 @@ async def _seed_usd_currency():
         await session.commit()
 
 
-async def test_income_expense_flow_returns_all_base_currency_entries(client):
+async def test_fund_flow_returns_all_base_currency_entries(client):
     """The flow endpoint returns all visible base-currency entries and counts."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -101,7 +101,7 @@ async def test_income_expense_flow_returns_all_base_currency_entries(client):
         await session.commit()
 
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-03-10", "to_date": "2026-03-16"},
         headers=headers,
     )
@@ -132,7 +132,7 @@ async def test_income_expense_flow_returns_all_base_currency_entries(client):
     }
 
 
-async def test_income_expense_flow_reclassifies_categories_by_net_sign(client):
+async def test_fund_flow_reclassifies_categories_by_net_sign(client):
     """Negative income categories become outflows; positive expense categories become inflows."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -158,7 +158,7 @@ async def test_income_expense_flow_reclassifies_categories_by_net_sign(client):
         await session.commit()
 
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-04-01", "to_date": "2026-04-30"},
         headers=headers,
     )
@@ -174,7 +174,7 @@ async def test_income_expense_flow_reclassifies_categories_by_net_sign(client):
     }
 
 
-async def test_income_expense_flow_shows_negative_capital_gains_as_expense(client):
+async def test_fund_flow_shows_negative_capital_gains_as_expense(client):
     """Negative capital gains are outflows even though the category is income-kind."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -193,7 +193,7 @@ async def test_income_expense_flow_shows_negative_capital_gains_as_expense(clien
         await session.commit()
 
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
         headers=headers,
     )
@@ -209,13 +209,13 @@ async def test_income_expense_flow_shows_negative_capital_gains_as_expense(clien
     }
 
 
-async def test_income_expense_flow_returns_empty_payload_without_accounts(client):
+async def test_fund_flow_returns_empty_payload_without_accounts(client):
     """Users without base-currency accounts get an empty card payload."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-03-10", "to_date": "2026-03-16"},
         headers=headers,
     )
@@ -231,7 +231,7 @@ async def test_income_expense_flow_returns_empty_payload_without_accounts(client
     }
 
 
-async def test_income_expense_flow_handles_single_sided_period(client):
+async def test_fund_flow_handles_single_sided_period(client):
     """A period with only income still returns the available side without synthetic rows."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -247,7 +247,7 @@ async def test_income_expense_flow_handles_single_sided_period(client):
         await session.commit()
 
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-05-01", "to_date": "2026-05-31"},
         headers=headers,
     )
@@ -263,7 +263,7 @@ async def test_income_expense_flow_handles_single_sided_period(client):
     }
 
 
-async def test_income_expense_flow_orders_equal_amounts_by_name(client):
+async def test_fund_flow_orders_equal_amounts_by_name(client):
     """Equal category totals are stable and alphabetically ordered."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -282,7 +282,7 @@ async def test_income_expense_flow_orders_equal_amounts_by_name(client):
         await session.commit()
 
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-08-01", "to_date": "2026-08-31"},
         headers=headers,
     )
@@ -291,13 +291,13 @@ async def test_income_expense_flow_orders_equal_amounts_by_name(client):
     assert resp.json()["expense_categories"] == [["Alpha", 50_000], ["Beta", 50_000]]
 
 
-async def test_income_expense_flow_rejects_invalid_date_range(client):
+async def test_fund_flow_rejects_invalid_date_range(client):
     """The endpoint rejects a start date after the end date."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-03-16", "to_date": "2026-03-10"},
         headers=headers,
     )
@@ -305,20 +305,20 @@ async def test_income_expense_flow_rejects_invalid_date_range(client):
     assert resp.status_code == 422
 
 
-async def test_income_expense_flow_requires_date_params(client):
+async def test_fund_flow_requires_date_params(client):
     """Both date bounds are required for a cacheable card-specific query."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.get("/insights/income-expense-flow", headers=headers)
+    resp = await client.get("/insights/fund-flow", headers=headers)
 
     assert resp.status_code == 422
 
 
-async def test_income_expense_flow_requires_auth(client):
+async def test_fund_flow_requires_auth(client):
     """Insights endpoints require an authenticated user."""
     resp = await client.get(
-        "/insights/income-expense-flow",
+        "/insights/fund-flow",
         params={"from_date": "2026-03-10", "to_date": "2026-03-16"},
     )
 

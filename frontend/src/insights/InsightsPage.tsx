@@ -15,7 +15,7 @@ import {
 import {
   useInsightsCashFlow,
   useInsightsIncomeExpenseBreakdown,
-  useInsightsIncomeExpenseFlow,
+  useInsightsFundFlow,
   useInsightsMerchantDistribution,
   useInsightsMerchantRanking,
   useInsightsNetWorth,
@@ -26,7 +26,7 @@ import {
   type InsightsCategoryTrendEntry,
   type InsightsFlowEntry,
   type InsightsIncomeExpenseBreakdownResponse,
-  type InsightsIncomeExpenseFlowResponse,
+  type InsightsFundFlowResponse,
   type InsightsMerchantDistributionResponse,
   type InsightsMerchantRankingResponse,
   type InsightsNetWorthResponse,
@@ -397,7 +397,7 @@ function getFlowDataFromEntries(
   return { nodes, links }
 }
 
-function getFlowData(data: InsightsIncomeExpenseFlowResponse | undefined): FundFlowData {
+function getFlowData(data: InsightsFundFlowResponse | undefined): FundFlowData {
   if (!data) {
     return { nodes: [], links: [] }
   }
@@ -711,7 +711,7 @@ export default function InsightsPage() {
     rangeInputDates.to,
     insightsCardQueriesEnabled && periodGlanceCardVisible,
   )
-  const incomeExpenseFlowQuery = useInsightsIncomeExpenseFlow(
+  const fundFlowQuery = useInsightsFundFlow(
     rangeInputDates.from,
     rangeInputDates.to,
     insightsCardQueriesEnabled && fundFlowCardVisible,
@@ -747,15 +747,15 @@ export default function InsightsPage() {
     () => getBreakdownEntriesForMode(incomeExpenseBreakdownQuery.data, breakdownMode),
     [breakdownMode, incomeExpenseBreakdownQuery.data],
   )
-  const flowData = useMemo(() => getFlowData(incomeExpenseFlowQuery.data), [incomeExpenseFlowQuery.data])
-  const flowIncomeSources = incomeExpenseFlowQuery.data?.income_sources ?? EMPTY_FLOW_ENTRIES
-  const flowExpenseCategories = incomeExpenseFlowQuery.data?.expense_categories ?? EMPTY_FLOW_ENTRIES
-  const flowIncomeOutflows = incomeExpenseFlowQuery.data?.income_outflows ?? EMPTY_FLOW_ENTRIES
-  const flowExpenseInflows = incomeExpenseFlowQuery.data?.expense_inflows ?? EMPTY_FLOW_ENTRIES
-  const flowIncomeSourceCount = incomeExpenseFlowQuery.data?.income_source_count ?? 0
-  const flowExpenseCategoryCount = incomeExpenseFlowQuery.data?.expense_category_count ?? 0
-  const flowEmptyLabel = incomeExpenseFlowQuery.isLoading
-    ? 'Loading income and expense flow...'
+  const flowData = useMemo(() => getFlowData(fundFlowQuery.data), [fundFlowQuery.data])
+  const flowIncomeSources = fundFlowQuery.data?.income_sources ?? EMPTY_FLOW_ENTRIES
+  const flowExpenseCategories = fundFlowQuery.data?.expense_categories ?? EMPTY_FLOW_ENTRIES
+  const flowIncomeOutflows = fundFlowQuery.data?.income_outflows ?? EMPTY_FLOW_ENTRIES
+  const flowExpenseInflows = fundFlowQuery.data?.expense_inflows ?? EMPTY_FLOW_ENTRIES
+  const flowIncomeSourceCount = fundFlowQuery.data?.income_source_count ?? 0
+  const flowExpenseCategoryCount = fundFlowQuery.data?.expense_category_count ?? 0
+  const flowEmptyLabel = fundFlowQuery.isLoading
+    ? 'Loading fund flow...'
     : 'No income or expenses in this range.'
   const selectedCategoryTrendSections = useMemo(
     () => getCategoryTrendSections(incomeExpenseBreakdownQuery.data, breakdownMode),
@@ -858,7 +858,7 @@ export default function InsightsPage() {
             incomeSourceCount={flowIncomeSourceCount}
             expenseCategoryCount={flowExpenseCategoryCount}
             displayCurrency={displayCurrency}
-            loading={incomeExpenseFlowQuery.isFetching}
+            loading={fundFlowQuery.isFetching}
             transitionKey={cardTransitionKey}
             emptyLabel={flowEmptyLabel}
           />

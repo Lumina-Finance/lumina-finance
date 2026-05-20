@@ -16,7 +16,7 @@ export interface InsightsPeriodGlanceResponse {
 
 export type InsightsFlowEntry = [string, number];
 
-export interface InsightsIncomeExpenseFlowResponse {
+export interface InsightsFundFlowResponse {
   income_sources: InsightsFlowEntry[];
   expense_categories: InsightsFlowEntry[];
   income_outflows: InsightsFlowEntry[];
@@ -132,13 +132,13 @@ export function useInsightsCashFlow(fromDate: string, toDate: string, enabled = 
   });
 }
 
-export function useInsightsIncomeExpenseFlow(fromDate: string, toDate: string, enabled = true) {
+export function useInsightsFundFlow(fromDate: string, toDate: string, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: insightsKeys.incomeExpenseFlow(fromDate, toDate),
+    queryKey: insightsKeys.fundFlow(fromDate, toDate),
     queryFn: () =>
-      authenticatedFetch<InsightsIncomeExpenseFlowResponse>(
-        `/insights/income-expense-flow?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+      authenticatedFetch<InsightsFundFlowResponse>(
+        `/insights/fund-flow?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,

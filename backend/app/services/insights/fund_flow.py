@@ -1,4 +1,4 @@
-"""Income-to-expenses Sankey service for the insights page."""
+"""Fund Flow service for the insights page."""
 
 import uuid
 from datetime import date
@@ -10,7 +10,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.insights import InsightsIncomeExpenseFlowResponse
+from app.schemas.insights import InsightsFundFlowResponse
 from app.services.insights.common import get_base_currency_accounts
 
 
@@ -25,7 +25,7 @@ async def _query_flow_entries(
     list[tuple[str, int]],
     list[tuple[str, int]],
 ]:
-    """Return sign-directed category totals for the Sankey card."""
+    """Return sign-directed category totals for the Fund Flow card."""
     result = await db.execute(
         select(
             Category.name,
@@ -69,18 +69,18 @@ async def _query_flow_entries(
     )
 
 
-async def get_income_expense_flow(
+async def get_fund_flow(
     db: AsyncSession,
     user: User,
     from_date: date,
     to_date: date,
-) -> InsightsIncomeExpenseFlowResponse:
-    """Return all positive entries for the income-to-expenses Sankey card."""
+) -> InsightsFundFlowResponse:
+    """Return all positive entries for the Fund Flow card."""
     base_currency_accounts = await get_base_currency_accounts(db, user)
     account_ids = [account.id for account in base_currency_accounts]
 
     if not account_ids:
-        return InsightsIncomeExpenseFlowResponse(
+        return InsightsFundFlowResponse(
             income_sources=[],
             expense_categories=[],
             income_outflows=[],
@@ -96,7 +96,7 @@ async def get_income_expense_flow(
         to_date,
     )
 
-    return InsightsIncomeExpenseFlowResponse(
+    return InsightsFundFlowResponse(
         income_sources=income_sources,
         expense_categories=expense_categories,
         income_outflows=income_outflows,
