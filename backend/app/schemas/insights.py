@@ -41,6 +41,12 @@ class InsightsIncomeExpenseBreakdownResponse(BaseModel):
     income_decreases: list[tuple[str, str, int, int, int | None, int]]
 
 
+class InsightsCashFlowResponse(BaseModel):
+    """Payload for the insights cash-flow card."""
+
+    points: list[tuple[date, date, int, int]]
+
+
 class InsightsNetWorthResponse(BaseModel):
     """Payload for the insights net-worth card."""
 

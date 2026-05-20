@@ -11,6 +11,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.insights import (
+    InsightsCashFlowResponse,
     InsightsIncomeExpenseBreakdownResponse,
     InsightsIncomeExpenseFlowResponse,
     InsightsMerchantDistributionResponse,
@@ -20,6 +21,7 @@ from app.schemas.insights import (
     InsightsSavingsRateTrendResponse,
 )
 from app.services.insights import (
+    get_cash_flow,
     get_income_expense_breakdown,
     get_income_expense_flow,
     get_merchant_distribution,
@@ -77,6 +79,18 @@ async def get_income_expense_breakdown_route(
     """Return category breakdown and trend rows for the insights breakdown card."""
     _validate_date_range(from_date, to_date)
     return await get_income_expense_breakdown(db, user, from_date, to_date)
+
+
+@router.get("/cash-flow", response_model=InsightsCashFlowResponse)
+async def get_cash_flow_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_date: Annotated[date, Query()],
+    to_date: Annotated[date, Query()],
+):
+    """Return cash-flow buckets for the insights cash-flow card."""
+    _validate_date_range(from_date, to_date)
+    return await get_cash_flow(db, user, from_date, to_date)
 
 
 @router.get("/net-worth", response_model=InsightsNetWorthResponse)
