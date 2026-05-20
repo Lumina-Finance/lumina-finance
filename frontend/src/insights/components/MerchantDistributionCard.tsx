@@ -73,9 +73,16 @@ function MerchantMarketMap({
         >
           {merchants.map((merchant) => {
             const area = merchant.width * merchant.height
-            const labelSize = area > 90000 ? 24 : area > 42000 ? 17 : 12
-            const amountSize = Math.max(labelSize - 5, 10)
+            const labelSize = area > 110000 ? 20 : area > 42000 ? 17 : 15
+            const amountSize = Math.max(labelSize - 3, 12)
             const amountText = formatCurrency(merchant.totalAmount, currency)
+            const contentWidth = Math.max(merchant.width - 20, 0)
+            const contentHeight = Math.max(merchant.height - 20, 0)
+            const showName = contentWidth >= 80 && contentHeight >= 42
+            const showAmount = contentWidth >= 70 && contentHeight >= (showName ? 62 : 30)
+            const compactName = contentWidth < 128 || contentHeight < 74
+            const showDetailsIndicator = !showName && !showAmount && contentWidth >= 18 && contentHeight >= 18
+            const detailsIndicatorSize = Math.min(20, Math.max(15, Math.min(contentWidth, contentHeight) * 0.58))
             return (
               <g
                 key={merchant.id}
@@ -112,25 +119,51 @@ function MerchantMarketMap({
                 <foreignObject
                   x={merchant.x + 10}
                   y={merchant.y + 10}
-                  width={Math.max(merchant.width - 20, 0)}
-                  height={Math.max(merchant.height - 20, 0)}
+                  width={contentWidth}
+                  height={contentHeight}
                 >
                   <div
-                    className="flex h-full min-w-0 flex-col items-center justify-center text-center"
+                    className="flex h-full min-w-0 flex-col items-center justify-center overflow-hidden text-center"
                     style={{ color: 'var(--app-text)' }}
                   >
-                    <p
-                      className="max-w-full break-words font-bold leading-tight"
-                      style={{ fontSize: labelSize }}
-                    >
-                      {merchant.name}
-                    </p>
-                    <p
-                      className="mt-1 max-w-full break-words font-financial leading-tight"
-                      style={{ color: 'var(--app-text-muted)', fontSize: amountSize }}
-                    >
-                      {amountText}
-                    </p>
+                    {showName && (
+                      <p
+                        className="max-w-full overflow-hidden font-bold leading-tight"
+                        style={{
+                          fontSize: labelSize,
+                          overflowWrap: 'normal',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: compactName ? 'nowrap' : undefined,
+                          wordBreak: 'normal',
+                          ...(!compactName
+                            ? {
+                                display: '-webkit-box',
+                                WebkitBoxOrient: 'vertical',
+                                WebkitLineClamp: 2,
+                              }
+                            : {}),
+                        }}
+                      >
+                        {merchant.name}
+                      </p>
+                    )}
+                    {showAmount && (
+                      <p
+                        className={`${showName ? 'mt-1' : ''} max-w-full truncate font-financial leading-tight`}
+                        style={{ color: 'var(--app-text-muted)', fontSize: amountSize }}
+                      >
+                        {amountText}
+                      </p>
+                    )}
+                    {showDetailsIndicator && (
+                      <span
+                        aria-hidden
+                        className="font-bold leading-none"
+                        style={{ color: 'var(--app-text-muted)', fontSize: detailsIndicatorSize }}
+                      >
+                        ...
+                      </span>
+                    )}
                   </div>
                 </foreignObject>
               </g>
@@ -183,7 +216,7 @@ export function MerchantDistributionCard({
     <div className="app-card flex min-h-[560px] flex-col">
       {header}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-        <span>Tile size shows total spend. Color shows change vs. the comparable period.</span>
+        <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover.</span>
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
