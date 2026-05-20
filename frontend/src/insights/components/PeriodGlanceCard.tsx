@@ -1,5 +1,8 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { formatCurrency } from '@/utils/formatCurrency'
+
+const PRIMARY_AMOUNT_MAX_REM = 3
+const PRIMARY_AMOUNT_MIN_REM = 1.875
 
 type PeriodGlanceTone = 'positive' | 'neutral' | 'negative'
 
@@ -26,10 +29,69 @@ type PeriodGlanceCardProps = {
   displayCurrency: string
 }
 
-function metricToneColor(tone: PeriodGlanceTone) {
-  if (tone === 'positive') return 'var(--app-positive)'
-  if (tone === 'negative') return 'var(--app-negative)'
-  return undefined
+function metricToneClass(tone: PeriodGlanceTone) {
+  if (tone === 'positive') return 'text-[var(--app-positive)]'
+  if (tone === 'negative') return 'text-[var(--app-negative)]'
+  return ''
+}
+
+function useFittedPrimaryAmount(value: string) {
+  const textRef = useRef<HTMLParagraphElement>(null)
+  const [fontSizeRem, setFontSizeRem] = useState(PRIMARY_AMOUNT_MAX_REM)
+
+  useEffect(() => {
+    const textElement = textRef.current
+    const containerElement = textElement?.parentElement
+    if (!textElement || !containerElement) return undefined
+
+    let frameId = 0
+    let cancelled = false
+
+    function measure() {
+      window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(() => {
+        if (cancelled) return
+
+        const previousFontSize = textElement.style.fontSize
+        textElement.style.fontSize = `${PRIMARY_AMOUNT_MAX_REM}rem`
+
+        const availableWidth = textElement.clientWidth
+        const requiredWidth = textElement.scrollWidth
+
+        textElement.style.fontSize = previousFontSize
+
+        const nextFontSize =
+          availableWidth > 0 && requiredWidth > availableWidth
+            ? Math.max(PRIMARY_AMOUNT_MIN_REM, PRIMARY_AMOUNT_MAX_REM * (availableWidth / requiredWidth))
+            : PRIMARY_AMOUNT_MAX_REM
+
+        setFontSizeRem((currentFontSize) =>
+          Math.abs(currentFontSize - nextFontSize) < 0.02 ? currentFontSize : nextFontSize,
+        )
+      })
+    }
+
+    measure()
+    document.fonts?.ready.then(measure)
+
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        cancelled = true
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+
+    const resizeObserver = new ResizeObserver(measure)
+    resizeObserver.observe(containerElement)
+
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frameId)
+      resizeObserver.disconnect()
+    }
+  }, [value])
+
+  return [textRef, fontSizeRem] as const
 }
 
 export function PeriodGlanceCard({
@@ -40,29 +102,34 @@ export function PeriodGlanceCard({
   expenses,
   displayCurrency,
 }: PeriodGlanceCardProps) {
+  const [primaryAmountRef, primaryAmountFontSizeRem] = useFittedPrimaryAmount(primaryMetric.value)
+  const primaryAmountStyle: CSSProperties | undefined =
+    primaryAmountFontSizeRem < PRIMARY_AMOUNT_MAX_REM ? { fontSize: `${primaryAmountFontSizeRem}rem` } : undefined
+
   return (
     <section className="app-card">
       {header}
 
-      <div className="grid gap-4 min-[1040px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
-        <div
-          className="flex min-h-52 flex-col justify-between rounded-xl border p-4"
-          style={{ background: 'var(--app-accent-soft)', borderColor: 'var(--app-accent-border)' }}
-        >
-          <div>
+      <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+        <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1400px]:flex min-[1400px]:min-h-52 min-[1400px]:flex-col min-[1400px]:items-stretch min-[1400px]:justify-between">
+          <div className="min-w-0 [container-type:inline-size]">
             <p className="app-label">{primaryMetric.label}</p>
             <p
-              className="mt-3 font-financial font-normal tracking-tight leading-none text-5xl max-[1000px]:text-4xl"
-              style={{ color: metricToneColor(primaryMetric.tone) }}
+              ref={primaryAmountRef}
+              className={[
+                'mt-3 max-w-full whitespace-nowrap font-financial text-5xl font-normal leading-none',
+                metricToneClass(primaryMetric.tone),
+              ].join(' ')}
+              style={primaryAmountStyle}
             >
               {primaryMetric.value}
             </p>
-            <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text-muted)]">
               {primaryMetric.detail}
             </p>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3">
+          <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1400px]:mt-5 min-[1400px]:grid-cols-2 min-[1400px]:border-l-0 min-[1400px]:border-t min-[1400px]:pl-0 min-[1400px]:pt-3">
             <div>
               <p className="app-label app-label-compact">Income</p>
               <p className="mt-1 font-financial text-lg">{formatCurrency(income, displayCurrency)}</p>
@@ -74,28 +141,29 @@ export function PeriodGlanceCard({
           </div>
         </div>
 
-        <div className="grid min-[720px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+        <div className="grid min-[750px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
           {supportItems.map((item, index) => (
             <div
               key={item.label}
               className={[
-                'border-[var(--app-border)] py-3 min-[720px]:p-4 min-[720px]:border-t-0',
-                index > 0 ? 'border-t' : '',
-                index === 0 ? 'pt-0 min-[720px]:border-b min-[720px]:border-r min-[720px]:pl-0 min-[720px]:pt-0' : '',
-                index === 1 ? 'min-[720px]:border-b min-[720px]:pr-0 min-[720px]:pt-0' : '',
-                index === 2 ? 'min-[720px]:border-r min-[720px]:pb-0 min-[720px]:pl-0' : '',
-                index === 3 ? 'pb-0 min-[720px]:pb-0 min-[720px]:pr-0' : '',
+                'border-[var(--app-border)] py-4 min-[750px]:p-4',
+                index < supportItems.length - 1 ? 'border-b' : '',
+                index === 0 ? 'pt-0 min-[750px]:border-r min-[750px]:pl-0 min-[750px]:pt-0' : '',
+                index === 1 ? 'min-[750px]:pr-0 min-[750px]:pt-0' : '',
+                index === 2
+                  ? 'min-[750px]:border-b-0 min-[750px]:border-r min-[750px]:pb-0 min-[750px]:pl-0'
+                  : '',
+                index === 3 ? 'pb-0 min-[750px]:pr-0' : '',
               ].join(' ')}
             >
               <div className="flex min-h-28 flex-col items-center justify-center text-center">
                 <p className="app-label">{item.label}</p>
                 <p
-                  className="mt-1 text-2xl font-semibold leading-tight max-[1000px]:text-xl"
-                  style={{ color: metricToneColor(item.tone) }}
+                  className={['mt-1 text-2xl font-semibold leading-tight', metricToneClass(item.tone)].join(' ')}
                 >
                   {item.value}
                 </p>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+                <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">
                   {item.detail}
                 </p>
               </div>
