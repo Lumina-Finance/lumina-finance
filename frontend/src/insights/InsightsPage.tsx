@@ -16,6 +16,7 @@ import type { SpendingRange } from '@/api/dashboard'
 import {
   useInsightsIncomeExpenseBreakdown,
   useInsightsIncomeExpenseFlow,
+  useInsightsMerchantDistribution,
   useInsightsNetWorth,
   useInsightsPeriodGlance,
   useInsightsSavingsRateTrend,
@@ -24,6 +25,7 @@ import {
   type InsightsFlowEntry,
   type InsightsIncomeExpenseBreakdownResponse,
   type InsightsIncomeExpenseFlowResponse,
+  type InsightsMerchantDistributionResponse,
   type InsightsNetWorthResponse,
   type InsightsPeriodGlanceResponse,
   type InsightsSavingsRateTrendResponse,
@@ -73,6 +75,14 @@ type MerchantBubble = {
   totalAmount: number
   transactionCount: number
   averageAmount: number
+}
+
+type MerchantMarketEntry = {
+  id: string
+  name: string
+  totalAmount: number
+  changePct: number | null
+  changeAmount: number | null
 }
 
 type InsightSignal = {
@@ -845,11 +855,16 @@ function getMerchantChange(merchant: MerchantBubble, range: SpendingRange) {
   return merchantChangeByRange[range][merchant.id] ?? 0
 }
 
-function getMerchantChangeAmount(totalAmount: number, changePct: number) {
-  if (changePct === 0) return 0
-  const previousMultiplier = 1 + (changePct / 100)
-  if (previousMultiplier <= 0) return null
-  return Math.round(totalAmount - (totalAmount / previousMultiplier))
+function getMerchantDistributionEntries(
+  response: InsightsMerchantDistributionResponse | undefined,
+): MerchantMarketEntry[] {
+  return (response?.merchants ?? []).map(([id, name, totalAmount, changePct, changeAmount]) => ({
+    id,
+    name,
+    totalAmount,
+    changePct,
+    changeAmount,
+  }))
 }
 
 function splitTreemapItems(
@@ -895,51 +910,20 @@ function splitTreemapItems(
   ]
 }
 
-function getMerchantMarketLayout(merchants: MerchantBubble[], range: SpendingRange): MerchantMarketTile[] {
-  const rankedMerchants = [...merchants]
-    .sort((a, b) => b.totalAmount - a.totalAmount)
-  const topMerchants = rankedMerchants.slice(0, 8)
-  const remainingMerchants = rankedMerchants.slice(8)
-  const otherTotal = remainingMerchants.reduce((sum, merchant) => sum + merchant.totalAmount, 0)
-  const otherTransactionCount = remainingMerchants.reduce((sum, merchant) => sum + merchant.transactionCount, 0)
-  const otherWeightedChange = otherTotal > 0
-    ? Math.round(
-      remainingMerchants.reduce((sum, merchant) => (
-        sum + (getMerchantChange(merchant, range) * merchant.totalAmount)
-      ), 0) / otherTotal,
-    )
-    : 0
-  const entries = [
-    ...topMerchants.map((merchant) => {
-      const changePct = getMerchantChange(merchant, range)
-      return {
-        ...merchant,
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0,
-        changePct,
-        changeAmount: getMerchantChangeAmount(merchant.totalAmount, changePct),
-      }
-    }),
-    ...(remainingMerchants.length > 0
-      ? [{
-        id: 'other-merchants',
-        name: 'Other',
-        totalAmount: otherTotal,
-        transactionCount: otherTransactionCount,
-        averageAmount: otherTransactionCount > 0 ? Math.round(otherTotal / otherTransactionCount) : 0,
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0,
-        changePct: otherWeightedChange,
-        changeAmount: null,
-      }]
-      : []),
-  ]
-
-  return splitTreemapItems(entries, 0, 0, 1000, 460)
+function getMerchantMarketLayout(merchants: MerchantMarketEntry[]): MerchantMarketTile[] {
+  return splitTreemapItems(
+    merchants.map((merchant) => ({
+      ...merchant,
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+    })),
+    0,
+    0,
+    1000,
+    460,
+  )
 }
 
 function InsightsFloatingRangeControl({
@@ -1094,6 +1078,11 @@ export default function InsightsPage() {
     rangeInputDates.to,
     insightsCardQueriesEnabled,
   )
+  const merchantDistributionQuery = useInsightsMerchantDistribution(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    insightsCardQueriesEnabled,
+  )
   const savingsRateTrendQuery = useInsightsSavingsRateTrend()
   const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
@@ -1154,7 +1143,10 @@ export default function InsightsPage() {
     () => getSavingsRateHistory(savingsRateTrendQuery.data),
     [savingsRateTrendQuery.data],
   )
-  const merchantMarketLayout = useMemo(() => getMerchantMarketLayout(data.merchantBubbles, range), [data.merchantBubbles, range])
+  const merchantMarketLayout = useMemo(
+    () => getMerchantMarketLayout(getMerchantDistributionEntries(merchantDistributionQuery.data)),
+    [merchantDistributionQuery.data],
+  )
   const rankedMerchants = [...data.merchantBubbles].sort((a, b) => b.totalAmount - a.totalAmount)
   return (
     <div className="relative">
@@ -1296,6 +1288,7 @@ export default function InsightsPage() {
             header={<SectionHeader icon={Store} label="Spending Distribution by Merchant" />}
             merchants={merchantMarketLayout}
             currency={displayCurrency}
+            emptyLabel={merchantDistributionQuery.isLoading ? 'Loading merchant spending...' : undefined}
           />
 
           <div className="app-card">

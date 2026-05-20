@@ -51,6 +51,12 @@ export interface InsightsSavingsRateTrendResponse {
   points: InsightsSavingsRateTrendPoint[];
 }
 
+export type InsightsMerchantDistributionEntry = [string, string, number, number | null, number | null];
+
+export interface InsightsMerchantDistributionResponse {
+  merchants: InsightsMerchantDistributionEntry[];
+}
+
 export function useInsightsPeriodGlance(fromDate: string, toDate: string, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
@@ -108,6 +114,19 @@ export function useInsightsIncomeExpenseFlow(fromDate: string, toDate: string, e
     queryFn: () =>
       authenticatedFetch<InsightsIncomeExpenseFlowResponse>(
         `/insights/income-expense-flow?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+      ),
+    enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInsightsMerchantDistribution(fromDate: string, toDate: string, enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: insightsKeys.merchantDistribution(fromDate, toDate),
+    queryFn: () =>
+      authenticatedFetch<InsightsMerchantDistributionResponse>(
+        `/insights/merchant-distribution?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,

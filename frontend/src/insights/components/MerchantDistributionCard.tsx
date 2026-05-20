@@ -6,13 +6,11 @@ export type MerchantMarketTile = {
   id: string
   name: string
   totalAmount: number
-  transactionCount: number
-  averageAmount: number
   x: number
   y: number
   width: number
   height: number
-  changePct: number
+  changePct: number | null
   changeAmount: number | null
 }
 
@@ -26,6 +24,7 @@ type MerchantDistributionCardProps = {
   header: ReactNode
   merchants: MerchantMarketTile[]
   currency: string
+  emptyLabel?: string
 }
 
 function formatSignedCurrency(amount: number, currency: string) {
@@ -33,12 +32,16 @@ function formatSignedCurrency(amount: number, currency: string) {
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
 }
 
-function getMerchantMarketColor(changePct: number) {
-  if (changePct === 0) {
+function getMerchantMarketColor(changePct: number | null, changeAmount: number | null) {
+  if (changePct === null && changeAmount === null) {
+    return 'color-mix(in srgb, var(--app-text-muted) 24%, var(--app-input-bg))'
+  }
+  if (changePct === 0 || changeAmount === 0) {
     return 'color-mix(in srgb, var(--app-accent) 14%, var(--app-input-bg))'
   }
-  const variable = changePct < 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)'
-  const mix = Math.min(72, 24 + Math.abs(changePct) * 2.2)
+  const direction = changePct ?? changeAmount ?? 0
+  const variable = direction < 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)'
+  const mix = changePct === null ? 34 : Math.min(72, 24 + Math.abs(changePct) * 2.2)
   return `color-mix(in srgb, ${variable} ${mix}%, var(--app-input-bg))`
 }
 
@@ -46,7 +49,7 @@ function getMerchantTileColor(merchant: MerchantMarketTile) {
   if (merchant.id === 'other-merchants') {
     return 'color-mix(in srgb, var(--app-text-muted) 24%, var(--app-input-bg))'
   }
-  return getMerchantMarketColor(merchant.changePct)
+  return getMerchantMarketColor(merchant.changePct, merchant.changeAmount)
 }
 
 function MerchantMarketMap({
@@ -158,8 +161,9 @@ function MerchantMarketMap({
               <span>Change</span>
               <span className="font-financial">
                 {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
-                {' '}
-                ({hoveredTile.merchant.changePct > 0 ? '+' : ''}{hoveredTile.merchant.changePct}%)
+                {hoveredTile.merchant.changePct === null
+                  ? ' (no prior spend)'
+                  : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
               </span>
             </div>
           )}
@@ -173,6 +177,7 @@ export function MerchantDistributionCard({
   header,
   merchants,
   currency,
+  emptyLabel = 'No merchant spending in this range.',
 }: MerchantDistributionCardProps) {
   return (
     <div className="app-card flex min-h-[560px] flex-col">
@@ -194,7 +199,13 @@ export function MerchantDistributionCard({
           </span>
         </div>
       </div>
-      <MerchantMarketMap merchants={merchants} currency={currency} />
+      {merchants.length > 0 ? (
+        <MerchantMarketMap merchants={merchants} currency={currency} />
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          {emptyLabel}
+        </div>
+      )}
     </div>
   )
 }
