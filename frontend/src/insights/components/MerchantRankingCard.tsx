@@ -67,7 +67,7 @@ export function MerchantRankingCard({
   })
 
   return (
-    <div className="app-card">
+    <div className="app-card min-[1300px]:h-[560px]">
       {header}
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
