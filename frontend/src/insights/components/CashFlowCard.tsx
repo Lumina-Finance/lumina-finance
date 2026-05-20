@@ -52,6 +52,16 @@ function getSignedAmountColor(amount: number) {
   return 'var(--app-text)'
 }
 
+function getCashFlowYAxisWidth(buckets: CashFlowBarBucket[], currency: string) {
+  const values = buckets.flatMap((bucket) => [bucket.net, 0])
+  const longestLabel = values.reduce((longest, value) => {
+    const label = formatCurrency(value, currency)
+    return label.length > longest.length ? label : longest
+  }, '')
+
+  return Math.min(92, Math.max(52, longestLabel.length * 6 + 10))
+}
+
 function CashFlowBarTooltip({
   active,
   payload,
@@ -117,6 +127,7 @@ export function CashFlowCard({
   const totalInflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.inflow, 0)
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
+  const yAxisWidth = getCashFlowYAxisWidth(displaySnapshot.buckets, displaySnapshot.displayCurrency)
 
   return (
     <section className="app-card">
@@ -124,7 +135,7 @@ export function CashFlowCard({
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[390px] flex-col">
-            <div className="mb-3 pl-4">
+            <div className="mb-3">
               <p className="app-label app-label-compact">Net Cash Flow</p>
               <p
                 className="mt-1 font-financial text-3xl leading-none tracking-tight"
@@ -145,7 +156,7 @@ export function CashFlowCard({
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={displaySnapshot.buckets}
-                    margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+                    margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
                     barCategoryGap="22%"
                   >
                     <XAxis
@@ -158,7 +169,7 @@ export function CashFlowCard({
                       tickMargin={4}
                     />
                     <YAxis
-                      width={92}
+                      width={yAxisWidth}
                       axisLine={false}
                       tickLine={false}
                       domain={[
