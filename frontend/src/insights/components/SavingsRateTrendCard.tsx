@@ -55,8 +55,6 @@ type SavingsRateTrendSnapshot = {
   emptyLabel: string
 }
 
-const savingsRateHistoryLimit = 12
-
 function getSavingsTier(rate: number | null) {
   if (rate === null) return 'negative'
   if (rate >= 20) return 'positive'
@@ -175,14 +173,12 @@ export function SavingsRateTrendCard({
     (worst, point) => (worst === null || (point.rate ?? Infinity) < (worst.rate ?? Infinity) ? point : worst),
     null,
   )
-  const windowMonths = Math.min(savingsRateHistoryLimit, displaySnapshot.series.length)
   const firstPoint = displaySnapshot.series[0]
   const averagePeriodLabel = firstPoint && latestPoint
     ? firstPoint.fullLabel === latestPoint.fullLabel
       ? firstPoint.fullLabel
       : `${firstPoint.fullLabel} to ${latestPoint.fullLabel}`
     : 'No available history'
-  const latestComparison = `${formatSavingsRateValue(latestPoint?.rate ?? null)} vs ${formatSavingsRateValue(averageRate)}`
   const chartSeries = displaySnapshot.series.map((point) => ({
     ...point,
     chartRate: displaySnapshot.capRates ? clampSavingsRate(point.rate) : point.rate,
@@ -218,33 +214,44 @@ export function SavingsRateTrendCard({
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[430px] flex-col">
-            <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[760px]:grid-cols-3">
-              <div className="pl-4">
-                <p className="app-label">{windowMonths}-Month Average</p>
-                <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
-                  {formatSavingsRateValue(averageRate)}
-                </p>
-                <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  {averagePeriodLabel}
-                </p>
-              </div>
-              <div>
-                <p className="app-label">Latest vs Average</p>
-                <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
-                  {latestComparison}
+            <div className="mb-4 grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] items-center gap-6 border-b border-[var(--app-border)] pb-4">
+              <div className="min-w-0">
+                <p className="app-label">Latest Savings Rate</p>
+                <p className="mt-1 font-financial text-4xl leading-none tracking-tight">
+                  {formatSavingsRateValue(latestPoint?.rate ?? null)}
                 </p>
                 <p className="mt-2 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
                   {latestPoint?.fullLabel ?? 'No recent month'}
                 </p>
               </div>
-              <div>
-                <p className="app-label">Best / Worst</p>
-                <p className="mt-1 font-financial text-3xl leading-none tracking-tight">
-                  {formatSavingsRateValue(bestPoint?.rate ?? null)} / {formatSavingsRateValue(worstPoint?.rate ?? null)}
-                </p>
-                <p className="mt-2 truncate text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  {bestPoint?.fullLabel ?? 'N/A'} high, {worstPoint?.fullLabel ?? 'N/A'} low
-                </p>
+              <div className="grid min-w-0 grid-cols-3 gap-4">
+                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-3 py-2.5">
+                  <p className="app-label app-label-compact">Average</p>
+                  <p className="mt-1 font-financial text-2xl leading-none tracking-tight">
+                    {formatSavingsRateValue(averageRate)}
+                  </p>
+                  <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {averagePeriodLabel}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-3 py-2.5">
+                  <p className="app-label app-label-compact">Best</p>
+                  <p className="mt-1 font-financial text-2xl leading-none tracking-tight">
+                    {formatSavingsRateValue(bestPoint?.rate ?? null)}
+                  </p>
+                  <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {bestPoint?.fullLabel ?? 'N/A'}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-md border border-[var(--app-border)] px-3 py-2.5">
+                  <p className="app-label app-label-compact">Worst</p>
+                  <p className="mt-1 font-financial text-2xl leading-none tracking-tight">
+                    {formatSavingsRateValue(worstPoint?.rate ?? null)}
+                  </p>
+                  <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {worstPoint?.fullLabel ?? 'N/A'}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="min-h-0 flex-1">
