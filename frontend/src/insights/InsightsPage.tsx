@@ -57,10 +57,10 @@ import {
   type MerchantRankingRow,
 } from './components/MerchantRankingCard'
 import {
-  IncomeExpenseSankeyCard,
-  type IncomeExpenseFlowData,
-  type IncomeExpenseFlowNode,
-} from './components/IncomeExpenseSankeyCard'
+  FundFlowCard,
+  type FundFlowData,
+  type FundFlowNode,
+} from './components/FundFlowCard'
 import {
   NetWorthCard,
   type NetWorthGroup,
@@ -495,14 +495,14 @@ function getSavingsRateHistory(response: InsightsSavingsRateTrendResponse | unde
 function getFlowDataFromEntries(
   incomeEntries: InsightsFlowEntry[],
   expenseEntries: InsightsFlowEntry[],
-): IncomeExpenseFlowData {
+): FundFlowData {
   if (incomeEntries.length === 0 && expenseEntries.length === 0) {
     return { nodes: [], links: [] }
   }
 
   const incomeTotal = incomeEntries.reduce((sum, [, amount]) => sum + amount, 0)
   const expenseTotal = expenseEntries.reduce((sum, [, amount]) => sum + amount, 0)
-  const nodes: IncomeExpenseFlowNode[] = [
+  const nodes: FundFlowNode[] = [
     ...incomeEntries.map((entry) => {
       const [name] = entry
       return {
@@ -552,7 +552,7 @@ function getFlowDataFromEntries(
   return { nodes, links }
 }
 
-function getFlowData(data: InsightsIncomeExpenseFlowResponse | undefined): IncomeExpenseFlowData {
+function getFlowData(data: InsightsIncomeExpenseFlowResponse | undefined): FundFlowData {
   if (!data) {
     return { nodes: [], links: [] }
   }
@@ -1080,8 +1080,8 @@ export default function InsightsPage() {
           displayCurrency={displayCurrency}
         />
 
-        <IncomeExpenseSankeyCard
-          header={<SectionHeader icon={Network} label="Income to Expenses" />}
+        <FundFlowCard
+          header={<SectionHeader icon={Network} label="Fund Flow" />}
           flowData={flowData}
           incomeSources={flowIncomeSources}
           expenseCategories={flowExpenseCategories}

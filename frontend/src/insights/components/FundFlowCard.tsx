@@ -9,29 +9,29 @@ import {
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
 
-type IncomeExpenseFlowNodeKind = 'income' | 'expense' | 'summary' | 'retained'
+type FundFlowNodeKind = 'income' | 'expense' | 'summary' | 'retained'
 
-export type IncomeExpenseFlowNode = {
+export type FundFlowNode = {
   name: string
-  kind: IncomeExpenseFlowNodeKind
+  kind: FundFlowNodeKind
   labelSide?: 'left' | 'right'
 }
 
-type IncomeExpenseFlowLink = {
+type FundFlowLink = {
   source: number
   target: number
   value: number
 }
 
-export type IncomeExpenseFlowData = {
-  nodes: IncomeExpenseFlowNode[]
-  links: IncomeExpenseFlowLink[]
+export type FundFlowData = {
+  nodes: FundFlowNode[]
+  links: FundFlowLink[]
 }
 
-type FlowTooltipPayload = Partial<IncomeExpenseFlowNode> & {
+type FlowTooltipPayload = Partial<FundFlowNode> & {
   value?: number | string
-  source?: IncomeExpenseFlowNode
-  target?: IncomeExpenseFlowNode
+  source?: FundFlowNode
+  target?: FundFlowNode
   payload?: FlowTooltipPayload
 }
 
@@ -43,9 +43,9 @@ type FlowTooltipItem = {
 
 type SignAdjustedFlowEntry = [string, number]
 
-type IncomeExpenseSankeyCardProps = {
+type FundFlowCardProps = {
   header: ReactNode
-  flowData: IncomeExpenseFlowData
+  flowData: FundFlowData
   incomeSources: SignAdjustedFlowEntry[]
   expenseCategories: SignAdjustedFlowEntry[]
   incomeOutflows: SignAdjustedFlowEntry[]
@@ -90,8 +90,8 @@ function getFlowTooltipName(item: FlowTooltipItem) {
 }
 
 function FlowNodeShape({ x, y, width, height, payload }: SankeyNodeProps) {
-  const node = payload as unknown as IncomeExpenseFlowNode
-  const fillByKind: Record<IncomeExpenseFlowNodeKind, string> = {
+  const node = payload as unknown as FundFlowNode
+  const fillByKind: Record<FundFlowNodeKind, string> = {
     income: 'var(--app-chart-positive)',
     expense: 'var(--app-chart-negative)',
     summary: 'var(--app-accent)',
@@ -217,7 +217,7 @@ function FlowCategoryList({
         onClick={onToggle}
       >
         <span className="min-w-0">
-          <span className="app-label app-label-compact block">{title}</span>
+          <span className="app-label block">{title}</span>
           <span className="mt-1 block font-financial text-xl leading-none">
             {displayCount}
           </span>
@@ -272,7 +272,7 @@ function FlowCategoryList({
   )
 }
 
-export function IncomeExpenseSankeyCard({
+export function FundFlowCard({
   header,
   flowData,
   incomeSources,
@@ -283,7 +283,7 @@ export function IncomeExpenseSankeyCard({
   expenseCategoryCount,
   displayCurrency,
   emptyLabel = 'No income or expenses in this range.',
-}: IncomeExpenseSankeyCardProps) {
+}: FundFlowCardProps) {
   const [incomeListOpen, setIncomeListOpen] = useState(false)
   const [expenseListOpen, setExpenseListOpen] = useState(false)
   const normalIncomeSources = withoutMatchingEntries(incomeSources, expenseInflows)
