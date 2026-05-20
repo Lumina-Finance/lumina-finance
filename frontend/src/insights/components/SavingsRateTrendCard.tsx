@@ -224,33 +224,33 @@ export function SavingsRateTrendCard({
               <div className="grid min-w-0 gap-2 min-[550px]:grid-cols-3 min-[750px]:gap-4">
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className="app-label app-label-compact">Average</p>
-                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                  <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(averageRate)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
                       Last 12 months
                     </p>
                   </div>
                 </div>
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className="app-label app-label-compact">Best</p>
-                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                  <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(bestPoint?.rate ?? null)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
                       {bestPoint?.fullLabel ?? 'N/A'}
                     </p>
                   </div>
                 </div>
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className="app-label app-label-compact">Worst</p>
-                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                  <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(worstPoint?.rate ?? null)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
                       {worstPoint?.fullLabel ?? 'N/A'}
                     </p>
                   </div>
