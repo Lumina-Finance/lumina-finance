@@ -51,6 +51,10 @@ import {
   type MerchantMarketTile,
 } from './components/MerchantDistributionCard'
 import {
+  MerchantRankingCard,
+  type MerchantRankingRow,
+} from './components/MerchantRankingCard'
+import {
   IncomeExpenseSankeyCard,
   type IncomeExpenseFlowData,
   type IncomeExpenseFlowNode,
@@ -1147,7 +1151,12 @@ export default function InsightsPage() {
     () => getMerchantMarketLayout(getMerchantDistributionEntries(merchantDistributionQuery.data)),
     [merchantDistributionQuery.data],
   )
-  const rankedMerchants = [...data.merchantBubbles].sort((a, b) => b.totalAmount - a.totalAmount)
+  const rankedMerchants: MerchantRankingRow[] = [...data.merchantBubbles]
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .map((merchant) => ({
+      ...merchant,
+      changePct: getMerchantChange(merchant, range),
+    }))
   return (
     <div className="relative">
       <header className="app-page-header min-[760px]:pr-[25rem]">
@@ -1291,46 +1300,11 @@ export default function InsightsPage() {
             emptyLabel={merchantDistributionQuery.isLoading ? 'Loading merchant spending...' : undefined}
           />
 
-          <div className="app-card">
-            <SectionHeader icon={ListChecks} label="Merchant Ranking" />
-            <div className="space-y-3">
-              {rankedMerchants.slice(0, 6).map((merchant, index) => (
-                <div key={merchant.id} className="flex items-center gap-3">
-                  <span
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                    style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
-                  >
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {merchant.name}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                      {merchant.transactionCount} transactions | avg {formatCurrency(merchant.averageAmount, displayCurrency)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-financial text-sm">
-                      {formatCurrency(merchant.totalAmount, displayCurrency)}
-                    </p>
-                    <p
-                      className="font-financial text-xs"
-                      style={{
-                        color: getMerchantChange(merchant, range) > 0
-                          ? 'var(--app-chart-negative)'
-                          : getMerchantChange(merchant, range) < 0
-                            ? 'var(--app-chart-positive)'
-                            : 'var(--app-text-muted)',
-                      }}
-                    >
-                      {getMerchantChange(merchant, range) > 0 ? '+' : ''}{getMerchantChange(merchant, range)}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <MerchantRankingCard
+            header={<SectionHeader icon={ListChecks} label="Merchant Ranking" />}
+            merchants={rankedMerchants}
+            currency={displayCurrency}
+          />
         </section>
 
       </div>
