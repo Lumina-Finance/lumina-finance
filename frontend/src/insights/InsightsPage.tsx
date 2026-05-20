@@ -12,8 +12,8 @@ import {
   Store,
   Wallet,
 } from 'lucide-react'
-import type { SpendingRange } from '@/api/dashboard'
 import {
+  useInsightsCashFlow,
   useInsightsIncomeExpenseBreakdown,
   useInsightsIncomeExpenseFlow,
   useInsightsMerchantDistribution,
@@ -22,6 +22,7 @@ import {
   useInsightsPeriodGlance,
   useInsightsSavingsRateTrend,
   type InsightsBreakdownEntry,
+  type InsightsCashFlowResponse,
   type InsightsCategoryTrendEntry,
   type InsightsFlowEntry,
   type InsightsIncomeExpenseBreakdownResponse,
@@ -32,8 +33,8 @@ import {
   type InsightsPeriodGlanceResponse,
   type InsightsSavingsRateTrendResponse,
 } from '@/api/insights'
-import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { useAuth } from '@/hooks/useAuth'
 import {
   CashFlowCard,
@@ -90,18 +91,6 @@ type InsightSignal = {
   tone: 'positive' | 'neutral' | 'negative'
 }
 
-type InsightScaffoldData = {
-  periodLabel: string
-  income: number
-  expenses: number
-  cashInflow: number
-  cashOutflow: number
-  transactionCount: number
-  activeMerchants: number
-  incomeBreakdown: BreakdownEntry[]
-  expenseBreakdown: BreakdownEntry[]
-}
-
 type NetWorthGranularity = 'day' | 'week' | 'month'
 
 type PeriodBrief = {
@@ -155,116 +144,6 @@ const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[]
 
 const EMPTY_FLOW_ENTRIES: InsightsFlowEntry[] = []
 
-const presetScaffoldRange: Record<Exclude<InsightsRangePreset, 'CUSTOM'>, SpendingRange> = {
-  THIS_WEEK: 'WTD',
-  THIS_MONTH: 'MTD',
-  THIS_YEAR: 'YTD',
-  LAST_WEEK: 'WTD',
-  LAST_MONTH: 'MTD',
-}
-
-const insightDataByRange: Record<SpendingRange, InsightScaffoldData> = {
-  WTD: {
-    periodLabel: 'This week',
-    income: 285000,
-    expenses: 112400,
-    cashInflow: 297000,
-    cashOutflow: 134400,
-    transactionCount: 34,
-    activeMerchants: 16,
-    incomeBreakdown: [
-      { id: 'salary', name: 'Salary', amount: 250000 },
-      { id: 'freelance', name: 'Freelance', amount: 30000 },
-      { id: 'interest', name: 'Interest', amount: 5000 },
-    ],
-    expenseBreakdown: [
-      { id: 'groceries', name: 'Groceries', amount: 31800 },
-      { id: 'dining', name: 'Dining', amount: 19600 },
-      { id: 'transportation', name: 'Transportation', amount: 18400 },
-      { id: 'subscriptions', name: 'Subscriptions', amount: 15400 },
-      { id: 'shopping', name: 'Shopping', amount: 15200 },
-      { id: 'health', name: 'Health', amount: 12000 },
-    ],
-  },
-  MTD: {
-    periodLabel: 'This month',
-    income: 787600,
-    expenses: 456300,
-    cashInflow: 852600,
-    cashOutflow: 521300,
-    transactionCount: 126,
-    activeMerchants: 42,
-    incomeBreakdown: [
-      { id: 'salary', name: 'Salary', amount: 650000 },
-      { id: 'freelance', name: 'Freelance', amount: 104000 },
-      { id: 'dividends', name: 'Dividends', amount: 21600 },
-      { id: 'interest', name: 'Interest', amount: 12000 },
-    ],
-    expenseBreakdown: [
-      { id: 'housing', name: 'Housing', amount: 210000 },
-      { id: 'groceries', name: 'Groceries', amount: 74200 },
-      { id: 'dining', name: 'Dining', amount: 38600 },
-      { id: 'shopping', name: 'Shopping', amount: 35200 },
-      { id: 'transportation', name: 'Transportation', amount: 28600 },
-      { id: 'subscriptions', name: 'Subscriptions', amount: 18800 },
-      { id: 'health', name: 'Health', amount: 14900 },
-      { id: 'software', name: 'Software', amount: 36000 },
-    ],
-  },
-  QTD: {
-    periodLabel: 'This quarter',
-    income: 2246800,
-    expenses: 1394500,
-    cashInflow: 2394800,
-    cashOutflow: 1590500,
-    transactionCount: 362,
-    activeMerchants: 68,
-    incomeBreakdown: [
-      { id: 'salary', name: 'Salary', amount: 1950000 },
-      { id: 'freelance', name: 'Freelance', amount: 214000 },
-      { id: 'dividends', name: 'Dividends', amount: 52600 },
-      { id: 'interest', name: 'Interest', amount: 30200 },
-    ],
-    expenseBreakdown: [
-      { id: 'housing', name: 'Housing', amount: 630000 },
-      { id: 'groceries', name: 'Groceries', amount: 225600 },
-      { id: 'dining', name: 'Dining', amount: 116900 },
-      { id: 'shopping', name: 'Shopping', amount: 114200 },
-      { id: 'transportation', name: 'Transportation', amount: 92800 },
-      { id: 'travel', name: 'Travel', amount: 88000 },
-      { id: 'subscriptions', name: 'Subscriptions', amount: 54500 },
-      { id: 'health', name: 'Health', amount: 42600 },
-      { id: 'software', name: 'Software', amount: 29900 },
-    ],
-  },
-  YTD: {
-    periodLabel: 'This year',
-    income: 5872400,
-    expenses: 3698600,
-    cashInflow: 6258400,
-    cashOutflow: 4196600,
-    transactionCount: 914,
-    activeMerchants: 96,
-    incomeBreakdown: [
-      { id: 'salary', name: 'Salary', amount: 4875000 },
-      { id: 'freelance', name: 'Freelance', amount: 704000 },
-      { id: 'dividends', name: 'Dividends', amount: 182400 },
-      { id: 'interest', name: 'Interest', amount: 111000 },
-    ],
-    expenseBreakdown: [
-      { id: 'housing', name: 'Housing', amount: 1680000 },
-      { id: 'groceries', name: 'Groceries', amount: 584400 },
-      { id: 'dining', name: 'Dining', amount: 312800 },
-      { id: 'shopping', name: 'Shopping', amount: 284700 },
-      { id: 'transportation', name: 'Transportation', amount: 244500 },
-      { id: 'travel', name: 'Travel', amount: 228000 },
-      { id: 'subscriptions', name: 'Subscriptions', amount: 141300 },
-      { id: 'health', name: 'Health', amount: 132900 },
-      { id: 'software', name: 'Software', amount: 90000 },
-    ],
-  },
-}
-
 function formatYmd(date: Date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -299,15 +178,6 @@ function getCustomRangeDays(from: string, to: string) {
   return Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1)
 }
 
-function getCustomScaffoldRange(from: string, to: string): SpendingRange {
-  const days = getCustomRangeDays(from, to)
-  if (days === null) return 'MTD'
-  if (days <= 14) return 'WTD'
-  if (days <= 45) return 'MTD'
-  if (days <= 120) return 'QTD'
-  return 'YTD'
-}
-
 function getSavingsRate(income: number, expenses: number) {
   if (income <= 0) return null
   return Math.round(((income - expenses) / income) * 100)
@@ -320,12 +190,6 @@ function formatSavingsRateValue(rate: number | null) {
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
-}
-
-function getScaffoldRange(preset: InsightsRangePreset, customFrom: string, customTo: string) {
-  return preset === 'CUSTOM'
-    ? getCustomScaffoldRange(customFrom, customTo)
-    : presetScaffoldRange[preset]
 }
 
 function getStartOfWeek(date: Date) {
@@ -422,66 +286,28 @@ function getCashFlowGranularity(dayCount: number): CashFlowGranularity {
   return 'month'
 }
 
-function groupDatesByCashFlowGranularity(dates: Date[], granularity: CashFlowGranularity) {
-  if (granularity === 'day') {
-    return dates.map((date) => [date])
-  }
-
-  const groups: Date[][] = []
-  let currentKey = ''
-  for (const date of dates) {
-    const key = granularity === 'week'
-      ? `${date.getFullYear()}-${getIsoWeek(date)}`
-      : `${date.getFullYear()}-${date.getMonth()}`
-    if (key !== currentKey) {
-      groups.push([])
-      currentKey = key
-    }
-    groups[groups.length - 1].push(date)
-  }
-  return groups
-}
-
-function distributeByWeights(total: number, weights: number[]) {
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || 1
-  let allocated = 0
-  return weights.map((weight, index) => {
-    if (index === weights.length - 1) return total - allocated
-    const value = Math.round((total * weight) / totalWeight)
-    allocated += value
-    return value
-  })
-}
-
-function getCashFlowBarData(data: InsightScaffoldData, dates: Date[]) {
-  const granularity = getCashFlowGranularity(dates.length)
-  const groups = groupDatesByCashFlowGranularity(dates, granularity)
-  const inflowWeights = groups.map((_, index) => {
-    if (granularity === 'day') return index % 14 === 0 || index === groups.length - 1 ? 3.4 : 0.28
-    if (granularity === 'week') return index % 2 === 0 ? 2.2 : 0.75
-    return 1 + (index % 3 === 0 ? 0.42 : 0)
-  })
-  const outflowWeights = groups.map((_, index) => (
-    1 + Math.max(0, Math.sin(index * 1.35)) * 0.45 + (index % 4 === 0 ? 0.32 : 0)
-  ))
-  const inflowValues = distributeByWeights(data.cashInflow, inflowWeights)
-  const outflowValues = distributeByWeights(data.cashOutflow, outflowWeights)
-
+function getCashFlowBarData(
+  response: InsightsCashFlowResponse | undefined,
+  fromDate: string,
+  toDate: string,
+) {
+  const dayCount = getCustomRangeDays(fromDate, toDate) ?? 1
+  const granularity = getCashFlowGranularity(dayCount)
   return {
     granularity,
-    buckets: groups.map((group, index): CashFlowBarBucket => {
-      const firstDate = group[0]
-      const lastDate = group[group.length - 1]
-      const inflow = inflowValues[index]
-      const outflow = outflowValues[index]
+    buckets: (response?.points ?? []).map(([bucketStart, bucketEnd, inflow, outflow]): CashFlowBarBucket => {
+      const firstDate = parseYmd(bucketStart)
+      const lastDate = parseYmd(bucketEnd)
       const label = granularity === 'day'
-        ? getShortDateLabel(firstDate)
+        ? (firstDate ? getShortDateLabel(firstDate) : bucketStart)
         : granularity === 'week'
-          ? `W${getIsoWeek(firstDate)}`
-          : getMonthLabel(firstDate)
-      const rangeLabel = firstDate.getTime() === lastDate.getTime()
+          ? firstDate ? `W${getIsoWeek(firstDate)}` : bucketStart
+          : firstDate ? getMonthLabel(firstDate) : bucketStart
+      const rangeLabel = firstDate && lastDate && firstDate.getTime() === lastDate.getTime()
         ? getShortDateLabel(firstDate)
-        : `${getShortDateLabel(firstDate)}-${getShortDateLabel(lastDate)}`
+        : firstDate && lastDate
+          ? `${getShortDateLabel(firstDate)}-${getShortDateLabel(lastDate)}`
+          : `${bucketStart}-${bucketEnd}`
 
       return {
         label,
@@ -977,10 +803,10 @@ export default function InsightsPage() {
   const [fundFlowCardRef, fundFlowCardVisible] = useInsightCardVisibility()
   const [breakdownCardRef, breakdownCardVisible] = useInsightCardVisibility()
   const [netWorthCardRef, netWorthCardVisible] = useInsightCardVisibility()
+  const [cashFlowCardRef, cashFlowCardVisible] = useInsightCardVisibility()
   const [savingsRateCardRef, savingsRateCardVisible] = useInsightCardVisibility()
   const [merchantDistributionCardRef, merchantDistributionCardVisible] = useInsightCardVisibility()
   const [merchantRankingCardRef, merchantRankingCardVisible] = useInsightCardVisibility()
-  const range = getScaffoldRange(rangePreset, customFrom, customTo)
   const customInvalid = rangePreset === 'CUSTOM'
     && customFrom !== ''
     && customTo !== ''
@@ -1008,6 +834,11 @@ export default function InsightsPage() {
     rangeInputDates.to,
     insightsCardQueriesEnabled && netWorthCardVisible,
   )
+  const cashFlowQuery = useInsightsCashFlow(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    insightsCardQueriesEnabled && cashFlowCardVisible,
+  )
   const merchantDistributionQuery = useInsightsMerchantDistribution(
     rangeInputDates.from,
     rangeInputDates.to,
@@ -1019,7 +850,6 @@ export default function InsightsPage() {
     insightsCardQueriesEnabled && merchantRankingCardVisible,
   )
   const savingsRateTrendQuery = useInsightsSavingsRateTrend(savingsRateCardVisible)
-  const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
   const selectedBreakdown = useMemo(
     () => getBreakdownEntriesForMode(incomeExpenseBreakdownQuery.data, breakdownMode),
@@ -1068,12 +898,14 @@ export default function InsightsPage() {
       tone: 'neutral' as const,
     })),
   ]
-  const rangeDates = useMemo(() => getRangeDates(rangePreset, customFrom, customTo), [rangePreset, customFrom, customTo])
   const netWorthCardData = useMemo(
     () => getNetWorthCardData(netWorthQuery.data, rangeInputDates.from, rangeInputDates.to),
     [netWorthQuery.data, rangeInputDates.from, rangeInputDates.to],
   )
-  const cashFlowBars = useMemo(() => getCashFlowBarData(data, rangeDates), [data, rangeDates])
+  const cashFlowBars = useMemo(
+    () => getCashFlowBarData(cashFlowQuery.data, rangeInputDates.from, rangeInputDates.to),
+    [cashFlowQuery.data, rangeInputDates.from, rangeInputDates.to],
+  )
   const savingsRateHistory = useMemo(
     () => getSavingsRateHistory(savingsRateTrendQuery.data),
     [savingsRateTrendQuery.data],
@@ -1168,7 +1000,7 @@ export default function InsightsPage() {
             entries={selectedBreakdown}
             trendSections={selectedCategoryTrendSections}
             displayCurrency={displayCurrency}
-            animationKey={`${breakdownMode}-${range}`}
+            animationKey={`${breakdownMode}-${cardTransitionKey}`}
             loading={incomeExpenseBreakdownQuery.isFetching}
             transitionKey={cardTransitionKey}
           />
@@ -1203,13 +1035,16 @@ export default function InsightsPage() {
           />
         </div>
 
-        <CashFlowCard
-          header={<SectionHeader icon={CalendarDays} label="Cash Flow" />}
-          granularity={cashFlowBars.granularity}
-          buckets={cashFlowBars.buckets}
-          displayCurrency={displayCurrency}
-          transitionKey={cardTransitionKey}
-        />
+        <div ref={cashFlowCardRef}>
+          <CashFlowCard
+            header={<SectionHeader icon={CalendarDays} label="Cash Flow" />}
+            granularity={cashFlowBars.granularity}
+            buckets={cashFlowBars.buckets}
+            displayCurrency={displayCurrency}
+            loading={cashFlowQuery.isFetching}
+            transitionKey={cardTransitionKey}
+          />
+        </div>
 
         <div ref={savingsRateCardRef}>
           <SavingsRateTrendCard

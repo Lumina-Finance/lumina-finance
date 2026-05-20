@@ -37,6 +37,12 @@ export interface InsightsIncomeExpenseBreakdownResponse {
   income_decreases: InsightsCategoryTrendEntry[];
 }
 
+export type InsightsCashFlowPoint = [string, string, number, number];
+
+export interface InsightsCashFlowResponse {
+  points: InsightsCashFlowPoint[];
+}
+
 export type InsightsNetWorthGroup = [string, string, 'asset' | 'debt'];
 export type InsightsNetWorthPoint = [string, string, number[]];
 
@@ -107,6 +113,19 @@ export function useInsightsIncomeExpenseBreakdown(fromDate: string, toDate: stri
     queryFn: () =>
       authenticatedFetch<InsightsIncomeExpenseBreakdownResponse>(
         `/insights/income-expense-breakdown?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+      ),
+    enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInsightsCashFlow(fromDate: string, toDate: string, enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: insightsKeys.cashFlow(fromDate, toDate),
+    queryFn: () =>
+      authenticatedFetch<InsightsCashFlowResponse>(
+        `/insights/cash-flow?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
