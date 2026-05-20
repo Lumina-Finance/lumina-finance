@@ -173,12 +173,6 @@ export function SavingsRateTrendCard({
     (worst, point) => (worst === null || (point.rate ?? Infinity) < (worst.rate ?? Infinity) ? point : worst),
     null,
   )
-  const firstPoint = displaySnapshot.series[0]
-  const averagePeriodLabel = firstPoint && latestPoint
-    ? firstPoint.fullLabel === latestPoint.fullLabel
-      ? firstPoint.fullLabel
-      : `${firstPoint.fullLabel} to ${latestPoint.fullLabel}`
-    : 'No available history'
   const chartSeries = displaySnapshot.series.map((point) => ({
     ...point,
     chartRate: displaySnapshot.capRates ? clampSavingsRate(point.rate) : point.rate,
@@ -231,7 +225,7 @@ export function SavingsRateTrendCard({
                     {formatSavingsRateValue(averageRate)}
                   </p>
                   <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    {averagePeriodLabel}
+                    Last 12 months
                   </p>
                 </div>
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-3 py-2.5">
