@@ -221,7 +221,7 @@ export function SavingsRateTrendCard({
                   {latestPoint?.fullLabel ?? 'No recent month'}
                 </p>
               </div>
-              <div className="grid min-w-0 gap-2 min-[550px]:grid-cols-3 min-[750px]:gap-4">
+              <div className="grid min-w-0 gap-2 min-[750px]:grid-cols-3 min-[750px]:gap-4">
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className="app-label app-label-compact">Average</p>
                   <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
