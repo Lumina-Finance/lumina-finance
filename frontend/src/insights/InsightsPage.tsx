@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ArrowLeftRight,
@@ -117,6 +117,31 @@ type PeriodBrief = {
     value: string
     detail: string
   }>
+}
+
+function useInsightCardVisibility() {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return undefined
+
+    if (typeof IntersectionObserver === 'undefined') {
+      const frameId = window.requestAnimationFrame(() => setIsVisible(true))
+      return () => window.cancelAnimationFrame(frameId)
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsVisible(entry.isIntersecting)
+    })
+
+    observer.observe(element)
+
+    return () => observer.disconnect()
+  }, [])
+
+  return [ref, isVisible] as const
 }
 
 const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[] = [
@@ -948,6 +973,13 @@ export default function InsightsPage() {
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('expense')
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
+  const [periodGlanceCardRef, periodGlanceCardVisible] = useInsightCardVisibility()
+  const [fundFlowCardRef, fundFlowCardVisible] = useInsightCardVisibility()
+  const [breakdownCardRef, breakdownCardVisible] = useInsightCardVisibility()
+  const [netWorthCardRef, netWorthCardVisible] = useInsightCardVisibility()
+  const [savingsRateCardRef, savingsRateCardVisible] = useInsightCardVisibility()
+  const [merchantDistributionCardRef, merchantDistributionCardVisible] = useInsightCardVisibility()
+  const [merchantRankingCardRef, merchantRankingCardVisible] = useInsightCardVisibility()
   const range = getScaffoldRange(rangePreset, customFrom, customTo)
   const customInvalid = rangePreset === 'CUSTOM'
     && customFrom !== ''
@@ -956,33 +988,37 @@ export default function InsightsPage() {
   const rangeInputDates = useMemo(() => getRangeInputDates(rangePreset, customFrom, customTo), [rangePreset, customFrom, customTo])
   const cardTransitionKey = `${rangeInputDates.from}:${rangeInputDates.to}`
   const insightsCardQueriesEnabled = !customInvalid && rangeInputDates.from !== '' && rangeInputDates.to !== ''
-  const periodGlanceQuery = useInsightsPeriodGlance(rangeInputDates.from, rangeInputDates.to, insightsCardQueriesEnabled)
+  const periodGlanceQuery = useInsightsPeriodGlance(
+    rangeInputDates.from,
+    rangeInputDates.to,
+    insightsCardQueriesEnabled && periodGlanceCardVisible,
+  )
   const incomeExpenseFlowQuery = useInsightsIncomeExpenseFlow(
     rangeInputDates.from,
     rangeInputDates.to,
-    insightsCardQueriesEnabled,
+    insightsCardQueriesEnabled && fundFlowCardVisible,
   )
   const incomeExpenseBreakdownQuery = useInsightsIncomeExpenseBreakdown(
     rangeInputDates.from,
     rangeInputDates.to,
-    insightsCardQueriesEnabled,
+    insightsCardQueriesEnabled && breakdownCardVisible,
   )
   const netWorthQuery = useInsightsNetWorth(
     rangeInputDates.from,
     rangeInputDates.to,
-    insightsCardQueriesEnabled,
+    insightsCardQueriesEnabled && netWorthCardVisible,
   )
   const merchantDistributionQuery = useInsightsMerchantDistribution(
     rangeInputDates.from,
     rangeInputDates.to,
-    insightsCardQueriesEnabled,
+    insightsCardQueriesEnabled && merchantDistributionCardVisible,
   )
   const merchantRankingQuery = useInsightsMerchantRanking(
     rangeInputDates.from,
     rangeInputDates.to,
-    insightsCardQueriesEnabled,
+    insightsCardQueriesEnabled && merchantRankingCardVisible,
   )
-  const savingsRateTrendQuery = useInsightsSavingsRateTrend()
+  const savingsRateTrendQuery = useInsightsSavingsRateTrend(savingsRateCardVisible)
   const data = insightDataByRange[range]
   const displayCurrency = user?.base_currency ?? 'CAD'
   const selectedBreakdown = useMemo(
@@ -1069,95 +1105,103 @@ export default function InsightsPage() {
       />
 
       <div className="space-y-4">
-        <PeriodGlanceCard
-          header={<SectionHeader icon={Sparkles} label="This Period at a Glance" />}
-          primaryMetric={{
-            label: primaryBriefMetric.label,
-            value: primaryBriefMetricValue,
-            detail: primaryBriefMetric.detail,
-            tone: primaryBriefMetric.tone,
-          }}
-          supportItems={briefSupportItems}
-          income={periodGlanceIncome}
-          expenses={periodGlanceExpenses}
-          displayCurrency={displayCurrency}
-          loading={periodGlanceQuery.isFetching}
-          transitionKey={cardTransitionKey}
-        />
+        <div ref={periodGlanceCardRef}>
+          <PeriodGlanceCard
+            header={<SectionHeader icon={Sparkles} label="This Period at a Glance" />}
+            primaryMetric={{
+              label: primaryBriefMetric.label,
+              value: primaryBriefMetricValue,
+              detail: primaryBriefMetric.detail,
+              tone: primaryBriefMetric.tone,
+            }}
+            supportItems={briefSupportItems}
+            income={periodGlanceIncome}
+            expenses={periodGlanceExpenses}
+            displayCurrency={displayCurrency}
+            loading={periodGlanceQuery.isFetching}
+            transitionKey={cardTransitionKey}
+          />
+        </div>
 
-        <FundFlowCard
-          header={<SectionHeader icon={Network} label="Fund Flow" />}
-          flowData={flowData}
-          incomeSources={flowIncomeSources}
-          expenseCategories={flowExpenseCategories}
-          incomeOutflows={flowIncomeOutflows}
-          expenseInflows={flowExpenseInflows}
-          incomeSourceCount={flowIncomeSourceCount}
-          expenseCategoryCount={flowExpenseCategoryCount}
-          displayCurrency={displayCurrency}
-          loading={incomeExpenseFlowQuery.isFetching}
-          transitionKey={cardTransitionKey}
-          emptyLabel={flowEmptyLabel}
-        />
+        <div ref={fundFlowCardRef}>
+          <FundFlowCard
+            header={<SectionHeader icon={Network} label="Fund Flow" />}
+            flowData={flowData}
+            incomeSources={flowIncomeSources}
+            expenseCategories={flowExpenseCategories}
+            incomeOutflows={flowIncomeOutflows}
+            expenseInflows={flowExpenseInflows}
+            incomeSourceCount={flowIncomeSourceCount}
+            expenseCategoryCount={flowExpenseCategoryCount}
+            displayCurrency={displayCurrency}
+            loading={incomeExpenseFlowQuery.isFetching}
+            transitionKey={cardTransitionKey}
+            emptyLabel={flowEmptyLabel}
+          />
+        </div>
 
-        <IncomeExpenseBreakdownCard
-          header={(
-            <SectionHeader
-              icon={PieChartIcon}
-              label={(
-                <span className="inline-flex items-baseline whitespace-nowrap">
-                  <AppSlotMachineText text={breakdownMode === 'expense' ? 'Expense' : 'Income'} />
-                  <span className="ml-[0.25em]">Breakdown</span>
-                </span>
-              )}
-              action={(
-                <button
-                  type="button"
-                  onClick={() => setBreakdownMode((mode) => (mode === 'expense' ? 'income' : 'expense'))}
-                  title={breakdownMode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
-                  aria-label={breakdownMode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
-                  className="app-icon-button"
-                >
-                  <Repeat size={12} />
-                </button>
-              )}
-            />
-          )}
-          mode={breakdownMode}
-          entries={selectedBreakdown}
-          trendSections={selectedCategoryTrendSections}
-          displayCurrency={displayCurrency}
-          animationKey={`${breakdownMode}-${range}`}
-          loading={incomeExpenseBreakdownQuery.isFetching}
-          transitionKey={cardTransitionKey}
-        />
+        <div ref={breakdownCardRef}>
+          <IncomeExpenseBreakdownCard
+            header={(
+              <SectionHeader
+                icon={PieChartIcon}
+                label={(
+                  <span className="inline-flex items-baseline whitespace-nowrap">
+                    <AppSlotMachineText text={breakdownMode === 'expense' ? 'Expense' : 'Income'} />
+                    <span className="ml-[0.25em]">Breakdown</span>
+                  </span>
+                )}
+                action={(
+                  <button
+                    type="button"
+                    onClick={() => setBreakdownMode((mode) => (mode === 'expense' ? 'income' : 'expense'))}
+                    title={breakdownMode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
+                    aria-label={breakdownMode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
+                    className="app-icon-button"
+                  >
+                    <Repeat size={12} />
+                  </button>
+                )}
+              />
+            )}
+            mode={breakdownMode}
+            entries={selectedBreakdown}
+            trendSections={selectedCategoryTrendSections}
+            displayCurrency={displayCurrency}
+            animationKey={`${breakdownMode}-${range}`}
+            loading={incomeExpenseBreakdownQuery.isFetching}
+            transitionKey={cardTransitionKey}
+          />
+        </div>
 
-        <NetWorthCard
-          header={(
-            <SectionHeader
-              icon={Wallet}
-              label="Net Worth"
-              action={(
-                <button
-                  type="button"
-                  onClick={() => setNetWorthMode((mode) => (mode === 'overview' ? 'composition' : 'overview'))}
-                  title={netWorthMode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
-                  aria-label={netWorthMode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
-                  className="app-icon-button"
-                >
-                  <ArrowLeftRight size={12} />
-                </button>
-              )}
-            />
-          )}
-          mode={netWorthMode}
-          groups={netWorthCardData.groups}
-          series={netWorthCardData.series}
-          displayCurrency={displayCurrency}
-          emptyLabel={netWorthQuery.isLoading ? 'Loading net worth history...' : undefined}
-          loading={netWorthQuery.isFetching}
-          transitionKey={cardTransitionKey}
-        />
+        <div ref={netWorthCardRef}>
+          <NetWorthCard
+            header={(
+              <SectionHeader
+                icon={Wallet}
+                label="Net Worth"
+                action={(
+                  <button
+                    type="button"
+                    onClick={() => setNetWorthMode((mode) => (mode === 'overview' ? 'composition' : 'overview'))}
+                    title={netWorthMode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+                    aria-label={netWorthMode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+                    className="app-icon-button"
+                  >
+                    <ArrowLeftRight size={12} />
+                  </button>
+                )}
+              />
+            )}
+            mode={netWorthMode}
+            groups={netWorthCardData.groups}
+            series={netWorthCardData.series}
+            displayCurrency={displayCurrency}
+            emptyLabel={netWorthQuery.isLoading ? 'Loading net worth history...' : undefined}
+            loading={netWorthQuery.isFetching}
+            transitionKey={cardTransitionKey}
+          />
+        </div>
 
         <CashFlowCard
           header={<SectionHeader icon={CalendarDays} label="Cash Flow" />}
@@ -1167,53 +1211,59 @@ export default function InsightsPage() {
           transitionKey={cardTransitionKey}
         />
 
-        <SavingsRateTrendCard
-          header={(
-            <SectionHeader
-              icon={Repeat}
-              label="Savings Rate Trend"
-              action={(
-                <button
-                  type="button"
-                  onClick={() => setCapSavingsRateChart((current) => !current)}
-                  title={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
-                  aria-label={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
-                  className="app-icon-button"
-                >
-                  <ArrowUpToLine
-                    size={12}
-                    className={`transition-transform duration-150 motion-reduce:transition-none ${capSavingsRateChart ? 'rotate-180' : ''}`}
-                  />
-                </button>
-              )}
-            />
-          )}
-          series={savingsRateHistory}
-          displayCurrency={displayCurrency}
-          capRates={capSavingsRateChart}
-          emptyLabel={savingsRateTrendQuery.isLoading ? 'Loading savings-rate history...' : undefined}
-          loading={savingsRateTrendQuery.isFetching}
-          transitionKey="savings-rate-trend"
-        />
+        <div ref={savingsRateCardRef}>
+          <SavingsRateTrendCard
+            header={(
+              <SectionHeader
+                icon={Repeat}
+                label="Savings Rate Trend"
+                action={(
+                  <button
+                    type="button"
+                    onClick={() => setCapSavingsRateChart((current) => !current)}
+                    title={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+                    aria-label={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+                    className="app-icon-button"
+                  >
+                    <ArrowUpToLine
+                      size={12}
+                      className={`transition-transform duration-150 motion-reduce:transition-none ${capSavingsRateChart ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                )}
+              />
+            )}
+            series={savingsRateHistory}
+            displayCurrency={displayCurrency}
+            capRates={capSavingsRateChart}
+            emptyLabel={savingsRateTrendQuery.isLoading ? 'Loading savings-rate history...' : undefined}
+            loading={savingsRateTrendQuery.isFetching}
+            transitionKey="savings-rate-trend"
+          />
+        </div>
 
         <section className="grid grid-cols-1 gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_360px]">
-          <MerchantDistributionCard
-            header={<SectionHeader icon={Store} label="Spending Distribution by Merchant" />}
-            merchants={merchantMarketLayout}
-            currency={displayCurrency}
-            emptyLabel={merchantDistributionQuery.isLoading ? 'Loading merchant spending...' : undefined}
-            loading={merchantDistributionQuery.isFetching}
-            transitionKey={cardTransitionKey}
-          />
+          <div ref={merchantDistributionCardRef} className="min-w-0">
+            <MerchantDistributionCard
+              header={<SectionHeader icon={Store} label="Spending Distribution by Merchant" />}
+              merchants={merchantMarketLayout}
+              currency={displayCurrency}
+              emptyLabel={merchantDistributionQuery.isLoading ? 'Loading merchant spending...' : undefined}
+              loading={merchantDistributionQuery.isFetching}
+              transitionKey={cardTransitionKey}
+            />
+          </div>
 
-          <MerchantRankingCard
-            header={<SectionHeader icon={ListChecks} label="Merchant Ranking" />}
-            merchants={rankedMerchants}
-            currency={displayCurrency}
-            emptyLabel={merchantRankingQuery.isLoading ? 'Loading merchant ranking...' : undefined}
-            loading={merchantRankingQuery.isFetching}
-            transitionKey={cardTransitionKey}
-          />
+          <div ref={merchantRankingCardRef} className="min-w-0">
+            <MerchantRankingCard
+              header={<SectionHeader icon={ListChecks} label="Merchant Ranking" />}
+              merchants={rankedMerchants}
+              currency={displayCurrency}
+              emptyLabel={merchantRankingQuery.isLoading ? 'Loading merchant ranking...' : undefined}
+              loading={merchantRankingQuery.isFetching}
+              transitionKey={cardTransitionKey}
+            />
+          </div>
         </section>
 
       </div>
