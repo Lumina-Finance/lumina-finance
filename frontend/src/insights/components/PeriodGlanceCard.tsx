@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  InsightLoadingContent,
+  InsightLoadingOverlay,
+} from './InsightLoadingTransition'
+import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 const PRIMARY_AMOUNT_MAX_REM = 3
 const PRIMARY_AMOUNT_MIN_REM = 1.875
@@ -20,6 +25,14 @@ export type PeriodGlanceSupportItem = {
   tone: PeriodGlanceTone
 }
 
+type PeriodGlanceSnapshot = {
+  primaryMetric: PeriodGlancePrimaryMetric
+  supportItems: PeriodGlanceSupportItem[]
+  income: number
+  expenses: number
+  displayCurrency: string
+}
+
 type PeriodGlanceCardProps = {
   header: ReactNode
   primaryMetric: PeriodGlancePrimaryMetric
@@ -27,6 +40,8 @@ type PeriodGlanceCardProps = {
   income: number
   expenses: number
   displayCurrency: string
+  loading?: boolean
+  transitionKey: string
 }
 
 function metricToneClass(tone: PeriodGlanceTone) {
@@ -43,6 +58,7 @@ function useFittedPrimaryAmount(value: string) {
     const textElement = textRef.current
     const containerElement = textElement?.parentElement
     if (!textElement || !containerElement) return undefined
+    const measuredTextElement = textElement
 
     let frameId = 0
     let cancelled = false
@@ -52,13 +68,13 @@ function useFittedPrimaryAmount(value: string) {
       frameId = window.requestAnimationFrame(() => {
         if (cancelled) return
 
-        const previousFontSize = textElement.style.fontSize
-        textElement.style.fontSize = `${PRIMARY_AMOUNT_MAX_REM}rem`
+        const previousFontSize = measuredTextElement.style.fontSize
+        measuredTextElement.style.fontSize = `${PRIMARY_AMOUNT_MAX_REM}rem`
 
-        const availableWidth = textElement.clientWidth
-        const requiredWidth = textElement.scrollWidth
+        const availableWidth = measuredTextElement.clientWidth
+        const requiredWidth = measuredTextElement.scrollWidth
 
-        textElement.style.fontSize = previousFontSize
+        measuredTextElement.style.fontSize = previousFontSize
 
         const nextFontSize =
           availableWidth > 0 && requiredWidth > availableWidth
@@ -101,76 +117,104 @@ export function PeriodGlanceCard({
   income,
   expenses,
   displayCurrency,
+  loading = false,
+  transitionKey,
 }: PeriodGlanceCardProps) {
-  const [primaryAmountRef, primaryAmountFontSizeRem] = useFittedPrimaryAmount(primaryMetric.value)
+  const incomingSnapshot = useMemo<PeriodGlanceSnapshot>(() => ({
+    primaryMetric,
+    supportItems,
+    income,
+    expenses,
+    displayCurrency,
+  }), [displayCurrency, expenses, income, primaryMetric, supportItems])
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useInsightLoadingSnapshot({
+    snapshot: incomingSnapshot,
+    loading,
+    transitionKey,
+  })
+  const [primaryAmountRef, primaryAmountFontSizeRem] = useFittedPrimaryAmount(displaySnapshot.primaryMetric.value)
   const primaryAmountStyle: CSSProperties | undefined =
     primaryAmountFontSizeRem < PRIMARY_AMOUNT_MAX_REM ? { fontSize: `${primaryAmountFontSizeRem}rem` } : undefined
 
   return (
-    <section className="app-card">
-      {header}
+    <section className="app-card relative overflow-hidden">
+      <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        {header}
 
-      <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
-        <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1400px]:flex min-[1400px]:min-h-52 min-[1400px]:flex-col min-[1400px]:items-stretch min-[1400px]:justify-between">
-          <div className="min-w-0 [container-type:inline-size]">
-            <p className="app-label">{primaryMetric.label}</p>
-            <p
-              ref={primaryAmountRef}
-              className={[
-                'mt-3 max-w-full whitespace-nowrap font-financial text-5xl font-normal leading-none',
-                metricToneClass(primaryMetric.tone),
-              ].join(' ')}
-              style={primaryAmountStyle}
-            >
-              {primaryMetric.value}
-            </p>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text-muted)]">
-              {primaryMetric.detail}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1400px]:mt-5 min-[1400px]:grid-cols-2 min-[1400px]:border-l-0 min-[1400px]:border-t min-[1400px]:pl-0 min-[1400px]:pt-3">
-            <div>
-              <p className="app-label app-label-compact">Income</p>
-              <p className="mt-1 font-financial text-lg">{formatCurrency(income, displayCurrency)}</p>
+        <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+          <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1400px]:flex min-[1400px]:min-h-52 min-[1400px]:flex-col min-[1400px]:items-stretch min-[1400px]:justify-between">
+            <div className="min-w-0 [container-type:inline-size]">
+              <p className="app-label">{displaySnapshot.primaryMetric.label}</p>
+              <p
+                ref={primaryAmountRef}
+                className={[
+                  'mt-3 max-w-full whitespace-nowrap font-financial text-5xl font-normal leading-none',
+                  metricToneClass(displaySnapshot.primaryMetric.tone),
+                ].join(' ')}
+                style={primaryAmountStyle}
+              >
+                {displaySnapshot.primaryMetric.value}
+              </p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text-muted)]">
+                {displaySnapshot.primaryMetric.detail}
+              </p>
             </div>
-            <div>
-              <p className="app-label app-label-compact">Expenses</p>
-              <p className="mt-1 font-financial text-lg">{formatCurrency(expenses, displayCurrency)}</p>
-            </div>
-          </div>
-        </div>
 
-        <div className="grid min-[750px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
-          {supportItems.map((item, index) => (
-            <div
-              key={item.label}
-              className={[
-                'border-[var(--app-border)] py-4 min-[750px]:p-4',
-                index < supportItems.length - 1 ? 'border-b' : '',
-                index === 0 ? 'pt-0 min-[750px]:border-r min-[750px]:pl-0 min-[750px]:pt-0' : '',
-                index === 1 ? 'min-[750px]:pr-0 min-[750px]:pt-0' : '',
-                index === 2
-                  ? 'min-[750px]:border-b-0 min-[750px]:border-r min-[750px]:pb-0 min-[750px]:pl-0'
-                  : '',
-                index === 3 ? 'pb-0 min-[750px]:pr-0' : '',
-              ].join(' ')}
-            >
-              <div className="flex min-h-28 flex-col items-center justify-center text-center">
-                <p className="app-label">{item.label}</p>
-                <p
-                  className={['mt-1 text-2xl font-semibold leading-tight', metricToneClass(item.tone)].join(' ')}
-                >
-                  {item.value}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">
-                  {item.detail}
-                </p>
+            <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1400px]:mt-5 min-[1400px]:grid-cols-2 min-[1400px]:border-l-0 min-[1400px]:border-t min-[1400px]:pl-0 min-[1400px]:pt-3">
+              <div>
+                <p className="app-label app-label-compact">Income</p>
+                <p className="mt-1 font-financial text-lg">{formatCurrency(displaySnapshot.income, displaySnapshot.displayCurrency)}</p>
+              </div>
+              <div>
+                <p className="app-label app-label-compact">Expenses</p>
+                <p className="mt-1 font-financial text-lg">{formatCurrency(displaySnapshot.expenses, displaySnapshot.displayCurrency)}</p>
               </div>
             </div>
-          ))}
+          </div>
+
+          <div className="grid min-[750px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+            {displaySnapshot.supportItems.map((item, index) => (
+              <div
+                key={item.label}
+                className={[
+                  'border-[var(--app-border)] py-4 min-[750px]:p-4',
+                  index < displaySnapshot.supportItems.length - 1 ? 'border-b' : '',
+                  index === 0 ? 'pt-0 min-[750px]:border-r min-[750px]:pl-0 min-[750px]:pt-0' : '',
+                  index === 1 ? 'min-[750px]:pr-0 min-[750px]:pt-0' : '',
+                  index === 2
+                    ? 'min-[750px]:border-b-0 min-[750px]:border-r min-[750px]:pb-0 min-[750px]:pl-0'
+                    : '',
+                  index === 3 ? 'pb-0 min-[750px]:pr-0' : '',
+                ].join(' ')}
+              >
+                <div className="flex min-h-28 flex-col items-center justify-center text-center">
+                  <p className="app-label">{item.label}</p>
+                  <p
+                    className={['mt-1 text-2xl font-semibold leading-tight', metricToneClass(item.tone)].join(' ')}
+                  >
+                    {item.value}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">
+                    {item.detail}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </InsightLoadingContent>
+
+      <InsightLoadingOverlay
+        visible={loadingVisible}
+        shouldReduceMotion={shouldReduceMotion}
+        label="Loading period at a glance"
+        className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-surface-soft)]"
+      />
     </section>
   )
 }

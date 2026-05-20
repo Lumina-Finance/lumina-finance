@@ -1080,6 +1080,8 @@ export default function InsightsPage() {
           income={periodGlanceIncome}
           expenses={periodGlanceExpenses}
           displayCurrency={displayCurrency}
+          loading={periodGlanceQuery.isFetching}
+          transitionKey={`${rangeInputDates.from}:${rangeInputDates.to}`}
         />
 
         <FundFlowCard
