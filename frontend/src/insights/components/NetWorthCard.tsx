@@ -284,7 +284,7 @@ export function NetWorthCard({
           <div className="flex h-[360px] flex-col">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="app-label app-label-compact">Current Net Worth</p>
+            <p className="app-label app-label-compact">Ending Net Worth</p>
             <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
               <p className="font-financial text-3xl leading-none tracking-tight">
                 {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
