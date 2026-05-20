@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -42,6 +42,9 @@ type MerchantDistributionSnapshot = {
 
 const DEFAULT_MAP_WIDTH = 1000
 const DEFAULT_MAP_HEIGHT = 460
+const TOOLTIP_GAP = 10
+const TOOLTIP_MARGIN = 8
+const TOOLTIP_PREFERRED_WIDTH = 300
 
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
@@ -138,10 +141,32 @@ function MerchantMarketMap({
   currency: string
 }) {
   const [hoveredTile, setHoveredTile] = useState<MerchantMarketHover | null>(null)
+  const hoveredMerchantId = hoveredTile?.merchant.id
   const mapRef = useRef<HTMLDivElement | null>(null)
+  const tooltipRef = useRef<HTMLDivElement | null>(null)
   const [mapSize, setMapSize] = useState({ width: DEFAULT_MAP_WIDTH, height: DEFAULT_MAP_HEIGHT })
+  const [tooltipHeight, setTooltipHeight] = useState(96)
   const layoutWidth = Math.max(mapSize.width, 1)
   const layoutHeight = Math.max(mapSize.height, 1)
+  const tooltipMaxWidth = Math.max(layoutWidth - TOOLTIP_MARGIN * 2, 1)
+  const tooltipWidth = Math.min(TOOLTIP_PREFERRED_WIDTH, tooltipMaxWidth)
+  const clampedTooltipHeight = Math.min(tooltipHeight, Math.max(layoutHeight - TOOLTIP_MARGIN * 2, 1))
+  const tooltipLeft = hoveredTile
+    ? Math.min(
+        Math.max(hoveredTile.x, TOOLTIP_MARGIN + tooltipWidth / 2),
+        layoutWidth - TOOLTIP_MARGIN - tooltipWidth / 2,
+      )
+    : 0
+  const tooltipTop = hoveredTile
+    ? hoveredTile.y - TOOLTIP_GAP - clampedTooltipHeight >= TOOLTIP_MARGIN
+      ? hoveredTile.y - TOOLTIP_GAP - clampedTooltipHeight
+      : hoveredTile.y + TOOLTIP_GAP + clampedTooltipHeight <= layoutHeight - TOOLTIP_MARGIN
+        ? hoveredTile.y + TOOLTIP_GAP
+        : Math.min(
+            Math.max(hoveredTile.y - clampedTooltipHeight / 2, TOOLTIP_MARGIN),
+            layoutHeight - TOOLTIP_MARGIN - clampedTooltipHeight,
+          )
+    : 0
   const laidOutMerchants = useMemo(
     () => splitTreemapItems(merchants, 0, 0, layoutWidth, layoutHeight),
     [layoutHeight, layoutWidth, merchants],
@@ -169,6 +194,15 @@ function MerchantMarketMap({
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+
+  useLayoutEffect(() => {
+    const tooltip = tooltipRef.current
+    if (!tooltip || !hoveredMerchantId) return
+
+    const rect = tooltip.getBoundingClientRect()
+    const nextHeight = Math.max(Math.round(rect.height), 1)
+    setTooltipHeight((current) => (current === nextHeight ? current : nextHeight))
+  }, [currency, hoveredMerchantId])
 
   return (
     <div ref={mapRef} className="relative min-h-0 flex-1">
@@ -283,11 +317,13 @@ function MerchantMarketMap({
       </div>
       {hoveredTile && (
         <div
-          className="app-chart-tooltip-default-content pointer-events-none absolute z-20 min-w-56"
+          ref={tooltipRef}
+          className="app-chart-tooltip-default-content pointer-events-none absolute z-20"
           style={{
-            left: hoveredTile.x,
-            top: hoveredTile.y,
-            transform: 'translate(-50%, calc(-100% - 10px))',
+            left: tooltipLeft,
+            top: tooltipTop,
+            width: tooltipWidth,
+            transform: 'translateX(-50%)',
           }}
         >
           <p className="app-tooltip-muted">{hoveredTile.merchant.name}</p>
