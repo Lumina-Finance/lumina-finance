@@ -5,11 +5,6 @@ import {
   parseYmd,
 } from './date'
 
-function getStartOfWeek(date: Date) {
-  const day = date.getDay()
-  return addDays(date, -(day === 0 ? 6 : day - 1))
-}
-
 function getRangeDates(preset: InsightsRangePreset, customFrom: string, customTo: string) {
   if (preset === 'CUSTOM') {
     const fromDate = parseYmd(customFrom)
@@ -28,20 +23,18 @@ function getRangeDates(preset: InsightsRangePreset, customFrom: string, customTo
   const today = new Date()
   const rangeBoundary = (() => {
     switch (preset) {
-      case 'THIS_WEEK':
-        return { start: getStartOfWeek(today), end: today }
       case 'THIS_MONTH':
         return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: today }
       case 'THIS_YEAR':
         return { start: new Date(today.getFullYear(), 0, 1), end: today }
-      case 'LAST_WEEK': {
-        const start = addDays(getStartOfWeek(today), -7)
-        return { start, end: addDays(start, 6) }
-      }
       case 'LAST_MONTH': {
         const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
         return { start, end: new Date(today.getFullYear(), today.getMonth(), 0) }
       }
+      case 'LAST_30_DAYS':
+        return { start: addDays(today, -29), end: today }
+      case 'LAST_90_DAYS':
+        return { start: addDays(today, -89), end: today }
       case 'CUSTOM':
         return { start: addDays(today, -29), end: today }
       default:

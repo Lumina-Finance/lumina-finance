@@ -3,11 +3,11 @@ import type { InsightsRangePreset } from '../types/range'
 import type { KeyboardEvent } from 'react'
 
 const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[] = [
-  { value: 'THIS_WEEK', label: 'WTD', description: 'This week' },
   { value: 'THIS_MONTH', label: 'MTD', description: 'This month' },
-  { value: 'THIS_YEAR', label: 'YTD', description: 'This year' },
-  { value: 'LAST_WEEK', label: 'LW', description: 'Last week' },
   { value: 'LAST_MONTH', label: 'LM', description: 'Last month' },
+  { value: 'LAST_30_DAYS', label: '30D', description: 'Last 30 days' },
+  { value: 'LAST_90_DAYS', label: '90D', description: 'Last 90 days' },
+  { value: 'THIS_YEAR', label: 'YTD', description: 'This year' },
   { value: 'CUSTOM', label: 'Custom' },
 ]
 
