@@ -87,8 +87,8 @@ class CreditWidgetResponse(BaseModel):
 class NetWorthWidgetResponse(BaseModel):
     """Net worth totals and trend for the dashboard net worth widget.
 
-    - `current_net_worth` is the sum of latest balances across every readable
-      non-hidden account in the user's base currency, with liability balances subtracted.
+    - `current_net_worth` is the sum of latest signed balances across every readable
+      non-hidden account in the user's base currency.
     - `net_worth_history` is a day-by-day series of net worth over the last
       `net_worth_window_days` days (length = `net_worth_window_days`, index 0 =
       earliest day, final index = today). Forward-filled from

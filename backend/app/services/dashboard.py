@@ -131,7 +131,8 @@ async def get_net_worth_history(
     before the window start, then advances it using snapshots inside the
     window. The final daily total == current net worth; intermediate totals
     form the history series (index 0 = earliest day, final index = today).
-    Asset balances add positively, liability balances subtract.
+    Balances are already signed from the user's perspective: positive asset
+    balances add to net worth, negative liability balances reduce it.
     """
     series = [0] * window_days
     if not base_currency_accounts:
@@ -140,10 +141,6 @@ async def get_net_worth_history(
     today = now.date()
     window_start = today - timedelta(days=window_days - 1)
     ids = [a.id for a in base_currency_accounts]
-    sign_by_id = {
-        a.id: 1 if a.account_kind == AccountKind.ASSET else -1
-        for a in base_currency_accounts
-    }
 
     # Anchor: most recent snapshot strictly before window_start per account.
     anchor_result = await db.execute(
@@ -182,9 +179,9 @@ async def get_net_worth_history(
             break
         for aid, balance in updates_by_day.get(current_day, {}).items():
             running[aid] = balance
-        series[day_idx] = sum(running[aid] * sign_by_id[aid] for aid in ids)
+        series[day_idx] = sum(running[aid] for aid in ids)
 
-    current_net_worth = sum(running[aid] * sign_by_id[aid] for aid in ids)
+    current_net_worth = sum(running[aid] for aid in ids)
     return current_net_worth, series
 
 

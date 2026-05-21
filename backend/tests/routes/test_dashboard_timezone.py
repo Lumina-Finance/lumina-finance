@@ -121,14 +121,14 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
         session.add_all([
             AccountBalanceSnapshot(account_id=UUID(visible_asset["id"]), dt=date(2026, 3, 20), balance=100_000),
             AccountBalanceSnapshot(account_id=UUID(hidden_asset["id"]), dt=date(2026, 3, 20), balance=500_000),
-            AccountBalanceSnapshot(account_id=UUID(visible_credit["id"]), dt=date(2026, 3, 20), balance=30_000),
-            AccountBalanceSnapshot(account_id=UUID(hidden_credit["id"]), dt=date(2026, 3, 20), balance=70_000),
+            AccountBalanceSnapshot(account_id=UUID(visible_credit["id"]), dt=date(2026, 3, 20), balance=-30_000),
+            AccountBalanceSnapshot(account_id=UUID(hidden_credit["id"]), dt=date(2026, 3, 20), balance=-70_000),
         ])
         for account, balance in [
             (visible_asset, 100_000),
             (hidden_asset, 500_000),
-            (visible_credit, 30_000),
-            (hidden_credit, 70_000),
+            (visible_credit, -30_000),
+            (hidden_credit, -70_000),
         ]:
             await session.execute(
                 update(AccountBalanceSnapshot)
@@ -152,7 +152,7 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
     assert credit_resp.status_code == 200
     credit_data = credit_resp.json()
     assert credit_data["credit_limit_total"] == 200_000
-    assert credit_data["credit_used"] == 0
+    assert credit_data["credit_used"] == 30_000
 
 
 async def test_dashboard_credit_used_ignores_positive_card_balances(client, monkeypatch):
