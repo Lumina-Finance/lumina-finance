@@ -1,22 +1,26 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { Store } from 'lucide-react'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
-export type MerchantMarketTile = {
+export type MerchantMarketMerchant = {
   id: string
   name: string
   totalAmount: number
+  changePct: number | null
+  changeAmount: number | null
+}
+
+export type MerchantMarketTile = MerchantMarketMerchant & {
   x: number
   y: number
   width: number
   height: number
-  changePct: number | null
-  changeAmount: number | null
 }
 
 type MerchantMarketHover = {
@@ -26,16 +30,14 @@ type MerchantMarketHover = {
 }
 
 type MerchantDistributionCardProps = {
-  header: ReactNode
-  merchants: MerchantMarketTile[]
+  merchants: MerchantMarketMerchant[]
   currency: string
-  emptyLabel?: string
   loading?: boolean
   transitionKey: string
 }
 
 type MerchantDistributionSnapshot = {
-  merchants: MerchantMarketTile[]
+  merchants: MerchantMarketMerchant[]
   currency: string
   emptyLabel: string
 }
@@ -52,7 +54,7 @@ function formatSignedCurrency(amount: number, currency: string) {
 }
 
 function splitTreemapItems(
-  items: MerchantMarketTile[],
+  items: MerchantMarketMerchant[],
   x: number,
   y: number,
   width: number,
@@ -137,7 +139,7 @@ function MerchantMarketMap({
   merchants,
   currency,
 }: {
-  merchants: MerchantMarketTile[]
+  merchants: MerchantMarketMerchant[]
   currency: string
 }) {
   const [hoveredTile, setHoveredTile] = useState<MerchantMarketHover | null>(null)
@@ -353,18 +355,16 @@ function MerchantMarketMap({
 }
 
 export function MerchantDistributionCard({
-  header,
   merchants,
   currency,
-  emptyLabel = 'No merchant spending in this range.',
   loading = false,
   transitionKey,
 }: MerchantDistributionCardProps) {
   const incomingSnapshot = useMemo<MerchantDistributionSnapshot>(() => ({
     merchants,
     currency,
-    emptyLabel,
-  }), [currency, emptyLabel, merchants])
+    emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range.',
+  }), [currency, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -378,7 +378,7 @@ export function MerchantDistributionCard({
 
   return (
     <div className="app-card flex h-[560px] flex-col min-[1300px]:h-full">
-      {header}
+      <SectionHeader icon={Store} label="Spending Distribution by Merchant" />
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <InsightLoadingContent
           className="flex min-h-0 flex-1 flex-col"

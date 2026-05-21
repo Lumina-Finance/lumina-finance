@@ -1,6 +1,5 @@
 import { InsightsRangeSelector, type InsightsRangeSelectorOption } from './InsightsRangeSelector'
-
-export type InsightsRangePreset = 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'LAST_WEEK' | 'LAST_MONTH' | 'CUSTOM'
+import type { InsightsRangePreset } from '../types/range'
 
 const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[] = [
   { value: 'THIS_WEEK', label: 'WTD', description: 'This week' },

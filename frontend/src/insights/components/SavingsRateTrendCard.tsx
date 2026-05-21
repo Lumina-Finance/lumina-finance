@@ -1,5 +1,6 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { ArrowUpToLine, Repeat } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -16,6 +17,7 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type SavingsRateHistoryPoint = {
@@ -39,11 +41,10 @@ type SavingsRateYAxisTickProps = {
 }
 
 type SavingsRateTrendCardProps = {
-  header: ReactNode
   series: SavingsRateHistoryPoint[]
   displayCurrency: string
   capRates: boolean
-  emptyLabel?: string
+  onCapRatesToggle: () => void
   loading?: boolean
   transitionKey: string
 }
@@ -133,11 +134,10 @@ function SavingsRateYAxisTick({
 }
 
 export function SavingsRateTrendCard({
-  header,
   series,
   displayCurrency,
   capRates,
-  emptyLabel = 'No savings-rate history available',
+  onCapRatesToggle,
   loading = false,
   transitionKey,
 }: SavingsRateTrendCardProps) {
@@ -145,8 +145,8 @@ export function SavingsRateTrendCard({
     series,
     displayCurrency,
     capRates,
-    emptyLabel,
-  }), [capRates, displayCurrency, emptyLabel, series])
+    emptyLabel: loading ? 'Loading savings-rate history...' : 'No savings-rate history available',
+  }), [capRates, displayCurrency, loading, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -208,7 +208,24 @@ export function SavingsRateTrendCard({
 
   return (
     <section className="app-card">
-      {header}
+      <SectionHeader
+        icon={Repeat}
+        label="Savings Rate Trend"
+        action={(
+          <button
+            type="button"
+            onClick={onCapRatesToggle}
+            title={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+            aria-label={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+            className="app-icon-button"
+          >
+            <ArrowUpToLine
+              size={12}
+              className={`transition-transform duration-150 motion-reduce:transition-none ${capRates ? 'rotate-180' : ''}`}
+            />
+          </button>
+        )}
+      />
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex flex-col min-[750px]:h-[430px]">

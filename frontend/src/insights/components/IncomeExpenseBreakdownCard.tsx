@@ -1,5 +1,6 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
   Cell,
   Pie,
@@ -12,6 +13,8 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type BreakdownMode = 'expense' | 'income'
@@ -38,8 +41,8 @@ export type CategoryTrendSection = {
 }
 
 type IncomeExpenseBreakdownCardProps = {
-  header: ReactNode
   mode: BreakdownMode
+  onModeToggle: () => void
   entries: BreakdownEntry[]
   trendSections: CategoryTrendSection[]
   displayCurrency: string
@@ -116,8 +119,8 @@ function getTransactionCountLabel(count: number) {
 }
 
 export function IncomeExpenseBreakdownCard({
-  header,
   mode,
+  onModeToggle,
   entries,
   trendSections,
   displayCurrency,
@@ -146,7 +149,26 @@ export function IncomeExpenseBreakdownCard({
 
   return (
     <section className="app-card">
-      {header}
+      <SectionHeader
+        icon={PieChartIcon}
+        label={(
+          <span className="inline-flex items-baseline whitespace-nowrap">
+            <AppSlotMachineText text={mode === 'expense' ? 'Expense' : 'Income'} />
+            <span className="ml-[0.25em]">Breakdown</span>
+          </span>
+        )}
+        action={(
+          <button
+            type="button"
+            onClick={onModeToggle}
+            title={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
+            aria-label={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
+            className="app-icon-button"
+          >
+            <Repeat size={12} />
+          </button>
+        )}
+      />
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">

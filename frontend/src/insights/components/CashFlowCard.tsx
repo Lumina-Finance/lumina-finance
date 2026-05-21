@@ -1,4 +1,5 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
+import { CalendarDays } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -14,6 +15,7 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type CashFlowGranularity = 'day' | 'week' | 'month'
@@ -27,7 +29,6 @@ export type CashFlowBarBucket = {
 }
 
 type CashFlowCardProps = {
-  header: ReactNode
   granularity: CashFlowGranularity
   buckets: CashFlowBarBucket[]
   displayCurrency: string
@@ -100,7 +101,6 @@ function CashFlowBarTooltip({
 }
 
 export function CashFlowCard({
-  header,
   granularity,
   buckets,
   displayCurrency,
@@ -131,7 +131,7 @@ export function CashFlowCard({
 
   return (
     <section className="app-card">
-      {header}
+      <SectionHeader icon={CalendarDays} label="Cash Flow" />
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[390px] flex-col">

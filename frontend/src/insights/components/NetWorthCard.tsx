@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
-import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import {
   Bar,
   ComposedChart,
@@ -17,6 +16,7 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type NetWorthViewMode = 'overview' | 'composition'
@@ -50,12 +50,11 @@ type NetWorthDeltaPoint = NetWorthPoint & {
 }
 
 type NetWorthCardProps = {
-  header: ReactNode
   mode: NetWorthViewMode
+  onModeToggle: () => void
   groups: NetWorthGroup[]
   series: NetWorthPoint[]
   displayCurrency: string
-  emptyLabel?: string
   loading?: boolean
   transitionKey: string
 }
@@ -225,12 +224,11 @@ function NetWorthChartTooltip({
 }
 
 export function NetWorthCard({
-  header,
   mode,
+  onModeToggle,
   groups,
   series,
   displayCurrency,
-  emptyLabel = 'No net worth history in this range.',
   loading = false,
   transitionKey,
 }: NetWorthCardProps) {
@@ -239,8 +237,8 @@ export function NetWorthCard({
     groups,
     series,
     displayCurrency,
-    emptyLabel,
-  }), [displayCurrency, emptyLabel, groups, mode, series])
+    emptyLabel: loading ? 'Loading net worth history...' : 'No net worth history in this range.',
+  }), [displayCurrency, groups, loading, mode, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -278,7 +276,21 @@ export function NetWorthCard({
 
   return (
     <section className="app-card">
-      {header}
+      <SectionHeader
+        icon={Wallet}
+        label="Net Worth"
+        action={(
+          <button
+            type="button"
+            onClick={onModeToggle}
+            title={mode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+            aria-label={mode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+            className="app-icon-button"
+          >
+            <ArrowLeftRight size={12} />
+          </button>
+        )}
+      />
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[360px] flex-col">

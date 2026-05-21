@@ -1,6 +1,6 @@
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Network } from 'lucide-react'
 import {
   ResponsiveContainer,
   Sankey,
@@ -12,6 +12,7 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 type FundFlowNodeKind = 'income' | 'expense' | 'summary' | 'retained'
@@ -62,7 +63,6 @@ type FundFlowSnapshot = {
 }
 
 type FundFlowCardProps = {
-  header: ReactNode
   flowData: FundFlowData
   incomeSources: SignAdjustedFlowEntry[]
   expenseCategories: SignAdjustedFlowEntry[]
@@ -73,7 +73,6 @@ type FundFlowCardProps = {
   displayCurrency: string
   loading?: boolean
   transitionKey: string
-  emptyLabel?: string
 }
 
 const MIN_CHART_HEIGHT = 450
@@ -302,7 +301,6 @@ function FlowCategoryList({
 }
 
 export function FundFlowCard({
-  header,
   flowData,
   incomeSources,
   expenseCategories,
@@ -313,7 +311,6 @@ export function FundFlowCard({
   displayCurrency,
   loading = false,
   transitionKey,
-  emptyLabel = 'No income or expenses in this range.',
 }: FundFlowCardProps) {
   const incomingSnapshot = useMemo<FundFlowSnapshot>(() => ({
     flowData,
@@ -324,11 +321,10 @@ export function FundFlowCard({
     incomeSourceCount,
     expenseCategoryCount,
     displayCurrency,
-    emptyLabel,
+    emptyLabel: loading ? 'Loading fund flow...' : 'No income or expenses in this range.',
     chartHeight: getFundFlowChartHeight(incomeSourceCount, expenseCategoryCount),
   }), [
     displayCurrency,
-    emptyLabel,
     expenseCategories,
     expenseCategoryCount,
     expenseInflows,
@@ -336,6 +332,7 @@ export function FundFlowCard({
     incomeOutflows,
     incomeSourceCount,
     incomeSources,
+    loading,
   ])
   const [incomeListOpen, setIncomeListOpen] = useState(false)
   const [expenseListOpen, setExpenseListOpen] = useState(false)
@@ -360,7 +357,7 @@ export function FundFlowCard({
         setExpenseListOpen(false)
       }}
     >
-      {header}
+      <SectionHeader icon={Network} label="Fund Flow" />
       <div className="mb-3 grid items-start gap-3 min-[720px]:grid-cols-2">
         <FlowCategoryList
           title="Income Sources"

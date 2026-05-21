@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Sparkles } from 'lucide-react'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 const PRIMARY_AMOUNT_MAX_REM = 3
@@ -34,7 +36,6 @@ type PeriodGlanceSnapshot = {
 }
 
 type PeriodGlanceCardProps = {
-  header: ReactNode
   primaryMetric: PeriodGlancePrimaryMetric
   supportItems: PeriodGlanceSupportItem[]
   income: number
@@ -111,7 +112,6 @@ function useFittedPrimaryAmount(value: string) {
 }
 
 export function PeriodGlanceCard({
-  header,
   primaryMetric,
   supportItems,
   income,
@@ -143,7 +143,7 @@ export function PeriodGlanceCard({
 
   return (
     <section className="app-card">
-      {header}
+      <SectionHeader icon={Sparkles} label="This Period at a Glance" />
 
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>

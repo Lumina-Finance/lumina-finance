@@ -1,9 +1,11 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
+import { ListChecks } from 'lucide-react'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 export type MerchantRankingRow = {
@@ -16,10 +18,8 @@ export type MerchantRankingRow = {
 }
 
 type MerchantRankingCardProps = {
-  header: ReactNode
   merchants: MerchantRankingRow[]
   currency: string
-  emptyLabel?: string
   loading?: boolean
   transitionKey: string
 }
@@ -43,18 +43,16 @@ function getChangeLabel(changePct: number | null) {
 }
 
 export function MerchantRankingCard({
-  header,
   merchants,
   currency,
-  emptyLabel = 'No merchant spending in this range.',
   loading = false,
   transitionKey,
 }: MerchantRankingCardProps) {
   const incomingSnapshot = useMemo<MerchantRankingSnapshot>(() => ({
     merchants,
     currency,
-    emptyLabel,
-  }), [currency, emptyLabel, merchants])
+    emptyLabel: loading ? 'Loading merchant ranking...' : 'No merchant spending in this range.',
+  }), [currency, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -68,7 +66,7 @@ export function MerchantRankingCard({
 
   return (
     <div className="app-card min-[1300px]:h-[560px]">
-      {header}
+      <SectionHeader icon={ListChecks} label="Merchant Ranking" />
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.merchants.length > 0 ? (
