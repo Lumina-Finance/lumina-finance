@@ -411,8 +411,8 @@
   .app-spinner {
     width: 22px;
     height: 22px;
-    border: 2.5px solid #100f0e40;
-    border-top-color: #100F0E;
+    border: 2.5px solid color-mix(in srgb, currentColor 25%, transparent);
+    border-top-color: currentColor;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
