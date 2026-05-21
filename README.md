@@ -51,8 +51,13 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/accounts_detail_light.png" alt="Screenshot of account details in light mode" width="49%">
-  <img src="docs/screenshots/accounts_detail_dark.png" alt="Screenshot of account details in dark mode" width="49%">
+  <img src="docs/screenshots/insights_light.png" alt="Screenshot of insights page in light mode" width="49%">
+  <img src="docs/screenshots/insights_dark.png" alt="Screenshot of insights page in dark mode" width="49%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/account_details_light.png" alt="Screenshot of account details in light mode" width="49%">
+  <img src="docs/screenshots/account_details_dark.png" alt="Screenshot of account details in dark mode" width="49%">
 </p>
 
 <p align="center">
