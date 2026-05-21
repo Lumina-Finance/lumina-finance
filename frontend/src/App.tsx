@@ -11,6 +11,7 @@ import AccountsPage from '@/accounts/AccountsPage'
 import AccountDetailPage from '@/accounts/detail/AccountDetailPage'
 import TransactionsPage from '@/transactions/TransactionsPage'
 import BudgetsPage from '@/budgets/BudgetsPage'
+import InsightsPage from '@/insights/InsightsPage'
 import SettingsPage from '@/settings/SettingsPage'
 import TransactionImportPage from '@/components/TransactionImportPage'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -29,6 +30,7 @@ function isProtectedPath(pathname: string) {
     pathname.startsWith('/accounts') ||
     pathname === '/transactions' ||
     pathname === '/budgets' ||
+    pathname === '/insights' ||
     pathname.startsWith('/settings')
   );
 }
@@ -184,6 +186,7 @@ function AnimatedRoutes() {
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
+          <Route path="/insights" element={<InsightsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/imports" element={<TransactionImportPage />} />
         </Route>

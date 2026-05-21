@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
+  BarChart2,
   CreditCard,
   LayoutDashboard,
   LogOut,
@@ -28,6 +29,7 @@ const navItems: NavigationItem[] = [
   { to: '/accounts', icon: CreditCard, label: 'Accounts' },
   { to: '/transactions', icon: Receipt, label: 'Transactions' },
   { to: '/budgets', icon: PieChart, label: 'Budgets' },
+  { to: '/insights', icon: BarChart2, label: 'Insights' },
 ];
 
 const primaryNavItems = [...navItems, { to: '/settings', icon: Settings, label: 'Settings' }];

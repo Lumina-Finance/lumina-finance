@@ -20,6 +20,8 @@
     --app-input-border: #4b372338;
     --app-positive: #3A7850;
     --app-positive-soft: #3a78501a;
+    --app-chart-positive: #5D8F6D;
+    --app-chart-negative: #AB5E56;
     --app-warning: #D6B400;
     --app-warning-soft: #d6b40029;
     --app-warning-text: #6F5700;
@@ -54,6 +56,8 @@
     --app-input-border: #d2b47833;
     --app-positive: #6CA07B;
     --app-positive-soft: #6ca07b24;
+    --app-chart-positive: #5D8F6D;
+    --app-chart-negative: #AB5E56;
     --app-warning: #F5D547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #F8E28A;
@@ -168,6 +172,19 @@
   .app-input[type="date"]::-webkit-date-and-time-value {
     min-width: 0;
     text-align: left;
+  }
+
+  .app-date-input-balanced[type="date"] {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.5rem;
+    margin-right: 0;
+    padding: 0;
   }
 
   .app-input:hover {
@@ -394,8 +411,8 @@
   .app-spinner {
     width: 22px;
     height: 22px;
-    border: 2.5px solid #100f0e40;
-    border-top-color: #100F0E;
+    border: 2.5px solid color-mix(in srgb, currentColor 25%, transparent);
+    border-top-color: currentColor;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }

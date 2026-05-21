@@ -10,6 +10,7 @@ from app.routes.category import router as category_router
 from app.routes.currency import router as currency_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.group import router as group_router
+from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
 from app.routes.merchant import router as merchant_router
 from app.routes.tag import router as tag_router
@@ -45,6 +46,7 @@ app.include_router(group_router)
 app.include_router(base_budget_router)
 app.include_router(budget_router)
 app.include_router(dashboard_router)
+app.include_router(insights_router)
 
 
 @app.get("/health")

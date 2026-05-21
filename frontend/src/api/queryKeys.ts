@@ -73,6 +73,17 @@ export const dashboardKeys = {
   spendingBreakdownAll: ['spending-breakdown'] as const,
 };
 
+export const insightsKeys = {
+  periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', fromDate, toDate] as const,
+  fundFlow: (fromDate: string, toDate: string) => ['insights-fund-flow', fromDate, toDate] as const,
+  incomeExpenseBreakdown: (fromDate: string, toDate: string) => ['insights-income-expense-breakdown', fromDate, toDate] as const,
+  cashFlow: (fromDate: string, toDate: string) => ['insights-cash-flow', fromDate, toDate] as const,
+  netWorth: (fromDate: string, toDate: string) => ['insights-net-worth', 'groups-v1', fromDate, toDate] as const,
+  savingsRateTrend: () => ['insights-savings-rate-trend'] as const,
+  merchantDistribution: (fromDate: string, toDate: string) => ['insights-merchant-distribution', fromDate, toDate] as const,
+  merchantRanking: (fromDate: string, toDate: string) => ['insights-merchant-ranking', fromDate, toDate] as const,
+};
+
 export const budgetKeys = {
   all: ['budgets'] as const,
   baseBudgets: () => ['budgets', 'base-budgets'] as const,
