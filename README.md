@@ -6,6 +6,36 @@ Lumina Finance is a self-hosted personal finance app for managing your finances,
 
 THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND. THIS APPLICATION IS A SOFTWARE TOOL ONLY AND DOES NOT PROVIDE FINANCIAL, INVESTMENT, TAX, LEGAL, ACCOUNTING, OR OTHER PROFESSIONAL ADVICE. ANY CALCULATIONS, ESTIMATES, PROJECTIONS, SUMMARIES, OR OTHER OUTPUTS MAY BE INACCURATE OR INCOMPLETE AND SHOULD NOT BE RELIED ON AS A SUBSTITUTE FOR PROFESSIONAL JUDGMENT. YOU ARE SOLELY RESPONSIBLE FOR REVIEWING ALL OUTPUTS AND FOR ANY DECISIONS YOU MAKE. USE OF THIS APPLICATION IS AT YOUR OWN RISK.
 
+## Features
+
+Lumina Finance gives you one place to track accounts, transactions, budgets, and financial trends while keeping the app under your control.
+
+- **Accounts** - Track cash, credit, savings, and other account types with balance history, detail views, and hide archived accounts
+- **Transactions** - Add or import transactions, then organize them with merchants, categories, tags, and notes
+- **Budgets** - Create recurring or one-off budgets, attach them to categories, and see current and historical utilization at a glance
+- **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
+- **Runway** - Choose the accounts that make up your cash cushion and see how many months they could cover based on your recent average spending in the worst case scenario
+- **Insights** - Review cash flow, income and expense breakdowns, net worth trends, savings-rate trends, and merchant patterns
+- **Self-hostable** - You have full control of your data, run it locally with Docker or bare metal
+
+### Roadmap
+
+This roadmap may change as Lumina Finance evolves based on user feedback, technical constraints, and project priorities.
+
+#### Near Term
+
+- [X] Insights tab for deeper reports and trends
+- [ ] UI/UX polish across the main workflows
+- [ ] OIDC and WebAuthN support
+- [ ] Bug fixes and stability improvements
+- [ ] SaaS development and testing
+
+#### Long Term
+
+- [ ] SimpleFIN and Plaid connections for automatic account and transaction syncing
+- [ ] Basic investment tracker (bring your own data)
+- [ ] A few quite ambitious features we're not quite ready to spoil yet :)
+
 ## Screenshots
 
 <!-- markdownlint-disable MD033 -->
@@ -76,24 +106,6 @@ These are some advanced variables that you could also set. Lumina Finance provid
 | `JWT_ISSUER` | No | String | `lumina-finance` | JWT issuer claim. |
 | `JWT_ACCESS_PRIVATE_KEY_PATH` | No | File path | `/data/keys/access_private.pem` | Access token RSA256 private key path inside the container. If a key is not provided, the app will generate one automatically. |
 | `JWT_REFRESH_PRIVATE_KEY_PATH` | No | File path | `/data/keys/refresh_private.pem` | Refresh token RSA256 private key path inside the container. If a key is not provided, the app will generate one automatically |
-
-## Roadmap
-
-This roadmap may change as Lumina Finance evolves based on user feedback, technical constraints, and project priorities.
-
-### Near Term
-
-- [X] Report & Analysis tab
-- [ ] UI/UX improvements
-- [ ] OIDC and WebAuthN support
-- [ ] Bug and stability improvements
-- [ ] SaaS development and testing
-
-### Long Term
-
-- [ ] Support SimpleFIN and Plaid connections
-- [ ] Basic investment tracker (BYOD, or Bring Your Own Data)
-- [ ] A few quite ambitious features we're not quite ready to spoil yet :)
 
 ## FAQs
 
