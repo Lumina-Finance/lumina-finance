@@ -14,6 +14,7 @@ import {
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -158,15 +159,13 @@ export function IncomeExpenseBreakdownCard({
           </span>
         )}
         action={(
-          <button
-            type="button"
-            onClick={onModeToggle}
+          <InsightActionButton
             title={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
-            aria-label={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
-            className="app-icon-button"
+            ariaLabel={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
+            onPress={onModeToggle}
           >
             <Repeat size={12} />
-          </button>
+          </InsightActionButton>
         )}
       />
       <div className="relative overflow-hidden">

@@ -16,6 +16,7 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -280,15 +281,13 @@ export function NetWorthCard({
         icon={Wallet}
         label="Net Worth"
         action={(
-          <button
-            type="button"
-            onClick={onModeToggle}
+          <InsightActionButton
             title={mode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
-            aria-label={mode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
-            className="app-icon-button"
+            ariaLabel={mode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+            onPress={onModeToggle}
           >
             <ArrowLeftRight size={12} />
-          </button>
+          </InsightActionButton>
         )}
       />
       <div className="relative overflow-hidden">
