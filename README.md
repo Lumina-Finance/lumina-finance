@@ -83,14 +83,15 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 
 ### Near Term
 
-- [ ] Bug and stability improvements
+- [X] Report & Analysis tab
 - [ ] UI/UX improvements
-- [ ] Report & Analysis tab
+- [ ] OIDC and WebAuthN support
+- [ ] Bug and stability improvements
 - [ ] SaaS development and testing
 
 ### Long Term
 
-- [ ] Support SimpleFin and Plaid connections
+- [ ] Support SimpleFIN and Plaid connections
 - [ ] Basic investment tracker (BYOD, or Bring Your Own Data)
 - [ ] A few quite ambitious features we're not quite ready to spoil yet :)
 
