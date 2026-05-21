@@ -25,7 +25,6 @@ class NetWorthGroup:
 
 NET_WORTH_GROUPS: tuple[NetWorthGroup, ...] = (
     NetWorthGroup("cash", "Cash", "asset"),
-    NetWorthGroup("tax_advantaged", "Tax-Advantaged", "asset"),
     NetWorthGroup("term_deposits", "Term Deposits", "asset"),
     NetWorthGroup("investments", "Investments", "asset"),
     NetWorthGroup("other_assets", "Other Assets", "asset"),
@@ -81,8 +80,6 @@ def _build_buckets(from_date: date, to_date: date) -> list[tuple[date, date]]:
 
 def _group_id_for_account(account: Account) -> str:
     if account.account_kind == AccountKind.ASSET:
-        if account.tax_advantaged_plan_id is not None:
-            return "tax_advantaged"
         if account.account_type in {AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH}:
             return "cash"
         if account.account_type == AccountType.TERM_DEPOSIT:

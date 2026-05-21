@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import {
+  Area,
   Bar,
   ComposedChart,
   Line,
@@ -71,7 +72,6 @@ type NetWorthSnapshot = {
 
 const groupColors: Record<string, string> = {
   cash: '#2F80A7',
-  tax_advantaged: 'var(--app-chart-positive)',
   term_deposits: '#D67A45',
   investments: '#37434F',
   other_assets: '#8F989F',
@@ -150,19 +150,31 @@ function getOverviewItems(groups: NetWorthGroup[]): NetWorthChartItem[] {
   ]
 }
 
+function getGroupColor(group: NetWorthGroup) {
+  return groupColors[group.id] ?? (
+    group.kind === 'asset' ? compositionAssetFallbackColor : compositionDebtFallbackColor
+  )
+}
+
 function getCompositionItems(groups: NetWorthGroup[]): NetWorthChartItem[] {
   return groups.map((group, index) => ({
     id: group.id,
     name: group.name,
     kind: group.kind,
-    color: groupColors[group.id] ?? (
-      group.kind === 'asset' ? compositionAssetFallbackColor : compositionDebtFallbackColor
-    ),
+    color: getGroupColor(group),
     getValue: (point) => point.values[index] ?? 0,
   }))
 }
 
-function getChartData(series: NetWorthPoint[], items: NetWorthChartItem[]): NetWorthDeltaPoint[] {
+function formatAxisMoney(value: number, currency: string) {
+  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, { prefix: '' })
+}
+
+function getChartData(
+  series: NetWorthPoint[],
+  items: NetWorthChartItem[],
+  mode: NetWorthViewMode,
+): NetWorthDeltaPoint[] {
   const start = series[0]
   if (!start) return []
   const startValues = items.map((item) => item.getValue(start))
@@ -179,7 +191,7 @@ function getChartData(series: NetWorthPoint[], items: NetWorthChartItem[]): NetW
       const change = value - startValues[index]
       deltaPoint[getValueKey(index)] = value
       deltaPoint[getChangeKey(index)] = change
-      deltaPoint[getChartKey(index)] = change
+      deltaPoint[getChartKey(index)] = mode === 'composition' ? value : change
     })
 
     return deltaPoint
@@ -191,27 +203,34 @@ function NetWorthChartTooltip({
   payload,
   items,
   displayCurrency,
+  mode,
 }: {
   active?: boolean
   payload?: Array<{ payload?: NetWorthDeltaPoint }>
   items: NetWorthChartItem[]
   displayCurrency: string
+  mode: NetWorthViewMode
 }) {
   const point = payload?.[0]?.payload
   if (!active || !point) return null
   const detailItems = items.map((item, index) => ({ item, index }))
+  const displayedNetWorth = mode === 'composition'
+    ? detailItems.reduce((sum, { index }) => sum + Number(point[getValueKey(index)] ?? 0), 0)
+    : point.total
 
   return (
     <div className="app-chart-tooltip-default-content min-w-64">
       <p className="app-tooltip-muted">{point.tooltipLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
         <span>Net Worth</span>
-        <span className="font-financial">{formatCurrency(point.total, displayCurrency)}</span>
+        <span className="font-financial">{formatCurrency(displayedNetWorth, displayCurrency)}</span>
       </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span>Change</span>
-        <span className="font-financial">{formatSignedCurrency(point.totalChange, displayCurrency)}</span>
-      </div>
+      {mode === 'overview' && (
+        <div className="mt-1 flex justify-between gap-4">
+          <span>Change</span>
+          <span className="font-financial">{formatSignedCurrency(point.totalChange, displayCurrency)}</span>
+        </div>
+      )}
       <div className="mt-2 space-y-1 border-t border-[var(--app-border)] pt-2">
         {detailItems.map(({ item, index }) => {
           const value = Number(point[getValueKey(index)] ?? 0)
@@ -222,8 +241,12 @@ function NetWorthChartTooltip({
               <span className="app-tooltip-muted">{item.name}</span>
               <span className="font-financial">
                 {formatCurrency(displayValue, displayCurrency)}
-                {' '}
-                ({formatSignedCurrency(change, displayCurrency)})
+                {mode === 'overview' && (
+                  <>
+                    {' '}
+                    ({formatSignedCurrency(change, displayCurrency)})
+                  </>
+                )}
               </span>
             </div>
           )
@@ -266,20 +289,23 @@ export function NetWorthCard({
       : getCompositionItems(displaySnapshot.groups)),
     [displaySnapshot.groups, displaySnapshot.mode],
   )
-  const deltaSeries = useMemo(() => getChartData(displaySnapshot.series, chartItems), [chartItems, displaySnapshot.series])
+  const deltaSeries = useMemo(
+    () => getChartData(displaySnapshot.series, chartItems, displaySnapshot.mode),
+    [chartItems, displaySnapshot.mode, displaySnapshot.series],
+  )
   const hasChartData = displaySnapshot.groups.length > 0 && deltaSeries.length > 0
-  const startNetWorthAxisLabel = formatCompactMoney(
+  const startNetWorthAxisLabel = formatAxisMoney(
     deltaSeries[0]?.startTotal ?? 0,
     displaySnapshot.displayCurrency,
-    netWorthAxisMoneyRules,
-    { prefix: '' },
   )
   const legendItems = useMemo(
     () => [
-      { id: 'net-worth-change', name: 'Net Worth Change', color: netWorthChangeColor },
+      ...(displaySnapshot.mode === 'overview'
+        ? [{ id: 'net-worth-change', name: 'Net Worth Change', color: netWorthChangeColor }]
+        : []),
       ...chartItems.map((item) => ({ id: item.id, name: item.name, color: item.color })),
     ],
-    [chartItems],
+    [chartItems, displaySnapshot.mode],
   )
   const legendAnimationKey = `${displaySnapshot.mode}-${legendItems.map((item) => item.id).join('|')}`
   const latestChange = deltaSeries.at(-1)?.totalChange ?? 0
@@ -297,8 +323,8 @@ export function NetWorthCard({
         label="Net Worth"
         action={(
           <InsightActionButton
-            title={mode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
-            ariaLabel={mode === 'overview' ? 'Show grouped composition' : 'Show asset and debt overview'}
+            title={mode === 'overview' ? 'Show account type composition' : 'Show net worth change'}
+            ariaLabel={mode === 'overview' ? 'Show account type composition' : 'Show net worth change'}
             onPress={onModeToggle}
           >
             <ArrowLeftRight size={12} />
@@ -352,36 +378,64 @@ export function NetWorthCard({
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  ticks={[0]}
+                  ticks={displaySnapshot.mode === 'overview' ? [0] : undefined}
                   width={78}
                   tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, fontWeight: 600 }}
-                  tickFormatter={() => startNetWorthAxisLabel}
+                  tickFormatter={(value: number) => (
+                    displaySnapshot.mode === 'overview'
+                      ? startNetWorthAxisLabel
+                      : formatAxisMoney(value, displaySnapshot.displayCurrency)
+                  )}
                   domain={[(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, 0)]}
                 />
                 <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
                 <Tooltip
                   wrapperClassName="app-chart-tooltip-default"
                   cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-                  content={<NetWorthChartTooltip items={chartItems} displayCurrency={displaySnapshot.displayCurrency} />}
+                  content={(
+                    <NetWorthChartTooltip
+                      items={chartItems}
+                      displayCurrency={displaySnapshot.displayCurrency}
+                      mode={displaySnapshot.mode}
+                    />
+                  )}
                 />
-                {chartItems.map((item, index) => (
-                  <Bar
-                    key={item.id}
-                    dataKey={getChartKey(index)}
-                    stackId="net-worth-contribution"
-                    fill={item.color}
-                    maxBarSize={34}
-                    radius={4}
-                  />
-                ))}
-                <Line
-                  type="monotone"
-                  dataKey="totalChange"
-                  stroke={netWorthChangeColor}
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 0 }}
-                />
+                {displaySnapshot.mode === 'composition' ? (
+                  chartItems.map((item, index) => (
+                    <Area
+                      key={item.id}
+                      type="monotone"
+                      dataKey={getChartKey(index)}
+                      stackId={item.kind}
+                      stroke={item.color}
+                      strokeWidth={1.5}
+                      fill={item.color}
+                      fillOpacity={0.65}
+                      activeDot={false}
+                    />
+                  ))
+                ) : (
+                  <>
+                    {chartItems.map((item, index) => (
+                      <Bar
+                        key={item.id}
+                        dataKey={getChartKey(index)}
+                        stackId="net-worth-contribution"
+                        fill={item.color}
+                        maxBarSize={34}
+                        radius={4}
+                      />
+                    ))}
+                    <Line
+                      type="monotone"
+                      dataKey="totalChange"
+                      stroke={netWorthChangeColor}
+                      strokeWidth={2.5}
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                    />
+                  </>
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -405,7 +459,13 @@ export function NetWorthCard({
                     variants={shouldReduceMotion ? undefined : netWorthLegendItemVariants}
                     transition={shouldReduceMotion ? { duration: 0 } : netWorthLegendItemTransition}
                   >
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{
+                        background: item.color,
+                        opacity: displaySnapshot.mode === 'composition' ? 0.65 : 1,
+                      }}
+                    />
                     <span>{item.name}</span>
                   </motion.div>
                 ))}
