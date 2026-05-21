@@ -1,5 +1,6 @@
 import { InsightsRangeSelector, type InsightsRangeSelectorOption } from './InsightsRangeSelector'
 import type { InsightsRangePreset } from '../types/range'
+import type { KeyboardEvent } from 'react'
 
 const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[] = [
   { value: 'THIS_WEEK', label: 'WTD', description: 'This week' },
@@ -18,6 +19,7 @@ type InsightsFloatingRangeControlProps = {
   onPresetChange: (value: InsightsRangePreset) => void
   onCustomFromChange: (value: string) => void
   onCustomToChange: (value: string) => void
+  onCustomRangeCommit: () => void
 }
 
 export function InsightsFloatingRangeControl({
@@ -28,21 +30,21 @@ export function InsightsFloatingRangeControl({
   onPresetChange,
   onCustomFromChange,
   onCustomToChange,
+  onCustomRangeCommit,
 }: InsightsFloatingRangeControlProps) {
   function handleCustomFromChange(value: string) {
-    if (preset !== 'CUSTOM') {
-      onCustomToChange(toDateValue)
-      onPresetChange('CUSTOM')
-    }
     onCustomFromChange(value)
   }
 
   function handleCustomToChange(value: string) {
-    if (preset !== 'CUSTOM') {
-      onCustomFromChange(fromDateValue)
-      onPresetChange('CUSTOM')
-    }
     onCustomToChange(value)
+  }
+
+  function handleDateKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      onCustomRangeCommit()
+      event.currentTarget.blur()
+    }
   }
 
   const dateFields = (
@@ -54,6 +56,8 @@ export function InsightsFloatingRangeControl({
           aria-label="Insights start date"
           value={fromDateValue}
           onChange={(event) => handleCustomFromChange(event.target.value)}
+          onBlur={onCustomRangeCommit}
+          onKeyDown={handleDateKeyDown}
         />
         <span className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
           to
@@ -64,6 +68,8 @@ export function InsightsFloatingRangeControl({
           aria-label="Insights end date"
           value={toDateValue}
           onChange={(event) => handleCustomToChange(event.target.value)}
+          onBlur={onCustomRangeCommit}
+          onKeyDown={handleDateKeyDown}
         />
       </div>
       {customInvalid && (

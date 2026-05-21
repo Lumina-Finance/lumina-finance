@@ -13,6 +13,7 @@ export type InsightsRangeState = {
   setCustomFrom: (value: string) => void
   customTo: string
   setCustomTo: (value: string) => void
+  commitCustomRange: () => void
   customInvalid: boolean
   rangeInputDates: InsightsRangeInputDates
   cardTransitionKey: string
@@ -21,20 +22,60 @@ export type InsightsRangeState = {
 
 export function useInsightsRange(): InsightsRangeState {
   const defaultCustomRange = useMemo(() => getDefaultCustomRange(), [])
-  const [rangePreset, setRangePreset] = useState<InsightsRangePreset>('THIS_MONTH')
-  const [customFrom, setCustomFrom] = useState(defaultCustomRange.from)
-  const [customTo, setCustomTo] = useState(defaultCustomRange.to)
+  const initialRangeInputDates = useMemo(
+    () => getRangeInputDates('THIS_MONTH', defaultCustomRange.from, defaultCustomRange.to),
+    [defaultCustomRange],
+  )
+  const [rangePreset, setRangePresetState] = useState<InsightsRangePreset>('THIS_MONTH')
+  const [committedCustomFrom, setCommittedCustomFrom] = useState(defaultCustomRange.from)
+  const [committedCustomTo, setCommittedCustomTo] = useState(defaultCustomRange.to)
+  const [customFrom, setCustomFromState] = useState(initialRangeInputDates.from)
+  const [customTo, setCustomToState] = useState(initialRangeInputDates.to)
+  const [rangeInputDates, setRangeInputDates] = useState<InsightsRangeInputDates>(initialRangeInputDates)
 
   const customInvalid = rangePreset === 'CUSTOM'
     && customFrom !== ''
     && customTo !== ''
     && getCustomRangeDays(customFrom, customTo) === null
-  const rangeInputDates = useMemo(
-    () => getRangeInputDates(rangePreset, customFrom, customTo),
-    [customFrom, customTo, rangePreset],
-  )
   const cardTransitionKey = `${rangeInputDates.from}:${rangeInputDates.to}`
-  const cardQueriesEnabled = !customInvalid && rangeInputDates.from !== '' && rangeInputDates.to !== ''
+  const cardQueriesEnabled = rangeInputDates.from !== '' && rangeInputDates.to !== ''
+
+  function setRangePreset(value: InsightsRangePreset) {
+    setRangePresetState(value)
+
+    if (value === 'CUSTOM') {
+      const nextRange = { from: committedCustomFrom, to: committedCustomTo }
+      setCustomFromState(nextRange.from)
+      setCustomToState(nextRange.to)
+      setRangeInputDates(nextRange)
+      return
+    }
+
+    const nextRange = getRangeInputDates(value, committedCustomFrom, committedCustomTo)
+    setCustomFromState(nextRange.from)
+    setCustomToState(nextRange.to)
+    setRangeInputDates(nextRange)
+  }
+
+  function setCustomFrom(value: string) {
+    setRangePresetState('CUSTOM')
+    setCustomFromState(value)
+  }
+
+  function setCustomTo(value: string) {
+    setRangePresetState('CUSTOM')
+    setCustomToState(value)
+  }
+
+  function commitCustomRange() {
+    if (rangePreset !== 'CUSTOM' || customFrom === '' || customTo === '' || getCustomRangeDays(customFrom, customTo) === null) {
+      return
+    }
+
+    setCommittedCustomFrom(customFrom)
+    setCommittedCustomTo(customTo)
+    setRangeInputDates({ from: customFrom, to: customTo })
+  }
 
   return {
     rangePreset,
@@ -43,6 +84,7 @@ export function useInsightsRange(): InsightsRangeState {
     setCustomFrom,
     customTo,
     setCustomTo,
+    commitCustomRange,
     customInvalid,
     rangeInputDates,
     cardTransitionKey,

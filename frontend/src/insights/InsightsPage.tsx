@@ -115,12 +115,13 @@ export default function InsightsPage() {
 
       <InsightsFloatingRangeControl
         preset={range.rangePreset}
-        fromDateValue={range.rangeInputDates.from}
-        toDateValue={range.rangeInputDates.to}
+        fromDateValue={range.customFrom}
+        toDateValue={range.customTo}
         customInvalid={range.customInvalid}
         onPresetChange={range.setRangePreset}
         onCustomFromChange={range.setCustomFrom}
         onCustomToChange={range.setCustomTo}
+        onCustomRangeCommit={range.commitCustomRange}
       />
 
       <div className="space-y-4 pb-28 min-[1050px]:pb-0">
