@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -100,6 +101,14 @@ const netWorthLegendItemVariants = {
 } as const
 
 const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
+const netWorthAxisMoneyRules: CompactMoneyRule[] = [
+  { threshold: 100_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
+  { threshold: 10_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
+  { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
+  { threshold: 100_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
+  { threshold: 10_000, divisor: 1_000, suffix: 'K', fractionDigits: 1 },
+  { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
+]
 
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
@@ -259,6 +268,12 @@ export function NetWorthCard({
   )
   const deltaSeries = useMemo(() => getChartData(displaySnapshot.series, chartItems), [chartItems, displaySnapshot.series])
   const hasChartData = displaySnapshot.groups.length > 0 && deltaSeries.length > 0
+  const startNetWorthAxisLabel = formatCompactMoney(
+    deltaSeries[0]?.startTotal ?? 0,
+    displaySnapshot.displayCurrency,
+    netWorthAxisMoneyRules,
+    { prefix: '' },
+  )
   const legendItems = useMemo(
     () => [
       { id: 'net-worth-change', name: 'Net Worth Change', color: netWorthChangeColor },
@@ -335,9 +350,12 @@ export function NetWorthCard({
                   }
                 />
                 <YAxis
-                  hide
                   axisLine={false}
                   tickLine={false}
+                  ticks={[0]}
+                  width={78}
+                  tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, fontWeight: 600 }}
+                  tickFormatter={() => startNetWorthAxisLabel}
                   domain={[(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, 0)]}
                 />
                 <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
