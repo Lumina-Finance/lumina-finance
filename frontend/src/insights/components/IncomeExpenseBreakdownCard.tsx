@@ -17,6 +17,7 @@ import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 
 export type BreakdownMode = 'expense' | 'income'
 
@@ -73,16 +74,6 @@ const pieLegendItemVariants = {
 } as const
 
 const pieLegendItemTransition = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
-
-const insightsBreakdownColors = [
-  '#C9A96A',
-  'var(--app-chart-positive)',
-  '#D4906A',
-  '#9B8FC8',
-  'var(--app-chart-negative)',
-  '#7AAEC8',
-  '#8C8074',
-] as const
 
 const categoryTrendListVariants = {
   initial: { transition: { staggerChildren: 0.03 } },
@@ -147,6 +138,18 @@ export function IncomeExpenseBreakdownCard({
     transitionKey,
   })
   const total = getTotal(displaySnapshot.entries)
+  const breakdownColors = useMemo(() => getCategoryColorMap(displaySnapshot.entries.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    kind: displaySnapshot.mode,
+  }))), [displaySnapshot.entries, displaySnapshot.mode])
+  const getBreakdownColor = (entry: BreakdownEntry) => getCategoryColor({
+    id: entry.id,
+    name: entry.name,
+    kind: displaySnapshot.mode,
+  })
+  const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
+    ?? getBreakdownColor(entry)
 
   return (
     <section className="app-card">
@@ -194,8 +197,8 @@ export function IncomeExpenseBreakdownCard({
                       nameKey="name"
                       stroke="none"
                     >
-                      {displaySnapshot.entries.map((entry, index) => (
-                        <Cell key={entry.id} fill={insightsBreakdownColors[index % insightsBreakdownColors.length]} />
+                      {displaySnapshot.entries.map((entry) => (
+                        <Cell key={entry.id} fill={getSpacedBreakdownColor(entry)} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -215,7 +218,7 @@ export function IncomeExpenseBreakdownCard({
                     animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
                     exit={shouldReduceMotion ? undefined : 'exit'}
                   >
-                    {displaySnapshot.entries.slice(0, 5).map((entry, index) => (
+                    {displaySnapshot.entries.slice(0, 5).map((entry) => (
                       <motion.div
                         key={entry.id}
                         className="flex items-center gap-3 text-sm"
@@ -224,7 +227,7 @@ export function IncomeExpenseBreakdownCard({
                       >
                         <span
                           className="h-2.5 w-2.5 rounded-full"
-                          style={{ background: insightsBreakdownColors[index % insightsBreakdownColors.length] }}
+                          style={{ background: getSpacedBreakdownColor(entry) }}
                         />
                         <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--app-text-muted)' }}>
                           {entry.name}
