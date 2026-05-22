@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
@@ -26,6 +26,7 @@ import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 /* ── Constants ── */
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
+const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const MIN_ADD_TRANSACTION_LOADING_MS = 800
 const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
@@ -176,6 +177,65 @@ function sameStringSet(a: string[], b: string[]) {
 
 function defaultDirectionForKind(kind: Kind): TransactionDirection {
   return DEFAULT_DIRECTION_BY_KIND[kind]
+}
+
+function joinClassNames(...classNames: Array<string | undefined | false>) {
+  return classNames.filter(Boolean).join(' ')
+}
+
+function SlidingPillSelector<T extends string>({
+  value,
+  options,
+  ariaLabel,
+  onChange,
+  disabled = false,
+}: {
+  value: T
+  options: readonly { value: T; label: string }[]
+  ariaLabel: string
+  onChange: (value: T) => void
+  disabled?: boolean
+}) {
+  const shouldReduceMotion = useReducedMotion()
+  const activeIndex = Math.max(options.findIndex((option) => option.value === value), 0)
+
+  return (
+    <div
+      className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
+      role="tablist"
+      aria-label={ariaLabel}
+    >
+      <motion.span
+        className="app-create-transaction-pill-selector-indicator"
+        aria-hidden
+        style={{ width: `calc((100% - 0.5rem) / ${options.length})` }}
+        animate={{ x: `${activeIndex * 100}%` }}
+        transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
+      />
+      {options.map((option) => {
+        const active = option.value === value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            aria-disabled={disabled}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={joinClassNames(
+              'app-segmented-option relative z-10 flex-1 bg-transparent text-sm',
+              active && 'app-segmented-option-active',
+              disabled && 'cursor-not-allowed',
+              disabled && !active && 'opacity-40',
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 /* ── Validation ── */
@@ -1021,51 +1081,37 @@ export default function CreateTransactionModal({
                         <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type</p>
 
                         {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                        <div className="app-segmented-control w-full">
-                          {KIND_OPTIONS.map((opt) => {
-                            const selected = form.kind === opt.value
-                            return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => !editing && handleKindChange(opt.value)}
-                                disabled={editing}
-                                aria-disabled={editing}
-                                className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''} ${editing ? 'cursor-not-allowed' : ''} ${editing && !selected ? 'opacity-40' : ''}`}
-                              >
-                                {opt.label}
-                              </button>
-                            )
-                          })}
-                        </div>
+                        <SlidingPillSelector
+                          value={form.kind}
+                          options={KIND_OPTIONS}
+                          ariaLabel="Transaction type"
+                          onChange={handleKindChange}
+                          disabled={editing}
+                        />
 
                         <div>
                           <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Direction</label>
-                          <motion.div
-                            key={directionHighlightKey}
-                            className="rounded-lg"
-                            initial={directionHighlightKey === 0 ? false : { boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
-                            animate={directionHighlightKey === 0
-                              ? undefined
-                              : { boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
-                            transition={{ duration: 0.45, ease: EASE }}
-                          >
-                            <div className="app-segmented-control w-full">
-                              {DIRECTION_OPTIONS.map((opt) => {
-                                const selected = form.direction === opt.value
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => handleField('direction', opt.value)}
-                                    className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''}`}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </motion.div>
+                          <div className="relative rounded-lg">
+                            <AnimatePresence initial={false}>
+                              {directionHighlightKey > 0 && (
+                                <motion.span
+                                  key={directionHighlightKey}
+                                  className="pointer-events-none absolute inset-0 rounded-lg"
+                                  initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
+                                  animate={{ boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
+                                  exit={{ opacity: 0 }}
+                                  transition={{ duration: 0.45, ease: EASE }}
+                                  aria-hidden
+                                />
+                              )}
+                            </AnimatePresence>
+                            <SlidingPillSelector
+                              value={form.direction}
+                              options={DIRECTION_OPTIONS}
+                              ariaLabel="Transaction direction"
+                              onChange={(value) => handleField('direction', value)}
+                            />
+                          </div>
                         </div>
 
                         {/* Date */}
