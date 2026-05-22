@@ -121,7 +121,6 @@ export default function AccountsPage() {
 
         <HiddenAccountsSection
           accounts={hiddenRows}
-          displayCurrency={displayCurrency}
           taxAdvantagedPlanById={taxAdvantagedPlanById}
         />
       </div>

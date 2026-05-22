@@ -83,7 +83,6 @@ export default function AccountListSection({
                 account={account}
                 accent={accent}
                 showCreditLimit={showCreditLimit}
-                displayCurrency={displayCurrency}
                 taxAdvantagedPlanById={taxAdvantagedPlanById}
               />
             </motion.div>
