@@ -1,7 +1,10 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { RunwayResult } from '@/api/user'
-import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
+import {
+  getDeterministicChartColor,
+  getDeterministicChartColorMap,
+} from '@/utils/chartColor'
 
 /**
  * Converts selected positive-balance runway accounts into proportional bar segments.
@@ -23,8 +26,18 @@ export function getRunwaySegments(
   const total = rows.reduce((sum, account) => sum + account.current_balance, 0)
   if (total === 0) return []
 
+  const accountColors = getDeterministicChartColorMap(rows.map((account) => {
+    const key = account.id || account.name
+
+    return {
+      key,
+      seed: `runway-account:${key}`,
+    }
+  }))
+
   let cursor = 0
-  return rows.map((account, index) => {
+  return rows.map((account) => {
+    const key = account.id || account.name
     const pct = (account.current_balance / total) * 100
     // centerPct is kept for consumers that need a stable tooltip anchor without
     // querying DOM widths for each proportional segment.
@@ -37,7 +50,7 @@ export function getRunwaySegments(
       amount: account.current_balance,
       pct,
       centerPct,
-      color: BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length],
+      color: accountColors.get(key) ?? getDeterministicChartColor(`runway-account:${key}`),
     }
   })
 }
