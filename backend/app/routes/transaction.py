@@ -5,6 +5,7 @@ from typing import Annotated
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import MappedColumn
 
@@ -63,6 +64,37 @@ _FILTER_FIELDS: dict[str, MappedColumn] = {
 def _escape_like(value: str) -> str:
     """Escape LIKE-special characters so user input is matched literally."""
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _transaction_tag_sort_subquery():
+    tag_name = sa.func.lower(Tag.name)
+    return (
+        select(
+            TransactionTag.transaction_id,
+            sa.func.string_agg(
+                tag_name,
+                aggregate_order_by(",", tag_name),
+            ).label("tag_names"),
+        )
+        .join(Tag, Tag.id == TransactionTag.tag_id)
+        .group_by(TransactionTag.transaction_id)
+        .subquery()
+    )
+
+
+def _date_sort_order(sort_order: str, tag_names):
+    date_order = Transaction.dt.desc() if sort_order == "desc" else Transaction.dt.asc()
+    created_order = Transaction.created_at.desc() if sort_order == "desc" else Transaction.created_at.asc()
+    return (
+        date_order,
+        created_order,
+        Transaction.amount.asc(),
+        sa.func.lower(Category.name).asc(),
+        sa.func.lower(sa.func.coalesce(Merchant.name, "")).asc(),
+        sa.func.lower(sa.func.coalesce(Transaction.notes, "")).asc(),
+        sa.func.coalesce(tag_names, "").asc(),
+        Transaction.id,
+    )
 
 
 def _accessible_account_ids(user_id: uuid.UUID, *, include_hidden: bool = False):
@@ -301,18 +333,32 @@ async def list_transactions(
     if to_date is not None:
         query = query.where(Transaction.dt <= to_date)
 
+    tag_sort = None
+    merchant_joined = False
+    if sort_by == "dt":
+        tag_sort = _transaction_tag_sort_subquery()
+        query = (
+            query
+            .join(Category, Category.id == Transaction.category_id)
+            .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
+            .outerjoin(tag_sort, tag_sort.c.transaction_id == Transaction.id)
+        )
+        merchant_joined = True
+
     # Text search across merchant name and notes
     if q is not None:
         pattern = f"%{_escape_like(q)}%"
-        query = (
-            query
-            .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
-            .where(Transaction.notes.ilike(pattern) | Merchant.name.ilike(pattern))
-        )
+        if not merchant_joined:
+            query = query.outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
+        query = query.where(Transaction.notes.ilike(pattern) | Merchant.name.ilike(pattern))
 
-    # Secondary sort by id for deterministic pagination
-    order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
-    query = query.order_by(order, Transaction.id).limit(limit).offset(offset)
+    if sort_by == "dt":
+        query = query.order_by(*_date_sort_order(sort_order, tag_sort.c.tag_names))
+    else:
+        # Secondary sort by id for deterministic pagination
+        order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
+        query = query.order_by(order, Transaction.id)
+    query = query.limit(limit).offset(offset)
 
     result = await db.execute(query)
     transactions = result.scalars().all()
