@@ -16,10 +16,10 @@ interface TransactionRowProps {
   onOpen: (transaction: Transaction) => void
 }
 
-function amountColor(category: Category | undefined) {
-  if (category?.kind === 'income') return 'var(--app-positive)'
-  if (category?.kind === 'transfer') return 'var(--app-text-muted)'
-  return 'var(--app-negative)'
+function amountColor(category: Category | undefined, amount: number) {
+  if (category?.kind === 'expense' && amount > 0) return 'var(--app-positive)'
+  if (category?.kind === 'income' && amount < 0) return 'var(--app-negative)'
+  return 'var(--app-text)'
 }
 
 function accountLogoSrc(institution: Institution | null | undefined) {
@@ -117,7 +117,7 @@ export default function TransactionRow({
   const hasSupplementalMeta = hasNotes || hasVisibleTags
   const hasAccountMeta = !!accountName || !!accountInstitution
   const formattedAmount = `${transaction.amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount), currency)}`
-  const transactionAmountColor = amountColor(category)
+  const transactionAmountColor = amountColor(category, transaction.amount)
 
   return (
     <button
