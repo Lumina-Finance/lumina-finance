@@ -882,6 +882,8 @@ export default function CreateTransactionModal({
         kind: form.kind,
         direction: form.direction,
         account_id: form.account_id,
+        category_id: form.category_id,
+        merchant_id: form.merchant_id,
         currency: form.currency,
         date: form.date,
       })
@@ -1417,7 +1419,7 @@ export default function CreateTransactionModal({
                           Keep modal open after adding
                         </span>
                         <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                          Keep type, date, and account
+                          Keep type, date, account, merchant, and category
                         </span>
                       </span>
                     </label>
