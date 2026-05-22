@@ -8,12 +8,13 @@ import {
 } from '@/api/accounts'
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
+import {
+  getCategoryColor,
+  getCategoryColorMap,
+  getDeterministicChartColor,
+  getDeterministicChartColorMap,
+} from '@/utils/chartColor'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
-
-const BREAKDOWN_COLORS = [
-  '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
-] as const
 
 // Spending range tabs. `SpendingRange` is imported from the API layer so
 // the select options stay in lockstep with the backend's accepted values.
@@ -217,12 +218,12 @@ function BreakdownCard({
             ) : (
               <>
                 <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
-                  {rows.map((item, idx) => {
+                  {rows.map((item) => {
                     // Width is based on share of total spend. A 4% minimum keeps
                     // tiny rows visible, and abs() handles signed spend totals.
                     const totalAbs = Math.abs(grandTotal)
                     const barPct = totalAbs > 0 ? Math.max((Math.abs(item.total) / totalAbs) * 100, 4) : 0
-                    const color = item.isOther ? '#8C8074' : item.color ?? BREAKDOWN_COLORS[idx % BREAKDOWN_COLORS.length]
+                    const color = item.isOther ? '#8C8074' : item.color ?? getDeterministicChartColor(item.key || item.name)
                     return (
                       <div
                         key={item.key}
@@ -333,6 +334,14 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
   const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
   const { loading, startTransition } = useBreakdownRangeTransition(isFetching)
+  const merchantColors = useMemo(() => getDeterministicChartColorMap((data?.top_merchants ?? []).map((merchant) => {
+    const key = merchant.merchant_id || merchant.name
+
+    return {
+      key,
+      seed: key,
+    }
+  })), [data?.top_merchants])
 
   const handleRangeChange = (nextRange: SpendingRange) => {
     if (nextRange === range) return
@@ -342,9 +351,17 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
 
   const rows = breakdownToRows(
     data,
-    (b) => b.top_merchants.map((m) => ({
-      key: m.merchant_id, name: m.name, total: m.total, isOther: false,
-    })),
+    (b) => b.top_merchants.map((m) => {
+      const key = m.merchant_id || m.name
+
+      return {
+        key,
+        name: m.name,
+        total: m.total,
+        isOther: false,
+        color: merchantColors.get(key) ?? getDeterministicChartColor(key),
+      }
+    }),
     (b) => b.other_merchants_count,
   )
 
