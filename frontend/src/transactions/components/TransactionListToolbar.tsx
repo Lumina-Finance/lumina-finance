@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Check, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
@@ -359,6 +359,7 @@ export default function TransactionListToolbar({
                   selectedValue={filters.category_id}
                   onSelect={(value) => { setFilter({ category_id: value }); close() }}
                   searchPlaceholder="Search categories..."
+                  selectFirstSearchResultOnEnter
                 />
               )}
             </FilterChip>
@@ -486,6 +487,7 @@ export default function TransactionListToolbar({
                     allLabel="All categories"
                     onSelect={(value) => setFilter({ category_id: value })}
                     onClear={() => setFilter({ category_id: undefined })}
+                    selectFirstSearchResultOnEnter
                   />
                   <MobileDateRangeSection
                     selectedLabel={selectedDateLabel}
@@ -577,6 +579,7 @@ function MobileFilterSection({
   allLabel,
   onSelect,
   onClear,
+  selectFirstSearchResultOnEnter = false,
 }: {
   title: string
   options: OptionItem[]
@@ -586,8 +589,10 @@ function MobileFilterSection({
   allLabel: string
   onSelect: (value: string) => void
   onClear: () => void
+  selectFirstSearchResultOnEnter?: boolean
 }) {
   const [search, setSearch] = useState('')
+  const hasSearch = search.trim().length > 0
 
   const filteredOptions = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -611,6 +616,13 @@ function MobileFilterSection({
 
     return groups
   }, [filteredOptions])
+  const highlightedValue = selectFirstSearchResultOnEnter && hasSearch ? filteredOptions[0]?.value : undefined
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || !highlightedValue) return
+    event.preventDefault()
+    onSelect(highlightedValue)
+  }
 
   return (
     <section>
@@ -643,6 +655,7 @@ function MobileFilterSection({
         placeholder={searchPlaceholder}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
+        onKeyDown={handleSearchKeyDown}
       />
 
       <div className="max-h-48 overflow-y-auto overscroll-contain rounded-xl border pr-2 [scrollbar-gutter:stable]" style={{ borderColor: 'var(--app-border)' }}>
@@ -672,6 +685,7 @@ function MobileFilterSection({
                   label={option.label}
                   icon={option.icon}
                   selected={option.value === selectedValue}
+                  highlighted={option.value === highlightedValue}
                   onClick={() => onSelect(option.value)}
                 />
               ))}
@@ -684,6 +698,7 @@ function MobileFilterSection({
               label={option.label}
               icon={option.icon}
               selected={option.value === selectedValue}
+              highlighted={option.value === highlightedValue}
               onClick={() => onSelect(option.value)}
             />
           ))
@@ -697,11 +712,13 @@ function MobileOptionRow({
   label,
   icon,
   selected,
+  highlighted = false,
   onClick,
 }: {
   label: string
   icon?: string | null
   selected: boolean
+  highlighted?: boolean
   onClick: () => void
 }) {
   return (
@@ -709,6 +726,7 @@ function MobileOptionRow({
       type="button"
       className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-[var(--app-surface-soft)]"
       style={{
+        background: highlighted ? 'var(--app-surface-soft)' : 'transparent',
         color: selected ? 'var(--app-accent)' : 'var(--app-text)',
         fontWeight: selected ? 600 : 400,
       }}
