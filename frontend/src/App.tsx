@@ -81,7 +81,9 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
             aria-busy={pageTransitioning}
           >
             <AnimatePresence>
-              {pageTransitionPhase === 'loading' && <LoadingScreen variant="main" />}
+              {pageTransitionPhase === 'loading' && (
+                <LoadingScreen variant={isFocusedPage ? 'screen' : 'main'} />
+              )}
             </AnimatePresence>
             <motion.div
               initial={false}
