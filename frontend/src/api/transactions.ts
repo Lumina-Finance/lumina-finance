@@ -205,6 +205,12 @@ function buildQueryString(params: Record<string, string | number | undefined>): 
   return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function patchTouches(
   patch: UpdateTransactionPayload,
   fields: Set<keyof UpdateTransactionPayload>,
@@ -438,11 +444,20 @@ export function useUpdateTransaction() {
   });
 }
 
-export function useDeleteTransaction() {
+export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' }),
+    mutationFn: async (id: string) => {
+      const minimumPending = delay(minimumPendingMs);
+      try {
+        const result = await authenticatedFetch<void>(`/transactions/${id}`, { method: 'DELETE' });
+        await minimumPending;
+        return result;
+      } catch (error) {
+        await minimumPending;
+        throw error;
+      }
+    },
     onMutate: (id) => ({
       deletedTransaction: findCachedTransaction(queryClient, id),
     }),

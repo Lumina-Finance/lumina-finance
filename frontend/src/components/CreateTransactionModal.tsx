@@ -29,6 +29,7 @@ const EASE = [0.25, 0.1, 0.25, 1] as const
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const MIN_ADD_TRANSACTION_LOADING_MS = 800
 const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
+const MIN_DELETE_TRANSACTION_LOADING_MS = 800
 const MERCHANT_DROPDOWN_PAGE_SIZE = 10
 const MERCHANT_SEARCH_LOADING_TEXT_MIN_MS = 300
 const MERCHANT_SEARCH_DEBOUNCE_MS = 300
@@ -226,7 +227,7 @@ export default function CreateTransactionModal({
   const editing = !!transaction
   const createMutation = useCreateTransaction()
   const updateMutation = useUpdateTransaction()
-  const deleteMutation = useDeleteTransaction()
+  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
@@ -361,6 +362,8 @@ export default function CreateTransactionModal({
     [visiblePagedTags],
   )
   const selectedMerchant = createdMerchant?.id === selectedMerchantId ? createdMerchant : fetchedSelectedMerchant
+  const deleteLoading = deleteMutation.isPending
+  const deleteButtonLoading = deleteLoading && confirmingDelete
 
   // Measure both label widths once after mount so we can drive a smooth width transition.
   useLayoutEffect(() => {
@@ -375,7 +378,7 @@ export default function CreateTransactionModal({
 
   // Cancel pending deletion if the user clicks anywhere outside the Delete button.
   useEffect(() => {
-    if (!confirmingDelete) return
+    if (!confirmingDelete || deleteLoading) return
     const onPointer = (e: PointerEvent) => {
       if (deleteButtonRef.current && !deleteButtonRef.current.contains(e.target as Node)) {
         setConfirmingDelete(false)
@@ -387,7 +390,7 @@ export default function CreateTransactionModal({
       clearTimeout(t)
       window.removeEventListener('pointerdown', onPointer)
     }
-  }, [confirmingDelete])
+  }, [confirmingDelete, deleteLoading])
 
   useEffect(() => {
     if (!merchantSearch.trim()) {
@@ -559,7 +562,7 @@ export default function CreateTransactionModal({
 
   const createLoading = createMutation.isPending || createDelayPending
   const submitLoading = editing ? updateMutation.isPending : createLoading
-  const isPending = createLoading || updateMutation.isPending || deleteMutation.isPending
+  const isPending = createLoading || updateMutation.isPending || deleteLoading
 
   const categoryById = useMemo(() => {
     const map = new Map<string, Category>()
@@ -898,15 +901,18 @@ export default function CreateTransactionModal({
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!transaction) return
-    deleteMutation.mutate(transaction.id, {
-      onSuccess: () => onClose(),
-      onError: (err) => {
-        setConfirmingDelete(false)
-        setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
-      },
-    })
+
+    setSubmitError('')
+
+    try {
+      await deleteMutation.mutateAsync(transaction.id)
+      onClose()
+    } catch (err) {
+      setConfirmingDelete(false)
+      setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
+    }
   }
 
   const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field]
@@ -1346,13 +1352,15 @@ export default function CreateTransactionModal({
                       type="button"
                       onClick={() => {
                         if (isPending) return
-                        if (confirmingDelete) handleDelete()
+                        if (confirmingDelete) void handleDelete()
                         else setConfirmingDelete(true)
                       }}
                       disabled={isPending}
-                      className={`app-danger-button w-full sm:w-auto ${isPending && confirmingDelete ? 'app-primary-button-loading' : ''}`}
+                      className={`app-danger-button overflow-hidden whitespace-nowrap ${
+                        deleteButtonLoading ? 'app-primary-button-loading shrink-0' : 'w-full sm:w-auto'
+                      }`}
                     >
-                      {isPending && confirmingDelete ? (
+                      {deleteButtonLoading ? (
                         <div className="app-spinner" />
                       ) : (
                         <span
