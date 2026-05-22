@@ -387,6 +387,34 @@
     background: transparent;
   }
 
+  .app-balance-chart-mode-selector {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .app-balance-chart-mode-selector .app-segmented-option {
+    @apply relative z-10;
+    background: transparent;
+    box-shadow: none;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+  }
+
+  .app-balance-chart-mode-selector .app-segmented-option:hover {
+    color: var(--app-text);
+    background: var(--app-accent-soft);
+  }
+
+  .app-balance-chart-mode-selector .app-segmented-option:active {
+    transform: scale(0.9);
+  }
+
+  .app-balance-chart-mode-selector .app-segmented-option-active,
+  .app-balance-chart-mode-selector .app-segmented-option-active:hover {
+    color: var(--app-accent);
+    background: transparent;
+  }
+
   .app-create-transaction-pill-selector-indicator {
     @apply pointer-events-none absolute rounded-md;
     top: 0.25rem;

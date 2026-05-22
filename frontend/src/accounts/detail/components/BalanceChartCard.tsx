@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import {
   Area,
   AreaChart,
@@ -14,11 +15,13 @@ import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/Ti
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   RANGE_CONFIG,
+  TIME_SELECTOR_SPRING,
   type BalanceRange,
 } from '@/accounts/detail/constants/accountDetail'
 import {
   buildChartSeries,
   rezeroSeriesToPeriod,
+  type BalanceChartPoint,
 } from '@/accounts/detail/utils/balanceChartSeries'
 import { toISODate } from '@/accounts/detail/utils/date'
 
@@ -28,6 +31,11 @@ const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
   { value: '90D', label: '90D', description: 'Last 90 days' },
   { value: '1Y', label: '1Y', description: 'Last year' },
 ]
+type BalanceChartMode = 'balance' | 'change'
+const BALANCE_CHART_MODE_OPTIONS: Array<{ value: BalanceChartMode; label: string }> = [
+  { value: 'balance', label: 'Balance' },
+  { value: 'change', label: 'Change' },
+]
 const BALANCE_AXIS_TICK_COUNT_BY_RANGE: Record<BalanceRange, number> = {
   '7D': 7,
   '30D': 6,
@@ -35,7 +43,37 @@ const BALANCE_AXIS_TICK_COUNT_BY_RANGE: Record<BalanceRange, number> = {
   '1Y': 6,
 }
 const DAY_MS = 24 * 60 * 60 * 1000
-const BALANCE_AXIS_EDGE_PADDING_PX = 28
+const BALANCE_AXIS_EDGE_PADDING_DESKTOP_PX = 28
+const BALANCE_AXIS_EDGE_PADDING_MOBILE_PX = 4
+const BALANCE_CHART_COMPACT_QUERY = '(max-width: 1049px)'
+
+type AxisTickProps = {
+  x?: number | string
+  y?: number | string
+  payload?: {
+    value: number | string
+  }
+}
+
+function joinClassNames(...classNames: Array<string | undefined | false>) {
+  return classNames.filter(Boolean).join(' ')
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
+  )
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query)
+    const handleChange = () => setMatches(mediaQuery.matches)
+    handleChange()
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [query])
+
+  return matches
+}
 
 function calendarDateMs(d: Date): number {
   return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
@@ -64,8 +102,106 @@ function formatUtcAxisDate(value: number): string {
   }).format(new Date(value))
 }
 
+function formatSignedCurrency(amount: number, currency: string): string {
+  if (amount === 0) return formatCurrency(amount, currency)
+  return `${amount > 0 ? '+' : '−'}${formatCurrency(Math.abs(amount), currency)}`
+}
+
+function BalanceXAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  axisStartMs,
+  axisEndMs,
+  seriesByDateMs,
+}: AxisTickProps & {
+  axisStartMs: number
+  axisEndMs: number
+  seriesByDateMs: Map<number, BalanceChartPoint>
+}) {
+  const value = Number(payload?.value)
+  const textAnchor = value === axisStartMs ? 'start' : value === axisEndMs ? 'end' : 'middle'
+  const tickX = Number(x)
+  const tickY = Number(y)
+
+  return (
+    <text
+      x={tickX}
+      y={tickY}
+      dy={12}
+      textAnchor={textAnchor}
+      fill="var(--app-text-subtle)"
+      fontSize={11}
+    >
+      {seriesByDateMs.get(value)?.dateLabel ?? formatUtcAxisDate(value)}
+    </text>
+  )
+}
+
+function BalanceChartModeSelector({
+  value,
+  onChange,
+  className,
+}: {
+  value: BalanceChartMode
+  onChange: (value: BalanceChartMode) => void
+  className?: string
+}) {
+  const shouldReduceMotion = useReducedMotion()
+  const activeIndex = Math.max(
+    BALANCE_CHART_MODE_OPTIONS.findIndex((option) => option.value === value),
+    0,
+  )
+
+  return (
+    <div
+      className={joinClassNames(
+        'app-segmented-control app-segmented-control-compact app-balance-chart-mode-selector min-w-0',
+        className,
+      )}
+      role="tablist"
+      aria-label="Balance chart view"
+    >
+      <motion.span
+        className="pointer-events-none absolute rounded-md"
+        aria-hidden
+        style={{
+          top: '0.125rem',
+          bottom: '0.125rem',
+          left: '0.125rem',
+          width: `calc((100% - 0.25rem) / ${BALANCE_CHART_MODE_OPTIONS.length})`,
+          background: 'var(--app-accent-soft)',
+          border: '1px solid var(--app-accent-border)',
+        }}
+        animate={{ x: `${activeIndex * 100}%` }}
+        transition={shouldReduceMotion ? { duration: 0 } : TIME_SELECTOR_SPRING}
+      />
+      {BALANCE_CHART_MODE_OPTIONS.map((option) => {
+        const active = option.value === value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(option.value)}
+            className={joinClassNames(
+              'app-segmented-option app-segmented-option-compact relative z-10 flex-1 px-3',
+              active && 'app-segmented-option-active',
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function BalanceChartCard({ account }: { account: Account }) {
   const [range, setRange] = useState<BalanceRange>('30D')
+  const [chartMode, setChartMode] = useState<BalanceChartMode>('balance')
+  const compactChart = useMediaQuery(BALANCE_CHART_COMPACT_QUERY)
 
   // Derive the snapshot query window from the selected range.
   const { fromDate, toDate, granularity } = useMemo(() => {
@@ -88,7 +224,9 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     () => buildChartSeries(snapshots ?? [], fromDate, toDate, granularity),
     [snapshots, fromDate, toDate, granularity],
   )
-  const chartSeries = useMemo(() => rezeroSeriesToPeriod(series), [series])
+  const periodSeries = useMemo(() => rezeroSeriesToPeriod(series), [series])
+  const chartSeries = chartMode === 'balance' ? series : periodSeries
+  const chartDataKey = chartMode === 'balance' ? 'balance' : 'periodBalance'
   const axisStartMs = calendarDateMs(fromDate)
   const axisEndMs = calendarDateMs(toDate)
   const xAxisTicks = useMemo(() => getXAxisTicks(fromDate, toDate, range), [fromDate, toDate, range])
@@ -120,20 +258,27 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     : trendUp
       ? 'var(--app-positive)'
       : 'var(--app-negative)'
+  const chartLineColor = chartMode === 'change' && periodDelta !== null ? deltaColor : lineColor
+  const axisEdgePadding = compactChart
+    ? BALANCE_AXIS_EDGE_PADDING_MOBILE_PX
+    : BALANCE_AXIS_EDGE_PADDING_DESKTOP_PX
 
   return (
     <section
       className="app-card flex flex-col"
     >
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="app-label">Current Balance</p>
-        <TimeRangeSelector
-          value={range}
-          options={BALANCE_RANGE_OPTIONS}
-          onChange={setRange}
-          ariaLabel="Balance range"
-          className="hidden min-[750px]:inline-flex"
-        />
+        <BalanceChartModeSelector value={chartMode} onChange={setChartMode} className="w-[9.5rem] shrink-0 min-[750px]:hidden" />
+        <div className="ml-auto hidden items-center gap-2 min-[750px]:flex">
+          <BalanceChartModeSelector value={chartMode} onChange={setChartMode} className="w-[9.5rem]" />
+          <TimeRangeSelector
+            value={range}
+            options={BALANCE_RANGE_OPTIONS}
+            onChange={setRange}
+            ariaLabel="Balance range"
+          />
+        </div>
         <TimeRangeSelector
           value={range}
           options={BALANCE_RANGE_OPTIONS}
@@ -181,11 +326,11 @@ export default function BalanceChartCard({ account }: { account: Account }) {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartSeries} margin={{ top: 18, right: BALANCE_AXIS_EDGE_PADDING_PX, bottom: 0, left: BALANCE_AXIS_EDGE_PADDING_PX }}>
+            <AreaChart data={chartSeries} margin={{ top: 18, right: axisEdgePadding, bottom: 0, left: axisEdgePadding }}>
               <defs>
                 <linearGradient id={`balanceFill-${account.id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={lineColor} stopOpacity={0.22} />
-                  <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+                  <stop offset="0%" stopColor={chartLineColor} stopOpacity={0.22} />
+                  <stop offset="100%" stopColor={chartLineColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
@@ -197,11 +342,15 @@ export default function BalanceChartCard({ account }: { account: Account }) {
                 interval={0}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+                tick={(props) => (
+                  <BalanceXAxisTick
+                    {...props}
+                    axisStartMs={axisStartMs}
+                    axisEndMs={axisEndMs}
+                    seriesByDateMs={seriesByDateMs}
+                  />
+                )}
                 tickMargin={4}
-                tickFormatter={(value: number) =>
-                  seriesByDateMs.get(value)?.dateLabel ?? formatUtcAxisDate(value)
-                }
               />
               <YAxis hide domain={['dataMin', 'dataMax']} />
               <Tooltip
@@ -210,7 +359,12 @@ export default function BalanceChartCard({ account }: { account: Account }) {
                 labelFormatter={(value) =>
                   seriesByDateMs.get(Number(value))?.tooltipLabel ?? String(value)
                 }
-                formatter={(value) => [formatCurrency(Number(value), account.currency), 'Change']}
+                formatter={(value) => [
+                  chartMode === 'balance'
+                    ? formatCurrency(Number(value), account.currency)
+                    : formatSignedCurrency(Number(value), account.currency),
+                  chartMode === 'balance' ? 'Balance' : 'Change',
+                ]}
               />
               <ReferenceLine
                 y={0}
@@ -221,8 +375,8 @@ export default function BalanceChartCard({ account }: { account: Account }) {
               />
               <Area
                 type="monotone"
-                dataKey="periodBalance"
-                stroke={lineColor}
+                dataKey={chartDataKey}
+                stroke={chartLineColor}
                 strokeWidth={2}
                 fill={`url(#balanceFill-${account.id})`}
               />
