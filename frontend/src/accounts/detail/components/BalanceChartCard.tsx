@@ -16,7 +16,10 @@ import {
   RANGE_CONFIG,
   type BalanceRange,
 } from '@/accounts/detail/constants/accountDetail'
-import { buildChartSeries, rezeroSeriesToPeriod } from '@/accounts/detail/utils/balanceChartSeries'
+import {
+  buildChartSeries,
+  rezeroSeriesToPeriod,
+} from '@/accounts/detail/utils/balanceChartSeries'
 import { toISODate } from '@/accounts/detail/utils/date'
 
 const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
@@ -25,40 +28,80 @@ const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
   { value: '90D', label: '90D', description: 'Last 90 days' },
   { value: '1Y', label: '1Y', description: 'Last year' },
 ]
+const BALANCE_AXIS_TICK_COUNT_BY_RANGE: Record<BalanceRange, number> = {
+  '7D': 7,
+  '30D': 6,
+  '90D': 6,
+  '1Y': 6,
+}
+const DAY_MS = 24 * 60 * 60 * 1000
+const BALANCE_AXIS_EDGE_PADDING_PX = 28
+
+function calendarDateMs(d: Date): number {
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+function getXAxisTicks(fromDate: Date, toDate: Date, range: BalanceRange): number[] {
+  const startMs = calendarDateMs(fromDate)
+  const endMs = calendarDateMs(toDate)
+  const tickCount = BALANCE_AXIS_TICK_COUNT_BY_RANGE[range]
+  if (tickCount <= 1 || startMs >= endMs) return [startMs]
+
+  const totalDays = Math.round((endMs - startMs) / DAY_MS)
+  return [...new Set(Array.from({ length: tickCount }, (_, index) => {
+    if (index === 0) return startMs
+    if (index === tickCount - 1) return endMs
+    const dayOffset = Math.round((totalDays * index) / (tickCount - 1))
+    return startMs + dayOffset * DAY_MS
+  }))]
+}
+
+function formatUtcAxisDate(value: number): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(value))
+}
 
 export default function BalanceChartCard({ account }: { account: Account }) {
   const [range, setRange] = useState<BalanceRange>('30D')
 
   // Derive the snapshot query window from the selected range.
-  const { fromDate, granularity } = useMemo(() => {
+  const { fromDate, toDate, granularity } = useMemo(() => {
     const cfg = RANGE_CONFIG[range]
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const from = new Date(today)
     from.setDate(from.getDate() - (cfg.days - 1))
-    return { fromDate: from, granularity: cfg.granularity }
+    return { fromDate: from, toDate: today, granularity: cfg.granularity }
   }, [range])
 
   const { data: snapshots } = useAccountSnapshots(account.id, {
     fromDate: toISODate(fromDate),
-    granularity,
+    toDate: toISODate(toDate),
+    granularity: 'day',
     includeAnchor: true,
   })
 
   const series = useMemo(
-    () => buildChartSeries(snapshots ?? [], fromDate, granularity),
-    [snapshots, fromDate, granularity],
+    () => buildChartSeries(snapshots ?? [], fromDate, toDate, granularity),
+    [snapshots, fromDate, toDate, granularity],
   )
   const chartSeries = useMemo(() => rezeroSeriesToPeriod(series), [series])
+  const axisStartMs = calendarDateMs(fromDate)
+  const axisEndMs = calendarDateMs(toDate)
+  const xAxisTicks = useMemo(() => getXAxisTicks(fromDate, toDate, range), [fromDate, toDate, range])
+  const seriesByDateMs = useMemo(
+    () => new Map(series.map((point) => [point.dateMs, point])),
+    [series],
+  )
 
   // First point in a new year, used for the dashed year-boundary marker.
-  let yearBoundary: { dateKey: string; year: string } | null = null
-  for (let i = 1; i < series.length; i++) {
-    if (series[i].date.slice(0, 4) !== series[i - 1].date.slice(0, 4)) {
-      yearBoundary = { dateKey: series[i].date, year: series[i].date.slice(0, 4) }
-      break
-    }
-  }
+  const yearStart = new Date(toDate.getFullYear(), 0, 1)
+  const yearBoundary = fromDate < yearStart && yearStart <= toDate
+    ? { dateMs: calendarDateMs(yearStart), year: String(toDate.getFullYear()) }
+    : null
 
   // First-to-last delta for the selected window.
   const periodDelta = useMemo(() => {
@@ -138,7 +181,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartSeries} margin={{ top: 18, right: 4, bottom: 0, left: 4 }}>
+            <AreaChart data={chartSeries} margin={{ top: 18, right: BALANCE_AXIS_EDGE_PADDING_PX, bottom: 0, left: BALANCE_AXIS_EDGE_PADDING_PX }}>
               <defs>
                 <linearGradient id={`balanceFill-${account.id}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={lineColor} stopOpacity={0.22} />
@@ -146,15 +189,18 @@ export default function BalanceChartCard({ account }: { account: Account }) {
                 </linearGradient>
               </defs>
               <XAxis
-                dataKey="date"
+                dataKey="dateMs"
+                type="number"
+                scale="time"
+                domain={[axisStartMs, axisEndMs]}
+                ticks={xAxisTicks}
+                interval={0}
                 axisLine={false}
                 tickLine={false}
-                interval="preserveStartEnd"
-                minTickGap={40}
                 tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
                 tickMargin={4}
-                tickFormatter={(value: string) =>
-                  series.find((s) => s.date === value)?.dateLabel ?? value
+                tickFormatter={(value: number) =>
+                  seriesByDateMs.get(value)?.dateLabel ?? formatUtcAxisDate(value)
                 }
               />
               <YAxis hide domain={['dataMin', 'dataMax']} />
@@ -162,7 +208,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
                 wrapperClassName="app-chart-tooltip-default"
                 cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
                 labelFormatter={(value) =>
-                  series.find((s) => s.date === value)?.tooltipLabel ?? String(value)
+                  seriesByDateMs.get(Number(value))?.tooltipLabel ?? String(value)
                 }
                 formatter={(value) => [formatCurrency(Number(value), account.currency), 'Change']}
               />
@@ -182,7 +228,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
               />
               {yearBoundary && (
                 <ReferenceLine
-                  x={yearBoundary.dateKey}
+                  x={yearBoundary.dateMs}
                   stroke="var(--app-text-muted)"
                   strokeDasharray="4 3"
                   strokeWidth={1}
