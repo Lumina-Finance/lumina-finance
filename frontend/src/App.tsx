@@ -13,7 +13,7 @@ import TransactionsPage from '@/transactions/TransactionsPage'
 import BudgetsPage from '@/budgets/BudgetsPage'
 import InsightsPage from '@/insights/InsightsPage'
 import SettingsPage from '@/settings/SettingsPage'
-import TransactionImportPage from '@/components/TransactionImportPage'
+import ImportsPage from '@/imports/ImportsPage'
 import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
 
@@ -190,7 +190,7 @@ function AnimatedRoutes() {
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/imports" element={<TransactionImportPage />} />
+          <Route path="/settings/imports" element={<ImportsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
