@@ -561,9 +561,18 @@ export default function TransactionImportPage() {
 
   return (
     <div
-      className="flex h-screen min-h-screen overflow-hidden"
+      className="relative flex h-screen min-h-screen overflow-hidden"
       style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}
     >
+      <button
+        type="button"
+        className="app-icon-button absolute right-5 top-5 z-20 shrink-0 sm:right-8 sm:top-6"
+        onClick={() => navigate('/settings')}
+        aria-label="Close import workflow"
+      >
+        <X size={20} aria-hidden />
+      </button>
+
       <div
         className="hidden w-16 shrink-0 flex-col items-center justify-between py-7 sm:flex"
         style={{
@@ -581,7 +590,7 @@ export default function TransactionImportPage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 px-5 pb-5 pt-6 sm:px-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
+            <div className="min-w-0 pr-14 sm:pr-16">
               <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                 CSV import
               </p>
@@ -591,17 +600,6 @@ export default function TransactionImportPage() {
               <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
                 Stage CSV transaction files before they are added to your ledger.
               </p>
-            </div>
-
-            <div className="flex shrink-0 items-start">
-              <button
-                type="button"
-                className="app-icon-button shrink-0"
-                onClick={() => navigate('/settings')}
-                aria-label="Close import workflow"
-              >
-                <X size={20} aria-hidden />
-              </button>
             </div>
           </div>
         </header>
