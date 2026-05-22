@@ -74,10 +74,10 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
           className="flex min-h-screen"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
-          {!isFocusedPage && <Navigation />}
+          <Navigation />
           <main
             id="app-page-content"
-            className={`relative min-w-0 flex-1 ${isFocusedPage ? 'p-0' : 'px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 min-[1050px]:pb-12 min-[1050px]:pt-12'}`}
+            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : 'relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 min-[1050px]:pb-12 min-[1050px]:pt-12'}`}
             aria-busy={pageTransitioning}
           >
             <AnimatePresence>
