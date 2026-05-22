@@ -13,7 +13,6 @@ import {
   YAxis,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -21,35 +20,35 @@ import {
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import {
+  NET_WORTH_AXIS_TICK_COUNT,
+  formatNetWorthAxisDate,
+  formatNetWorthAxisMoney,
+  formatSignedNetWorthCurrency,
+  getChangeKey,
+  getChartKey,
+  getNetWorthChartData,
+  getNetWorthChartItems,
+  getNetWorthDateAxisTicks,
+  getNetWorthLegendItems,
+  getValueKey,
+  netWorthChangeColor,
+  netWorthChartLeftMargin,
+  type NetWorthChartItem,
+  type NetWorthDeltaPoint,
+  type NetWorthGroup,
+  type NetWorthPoint,
+  type NetWorthViewMode,
+} from '../utils/netWorthChart'
 
-export type NetWorthViewMode = 'overview' | 'composition'
+export type { NetWorthViewMode } from '../utils/netWorthChart'
 
-export type NetWorthGroup = {
-  id: string
-  name: string
-  kind: 'asset' | 'debt'
-}
-
-export type NetWorthPoint = {
-  date: string
-  dateLabel: string
-  tooltipLabel: string
-  total: number
-  values: number[]
-}
-
-type NetWorthChartItem = {
-  id: string
-  name: string
-  color: string
-  kind: 'asset' | 'debt'
-  getValue: (point: NetWorthPoint) => number
-}
-
-type NetWorthDeltaPoint = NetWorthPoint & {
-  startTotal: number
-  totalChange: number
-  [key: string]: string | number | number[]
+type AxisTickProps = {
+  x?: number | string
+  y?: number | string
+  payload?: {
+    value: number | string
+  }
 }
 
 type NetWorthCardProps = {
@@ -70,24 +69,6 @@ type NetWorthSnapshot = {
   emptyLabel: string
 }
 
-const groupColors: Record<string, string> = {
-  cash: '#2F80A7',
-  term_deposits: '#D67A45',
-  investments: '#37434F',
-  other_assets: '#8F989F',
-  revolving_debt: 'var(--app-chart-negative)',
-  loans: '#D0717D',
-  mortgages: '#9E4F4A',
-  other_debt: '#7F4D52',
-}
-
-const netWorthChartLeftMargin = 8
-const netWorthChangeColor = '#1F3F73'
-const assetContributionColor = 'var(--app-chart-positive)'
-const debtContributionColor = 'var(--app-chart-negative)'
-const compositionAssetFallbackColor = '#6F98B7'
-const compositionDebtFallbackColor = 'var(--app-chart-negative)'
-
 const netWorthLegendContainerVariants = {
   initial: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
   enter: { transition: { staggerChildren: 0.045, staggerDirection: 1, delayChildren: 0.03 } },
@@ -101,101 +82,36 @@ const netWorthLegendItemVariants = {
 } as const
 
 const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
-const netWorthAxisMoneyRules: CompactMoneyRule[] = [
-  { threshold: 100_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
-  { threshold: 10_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
-  { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
-  { threshold: 100_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
-  { threshold: 10_000, divisor: 1_000, suffix: 'K', fractionDigits: 1 },
-  { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
-]
 
-function formatSignedCurrency(amount: number, currency: string) {
-  if (amount === 0) return formatCurrency(amount, currency)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
-}
+function NetWorthXAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  axisStartMs,
+  axisEndMs,
+  dateLabelsByMs,
+}: AxisTickProps & {
+  axisStartMs: number
+  axisEndMs: number
+  dateLabelsByMs: Map<number, string>
+}) {
+  const value = Number(payload?.value)
+  const tickX = Number(x)
+  const tickY = Number(y)
+  const textAnchor = value === axisStartMs ? 'start' : value === axisEndMs ? 'end' : 'middle'
 
-function getValueKey(index: number) {
-  return `series${index}Value`
-}
-
-function getChangeKey(index: number) {
-  return `series${index}Change`
-}
-
-function getChartKey(index: number) {
-  return `series${index}Chart`
-}
-
-function getOverviewItems(groups: NetWorthGroup[]): NetWorthChartItem[] {
-  return [
-    {
-      id: 'assets',
-      name: 'Assets',
-      color: assetContributionColor,
-      kind: 'asset',
-      getValue: (point) => groups.reduce((sum, group, index) => (
-        group.kind === 'asset' ? sum + (point.values[index] ?? 0) : sum
-      ), 0),
-    },
-    {
-      id: 'debt',
-      name: 'Debt',
-      color: debtContributionColor,
-      kind: 'debt',
-      getValue: (point) => groups.reduce((sum, group, index) => (
-        group.kind === 'debt' ? sum + (point.values[index] ?? 0) : sum
-      ), 0),
-    },
-  ]
-}
-
-function getGroupColor(group: NetWorthGroup) {
-  return groupColors[group.id] ?? (
-    group.kind === 'asset' ? compositionAssetFallbackColor : compositionDebtFallbackColor
+  return (
+    <text
+      x={tickX}
+      y={tickY}
+      dy={12}
+      textAnchor={textAnchor}
+      fill="var(--app-text-subtle)"
+      fontSize={11}
+    >
+      {dateLabelsByMs.get(value) ?? formatNetWorthAxisDate(value)}
+    </text>
   )
-}
-
-function getCompositionItems(groups: NetWorthGroup[]): NetWorthChartItem[] {
-  return groups.map((group, index) => ({
-    id: group.id,
-    name: group.name,
-    kind: group.kind,
-    color: getGroupColor(group),
-    getValue: (point) => point.values[index] ?? 0,
-  }))
-}
-
-function formatAxisMoney(value: number, currency: string) {
-  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, { prefix: '' })
-}
-
-function getChartData(
-  series: NetWorthPoint[],
-  items: NetWorthChartItem[],
-  mode: NetWorthViewMode,
-): NetWorthDeltaPoint[] {
-  const start = series[0]
-  if (!start) return []
-  const startValues = items.map((item) => item.getValue(start))
-
-  return series.map((point) => {
-    const deltaPoint: NetWorthDeltaPoint = {
-      ...point,
-      startTotal: start.total,
-      totalChange: point.total - start.total,
-    }
-
-    items.forEach((item, index) => {
-      const value = item.getValue(point)
-      const change = value - startValues[index]
-      deltaPoint[getValueKey(index)] = value
-      deltaPoint[getChangeKey(index)] = change
-      deltaPoint[getChartKey(index)] = mode === 'composition' ? value : change
-    })
-
-    return deltaPoint
-  })
 }
 
 function NetWorthChartTooltip({
@@ -228,7 +144,7 @@ function NetWorthChartTooltip({
       {mode === 'overview' && (
         <div className="mt-1 flex justify-between gap-4">
           <span>Change</span>
-          <span className="font-financial">{formatSignedCurrency(point.totalChange, displayCurrency)}</span>
+          <span className="font-financial">{formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}</span>
         </div>
       )}
       <div className="mt-2 space-y-1 border-t border-[var(--app-border)] pt-2">
@@ -244,7 +160,7 @@ function NetWorthChartTooltip({
                 {mode === 'overview' && (
                   <>
                     {' '}
-                    ({formatSignedCurrency(change, displayCurrency)})
+                    ({formatSignedNetWorthCurrency(change, displayCurrency)})
                   </>
                 )}
               </span>
@@ -284,27 +200,30 @@ export function NetWorthCard({
   })
   const latest = displaySnapshot.series.at(-1)
   const chartItems = useMemo(
-    () => (displaySnapshot.mode === 'overview'
-      ? getOverviewItems(displaySnapshot.groups)
-      : getCompositionItems(displaySnapshot.groups)),
+    () => getNetWorthChartItems(displaySnapshot.groups, displaySnapshot.mode),
     [displaySnapshot.groups, displaySnapshot.mode],
   )
   const deltaSeries = useMemo(
-    () => getChartData(displaySnapshot.series, chartItems, displaySnapshot.mode),
+    () => getNetWorthChartData(displaySnapshot.series, chartItems, displaySnapshot.mode),
     [chartItems, displaySnapshot.mode, displaySnapshot.series],
   )
   const hasChartData = displaySnapshot.groups.length > 0 && deltaSeries.length > 0
-  const startNetWorthAxisLabel = formatAxisMoney(
+  const dateAxisStartMs = deltaSeries[0]?.dateMs ?? 0
+  const dateAxisEndMs = deltaSeries.at(-1)?.dateMs ?? dateAxisStartMs
+  const dateAxisTicks = useMemo(
+    () => getNetWorthDateAxisTicks(deltaSeries, NET_WORTH_AXIS_TICK_COUNT),
+    [deltaSeries],
+  )
+  const dateLabelsByMs = useMemo(
+    () => new Map(deltaSeries.map((point) => [point.dateMs, point.dateLabel])),
+    [deltaSeries],
+  )
+  const startNetWorthAxisLabel = formatNetWorthAxisMoney(
     deltaSeries[0]?.startTotal ?? 0,
     displaySnapshot.displayCurrency,
   )
   const legendItems = useMemo(
-    () => [
-      ...(displaySnapshot.mode === 'overview'
-        ? [{ id: 'net-worth-change', name: 'Net Worth Change', color: netWorthChangeColor }]
-        : []),
-      ...chartItems.map((item) => ({ id: item.id, name: item.name, color: item.color })),
-    ],
+    () => getNetWorthLegendItems(displaySnapshot.mode, chartItems),
     [chartItems, displaySnapshot.mode],
   )
   const legendAnimationKey = `${displaySnapshot.mode}-${legendItems.map((item) => item.id).join('|')}`
@@ -343,7 +262,7 @@ export function NetWorthCard({
               </p>
               <div className="flex items-center gap-1.5 pb-0.5 text-sm font-medium" style={{ color: netWorthTrendColor }}>
                 <NetWorthTrendIcon size={14} aria-hidden />
-                <span className="font-financial">{formatSignedCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
+                <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
                 <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
               </div>
             </div>
@@ -361,34 +280,45 @@ export function NetWorthCard({
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={deltaSeries}
-                margin={{ top: 4, right: 8, bottom: 0, left: netWorthChartLeftMargin }}
+                margin={{ top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin }}
               >
                 <XAxis
-                  dataKey="date"
+                  dataKey="dateMs"
+                  type="number"
+                  scale="time"
+                  domain={[dateAxisStartMs, dateAxisEndMs]}
+                  ticks={dateAxisTicks}
                   axisLine={false}
                   tickLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={40}
-                  tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+                  interval={0}
+                  tick={(props) => (
+                    <NetWorthXAxisTick
+                      {...props}
+                      axisStartMs={dateAxisStartMs}
+                      axisEndMs={dateAxisEndMs}
+                      dateLabelsByMs={dateLabelsByMs}
+                    />
+                  )}
                   tickMargin={4}
-                  tickFormatter={(value: string) =>
-                    deltaSeries.find((point) => point.date === value)?.dateLabel ?? value
-                  }
                 />
                 <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  ticks={displaySnapshot.mode === 'overview' ? [0] : undefined}
-                  width={78}
-                  tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, fontWeight: 600 }}
-                  tickFormatter={(value: number) => (
-                    displaySnapshot.mode === 'overview'
-                      ? startNetWorthAxisLabel
-                      : formatAxisMoney(value, displaySnapshot.displayCurrency)
-                  )}
+                  hide
                   domain={[(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, 0)]}
                 />
-                <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
+                <ReferenceLine
+                  y={0}
+                  stroke="var(--app-border-strong)"
+                  strokeWidth={1}
+                  label={displaySnapshot.mode === 'overview'
+                    ? {
+                        value: startNetWorthAxisLabel,
+                        position: 'insideTopLeft',
+                        fill: 'var(--app-text-subtle)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }
+                    : undefined}
+                />
                 <Tooltip
                   wrapperClassName="app-chart-tooltip-default"
                   cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}

@@ -1,7 +1,9 @@
 import type { InsightsNetWorthResponse } from '@/api/insights'
-import type { NetWorthGroup, NetWorthPoint } from '../components/NetWorthCard'
 import { parseYmd } from './date'
+import type { NetWorthGroup, NetWorthPoint } from './netWorthChart'
 import { getCustomRangeDays } from './range'
+
+export type { NetWorthGroup, NetWorthPoint, NetWorthViewMode } from './netWorthChart'
 
 type NetWorthGranularity = 'day' | 'week' | 'month'
 

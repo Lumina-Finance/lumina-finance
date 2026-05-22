@@ -9,10 +9,7 @@ import { InsightsFloatingRangeControl } from './components/InsightsFloatingRange
 import { MerchantDistributionCard } from './components/MerchantDistributionCard'
 import { MerchantRankingCard } from './components/MerchantRankingCard'
 import { FundFlowCard } from './components/FundFlowCard'
-import {
-  NetWorthCard,
-  type NetWorthViewMode,
-} from './components/NetWorthCard'
+import { NetWorthCard } from './components/NetWorthCard'
 import { PeriodGlanceCard } from './components/PeriodGlanceCard'
 import { SavingsRateTrendCard } from './components/SavingsRateTrendCard'
 import { useInsightsCardQueries } from './hooks/useInsightsCardQueries'
@@ -26,7 +23,7 @@ import {
 import { getFundFlowCardData } from './utils/fundFlow'
 import { getMerchantDistributionMerchants } from './utils/merchantDistribution'
 import { getMerchantRankingRows } from './utils/merchantRanking'
-import { getNetWorthCardData } from './utils/netWorth'
+import { getNetWorthCardData, type NetWorthViewMode } from './utils/netWorth'
 import { getPeriodGlanceCardData } from './utils/periodGlance'
 import { getSavingsRateHistory } from './utils/savingsRateTrend'
 
