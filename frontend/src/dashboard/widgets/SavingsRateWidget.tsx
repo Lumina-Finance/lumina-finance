@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Repeat } from 'lucide-react'
+import { ArrowUpToLine, Repeat } from 'lucide-react'
 import { useDashboardSavingsRate } from '@/api/dashboard'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { getSavingsRateSeries } from '@/dashboard/utils/getSavingsRateSeries'
@@ -21,12 +21,22 @@ function getSavingsTier(rate: number | null) {
   return 'negative'
 }
 
+function clampSavingsRate(rate: number | null) {
+  if (rate === null) return null
+  return Math.max(-100, Math.min(100, rate))
+}
+
 export function SavingsRateWidget() {
+  const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const { data: dashboardSavingsRate } = useDashboardSavingsRate()
   const savingsData = useMemo(
     () => getSavingsRateSeries(dashboardSavingsRate),
     [dashboardSavingsRate],
   )
+  const chartData = useMemo(() => savingsData.map((point) => ({
+    ...point,
+    chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
+  })), [capSavingsRateChart, savingsData])
 
   return (
     <div className="app-card h-[14rem] pb-2 flex flex-col">
@@ -35,8 +45,20 @@ export function SavingsRateWidget() {
           <Repeat size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
         </div>
         <span className="app-label">Savings Rate</span>
+        <button
+          type="button"
+          onClick={() => setCapSavingsRateChart((current) => !current)}
+          title={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+          aria-label={capSavingsRateChart ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+          className="app-icon-button ml-auto"
+        >
+          <ArrowUpToLine
+            size={12}
+            className={`transition-transform duration-150 motion-reduce:transition-none ${capSavingsRateChart ? 'rotate-180' : ''}`}
+          />
+        </button>
       </div>
-      {savingsData.length > 0 && (
+      {chartData.length > 0 && (
         <div className="flex-1 min-h-0 relative">
           {/* Pattern definitions live beside the chart so Recharts can resolve
               the url(#id) fills regardless of its internal SVG structure. */}
@@ -61,7 +83,7 @@ export function SavingsRateWidget() {
             </defs>
           </svg>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={savingsData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
               <XAxis
                 dataKey="monthLabel"
                 axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
@@ -72,14 +94,14 @@ export function SavingsRateWidget() {
               />
               <YAxis
                 hide
-                domain={[
+                domain={capSavingsRateChart ? [-100, 100] : [
                   (dataMin: number) => Math.min(0, dataMin),
                   (dataMax: number) => Math.max(0, dataMax),
                 ]}
               />
               <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
               <SavingsCurrentBoundary
-                currentLabel={savingsData[savingsData.length - 1].monthLabel}
+                currentLabel={chartData[chartData.length - 1].monthLabel}
               />
               <Tooltip
                 wrapperClassName="app-chart-tooltip-default"
@@ -104,8 +126,8 @@ export function SavingsRateWidget() {
                   )
                 }}
               />
-              <Bar dataKey="rate" radius={[3, 3, 0, 0]} maxBarSize={28}>
-                {savingsData.map((entry, index) => {
+              <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={28}>
+                {chartData.map((entry, index) => {
                   const tier = getSavingsTier(entry.rate)
                   return (
                     <Cell
