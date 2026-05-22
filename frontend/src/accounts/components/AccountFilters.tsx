@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Check, Plus, SlidersHorizontal, X } from 'lucide-react'
@@ -196,6 +196,7 @@ export default function AccountFilters({
               selectedValue={filters.institution_id}
               onSelect={(value) => { setFilter({ institution_id: value }); close() }}
               searchPlaceholder="Search institutions..."
+              selectFirstSearchResultOnEnter
             />
           )}
         </FilterChip>
@@ -211,6 +212,7 @@ export default function AccountFilters({
               selectedValue={filters.account_kind}
               onSelect={(value) => { setFilter({ account_kind: value as AccountKind }); close() }}
               searchPlaceholder="Search categories..."
+              selectFirstSearchResultOnEnter
             />
           )}
         </FilterChip>
@@ -226,6 +228,7 @@ export default function AccountFilters({
               selectedValue={filters.account_type}
               onSelect={(value) => { setFilter({ account_type: value as AccountType }); close() }}
               searchPlaceholder="Search types..."
+              selectFirstSearchResultOnEnter
             />
           )}
         </FilterChip>
@@ -307,6 +310,7 @@ export default function AccountFilters({
                     allLabel="All institutions"
                     onSelect={(value) => setFilter({ institution_id: value })}
                     onClear={() => setFilter({ institution_id: undefined })}
+                    selectFirstSearchResultOnEnter
                   />
                   <MobileFilterSection
                     title="Category"
@@ -317,6 +321,7 @@ export default function AccountFilters({
                     allLabel="All categories"
                     onSelect={(value) => setFilter({ account_kind: value as AccountKind })}
                     onClear={() => setFilter({ account_kind: undefined })}
+                    selectFirstSearchResultOnEnter
                   />
                   <MobileFilterSection
                     title="Type"
@@ -327,6 +332,7 @@ export default function AccountFilters({
                     allLabel="All types"
                     onSelect={(value) => setFilter({ account_type: value as AccountType })}
                     onClear={() => setFilter({ account_type: undefined })}
+                    selectFirstSearchResultOnEnter
                   />
                 </div>
 
@@ -357,6 +363,7 @@ function MobileFilterSection({
   allLabel,
   onSelect,
   onClear,
+  selectFirstSearchResultOnEnter = false,
 }: {
   title: string
   options: OptionItem[]
@@ -366,8 +373,10 @@ function MobileFilterSection({
   allLabel: string
   onSelect: (value: string) => void
   onClear: () => void
+  selectFirstSearchResultOnEnter?: boolean
 }) {
   const [search, setSearch] = useState('')
+  const hasSearch = search.trim().length > 0
 
   const filteredOptions = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -391,6 +400,13 @@ function MobileFilterSection({
 
     return groups
   }, [filteredOptions])
+  const highlightedValue = selectFirstSearchResultOnEnter && hasSearch ? filteredOptions[0]?.value : undefined
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || !highlightedValue) return
+    event.preventDefault()
+    onSelect(highlightedValue)
+  }
 
   return (
     <section>
@@ -423,6 +439,7 @@ function MobileFilterSection({
         placeholder={searchPlaceholder}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
+        onKeyDown={handleSearchKeyDown}
       />
 
       <div className="max-h-48 overflow-y-auto overscroll-contain rounded-xl border pr-2 [scrollbar-gutter:stable]" style={{ borderColor: 'var(--app-border)' }}>
@@ -452,6 +469,7 @@ function MobileFilterSection({
                   label={option.label}
                   icon={option.icon}
                   selected={option.value === selectedValue}
+                  highlighted={option.value === highlightedValue}
                   onClick={() => onSelect(option.value)}
                 />
               ))}
@@ -464,6 +482,7 @@ function MobileFilterSection({
               label={option.label}
               icon={option.icon}
               selected={option.value === selectedValue}
+              highlighted={option.value === highlightedValue}
               onClick={() => onSelect(option.value)}
             />
           ))
@@ -477,17 +496,21 @@ function MobileOptionRow({
   label,
   icon,
   selected,
+  highlighted = false,
   onClick,
 }: {
   label: string
   icon?: string | null
   selected: boolean
+  highlighted?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
-      className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-[var(--app-surface-soft)]"
+      className={`flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-[var(--app-surface-soft)] ${
+        highlighted ? 'bg-[var(--app-surface-soft)]' : ''
+      }`}
       style={{
         color: selected ? 'var(--app-accent)' : 'var(--app-text)',
         fontWeight: selected ? 600 : 400,
