@@ -125,6 +125,12 @@ function deleteAccount(accountId: string) {
   });
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function updateCachedAccountList(queryClient: QueryClient, account: AccountsOverview) {
   queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) => {
     if (!accounts) return [account];
@@ -229,10 +235,20 @@ export function useUpdateAccount() {
   });
 }
 
-export function useDeleteAccount() {
+export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: deleteAccount,
+    mutationFn: async (accountId: string) => {
+      const minimumPending = delay(minimumPendingMs);
+      try {
+        const result = await deleteAccount(accountId);
+        await minimumPending;
+        return result;
+      } catch (error) {
+        await minimumPending;
+        throw error;
+      }
+    },
     onSuccess: (_, accountId) => {
       const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, accountId);
 

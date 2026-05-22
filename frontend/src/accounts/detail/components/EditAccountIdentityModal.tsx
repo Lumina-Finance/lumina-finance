@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, EyeOff, Pencil, Trash2, X } from 'lucide-react'
 import {
@@ -71,13 +70,18 @@ function wait(ms: number): Promise<void> {
 export default function EditAccountIdentityModal({
   account,
   onClose,
+  onDeleteStarted,
+  onDeleted,
+  onDeleteFailed,
 }: {
   account: Account
   onClose: () => void
+  onDeleteStarted: (account: Account) => void
+  onDeleted: (account: Account) => void
+  onDeleteFailed: () => void
 }) {
-  const navigate = useNavigate()
   const updateAccount = useUpdateAccount()
-  const deleteAccount = useDeleteAccount()
+  const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
   const { data: currencies = [] } = useCurrencies()
   const { data: institutions = [] } = useInstitutions()
   const { data: taxAdvantagedPlans = [] } = useTaxAdvantagedPlans()
@@ -94,27 +98,12 @@ export default function EditAccountIdentityModal({
   const [deleteStage, setDeleteStage] = useState<DeleteAccountStage>('idle')
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
-  const [deleteDelayPending, setDeleteDelayPending] = useState(false)
   const [institutionModalName, setInstitutionModalName] = useState('')
   const [showInstitutionModal, setShowInstitutionModal] = useState(false)
   const [institutionModalKey, setInstitutionModalKey] = useState(0)
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
-
-  // While the modal is open, lock page scroll and let Escape use the same
-  // close path as the visible close controls.
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onClose])
 
   const institutionOptions = useMemo(
     () => [
@@ -215,27 +204,42 @@ export default function EditAccountIdentityModal({
   const handleDeleteAccount = async () => {
     if (deleteNameInput !== account.name || isBusy) return
     setDeleteError(null)
-    setDeleteDelayPending(true)
-    const minimumDelay = wait(MIN_DELETE_SPINNER_MS)
+    onDeleteStarted(account)
 
     try {
       await deleteAccount.mutateAsync(account.id)
-      await minimumDelay
-      onClose()
-      navigate('/accounts', { replace: true })
+      onDeleted(account)
     } catch (error) {
-      await minimumDelay
+      onDeleteFailed()
       setDeleteError(error instanceof Error ? error.message : 'Failed to delete account.')
-      setDeleteDelayPending(false)
     }
   }
 
-  const deleteLoading = deleteAccount.isPending || deleteDelayPending
+  const deleteLoading = deleteAccount.isPending
   const saveLoading = (updateAccount.isPending && deleteStage === 'idle') || saveDelayPending
   const isBusy = updateAccount.isPending || saveDelayPending || deleteLoading
   const canDelete = deleteNameInput === account.name
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
+
+  const requestClose = () => {
+    if (isBusy) return
+    onClose()
+  }
+
+  // While the modal is open, lock page scroll and let Escape use the same
+  // close path as the visible close controls.
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isBusy) onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isBusy, onClose])
 
   return (
     <>
@@ -248,7 +252,7 @@ export default function EditAccountIdentityModal({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={onClose}
+              onClick={requestClose}
               aria-hidden
             />
 
@@ -258,7 +262,7 @@ export default function EditAccountIdentityModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 16 }}
               transition={{ duration: 0.22, ease: EASE }}
-              onClick={onClose}
+              onClick={requestClose}
             >
               <motion.div
                 layout
@@ -309,7 +313,7 @@ export default function EditAccountIdentityModal({
                           Edit Account
                         </h2>
                       </div>
-                      <button type="button" onClick={onClose} className="app-icon-button shrink-0" aria-label="Close">
+                      <button type="button" onClick={requestClose} className="app-icon-button shrink-0" aria-label="Close" disabled={isBusy}>
                         <X size={20} aria-hidden />
                       </button>
                     </div>
@@ -623,7 +627,7 @@ export default function EditAccountIdentityModal({
                       <Trash2 size={16} aria-hidden />
                     </button>
                     <div className="ml-auto flex items-center gap-3">
-                      <button type="button" className="app-secondary-button" onClick={onClose} disabled={isBusy}>
+                      <button type="button" className="app-secondary-button" onClick={requestClose} disabled={isBusy}>
                         Cancel
                       </button>
                       <button

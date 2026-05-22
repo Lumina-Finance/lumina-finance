@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { AnimatePresence } from 'motion/react'
-import { useParams } from 'react-router-dom'
-import { useAccount } from '@/api/accounts'
+import { AnimatePresence, motion } from 'motion/react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useAccount, type Account } from '@/api/accounts'
 import { useTaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import type { Transaction } from '@/api/transactions'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
@@ -11,21 +11,29 @@ import BalanceChartCard from '@/accounts/detail/components/BalanceChartCard'
 import EditAccountIdentityModal from '@/accounts/detail/components/EditAccountIdentityModal'
 import MonthlyCashFlowCard from '@/accounts/detail/components/MonthlyCashFlowCard'
 import { TopCategoriesBySpendingCard, TopMerchantsBySpendingCard } from '@/accounts/detail/components/SpendingBreakdownCards'
+import { EASE } from '@/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
 
+type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
+
 export default function AccountDetailPage() {
+  const navigate = useNavigate()
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, error } = useAccount(accountId)
-  const linkedTaxAdvantagedPlanId = account?.group_id === null ? account.tax_advantaged_plan_id : null
-  const {
-    data: linkedTaxAdvantagedPlan,
-    error: linkedTaxAdvantagedPlanError,
-  } = useTaxAdvantagedPlan(linkedTaxAdvantagedPlanId)
 
   const [showTxnModal, setShowTxnModal] = useState(false)
   const [txnModalKey, setTxnModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [showAccountEditModal, setShowAccountEditModal] = useState(false)
+  const [deleteExitPhase, setDeleteExitPhase] = useState<DeleteExitPhase>('idle')
+  const [deletedAccountSnapshot, setDeletedAccountSnapshot] = useState<Account | null>(null)
+
+  const visibleAccount = account ?? (deleteExitPhase !== 'idle' ? deletedAccountSnapshot : null)
+  const linkedTaxAdvantagedPlanId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_plan_id : null
+  const {
+    data: linkedTaxAdvantagedPlan,
+    error: linkedTaxAdvantagedPlanError,
+  } = useTaxAdvantagedPlan(linkedTaxAdvantagedPlanId)
 
   const openCreateTransaction = () => {
     setEditingTransaction(null)
@@ -39,7 +47,36 @@ export default function AccountDetailPage() {
     setShowTxnModal(true)
   }
 
-  if (!account && !error) {
+  const openAccountEditModal = () => {
+    if (!visibleAccount) return
+    setShowAccountEditModal(true)
+  }
+
+  const handleAccountDeleteStarted = (deletingAccount: Account) => {
+    setDeletedAccountSnapshot(deletingAccount)
+    setDeleteExitPhase('pending')
+  }
+
+  const handleAccountDeleted = (deletedAccount: Account) => {
+    setDeletedAccountSnapshot(deletedAccount)
+    setShowAccountEditModal(false)
+    setDeleteExitPhase('modal')
+  }
+
+  const handleAccountDeleteFailed = () => {
+    setDeleteExitPhase('idle')
+    setDeletedAccountSnapshot(null)
+  }
+
+  const handleAccountEditModalExitComplete = () => {
+    if (deleteExitPhase === 'modal') setDeleteExitPhase('page')
+  }
+
+  const handlePageExitComplete = () => {
+    if (deleteExitPhase === 'page') navigate('/accounts', { replace: true })
+  }
+
+  if (!visibleAccount && !error) {
     return (
       <div>
         <BackLink />
@@ -47,7 +84,7 @@ export default function AccountDetailPage() {
     )
   }
 
-  if (error || !account) {
+  if ((error && deleteExitPhase === 'idle') || !visibleAccount) {
     return (
       <div>
         <BackLink />
@@ -58,62 +95,75 @@ export default function AccountDetailPage() {
   }
 
   return (
-    <div>
-      <BackLink />
+    <AnimatePresence mode="wait" onExitComplete={handlePageExitComplete}>
+      {deleteExitPhase !== 'page' && (
+        <motion.div
+          key="account-detail-page"
+          initial={false}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, y: 10, filter: 'blur(2px)' }}
+          transition={{ duration: 0.22, ease: EASE }}
+        >
+          <BackLink />
 
-      <div className="grid grid-cols-1 gap-5 min-[750px]:grid-cols-[320px_minmax(0,1fr)]">
-        <AccountIdentityCard
-          account={account}
-          linkedTaxAdvantagedPlan={linkedTaxAdvantagedPlan}
-          linkedTaxAdvantagedPlanError={linkedTaxAdvantagedPlanError}
-          onEdit={() => setShowAccountEditModal(true)}
-        />
+          <div className="grid grid-cols-1 gap-5 min-[750px]:grid-cols-[320px_minmax(0,1fr)]">
+            <AccountIdentityCard
+              account={visibleAccount}
+              linkedTaxAdvantagedPlan={linkedTaxAdvantagedPlan}
+              linkedTaxAdvantagedPlanError={linkedTaxAdvantagedPlanError}
+              onEdit={openAccountEditModal}
+            />
 
-        <BalanceChartCard account={account} />
-      </div>
+            <BalanceChartCard account={visibleAccount} />
+          </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-5 min-[750px]:grid-cols-2 min-[1600px]:grid-cols-3">
-        <TopCategoriesBySpendingCard account={account} />
-        <TopMerchantsBySpendingCard account={account} />
-        <div className="min-[750px]:col-span-2 min-[1600px]:col-span-1">
-          <MonthlyCashFlowCard account={account} />
-        </div>
-      </div>
+          <div className="mt-5 grid grid-cols-1 gap-5 min-[750px]:grid-cols-2 min-[1600px]:grid-cols-3">
+            <TopCategoriesBySpendingCard account={visibleAccount} />
+            <TopMerchantsBySpendingCard account={visibleAccount} />
+            <div className="min-[750px]:col-span-2 min-[1600px]:col-span-1">
+              <MonthlyCashFlowCard account={visibleAccount} />
+            </div>
+          </div>
 
-      <div className="mt-5">
-        <h2 className="mb-4 font-serif text-4xl font-medium leading-none">Transactions</h2>
-        <TransactionListSection
-          key={account.id}
-          fixedAccount={{
-            id: account.id,
-            name: account.name,
-            currency: account.currency,
-            institution: account.institution,
-          }}
-          currency={account.currency}
-          onCreateTransaction={openCreateTransaction}
-          onEditTransaction={openEditTransaction}
-        />
-      </div>
+          <div className="mt-5">
+            <h2 className="mb-4 font-serif text-4xl font-medium leading-none">Transactions</h2>
+            <TransactionListSection
+              key={visibleAccount.id}
+              fixedAccount={{
+                id: visibleAccount.id,
+                name: visibleAccount.name,
+                currency: visibleAccount.currency,
+                institution: visibleAccount.institution,
+              }}
+              currency={visibleAccount.currency}
+              onCreateTransaction={openCreateTransaction}
+              onEditTransaction={openEditTransaction}
+            />
+          </div>
 
-      <CreateTransactionModal
-        key={txnModalKey}
-        open={showTxnModal}
-        onClose={() => setShowTxnModal(false)}
-        transaction={editingTransaction ?? undefined}
-        defaultAccountId={account.id}
-        defaultCurrency={account.currency}
-      />
-
-      <AnimatePresence>
-        {showAccountEditModal && (
-          <EditAccountIdentityModal
-            key="edit-account-modal"
-            account={account}
-            onClose={() => setShowAccountEditModal(false)}
+          <CreateTransactionModal
+            key={txnModalKey}
+            open={showTxnModal}
+            onClose={() => setShowTxnModal(false)}
+            transaction={editingTransaction ?? undefined}
+            defaultAccountId={visibleAccount.id}
+            defaultCurrency={visibleAccount.currency}
           />
-        )}
-      </AnimatePresence>
-    </div>
+
+          <AnimatePresence onExitComplete={handleAccountEditModalExitComplete}>
+            {showAccountEditModal && (
+              <EditAccountIdentityModal
+                key="edit-account-modal"
+                account={visibleAccount}
+                onClose={() => setShowAccountEditModal(false)}
+                onDeleteStarted={handleAccountDeleteStarted}
+                onDeleted={handleAccountDeleted}
+                onDeleteFailed={handleAccountDeleteFailed}
+              />
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
