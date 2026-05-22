@@ -147,9 +147,12 @@ export default function DateRangeFilterPanel({
               <button
                 key={preset.label}
                 type="button"
-                className="h-8 rounded-md border px-1.5 text-[0.8125rem] font-medium transition-colors duration-150 hover:bg-[var(--app-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]"
+                className={`h-8 rounded-md border px-1.5 text-[0.8125rem] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] ${
+                  active
+                    ? 'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-soft)]'
+                    : 'bg-[var(--app-input-bg)] hover:bg-[var(--app-surface-soft)]'
+                }`}
                 style={{
-                  background: active ? 'var(--app-accent-soft)' : 'var(--app-input-bg)',
                   borderColor: active ? 'var(--app-accent-border)' : 'var(--app-border)',
                   color: active ? 'var(--app-accent)' : 'var(--app-text-muted)',
                 }}
