@@ -27,6 +27,7 @@ import {
   getResolvedAccountChoice,
   getResolvedAccountCreateCurrency,
   groupPreviewRowsByDate,
+  inferColumnMap,
   keepCurrentMatchMap,
   normalizeImportDate,
   parseImportNumber,
@@ -36,7 +37,6 @@ import {
   splitImportedValues,
   toMinorUnits,
   unique,
-  validateColumnMap,
   validateColumnValues,
 } from '../utils'
 
@@ -322,7 +322,15 @@ export function useTransactionImportWorkflow() {
     setSelectedAccountRows(new Set())
     setBatchAccountType('')
     setBatchAccountCurrency('')
-    setFiles((current) => (nextMode === 'single-file' ? current.slice(0, 1) : current))
+    setFiles((current) => {
+      const next = nextMode === 'single-file' ? current.slice(0, 1) : current
+      setColumnMap((previous) => {
+        const result = inferColumnMap(previous, next, nextMode)
+        setColumnValidationErrors(result.errors)
+        return result.map
+      })
+      return next
+    })
   }
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -332,7 +340,7 @@ export function useTransactionImportWorkflow() {
 
     setFiles(next)
     setColumnMap((previous) => {
-      const result = validateColumnMap(previous, next)
+      const result = inferColumnMap(previous, next, mode)
       setColumnValidationErrors(result.errors)
       return result.map
     })
@@ -344,7 +352,7 @@ export function useTransactionImportWorkflow() {
     setFiles((current) => {
       const next = current.filter((file) => file.id !== fileId)
       setColumnMap((previous) => {
-        const result = validateColumnMap(previous, next)
+        const result = inferColumnMap(previous, next, mode)
         setColumnValidationErrors(result.errors)
         return result.map
       })
