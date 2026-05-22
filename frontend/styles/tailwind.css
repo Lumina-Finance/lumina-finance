@@ -174,9 +174,14 @@
     text-align: left;
   }
 
-  .app-date-input-balanced[type="date"] {
+  .app-date-input-balanced {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
+  }
+
+  .app-date-input-balanced[type="date"] {
+    -webkit-appearance: auto;
+    appearance: auto;
   }
 
   .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
@@ -185,6 +190,12 @@
     margin-left: 0.5rem;
     margin-right: 0;
     padding: 0;
+    opacity: 0.6;
+  }
+
+  .app-date-input-balanced[type="date"]:hover::-webkit-calendar-picker-indicator,
+  .app-date-input-balanced[type="date"]:focus::-webkit-calendar-picker-indicator {
+    opacity: 1;
   }
 
   .app-input:hover {
