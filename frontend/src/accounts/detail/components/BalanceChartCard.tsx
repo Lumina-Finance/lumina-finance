@@ -13,6 +13,11 @@ import { useAccountSnapshots, type Account } from '@/api/accounts'
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
+  InsightLoadingContent,
+  InsightLoadingOverlay,
+} from '@/insights/components/InsightLoadingTransition'
+import { useInsightLoadingSnapshot } from '@/insights/components/useInsightLoadingSnapshot'
+import {
   BalanceChartModeSelector,
   type BalanceChartMode,
 } from '@/accounts/detail/components/BalanceChartModeSelector'
@@ -40,6 +45,30 @@ const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
   { value: '1Y', label: '1Y', description: 'Last year' },
 ]
 const BALANCE_AXIS_EDGE_PADDING_PX = 4
+
+type BalanceChartSnapshot = {
+  range: BalanceRange
+  chartMode: BalanceChartMode
+  currentBalance: number
+  currency: string
+  periodDelta: {
+    absolute: number
+    pct: number | null
+  } | null
+  trendUp: boolean
+  deltaColor: string
+  chartLineColor: string
+  chartSeries: BalanceChartPoint[]
+  chartDataKey: 'balance' | 'periodBalance'
+  axisStartMs: number
+  axisEndMs: number
+  xAxisTicks: number[]
+  seriesByDateMs: Map<number, BalanceChartPoint>
+  yearBoundary: {
+    dateMs: number
+    year: string
+  } | null
+}
 
 type AxisTickProps = {
   x?: number | string
@@ -94,7 +123,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     return { fromDate: from, toDate: today, granularity: cfg.granularity }
   }, [range])
 
-  const { data: snapshots } = useAccountSnapshots(account.id, {
+  const { data: snapshots, isFetching } = useAccountSnapshots(account.id, {
     fromDate: toISODate(fromDate),
     toDate: toISODate(toDate),
     granularity: 'day',
@@ -120,10 +149,12 @@ export default function BalanceChartCard({ account }: { account: Account }) {
   )
 
   // First point in a new year, used for the dashed year-boundary marker.
-  const yearStart = new Date(toDate.getFullYear(), 0, 1)
-  const yearBoundary = fromDate < yearStart && yearStart <= toDate
-    ? { dateMs: calendarDateMs(yearStart), year: String(toDate.getFullYear()) }
-    : null
+  const yearBoundary = useMemo(() => {
+    const yearStart = new Date(toDate.getFullYear(), 0, 1)
+    return fromDate < yearStart && yearStart <= toDate
+      ? { dateMs: calendarDateMs(yearStart), year: String(toDate.getFullYear()) }
+      : null
+  }, [fromDate, toDate])
 
   // First-to-last delta for the selected window.
   const periodDelta = useMemo(() => {
@@ -143,6 +174,49 @@ export default function BalanceChartCard({ account }: { account: Account }) {
       ? 'var(--app-positive)'
       : 'var(--app-negative)'
   const chartLineColor = chartMode === 'change' && periodDelta !== null ? deltaColor : lineColor
+  const incomingSnapshot = useMemo<BalanceChartSnapshot>(() => ({
+    range,
+    chartMode,
+    currentBalance: account.current_balance,
+    currency: account.currency,
+    periodDelta,
+    trendUp,
+    deltaColor,
+    chartLineColor,
+    chartSeries,
+    chartDataKey,
+    axisStartMs,
+    axisEndMs,
+    xAxisTicks,
+    seriesByDateMs,
+    yearBoundary,
+  }), [
+    account.currency,
+    account.current_balance,
+    axisEndMs,
+    axisStartMs,
+    chartDataKey,
+    chartLineColor,
+    chartMode,
+    chartSeries,
+    deltaColor,
+    periodDelta,
+    range,
+    seriesByDateMs,
+    trendUp,
+    xAxisTicks,
+    yearBoundary,
+  ])
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useInsightLoadingSnapshot<BalanceChartSnapshot>({
+    snapshot: incomingSnapshot,
+    loading: isFetching,
+    transitionKey: range,
+  })
 
   return (
     <section
@@ -175,121 +249,136 @@ export default function BalanceChartCard({ account }: { account: Account }) {
         />
       </div>
 
-      <div className="mb-4">
-        <p
-          className="font-financial font-normal leading-none text-3xl"
-          style={{ color: account.current_balance < 0 ? 'var(--app-negative)' : 'var(--app-text)' }}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <InsightLoadingContent
+          concealed={contentConcealed}
+          shouldReduceMotion={shouldReduceMotion}
+          className="flex min-h-0 flex-1 flex-col"
         >
-          {formatCurrency(account.current_balance, account.currency)}
-        </p>
-        {periodDelta !== null && (
-          <div className="mt-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: deltaColor }}>
-            {trendUp ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
-            <span>
-              {trendUp ? '+' : '−'}
-              {formatCurrency(Math.abs(periodDelta.absolute), account.currency)}
-              {periodDelta.pct !== null && (
-                <>
-                  {' '}
-                  ({trendUp ? '+' : '−'}
-                  {Math.abs(periodDelta.pct).toFixed(1)}%)
-                </>
-              )}
-            </span>
-            <span style={{ color: 'var(--app-text-subtle)' }}>· {range.toLowerCase()}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 min-h-[240px] w-full">
-        {series.length < 2 ? (
-          <div
-            className="h-full w-full rounded-lg flex items-center justify-center text-sm"
-            style={{ color: 'var(--app-text-subtle)' }}
-          >
-            Not enough history yet
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={chartSeries}
-              margin={{
-                top: 18,
-                right: BALANCE_AXIS_EDGE_PADDING_PX,
-                bottom: 0,
-                left: BALANCE_AXIS_EDGE_PADDING_PX,
-              }}
+          <div className="mb-4">
+            <p
+              className="font-financial font-normal leading-none text-3xl"
+              style={{ color: displaySnapshot.currentBalance < 0 ? 'var(--app-negative)' : 'var(--app-text)' }}
             >
-              <defs>
-                <linearGradient id={`balanceFill-${account.id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={chartLineColor} stopOpacity={0.22} />
-                  <stop offset="100%" stopColor={chartLineColor} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="dateMs"
-                type="number"
-                scale="time"
-                domain={[axisStartMs, axisEndMs]}
-                ticks={xAxisTicks}
-                interval={0}
-                axisLine={false}
-                tickLine={false}
-                tick={(props) => (
-                  <BalanceXAxisTick
-                    {...props}
-                    axisStartMs={axisStartMs}
-                    axisEndMs={axisEndMs}
-                    seriesByDateMs={seriesByDateMs}
-                  />
-                )}
-                tickMargin={4}
-              />
-              <YAxis hide domain={['dataMin', 'dataMax']} />
-              <Tooltip
-                wrapperClassName="app-chart-tooltip-default"
-                cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-                labelFormatter={(value) =>
-                  seriesByDateMs.get(Number(value))?.tooltipLabel ?? String(value)
-                }
-                formatter={(value) => [
-                  chartMode === 'balance'
-                    ? formatCurrency(Number(value), account.currency)
-                    : formatSignedBalanceCurrency(Number(value), account.currency),
-                  chartMode === 'balance' ? 'Balance' : 'Change',
-                ]}
-              />
-              <ReferenceLine
-                y={0}
-                stroke="var(--app-text-subtle)"
-                strokeDasharray="4 3"
-                strokeWidth={2}
-                ifOverflow="extendDomain"
-              />
-              <Area
-                type="monotone"
-                dataKey={chartDataKey}
-                stroke={chartLineColor}
-                strokeWidth={2}
-                fill={`url(#balanceFill-${account.id})`}
-              />
-              {yearBoundary && (
-                <ReferenceLine
-                  x={yearBoundary.dateMs}
-                  stroke="var(--app-text-muted)"
-                  strokeDasharray="4 3"
-                  strokeWidth={1}
-                  label={{
-                    value: yearBoundary.year,
-                    position: 'top',
-                    fill: 'var(--app-text-muted)',
-                    fontSize: 11,
+              {formatCurrency(displaySnapshot.currentBalance, displaySnapshot.currency)}
+            </p>
+            {displaySnapshot.periodDelta !== null && (
+              <div className="mt-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: displaySnapshot.deltaColor }}>
+                {displaySnapshot.trendUp ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
+                <span>
+                  {displaySnapshot.trendUp ? '+' : '−'}
+                  {formatCurrency(Math.abs(displaySnapshot.periodDelta.absolute), displaySnapshot.currency)}
+                  {displaySnapshot.periodDelta.pct !== null && (
+                    <>
+                      {' '}
+                      ({displaySnapshot.trendUp ? '+' : '−'}
+                      {Math.abs(displaySnapshot.periodDelta.pct).toFixed(1)}%)
+                    </>
+                  )}
+                </span>
+                <span style={{ color: 'var(--app-text-subtle)' }}>· {displaySnapshot.range.toLowerCase()}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-h-[240px] w-full">
+            {displaySnapshot.chartSeries.length < 2 ? (
+              <div
+                className="h-full w-full rounded-lg flex items-center justify-center text-sm"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                Not enough history yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={displaySnapshot.chartSeries}
+                  margin={{
+                    top: 18,
+                    right: BALANCE_AXIS_EDGE_PADDING_PX,
+                    bottom: 0,
+                    left: BALANCE_AXIS_EDGE_PADDING_PX,
                   }}
-                />
-              )}
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
+                >
+                  <defs>
+                    <linearGradient id={`balanceFill-${account.id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={displaySnapshot.chartLineColor} stopOpacity={0.22} />
+                      <stop offset="100%" stopColor={displaySnapshot.chartLineColor} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="dateMs"
+                    type="number"
+                    scale="time"
+                    domain={[displaySnapshot.axisStartMs, displaySnapshot.axisEndMs]}
+                    ticks={displaySnapshot.xAxisTicks}
+                    interval={0}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={(props) => (
+                      <BalanceXAxisTick
+                        {...props}
+                        axisStartMs={displaySnapshot.axisStartMs}
+                        axisEndMs={displaySnapshot.axisEndMs}
+                        seriesByDateMs={displaySnapshot.seriesByDateMs}
+                      />
+                    )}
+                    tickMargin={4}
+                  />
+                  <YAxis hide domain={['dataMin', 'dataMax']} />
+                  <Tooltip
+                    wrapperClassName="app-chart-tooltip-default"
+                    cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
+                    labelFormatter={(value) =>
+                      displaySnapshot.seriesByDateMs.get(Number(value))?.tooltipLabel ?? String(value)
+                    }
+                    formatter={(value) => [
+                      displaySnapshot.chartMode === 'balance'
+                        ? formatCurrency(Number(value), displaySnapshot.currency)
+                        : formatSignedBalanceCurrency(Number(value), displaySnapshot.currency),
+                      displaySnapshot.chartMode === 'balance' ? 'Balance' : 'Change',
+                    ]}
+                  />
+                  <ReferenceLine
+                    y={0}
+                    stroke="var(--app-text-subtle)"
+                    strokeDasharray="4 3"
+                    strokeWidth={2}
+                    ifOverflow="extendDomain"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey={displaySnapshot.chartDataKey}
+                    stroke={displaySnapshot.chartLineColor}
+                    strokeWidth={2}
+                    fill={`url(#balanceFill-${account.id})`}
+                  />
+                  {displaySnapshot.yearBoundary && (
+                    <ReferenceLine
+                      x={displaySnapshot.yearBoundary.dateMs}
+                      stroke="var(--app-text-muted)"
+                      strokeDasharray="4 3"
+                      strokeWidth={1}
+                      label={{
+                        value: displaySnapshot.yearBoundary.year,
+                        position: 'top',
+                        fill: 'var(--app-text-muted)',
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </InsightLoadingContent>
+
+        <InsightLoadingOverlay
+          visible={loadingVisible}
+          shouldReduceMotion={shouldReduceMotion}
+          label="Loading current balance"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-surface-soft)]"
+        />
       </div>
     </section>
   )
