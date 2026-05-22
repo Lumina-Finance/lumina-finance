@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   useAccountSpendingBreakdown,
@@ -8,12 +8,12 @@ import {
 } from '@/api/accounts'
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
 
-// Matches the dashboard spending palette so category swatches stay consistent.
-const CATEGORY_COLORS = [
+const BREAKDOWN_COLORS = [
   '#C9A96A', '#6CA07B', '#D4906A', '#9B8FC8', '#C97982', '#7AAEC8', '#8C8074',
-]
+] as const
 
 // Spending range tabs. `SpendingRange` is imported from the API layer so
 // the select options stay in lockstep with the backend's accepted values.
@@ -29,6 +29,7 @@ interface BreakdownRow {
   name: string
   total: number
   isOther: boolean
+  color?: string
 }
 
 const BREAKDOWN_CARD_LIST_MIN_HEIGHT = 270
@@ -221,7 +222,7 @@ function BreakdownCard({
                     // tiny rows visible, and abs() handles signed spend totals.
                     const totalAbs = Math.abs(grandTotal)
                     const barPct = totalAbs > 0 ? Math.max((Math.abs(item.total) / totalAbs) * 100, 4) : 0
-                    const color = item.isOther ? '#8C8074' : CATEGORY_COLORS[idx % CATEGORY_COLORS.length]
+                    const color = item.isOther ? '#8C8074' : item.color ?? BREAKDOWN_COLORS[idx % BREAKDOWN_COLORS.length]
                     return (
                       <div
                         key={item.key}
@@ -284,6 +285,11 @@ export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
   const [range, setRange] = useState<SpendingRange>('MTD')
   const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
   const { loading, startTransition } = useBreakdownRangeTransition(isFetching)
+  const categoryColors = useMemo(() => getCategoryColorMap((data?.top_categories ?? []).map((category) => ({
+    id: category.category_id,
+    name: category.name,
+    kind: 'expense',
+  }))), [data?.top_categories])
 
   const handleRangeChange = (nextRange: SpendingRange) => {
     if (nextRange === range) return
@@ -294,7 +300,15 @@ export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
   const rows = breakdownToRows(
     data,
     (b) => b.top_categories.map((c) => ({
-      key: c.category_id, name: c.name, total: c.total, isOther: false,
+      key: c.category_id,
+      name: c.name,
+      total: c.total,
+      isOther: false,
+      color: categoryColors.get(c.category_id || c.name) ?? getCategoryColor({
+        id: c.category_id,
+        name: c.name,
+        kind: 'expense',
+      }),
     })),
     (b) => b.other_categories_count,
   )
