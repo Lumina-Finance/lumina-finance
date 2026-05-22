@@ -149,9 +149,10 @@ function Row({
       <button
         type="button"
         onClick={() => onSelect(option.value)}
-        className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
+        className={`flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-[var(--app-surface-soft)] ${
+          highlighted ? 'bg-[var(--app-surface-soft)]' : ''
+        }`}
         style={{
-          background: highlighted ? 'var(--app-surface-soft)' : 'transparent',
           color: selected ? 'var(--app-accent)' : 'var(--app-text)',
           fontWeight: selected ? 500 : 400,
         }}
