@@ -343,6 +343,7 @@ export default function TransactionListToolbar({
                     selectedValue={filters.account_id}
                     onSelect={(value) => { setFilter({ account_id: value }); close() }}
                     searchPlaceholder="Search accounts..."
+                    selectFirstSearchResultOnEnter
                   />
                 )}
               </FilterChip>
@@ -476,6 +477,7 @@ export default function TransactionListToolbar({
                       allLabel="All accounts"
                       onSelect={(value) => setFilter({ account_id: value })}
                       onClear={() => setFilter({ account_id: undefined })}
+                      selectFirstSearchResultOnEnter
                     />
                   )}
                   <MobileFilterSection
