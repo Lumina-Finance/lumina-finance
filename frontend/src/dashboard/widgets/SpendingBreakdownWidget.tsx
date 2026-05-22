@@ -20,10 +20,10 @@ import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/dashboard/constants/animation'
-import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { useBreakdownTooltipPosition } from '@/dashboard/hooks/useBreakdownTooltipPosition'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 
 type SpendingBreakdownWidgetProps = {
   displayCurrency: string
@@ -46,6 +46,20 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   const breakdownTotal = breakdownEntries.reduce((sum, entry) => sum + entry.amount, 0)
   const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
   const breakdownLoadingText = formatDashboardMoney(88888800, displayCurrency, 'breakdown')
+  const breakdownCategoryKind = breakdownMode === 'spending' ? 'expense' : 'income'
+  const breakdownColors = useMemo(() => getCategoryColorMap(breakdownEntries.map((entry) => ({
+    id: entry.category_id,
+    name: entry.name,
+    kind: breakdownCategoryKind,
+  }))), [breakdownEntries, breakdownCategoryKind])
+  const getBreakdownColor = (entry: { category_id: string; name: string }) => getCategoryColor({
+    id: entry.category_id,
+    name: entry.name,
+    kind: breakdownCategoryKind,
+  })
+  const getSpacedBreakdownColor = (entry: { category_id: string; name: string }) => (
+    breakdownColors.get(entry.category_id || entry.name) ?? getBreakdownColor(entry)
+  )
 
   return (
     <div className="app-card h-[420px] flex flex-col">
@@ -136,8 +150,8 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                         animationDuration={shouldReduceMotion ? 0 : BREAKDOWN_PIE_ANIMATION_MS}
                         animationEasing="ease-out"
                       >
-                        {breakdownEntries.map((_, index) => (
-                          <Cell key={index} fill={BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length]} />
+                        {breakdownEntries.map((entry) => (
+                          <Cell key={entry.category_id} fill={getSpacedBreakdownColor(entry)} />
                         ))}
                       </Pie>
                       <Tooltip
@@ -157,11 +171,11 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
           </div>
           {breakdownEntries.length > 0 && (
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
-              {breakdownEntries.slice(0, 6).map((entry, index) => (
+              {breakdownEntries.slice(0, 6).map((entry) => (
                 <div key={entry.category_id} className="flex items-center gap-1.5">
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-full"
-                    style={{ background: BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length] }}
+                    style={{ background: getSpacedBreakdownColor(entry) }}
                   />
                   <span
                     className="text-xs font-medium whitespace-nowrap max-[1000px]:text-[0.675rem]"
