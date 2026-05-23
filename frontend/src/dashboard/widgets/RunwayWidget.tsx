@@ -6,6 +6,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import {
   RUNWAY_BAND_STYLE,
   formatCompactRunway,
+  formatRunwayBasis,
   runwayBand,
 } from '@/utils/runway'
 import { useRunwayHover } from '@/dashboard/hooks/useRunwayHover'
@@ -24,7 +25,7 @@ function getRunwayCaption(
   if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
   if (runway.reason === 'insufficient_history') return 'Need 1+ month of expense data'
 
-  return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo \u00B7 ${runway.months_covered}mo basis`
+  return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth \u00B7 ${formatRunwayBasis(runway.months_covered)}`
 }
 
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {

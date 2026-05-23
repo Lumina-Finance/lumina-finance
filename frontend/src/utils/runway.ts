@@ -34,3 +34,7 @@ export function formatCompactRunway(months: number | null): string {
   }
   return `≈ ${Math.floor(years)} yrs`
 }
+
+export function formatRunwayBasis(months: number): string {
+  return `${months} ${months === 1 ? 'mth' : 'mths'} basis`
+}
