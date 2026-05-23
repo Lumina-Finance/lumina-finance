@@ -43,13 +43,15 @@ import {
   validateColumnValues,
 } from '../utils'
 
+const FILE_PER_ACCOUNT_MATCH_KEY = '__file_per_account__'
+
 export function useTransactionImportWorkflow() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [mode, setMode] = useState<ImportMode>('single-file')
   const [files, setFiles] = useState<ImportFileDraft[]>([])
   const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
-  const [accountMatchingColumn, setAccountMatchingColumn] = useState('')
+  const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
   const [accountCreateTypes, setAccountCreateTypes] = useState<Record<string, string>>({})
   const [accountCreateCurrencies, setAccountCreateCurrencies] = useState<Record<string, string>>({})
   const [selectedAccountRows, setSelectedAccountRows] = useState<Set<string>>(() => new Set())
@@ -59,7 +61,7 @@ export function useTransactionImportWorkflow() {
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
-  const [categoryMatchingColumn, setCategoryMatchingColumn] = useState('')
+  const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
@@ -138,13 +140,6 @@ export function useTransactionImportWorkflow() {
     [availableColumnTargets, columnMap],
   )
 
-  const columnMappingComplete = useMemo(() => {
-    if (files.length === 0 || missingRequiredColumnLabels.length > 0) return false
-
-    const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
-    return !Object.keys(columnValidationErrors).some((header) => mappedHeaders.has(header))
-  }, [columnMap, columnValidationErrors, files.length, missingRequiredColumnLabels])
-
   const columnTargetOptions = useMemo<DropdownOption[]>(
     () => [
       { value: '', label: 'Do not import' },
@@ -166,9 +161,10 @@ export function useTransactionImportWorkflow() {
     )
   }, [columnMap.account_id, files, mode])
 
+  const accountMatchKey = getAccountAutoMatchKey(columnMap, mode)
   const canInferAccountMappings = mode === 'single-file'
-    && Boolean(columnMap.account_id)
-    && (columnMappingComplete || accountMatchingColumn === columnMap.account_id)
+    && Boolean(accountMatchKey)
+    && accountAutoMatchKey === accountMatchKey
 
   const resolvedAccountMappings = useMemo(
     () => (
@@ -181,13 +177,13 @@ export function useTransactionImportWorkflow() {
 
   const filesWithResolvedAccounts = useMemo(
     () =>
-      mode === 'file-per-account' && columnMappingComplete
+      mode === 'file-per-account' && accountAutoMatchKey === FILE_PER_ACCOUNT_MATCH_KEY
         ? files.map((file) => ({
           ...file,
           accountId: resolveImportAccountChoice(file.name, file.accountId, accounts),
         }))
         : files,
-    [accounts, columnMappingComplete, files, mode],
+    [accountAutoMatchKey, accounts, files, mode],
   )
 
   const importedCategories = useMemo(() => {
@@ -223,7 +219,7 @@ export function useTransactionImportWorkflow() {
   }, [columnMap.tag_ids, files])
 
   const canInferCategoryMappings = Boolean(columnMap.category_id)
-    && (columnMappingComplete || categoryMatchingColumn === columnMap.category_id)
+    && categoryAutoMatchKey === columnMap.category_id
 
   const resolvedCategoryMappings = useMemo(
     () => (
@@ -357,11 +353,27 @@ export function useTransactionImportWorkflow() {
   const importSummary = importResult ? formatImportSummary(importResult) : ''
   const canCommitImport = Boolean(importBuild.payload) && !importFeedback.isPending && !importTransactions.isPending && !importResult
 
+  const syncAutoMatchKeys = (
+    nextColumnMap: ColumnMap,
+    nextColumnValidationErrors: ColumnValidationErrors,
+    nextFiles: ImportFileDraft[],
+    nextMode: ImportMode,
+  ) => {
+    if (!isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, nextFiles, nextMode)) {
+      setAccountAutoMatchKey('')
+      setCategoryAutoMatchKey('')
+      return
+    }
+
+    setAccountAutoMatchKey(getAccountAutoMatchKey(nextColumnMap, nextMode))
+    setCategoryAutoMatchKey(nextColumnMap.category_id)
+  }
+
   const handleModeChange = (nextMode: ImportMode) => {
     setMode(nextMode)
     setAccountMappings({})
-    setAccountMatchingColumn('')
-    setCategoryMatchingColumn('')
+    setAccountAutoMatchKey('')
+    setCategoryAutoMatchKey('')
     setAccountCreateTypes({})
     setAccountCreateCurrencies({})
     setSelectedAccountRows(new Set())
@@ -372,6 +384,7 @@ export function useTransactionImportWorkflow() {
       setColumnMap((previous) => {
         const result = inferColumnMap(previous, next, nextMode)
         setColumnValidationErrors(result.errors)
+        syncAutoMatchKeys(result.map, result.errors, next, nextMode)
         return result.map
       })
       return next
@@ -383,12 +396,11 @@ export function useTransactionImportWorkflow() {
     const drafts = await Promise.all(selectedFiles.map(readCsvFile))
     const next = mode === 'single-file' ? drafts.slice(0, 1) : [...files, ...drafts]
 
-    setAccountMatchingColumn('')
-    setCategoryMatchingColumn('')
     setFiles(next)
     setColumnMap((previous) => {
       const result = inferColumnMap(previous, next, mode)
       setColumnValidationErrors(result.errors)
+      syncAutoMatchKeys(result.map, result.errors, next, mode)
       return result.map
     })
 
@@ -401,6 +413,7 @@ export function useTransactionImportWorkflow() {
       setColumnMap((previous) => {
         const result = inferColumnMap(previous, next, mode)
         setColumnValidationErrors(result.errors)
+        syncAutoMatchKeys(result.map, result.errors, next, mode)
         return result.map
       })
       return next
@@ -437,45 +450,34 @@ export function useTransactionImportWorkflow() {
     const previousAccountHeader = columnMap.account_id
     const previousCategoryHeader = columnMap.category_id
     const displacedHeader = targetValue ? columnMap[targetValue as ColumnTarget] : ''
+    const nextColumnValidationErrors = getNextColumnValidationErrors(
+      columnValidationErrors,
+      header,
+      displacedHeader,
+      targetValue,
+      validation,
+    )
+    const nextColumnMap = getNextColumnMap(columnMap, header, targetValue)
+    const nextColumnMappingComplete = isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, files, mode)
 
-    if (targetValue === 'account_id') {
-      setAccountMatchingColumn(header)
-    } else if (previousAccountHeader === header) {
-      setAccountMatchingColumn('')
-    }
-
-    if (targetValue === 'category_id') {
-      setCategoryMatchingColumn(header)
-    } else if (previousCategoryHeader === header) {
-      setCategoryMatchingColumn('')
-    }
-
-    if (targetValue) {
-      setColumnValidationErrors((current) => {
-        let next = displacedHeader && displacedHeader !== header
-          ? removeRecordKey(current, displacedHeader)
-          : current
-
-        next = validation.valid
-          ? removeRecordKey(next, header)
-          : { ...next, [header]: validation.message }
-
-        return next
-      })
+    if (nextColumnMappingComplete) {
+      syncAutoMatchKeys(nextColumnMap, nextColumnValidationErrors, files, mode)
     } else {
-      setColumnValidationErrors((current) => removeRecordKey(current, header))
+      if (targetValue === 'account_id') {
+        setAccountAutoMatchKey(header)
+      } else if (previousAccountHeader === header) {
+        setAccountAutoMatchKey('')
+      }
+
+      if (targetValue === 'category_id') {
+        setCategoryAutoMatchKey(header)
+      } else if (previousCategoryHeader === header) {
+        setCategoryAutoMatchKey('')
+      }
     }
 
-    setColumnMap((current) => {
-      const next = { ...current }
-
-      for (const target of COLUMN_TARGETS) {
-        if (next[target.id] === header) next[target.id] = ''
-      }
-      if (targetValue) next[targetValue as ColumnTarget] = header
-
-      return next
-    })
+    setColumnValidationErrors(nextColumnValidationErrors)
+    setColumnMap(nextColumnMap)
   }
 
   const handleCommitImport = async () => {
@@ -557,3 +559,55 @@ export function useTransactionImportWorkflow() {
 }
 
 export type TransactionImportWorkflow = ReturnType<typeof useTransactionImportWorkflow>
+
+function getNextColumnMap(columnMap: ColumnMap, header: string, targetValue: string) {
+  const next = { ...columnMap }
+
+  for (const target of COLUMN_TARGETS) {
+    if (next[target.id] === header) next[target.id] = ''
+  }
+  if (targetValue) next[targetValue as ColumnTarget] = header
+
+  return next
+}
+
+function getNextColumnValidationErrors(
+  columnValidationErrors: ColumnValidationErrors,
+  header: string,
+  displacedHeader: string,
+  targetValue: string,
+  validation: { valid: boolean; message: string },
+) {
+  if (!targetValue) return removeRecordKey(columnValidationErrors, header)
+
+  let next = displacedHeader && displacedHeader !== header
+    ? removeRecordKey(columnValidationErrors, displacedHeader)
+    : columnValidationErrors
+
+  next = validation.valid
+    ? removeRecordKey(next, header)
+    : { ...next, [header]: validation.message }
+
+  return next
+}
+
+function getAccountAutoMatchKey(columnMap: ColumnMap, mode: ImportMode) {
+  return mode === 'file-per-account' ? FILE_PER_ACCOUNT_MATCH_KEY : columnMap.account_id
+}
+
+function isColumnMappingComplete(
+  columnMap: ColumnMap,
+  columnValidationErrors: ColumnValidationErrors,
+  files: ImportFileDraft[],
+  mode: ImportMode,
+) {
+  if (files.length === 0) return false
+
+  const missingRequired = COLUMN_TARGETS.some(
+    (target) => target.required && (!target.mode || target.mode === mode) && !columnMap[target.id],
+  )
+  if (missingRequired) return false
+
+  const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
+  return !Object.keys(columnValidationErrors).some((header) => mappedHeaders.has(header))
+}
