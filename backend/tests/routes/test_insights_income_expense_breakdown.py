@@ -151,8 +151,8 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
     }
 
 
-async def test_income_expense_breakdown_counts_income_losses_as_expense(client):
-    """Income losses become expense rows; expense refunds only reduce spending."""
+async def test_income_expense_breakdown_counts_category_crossovers_by_sign(client):
+    """Income losses become expense rows; over-refunded expenses become income rows."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -187,7 +187,10 @@ async def test_income_expense_breakdown_counts_income_losses_as_expense(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["income"] == [[str(salary_id), "Salary", "income", 300_000]]
+    assert data["income"] == [
+        [str(salary_id), "Salary", "income", 300_000],
+        [str(over_refund_id), "Over-refunded", "expense", 20_000],
+    ]
     assert data["expense"] == [
         [str(capital_gains_id), "Capital Gains", "income", 80_000],
         [str(groceries_id), "Groceries", "expense", 60_000],

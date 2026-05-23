@@ -31,7 +31,10 @@ class InsightsFundFlowResponse(BaseModel):
 
 
 class InsightsIncomeExpenseBreakdownResponse(BaseModel):
-    """Payload for the insights income/expense breakdown card."""
+    """Payload for the insights income/expense breakdown card.
+
+    Pie rows are ``(id, name, original_category_kind, amount)``.
+    """
 
     expense: list[tuple[str, str, str, int]]
     income: list[tuple[str, str, str, int]]

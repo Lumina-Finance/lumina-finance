@@ -83,7 +83,7 @@ async def _query_breakdown_entries(
                 category_kind=row.kind,
                 amount=-total,
             )
-        elif total > 0 and row.kind == CategoryKind.INCOME:
+        elif total > 0:
             income_stats[row.id] = BreakdownCategoryStats(
                 name=row.name,
                 category_kind=row.kind,

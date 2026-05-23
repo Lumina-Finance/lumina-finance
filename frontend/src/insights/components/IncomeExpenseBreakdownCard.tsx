@@ -14,7 +14,7 @@ import {
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import { IncomeLossBadge } from '@/components/IncomeLossBadge'
+import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -112,8 +112,15 @@ function getTransactionCountLabel(count: number) {
   return `${count} ${count === 1 ? 'transaction' : 'transactions'}`
 }
 
-function isIncomeLossEntry(entry: BreakdownEntry, mode: BreakdownMode) {
-  return mode === 'expense' && entry.categoryKind === 'income'
+function getCrossoverKind(entry: BreakdownEntry, mode: BreakdownMode) {
+  if (mode === 'expense' && entry.categoryKind === 'income') return 'income-loss'
+  if (mode === 'income' && entry.categoryKind === 'expense') return 'expense-refund'
+  return null
+}
+
+function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
+  const kind = getCrossoverKind(entry, mode)
+  return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
 }
 
 export function IncomeExpenseBreakdownCard({
@@ -219,7 +226,7 @@ export function IncomeExpenseBreakdownCard({
                               <span className="font-medium" style={{ color: 'var(--app-text)' }}>
                                 {entry.name}
                               </span>
-                              {isIncomeLossEntry(entry, displaySnapshot.mode) && <IncomeLossBadge />}
+                              {renderCrossoverBadge(entry, displaySnapshot.mode)}
                             </div>
                             <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
                               {formatCurrency(entry.amount, displaySnapshot.displayCurrency)}
@@ -256,7 +263,7 @@ export function IncomeExpenseBreakdownCard({
                           <span className="min-w-0 truncate" style={{ color: 'var(--app-text-muted)' }}>
                             {entry.name}
                           </span>
-                          {isIncomeLossEntry(entry, displaySnapshot.mode) && <IncomeLossBadge />}
+                          {renderCrossoverBadge(entry, displaySnapshot.mode)}
                         </span>
                         <span className="font-financial">
                           {getPct(entry.amount, total)}%
