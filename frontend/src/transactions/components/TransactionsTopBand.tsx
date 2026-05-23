@@ -12,6 +12,16 @@ import {
   PLACEHOLDER_OUTLIERS,
 } from '@/transactions/components/topBand/constants'
 
+const topBandDividerStyle = {
+  height: 1,
+  background:
+    'linear-gradient(to right, var(--app-accent), var(--app-accent-border), transparent)',
+}
+
+function TopBandDivider({ className = '' }: { className?: string }) {
+  return <div className={className} style={topBandDividerStyle} />
+}
+
 export default function TransactionsTopBand({
   overview,
   displayCurrency,
@@ -88,14 +98,7 @@ export default function TransactionsTopBand({
         </div>
       )}
 
-      <div
-        style={{
-          height: 2,
-          background: 'var(--app-accent)',
-          opacity: 0.35,
-          borderRadius: 1,
-        }}
-      />
+      <TopBandDivider className="mb-5" />
       <motion.div
         animate={metricsBandHeight === null ? undefined : { height: metricsBandHeight }}
         initial={false}
@@ -104,7 +107,7 @@ export default function TransactionsTopBand({
       >
         <div
           ref={metricsBandContentRef}
-          className="grid grid-cols-1 items-start gap-y-5 pb-2 pt-5 min-[730px]:grid-cols-2 min-[730px]:gap-y-6 min-[1750px]:grid-cols-3 min-[1750px]:gap-y-0"
+          className="grid grid-cols-1 items-start gap-y-5 pb-2 min-[730px]:grid-cols-2 min-[730px]:gap-y-6 min-[1750px]:grid-cols-3 min-[1750px]:gap-y-0"
         >
           <NetFlowSummary
             inflow={inflow}
