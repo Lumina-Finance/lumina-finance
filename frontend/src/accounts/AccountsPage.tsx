@@ -72,9 +72,10 @@ export default function AccountsPage() {
           displayCurrency={displayCurrency}
         />
 
-        <AccountsMetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
-
-        <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
+        <div>
+          <AccountsMetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
+          <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
+        </div>
 
         <AccountFilters
           filters={filters}

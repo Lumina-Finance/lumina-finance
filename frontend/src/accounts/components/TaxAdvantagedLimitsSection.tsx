@@ -141,7 +141,7 @@ export default function TaxAdvantagedLimitsSection({
         })}
       </div>
       <div
-        className="mt-3 h-px"
+        className="h-px"
         style={{
           background: 'var(--app-accent)',
         }}

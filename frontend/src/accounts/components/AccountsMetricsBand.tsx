@@ -20,10 +20,10 @@ export default function AccountsMetricsBand({
         }}
       />
       <div
-        className="grid grid-cols-2 py-5 min-[730px]:grid-cols-3"
+        className="grid grid-cols-2 py-3 min-[730px]:grid-cols-3"
         style={{ borderBottom: '1px solid var(--app-border-strong)' }}
       >
-        <div className="order-2 min-w-0 pr-4 pt-5 min-[730px]:order-1 min-[730px]:pr-6 min-[730px]:pt-0">
+        <div className="order-2 min-w-0 pr-4 pt-3 min-[730px]:order-1 min-[730px]:pr-6 min-[730px]:pt-0">
           <p className="app-label mb-1">Savings Rate</p>
           <p
             className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
@@ -61,7 +61,7 @@ export default function AccountsMetricsBand({
           </div>
         </div>
 
-        <div className="order-1 col-span-2 min-w-0 border-b border-[var(--app-border)] pb-5 min-[730px]:order-2 min-[730px]:col-span-1 min-[730px]:border-x min-[730px]:border-b-0 min-[730px]:px-6 min-[730px]:pb-0">
+        <div className="order-1 col-span-2 min-w-0 border-b border-[var(--app-border)] pb-3 min-[730px]:order-2 min-[730px]:col-span-1 min-[730px]:border-x min-[730px]:border-b-0 min-[730px]:px-6 min-[730px]:pb-0">
           <p className="app-label mb-1">Credit Usage</p>
           <p
             className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
@@ -95,7 +95,7 @@ export default function AccountsMetricsBand({
           </div>
         </div>
 
-        <div className="order-3 min-w-0 border-l border-[var(--app-border)] pl-4 pt-5 min-[730px]:border-l-0 min-[730px]:pl-6 min-[730px]:pt-0">
+        <div className="order-3 min-w-0 border-l border-[var(--app-border)] pl-4 pt-3 min-[730px]:border-l-0 min-[730px]:pl-6 min-[730px]:pt-0">
           <div className="mb-1 flex items-center gap-2">
             <p className="app-label">Runway</p>
             {runway.style && (
