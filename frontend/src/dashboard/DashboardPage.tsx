@@ -23,7 +23,7 @@ export default function DashboardPage() {
         <p className="app-page-description">{subtitle}</p>
       </header>
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="grid grid-cols-1 gap-4 min-[730px]:grid-cols-2 min-[1750px]:grid-cols-4">
           <NetWorthWidget displayCurrency={displayCurrency} />
           <CreditWidget displayCurrency={displayCurrency} />

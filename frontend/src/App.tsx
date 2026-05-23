@@ -77,7 +77,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
           <Navigation />
           <main
             id="app-page-content"
-            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : 'relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 min-[1050px]:pb-12 min-[1050px]:pt-12'}`}
+            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : 'relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 min-[1050px]:pb-12 min-[1050px]:pt-10'}`}
             aria-busy={pageTransitioning}
           >
             <AnimatePresence>
