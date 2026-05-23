@@ -16,6 +16,7 @@ const CATEGORY_KIND_LABELS: Record<string, string> = {
   transfer: 'Transfer',
 }
 const DESKTOP_SEARCH_MIN_WIDTH = 320
+const DATE_HEADER_STICKY_GAP_PX = 4
 
 export default function TransactionListToolbar({
   search,
@@ -35,6 +36,7 @@ export default function TransactionListToolbar({
   onDateRangeReset,
   onDateRangeClose,
   onCreateTransaction,
+  onStickyOffsetChange,
 }: {
   search: string
   onSearchChange: (value: string) => void
@@ -53,6 +55,7 @@ export default function TransactionListToolbar({
   onDateRangeReset: () => void
   onDateRangeClose: () => void
   onCreateTransaction: () => void
+  onStickyOffsetChange?: (offset: number) => void
 }) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
   const [isMobileBackdropActive, setIsMobileBackdropActive] = useState(false)
@@ -140,6 +143,25 @@ export default function TransactionListToolbar({
       window.removeEventListener('resize', updateCreateLayout)
     }
   }, [selectedAccountLabel, selectedCategoryLabel, selectedDateLabel, showAccountFilter])
+
+  useLayoutEffect(() => {
+    const toolbar = desktopToolbarRef.current
+    if (!toolbar || !onStickyOffsetChange) return
+
+    const updateStickyOffset = () => {
+      onStickyOffsetChange(Math.ceil(toolbar.getBoundingClientRect().height + DATE_HEADER_STICKY_GAP_PX))
+    }
+
+    updateStickyOffset()
+
+    const resizeObserver = new ResizeObserver(updateStickyOffset)
+    resizeObserver.observe(toolbar)
+    window.addEventListener('resize', updateStickyOffset)
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateStickyOffset)
+    }
+  }, [onStickyOffsetChange])
 
   const openMobileSheet = useCallback(() => {
     setIsMobileBackdropActive(true)
