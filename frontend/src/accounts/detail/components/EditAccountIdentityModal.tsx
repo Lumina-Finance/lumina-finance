@@ -14,7 +14,13 @@ import CreateInstitutionModal from '@/components/CreateInstitutionModal'
 import Dropdown from '@/components/Dropdown'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/accounts/detail/utils/formatAccountType'
-import { fromMinorUnits, isValidMoneyInput, toMinorUnits } from '@/accounts/detail/utils/moneyInput'
+import {
+  formatMoneyInputLive,
+  fromMinorUnits,
+  isValidMoneyInput,
+  sanitizeMoneyInput,
+  toMinorUnits,
+} from '@/accounts/detail/utils/moneyInput'
 
 function FieldLabelRow({
   label,
@@ -104,6 +110,7 @@ export default function EditAccountIdentityModal({
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
+  const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
 
   const institutionOptions = useMemo(
     () => [
@@ -392,14 +399,28 @@ export default function EditAccountIdentityModal({
                             {isRevolving && (
                               <div>
                                 <FieldLabelRow htmlFor="edit-credit-limit" label="Credit Limit" error={fieldErrors.credit_limit} />
-                                <input
-                                  id="edit-credit-limit"
-                                  className={`app-input ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
-                                  inputMode="decimal"
-                                  value={form.credit_limit}
-                                  onChange={(event) => setField('credit_limit', event.target.value)}
-                                  placeholder="Optional"
-                                />
+                                <div className="relative">
+                                  {selectedCurrencySymbol && (
+                                    <span
+                                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                      style={{ color: 'var(--app-text-subtle)' }}
+                                      aria-hidden
+                                    >
+                                      {selectedCurrencySymbol}
+                                    </span>
+                                  )}
+                                  <input
+                                    id="edit-credit-limit"
+                                    className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
+                                    inputMode="decimal"
+                                    value={form.credit_limit}
+                                    onChange={(event) => setField(
+                                      'credit_limit',
+                                      formatMoneyInputLive(sanitizeMoneyInput(event.target.value)),
+                                    )}
+                                    placeholder="Optional"
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>

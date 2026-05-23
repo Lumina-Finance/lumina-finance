@@ -50,6 +50,23 @@ const conditionalField = {
   transition: { duration: 0.25, ease: EASE },
 };
 
+function sanitizeMoneyInput(value: string) {
+  let sanitized = value.replace(/[^\d.]/g, '');
+  const parts = sanitized.split('.');
+  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`;
+  return sanitized;
+}
+
+function formatMoneyInputLive(value: string) {
+  if (!value.trim()) return value;
+  const [integerPart, decimalPart] = value.split('.', 2);
+  const formattedInteger = integerPart
+    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
+    : '0';
+  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger;
+}
+
 /* ── Validation ── */
 
 interface FieldErrors {
@@ -98,7 +115,7 @@ function validate(form: typeof INITIAL_FORM): FieldErrors {
   if (!form.currency) errors.currency = 'Select a currency';
 
   if (form.credit_limit) {
-    const n = parseInt(form.credit_limit, 10);
+    const n = Number(form.credit_limit.replace(/,/g, ''));
     if (isNaN(n) || n < 0) errors.credit_limit = 'Must be a positive number';
   }
   return errors;
@@ -136,6 +153,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const canLinkTaxPlan = accountKind === 'asset' && !!form.currency;
   const conditionalAccountField = canLinkTaxPlan ? 'tax-plan' : isRevolving ? 'credit-limit' : null;
   const selectedAccountType = ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type);
+  const selectedCurrencySymbol = currencies.find((currency) => currency.id === form.currency)?.symbol ?? '';
 
   // Dropdown options
   const currencyOptions = useMemo(
@@ -230,7 +248,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
     const toMinor = (value: string): number | null => {
       if (!value) return null;
-      const n = parseFloat(value);
+      const n = parseFloat(value.replace(/,/g, ''));
       if (isNaN(n) || n < 0) return null;
       return Math.round(n * minorMultiplier);
     };
@@ -466,16 +484,29 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                                         label="Credit Limit"
                                         error={showError('credit_limit') || undefined}
                                       />
-                                      <input
-                                        id="credit-limit"
-                                        type="number"
-                                        min="0"
-                                        className={`app-input ${showError('credit_limit') ? 'app-input-error' : ''}`}
-                                        placeholder="Optional"
-                                        value={form.credit_limit}
-                                        onChange={(e) => handleChange('credit_limit', e.target.value)}
-                                        onBlur={() => handleBlur('credit_limit')}
-                                      />
+                                      <div className="relative">
+                                        {selectedCurrencySymbol && (
+                                          <span
+                                            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                            style={{ color: 'var(--app-text-subtle)' }}
+                                            aria-hidden
+                                          >
+                                            {selectedCurrencySymbol}
+                                          </span>
+                                        )}
+                                        <input
+                                          id="credit-limit"
+                                          className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('credit_limit') ? 'app-input-error' : ''}`}
+                                          inputMode="decimal"
+                                          placeholder="Optional"
+                                          value={form.credit_limit}
+                                          onChange={(e) => handleChange(
+                                            'credit_limit',
+                                            formatMoneyInputLive(sanitizeMoneyInput(e.target.value)),
+                                          )}
+                                          onBlur={() => handleBlur('credit_limit')}
+                                        />
+                                      </div>
                                     </div>
                                   )}
                                 </motion.div>
