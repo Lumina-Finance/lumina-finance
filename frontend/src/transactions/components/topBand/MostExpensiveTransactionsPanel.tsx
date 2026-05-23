@@ -34,13 +34,14 @@ export default function MostExpensiveTransactionsPanel({
         </IconTooltip>
       </p>
       <div className="mt-2 flex flex-col gap-2.5">
-        <AnimatePresence initial={false}>
+        <AnimatePresence initial={false} mode="popLayout">
           {outliers.map((transaction) => {
             const loading = openingOutlierId === transaction.id
             const label = transaction.merchant_name ?? transaction.notes ?? 'Unknown'
             return (
               <motion.button
                 key={transaction.id}
+                layout
                 type="button"
                 className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
                 style={{
