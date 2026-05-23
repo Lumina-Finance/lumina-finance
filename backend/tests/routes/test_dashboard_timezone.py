@@ -63,8 +63,8 @@ async def test_dashboard_spending_breakdown_uses_viewer_timezone_at_utc_boundary
     assert resp.json()["expense"][0]["amount"] == 4100
 
 
-async def test_dashboard_spending_breakdown_counts_income_losses_as_expense(client, monkeypatch):
-    """Income losses become spending rows; expense refunds only reduce spending."""
+async def test_dashboard_spending_breakdown_counts_category_crossovers_by_sign(client, monkeypatch):
+    """Income losses become spending rows; over-refunded expenses become income rows."""
     from app.routes import dashboard as dashboard_routes
 
     monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 4, 20, 16, 0, tzinfo=UTC)))
@@ -108,11 +108,13 @@ async def test_dashboard_spending_breakdown_counts_income_losses_as_expense(clie
             "category_kind": "income",
             "amount": 300_000,
         },
+        {
+            "category_id": over_refund_id,
+            "name": "Test Over-refunded",
+            "category_kind": "expense",
+            "amount": 20_000,
+        },
     ]
-    assert over_refund_id not in {
-        entry["category_id"]
-        for entry in [*data["expense"], *data["income"]]
-    }
 
 
 async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):

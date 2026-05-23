@@ -540,8 +540,8 @@ async def get_spending_breakdown(
 
     Aggregates transactions on base-currency accessible accounts between the
     range's current-period start and today. Negative category totals render as
-    spending, so income-category losses are treated as outflows. Positive
-    expense-category totals are over-refunds and are not shown as income.
+    spending, and positive category totals render as income. The original
+    category kind is preserved so the frontend can mark flipped categories.
     Categories with zero totals are dropped; entries are sorted largest-first
     so the frontend can take the top N directly.
     """
@@ -579,7 +579,7 @@ async def get_spending_breakdown(
             ))
             continue
 
-        if total > 0 and row.kind == CategoryKind.INCOME:
+        if total > 0:
             income.append(CategoryBreakdownEntry(
                 category_id=row.id,
                 name=row.name,

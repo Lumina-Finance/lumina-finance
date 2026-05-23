@@ -14,7 +14,7 @@ import {
   useSpendingBreakdown,
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
-import { IncomeLossBadge } from '@/components/IncomeLossBadge'
+import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -33,8 +33,15 @@ type SpendingBreakdownWidgetProps = {
 
 type BreakdownMode = 'spending' | 'income'
 
-function isIncomeLossEntry(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
-  return mode === 'spending' && entry.category_kind === 'income'
+function getCrossoverKind(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
+  if (mode === 'spending' && entry.category_kind === 'income') return 'income-loss'
+  if (mode === 'income' && entry.category_kind === 'expense') return 'expense-refund'
+  return null
+}
+
+function renderCrossoverBadge(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
+  const kind = getCrossoverKind(entry, mode)
+  return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
 }
 
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
@@ -176,7 +183,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                                 <span className="font-medium" style={{ color: 'var(--app-text)' }}>
                                   {entry.name}
                                 </span>
-                                {isIncomeLossEntry(entry, breakdownMode) && <IncomeLossBadge />}
+                                {renderCrossoverBadge(entry, breakdownMode)}
                               </div>
                               <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
                                 {formatCurrency(entry.amount, displayCurrency)}
@@ -205,7 +212,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                   >
                     {entry.name}
                   </span>
-                  {isIncomeLossEntry(entry, breakdownMode) && <IncomeLossBadge />}
+                  {renderCrossoverBadge(entry, breakdownMode)}
                 </div>
               ))}
             </div>

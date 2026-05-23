@@ -12,9 +12,8 @@ RangeKind = Literal["WTD", "MTD", "QTD", "YTD"]
 class CategoryBreakdownEntry(BaseModel):
     """One category's contribution to the spending/income breakdown widget.
 
-    ``amount`` is a positive minor-unit total. Spending rows include negative
-    income-category totals; positive expense-category totals are treated as
-    refunds and omitted from income.
+    ``amount`` is a positive minor-unit total. Rows are sign-directed, while
+    ``category_kind`` preserves the category's original income/expense kind.
     """
 
     category_id: uuid.UUID
