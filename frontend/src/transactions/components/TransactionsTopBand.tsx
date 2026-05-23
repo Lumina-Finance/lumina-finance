@@ -98,7 +98,7 @@ export default function TransactionsTopBand({
         </div>
       )}
 
-      <TopBandDivider className="mb-5" />
+      <TopBandDivider className="mb-3" />
       <motion.div
         animate={metricsBandHeight === null ? undefined : { height: metricsBandHeight }}
         initial={false}

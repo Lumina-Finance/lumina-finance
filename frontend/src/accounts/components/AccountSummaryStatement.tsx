@@ -32,7 +32,7 @@ export default function AccountSummaryStatement({
   return (
     <section>
       <div
-        className="mb-5"
+        className="mb-3"
         style={{
           height: 1,
           background:
