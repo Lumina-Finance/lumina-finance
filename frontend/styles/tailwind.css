@@ -704,6 +704,20 @@
     font-size: 12px !important;
   }
 
+  .recharts-default-tooltip.app-chart-tooltip-compact .recharts-tooltip-label {
+    color: var(--app-text) !important;
+  }
+
+  .recharts-default-tooltip.app-chart-tooltip-compact .recharts-tooltip-item,
+  .recharts-default-tooltip.app-chart-tooltip-compact .recharts-tooltip-item-name,
+  .recharts-default-tooltip.app-chart-tooltip-compact .recharts-tooltip-item-separator {
+    color: var(--app-text-muted) !important;
+  }
+
+  .recharts-default-tooltip.app-chart-tooltip-compact .recharts-tooltip-item-value {
+    color: var(--app-text) !important;
+  }
+
   .app-tooltip-panel {
     background: var(--app-bg);
     color: var(--app-text);
