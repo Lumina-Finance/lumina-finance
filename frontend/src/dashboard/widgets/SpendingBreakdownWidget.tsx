@@ -87,7 +87,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   )
 
   return (
-    <div className="app-card h-[450px] flex flex-col">
+    <div className="app-card h-[470px] flex flex-col">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />

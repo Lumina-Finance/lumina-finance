@@ -48,7 +48,7 @@ export function TopBudgetsWidget() {
   )
 
   return (
-    <div className="app-card h-[430px] flex flex-col">
+    <div className="app-card h-[410px] flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
