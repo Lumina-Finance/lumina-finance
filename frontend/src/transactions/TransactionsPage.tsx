@@ -136,26 +136,28 @@ export default function TransactionsPage() {
       </header>
 
       <div className="space-y-6">
-        <TransactionsTopBand
-          overview={overview}
-          displayCurrency={displayCurrency}
-          filterListLoading={filterListLoading}
-          rangeLabel={rangeLabel}
-          chartAnimationKey={chartAnimationKey}
-          prefersReducedMotion={prefersReducedMotion}
-          openingOutlierId={openingOutlierId}
-          outlierOpenError={outlierOpenError}
-          onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
-        />
+        <div className="space-y-3">
+          <TransactionsTopBand
+            overview={overview}
+            displayCurrency={displayCurrency}
+            filterListLoading={filterListLoading}
+            rangeLabel={rangeLabel}
+            chartAnimationKey={chartAnimationKey}
+            prefersReducedMotion={prefersReducedMotion}
+            openingOutlierId={openingOutlierId}
+            outlierOpenError={outlierOpenError}
+            onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
+          />
 
-        <div
-          style={{
-            height: 2,
-            background: 'var(--app-accent)',
-            opacity: 0.35,
-            borderRadius: 1,
-          }}
-        />
+          <div
+            style={{
+              height: 2,
+              background: 'var(--app-accent)',
+              opacity: 0.35,
+              borderRadius: 1,
+            }}
+          />
+        </div>
 
         <TransactionListSection
           accounts={transactionAccounts}

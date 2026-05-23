@@ -122,19 +122,19 @@ export default function TransactionsTopBand({
             openingOutlierId={openingOutlierId}
             outlierOpenError={outlierOpenError}
             onOpenOutlierTransaction={onOpenOutlierTransaction}
-            className="border-t border-[var(--app-border)] pt-5 min-[730px]:border-r min-[730px]:pr-6 min-[1750px]:border-x min-[1750px]:border-t-0 min-[1750px]:px-6 min-[1750px]:pt-0"
+            className="border-t border-[var(--app-border)] pt-3 min-[730px]:relative min-[730px]:pr-6 min-[730px]:after:absolute min-[730px]:after:bottom-0 min-[730px]:after:right-0 min-[730px]:after:top-3 min-[730px]:after:w-px min-[730px]:after:bg-[var(--app-border)] min-[730px]:after:content-[''] min-[1750px]:border-x min-[1750px]:border-t-0 min-[1750px]:px-6 min-[1750px]:pt-0 min-[1750px]:after:hidden"
           />
           <TopCategoriesChart
             categorySpend={categorySpend}
             displayCurrency={displayCurrency}
             chartAnimationKey={chartAnimationKey}
             prefersReducedMotion={prefersReducedMotion}
-            className="border-t border-[var(--app-border)] pt-5 min-[730px]:pl-6 min-[1750px]:border-t-0 min-[1750px]:pt-0"
+            className="border-t border-[var(--app-border)] pt-3 min-[730px]:pl-6 min-[1750px]:border-t-0 min-[1750px]:pt-0"
           />
         </div>
       </motion.div>
 
-      <div className="flex items-center gap-4">
+      <div className="mb-3 mt-2 flex items-center gap-4 min-[730px]:my-2">
         <div className="flex-1 h-px" style={{ background: 'var(--app-border-strong)' }} />
         <p className="shrink-0 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
           Showing data for {rangeLabel}

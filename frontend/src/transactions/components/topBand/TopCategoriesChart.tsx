@@ -16,6 +16,29 @@ import {
 } from '@/transactions/components/topBand/constants'
 import type { OverviewCategorySpend } from '@/transactions/components/topBand/types'
 
+function TopCategoryYAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+}: {
+  x?: number
+  y?: number
+  payload?: { value?: string | number }
+}) {
+  return (
+    <text
+      x={x}
+      y={y}
+      dominantBaseline="central"
+      fill="var(--app-text-subtle)"
+      fontSize={13}
+      textAnchor="end"
+    >
+      {payload?.value ?? ''}
+    </text>
+  )
+}
+
 export default function TopCategoriesChart({
   categorySpend,
   displayCurrency,
@@ -70,7 +93,7 @@ export default function TopCategoriesChart({
                 width={topCategoryAxisWidth}
                 interval={0}
                 tickMargin={6}
-                tick={{ fontSize: 13, fill: 'var(--app-text-subtle)' }}
+                tick={<TopCategoryYAxisTick />}
                 axisLine={false}
                 tickLine={false}
               />
