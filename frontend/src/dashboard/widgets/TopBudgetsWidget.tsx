@@ -85,7 +85,7 @@ export function TopBudgetsWidget() {
                 >
                   <div className="flex items-baseline justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate max-[1000px]:text-[0.7875rem]">{budget.name}</p>
+                      <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
                       <p
                         className="mt-0.5 text-xs max-[1000px]:text-[0.675rem]"
                         style={{ color: 'var(--app-text-muted)' }}
@@ -96,7 +96,7 @@ export function TopBudgetsWidget() {
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-lg font-semibold leading-none max-[1000px]:text-[1.0125rem]" style={{ color: attention.textColor }}>
+                      <p className="text-base font-semibold leading-none max-[1000px]:text-[0.9rem]" style={{ color: attention.textColor }}>
                         {budget.usagePct}%
                       </p>
                       <p className="mt-1 text-xs font-medium max-[1000px]:text-[0.675rem]" style={{ color: attention.textColor }}>
