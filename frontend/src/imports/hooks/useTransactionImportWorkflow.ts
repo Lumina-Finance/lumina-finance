@@ -5,7 +5,6 @@ import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transactions'
 import type { DropdownOption } from '@/components/Dropdown'
-import { useActionFeedback } from '@/hooks/useActionFeedback'
 import {
   ACCOUNT_KIND_LABELS,
   COLUMN_TARGETS,
@@ -15,7 +14,7 @@ import {
   EMPTY_COLUMN_MAP,
   KIND_LABELS,
 } from '../constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAccountSource, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '../types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAccountSource, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
 import {
   buildTransactionImportPayload,
   formatImportSummary,
@@ -47,6 +46,7 @@ import {
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 const CSV_PROCESSING_MIN_MS = 1500
+const IMPORT_OVERLAY_MIN_MS = 2000
 
 export function useTransactionImportWorkflow() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -71,12 +71,12 @@ export function useTransactionImportWorkflow() {
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
+  const [importOverlayPhase, setImportOverlayPhase] = useState<ImportOverlayPhase>('idle')
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
   const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies()
   const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
   const importTransactions = useImportTransactions()
-  const importFeedback = useActionFeedback()
 
   const accountOptions = useMemo<DropdownOption[]>(
     () => [
@@ -390,7 +390,8 @@ export function useTransactionImportWorkflow() {
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
   const importSummary = importResult ? formatImportSummary(importResult) : ''
-  const canCommitImport = Boolean(importBuild.payload) && !importFeedback.isPending && !importTransactions.isPending && !importResult
+  const importOverlayOpen = importOverlayPhase !== 'idle'
+  const canCommitImport = Boolean(importBuild.payload) && !importOverlayOpen && !importTransactions.isPending && !importResult
 
   const syncAutoMatchKeys = (
     nextColumnMap: ColumnMap,
@@ -505,17 +506,55 @@ export function useTransactionImportWorkflow() {
 
   const handleCommitImport = async () => {
     const payload = importBuild.payload
-    if (!payload || importFeedback.isPending || importTransactions.isPending) return
+    if (!payload || importOverlayOpen || importTransactions.isPending) return
 
     setImportError(null)
     setImportResult(null)
+    setImportOverlayPhase('importing')
+    const minimumOverlay = sleep(IMPORT_OVERLAY_MIN_MS)
 
     try {
-      const result = await importFeedback.run(() => importTransactions.mutateAsync(payload))
+      const result = await importTransactions.mutateAsync(payload)
+      await minimumOverlay
       setImportResult(result)
+      setImportOverlayPhase('success')
     } catch (error) {
+      await minimumOverlay
       setImportError(getErrorMessage(error))
+      setImportOverlayPhase('error')
     }
+  }
+
+  const dismissImportOverlay = () => {
+    if (importOverlayPhase !== 'error') return
+    setImportOverlayPhase('idle')
+  }
+
+  const resetImportWorkflow = () => {
+    setFiles([])
+    setIsProcessingFiles(false)
+    setAutoFilledColumnHeaders(new Set())
+    setColumnMap(EMPTY_COLUMN_MAP)
+    setAccountMappings({})
+    setAccountAutoMatchKey('')
+    setAccountCreateTypes({})
+    setAccountCreateCurrencies({})
+    setAccountCreateInstitutions({})
+    setSelectedAccountRows(new Set())
+    setBatchAccountType('')
+    setBatchAccountCurrency('')
+    setBatchAccountInstitution('')
+    setMerchantHandlingOpen(true)
+    setTagHandlingOpen(true)
+    setColumnValidationErrors({})
+    setCategoryMappings({})
+    setCategoryAutoMatchKey('')
+    setCategoryCreateKinds({})
+    setImportError(null)
+    setImportResult(null)
+    setImportOverlayPhase('idle')
+    importTransactions.reset()
+    if (inputRef.current) inputRef.current.value = ''
   }
 
   return {
@@ -540,11 +579,12 @@ export function useTransactionImportWorkflow() {
     categoryCreateKinds,
     importError,
     importResult,
+    importOverlayPhase,
+    importOverlayOpen,
     accountsLoading,
     currenciesLoading,
     institutionsLoading,
     categoriesLoading,
-    importFeedback,
     accountOptions,
     currencyOptions,
     institutionOptions,
@@ -584,6 +624,8 @@ export function useTransactionImportWorkflow() {
     updateSourceAccount,
     updateColumnTarget,
     handleCommitImport,
+    dismissImportOverlay,
+    resetImportWorkflow,
   }
 }
 

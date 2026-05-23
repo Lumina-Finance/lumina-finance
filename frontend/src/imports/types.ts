@@ -16,6 +16,7 @@ export type ColumnMap = Record<ColumnTarget, string>
 export type ColumnValidationErrors = Record<string, string>
 export type CsvRow = Record<string, string>
 export type ImportCategoryKind = Category['kind']
+export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error'
 
 export interface ImportAccountSource {
   id: string
