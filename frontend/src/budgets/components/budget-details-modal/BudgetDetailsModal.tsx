@@ -19,6 +19,7 @@ import { getCategoryColorMap } from '@/utils/chartColor'
 import BudgetChartTooltip from '@/budgets/components/budget-details-modal/BudgetChartTooltip'
 import BudgetEditModal from '@/budgets/components/budget-form/BudgetEditModal'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
+import MarqueeText from '@/components/MarqueeText'
 import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
 import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFACE_TRANSITION_SECONDS } from '@/budgets/constants'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
@@ -274,8 +275,8 @@ export default function BudgetDetailsModal({
             >
               <header className="relative shrink-0">
                 <div className="min-w-0 w-full">
-                  <h2 className="truncate pr-11 text-2xl font-semibold min-[1050px]:pr-0">
-                    {baseBudget.name}
+                  <h2 className="pr-11 text-2xl font-semibold min-[1050px]:pr-0">
+                    <MarqueeText active>{baseBudget.name}</MarqueeText>
                   </h2>
                   <div className="mt-2 flex min-w-0 items-center justify-between gap-3">
                     <p className="min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
