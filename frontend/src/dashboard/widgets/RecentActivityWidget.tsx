@@ -45,7 +45,7 @@ export function RecentActivityWidget() {
               return (
                 <div
                   key={transaction.id}
-                  className="flex items-center justify-between gap-2 py-2"
+                  className="flex items-center justify-between gap-2 py-2.5"
                   style={
                     index < recentActivity.length - 1
                       ? { borderBottom: '1px solid var(--app-border)' }
