@@ -1,4 +1,5 @@
-import { FileText, Upload, X } from 'lucide-react'
+import { FileText, LoaderCircle, Upload, X } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '../constants'
 import { EmptyState, ImportStat, ImportStep } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
@@ -9,6 +10,7 @@ type ImportFilesStepProps = Pick<
   | 'inputRef'
   | 'mode'
   | 'files'
+  | 'isProcessingFiles'
   | 'totalRows'
   | 'mappedFieldCount'
   | 'handleModeChange'
@@ -20,12 +22,28 @@ export function ImportFilesStep({
   inputRef,
   mode,
   files,
+  isProcessingFiles,
   totalRows,
   mappedFieldCount,
   handleModeChange,
   handleFileChange,
   removeFile,
 }: ImportFilesStepProps) {
+  const shouldReduceMotion = useReducedMotion()
+  const uploadStateMotion = shouldReduceMotion
+    ? {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+      transition: { duration: 0.12 },
+    }
+    : {
+      initial: { opacity: 0, y: 8, scale: 0.985, filter: 'blur(3px)' },
+      animate: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
+      exit: { opacity: 0, y: -8, scale: 0.985, filter: 'blur(3px)' },
+      transition: { duration: 0.24, ease: [0.25, 0.1, 0.25, 1] as const },
+    }
+
   return (
     <ImportStep
       index="01"
@@ -39,6 +57,7 @@ export function ImportFilesStep({
           type="button"
           className={`app-segmented-option flex-1 text-sm ${mode === 'single-file' ? 'app-segmented-option-active' : ''}`}
           onClick={() => handleModeChange('single-file')}
+          disabled={isProcessingFiles}
         >
           Single file
         </button>
@@ -46,6 +65,7 @@ export function ImportFilesStep({
           type="button"
           className={`app-segmented-option flex-1 text-sm ${mode === 'file-per-account' ? 'app-segmented-option-active' : ''}`}
           onClick={() => handleModeChange('file-per-account')}
+          disabled={isProcessingFiles}
         >
           File per account
         </button>
@@ -58,27 +78,63 @@ export function ImportFilesStep({
         accept=".csv,text/csv"
         multiple={mode === 'file-per-account'}
         onChange={handleFileChange}
+        disabled={isProcessingFiles}
       />
       <button
         type="button"
-        className="group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 hover:bg-[var(--app-surface-soft)]"
+        className="group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 hover:bg-[var(--app-surface-soft)] disabled:cursor-wait disabled:opacity-100"
         style={{
           ...IMPORT_INSET_STYLE,
           color: 'var(--app-text-muted)',
         }}
         onClick={() => inputRef.current?.click()}
+        disabled={isProcessingFiles}
+        aria-busy={isProcessingFiles}
       >
-        <span
-          className="mb-3 flex h-11 w-11 items-center justify-center transition-colors duration-150"
-          style={{ background: 'var(--app-surface-soft)' }}
-        >
-          <Upload size={20} aria-hidden />
-        </span>
-        <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-          Upload CSV {mode === 'file-per-account' ? 'files' : 'file'}
-        </span>
-        <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-          {mode === 'file-per-account' ? 'Multiple files accepted.' : 'One file accepted.'}
+        <span className="relative flex min-h-[5.75rem] w-full items-center justify-center overflow-hidden">
+          <AnimatePresence initial={false} mode="wait">
+            {isProcessingFiles ? (
+              <motion.span
+                key="processing"
+                className="flex flex-col items-center"
+                {...uploadStateMotion}
+              >
+                <span
+                  className="mb-3 flex h-11 w-11 items-center justify-center"
+                  style={{ background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }}
+                >
+                  <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
+                </span>
+                <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                  Processing CSV
+                </span>
+                <span className="mt-2 flex items-center gap-1" aria-hidden>
+                  <span className="h-1.5 w-6 animate-pulse" style={{ background: 'var(--app-accent)' }} />
+                  <span className="h-1.5 w-6 animate-pulse [animation-delay:120ms]" style={{ background: 'var(--app-accent)' }} />
+                  <span className="h-1.5 w-6 animate-pulse [animation-delay:240ms]" style={{ background: 'var(--app-accent)' }} />
+                </span>
+              </motion.span>
+            ) : (
+              <motion.span
+                key={`upload-${mode}`}
+                className="flex flex-col items-center"
+                {...uploadStateMotion}
+              >
+                <span
+                  className="mb-3 flex h-11 w-11 items-center justify-center transition-colors duration-150"
+                  style={{ background: 'var(--app-surface-soft)' }}
+                >
+                  <Upload size={20} aria-hidden />
+                </span>
+                <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                  Upload CSV {mode === 'file-per-account' ? 'files' : 'file'}
+                </span>
+                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  {mode === 'file-per-account' ? 'Multiple files accepted.' : 'One file accepted.'}
+                </span>
+              </motion.span>
+            )}
+          </AnimatePresence>
         </span>
       </button>
 

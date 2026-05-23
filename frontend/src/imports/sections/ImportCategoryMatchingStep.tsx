@@ -7,6 +7,7 @@ type ImportCategoryMatchingStepProps = Pick<
   TransactionImportWorkflow,
   | 'importedCategories'
   | 'resolvedCategoryMappings'
+  | 'autoFilledCategories'
   | 'categoryCreateKinds'
   | 'categoryTypesBySource'
   | 'categoryById'
@@ -19,6 +20,7 @@ type ImportCategoryMatchingStepProps = Pick<
 export function ImportCategoryMatchingStep({
   importedCategories,
   resolvedCategoryMappings,
+  autoFilledCategories,
   categoryCreateKinds,
   categoryTypesBySource,
   categoryById,
@@ -44,20 +46,28 @@ export function ImportCategoryMatchingStep({
           detailLabel="Type"
           targetLabel="Existing Category"
           createValue={CREATE_CATEGORY_VALUE}
-          rows={importedCategories.map((category) => ({
-            id: category,
-            source: category,
-            detailKind: getCategoryMatchKind(
-              resolvedCategoryMappings[category] ?? '',
+          rows={importedCategories.map((category) => {
+            const value = resolvedCategoryMappings[category] ?? ''
+            const detailKind = getCategoryMatchKind(
+              value,
               categoryCreateKinds[category],
               categoryTypesBySource[category],
               categoryById,
-            ),
-            detailDisabled: isExistingCategoryMatch(resolvedCategoryMappings[category] ?? ''),
-            onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [category]: kind })),
-            value: resolvedCategoryMappings[category] ?? '',
-            onChange: (value) => setCategoryMappings((current) => ({ ...current, [category]: value })),
-          }))}
+            )
+            const existingMatch = isExistingCategoryMatch(value)
+
+            return {
+              id: category,
+              source: category,
+              autoFilled: autoFilledCategories.has(category),
+              detailAutoFilled: !existingMatch && !categoryCreateKinds[category] && Boolean(detailKind),
+              detailKind,
+              detailDisabled: existingMatch,
+              onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [category]: kind })),
+              value,
+              onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [category]: nextValue })),
+            }
+          })}
           options={categoryMatchOptions}
           disabled={categoriesLoading}
         />

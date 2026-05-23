@@ -18,6 +18,8 @@ export function ValueMatchTable({
   rows: Array<{
     id: string
     source: string
+    autoFilled?: boolean
+    detailAutoFilled?: boolean
     detail?: string
     detailKind?: ImportCategoryKind | ''
     detailDisabled?: boolean
@@ -48,7 +50,7 @@ export function ValueMatchTable({
             const creating = Boolean(createValue && row.value === createValue)
 
             return (
-              <tr key={row.id}>
+              <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
                     <p className="truncate font-medium">{row.source}</p>
@@ -61,17 +63,19 @@ export function ValueMatchTable({
                 </td>
                 {detailLabel && (
                   <td className="px-4 py-2 align-middle">
-                    {row.onDetailKindChange ? (
-                      <ImportCategoryTypeToggle
-                        value={row.detailKind ?? ''}
-                        onChange={row.onDetailKindChange}
-                        disabled={disabled || row.detailDisabled}
-                      />
-                    ) : (
-                      <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                        {row.detail ?? ''}
-                      </span>
-                    )}
+                    <div className={row.detailAutoFilled ? 'import-auto-fill-field' : undefined}>
+                      {row.onDetailKindChange ? (
+                        <ImportCategoryTypeToggle
+                          value={row.detailKind ?? ''}
+                          onChange={row.onDetailKindChange}
+                          disabled={disabled || row.detailDisabled}
+                        />
+                      ) : (
+                        <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                          {row.detail ?? ''}
+                        </span>
+                      )}
+                    </div>
                   </td>
                 )}
                 <td className="px-4 py-2 align-middle">
@@ -81,7 +85,7 @@ export function ValueMatchTable({
                     onChange={row.onChange}
                     searchable
                     blankWhenEmpty
-                    className="app-input h-9 px-3"
+                    className={`app-input h-9 px-3 ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
                     disabled={disabled}
                   />
                 </td>

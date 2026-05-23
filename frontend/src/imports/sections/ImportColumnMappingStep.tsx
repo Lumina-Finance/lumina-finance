@@ -3,13 +3,14 @@ import type { TransactionImportWorkflow } from '../hooks'
 
 type ImportColumnMappingStepProps = Pick<
   TransactionImportWorkflow,
-  'headers' | 'files' | 'columnTargetOptions' | 'columnMap' | 'columnValidationErrors' | 'updateColumnTarget'
+  'headers' | 'files' | 'columnTargetOptions' | 'autoFilledColumnHeaders' | 'columnMap' | 'columnValidationErrors' | 'updateColumnTarget'
 >
 
 export function ImportColumnMappingStep({
   headers,
   files,
   columnTargetOptions,
+  autoFilledColumnHeaders,
   columnMap,
   columnValidationErrors,
   updateColumnTarget,
@@ -30,6 +31,7 @@ export function ImportColumnMappingStep({
           headers={headers}
           files={files}
           options={columnTargetOptions}
+          autoFilledHeaders={autoFilledColumnHeaders}
           columnMap={columnMap}
           validationErrors={columnValidationErrors}
           onChange={updateColumnTarget}

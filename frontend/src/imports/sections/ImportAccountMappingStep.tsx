@@ -8,6 +8,8 @@ type ImportAccountMappingStepProps = Pick<
   | 'mode'
   | 'sourceAccounts'
   | 'accountMappings'
+  | 'autoFilledAccountSources'
+  | 'autoFilledFileAccountIds'
   | 'accountById'
   | 'accountCreateTypes'
   | 'accountCreateCurrencies'
@@ -32,6 +34,8 @@ export function ImportAccountMappingStep({
   mode,
   sourceAccounts,
   accountMappings,
+  autoFilledAccountSources,
+  autoFilledFileAccountIds,
   accountById,
   accountCreateTypes,
   accountCreateCurrencies,
@@ -75,6 +79,7 @@ export function ImportAccountMappingStep({
                 id: sourceAccount,
                 source: sourceAccount,
                 value,
+                autoFilled: autoFilledAccountSources.has(sourceAccount),
                 accountType: account?.account_type ?? '',
                 accountCurrency: account?.currency ?? '',
                 createType: getResolvedAccountCreateType(sourceAccount, accountCreateTypes),
@@ -112,6 +117,7 @@ export function ImportAccountMappingStep({
               id: file.id,
               source: file.name,
               value,
+              autoFilled: autoFilledFileAccountIds.has(file.id),
               accountType: account?.account_type ?? '',
               accountCurrency: account?.currency ?? '',
               createType: getResolvedAccountCreateType(file.id, accountCreateTypes),

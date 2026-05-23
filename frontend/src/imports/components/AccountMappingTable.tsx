@@ -20,6 +20,7 @@ export function AccountMappingTable({
     id: string
     source: string
     value: string
+    autoFilled?: boolean
     accountType: string
     accountCurrency: string
     createType: string
@@ -157,7 +158,7 @@ export function AccountMappingTable({
               const creating = row.value === CREATE_ACCOUNT_VALUE
 
               return (
-                <tr key={row.id}>
+                <tr key={row.id} className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
                   <td className="px-4 py-3 align-middle">
                     <ImportCheckbox
                       checked={selectedRowIds.has(row.id)}
@@ -182,7 +183,7 @@ export function AccountMappingTable({
                       onChange={row.onChange}
                       searchable
                       blankWhenEmpty
-                      className="app-input"
+                      className={`app-input ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
                       disabled={disabled}
                     />
                   </td>
@@ -193,7 +194,7 @@ export function AccountMappingTable({
                       onChange={row.onCreateTypeChange}
                       searchable
                       blankWhenEmpty
-                      className="app-input"
+                      className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
                       disabled={!creating}
                     />
                   </td>
@@ -204,7 +205,7 @@ export function AccountMappingTable({
                       onChange={row.onCreateCurrencyChange}
                       searchable
                       blankWhenEmpty
-                      className="app-input"
+                      className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
                       disabled={!creating || currenciesDisabled}
                     />
                   </td>

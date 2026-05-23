@@ -7,6 +7,7 @@ export function HeaderMappingTable({
   headers,
   files,
   options,
+  autoFilledHeaders,
   columnMap,
   validationErrors,
   onChange,
@@ -14,6 +15,7 @@ export function HeaderMappingTable({
   headers: string[]
   files: ImportFileDraft[]
   options: DropdownOption[]
+  autoFilledHeaders: Set<string>
   columnMap: ColumnMap
   validationErrors: ColumnValidationErrors
   onChange: (header: string, target: string) => void
@@ -39,10 +41,12 @@ export function HeaderMappingTable({
             const samples = getColumnSamples(files, header)
             const isIgnored = selectedTarget === ''
             const validationError = validationErrors[header]
+            const autoFilled = Boolean(selectedTarget && autoFilledHeaders.has(header))
 
             return (
               <tr
                 key={header}
+                className={autoFilled ? 'import-auto-fill-row' : undefined}
                 style={{
                   background: isIgnored
                     ? 'color-mix(in srgb, var(--app-bg) 88%, var(--app-text) 12%)'
@@ -84,7 +88,7 @@ export function HeaderMappingTable({
                         </span>
                       )}
                     </span>
-                    <div className="min-w-0 flex-1">
+                    <div className={`min-w-0 flex-1 ${autoFilled ? 'import-auto-fill-field' : ''}`}>
                       <Dropdown
                         options={options}
                         value={selectedTarget}
