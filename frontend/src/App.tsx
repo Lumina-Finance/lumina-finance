@@ -45,6 +45,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   const pageTransitioning = pageTransitionPhase !== 'idle';
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
   const isFocusedPage = location.pathname === '/settings/imports';
+  const desktopBottomPadding = location.pathname === '/' ? 'min-[1050px]:pb-0' : 'min-[1050px]:pb-12';
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
@@ -77,7 +78,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
           <Navigation />
           <main
             id="app-page-content"
-            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : 'relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 min-[1050px]:pb-12 min-[1050px]:pt-10'}`}
+            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10`}`}
             aria-busy={pageTransitioning}
           >
             <AnimatePresence>
