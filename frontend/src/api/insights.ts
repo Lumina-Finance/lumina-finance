@@ -25,7 +25,8 @@ export interface InsightsFundFlowResponse {
   expense_category_count: number;
 }
 
-export type InsightsBreakdownEntry = [string, string, number];
+export type InsightsBreakdownCategoryKind = 'expense' | 'income';
+export type InsightsBreakdownEntry = [string, string, InsightsBreakdownCategoryKind, number];
 export type InsightsCategoryTrendEntry = [string, string, number, number, number | null, number];
 
 export interface InsightsIncomeExpenseBreakdownResponse {

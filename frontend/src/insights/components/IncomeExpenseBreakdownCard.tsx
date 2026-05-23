@@ -14,6 +14,7 @@ import {
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import { IncomeLossBadge } from '@/components/IncomeLossBadge'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -24,6 +25,7 @@ export type BreakdownMode = 'expense' | 'income'
 export type BreakdownEntry = {
   id: string
   name: string
+  categoryKind: BreakdownMode
   amount: number
 }
 
@@ -110,6 +112,10 @@ function getTransactionCountLabel(count: number) {
   return `${count} ${count === 1 ? 'transaction' : 'transactions'}`
 }
 
+function isIncomeLossEntry(entry: BreakdownEntry, mode: BreakdownMode) {
+  return mode === 'expense' && entry.categoryKind === 'income'
+}
+
 export function IncomeExpenseBreakdownCard({
   mode,
   onModeToggle,
@@ -141,12 +147,12 @@ export function IncomeExpenseBreakdownCard({
   const breakdownColors = useMemo(() => getCategoryColorMap(displaySnapshot.entries.map((entry) => ({
     id: entry.id,
     name: entry.name,
-    kind: displaySnapshot.mode,
-  }))), [displaySnapshot.entries, displaySnapshot.mode])
+    kind: entry.categoryKind,
+  }))), [displaySnapshot.entries])
   const getBreakdownColor = (entry: BreakdownEntry) => getCategoryColor({
     id: entry.id,
     name: entry.name,
-    kind: displaySnapshot.mode,
+    kind: entry.categoryKind,
   })
   const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
     ?? getBreakdownColor(entry)
@@ -203,7 +209,24 @@ export function IncomeExpenseBreakdownCard({
                     </Pie>
                     <Tooltip
                       wrapperClassName="app-chart-tooltip-default"
-                      formatter={(value, name) => [formatCurrency(Number(value), displaySnapshot.displayCurrency), name]}
+                      content={({ active, payload }) => {
+                        const entry = payload?.[0]?.payload as BreakdownEntry | undefined
+                        if (!active || !entry) return null
+
+                        return (
+                          <div className="app-chart-tooltip-default-content min-w-40">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium" style={{ color: 'var(--app-text)' }}>
+                                {entry.name}
+                              </span>
+                              {isIncomeLossEntry(entry, displaySnapshot.mode) && <IncomeLossBadge />}
+                            </div>
+                            <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
+                              {formatCurrency(entry.amount, displaySnapshot.displayCurrency)}
+                            </div>
+                          </div>
+                        )
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -229,8 +252,11 @@ export function IncomeExpenseBreakdownCard({
                           className="h-2.5 w-2.5 rounded-full"
                           style={{ background: getSpacedBreakdownColor(entry) }}
                         />
-                        <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--app-text-muted)' }}>
-                          {entry.name}
+                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                          <span className="min-w-0 truncate" style={{ color: 'var(--app-text-muted)' }}>
+                            {entry.name}
+                          </span>
+                          {isIncomeLossEntry(entry, displaySnapshot.mode) && <IncomeLossBadge />}
                         </span>
                         <span className="font-financial">
                           {getPct(entry.amount, total)}%

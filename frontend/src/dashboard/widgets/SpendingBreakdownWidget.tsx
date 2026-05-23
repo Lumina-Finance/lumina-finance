@@ -7,13 +7,14 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import { ArrowDownLeft, PieChart as PieChartIcon, Repeat } from 'lucide-react'
+import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
   type CategoryBreakdownEntry,
   type SpendingRange,
   useSpendingBreakdown,
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
+import { IncomeLossBadge } from '@/components/IncomeLossBadge'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -34,23 +35,6 @@ type BreakdownMode = 'spending' | 'income'
 
 function isIncomeLossEntry(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
   return mode === 'spending' && entry.category_kind === 'income'
-}
-
-function IncomeLossBadge() {
-  return (
-    <span
-      className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded border px-1 text-[0.625rem] font-semibold leading-none"
-      style={{
-        background: 'var(--app-negative-soft)',
-        borderColor: 'var(--app-negative-border)',
-        color: 'var(--app-negative)',
-      }}
-      title="Income category counted as expense"
-    >
-      <ArrowDownLeft size={10} strokeWidth={2.2} aria-hidden />
-      Income loss
-    </span>
-  )
 }
 
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {

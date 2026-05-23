@@ -33,8 +33,8 @@ class InsightsFundFlowResponse(BaseModel):
 class InsightsIncomeExpenseBreakdownResponse(BaseModel):
     """Payload for the insights income/expense breakdown card."""
 
-    expense: list[tuple[str, str, int]]
-    income: list[tuple[str, str, int]]
+    expense: list[tuple[str, str, str, int]]
+    income: list[tuple[str, str, str, int]]
     expense_increases: list[tuple[str, str, int, int, int | None, int]]
     expense_decreases: list[tuple[str, str, int, int, int | None, int]]
     income_increases: list[tuple[str, str, int, int, int | None, int]]
