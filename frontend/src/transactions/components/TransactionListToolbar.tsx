@@ -192,13 +192,8 @@ export default function TransactionListToolbar({
   useEffect(() => {
     if (!isMobileBackdropActive) return
 
-    const root = document.documentElement
     const blurTarget = document.getElementById('app-page-content')
     const mobileNavigationToggle = document.getElementById('app-mobile-navigation-toggle')
-    const previousOverflow = document.body.style.overflow
-    const previousRootOverflow = root.style.overflow
-    const previousRootOverscroll = root.style.overscrollBehavior
-    const previousBodyOverscroll = document.body.style.overscrollBehavior
     const previousBlurTargetFilter = blurTarget?.style.filter ?? ''
     const previousBlurTargetOpacity = blurTarget?.style.opacity ?? ''
     const previousBlurTargetTransition = blurTarget?.style.transition ?? ''
@@ -208,10 +203,6 @@ export default function TransactionListToolbar({
     const previousMobileNavigationToggleTransition = mobileNavigationToggle?.style.transition ?? ''
     const previousMobileNavigationToggleWillChange = mobileNavigationToggle?.style.willChange ?? ''
 
-    root.style.overflow = 'hidden'
-    root.style.overscrollBehavior = 'none'
-    document.body.style.overflow = 'hidden'
-    document.body.style.overscrollBehavior = 'none'
     if (blurTarget) {
       blurTarget.style.transition = 'filter 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms cubic-bezier(0.22, 1, 0.36, 1)'
       blurTarget.style.willChange = 'filter, opacity'
@@ -221,11 +212,16 @@ export default function TransactionListToolbar({
       mobileNavigationToggle.style.willChange = 'opacity'
     }
 
+    const preventBackgroundScroll = (event: TouchEvent) => {
+      const panel = mobileSheetPanelRef.current
+      if (panel?.contains(event.target as Node)) return
+      event.preventDefault()
+    }
+
+    document.addEventListener('touchmove', preventBackgroundScroll, { passive: false })
+
     return () => {
-      root.style.overflow = previousRootOverflow
-      root.style.overscrollBehavior = previousRootOverscroll
-      document.body.style.overflow = previousOverflow
-      document.body.style.overscrollBehavior = previousBodyOverscroll
+      document.removeEventListener('touchmove', preventBackgroundScroll)
       if (blurTarget) {
         blurTarget.style.filter = previousBlurTargetFilter
         blurTarget.style.opacity = previousBlurTargetOpacity
