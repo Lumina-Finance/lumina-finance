@@ -14,6 +14,7 @@ from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountType, CategoryKind, Per
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import GroupMember
+from app.models.institution import Institution
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
@@ -148,6 +149,8 @@ async def _create_import_account(db: AsyncSession, user: User, create) -> Accoun
     currency = create.currency.upper()
     if not await _currency_exists(db, currency):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Invalid currency code: {currency}")
+    if create.institution_id and not await _institution_exists(db, create.institution_id):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
     account = Account(
         owner_id=user.id,
@@ -156,7 +159,7 @@ async def _create_import_account(db: AsyncSession, user: User, create) -> Accoun
         account_type=account_type,
         tax_advantaged_plan_id=None,
         name=_clean_required(create.name, "Account name"),
-        institution_id=None,
+        institution_id=create.institution_id,
         currency=currency,
         credit_limit=None,
         is_hidden=False,
@@ -264,6 +267,11 @@ async def _load_currencies(db: AsyncSession, currency_ids: set[str]) -> dict[str
 
 async def _currency_exists(db: AsyncSession, currency: str) -> bool:
     return (await db.execute(select(Currency.id).where(Currency.id == currency))).scalar_one_or_none() is not None
+
+
+async def _institution_exists(db: AsyncSession, institution_id: uuid.UUID) -> bool:
+    result = await db.execute(select(Institution.id).where(Institution.id == institution_id))
+    return result.scalar_one_or_none() is not None
 
 
 async def _load_personal_merchants(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Merchant]:

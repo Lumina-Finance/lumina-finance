@@ -3,7 +3,9 @@ from datetime import UTC, datetime
 
 from sqlalchemy import update
 
+from app.models.base import InstitutionStatus
 from app.models.currency import Currency
+from app.models.institution import Institution
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.conftest import _create_user, _get_auth_header
@@ -22,6 +24,21 @@ async def _seed_usd_currency():
     async with TestSession() as session:
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
+
+
+async def _seed_institution():
+    """Seed an institution directly for import-created account linking."""
+    async with TestSession() as session:
+        inst = Institution(
+            status=InstitutionStatus.CANONICAL,
+            name="Test Bank",
+            country_code="CA",
+            website="https://testbank.example.com",
+        )
+        session.add(inst)
+        await session.commit()
+        await session.refresh(inst)
+        return inst
 
 
 async def _create_category(client, headers, **overrides):
@@ -165,13 +182,19 @@ async def _setup_user_with_deps(client, email="test@example.com", name_prefix="M
 
 async def test_import_transactions_creates_records_and_recomputes_snapshots(client):
     """Import creates requested records, transactions, tags, and account snapshots."""
+    institution = await _seed_institution()
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await client.post("/transactions/import", json={
         "accounts": [{
             "source": "TD Visa",
-            "create": {"name": "TD Visa", "account_type": "credit_card", "currency": "CAD"},
+            "create": {
+                "name": "TD Visa",
+                "account_type": "credit_card",
+                "currency": "CAD",
+                "institution_id": str(institution.id),
+            },
         }],
         "categories": [{
             "source": "Restaurants",
@@ -211,6 +234,7 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     account = next(item for item in accounts_resp.json() if item["id"] == account_id)
     assert account["account_kind"] == "revolving"
     assert account["account_type"] == "credit_card"
+    assert account["institution"]["id"] == str(institution.id)
     assert account["current_balance"] == -1234
 
     snapshots_resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
@@ -277,6 +301,33 @@ async def test_import_transactions_rejects_unmapped_account_source(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account source is not mapped: Missing Account"
+
+
+async def test_import_transactions_rejects_invalid_created_account_institution(client):
+    """Import-created accounts must reference an existing institution."""
+    headers, _, category_id = await _setup_user_with_deps(client)
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [{
+            "source": "Mapped Account",
+            "create": {
+                "name": "Imported Account",
+                "account_type": "checking",
+                "currency": "CAD",
+                "institution_id": NONEXISTENT_ID,
+            },
+        }],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [{
+            "account_source": "Mapped Account",
+            "category_source": "Groceries",
+            "dt": "2026-04-11",
+            "amount": "-10.00",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Institution not found"
 
 
 async def test_import_transactions_rejects_invalid_raw_amount(client):

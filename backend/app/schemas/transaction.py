@@ -107,6 +107,7 @@ class TransactionImportCreateAccount(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     account_type: str
     currency: str = Field(min_length=3, max_length=3)
+    institution_id: uuid.UUID | None = None
 
 
 class TransactionImportAccountMapping(BaseModel):

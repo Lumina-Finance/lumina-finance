@@ -40,6 +40,13 @@ export function getResolvedAccountCreateCurrency(
   return accountCreateCurrencies[rowId] || ''
 }
 
+export function getResolvedAccountCreateInstitution(
+  rowId: string,
+  accountCreateInstitutions: Record<string, string>,
+) {
+  return accountCreateInstitutions[rowId] || ''
+}
+
 function findBestAccountNameMatch(source: string, accounts: AccountsOverview[]) {
   let bestMatch: { account: AccountsOverview; score: number } | null = null
   let tied = false

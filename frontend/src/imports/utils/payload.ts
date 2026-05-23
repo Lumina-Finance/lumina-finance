@@ -10,6 +10,7 @@ import { normalizeImportDate, parseImportNumber } from './valueParsers'
 
 export function buildTransactionImportPayload({
   accountCreateCurrencies,
+  accountCreateInstitutions,
   accountCreateTypes,
   accountMappings,
   accountSources,
@@ -23,6 +24,7 @@ export function buildTransactionImportPayload({
   importedCategories,
 }: {
   accountCreateCurrencies: Record<string, string>
+  accountCreateInstitutions: Record<string, string>
   accountCreateTypes: Record<string, string>
   accountMappings: Record<string, string>
   accountSources: ImportAccountSource[]
@@ -66,6 +68,7 @@ export function buildTransactionImportPayload({
       choice,
       accountCreateTypes[source.id],
       accountCreateCurrencies[source.id],
+      accountCreateInstitutions[source.id],
     )
   }
 
@@ -136,6 +139,7 @@ function appendAccountMapping(
   choice: string,
   createType: string | undefined,
   createCurrency: string | undefined,
+  createInstitution: string | undefined,
 ) {
   const addError = (message: string) => {
     if (!errors.includes(message)) errors.push(message)
@@ -166,6 +170,7 @@ function appendAccountMapping(
       name: createName,
       account_type: createType,
       currency: createCurrency.toUpperCase(),
+      institution_id: createInstitution || null,
     },
   })
 }

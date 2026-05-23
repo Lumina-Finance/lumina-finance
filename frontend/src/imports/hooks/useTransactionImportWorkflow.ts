@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useCategories } from '@/api/categories'
 import { useAccounts } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
+import { useInstitutions } from '@/api/institutions'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transactions'
 import type { DropdownOption } from '@/components/Dropdown'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
@@ -29,6 +30,7 @@ import {
   inferCategoryMappings,
   getResolvedAccountChoice,
   getResolvedAccountCreateCurrency,
+  getResolvedAccountCreateInstitution,
   groupPreviewRowsByDate,
   inferColumnMap,
   keepCurrentMatchMap,
@@ -56,9 +58,11 @@ export function useTransactionImportWorkflow() {
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
   const [accountCreateTypes, setAccountCreateTypes] = useState<Record<string, string>>({})
   const [accountCreateCurrencies, setAccountCreateCurrencies] = useState<Record<string, string>>({})
+  const [accountCreateInstitutions, setAccountCreateInstitutions] = useState<Record<string, string>>({})
   const [selectedAccountRows, setSelectedAccountRows] = useState<Set<string>>(() => new Set())
   const [batchAccountType, setBatchAccountType] = useState('')
   const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
+  const [batchAccountInstitution, setBatchAccountInstitution] = useState('')
   const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
@@ -69,6 +73,7 @@ export function useTransactionImportWorkflow() {
   const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
   const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies()
+  const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
   const importTransactions = useImportTransactions()
   const importFeedback = useActionFeedback()
@@ -92,6 +97,17 @@ export function useTransactionImportWorkflow() {
         label: currency.id,
       })),
     [currencies],
+  )
+
+  const institutionOptions = useMemo<DropdownOption[]>(
+    () => [
+      { value: '', label: 'None' },
+      ...institutions.map((institution) => ({
+        value: institution.id,
+        label: institution.name,
+      })),
+    ],
+    [institutions],
   )
 
   const categoryMatchOptions = useMemo<DropdownOption[]>(
@@ -122,6 +138,11 @@ export function useTransactionImportWorkflow() {
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category])),
     [categories],
+  )
+
+  const institutionById = useMemo(
+    () => new Map(institutions.map((institution) => [institution.id, institution])),
+    [institutions],
   )
 
   const headers = useMemo(
@@ -266,6 +287,9 @@ export function useTransactionImportWorkflow() {
         const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
           ? getResolvedAccountCreateCurrency(accountSource, accountCreateCurrencies)
           : ''
+        const createAccountInstitution = accountChoice === CREATE_ACCOUNT_VALUE
+          ? institutionById.get(getResolvedAccountCreateInstitution(accountSource, accountCreateInstitutions))
+          : undefined
         const importedDate = getMappedValue(row, columnMap.dt)
         const dt = normalizeImportDate(importedDate)
         const merchant = getMappedValue(row, columnMap.merchant_id)
@@ -292,7 +316,7 @@ export function useTransactionImportWorkflow() {
 
         rows.push({
           id: `${file.id}-${rowIndex}`,
-          accountInstitution: account?.institution ?? null,
+          accountInstitution: account?.institution ?? createAccountInstitution ?? null,
           accountName: account?.name ?? (accountLabel || 'Unmapped account'),
           category,
           currency,
@@ -325,7 +349,7 @@ export function useTransactionImportWorkflow() {
     }
 
     return rows
-  }, [accountById, accountCreateCurrencies, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings])
+  }, [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings])
 
   const previewGroups = useMemo(
     () => groupPreviewRowsByDate(previewRows),
@@ -334,6 +358,7 @@ export function useTransactionImportWorkflow() {
   const importBuild = useMemo(
     () => buildTransactionImportPayload({
       accountCreateCurrencies,
+      accountCreateInstitutions,
       accountCreateTypes,
       accountMappings: resolvedAccountMappings,
       accountSources: accountMappingSources,
@@ -348,6 +373,7 @@ export function useTransactionImportWorkflow() {
     }),
     [
       accountCreateCurrencies,
+      accountCreateInstitutions,
       accountCreateTypes,
       accountMappingSources,
       categoryById,
@@ -428,6 +454,7 @@ export function useTransactionImportWorkflow() {
     if (accountId !== CREATE_ACCOUNT_VALUE) {
       setAccountCreateTypes((current) => removeRecordKey(current, sourceAccount))
       setAccountCreateCurrencies((current) => removeRecordKey(current, sourceAccount))
+      setAccountCreateInstitutions((current) => removeRecordKey(current, sourceAccount))
       setSelectedAccountRows((current) => removeSetValue(current, sourceAccount))
     }
   }
@@ -501,9 +528,11 @@ export function useTransactionImportWorkflow() {
     autoFilledAccountSources,
     accountCreateTypes,
     accountCreateCurrencies,
+    accountCreateInstitutions,
     selectedAccountRows,
     batchAccountType,
     batchAccountCurrency,
+    batchAccountInstitution,
     merchantHandlingOpen,
     tagHandlingOpen,
     columnValidationErrors,
@@ -513,10 +542,12 @@ export function useTransactionImportWorkflow() {
     importResult,
     accountsLoading,
     currenciesLoading,
+    institutionsLoading,
     categoriesLoading,
     importFeedback,
     accountOptions,
     currencyOptions,
+    institutionOptions,
     categoryMatchOptions,
     accountById,
     categoryById,
@@ -539,9 +570,11 @@ export function useTransactionImportWorkflow() {
     canCommitImport,
     setAccountCreateTypes,
     setAccountCreateCurrencies,
+    setAccountCreateInstitutions,
     setSelectedAccountRows,
     setBatchAccountType,
     setBatchAccountCurrency,
+    setBatchAccountInstitution,
     setCategoryMappings,
     setCategoryCreateKinds,
     setMerchantHandlingOpen,

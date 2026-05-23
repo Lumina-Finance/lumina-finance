@@ -125,6 +125,7 @@ export interface TransactionImportCreateAccount {
   name: string;
   account_type: Account['account_type'];
   currency: string;
+  institution_id?: string | null;
 }
 
 export interface TransactionImportAccountMapping {
