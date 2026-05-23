@@ -15,6 +15,7 @@ import { useBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budge
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getCategoryColorMap } from '@/utils/chartColor'
 import BudgetChartTooltip from '@/budgets/components/budget-details-modal/BudgetChartTooltip'
 import BudgetEditModal from '@/budgets/components/budget-form/BudgetEditModal'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
@@ -23,6 +24,11 @@ import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_MS, MODAL_
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { formatCalendarDate, parseYmd } from '@/budgets/utils/date'
 import { attentionState } from '@/budgets/utils/budgetStatus'
+
+function utilizationPercent(spent: number, limit: number) {
+  if (limit <= 0) return 0
+  return (spent / limit) * 100
+}
 
 export default function BudgetDetailsModal({
   baseBudget,
@@ -55,6 +61,32 @@ export default function BudgetDetailsModal({
   const [historyCanScroll, setHistoryCanScroll] = useState(false)
   const [trackedCategoryListScrollable, setTrackedCategoryListScrollable] = useState(false)
   const [trackedCategoryListAtBottom, setTrackedCategoryListAtBottom] = useState(false)
+  const categoryDetailsById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  )
+  const chartCategories = useMemo(() => {
+    const trackedCategories = baseBudget.category_ids.map((categoryId) => {
+      const category = categoryDetailsById.get(categoryId)
+
+      return {
+        id: categoryId,
+        name: category?.name ?? categoryById.get(categoryId) ?? 'Uncategorized',
+        kind: category?.kind ?? 'expense',
+      }
+    })
+    const categoryColors = getCategoryColorMap(trackedCategories)
+
+    return trackedCategories.map((category, index) => ({
+      ...category,
+      dataKey: `categoryPct${index}`,
+      color: categoryColors.get(category.id || category.name) ?? 'var(--app-accent)',
+    }))
+  }, [baseBudget.category_ids, categoryById, categoryDetailsById])
+  const categoryColorById = useMemo(
+    () => new Map(chartCategories.map((category) => [category.id, category.color])),
+    [chartCategories],
+  )
   const sortedPeriods = periods.slice().sort((a, b) => a.period_start.localeCompare(b.period_start))
   const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
   const periodIds = useMemo(() => periods.map((period) => period.id), [periods])
@@ -81,16 +113,37 @@ export default function BudgetDetailsModal({
   const limit = latestPeriod?.overall_limit ?? 0
   const remaining = latestPeriod ? limit - spent : 0
   const isOverBudget = remaining < 0
-  const utilizationPct = latestPeriod ? Math.round((spent / limit) * 100) : null
+  const utilizationPct = latestPeriod ? Math.round(utilizationPercent(spent, limit)) : null
+  const showStackedCategoryChart = chartCategories.length > 1
   // Keep the chart readable by showing only the most recent budget periods.
   const chartData = sortedPeriods.slice(-6).map((period) => {
     const utilization = utilizationByBudgetId.get(period.id)
     const periodSpent = utilization?.total_spent ?? 0
+    const categorySpentById = new Map(
+      (utilization?.categories ?? []).map((category) => [category.category_id, category.spent]),
+    )
+    const categoryValues = chartCategories.reduce<Record<string, number>>((values, category) => {
+      values[category.dataKey] = utilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
+      return values
+    }, {})
+
     return {
       label: formatCalendarDate(parseYmd(period.period_start)),
       spent: periodSpent,
       limit: period.overall_limit,
-      utilizationPct: Math.round((periodSpent / period.overall_limit) * 100),
+      utilizationPct: Math.round(utilizationPercent(periodSpent, period.overall_limit)),
+      categories: chartCategories.map((category) => {
+        const categorySpent = categorySpentById.get(category.id) ?? 0
+
+        return {
+          id: category.id,
+          name: category.name,
+          spent: categorySpent,
+          utilizationPct: utilizationPercent(categorySpent, period.overall_limit),
+          color: category.color,
+        }
+      }),
+      ...categoryValues,
     }
   })
   const periodHistory = sortedPeriods.slice().reverse().map((period) => {
@@ -275,7 +328,7 @@ export default function BudgetDetailsModal({
                     <div className="h-2 flex-1 rounded-full" style={{ background: 'var(--app-border)' }}>
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${Math.min(Math.max((spent / limit) * 100, 0), 100)}%`, background: attention.indicatorColor }}
+                        style={{ width: `${Math.min(Math.max(utilizationPercent(spent, limit), 0), 100)}%`, background: attention.indicatorColor }}
                       />
                     </div>
                     <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--app-text-subtle)' }}>
@@ -314,7 +367,16 @@ export default function BudgetDetailsModal({
                         className="flex items-center justify-between gap-3 py-2.5 text-sm"
                         style={{ borderTop: '1px solid var(--app-border)' }}
                       >
-                        <span className="truncate" style={{ color: 'var(--app-text-muted)' }}>{categoryById.get(category.category_id) ?? 'Uncategorized'}</span>
+                        <span className="flex min-w-0 items-center gap-2">
+                          {showStackedCategoryChart && (
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ background: categoryColorById.get(category.category_id) ?? 'var(--app-border-strong)' }}
+                              aria-hidden
+                            />
+                          )}
+                          <span className="truncate" style={{ color: 'var(--app-text-muted)' }}>{categoryById.get(category.category_id) ?? 'Uncategorized'}</span>
+                        </span>
                         <span className="shrink-0 font-medium" style={{ color: 'var(--app-text)' }}>{formatCurrency(category.spent, baseBudget.currency)}</span>
                       </div>
                     )) : (
@@ -420,13 +482,25 @@ export default function BudgetDetailsModal({
                           cursor={{ fill: 'var(--app-surface-soft)' }}
                           content={<BudgetChartTooltip currency={baseBudget.currency} />}
                         />
-                        <Bar
-                          dataKey="utilizationPct"
-                          fill="var(--app-accent)"
-                          radius={[4, 4, 0, 0]}
-                          barSize={28}
-                          animationBegin={MODAL_SURFACE_TRANSITION_MS}
-                        />
+                        {showStackedCategoryChart ? chartCategories.map((category, index) => (
+                          <Bar
+                            key={category.id}
+                            dataKey={category.dataKey}
+                            stackId="category-spending"
+                            fill={category.color}
+                            radius={index === chartCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                            barSize={28}
+                            animationBegin={MODAL_SURFACE_TRANSITION_MS}
+                          />
+                        )) : (
+                          <Bar
+                            dataKey="utilizationPct"
+                            fill="var(--app-accent)"
+                            radius={[4, 4, 0, 0]}
+                            barSize={28}
+                            animationBegin={MODAL_SURFACE_TRANSITION_MS}
+                          />
+                        )}
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
