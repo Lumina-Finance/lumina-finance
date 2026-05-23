@@ -7,8 +7,9 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
+import { ArrowDownLeft, PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
+  type CategoryBreakdownEntry,
   type SpendingRange,
   useSpendingBreakdown,
 } from '@/api/dashboard'
@@ -29,6 +30,29 @@ type SpendingBreakdownWidgetProps = {
   displayCurrency: string
 }
 
+type BreakdownMode = 'spending' | 'income'
+
+function isIncomeLossEntry(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
+  return mode === 'spending' && entry.category_kind === 'income'
+}
+
+function IncomeLossBadge() {
+  return (
+    <span
+      className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded border px-1 text-[0.625rem] font-semibold leading-none"
+      style={{
+        background: 'var(--app-negative-soft)',
+        borderColor: 'var(--app-negative-border)',
+        color: 'var(--app-negative)',
+      }}
+      title="Income category counted as expense"
+    >
+      <ArrowDownLeft size={10} strokeWidth={2.2} aria-hidden />
+      Income loss
+    </span>
+  )
+}
+
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
   const shouldReduceMotion = useReducedMotion()
   const {
@@ -36,7 +60,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
     handleBreakdownMouseLeave,
     handleBreakdownMouseMove,
   } = useBreakdownTooltipPosition()
-  const [breakdownMode, setBreakdownMode] = useState<'spending' | 'income'>('spending')
+  const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
   const { data: spendingBreakdown, isLoading: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
   const breakdownEntries = useMemo(() => {
@@ -50,14 +74,14 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   const breakdownColors = useMemo(() => getCategoryColorMap(breakdownEntries.map((entry) => ({
     id: entry.category_id,
     name: entry.name,
-    kind: breakdownCategoryKind,
+    kind: entry.category_kind || breakdownCategoryKind,
   }))), [breakdownEntries, breakdownCategoryKind])
-  const getBreakdownColor = (entry: { category_id: string; name: string }) => getCategoryColor({
+  const getBreakdownColor = (entry: CategoryBreakdownEntry) => getCategoryColor({
     id: entry.category_id,
     name: entry.name,
-    kind: breakdownCategoryKind,
+    kind: entry.category_kind || breakdownCategoryKind,
   })
-  const getSpacedBreakdownColor = (entry: { category_id: string; name: string }) => (
+  const getSpacedBreakdownColor = (entry: CategoryBreakdownEntry) => (
     breakdownColors.get(entry.category_id || entry.name) ?? getBreakdownColor(entry)
   )
 
@@ -158,10 +182,24 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                         wrapperClassName="app-chart-tooltip-default"
                         cursor={false}
                         position={breakdownTipPos ?? undefined}
-                        formatter={(value, name) => [
-                          formatCurrency(Number(value), displayCurrency),
-                          name,
-                        ]}
+                        content={({ active, payload }) => {
+                          const entry = payload?.[0]?.payload as CategoryBreakdownEntry | undefined
+                          if (!active || !entry) return null
+
+                          return (
+                            <div className="app-chart-tooltip-default-content min-w-40">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium" style={{ color: 'var(--app-text)' }}>
+                                  {entry.name}
+                                </span>
+                                {isIncomeLossEntry(entry, breakdownMode) && <IncomeLossBadge />}
+                              </div>
+                              <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
+                                {formatCurrency(entry.amount, displayCurrency)}
+                              </div>
+                            </div>
+                          )
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -183,6 +221,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                   >
                     {entry.name}
                   </span>
+                  {isIncomeLossEntry(entry, breakdownMode) && <IncomeLossBadge />}
                 </div>
               ))}
             </div>

@@ -36,10 +36,12 @@ export interface RecentActivityWidgetResponse {
 // ── Spending comparison ──
 
 export type SpendingRange = 'WTD' | 'MTD' | 'QTD' | 'YTD';
+export type BreakdownCategoryKind = 'expense' | 'income';
 
 export interface CategoryBreakdownEntry {
   category_id: string;
   name: string;
+  category_kind: BreakdownCategoryKind;
   amount: number;
 }
 

@@ -63,6 +63,58 @@ async def test_dashboard_spending_breakdown_uses_viewer_timezone_at_utc_boundary
     assert resp.json()["expense"][0]["amount"] == 4100
 
 
+async def test_dashboard_spending_breakdown_counts_income_losses_as_expense(client, monkeypatch):
+    """Income losses become spending rows; expense refunds only reduce spending."""
+    from app.routes import dashboard as dashboard_routes
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 4, 20, 16, 0, tzinfo=UTC)))
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers, name="Main Cash")).json()["id"]
+    salary_id = (await _create_category(client, headers, name="Test Salary", kind="income")).json()["id"]
+    capital_loss_id = (await _create_category(client, headers, name="Test Capital Gains", kind="income")).json()["id"]
+    groceries_id = (await _create_category(client, headers, name="Test Groceries Net", kind="expense")).json()["id"]
+    over_refund_id = (await _create_category(client, headers, name="Test Over-refunded", kind="expense")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, salary_id, dt="2026-04-02", amount=300_000)
+    await _create_transaction(client, headers, account_id, capital_loss_id, dt="2026-04-03", amount=-80_000)
+    await _create_transaction(client, headers, account_id, groceries_id, dt="2026-04-04", amount=-100_000)
+    await _create_transaction(client, headers, account_id, groceries_id, dt="2026-04-05", amount=40_000)
+    await _create_transaction(client, headers, account_id, over_refund_id, dt="2026-04-06", amount=20_000)
+
+    resp = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["expense"] == [
+        {
+            "category_id": capital_loss_id,
+            "name": "Test Capital Gains",
+            "category_kind": "income",
+            "amount": 80_000,
+        },
+        {
+            "category_id": groceries_id,
+            "name": "Test Groceries Net",
+            "category_kind": "expense",
+            "amount": 60_000,
+        },
+    ]
+    assert data["income"] == [
+        {
+            "category_id": salary_id,
+            "name": "Test Salary",
+            "category_kind": "income",
+            "amount": 300_000,
+        },
+    ]
+    assert over_refund_id not in {
+        entry["category_id"]
+        for entry in [*data["expense"], *data["income"]]
+    }
+
+
 async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):
     """Savings rate totals include only income and expense categories."""
     from app.routes import dashboard as dashboard_routes

@@ -518,8 +518,7 @@ def _current_period_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
     """Return ``(start, today)`` bounds for the current ``range_``.
 
     Matches the current-period start used by ``_plan_spending_comparison`` so
-    the breakdown widget's totals agree with the comparison chart's cumulative
-    current-series endpoint.
+    the dashboard widgets share the same calendar window.
     """
     if range_ == "WTD":
         return today - timedelta(days=today.weekday()), today
@@ -540,9 +539,11 @@ async def get_spending_breakdown(
     """Return category-level expense and income totals for ``range_``.
 
     Aggregates transactions on base-currency accessible accounts between the
-    range's current-period start and today. Expense amounts are flipped to
-    positive minor units. Categories with zero totals are dropped; entries
-    are sorted largest-first so the frontend can take the top N directly.
+    range's current-period start and today. Negative category totals render as
+    spending, so income-category losses are treated as outflows. Positive
+    expense-category totals are over-refunds and are not shown as income.
+    Categories with zero totals are dropped; entries are sorted largest-first
+    so the frontend can take the top N directly.
     """
     start, end = _current_period_bounds(range_, now.date())
     if not base_currency_account_ids:
@@ -568,14 +569,23 @@ async def get_spending_breakdown(
     expense: list[CategoryBreakdownEntry] = []
     income: list[CategoryBreakdownEntry] = []
     for row in result:
-        amount = abs(int(row.total))
-        if amount == 0:
+        total = int(row.total or 0)
+        if total < 0:
+            expense.append(CategoryBreakdownEntry(
+                category_id=row.id,
+                name=row.name,
+                category_kind=row.kind,
+                amount=-total,
+            ))
             continue
-        entry = CategoryBreakdownEntry(category_id=row.id, name=row.name, amount=amount)
-        if row.kind == CategoryKind.EXPENSE:
-            expense.append(entry)
-        else:
-            income.append(entry)
+
+        if total > 0 and row.kind == CategoryKind.INCOME:
+            income.append(CategoryBreakdownEntry(
+                category_id=row.id,
+                name=row.name,
+                category_kind=row.kind,
+                amount=total,
+            ))
 
     expense.sort(key=lambda e: e.amount, reverse=True)
     income.sort(key=lambda e: e.amount, reverse=True)
