@@ -130,7 +130,7 @@ export default function TransactionsPage() {
 
   return (
     <div>
-      <header className="app-page-header">
+      <header className="app-page-header space-y-1.5">
         <h1 className="app-page-title">Transactions</h1>
         <p className="app-page-description">Every transaction, all in one place.</p>
       </header>

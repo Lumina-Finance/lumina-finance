@@ -109,18 +109,18 @@ export default function BudgetsPage() {
 
   return (
     <div>
-      <header className="app-page-header relative min-[750px]:pr-44">
-        <h1 className="app-page-title">Budgets</h1>
-        <p className="app-page-description">
-          Plan ahead and keep your spending in check.
-        </p>
-        <div className="mt-4 flex min-[750px]:absolute min-[750px]:bottom-0 min-[750px]:right-0 min-[750px]:mt-0 min-[750px]:justify-end">
-          <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => setCreateOpen(true)}>
-            <Plus size={18} aria-hidden />
-            New Budget
-          </button>
-        </div>
-      </header>
+      <div className="mb-6 flex flex-col gap-4 min-[750px]:flex-row min-[750px]:items-end min-[750px]:justify-between">
+        <header className="app-page-header mb-0 min-w-0">
+          <h1 className="app-page-title">Budgets</h1>
+          <p className="app-page-description">
+            Plan ahead and keep your spending in check.
+          </p>
+        </header>
+        <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => setCreateOpen(true)}>
+          <Plus size={18} aria-hidden />
+          New Budget
+        </button>
+      </div>
 
       {budgetsLoading ? null : budgetsError ? (
         <section className="app-card">

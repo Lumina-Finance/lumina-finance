@@ -305,7 +305,7 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <header className="app-page-header !mb-4 min-[1200px]:!mb-8">
+      <header className="app-page-header">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
           Manage your profile, runway preferences, categories, merchants, tags, and tax-advantaged categories.

@@ -842,7 +842,7 @@
   }
 
   .app-page-header {
-    @apply mb-8 space-y-3;
+    @apply mb-6 space-y-3;
   }
 
   .app-page-title {

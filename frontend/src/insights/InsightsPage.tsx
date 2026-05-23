@@ -103,12 +103,14 @@ export default function InsightsPage() {
 
   return (
     <div className="relative">
-      <header className="app-page-header min-[1050px]:pr-[25rem]">
-        <h1 className="app-page-title">Insights</h1>
-        <p className="app-page-description">
-          See where your money goes, spot patterns, and take control with confidence.
-        </p>
-      </header>
+      <div className="min-[1050px]:pr-[25rem]">
+        <header className="app-page-header">
+          <h1 className="app-page-title">Insights</h1>
+          <p className="app-page-description">
+            See where your money goes, spot patterns, and take control with confidence.
+          </p>
+        </header>
+      </div>
 
       <InsightsFloatingRangeControl
         preset={range.rangePreset}
