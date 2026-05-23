@@ -159,6 +159,102 @@ async def test_dashboard_spending_breakdown_uses_other_for_tiny_slices(client, m
     assert data["expense"][-1]["amount"] == 10_000
 
 
+async def test_dashboard_spending_breakdown_keeps_hidden_flipped_categories_out_of_other(client, monkeypatch):
+    """Small crossover rows stay explicit so their badge context is visible."""
+    from app.routes import dashboard as dashboard_routes
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 6, 20, 16, 0, tzinfo=UTC)))
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers, name="Main Cash")).json()["id"]
+    expense_categories = [
+        (await _create_category(client, headers, name=f"Test Visible Expense {index}", kind="expense")).json()
+        for index in range(1, 7)
+    ]
+    small_expense_id = (
+        await _create_category(client, headers, name="Test Small Expense", kind="expense")
+    ).json()["id"]
+    income_loss_id = (
+        await _create_category(client, headers, name="Test Hidden Income Loss", kind="income")
+    ).json()["id"]
+    income_categories = [
+        (await _create_category(client, headers, name=f"Test Visible Income {index}", kind="income")).json()
+        for index in range(1, 7)
+    ]
+    small_income_id = (
+        await _create_category(client, headers, name="Test Small Income", kind="income")
+    ).json()["id"]
+    expense_refund_id = (
+        await _create_category(client, headers, name="Test Hidden Expense Refund", kind="expense")
+    ).json()["id"]
+
+    for index, category in enumerate(expense_categories, start=1):
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category["id"],
+            dt=f"2026-06-{index:02d}",
+            amount=-(100_000 - index * 10_000),
+        )
+    await _create_transaction(client, headers, account_id, small_expense_id, dt="2026-06-08", amount=-1_000)
+    await _create_transaction(client, headers, account_id, income_loss_id, dt="2026-06-09", amount=-500)
+
+    for index, category in enumerate(income_categories, start=1):
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category["id"],
+            dt=f"2026-06-{index + 10:02d}",
+            amount=100_000 - index * 10_000,
+        )
+    await _create_transaction(client, headers, account_id, small_income_id, dt="2026-06-18", amount=1_000)
+    await _create_transaction(client, headers, account_id, expense_refund_id, dt="2026-06-19", amount=500)
+
+    resp = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [entry["name"] for entry in data["expense"]] == [
+        "Test Visible Expense 1",
+        "Test Visible Expense 2",
+        "Test Visible Expense 3",
+        "Test Visible Expense 4",
+        "Test Visible Expense 5",
+        "Test Visible Expense 6",
+        "Test Hidden Income Loss",
+        "Other",
+    ]
+    assert data["expense"][-2] == {
+        "category_id": income_loss_id,
+        "name": "Test Hidden Income Loss",
+        "category_kind": "income",
+        "amount": 500,
+    }
+    assert data["expense"][-1]["category_kind"] == "expense"
+    assert data["expense"][-1]["amount"] == 1_000
+    assert [entry["name"] for entry in data["income"]] == [
+        "Test Visible Income 1",
+        "Test Visible Income 2",
+        "Test Visible Income 3",
+        "Test Visible Income 4",
+        "Test Visible Income 5",
+        "Test Visible Income 6",
+        "Test Hidden Expense Refund",
+        "Other",
+    ]
+    assert data["income"][-2] == {
+        "category_id": expense_refund_id,
+        "name": "Test Hidden Expense Refund",
+        "category_kind": "expense",
+        "amount": 500,
+    }
+    assert data["income"][-1]["category_kind"] == "income"
+    assert data["income"][-1]["amount"] == 1_000
+
+
 async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):
     """Savings rate totals include only income and expense categories."""
     from app.routes import dashboard as dashboard_routes

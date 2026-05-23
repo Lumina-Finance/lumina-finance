@@ -546,7 +546,8 @@ async def get_spending_breakdown(
     category kind is preserved so the frontend can mark flipped categories.
     Categories with zero totals are dropped; entries are sorted largest-first
     and compacted into an Other slice when the dashboard donut has too many
-    small categories.
+    small categories. Flipped categories stay visible so their badge context
+    is never swallowed by Other.
     """
     start, end = _current_period_bounds(range_, now.date())
     if not base_currency_account_ids:
@@ -603,14 +604,17 @@ def _dashboard_breakdown_entries(
     entries: list[CategoryBreakdownEntry],
     kind: CategoryKind,
 ) -> list[CategoryBreakdownEntry]:
-    """Return visible dashboard slices plus one Other slice for hidden rows."""
+    """Return visible dashboard slices plus one Other slice for same-kind hidden rows."""
     visible = entries[:DASHBOARD_BREAKDOWN_CATEGORY_LIMIT]
-    other_amount = sum(entry.amount for entry in entries[DASHBOARD_BREAKDOWN_CATEGORY_LIMIT:])
+    hidden = entries[DASHBOARD_BREAKDOWN_CATEGORY_LIMIT:]
+    flipped_hidden = [entry for entry in hidden if entry.category_kind != kind]
+    other_amount = sum(entry.amount for entry in hidden if entry.category_kind == kind)
     if other_amount <= 0:
-        return visible
+        return [*visible, *flipped_hidden]
 
     return [
         *visible,
+        *flipped_hidden,
         CategoryBreakdownEntry(
             category_id=uuid.uuid5(uuid.NAMESPACE_URL, f"dashboard-{kind.value}-other"),
             name="Other",
