@@ -61,6 +61,28 @@ export function keepCurrentMatchMap(
   return changed ? next : current
 }
 
+export function inferCategoryMappings(
+  importedCategories: string[],
+  current: Record<string, string>,
+  categories: Category[],
+  categoryTypesBySource: Record<string, string>,
+) {
+  const next = { ...keepCurrentMatchMap(current, importedCategories) }
+
+  for (const source of importedCategories) {
+    if (next[source]) continue
+
+    const match = findBestCategoryNameMatch(
+      source,
+      categories,
+      getCategoryKindFromTypeLabel(categoryTypesBySource[source]),
+    )
+    if (match) next[source] = match.id
+  }
+
+  return next
+}
+
 export function getCategoryMatchKind(
   selectedCategoryId: string,
   createKind: ImportCategoryKind | undefined,
@@ -85,3 +107,64 @@ function getCategoryKindFromTypeLabel(categoryType: string | undefined): ImportC
   return ''
 }
 
+function findBestCategoryNameMatch(
+  source: string,
+  categories: Category[],
+  expectedKind: ImportCategoryKind | '',
+) {
+  let bestMatch: { category: Category; score: number } | null = null
+  let tied = false
+
+  for (const category of categories) {
+    if (expectedKind && category.kind !== expectedKind) continue
+
+    const score = scoreCategoryNameMatch(source, category.name)
+    if (score <= 0) continue
+
+    if (!bestMatch || score > bestMatch.score) {
+      bestMatch = { category, score }
+      tied = false
+      continue
+    }
+
+    if (score === bestMatch.score) tied = true
+  }
+
+  return bestMatch && !tied ? bestMatch.category : null
+}
+
+function scoreCategoryNameMatch(source: string, categoryName: string) {
+  const normalizedSource = normalizeCategoryName(source)
+  const normalizedCategory = normalizeCategoryName(categoryName)
+  if (!normalizedSource || !normalizedCategory) return 0
+
+  const compactSource = normalizedSource.replace(/\s/g, '')
+  const compactCategory = normalizedCategory.replace(/\s/g, '')
+  if (normalizedSource === normalizedCategory || compactSource === compactCategory) return 100
+
+  const shorterLength = Math.min(normalizedSource.length, normalizedCategory.length)
+  if (shorterLength >= 4 && (normalizedSource.includes(normalizedCategory) || normalizedCategory.includes(normalizedSource))) {
+    return 85
+  }
+
+  const sourceTokens = new Set(normalizedSource.split(' '))
+  const categoryTokens = new Set(normalizedCategory.split(' '))
+  const sharedCount = [...sourceTokens].filter((token) => categoryTokens.has(token)).length
+  const smallerTokenCount = Math.min(sourceTokens.size, categoryTokens.size)
+  const largerTokenCount = Math.max(sourceTokens.size, categoryTokens.size)
+
+  if (smallerTokenCount >= 2 && sharedCount === smallerTokenCount) return 80
+  if (sharedCount / smallerTokenCount >= 0.67 && sharedCount / largerTokenCount >= 0.5) return 70
+
+  return 0
+}
+
+function normalizeCategoryName(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}

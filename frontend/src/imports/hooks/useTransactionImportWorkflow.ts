@@ -25,6 +25,7 @@ import {
   getPreviewCurrency,
   getPreviewDateLabel,
   inferAccountMappings,
+  inferCategoryMappings,
   getResolvedAccountChoice,
   getResolvedAccountCreateCurrency,
   groupPreviewRowsByDate,
@@ -58,6 +59,7 @@ export function useTransactionImportWorkflow() {
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
+  const [categoryMatchingColumn, setCategoryMatchingColumn] = useState('')
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
@@ -220,9 +222,16 @@ export function useTransactionImportWorkflow() {
     ).sort((a, b) => a.localeCompare(b))
   }, [columnMap.tag_ids, files])
 
+  const canInferCategoryMappings = Boolean(columnMap.category_id)
+    && (columnMappingComplete || categoryMatchingColumn === columnMap.category_id)
+
   const resolvedCategoryMappings = useMemo(
-    () => keepCurrentMatchMap(categoryMappings, importedCategories),
-    [categoryMappings, importedCategories],
+    () => (
+      canInferCategoryMappings
+        ? inferCategoryMappings(importedCategories, categoryMappings, categories ?? [], categoryTypesBySource)
+        : keepCurrentMatchMap(categoryMappings, importedCategories)
+    ),
+    [canInferCategoryMappings, categories, categoryMappings, categoryTypesBySource, importedCategories],
   )
 
   const previewRows = useMemo<PreviewTransactionRow[]>(() => {
@@ -352,6 +361,7 @@ export function useTransactionImportWorkflow() {
     setMode(nextMode)
     setAccountMappings({})
     setAccountMatchingColumn('')
+    setCategoryMatchingColumn('')
     setAccountCreateTypes({})
     setAccountCreateCurrencies({})
     setSelectedAccountRows(new Set())
@@ -374,6 +384,7 @@ export function useTransactionImportWorkflow() {
     const next = mode === 'single-file' ? drafts.slice(0, 1) : [...files, ...drafts]
 
     setAccountMatchingColumn('')
+    setCategoryMatchingColumn('')
     setFiles(next)
     setColumnMap((previous) => {
       const result = inferColumnMap(previous, next, mode)
@@ -424,12 +435,19 @@ export function useTransactionImportWorkflow() {
       ? validateColumnValues(files, header, targetValue as ColumnTarget)
       : { valid: true, message: '' }
     const previousAccountHeader = columnMap.account_id
+    const previousCategoryHeader = columnMap.category_id
     const displacedHeader = targetValue ? columnMap[targetValue as ColumnTarget] : ''
 
     if (targetValue === 'account_id') {
       setAccountMatchingColumn(header)
     } else if (previousAccountHeader === header) {
       setAccountMatchingColumn('')
+    }
+
+    if (targetValue === 'category_id') {
+      setCategoryMatchingColumn(header)
+    } else if (previousCategoryHeader === header) {
+      setCategoryMatchingColumn('')
     }
 
     if (targetValue) {
