@@ -108,6 +108,8 @@ async def import_transactions(
         tags_created=stats.tags_created,
         tags_reused=stats.tags_reused,
         affected_account_ids=sorted(affected_from, key=str),
+        account_source_ids={source: account.id for source, account in account_map.items()},
+        category_source_ids={source: category.id for source, category in category_map.items()},
         created_account_ids=stats.created_account_ids,
         created_category_ids=stats.created_category_ids,
         created_merchant_ids=stats.created_merchant_ids,

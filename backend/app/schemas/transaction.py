@@ -167,6 +167,8 @@ class TransactionImportResponse(BaseModel):
     tags_created: int
     tags_reused: int
     affected_account_ids: list[uuid.UUID]
+    account_source_ids: dict[str, uuid.UUID]
+    category_source_ids: dict[str, uuid.UUID]
     created_account_ids: list[uuid.UUID]
     created_category_ids: list[uuid.UUID]
     created_merchant_ids: list[uuid.UUID]

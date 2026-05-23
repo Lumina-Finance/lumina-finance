@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '../constants'
 import { EmptyState, ImportStat, ImportStep } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
+import type { ImportFileDraft } from '../types'
 import { formatBytes } from '../utils'
 
 type ImportFilesStepProps = Pick<
@@ -140,7 +141,7 @@ export function ImportFilesStep({
                   <div className="min-w-0">
                     <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
                     <p className="truncate text-xs" style={{ color: file.error ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}>
-                      {file.error ?? `${formatBytes(file.size)} · ${file.headers.length} columns`}
+                      {getFileMeta(file)}
                     </p>
                   </div>
                 </div>
@@ -166,4 +167,9 @@ export function ImportFilesStep({
       </div>
     </ImportStep>
   )
+}
+
+function getFileMeta(file: ImportFileDraft) {
+  if (file.error) return file.error
+  return `${formatBytes(file.size)} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
 }

@@ -221,9 +221,13 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     assert data["affected_account_ids"] == data["created_account_ids"]
 
     account_id = data["created_account_ids"][0]
+    category_id = data["created_category_ids"][0]
+    assert data["account_source_ids"] == {"TD Visa": account_id}
+    assert data["category_source_ids"] == {"Restaurants": category_id}
     transactions_resp = await client.get("/transactions", headers=headers)
     transaction = transactions_resp.json()[0]
     assert transaction["account_id"] == account_id
+    assert transaction["category_id"] == category_id
     assert transaction["amount"] == -1234
     assert transaction["currency"] == "CAD"
     assert transaction["merchant_name"] == "Corner Cafe"
@@ -271,6 +275,8 @@ async def test_import_transactions_reuses_existing_records_and_parses_comma_amou
     assert data["created_category_ids"] == []
     assert data["created_merchant_ids"] == []
     assert data["created_tag_ids"] == []
+    assert data["account_source_ids"] == {"Main Chequing": account_id}
+    assert data["category_source_ids"] == {"Groceries": category_id}
 
     transactions_resp = await client.get("/transactions", headers=headers)
     transaction = transactions_resp.json()[0]

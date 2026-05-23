@@ -28,6 +28,7 @@ export interface ImportFileDraft {
   name: string
   size: number
   headers: string[]
+  hasHeaderRow: boolean
   rows: CsvRow[]
   error: string | null
 }

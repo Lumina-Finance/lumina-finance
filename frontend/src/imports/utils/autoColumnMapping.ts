@@ -2,6 +2,7 @@ import { COLUMN_TARGETS } from '../constants'
 import type { ColumnMap, ColumnTarget, ImportFileDraft } from '../types'
 import { unique } from './common'
 import { validateColumnMap, validateColumnValues } from './columnMapping'
+import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
 const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
   account_id: {
@@ -156,7 +157,10 @@ function getBestHeaderMatch(
   for (const header of headers) {
     if (usedHeaders.has(header)) continue
 
-    const score = scoreHeaderForTarget(header, target)
+    const score = Math.max(
+      scoreHeaderForTarget(header, target),
+      scoreValuesForTarget(files, header, target),
+    )
     if (score <= 0) continue
 
     const validation = validateColumnValues(files, header, target)
@@ -183,6 +187,91 @@ function scoreHeaderForTarget(header: string, target: ColumnTarget) {
 
   const containsScore = HEADER_CONTAINS_SCORES[target].find((match) => normalized.includes(match.value))?.score
   return containsScore ?? 0
+}
+
+function scoreValuesForTarget(files: ImportFileDraft[], header: string, target: ColumnTarget) {
+  const values = getColumnValues(files, header).filter(Boolean)
+  if (values.length === 0) return 0
+
+  const validDateRatio = getRatio(values, isValidDateValue)
+  const validAmountRatio = getRatio(values, isValidAmountValue)
+  const validCurrencyRatio = getRatio(values, isSupportedCurrency)
+  const textValues = values.filter(isPlainTextData)
+  const textRatio = textValues.length / values.length
+  const uniqueRatio = unique(textValues.map(normalizeValue)).length / Math.max(textValues.length, 1)
+  const dominantRatio = getDominantRatio(textValues)
+  const averageTextLength = getAverageLength(textValues)
+
+  if (target === 'dt') return validDateRatio >= 0.8 ? Math.round(validDateRatio * 95) : 0
+  if (target === 'amount') return validAmountRatio >= 0.8 ? Math.round(validAmountRatio * 95) : 0
+  if (target === 'currency') return validCurrencyRatio >= 0.8 ? Math.round(validCurrencyRatio * 85) : 0
+  if (target === 'account_id') {
+    const accountLikeRatio = getRatio(textValues, isAccountLikeValue)
+    return textRatio >= 0.8 && dominantRatio >= 0.8 && accountLikeRatio > 0 ? 48 : 0
+  }
+  if (target === 'category_id') {
+    if (textRatio < 0.8 || averageTextLength > 42) return 0
+    if (getRatio(textValues, isCategoryLikeValue) >= 0.4) return 58
+    return uniqueRatio <= 0.35 && dominantRatio < 0.75 ? 40 : 0
+  }
+  if (target === 'merchant_id') {
+    return textRatio >= 0.8 && averageTextLength <= 52 && uniqueRatio > 0.35 ? 38 : 0
+  }
+  if (target === 'notes') {
+    return textRatio >= 0.8 && averageTextLength > 35 ? 30 : 0
+  }
+  if (target === 'tag_ids') {
+    return getRatio(textValues, (value) => /[,;|]/.test(value)) >= 0.4 ? 42 : 0
+  }
+
+  return 0
+}
+
+function getColumnValues(files: ImportFileDraft[], header: string) {
+  return files.flatMap((file) => {
+    if (!file.headers.includes(header)) return []
+    return file.rows.map((row) => row[header]?.trim() ?? '')
+  })
+}
+
+function getRatio(values: string[], predicate: (value: string) => boolean) {
+  return values.length === 0 ? 0 : values.filter(predicate).length / values.length
+}
+
+function getDominantRatio(values: string[]) {
+  if (values.length === 0) return 0
+
+  const counts = new Map<string, number>()
+  for (const value of values) {
+    const normalized = normalizeValue(value)
+    counts.set(normalized, (counts.get(normalized) ?? 0) + 1)
+  }
+
+  return Math.max(...counts.values()) / values.length
+}
+
+function getAverageLength(values: string[]) {
+  if (values.length === 0) return 0
+  return values.reduce((sum, value) => sum + value.length, 0) / values.length
+}
+
+function isPlainTextData(value: string) {
+  return Boolean(value.trim())
+    && !isValidDateValue(value)
+    && !isValidAmountValue(value)
+    && !isSupportedCurrency(value)
+}
+
+function isAccountLikeValue(value: string) {
+  return /\b(amex|bank|card|cash|checking|chequing|credit|heloc|line of credit|loc|loan|mastercard|mortgage|savings|visa)\b/i.test(value)
+}
+
+function isCategoryLikeValue(value: string) {
+  return /\b(automotive|bill|bills|clothing|coffee|dining|education|entertainment|fee|fees|food|fuel|garden|groceries|grocery|health|home|household|income|insurance|interest|medical|payment|payroll|pet|pets|rent|restaurant|restaurants|salary|shopping|subscription|subscriptions|transfer|transport|travel|utilities)\b/i.test(value)
+}
+
+function normalizeValue(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
 function normalizeHeader(header: string) {
