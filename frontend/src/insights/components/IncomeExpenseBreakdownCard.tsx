@@ -76,6 +76,10 @@ const pieLegendItemVariants = {
 } as const
 
 const pieLegendItemTransition = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
+const PIE_LEGEND_LIMIT = 5
+const PIE_LEGEND_ROW_HEIGHT = 20
+const PIE_LEGEND_ROW_GAP = 8
+const PIE_LEGEND_MIN_HEIGHT = 136
 
 const categoryTrendListVariants = {
   initial: { transition: { staggerChildren: 0.03 } },
@@ -123,6 +127,25 @@ function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
   return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
 }
 
+function getLegendEntries(entries: BreakdownEntry[], mode: BreakdownMode) {
+  const visibleEntries = entries.slice(0, PIE_LEGEND_LIMIT)
+  const visibleIds = new Set(visibleEntries.map((entry) => entry.id))
+  const hiddenFlippedEntries = entries
+    .slice(PIE_LEGEND_LIMIT)
+    .filter((entry) => getCrossoverKind(entry, mode) && !visibleIds.has(entry.id))
+
+  return [...visibleEntries, ...hiddenFlippedEntries]
+}
+
+function getLegendMinHeight(entryCount: number) {
+  if (entryCount <= 0) return PIE_LEGEND_MIN_HEIGHT
+
+  return Math.max(
+    PIE_LEGEND_MIN_HEIGHT,
+    entryCount * PIE_LEGEND_ROW_HEIGHT + (entryCount - 1) * PIE_LEGEND_ROW_GAP + 4,
+  )
+}
+
 export function IncomeExpenseBreakdownCard({
   mode,
   onModeToggle,
@@ -163,6 +186,11 @@ export function IncomeExpenseBreakdownCard({
   })
   const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
     ?? getBreakdownColor(entry)
+  const legendEntries = useMemo(
+    () => getLegendEntries(displaySnapshot.entries, displaySnapshot.mode),
+    [displaySnapshot.entries, displaySnapshot.mode],
+  )
+  const legendMinHeight = getLegendMinHeight(legendEntries.length)
 
   return (
     <section className="app-card">
@@ -238,7 +266,10 @@ export function IncomeExpenseBreakdownCard({
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="relative mt-auto min-h-[136px] overflow-hidden">
+              <div
+                className="relative mt-auto overflow-hidden"
+                style={{ minHeight: legendMinHeight }}
+              >
                 <AnimatePresence initial={false} mode="wait">
                   <motion.div
                     key={displaySnapshot.animationKey}
@@ -248,7 +279,7 @@ export function IncomeExpenseBreakdownCard({
                     animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
                     exit={shouldReduceMotion ? undefined : 'exit'}
                   >
-                    {displaySnapshot.entries.slice(0, 5).map((entry) => (
+                    {legendEntries.map((entry) => (
                       <motion.div
                         key={entry.id}
                         className="flex items-center gap-3 text-sm"
