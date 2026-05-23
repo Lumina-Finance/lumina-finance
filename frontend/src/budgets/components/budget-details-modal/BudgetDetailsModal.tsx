@@ -272,27 +272,27 @@ export default function BudgetDetailsModal({
               className="sticky top-0 z-10 flex shrink-0 flex-col gap-5 p-5 min-[750px]:gap-7 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:h-full min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:overflow-hidden"
               style={{ background: 'var(--app-accent-soft)', color: 'var(--app-text)' }}
             >
-              <header className="flex shrink-0 items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 className="truncate text-2xl font-semibold">
+              <header className="relative shrink-0">
+                <div className="min-w-0 w-full">
+                  <h2 className="truncate pr-11 text-2xl font-semibold min-[1050px]:pr-0">
                     {baseBudget.name}
                   </h2>
-                  <p className="mt-2 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                    {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
-                  </p>
+                  <div className="mt-2 flex min-w-0 items-center justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                      {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
+                    </p>
+                    <span
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
+                      style={{ background: attention.background, color: attention.textColor }}
+                    >
+                      <AttentionIcon label={attention.label} />
+                      {attention.label}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className="hidden items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium min-[1050px]:inline-flex"
-                    style={{ background: attention.background, color: attention.textColor }}
-                  >
-                    <AttentionIcon label={attention.label} />
-                    {attention.label}
-                  </span>
-                  <button type="button" className="app-icon-button shrink-0 min-[1050px]:hidden" aria-label="Close budget details" onClick={onClose}>
-                    <X size={20} aria-hidden />
-                  </button>
-                </div>
+                <button type="button" className="app-icon-button absolute right-0 top-0 shrink-0 min-[1050px]:hidden" aria-label="Close budget details" onClick={onClose}>
+                  <X size={20} aria-hidden />
+                </button>
               </header>
 
               <section className="shrink-0">
@@ -300,13 +300,6 @@ export default function BudgetDetailsModal({
                   <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
                     Current budget
                   </p>
-                  <span
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium min-[1050px]:hidden"
-                    style={{ background: attention.background, color: attention.textColor }}
-                  >
-                    <AttentionIcon label={attention.label} />
-                    {attention.label}
-                  </span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-2 min-[750px]:mt-3">
                   <p className="min-w-0 text-3xl font-semibold leading-none tracking-tight min-[750px]:text-4xl">
