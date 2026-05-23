@@ -5,11 +5,9 @@ import { getResolvedAccountChoice, getResolvedAccountCreateCurrency, getResolved
 
 type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
-  | 'mode'
-  | 'sourceAccounts'
+  | 'accountMappingSources'
   | 'accountMappings'
   | 'autoFilledAccountSources'
-  | 'autoFilledFileAccountIds'
   | 'accountById'
   | 'accountCreateTypes'
   | 'accountCreateCurrencies'
@@ -26,16 +24,12 @@ type ImportAccountMappingStepProps = Pick<
   | 'setBatchAccountType'
   | 'setBatchAccountCurrency'
   | 'setSelectedAccountRows'
-  | 'files'
-  | 'updateFileAccount'
 >
 
 export function ImportAccountMappingStep({
-  mode,
-  sourceAccounts,
+  accountMappingSources,
   accountMappings,
   autoFilledAccountSources,
-  autoFilledFileAccountIds,
   accountById,
   accountCreateTypes,
   accountCreateCurrencies,
@@ -52,8 +46,6 @@ export function ImportAccountMappingStep({
   setBatchAccountType,
   setBatchAccountCurrency,
   setSelectedAccountRows,
-  files,
-  updateFileAccount,
 }: ImportAccountMappingStepProps) {
   return (
     <ImportStep index="03" title="Account Mapping">
@@ -63,68 +55,29 @@ export function ImportAccountMappingStep({
       <ImportInfoCard title="Linking Accounts with Institutions">
         You will be able to create and link institutions to accounts after the import is complete.
       </ImportInfoCard>
-      {mode === 'single-file' ? (
-        sourceAccounts.length === 0 ? (
-          <EmptyState
-            title="No source accounts detected"
-            description="Map an account column first."
-          />
-        ) : (
-          <AccountMappingTable
-            rows={sourceAccounts.map((sourceAccount) => {
-              const value = getResolvedAccountChoice(accountMappings[sourceAccount])
-              const account = accountById.get(value)
-
-              return {
-                id: sourceAccount,
-                source: sourceAccount,
-                value,
-                autoFilled: autoFilledAccountSources.has(sourceAccount),
-                accountType: account?.account_type ?? '',
-                accountCurrency: account?.currency ?? '',
-                createType: getResolvedAccountCreateType(sourceAccount, accountCreateTypes),
-                createCurrency: getResolvedAccountCreateCurrency(sourceAccount, accountCreateCurrencies),
-                onChange: (nextValue: string) => updateSourceAccount(sourceAccount, nextValue),
-                onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount]: nextValue })),
-                onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount]: nextValue })),
-              }
-            })}
-            options={accountOptions}
-            accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
-            currencyOptions={currencyOptions}
-            disabled={accountsLoading}
-            currenciesDisabled={currenciesLoading}
-            selectedRowIds={selectedAccountRows}
-            batchAccountType={batchAccountType}
-            batchAccountCurrency={batchAccountCurrency}
-            onBatchAccountTypeChange={setBatchAccountType}
-            onBatchAccountCurrencyChange={setBatchAccountCurrency}
-            onSelectedRowsChange={setSelectedAccountRows}
-          />
-        )
-      ) : files.length === 0 ? (
+      {accountMappingSources.length === 0 ? (
         <EmptyState
-          title="No files staged"
-          description="Upload CSV files to assign accounts."
+          title="No account sources detected"
+          description="Upload a file or check the mapped account column."
         />
       ) : (
         <AccountMappingTable
-          rows={files.map((file) => {
-            const value = getResolvedAccountChoice(file.accountId)
+          rows={accountMappingSources.map((sourceAccount) => {
+            const value = getResolvedAccountChoice(accountMappings[sourceAccount.id])
             const account = accountById.get(value)
 
             return {
-              id: file.id,
-              source: file.name,
+              id: sourceAccount.id,
+              source: sourceAccount.label,
               value,
-              autoFilled: autoFilledFileAccountIds.has(file.id),
+              autoFilled: autoFilledAccountSources.has(sourceAccount.id),
               accountType: account?.account_type ?? '',
               accountCurrency: account?.currency ?? '',
-              createType: getResolvedAccountCreateType(file.id, accountCreateTypes),
-              createCurrency: getResolvedAccountCreateCurrency(file.id, accountCreateCurrencies),
-              onChange: (nextValue: string) => updateFileAccount(file.id, nextValue),
-              onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [file.id]: nextValue })),
-              onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [file.id]: nextValue })),
+              createType: getResolvedAccountCreateType(sourceAccount.id, accountCreateTypes),
+              createCurrency: getResolvedAccountCreateCurrency(sourceAccount.id, accountCreateCurrencies),
+              onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
+              onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
+              onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),
             }
           })}
           options={accountOptions}

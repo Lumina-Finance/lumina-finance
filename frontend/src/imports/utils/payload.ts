@@ -2,7 +2,7 @@ import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transactions'
 import { ACCOUNT_TYPE_OPTIONS, COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
-import type { ColumnMap, ColumnValidationErrors, ImportBuildResult, ImportCategoryKind, ImportFileDraft, ImportMode } from '../types'
+import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '../types'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
 import { getResolvedAccountChoice } from './accountMapping'
@@ -12,6 +12,7 @@ export function buildTransactionImportPayload({
   accountCreateCurrencies,
   accountCreateTypes,
   accountMappings,
+  accountSources,
   categoryById,
   categoryCreateKinds,
   categoryMappings,
@@ -20,12 +21,11 @@ export function buildTransactionImportPayload({
   columnValidationErrors,
   files,
   importedCategories,
-  mode,
-  sourceAccounts,
 }: {
   accountCreateCurrencies: Record<string, string>
   accountCreateTypes: Record<string, string>
   accountMappings: Record<string, string>
+  accountSources: ImportAccountSource[]
   categoryById: Map<string, Category>
   categoryCreateKinds: Record<string, ImportCategoryKind>
   categoryMappings: Record<string, string>
@@ -34,8 +34,6 @@ export function buildTransactionImportPayload({
   columnValidationErrors: ColumnValidationErrors
   files: ImportFileDraft[]
   importedCategories: string[]
-  mode: ImportMode
-  sourceAccounts: string[]
 }): ImportBuildResult {
   const errors: string[] = []
   const addError = (message: string) => {
@@ -48,7 +46,7 @@ export function buildTransactionImportPayload({
   }
 
   const missingRequired = COLUMN_TARGETS
-    .filter((target) => target.required && (!target.mode || target.mode === mode) && !columnMap[target.id])
+    .filter((target) => target.required && !columnMap[target.id])
     .map((target) => target.label)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
 
@@ -58,23 +56,17 @@ export function buildTransactionImportPayload({
   }
 
   const accounts: TransactionImportPayload['accounts'] = []
-  if (mode === 'single-file') {
-    for (const source of sourceAccounts) {
-      const choice = getResolvedAccountChoice(accountMappings[source])
-      appendAccountMapping(accounts, errors, source, source, choice, accountCreateTypes[source], accountCreateCurrencies[source])
-    }
-  } else {
-    for (const file of files) {
-      appendAccountMapping(
-        accounts,
-        errors,
-        file.id,
-        getImportAccountName(file.name),
-        getResolvedAccountChoice(file.accountId),
-        accountCreateTypes[file.id],
-        accountCreateCurrencies[file.id],
-      )
-    }
+  for (const source of accountSources) {
+    const choice = getResolvedAccountChoice(accountMappings[source.id])
+    appendAccountMapping(
+      accounts,
+      errors,
+      source.id,
+      source.label,
+      choice,
+      accountCreateTypes[source.id],
+      accountCreateCurrencies[source.id],
+    )
   }
 
   const categories: TransactionImportPayload['categories'] = []
@@ -109,7 +101,7 @@ export function buildTransactionImportPayload({
   const rows: TransactionImportPayload['rows'] = []
   for (const file of files) {
     for (const row of file.rows) {
-      const accountSource = mode === 'single-file' ? getMappedValue(row, columnMap.account_id) : file.id
+      const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
       const categorySource = getMappedValue(row, columnMap.category_id)
       const dt = normalizeImportDate(getMappedValue(row, columnMap.dt))
       const amount = getMappedValue(row, columnMap.amount)
@@ -182,10 +174,6 @@ function isImportAccountType(value: string): value is AccountType {
   return ACCOUNT_TYPE_OPTIONS.some((option) => option.value === value)
 }
 
-export function getImportAccountName(fileName: string) {
-  return fileName.replace(/\.csv$/i, '').trim() || fileName
-}
-
 function cleanOptional(value: string) {
   const trimmed = value.trim()
   return trimmed || null
@@ -204,4 +192,3 @@ export function formatImportSummary(result: TransactionImportResponse) {
 export function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Import failed.'
 }
-

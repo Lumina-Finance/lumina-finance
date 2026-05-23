@@ -13,7 +13,6 @@ export async function readCsvFile(file: File): Promise<ImportFileDraft> {
       headers,
       rows,
       error: headers.length === 0 ? 'No header row detected' : null,
-      accountId: '',
     }
   } catch {
     return {
@@ -23,7 +22,6 @@ export async function readCsvFile(file: File): Promise<ImportFileDraft> {
       headers: [],
       rows: [],
       error: 'Unable to read file',
-      accountId: '',
     }
   }
 }
@@ -129,4 +127,3 @@ function dedupeHeaders(rawHeaders: string[]) {
     return count === 0 ? base : `${base} ${count + 1}`
   })
 }
-

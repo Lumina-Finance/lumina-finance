@@ -54,7 +54,7 @@ export default function ImportsPage() {
                 Import Transactions
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                Stage CSV transaction files before they are added to your ledger.
+                Stage one CSV transaction file before it is added to your ledger.
               </p>
             </div>
           </div>

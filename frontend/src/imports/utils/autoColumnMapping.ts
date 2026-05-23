@@ -1,5 +1,5 @@
 import { COLUMN_TARGETS } from '../constants'
-import type { ColumnMap, ColumnTarget, ImportFileDraft, ImportMode } from '../types'
+import type { ColumnMap, ColumnTarget, ImportFileDraft } from '../types'
 import { unique } from './common'
 import { validateColumnMap, validateColumnValues } from './columnMapping'
 
@@ -123,21 +123,16 @@ const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
   amount: ['balance', 'available', 'limit', 'rate'],
 }
 
-export function inferColumnMap(columnMap: ColumnMap, files: ImportFileDraft[], mode: ImportMode) {
+export function inferColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
   const result = validateColumnMap(columnMap, files)
   if (files.length === 0) return result
 
   const headers = unique(files.flatMap((file) => file.headers))
   const inferredMap = { ...result.map }
 
-  for (const target of COLUMN_TARGETS) {
-    if (target.mode && target.mode !== mode) inferredMap[target.id] = ''
-  }
-
   const usedHeaders = new Set(Object.values(inferredMap).filter(Boolean))
 
   for (const target of COLUMN_TARGETS) {
-    if (target.mode && target.mode !== mode) continue
     if (inferredMap[target.id]) continue
 
     const header = getBestHeaderMatch(files, headers, usedHeaders, target.id)

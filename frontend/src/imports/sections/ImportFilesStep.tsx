@@ -8,24 +8,20 @@ import { formatBytes } from '../utils'
 type ImportFilesStepProps = Pick<
   TransactionImportWorkflow,
   | 'inputRef'
-  | 'mode'
   | 'files'
   | 'isProcessingFiles'
   | 'totalRows'
   | 'mappedFieldCount'
-  | 'handleModeChange'
   | 'handleFileChange'
   | 'removeFile'
 >
 
 export function ImportFilesStep({
   inputRef,
-  mode,
   files,
   isProcessingFiles,
   totalRows,
   mappedFieldCount,
-  handleModeChange,
   handleFileChange,
   removeFile,
 }: ImportFilesStepProps) {
@@ -47,36 +43,16 @@ export function ImportFilesStep({
   return (
     <ImportStep
       index="01"
-      title="Files"
-      description="Choose how the import is shaped."
+      title="File"
+      description="Upload one CSV transaction file."
       className="xl:h-full"
       contentClassName="flex min-h-0 flex-col gap-3"
     >
-      <div className="app-segmented-control w-full">
-        <button
-          type="button"
-          className={`app-segmented-option flex-1 text-sm ${mode === 'single-file' ? 'app-segmented-option-active' : ''}`}
-          onClick={() => handleModeChange('single-file')}
-          disabled={isProcessingFiles}
-        >
-          Single file
-        </button>
-        <button
-          type="button"
-          className={`app-segmented-option flex-1 text-sm ${mode === 'file-per-account' ? 'app-segmented-option-active' : ''}`}
-          onClick={() => handleModeChange('file-per-account')}
-          disabled={isProcessingFiles}
-        >
-          File per account
-        </button>
-      </div>
-
       <input
         ref={inputRef}
         type="file"
         className="hidden"
         accept=".csv,text/csv"
-        multiple={mode === 'file-per-account'}
         onChange={handleFileChange}
         disabled={isProcessingFiles}
       />
@@ -116,7 +92,7 @@ export function ImportFilesStep({
               </motion.span>
             ) : (
               <motion.span
-                key={`upload-${mode}`}
+                key="upload"
                 className="flex flex-col items-center"
                 {...uploadStateMotion}
               >
@@ -127,10 +103,10 @@ export function ImportFilesStep({
                   <Upload size={20} aria-hidden />
                 </span>
                 <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                  Upload CSV {mode === 'file-per-account' ? 'files' : 'file'}
+                  Upload CSV file
                 </span>
                 <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                  {mode === 'file-per-account' ? 'Multiple files accepted.' : 'One file accepted.'}
+                  One file accepted.
                 </span>
               </motion.span>
             )}
@@ -140,8 +116,8 @@ export function ImportFilesStep({
 
       {files.length === 0 ? (
         <EmptyState
-          title="No files staged"
-          description="Uploaded files will appear here."
+          title="No file staged"
+          description="The uploaded file will appear here."
         />
       ) : (
         <div className="overflow-hidden">
@@ -184,7 +160,7 @@ export function ImportFilesStep({
       )}
 
       <div className="mt-auto grid grid-cols-3 gap-3 pt-3">
-        <ImportStat label="Files" value={files.length.toString()} />
+        <ImportStat label="File" value={files.length.toString()} />
         <ImportStat label="Rows" value={totalRows.toString()} />
         <ImportStat label="Mapped" value={mappedFieldCount.toString()} />
       </div>

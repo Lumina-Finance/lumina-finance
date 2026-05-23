@@ -1,33 +1,29 @@
 import type { AccountsOverview } from '@/api/accounts'
+import type { ImportAccountSource } from '../types'
 
 export function getResolvedAccountChoice(explicitValue: string | undefined) {
   return explicitValue || ''
 }
 
 export function inferAccountMappings(
-  sources: string[],
+  sources: ImportAccountSource[],
   explicitMappings: Record<string, string>,
   accounts: AccountsOverview[],
 ) {
   const next = { ...explicitMappings }
 
   for (const source of sources) {
-    if (next[source]) continue
+    if (next[source.id]) continue
 
-    const match = findBestAccountNameMatch(source, accounts)
-    if (match) next[source] = match.id
+    const match = findBestAccountNameMatch(source.matchText, accounts)
+    if (match) next[source.id] = match.id
   }
 
   return next
 }
 
-export function resolveImportAccountChoice(
-  source: string,
-  explicitValue: string | undefined,
-  accounts: AccountsOverview[],
-) {
-  const explicitChoice = getResolvedAccountChoice(explicitValue)
-  return explicitChoice || findBestAccountNameMatch(source, accounts)?.id || ''
+export function getImportAccountName(fileName: string) {
+  return fileName.replace(/\.csv$/i, '').trim() || fileName
 }
 
 export function getResolvedAccountCreateType(

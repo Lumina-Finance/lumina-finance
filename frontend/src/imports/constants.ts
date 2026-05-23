@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/Dropdown'
-import type { ColumnMap, ColumnTarget, ImportCategoryKind, ImportMode } from './types'
+import type { ColumnMap, ColumnTarget, ImportCategoryKind } from './types'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {
   account_id: '',
@@ -20,9 +20,8 @@ export const COLUMN_TARGETS: Array<{
   label: string
   hint: string
   required?: boolean
-  mode?: ImportMode
 }> = [
-  { id: 'account_id', label: 'Account', hint: 'Resolved from the source account.', required: true, mode: 'single-file' },
+  { id: 'account_id', label: 'Account', hint: 'Resolved from the source account when the file contains one.' },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
   { id: 'amount', label: 'Amount', hint: 'Raw signed amount.', required: true },

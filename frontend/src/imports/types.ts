@@ -2,7 +2,6 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Transaction, TransactionImportPayload } from '@/api/transactions'
 
-export type ImportMode = 'single-file' | 'file-per-account'
 export type ColumnTarget =
   | 'account_id'
   | 'dt'
@@ -18,6 +17,12 @@ export type ColumnValidationErrors = Record<string, string>
 export type CsvRow = Record<string, string>
 export type ImportCategoryKind = Category['kind']
 
+export interface ImportAccountSource {
+  id: string
+  label: string
+  matchText: string
+}
+
 export interface ImportFileDraft {
   id: string
   name: string
@@ -25,7 +30,6 @@ export interface ImportFileDraft {
   headers: string[]
   rows: CsvRow[]
   error: string | null
-  accountId: string
 }
 
 export interface PreviewTransactionRow {

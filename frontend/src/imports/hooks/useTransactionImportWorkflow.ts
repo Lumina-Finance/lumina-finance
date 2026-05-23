@@ -14,11 +14,12 @@ import {
   EMPTY_COLUMN_MAP,
   KIND_LABELS,
 } from '../constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportMode, PreviewTransactionRow } from '../types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAccountSource, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '../types'
 import {
   buildTransactionImportPayload,
   formatImportSummary,
   getErrorMessage,
+  getImportAccountName,
   getImportedCategoryTypes,
   getMappedValue,
   getPreviewCategory,
@@ -36,19 +37,17 @@ import {
   readCsvFile,
   removeRecordKey,
   removeSetValue,
-  resolveImportAccountChoice,
   splitImportedValues,
   toMinorUnits,
   unique,
   validateColumnValues,
 } from '../utils'
 
-const FILE_PER_ACCOUNT_MATCH_KEY = '__file_per_account__'
+const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 const CSV_PROCESSING_MIN_MS = 1500
 
 export function useTransactionImportWorkflow() {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [mode, setMode] = useState<ImportMode>('single-file')
   const [files, setFiles] = useState<ImportFileDraft[]>([])
   const [isProcessingFiles, setIsProcessingFiles] = useState(false)
   const [autoFilledColumnHeaders, setAutoFilledColumnHeaders] = useState<Set<string>>(() => new Set())
@@ -130,82 +129,74 @@ export function useTransactionImportWorkflow() {
     [files],
   )
 
-  const availableColumnTargets = useMemo(
-    () => COLUMN_TARGETS.filter((target) => !target.mode || target.mode === mode),
-    [mode],
-  )
-
   const missingRequiredColumnLabels = useMemo(
     () =>
-      availableColumnTargets
+      COLUMN_TARGETS
         .filter((target) => target.required && !columnMap[target.id])
         .map((target) => target.label),
-    [availableColumnTargets, columnMap],
+    [columnMap],
   )
 
   const columnTargetOptions = useMemo<DropdownOption[]>(
     () => [
       { value: '', label: 'Do not import' },
-      ...availableColumnTargets.map((target) => ({
+      ...COLUMN_TARGETS.map((target) => ({
         value: target.id,
         label: target.label,
         group: target.required ? 'Required fields' : 'Optional fields',
       })),
     ],
-    [availableColumnTargets],
+    [],
   )
 
   const sourceAccounts = useMemo(() => {
-    if (mode !== 'single-file' || !columnMap.account_id) return []
+    if (!columnMap.account_id) return []
     return unique(
       files.flatMap((file) =>
         file.rows.map((row) => row[columnMap.account_id]?.trim()).filter(Boolean),
       ),
     )
-  }, [columnMap.account_id, files, mode])
+  }, [columnMap.account_id, files])
 
-  const accountMatchKey = getAccountAutoMatchKey(columnMap, mode)
-  const canInferAccountMappings = mode === 'single-file'
-    && Boolean(accountMatchKey)
-    && accountAutoMatchKey === accountMatchKey
+  const accountMappingSources = useMemo<ImportAccountSource[]>(
+    () => {
+      if (columnMap.account_id) {
+        return sourceAccounts.map((source) => ({
+          id: source,
+          label: source,
+          matchText: source,
+        }))
+      }
+
+      return files.map((file) => ({
+        id: file.id,
+        label: getImportAccountName(file.name),
+        matchText: file.name,
+      }))
+    },
+    [columnMap.account_id, files, sourceAccounts],
+  )
+
+  const canInferAccountMappings = Boolean(accountAutoMatchKey)
+    && accountAutoMatchKey === (columnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
 
   const resolvedAccountMappings = useMemo(
     () => (
       canInferAccountMappings
-        ? inferAccountMappings(sourceAccounts, accountMappings, accounts)
+        ? inferAccountMappings(accountMappingSources, accountMappings, accounts)
         : accountMappings
     ),
-    [accountMappings, accounts, canInferAccountMappings, sourceAccounts],
+    [accountMappingSources, accountMappings, accounts, canInferAccountMappings],
   )
 
   const autoFilledAccountSources = useMemo(
     () => new Set(
-      sourceAccounts.filter((sourceAccount) => !accountMappings[sourceAccount] && Boolean(resolvedAccountMappings[sourceAccount])),
+      accountMappingSources
+        .filter((source) => !accountMappings[source.id] && Boolean(resolvedAccountMappings[source.id]))
+        .map((source) => source.id),
     ),
-    [accountMappings, resolvedAccountMappings, sourceAccounts],
+    [accountMappingSources, accountMappings, resolvedAccountMappings],
   )
-
-  const filesWithResolvedAccounts = useMemo(
-    () =>
-      mode === 'file-per-account' && accountAutoMatchKey === FILE_PER_ACCOUNT_MATCH_KEY
-        ? files.map((file) => ({
-          ...file,
-          accountId: resolveImportAccountChoice(file.name, file.accountId, accounts),
-        }))
-        : files,
-    [accountAutoMatchKey, accounts, files, mode],
-  )
-
-  const autoFilledFileAccountIds = useMemo(() => {
-    if (mode !== 'file-per-account' || accountAutoMatchKey !== FILE_PER_ACCOUNT_MATCH_KEY) return new Set<string>()
-
-    const resolvedById = new Map(filesWithResolvedAccounts.map((file) => [file.id, file.accountId]))
-    return new Set(
-      files
-        .filter((file) => !file.accountId && Boolean(resolvedById.get(file.id)))
-        .map((file) => file.id),
-    )
-  }, [accountAutoMatchKey, files, filesWithResolvedAccounts, mode])
 
   const importedCategories = useMemo(() => {
     if (!columnMap.category_id) return []
@@ -265,19 +256,15 @@ export function useTransactionImportWorkflow() {
     const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
     const timestamp = new Date().toISOString()
 
-    for (const file of filesWithResolvedAccounts) {
+    for (const file of files) {
       for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
         const row = file.rows[rowIndex]
-        const sourceAccount = mode === 'single-file'
-          ? getMappedValue(row, columnMap.account_id)
-          : file.name
-        const accountKey = mode === 'single-file' ? sourceAccount : file.id
-        const accountChoice = mode === 'single-file'
-          ? getResolvedAccountChoice(resolvedAccountMappings[sourceAccount])
-          : getResolvedAccountChoice(file.accountId)
+        const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
+        const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)
+        const accountChoice = getResolvedAccountChoice(resolvedAccountMappings[accountSource])
         const account = accountChoice === CREATE_ACCOUNT_VALUE ? undefined : accountById.get(accountChoice)
         const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
-          ? getResolvedAccountCreateCurrency(accountKey, accountCreateCurrencies)
+          ? getResolvedAccountCreateCurrency(accountSource, accountCreateCurrencies)
           : ''
         const importedDate = getMappedValue(row, columnMap.dt)
         const dt = normalizeImportDate(importedDate)
@@ -306,7 +293,7 @@ export function useTransactionImportWorkflow() {
         rows.push({
           id: `${file.id}-${rowIndex}`,
           accountInstitution: account?.institution ?? null,
-          accountName: account?.name ?? (sourceAccount || file.name || 'Unmapped account'),
+          accountName: account?.name ?? (accountLabel || 'Unmapped account'),
           category,
           currency,
           dateLabel: getPreviewDateLabel(dt),
@@ -338,7 +325,7 @@ export function useTransactionImportWorkflow() {
     }
 
     return rows
-  }, [accountById, accountCreateCurrencies, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, filesWithResolvedAccounts, missingRequiredColumnLabels, mode, resolvedAccountMappings, resolvedCategoryMappings])
+  }, [accountById, accountCreateCurrencies, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings])
 
   const previewGroups = useMemo(
     () => groupPreviewRowsByDate(previewRows),
@@ -349,31 +336,29 @@ export function useTransactionImportWorkflow() {
       accountCreateCurrencies,
       accountCreateTypes,
       accountMappings: resolvedAccountMappings,
+      accountSources: accountMappingSources,
       categoryById,
       categoryCreateKinds,
       categoryMappings: resolvedCategoryMappings,
       categoryTypesBySource,
       columnMap,
       columnValidationErrors,
-      files: filesWithResolvedAccounts,
+      files,
       importedCategories,
-      mode,
-      sourceAccounts,
     }),
     [
       accountCreateCurrencies,
       accountCreateTypes,
+      accountMappingSources,
       categoryById,
       categoryCreateKinds,
       categoryTypesBySource,
       columnMap,
       columnValidationErrors,
-      filesWithResolvedAccounts,
+      files,
       importedCategories,
-      mode,
       resolvedAccountMappings,
       resolvedCategoryMappings,
-      sourceAccounts,
     ],
   )
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
@@ -385,40 +370,15 @@ export function useTransactionImportWorkflow() {
     nextColumnMap: ColumnMap,
     nextColumnValidationErrors: ColumnValidationErrors,
     nextFiles: ImportFileDraft[],
-    nextMode: ImportMode,
   ) => {
-    if (!isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, nextFiles, nextMode)) {
+    if (!isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, nextFiles)) {
       setAccountAutoMatchKey('')
       setCategoryAutoMatchKey('')
       return
     }
 
-    setAccountAutoMatchKey(getAccountAutoMatchKey(nextColumnMap, nextMode))
+    setAccountAutoMatchKey(nextColumnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
     setCategoryAutoMatchKey(nextColumnMap.category_id)
-  }
-
-  const handleModeChange = (nextMode: ImportMode) => {
-    setMode(nextMode)
-    setAccountMappings({})
-    setAccountAutoMatchKey('')
-    setCategoryAutoMatchKey('')
-    setAutoFilledColumnHeaders(new Set())
-    setAccountCreateTypes({})
-    setAccountCreateCurrencies({})
-    setSelectedAccountRows(new Set())
-    setBatchAccountType('')
-    setBatchAccountCurrency('')
-    setFiles((current) => {
-      const next = nextMode === 'single-file' ? current.slice(0, 1) : current
-      setColumnMap((previous) => {
-        const result = inferColumnMap(previous, next, nextMode)
-        setColumnValidationErrors(result.errors)
-        setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, previous, result.map))
-        syncAutoMatchKeys(result.map, result.errors, next, nextMode)
-        return result.map
-      })
-      return next
-    })
   }
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -433,14 +393,14 @@ export function useTransactionImportWorkflow() {
         Promise.all(selectedFiles.map(readCsvFile)),
         sleep(CSV_PROCESSING_MIN_MS),
       ])
-      const next = mode === 'single-file' ? drafts.slice(0, 1) : [...files, ...drafts]
+      const next = drafts.slice(0, 1)
 
       setFiles(next)
       setColumnMap((previous) => {
-        const result = inferColumnMap(previous, next, mode)
+        const result = inferColumnMap(previous, next)
         setColumnValidationErrors(result.errors)
         setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, previous, result.map))
-        syncAutoMatchKeys(result.map, result.errors, next, mode)
+        syncAutoMatchKeys(result.map, result.errors, next)
         return result.map
       })
     } finally {
@@ -453,28 +413,14 @@ export function useTransactionImportWorkflow() {
     setFiles((current) => {
       const next = current.filter((file) => file.id !== fileId)
       setColumnMap((previous) => {
-        const result = inferColumnMap(previous, next, mode)
+        const result = inferColumnMap(previous, next)
         setColumnValidationErrors(result.errors)
         setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, previous, result.map))
-        syncAutoMatchKeys(result.map, result.errors, next, mode)
+        syncAutoMatchKeys(result.map, result.errors, next)
         return result.map
       })
       return next
     })
-    setAccountCreateTypes((current) => removeRecordKey(current, fileId))
-    setAccountCreateCurrencies((current) => removeRecordKey(current, fileId))
-    setSelectedAccountRows((current) => removeSetValue(current, fileId))
-  }
-
-  const updateFileAccount = (fileId: string, accountId: string) => {
-    setFiles((current) =>
-      current.map((file) => (file.id === fileId ? { ...file, accountId } : file)),
-    )
-    if (accountId !== CREATE_ACCOUNT_VALUE) {
-      setAccountCreateTypes((current) => removeRecordKey(current, fileId))
-      setAccountCreateCurrencies((current) => removeRecordKey(current, fileId))
-      setSelectedAccountRows((current) => removeSetValue(current, fileId))
-    }
   }
 
   const updateSourceAccount = (sourceAccount: string, accountId: string) => {
@@ -501,7 +447,7 @@ export function useTransactionImportWorkflow() {
       validation,
     )
     const nextColumnMap = getNextColumnMap(columnMap, header, targetValue)
-    const nextColumnMappingComplete = isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, files, mode)
+    const nextColumnMappingComplete = isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, files)
 
     setAutoFilledColumnHeaders((current) => {
       const next = new Set(current)
@@ -511,7 +457,7 @@ export function useTransactionImportWorkflow() {
     })
 
     if (nextColumnMappingComplete) {
-      syncAutoMatchKeys(nextColumnMap, nextColumnValidationErrors, files, mode)
+      syncAutoMatchKeys(nextColumnMap, nextColumnValidationErrors, files)
     } else {
       if (targetValue === 'account_id') {
         setAccountAutoMatchKey(header)
@@ -547,14 +493,12 @@ export function useTransactionImportWorkflow() {
 
   return {
     inputRef,
-    mode,
-    files: filesWithResolvedAccounts,
+    files,
     isProcessingFiles,
     autoFilledColumnHeaders,
     columnMap,
     accountMappings: resolvedAccountMappings,
     autoFilledAccountSources,
-    autoFilledFileAccountIds,
     accountCreateTypes,
     accountCreateCurrencies,
     selectedAccountRows,
@@ -577,10 +521,9 @@ export function useTransactionImportWorkflow() {
     accountById,
     categoryById,
     headers,
-    availableColumnTargets,
     missingRequiredColumnLabels,
     columnTargetOptions,
-    sourceAccounts,
+    accountMappingSources,
     importedCategories,
     importedMerchants,
     categoryTypesBySource,
@@ -603,10 +546,8 @@ export function useTransactionImportWorkflow() {
     setCategoryCreateKinds,
     setMerchantHandlingOpen,
     setTagHandlingOpen,
-    handleModeChange,
     handleFileChange,
     removeFile,
-    updateFileAccount,
     updateSourceAccount,
     updateColumnTarget,
     handleCommitImport,
@@ -666,20 +607,15 @@ function getNextColumnValidationErrors(
   return next
 }
 
-function getAccountAutoMatchKey(columnMap: ColumnMap, mode: ImportMode) {
-  return mode === 'file-per-account' ? FILE_PER_ACCOUNT_MATCH_KEY : columnMap.account_id
-}
-
 function isColumnMappingComplete(
   columnMap: ColumnMap,
   columnValidationErrors: ColumnValidationErrors,
   files: ImportFileDraft[],
-  mode: ImportMode,
 ) {
   if (files.length === 0) return false
 
   const missingRequired = COLUMN_TARGETS.some(
-    (target) => target.required && (!target.mode || target.mode === mode) && !columnMap[target.id],
+    (target) => target.required && !columnMap[target.id],
   )
   if (missingRequired) return false
 
