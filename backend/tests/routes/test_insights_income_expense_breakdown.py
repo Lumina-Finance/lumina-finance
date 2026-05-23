@@ -124,7 +124,8 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
             [str(transport_id), "Transport", "expense", 60_000],
             [str(travel_id), "Travel", "expense", 50_000],
             [str(medical_id), "Medical", "expense", 40_000],
-            ["expense-other", "Other", "expense", 50_000],
+            [str(coffee_id), "Coffee", "expense", 30_000],
+            [str(pets_id), "Pets", "expense", 20_000],
         ],
         "income": [
             [str(salary_id), "Salary", "income", 500_000],

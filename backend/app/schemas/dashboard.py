@@ -29,7 +29,7 @@ class SpendingBreakdownResponse(BaseModel):
     toggle can flip instantly without refetching. ``range`` picks the calendar
     period (WTD / MTD / QTD / YTD) — the boundaries match the spending
     comparison endpoint's current-period slots. Entries are sorted largest-
-    first and include only categories with non-zero totals in the range.
+    first and compacted with an Other slice for the dashboard widget.
     """
 
     range: RangeKind

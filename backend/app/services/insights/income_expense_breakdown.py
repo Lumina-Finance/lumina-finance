@@ -14,7 +14,6 @@ from app.models.user import User
 from app.schemas.insights import InsightsIncomeExpenseBreakdownResponse
 from app.services.insights.common import get_base_currency_accounts, previous_period_bounds
 
-BREAKDOWN_CATEGORY_LIMIT = 7
 CATEGORY_TREND_LIMIT = 3
 
 
@@ -137,9 +136,8 @@ def _breakdown_sort_key(entry: tuple[uuid.UUID, BreakdownCategoryStats]) -> tupl
 
 def _breakdown_entries(
     stats_by_id: BreakdownCategoryStatsById,
-    kind: CategoryKind,
 ) -> list[BreakdownEntryRow]:
-    """Return top category rows plus a compact Other row when needed."""
+    """Return every positive category row for the pie breakdown."""
     positive_entries = [
         (category_id, stats)
         for category_id, stats in stats_by_id.items()
@@ -147,15 +145,10 @@ def _breakdown_entries(
     ]
     positive_entries.sort(key=_breakdown_sort_key)
 
-    visible_entries = positive_entries[:BREAKDOWN_CATEGORY_LIMIT]
-    other_amount = sum(stats.amount for _category_id, stats in positive_entries[BREAKDOWN_CATEGORY_LIMIT:])
-    rows = [
+    return [
         (str(category_id), stats.name, stats.category_kind.value, stats.amount)
-        for category_id, stats in visible_entries
+        for category_id, stats in positive_entries
     ]
-    if other_amount > 0:
-        rows.append((f"{kind.value}-other", "Other", kind.value, other_amount))
-    return rows
 
 
 def _change_pct(current_amount: int, previous_amount: int) -> int | None:
@@ -272,8 +265,8 @@ async def get_income_expense_breakdown(
     income_increases, income_decreases = _category_trends(current_income_stats, previous_income_stats)
 
     return InsightsIncomeExpenseBreakdownResponse(
-        expense=_breakdown_entries(current_expense_breakdown, CategoryKind.EXPENSE),
-        income=_breakdown_entries(current_income_breakdown, CategoryKind.INCOME),
+        expense=_breakdown_entries(current_expense_breakdown),
+        income=_breakdown_entries(current_income_breakdown),
         expense_increases=expense_increases,
         expense_decreases=expense_decreases,
         income_increases=income_increases,

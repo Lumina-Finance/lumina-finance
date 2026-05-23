@@ -44,6 +44,15 @@ function renderCrossoverBadge(entry: CategoryBreakdownEntry, mode: BreakdownMode
   return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
 }
 
+function getBreakdownCategoryColorId(
+  entry: CategoryBreakdownEntry,
+  fallbackKind: CategoryBreakdownEntry['category_kind'],
+) {
+  return entry.name === 'Other'
+    ? `${entry.category_kind || fallbackKind}-other`
+    : entry.category_id
+}
+
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
   const shouldReduceMotion = useReducedMotion()
   const {
@@ -63,17 +72,18 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   const breakdownLoadingText = formatDashboardMoney(88888800, displayCurrency, 'breakdown')
   const breakdownCategoryKind = breakdownMode === 'spending' ? 'expense' : 'income'
   const breakdownColors = useMemo(() => getCategoryColorMap(breakdownEntries.map((entry) => ({
-    id: entry.category_id,
+    id: getBreakdownCategoryColorId(entry, breakdownCategoryKind),
     name: entry.name,
     kind: entry.category_kind || breakdownCategoryKind,
   }))), [breakdownEntries, breakdownCategoryKind])
   const getBreakdownColor = (entry: CategoryBreakdownEntry) => getCategoryColor({
-    id: entry.category_id,
+    id: getBreakdownCategoryColorId(entry, breakdownCategoryKind),
     name: entry.name,
     kind: entry.category_kind || breakdownCategoryKind,
   })
   const getSpacedBreakdownColor = (entry: CategoryBreakdownEntry) => (
-    breakdownColors.get(entry.category_id || entry.name) ?? getBreakdownColor(entry)
+    breakdownColors.get(getBreakdownCategoryColorId(entry, breakdownCategoryKind) || entry.name)
+      ?? getBreakdownColor(entry)
   )
 
   return (
@@ -200,7 +210,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
           </div>
           {breakdownEntries.length > 0 && (
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
-              {breakdownEntries.slice(0, 6).map((entry) => (
+              {breakdownEntries.map((entry) => (
                 <div key={entry.category_id} className="flex items-center gap-1.5">
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-full"

@@ -47,6 +47,8 @@ from app.services.transaction_responses import (
     get_tags_batch,
 )
 
+DASHBOARD_BREAKDOWN_CATEGORY_LIMIT = 6
+
 # ---------------------------------------------------------------------------
 # Helpers for dashboard widgets (date & math)
 # ---------------------------------------------------------------------------
@@ -543,7 +545,8 @@ async def get_spending_breakdown(
     spending, and positive category totals render as income. The original
     category kind is preserved so the frontend can mark flipped categories.
     Categories with zero totals are dropped; entries are sorted largest-first
-    so the frontend can take the top N directly.
+    and compacted into an Other slice when the dashboard donut has too many
+    small categories.
     """
     start, end = _current_period_bounds(range_, now.date())
     if not base_currency_account_ids:
@@ -587,6 +590,31 @@ async def get_spending_breakdown(
                 amount=total,
             ))
 
-    expense.sort(key=lambda e: e.amount, reverse=True)
-    income.sort(key=lambda e: e.amount, reverse=True)
-    return SpendingBreakdownResponse(range=range_, expense=expense, income=income)
+    expense.sort(key=lambda e: (-e.amount, e.name))
+    income.sort(key=lambda e: (-e.amount, e.name))
+    return SpendingBreakdownResponse(
+        range=range_,
+        expense=_dashboard_breakdown_entries(expense, CategoryKind.EXPENSE),
+        income=_dashboard_breakdown_entries(income, CategoryKind.INCOME),
+    )
+
+
+def _dashboard_breakdown_entries(
+    entries: list[CategoryBreakdownEntry],
+    kind: CategoryKind,
+) -> list[CategoryBreakdownEntry]:
+    """Return visible dashboard slices plus one Other slice for hidden rows."""
+    visible = entries[:DASHBOARD_BREAKDOWN_CATEGORY_LIMIT]
+    other_amount = sum(entry.amount for entry in entries[DASHBOARD_BREAKDOWN_CATEGORY_LIMIT:])
+    if other_amount <= 0:
+        return visible
+
+    return [
+        *visible,
+        CategoryBreakdownEntry(
+            category_id=uuid.uuid5(uuid.NAMESPACE_URL, f"dashboard-{kind.value}-other"),
+            name="Other",
+            category_kind=kind,
+            amount=other_amount,
+        ),
+    ]

@@ -117,6 +117,48 @@ async def test_dashboard_spending_breakdown_counts_category_crossovers_by_sign(c
     ]
 
 
+async def test_dashboard_spending_breakdown_uses_other_for_tiny_slices(client, monkeypatch):
+    """The compact dashboard donut groups hidden category slices into Other."""
+    from app.routes import dashboard as dashboard_routes
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 5, 20, 16, 0, tzinfo=UTC)))
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers, name="Main Cash")).json()["id"]
+    categories = [
+        (await _create_category(client, headers, name=f"Test Category {index}", kind="expense")).json()
+        for index in range(1, 8)
+    ]
+
+    for index, category in enumerate(categories, start=1):
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category["id"],
+            dt=f"2026-05-{index:02d}",
+            amount=-(10_000 * index),
+        )
+
+    resp = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["expense"][:-1] == [
+        {
+            "category_id": categories[index - 1]["id"],
+            "name": f"Test Category {index}",
+            "category_kind": "expense",
+            "amount": 10_000 * index,
+        }
+        for index in range(7, 1, -1)
+    ]
+    assert data["expense"][-1]["name"] == "Other"
+    assert data["expense"][-1]["category_kind"] == "expense"
+    assert data["expense"][-1]["amount"] == 10_000
+
+
 async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):
     """Savings rate totals include only income and expense categories."""
     from app.routes import dashboard as dashboard_routes
