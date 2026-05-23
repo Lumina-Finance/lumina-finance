@@ -25,9 +25,11 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 #### Near Term
 
 - [X] Insights tab for deeper reports and trends
-- [ ] UI/UX polish across the main workflows
+- [X] UI/UX polish across the main workflows
+- [X] Bug fixes and stability improvements
+- [ ] Multi-currency support
+- [ ] Application security improvements and fixes
 - [ ] OIDC and WebAuthN support
-- [ ] Bug fixes and stability improvements
 - [ ] SaaS development and testing
 
 #### Long Term
@@ -37,6 +39,8 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 - [ ] A few quite ambitious features we're not quite ready to spoil yet :)
 
 ## Screenshots
+
+These pages are now also fully mobile and tablet optimized!
 
 <!-- markdownlint-disable MD033 -->
 
