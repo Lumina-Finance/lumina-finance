@@ -45,6 +45,78 @@ import {
   TaxAdvantagedCurrencyWarning,
 } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 
+const LIMIT_FIELD_ACTION_TRANSITION = {
+  duration: 0.18,
+  ease: [0.25, 0.1, 0.25, 1] as const,
+}
+
+type LimitDraftField = keyof Pick<TaxPlanLimitFormState, 'contribution_limit' | 'withdrawal_limit'>
+
+function LimitInputShell({
+  children,
+  dirty,
+  discardLabel,
+  disabled,
+  onDiscard,
+  onSave,
+  saveLabel,
+  saving,
+}: {
+  children: React.ReactNode
+  dirty: boolean
+  discardLabel: string
+  disabled: boolean
+  onDiscard: () => void
+  onSave: () => void
+  saveLabel: string
+  saving: boolean
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <div className="min-w-0 flex-1">
+        {children}
+      </div>
+      <AnimatePresence initial={false}>
+        {dirty && (
+          <motion.div
+            className="flex shrink-0 items-center gap-1 overflow-hidden"
+            initial={{ opacity: 0, width: 0, x: -4, filter: 'blur(3px)' }}
+            animate={{ opacity: 1, width: 68, x: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, width: 0, x: -4, filter: 'blur(3px)' }}
+            transition={LIMIT_FIELD_ACTION_TRANSITION}
+          >
+            <button
+              type="button"
+              className="app-icon-button h-8 w-8 shrink-0 disabled:cursor-wait disabled:opacity-60"
+              onClick={onSave}
+              disabled={disabled}
+              aria-label={saveLabel}
+              title="Save"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              {saving ? (
+                <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden />
+              ) : (
+                <Check size={14} aria-hidden />
+              )}
+            </button>
+            <button
+              type="button"
+              className="app-icon-button h-8 w-8 shrink-0 disabled:cursor-wait disabled:opacity-60"
+              onClick={onDiscard}
+              disabled={disabled}
+              aria-label={discardLabel}
+              title="Discard"
+            >
+              <X size={14} aria-hidden />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function TaxAdvantagedCategoryModal({
   accounts,
   onClose,
@@ -220,12 +292,6 @@ export default function TaxAdvantagedCategoryModal({
     setDeleteConfirmYear(null)
   }
 
-  const saveWhenFocusLeaves = (event: React.FocusEvent<HTMLElement>, save: () => void | Promise<void>) => {
-    const nextFocused = event.relatedTarget
-    if (nextFocused instanceof Node && event.currentTarget.contains(nextFocused)) return
-    void save()
-  }
-
   const getPlanUpdateState = (form: TaxPlanFormState) => {
     const nextLifetimeLimit = toMinorUnits(form.lifetime_contribution_limit, currencies, plan.currency)
     const dirty = form.name.trim() !== plan.name
@@ -329,6 +395,31 @@ export default function TaxAdvantagedCategoryModal({
     const draft = limitDraft(year)
     return toMinorUnits(draft.contribution_limit, currencies, plan.currency) !== limit.contribution_limit
       || toMinorUnits(draft.withdrawal_limit, currencies, plan.currency) !== limit.withdrawal_limit
+  }
+
+  const limitFieldDirty = (year: number, key: LimitDraftField) => {
+    const limit = limits.find((row) => row.year === year)
+    if (!limit) return false
+    const draft = limitDraft(year)
+    const baseline = key === 'contribution_limit' ? limit.contribution_limit : limit.withdrawal_limit
+    return toMinorUnits(draft[key], currencies, plan.currency) !== baseline
+  }
+
+  const discardLimitField = (year: number, key: LimitDraftField) => {
+    setLimitDrafts((current) => {
+      const draft = current[year]
+      if (!draft || !(key in draft)) return current
+
+      const nextDraft = { ...draft }
+      delete nextDraft[key]
+
+      const next = { ...current }
+      if (Object.keys(nextDraft).length === 0) delete next[year]
+      else next[year] = nextDraft
+      return next
+    })
+    setLimitError(null)
+    setDeleteConfirmYear(null)
   }
 
   const handleSaveLimit = (year: number) => {
@@ -906,7 +997,6 @@ export default function TaxAdvantagedCategoryModal({
                             <tr
                               className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 rounded-xl border p-3 min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0"
                               style={{ borderColor: 'var(--app-border)' }}
-                              onBlur={(event) => saveWhenFocusLeaves(event, handleCreateLimit)}
                             >
                               <td className="col-start-1 row-start-1 min-w-0 py-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pr-5">
                                 <span className="app-label mb-1 block min-[750px]:hidden">Year</span>
@@ -993,6 +1083,9 @@ export default function TaxAdvantagedCategoryModal({
                               const draft = limitDraft(limit.year)
                               const confirmingDelete = deleteConfirmYear === limit.year
                               const deletingLimit = pendingDeleteLimitYear === limit.year
+                              const savingLimit = updateLimit.isPending && updateLimit.variables?.year === limit.year
+                              const contributionDirty = limitFieldDirty(limit.year, 'contribution_limit')
+                              const withdrawalDirty = limitFieldDirty(limit.year, 'withdrawal_limit')
                               return (
                                 <tr
                                   key={limit.year}
@@ -1005,26 +1098,44 @@ export default function TaxAdvantagedCategoryModal({
                                   </td>
                                   <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-0 min-[750px]:pr-4">
                                     <span className="app-label mb-1 block min-[750px]:hidden">Contribution limit</span>
-                                    <CompactCurrencyInput
-                                      ariaLabel={`${limit.year} contribution limit`}
-                                      currencies={currencies}
-                                      currency={plan.currency}
-                                      onBlur={() => handleSaveLimit(limit.year)}
-                                      value={draft.contribution_limit}
-                                      onChange={(value) => setLimitField(limit.year, 'contribution_limit', value)}
-                                    />
+                                    <LimitInputShell
+                                      dirty={contributionDirty}
+                                      disabled={updateLimit.isPending}
+                                      saving={savingLimit}
+                                      onSave={() => handleSaveLimit(limit.year)}
+                                      onDiscard={() => discardLimitField(limit.year, 'contribution_limit')}
+                                      saveLabel={`Save ${limit.year} contribution limit`}
+                                      discardLabel={`Discard ${limit.year} contribution limit changes`}
+                                    >
+                                      <CompactCurrencyInput
+                                        ariaLabel={`${limit.year} contribution limit`}
+                                        currencies={currencies}
+                                        currency={plan.currency}
+                                        value={draft.contribution_limit}
+                                        onChange={(value) => setLimitField(limit.year, 'contribution_limit', value)}
+                                      />
+                                    </LimitInputShell>
                                   </td>
                                   <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
                                     <span className="app-label mb-1 block min-[750px]:hidden">Withdrawal limit</span>
-                                    <CompactCurrencyInput
-                                      ariaLabel={`${limit.year} withdrawal limit`}
-                                      currencies={currencies}
-                                      currency={plan.currency}
-                                      onBlur={() => handleSaveLimit(limit.year)}
-                                      value={draft.withdrawal_limit}
-                                      onChange={(value) => setLimitField(limit.year, 'withdrawal_limit', value)}
-                                      placeholder="Optional"
-                                    />
+                                    <LimitInputShell
+                                      dirty={withdrawalDirty}
+                                      disabled={updateLimit.isPending}
+                                      saving={savingLimit}
+                                      onSave={() => handleSaveLimit(limit.year)}
+                                      onDiscard={() => discardLimitField(limit.year, 'withdrawal_limit')}
+                                      saveLabel={`Save ${limit.year} withdrawal limit`}
+                                      discardLabel={`Discard ${limit.year} withdrawal limit changes`}
+                                    >
+                                      <CompactCurrencyInput
+                                        ariaLabel={`${limit.year} withdrawal limit`}
+                                        currencies={currencies}
+                                        currency={plan.currency}
+                                        value={draft.withdrawal_limit}
+                                        onChange={(value) => setLimitField(limit.year, 'withdrawal_limit', value)}
+                                        placeholder="Optional"
+                                      />
+                                    </LimitInputShell>
                                   </td>
                                   <td className="col-start-2 row-start-1 py-0 pl-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-2">
                                     <div className="flex items-center justify-center">
