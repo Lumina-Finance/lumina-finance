@@ -125,21 +125,28 @@ function AnimatedRoutes() {
   useEffect(() => {
     if (location.pathname === displayLocation.pathname) return;
 
-    if (!isProtectedPath(location.pathname) || !isProtectedPath(displayLocation.pathname)) {
-      setDisplayLocation(location);
-      setPageTransitionPhase('idle');
-      return;
-    }
+    let exitTimer: number | undefined;
 
-    setPageTransitionPhase('exiting');
+    const transitionTimer = window.setTimeout(() => {
+      if (!isProtectedPath(location.pathname) || !isProtectedPath(displayLocation.pathname)) {
+        setDisplayLocation(location);
+        setPageTransitionPhase('idle');
+        return;
+      }
 
-    const timer = window.setTimeout(() => {
-      setDisplayLocation(location);
-      loadingStartedAtRef.current = null;
-      setPageTransitionPhase('loading');
-    }, PAGE_TRANSITION_EXIT_MS);
+      setPageTransitionPhase('exiting');
 
-    return () => window.clearTimeout(timer);
+      exitTimer = window.setTimeout(() => {
+        setDisplayLocation(location);
+        loadingStartedAtRef.current = null;
+        setPageTransitionPhase('loading');
+      }, PAGE_TRANSITION_EXIT_MS);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(transitionTimer);
+      if (exitTimer !== undefined) window.clearTimeout(exitTimer);
+    };
   }, [displayLocation.pathname, location]);
 
   // Hold the route-level loading state until queries settle and the minimum
