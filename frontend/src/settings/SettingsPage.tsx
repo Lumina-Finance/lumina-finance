@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
@@ -26,6 +26,7 @@ import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/settings/settingsNa
 
 export default function SettingsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, setUser } = useAuth()
   const { data: accounts, isLoading: accountsLoading } = useAccounts()
   const { data: serverSelection, isLoading: selectionLoading } = useRunwayAccounts()
@@ -164,6 +165,29 @@ export default function SettingsPage() {
     setSettingsMenuOpen(false)
     navigate('/settings/imports')
   }
+
+  useEffect(() => {
+    if (!location.hash) return undefined
+
+    const section = SETTINGS_SECTIONS.find(({ id }) => id === decodeURIComponent(location.hash.slice(1)))
+    if (!section) return undefined
+
+    let settleTimer: number | null = null
+    const frameId = window.requestAnimationFrame(() => {
+      const el = document.getElementById(section.id)
+      if (!el) return
+
+      skipScrollSpyRef.current = true
+      setActiveSection(section.id)
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      settleTimer = window.setTimeout(() => { skipScrollSpyRef.current = false }, 600)
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      if (settleTimer !== null) window.clearTimeout(settleTimer)
+    }
+  }, [location.hash])
 
   useEffect(() => {
     let frameId: number | null = null
