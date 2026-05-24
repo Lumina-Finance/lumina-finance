@@ -45,7 +45,7 @@ const CREATE_SHELL_APPEARANCE: BudgetFormShellAppearance = {
   bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8',
 }
 
-const CREATE_FOOTER_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8'
+const CREATE_FOOTER_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5'
 
 export default function BudgetCreateModal({
   open,

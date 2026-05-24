@@ -1389,7 +1389,7 @@ export default function CreateTransactionModal({
 
                 {/* Footer */}
                 <div
-                  className="flex shrink-0 flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:px-8"
+                  className="flex shrink-0 flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:px-8 min-[1050px]:py-5"
                   style={{ borderTop: '1px solid var(--app-border)' }}
                 >
                   {editing ? (

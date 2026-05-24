@@ -44,7 +44,7 @@ const EDIT_SHELL_APPEARANCE: BudgetFormShellAppearance = {
   bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7',
 }
 
-const EDIT_FOOTER_CLASS_NAME = 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-7'
+const EDIT_FOOTER_CLASS_NAME = 'flex shrink-0 flex-col-reverse gap-3 px-6 py-4 sm:flex-row sm:justify-end sm:px-7 min-[1050px]:py-5'
 
 const EDIT_INITIAL_TOUCHED = {
   name: false,

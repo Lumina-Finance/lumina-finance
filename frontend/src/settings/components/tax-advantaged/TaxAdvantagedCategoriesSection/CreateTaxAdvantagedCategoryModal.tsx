@@ -272,7 +272,7 @@ export default function CreateTaxAdvantagedCategoryModal({
             </div>
 
             <div
-              className="grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8"
+              className="grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5"
               style={{ borderTop: '1px solid var(--app-border)' }}
             >
               <button

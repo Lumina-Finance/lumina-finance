@@ -634,7 +634,7 @@ export default function EditAccountIdentityModal({
                   </div>
 
                   <div
-                    className="flex shrink-0 items-center gap-3 px-6 py-5 sm:px-7"
+                    className="flex shrink-0 items-center gap-3 px-6 py-4 sm:px-7 min-[1050px]:py-5"
                     style={{ borderTop: '1px solid var(--app-border)' }}
                   >
                     <button

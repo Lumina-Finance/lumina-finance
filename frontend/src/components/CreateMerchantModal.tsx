@@ -137,7 +137,7 @@ export default function CreateMerchantModal({
   const railLabel = isSecondary ? 'Linked' : 'Merchant'
   const headerPadding = isSecondary ? 'shrink-0 pb-5 pl-4 pr-5 pt-6 min-[1050px]:px-7' : 'shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8'
   const bodyPadding = isSecondary ? 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7' : 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8'
-  const footerPadding = isSecondary ? 'grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-7' : 'grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8'
+  const footerPadding = isSecondary ? 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-7 min-[1050px]:py-5' : 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5'
   const eyebrow = isSecondary ? 'Transaction setup' : 'Personal merchant'
   const title = isSecondary ? 'Add Merchant' : 'Create Merchant'
   const submitLabel = isSecondary ? 'Create' : 'Create Merchant'
