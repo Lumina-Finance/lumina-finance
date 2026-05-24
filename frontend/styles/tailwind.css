@@ -221,6 +221,16 @@
     box-shadow: 0 0 0 2px var(--app-negative-soft);
   }
 
+  .app-runway-threshold-input {
+    appearance: textfield;
+  }
+
+  .app-runway-threshold-input::-webkit-outer-spin-button,
+  .app-runway-threshold-input::-webkit-inner-spin-button {
+    margin: 0;
+    appearance: none;
+  }
+
   .import-auto-fill-row {
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }

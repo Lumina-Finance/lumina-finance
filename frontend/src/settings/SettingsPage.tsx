@@ -12,6 +12,11 @@ import {
 } from '@/api/user'
 import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
+import {
+  DEFAULT_RUNWAY_THRESHOLDS,
+  normalizeRunwayThresholds,
+  type RunwayThresholds,
+} from '@/utils/runway'
 import CategorySettingsSection from '@/settings/components/CategorySettingsSection'
 import MerchantSettingsSection from '@/settings/components/MerchantSettingsSection'
 import TagSettingsSection from '@/settings/components/TagSettingsSection'
@@ -20,6 +25,10 @@ import RunwaySection from '@/settings/components/RunwaySection'
 import TaxAdvantagedCategoriesSection from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection'
 import { profileFormFromUser, type ProfileFormState } from '@/settings/profileForm'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/settings/settingsNavigation'
+
+function runwayThresholdsEqual(a: RunwayThresholds, b: RunwayThresholds) {
+  return a.riskyBelowMonths === b.riskyBelowMonths && a.healthyAtMonths === b.healthyAtMonths
+}
 
 
 /* ── Top-level page ── */
@@ -85,6 +94,20 @@ export default function SettingsPage() {
     for (const id of runwayDraft) if (!runwayServerSet.has(id)) return true
     return false
   }, [runwayDraft, runwayServerSet])
+  const [runwayThresholds, setRunwayThresholds] = useState<RunwayThresholds>(DEFAULT_RUNWAY_THRESHOLDS)
+  const [runwayThresholdDraft, setRunwayThresholdDraft] = useState<RunwayThresholds | null>(null)
+  const runwayThresholdValues = runwayThresholdDraft ?? runwayThresholds
+  const isRunwayThresholdDirty = runwayThresholdDraft !== null
+  const setRunwayThreshold = (field: keyof RunwayThresholds, value: number) => {
+    setRunwayThresholdDraft((prev) => {
+      const next = normalizeRunwayThresholds({
+        ...(prev ?? runwayThresholds),
+        [field]: value,
+      })
+      return runwayThresholdsEqual(next, runwayThresholds) ? null : next
+    })
+  }
+  const isRunwayPaneDirty = isRunwayDirty || isRunwayThresholdDirty
 
   // ── Pane-level save/discard ──
   const profileSaveFeedback = useActionFeedback()
@@ -96,7 +119,7 @@ export default function SettingsPage() {
   const isProfilePending = profileSaveFeedback.isPending || updateProfile.isPending
   const isRunwayPending = runwaySaveFeedback.isPending || updateRunway.isPending
   const canSaveProfile = isProfileDirty && !isProfilePending && firstNameValid
-  const canSaveRunway = isRunwayDirty && !isRunwayPending
+  const canSaveRunway = isRunwayPaneDirty && !isRunwayPending
 
   const handleSaveProfile = async () => {
     if (!canSaveProfile || !user) return
@@ -125,12 +148,14 @@ export default function SettingsPage() {
   }
 
   const handleSaveRunway = async () => {
-    if (!canSaveRunway || !runwayDraft) return
+    if (!canSaveRunway) return
 
     try {
       await runwaySaveFeedback.run(async () => {
-        await updateRunway.mutateAsync(Array.from(runwayDraft))
+        if (runwayDraft) await updateRunway.mutateAsync(Array.from(runwayDraft))
+        if (runwayThresholdDraft) setRunwayThresholds(runwayThresholdDraft)
         setRunwayDraft(null)
+        setRunwayThresholdDraft(null)
       })
     } catch {
       // Mutation errors surface through the pane-level save error text.
@@ -139,6 +164,7 @@ export default function SettingsPage() {
 
   const handleDiscardRunway = () => {
     setRunwayDraft(null)
+    setRunwayThresholdDraft(null)
   }
 
   // ── Scroll-spy navigation ──
@@ -341,7 +367,7 @@ export default function SettingsPage() {
   })
   const runwayActions = paneActions({
     canSave: canSaveRunway,
-    dirty: isRunwayDirty,
+    dirty: isRunwayPaneDirty,
     error: runwaySaveError,
     onDiscard: handleDiscardRunway,
     onSave: handleSaveRunway,
@@ -487,6 +513,8 @@ export default function SettingsPage() {
             accounts={selectableAccounts}
             selection={runwaySelection}
             onToggle={toggleRunwayAccount}
+            thresholds={runwayThresholdValues}
+            onThresholdChange={setRunwayThreshold}
             actions={runwayActions}
           />
 
