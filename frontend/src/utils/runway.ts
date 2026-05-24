@@ -4,19 +4,19 @@
 
 export const RUNWAY_TARGET_MONTHS = 6
 
-export type RunwayBand = 'healthy' | 'watch' | 'low'
+export type RunwayBand = 'healthy' | 'low' | 'risky'
 
 export const RUNWAY_BAND_STYLE: Record<RunwayBand, { label: string; bg: string; fg: string }> = {
   healthy: { label: 'Healthy', bg: 'var(--app-positive-soft)', fg: 'var(--app-positive)' },
-  watch: { label: 'Watch', bg: 'var(--app-accent-soft)', fg: 'var(--app-accent)' },
-  low: { label: 'Low', bg: 'var(--app-negative-soft)', fg: 'var(--app-negative)' },
+  low: { label: 'Low', bg: 'var(--app-accent-soft)', fg: 'var(--app-accent)' },
+  risky: { label: 'Risky', bg: 'var(--app-negative-soft)', fg: 'var(--app-negative)' },
 }
 
 export function runwayBand(months: number | null): RunwayBand | null {
   if (months === null) return null
   if (months >= 3) return 'healthy'
-  if (months >= 1) return 'watch'
-  return 'low'
+  if (months >= 1) return 'low'
+  return 'risky'
 }
 
 // Compact runway display. Prefixes with "≈" to signal that this is a rough
