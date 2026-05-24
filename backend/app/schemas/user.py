@@ -2,9 +2,16 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.auth import validate_iana_timezone
+
+RUNWAY_THRESHOLD_MIN_MONTHS = 0
+RUNWAY_THRESHOLD_MAX_MONTHS = 12
+RUNWAY_THRESHOLD_STEP_MONTHS = 0.5
+RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS = 2
+RUNWAY_DEFAULT_RISKY_BELOW_MONTHS = 1
+RUNWAY_DEFAULT_HEALTHY_AT_MONTHS = 3
 
 
 class UserProfile(BaseModel):
@@ -46,6 +53,40 @@ class RunwayAccountsRequest(BaseModel):
     account_ids: list[uuid.UUID]
 
 
+class RunwayThresholds(BaseModel):
+    """User-configured runway status cutoffs."""
+
+    risky_below_months: float = Field(
+        RUNWAY_DEFAULT_RISKY_BELOW_MONTHS,
+        ge=RUNWAY_THRESHOLD_MIN_MONTHS,
+        le=RUNWAY_THRESHOLD_MAX_MONTHS,
+    )
+    healthy_at_months: float = Field(
+        RUNWAY_DEFAULT_HEALTHY_AT_MONTHS,
+        ge=RUNWAY_THRESHOLD_MIN_MONTHS,
+        le=RUNWAY_THRESHOLD_MAX_MONTHS,
+    )
+
+    @model_validator(mode="after")
+    def validate_thresholds(self) -> RunwayThresholds:
+        """Validate threshold increments and minimum separation."""
+        for value in (self.risky_below_months, self.healthy_at_months):
+            if not _is_runway_threshold_step(value):
+                msg = f"Runway thresholds must use {RUNWAY_THRESHOLD_STEP_MONTHS:g}-month increments"
+                raise ValueError(msg)
+        if self.healthy_at_months - self.risky_below_months < RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS:
+            msg = f"Healthy threshold must be at least {RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS:g} months above risky"
+            raise ValueError(msg)
+        return self
+
+
+class RunwaySettings(BaseModel):
+    """Persisted runway settings."""
+
+    account_ids: list[uuid.UUID]
+    thresholds: RunwayThresholds
+
+
 class RunwayResponse(BaseModel):
     """Runway projection in months.
 
@@ -58,3 +99,9 @@ class RunwayResponse(BaseModel):
     avg_monthly_expense: int
     months_covered: int
     liquid_balance: int
+    thresholds: RunwayThresholds
+
+
+def _is_runway_threshold_step(value: float) -> bool:
+    steps = value / RUNWAY_THRESHOLD_STEP_MONTHS
+    return abs(steps - round(steps)) < 1e-9

@@ -74,6 +74,13 @@ async def test_created_at_auto_set(db, user):
     assert user.created_at is not None
 
 
+async def test_runway_threshold_defaults(db, user):
+    """Runway threshold settings should default to the dashboard's current bands."""
+    await db.refresh(user)
+    assert user.runway_risky_below_months == 1
+    assert user.runway_healthy_at_months == 3
+
+
 async def test_last_name_nullable(db, currency):
     """last_name should be optional."""
     u = User(email="frank@example.com", first_name="Frank", tz="America/Toronto", base_currency="CAD")

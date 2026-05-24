@@ -19,6 +19,8 @@ from app.models.user import User, UserRunwayAccount
 from app.schemas.user import (
     RunwayAccountsRequest,
     RunwayResponse,
+    RunwaySettings,
+    RunwayThresholds,
     UpdateProfileRequest,
     UserProfile,
 )
@@ -37,6 +39,53 @@ def _add_months_anchored(start: date, months: int) -> date:
     month = month_index % 12 + 1
     day = min(start.day, calendar.monthrange(year, month)[1])
     return date(year, month, day)
+
+
+def _runway_thresholds_from_user(user: User) -> RunwayThresholds:
+    return RunwayThresholds(
+        risky_below_months=user.runway_risky_below_months,
+        healthy_at_months=user.runway_healthy_at_months,
+    )
+
+
+async def _active_runway_account_ids(db: AsyncSession, user: User) -> list[uuid.UUID]:
+    accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
+    stored = await db.execute(
+        select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
+    )
+    return [aid for aid in stored.scalars().all() if aid in accessible_ids]
+
+
+async def _replace_runway_account_ids(
+    db: AsyncSession,
+    user: User,
+    account_ids: list[uuid.UUID],
+) -> list[uuid.UUID]:
+    requested_ids = set(account_ids)
+
+    all_accessible = await get_accessible_accounts(db, user, include_hidden=True)
+    visible_ids = {a.id for a in all_accessible if not a.is_hidden}
+    hidden_ids = {a.id for a in all_accessible if a.is_hidden}
+
+    invalid = requested_ids - visible_ids
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Inaccessible accounts: {sorted(str(x) for x in invalid)}",
+        )
+
+    # Replace the full set in a single transaction — simpler than diffing and
+    # the runway selection is expected to be small (a handful of accounts).
+    # Hidden selections are left untouched so hiding an account is reversible.
+    delete_query = delete(UserRunwayAccount).where(UserRunwayAccount.user_id == user.id)
+    if hidden_ids:
+        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(hidden_ids))
+    await db.execute(delete_query)
+    for account_id in requested_ids:
+        db.add(UserRunwayAccount(user_id=user.id, account_id=account_id))
+
+    return sorted(requested_ids)
+
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -92,11 +141,7 @@ async def list_runway_accounts(
     Filters out any stored selections the user can no longer read or has
     hidden, so the response only surfaces currently active IDs.
     """
-    accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
-    stored = await db.execute(
-        select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
-    )
-    return [aid for aid in stored.scalars().all() if aid in accessible_ids]
+    return await _active_runway_account_ids(db, user)
 
 
 @router.put("/runway-accounts", response_model=list[uuid.UUID])
@@ -112,31 +157,40 @@ async def replace_runway_accounts(
     permission) and currently visible. Stored hidden selections are preserved
     so they become active again if the account is unhidden.
     """
-    requested_ids = set(data.account_ids)
-
-    all_accessible = await get_accessible_accounts(db, user, include_hidden=True)
-    visible_ids = {a.id for a in all_accessible if not a.is_hidden}
-    hidden_ids = {a.id for a in all_accessible if a.is_hidden}
-
-    invalid = requested_ids - visible_ids
-    if invalid:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Inaccessible accounts: {sorted(str(x) for x in invalid)}",
-        )
-
-    # Replace the full set in a single transaction — simpler than diffing and
-    # the runway selection is expected to be small (a handful of accounts).
-    # Hidden selections are left untouched so hiding an account is reversible.
-    delete_query = delete(UserRunwayAccount).where(UserRunwayAccount.user_id == user.id)
-    if hidden_ids:
-        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(hidden_ids))
-    await db.execute(delete_query)
-    for account_id in requested_ids:
-        db.add(UserRunwayAccount(user_id=user.id, account_id=account_id))
+    selected_ids = await _replace_runway_account_ids(db, user, data.account_ids)
     await db.commit()
 
-    return sorted(requested_ids)
+    return selected_ids
+
+
+@router.get("/runway-settings", response_model=RunwaySettings)
+async def get_runway_settings(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return the user's runway account selection and status thresholds."""
+    return RunwaySettings(
+        account_ids=await _active_runway_account_ids(db, user),
+        thresholds=_runway_thresholds_from_user(user),
+    )
+
+
+@router.put("/runway-settings", response_model=RunwaySettings)
+async def replace_runway_settings(
+    data: RunwaySettings,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Replace the user's runway account selection and status thresholds."""
+    selected_ids = await _replace_runway_account_ids(db, user, data.account_ids)
+    user.runway_risky_below_months = data.thresholds.risky_below_months
+    user.runway_healthy_at_months = data.thresholds.healthy_at_months
+    await db.commit()
+
+    return RunwaySettings(
+        account_ids=selected_ids,
+        thresholds=_runway_thresholds_from_user(user),
+    )
 
 
 @router.get("/runway", response_model=RunwayResponse)
@@ -156,11 +210,13 @@ async def get_runway(
         select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
     )
     selected_ids = [aid for aid in stored.scalars().all() if aid in accessible_ids]
+    thresholds = _runway_thresholds_from_user(user)
 
     if not selected_ids:
         return RunwayResponse(
             months=None, reason="no_accounts",
             avg_monthly_expense=0, months_covered=0, liquid_balance=0,
+            thresholds=thresholds,
         )
 
     balances = await get_current_balances(db, selected_ids)
@@ -195,6 +251,7 @@ async def get_runway(
             months=None, reason="insufficient_history",
             avg_monthly_expense=0, months_covered=months_covered,
             liquid_balance=liquid_balance,
+            thresholds=thresholds,
         )
 
     avg_monthly_expense = abs(expense_outflow) // months_covered
@@ -205,4 +262,5 @@ async def get_runway(
         avg_monthly_expense=avg_monthly_expense,
         months_covered=months_covered,
         liquid_balance=liquid_balance,
+        thresholds=thresholds,
     )
