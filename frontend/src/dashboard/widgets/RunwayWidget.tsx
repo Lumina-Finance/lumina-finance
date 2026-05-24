@@ -35,7 +35,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const { data: runwayAccountIds } = useRunwayAccounts()
   const { data: accounts } = useAccounts()
   const runwayMonths = runway?.months ?? null
-  const runwayBandKey = runwayBand(runwayMonths)
+  const runwayBandKey = runwayBand(runwayMonths, runway?.thresholds)
   const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
   const runwayCaption = getRunwayCaption(runway, displayCurrency)
   const runwaySegments = useMemo(

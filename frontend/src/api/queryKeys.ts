@@ -94,6 +94,7 @@ export const budgetKeys = {
 
 export const userKeys = {
   runwayAccounts: () => ['me', 'runway-accounts'] as const,
+  runwaySettings: () => ['me', 'runway-settings'] as const,
   runway: () => ['me', 'runway'] as const,
 };
 

@@ -67,7 +67,7 @@ export function useAccountsMetrics(
         : 'var(--app-negative)'
 
   const runwayMonths = runway?.months ?? null
-  const runwayBandKey = runwayBand(runwayMonths)
+  const runwayBandKey = runwayBand(runwayMonths, runway?.thresholds)
   const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
   const runwayProgress =
     runwayMonths === null ? 0 : Math.min((runwayMonths / RUNWAY_TARGET_MONTHS) * 100, 100)

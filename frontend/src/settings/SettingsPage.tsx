@@ -5,9 +5,9 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import {
-  useRunwayAccounts,
+  useRunwaySettings,
   useUpdateProfile,
-  useUpdateRunwayAccounts,
+  useUpdateRunwaySettings,
   type UpdateProfilePayload,
 } from '@/api/user'
 import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
@@ -38,9 +38,9 @@ export default function SettingsPage() {
   const location = useLocation()
   const { user, setUser } = useAuth()
   const { data: accounts, isLoading: accountsLoading } = useAccounts()
-  const { data: serverSelection, isLoading: selectionLoading } = useRunwayAccounts()
+  const { data: runwaySettings, isLoading: runwaySettingsLoading } = useRunwaySettings()
   const updateProfile = useUpdateProfile()
-  const updateRunway = useUpdateRunwayAccounts()
+  const updateRunway = useUpdateRunwaySettings()
 
   // ── Profile draft ──
   // Effective form value = base (from user) + overrides. Derived on every
@@ -67,7 +67,7 @@ export default function SettingsPage() {
   // `null` means "use the persisted server selection"; once the user flips any
   // tile, keep a local override until Save or Discard resolves it.
   const [runwayDraft, setRunwayDraft] = useState<Set<string> | null>(null)
-  const runwayServerSet = useMemo(() => new Set(serverSelection ?? []), [serverSelection])
+  const runwayServerSet = useMemo(() => new Set(runwaySettings?.accountIds ?? []), [runwaySettings?.accountIds])
   const runwaySelection = runwayDraft ?? runwayServerSet
   // Only open asset accounts are eligible. Credit products (credit cards,
   // lines of credit, HELOCs) are borrowed headroom — treating them as runway
@@ -94,17 +94,20 @@ export default function SettingsPage() {
     for (const id of runwayDraft) if (!runwayServerSet.has(id)) return true
     return false
   }, [runwayDraft, runwayServerSet])
-  const [runwayThresholds, setRunwayThresholds] = useState<RunwayThresholds>(DEFAULT_RUNWAY_THRESHOLDS)
+  const runwayServerThresholds = useMemo(
+    () => normalizeRunwayThresholds(runwaySettings?.thresholds ?? DEFAULT_RUNWAY_THRESHOLDS),
+    [runwaySettings?.thresholds],
+  )
   const [runwayThresholdDraft, setRunwayThresholdDraft] = useState<RunwayThresholds | null>(null)
-  const runwayThresholdValues = runwayThresholdDraft ?? runwayThresholds
+  const runwayThresholdValues = runwayThresholdDraft ?? runwayServerThresholds
   const isRunwayThresholdDirty = runwayThresholdDraft !== null
   const setRunwayThreshold = (field: keyof RunwayThresholds, value: number) => {
     setRunwayThresholdDraft((prev) => {
       const next = normalizeRunwayThresholds({
-        ...(prev ?? runwayThresholds),
+        ...(prev ?? runwayServerThresholds),
         [field]: value,
       })
-      return runwayThresholdsEqual(next, runwayThresholds) ? null : next
+      return runwayThresholdsEqual(next, runwayServerThresholds) ? null : next
     })
   }
   const isRunwayPaneDirty = isRunwayDirty || isRunwayThresholdDirty
@@ -119,7 +122,7 @@ export default function SettingsPage() {
   const isProfilePending = profileSaveFeedback.isPending || updateProfile.isPending
   const isRunwayPending = runwaySaveFeedback.isPending || updateRunway.isPending
   const canSaveProfile = isProfileDirty && !isProfilePending && firstNameValid
-  const canSaveRunway = isRunwayPaneDirty && !isRunwayPending
+  const canSaveRunway = runwaySettings !== undefined && isRunwayPaneDirty && !isRunwayPending
 
   const handleSaveProfile = async () => {
     if (!canSaveProfile || !user) return
@@ -152,8 +155,10 @@ export default function SettingsPage() {
 
     try {
       await runwaySaveFeedback.run(async () => {
-        if (runwayDraft) await updateRunway.mutateAsync(Array.from(runwayDraft))
-        if (runwayThresholdDraft) setRunwayThresholds(runwayThresholdDraft)
+        await updateRunway.mutateAsync({
+          accountIds: Array.from(runwaySelection),
+          thresholds: runwayThresholdValues,
+        })
         setRunwayDraft(null)
         setRunwayThresholdDraft(null)
       })
@@ -346,7 +351,7 @@ export default function SettingsPage() {
     ? ((updateProfile.error as Error)?.message ?? 'Failed to save profile.')
     : null
   const runwaySaveError = updateRunway.isError
-    ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway selection.')
+    ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway settings.')
     : null
   const profileActions = paneActions({
     canSave: canSaveProfile,
@@ -509,7 +514,7 @@ export default function SettingsPage() {
             emailPasswordActions={emailPasswordActions}
           />
           <RunwaySection
-            loading={accountsLoading || selectionLoading}
+            loading={accountsLoading || runwaySettingsLoading}
             accounts={selectableAccounts}
             selection={runwaySelection}
             onToggle={toggleRunwayAccount}

@@ -211,6 +211,7 @@ export function useUpdateAccount() {
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
         queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
+        queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings(), exact: true });
         queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
       }
 
@@ -263,6 +264,7 @@ export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: 
       queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll });
       queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts() });
+      queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings() });
       queryClient.invalidateQueries({ queryKey: userKeys.runway() });
       invalidateTaxAdvantagedPlanCaches(queryClient, [previousPlanId]);
     },
