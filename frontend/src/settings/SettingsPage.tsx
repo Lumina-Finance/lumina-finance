@@ -140,19 +140,19 @@ export default function SettingsPage() {
     setRunwayDraft(null)
   }
 
-  // ── Scroll-spy sidebar ──
+  // ── Scroll-spy navigation ──
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('profile')
-  // Suppress the IntersectionObserver while a programmatic scroll is settling,
+  // Suppress the scroll spy while a programmatic scroll is settling,
   // so clicks don't briefly flash the wrong item active.
-  const skipObserverRef = useRef(false)
+  const skipScrollSpyRef = useRef(false)
 
   const navigateToSection = (id: SettingsSectionId) => {
     const el = document.getElementById(id)
     if (!el) return
-    skipObserverRef.current = true
+    skipScrollSpyRef.current = true
     setActiveSection(id)
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.setTimeout(() => { skipObserverRef.current = false }, 600)
+    window.setTimeout(() => { skipScrollSpyRef.current = false }, 600)
   }
 
   const navigateFromMobileMenu = (id: SettingsSectionId) => {
@@ -166,22 +166,46 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (skipObserverRef.current) return
-        const topVisible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-        if (topVisible) setActiveSection(topVisible.target.id as SettingsSectionId)
-      },
-      { root: null, rootMargin: '-20% 0px -55% 0px', threshold: [0.2, 0.4, 0.6] },
-    )
+    let frameId: number | null = null
 
-    SETTINGS_SECTIONS.forEach((s) => {
-      const el = document.getElementById(s.id)
-      if (el) observer.observe(el)
-    })
-    return () => observer.disconnect()
+    const syncActiveSection = () => {
+      if (frameId !== null) return
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null
+        if (skipScrollSpyRef.current) return
+
+        const isCompactMenu = window.matchMedia('(max-width: 1199.98px)').matches
+        const compactMenuBottom = mobileSettingsMenuRef.current?.getBoundingClientRect().bottom ?? 0
+        const activationLine = isCompactMenu
+          ? compactMenuBottom + 24
+          : Math.min(window.innerHeight * 0.32, 240)
+        let nextActiveSection = SETTINGS_SECTIONS[0].id
+
+        for (const section of SETTINGS_SECTIONS) {
+          const el = document.getElementById(section.id)
+          if (!el) continue
+          if (el.getBoundingClientRect().top > activationLine) break
+          nextActiveSection = section.id
+        }
+
+        setActiveSection((current) => (
+          current === nextActiveSection ? current : nextActiveSection
+        ))
+      })
+    }
+
+    syncActiveSection()
+    window.addEventListener('scroll', syncActiveSection, { passive: true })
+    window.addEventListener('resize', syncActiveSection)
+    window.addEventListener('orientationchange', syncActiveSection)
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+      window.removeEventListener('scroll', syncActiveSection)
+      window.removeEventListener('resize', syncActiveSection)
+      window.removeEventListener('orientationchange', syncActiveSection)
+    }
   }, [])
 
   useEffect(() => {
