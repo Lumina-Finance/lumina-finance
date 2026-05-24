@@ -305,7 +305,7 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <header className="app-page-header">
+      <header className="app-page-header mb-3 min-[1050px]:mb-4 min-[1200px]:mb-6">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
           Manage your profile, runway preferences, categories, merchants, tags, and tax-advantaged categories.
@@ -315,7 +315,7 @@ export default function SettingsPage() {
       <div ref={mobileSettingsStickySentinelRef} aria-hidden className="h-px min-[1200px]:hidden" />
 
       <div
-        className="sticky top-0 z-20 -mx-2 mb-4 px-2 pt-5 max-[1049px]:pt-4 min-[1200px]:hidden"
+        className="sticky top-0 z-20 -mx-2 -mt-4 mb-4 px-2 pt-4 min-[1050px]:-mt-5 min-[1050px]:pt-5 min-[1200px]:hidden"
         style={{
           background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
           backdropFilter: 'blur(10px)',
