@@ -1,5 +1,6 @@
+import calendar
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -27,7 +28,15 @@ from app.services.snapshots import get_current_balances
 # Trailing window the runway average is taken over. 12 months gives enough data
 # to smooth out seasonal spikes (e.g. insurance renewals, holiday spend) while
 # staying current with lifestyle changes.
-_RUNWAY_WINDOW_DAYS = 365
+_RUNWAY_WINDOW_MONTHS = 12
+
+
+def _add_months_anchored(start: date, months: int) -> date:
+    month_index = (start.year * 12 + start.month - 1) + months
+    year = month_index // 12
+    month = month_index % 12 + 1
+    day = min(start.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -138,7 +147,7 @@ async def get_runway(
     """Compute the user's cash runway in months.
 
     Runway = (sum of current balance across selected runway accounts) divided
-    by the trailing 12-month average monthly expense. Transfer-category
+    by the average monthly expense over the last 12 completed months. Transfer-category
     transactions are excluded from the denominator so inter-account moves and
     debt payments (which the app models as transfers) don't shorten runway.
     """
@@ -157,12 +166,12 @@ async def get_runway(
     balances = await get_current_balances(db, selected_ids)
     liquid_balance = sum(balances.values())
 
-    # Aggregate expense outflow and count distinct months-with-expenses in a
-    # single query. COUNT(DISTINCT … FILTER …) only counts month buckets that
-    # actually contain expenses, so a user with only income activity averages
-    # against zero months (handled as insufficient_history below).
-    window_start = datetime.now(ZoneInfo(user.tz)).date() - timedelta(days=_RUNWAY_WINDOW_DAYS - 1)
+    today = datetime.now(ZoneInfo(user.tz)).date()
+    window_end = date(today.year, today.month, 1)
+    window_start = _add_months_anchored(window_end, -_RUNWAY_WINDOW_MONTHS)
     expense_filter = (Transaction.amount < 0) & (Category.kind == CategoryKind.EXPENSE)
+    # COUNT(DISTINCT … FILTER …) only counts completed month buckets that
+    # actually contain expenses, so missing history is not treated as zero spend.
     agg = (await db.execute(
         select(
             sa.func.count(sa.distinct(sa.func.date_trunc("month", Transaction.dt)))
@@ -174,12 +183,11 @@ async def get_runway(
         .select_from(Transaction)
         .join(Category, Category.id == Transaction.category_id)
         .where(Transaction.account_id.in_(accessible_ids))
-        .where(Transaction.dt >= window_start),
+        .where(Transaction.dt >= window_start)
+        .where(Transaction.dt < window_end),
     )).one()
 
-    # Cap at 12 — if a user has activity in 13+ month buckets via backdated
-    # entries at the edge of the window, we still only average over the window.
-    months_covered = min(int(agg.months_covered), 12)
+    months_covered = int(agg.months_covered)
     expense_outflow = int(agg.expense_outflow)
 
     if months_covered < 1 or expense_outflow >= 0:

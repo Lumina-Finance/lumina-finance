@@ -359,7 +359,7 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
                 created_by_user_id=user_id,
                 account_id=UUID(visible_account_id),
                 category_id=category.id,
-                dt=date(2026, 4, 1),
+                dt=date(2026, 3, 1),
                 amount=-12_000,
                 currency="CAD",
             ),
@@ -367,7 +367,7 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
                 created_by_user_id=user_id,
                 account_id=UUID(hidden_account_id),
                 category_id=category.id,
-                dt=date(2026, 4, 2),
+                dt=date(2026, 3, 2),
                 amount=-24_000,
                 currency="CAD",
             ),
@@ -401,6 +401,7 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
     assert hidden_runway_resp.status_code == 200
     hidden_runway = hidden_runway_resp.json()
     assert hidden_runway["liquid_balance"] == 120_000
+    assert hidden_runway["months_covered"] == 1
     assert hidden_runway["avg_monthly_expense"] == 12_000
 
     await client.patch(f"/accounts/{hidden_account_id}", json={"is_hidden": False}, headers=headers)
@@ -412,7 +413,76 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
     assert set(restored_list_resp.json()) == {visible_account_id, hidden_account_id}
     restored_runway = restored_runway_resp.json()
     assert restored_runway["liquid_balance"] == 168_000
+    assert restored_runway["months_covered"] == 1
     assert restored_runway["avg_monthly_expense"] == 36_000
+
+
+async def test_get_runway_excludes_current_partial_month_from_average(client, monkeypatch):
+    """Runway averages over completed months with expenses, not the current partial month."""
+    from app.routes import user as user_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add_all([
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2025, 3, 31),
+                amount=-48_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2025, 4, 1),
+                amount=-12_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2026, 3, 31),
+                amount=-24_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2026, 4, 1),
+                amount=-96_000,
+                currency="CAD",
+            ),
+        ])
+        session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 4, 15), balance=180_000))
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["months_covered"] == 2
+    assert data["avg_monthly_expense"] == 18_000
+    assert data["reason"] is None
 
 
 async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypatch):
@@ -445,6 +515,48 @@ async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypa
             currency="CAD",
         ))
         session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 12, 31), balance=120000))
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["months_covered"] == 1
+    assert data["avg_monthly_expense"] == 12000
+    assert data["reason"] is None
+
+
+async def test_get_runway_uses_calendar_months_for_window_start(client, monkeypatch):
+    """A leap-day expense stays inside the trailing 12-month runway window."""
+    from app.routes import user as user_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2025, 2, 28, 17, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add(Transaction(
+            created_by_user_id=user_id,
+            account_id=account_id,
+            category_id=category.id,
+            dt=date(2024, 2, 29),
+            amount=-12000,
+            currency="CAD",
+        ))
+        session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2025, 2, 28), balance=120000))
         await session.commit()
 
     await client.put("/me/runway-accounts", json={"account_ids": [account_id]}, headers=headers)
