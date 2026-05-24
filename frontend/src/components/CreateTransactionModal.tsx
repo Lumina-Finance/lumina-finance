@@ -453,27 +453,19 @@ export default function CreateTransactionModal({
   }, [confirmingDelete, deleteLoading])
 
   useEffect(() => {
-    if (!merchantSearch.trim()) {
-      setActiveMerchantSearch('')
-      return undefined
-    }
-
+    const nextSearch = merchantSearch.trim() ? merchantSearch : ''
     const timeoutId = window.setTimeout(() => {
-      setActiveMerchantSearch(merchantSearch)
-    }, MERCHANT_SEARCH_DEBOUNCE_MS)
+      setActiveMerchantSearch(nextSearch)
+    }, nextSearch ? MERCHANT_SEARCH_DEBOUNCE_MS : 0)
 
     return () => window.clearTimeout(timeoutId)
   }, [merchantSearch])
 
   useEffect(() => {
-    if (!tagSearch.trim()) {
-      setActiveTagSearch('')
-      return undefined
-    }
-
+    const nextSearch = tagSearch.trim() ? tagSearch : ''
     const timeoutId = window.setTimeout(() => {
-      setActiveTagSearch(tagSearch)
-    }, TAG_SEARCH_DEBOUNCE_MS)
+      setActiveTagSearch(nextSearch)
+    }, nextSearch ? TAG_SEARCH_DEBOUNCE_MS : 0)
 
     return () => window.clearTimeout(timeoutId)
   }, [tagSearch])
@@ -525,9 +517,13 @@ export default function CreateTransactionModal({
     if (merchantQuery.isFetchingNextPage || merchantFetchMoreStartedAtRef.current !== null) return
     if (fetchedMerchantKey === visibleMerchantKey) return
 
-    setVisiblePagedMerchants(fetchedMerchants)
-    visibleMerchantCountRef.current = fetchedMerchants.length
-    merchantInitialFetchStartedAtRef.current = null
+    const frame = window.requestAnimationFrame(() => {
+      setVisiblePagedMerchants(fetchedMerchants)
+      visibleMerchantCountRef.current = fetchedMerchants.length
+      merchantInitialFetchStartedAtRef.current = null
+    })
+
+    return () => window.cancelAnimationFrame(frame)
   }, [
     activeMerchantSearchText,
     fetchedMerchantKey,
@@ -541,9 +537,13 @@ export default function CreateTransactionModal({
     if (tagQuery.isFetchingNextPage || tagFetchMoreStartedAtRef.current !== null) return
     if (fetchedTagKey === visibleTagKey) return
 
-    setVisiblePagedTags(fetchedTags)
-    visibleTagCountRef.current = fetchedTags.length
-    tagInitialFetchStartedAtRef.current = null
+    const frame = window.requestAnimationFrame(() => {
+      setVisiblePagedTags(fetchedTags)
+      visibleTagCountRef.current = fetchedTags.length
+      tagInitialFetchStartedAtRef.current = null
+    })
+
+    return () => window.cancelAnimationFrame(frame)
   }, [
     activeTagSearchText,
     fetchedTagKey,
