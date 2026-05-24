@@ -26,7 +26,7 @@ export default function BudgetChartTooltip({
 }) {
   const point = payload?.[0]?.payload
   if (!active || !point) return null
-  const categoryBreakdown = point.categories?.filter((category) => category.spent > 0) ?? []
+  const categoryBreakdown = point.categories ?? []
 
   return (
     <div className="app-tooltip-panel app-budget-chart-tooltip">
