@@ -1,6 +1,7 @@
 import { InsightsRangeSelector, type InsightsRangeSelectorOption } from './InsightsRangeSelector'
 import type { InsightsRangePreset } from '../types/range'
 import type { KeyboardEvent } from 'react'
+import { Calendar } from 'lucide-react'
 
 const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[] = [
   { value: 'THIS_MONTH', label: 'MTD', description: 'This month' },
@@ -20,6 +21,64 @@ type InsightsFloatingRangeControlProps = {
   onCustomFromChange: (value: string) => void
   onCustomToChange: (value: string) => void
   onCustomRangeCommit: () => void
+}
+
+type InsightsDateFieldProps = {
+  value: string
+  label: string
+  customInvalid: boolean
+  onChange: (value: string) => void
+  onBlur: () => void
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
+}
+
+function formatMobileDate(value: string) {
+  const [year, month, day] = value.split('-')
+  if (!year || !month || !day) return value
+  return `${year} - ${month} - ${day}`
+}
+
+function InsightsDateField({
+  value,
+  label,
+  customInvalid,
+  onChange,
+  onBlur,
+  onKeyDown,
+}: InsightsDateFieldProps) {
+  const inputClassName = `app-input app-date-input-balanced min-w-0 ${customInvalid ? 'app-input-error' : ''}`
+  const mobileFocusClassName = customInvalid
+    ? ''
+    : 'focus-within:border-[var(--app-accent-border)] focus-within:shadow-[0_0_0_2px_var(--app-accent-soft)]'
+
+  return (
+    <>
+      <input
+        type="date"
+        className={`${inputClassName} hidden min-[1050px]:block`}
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+      />
+      <div
+        className={`app-input relative flex items-center justify-between gap-2 overflow-hidden px-3 text-sm min-[1050px]:hidden ${mobileFocusClassName} ${customInvalid ? 'app-input-error' : ''}`}
+      >
+        <span className="min-w-0 truncate font-medium tabular-nums">{formatMobileDate(value)}</span>
+        <Calendar size={15} className="shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
+        <input
+          type="date"
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base"
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
+          onKeyDown={onKeyDown}
+        />
+      </div>
+    </>
+  )
 }
 
 export function InsightsFloatingRangeControl({
@@ -50,24 +109,22 @@ export function InsightsFloatingRangeControl({
   const dateFields = (
     <div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-        <input
-          type="date"
-          className={`app-input app-date-input-balanced min-w-0 ${customInvalid ? 'app-input-error' : ''}`}
-          aria-label="Insights start date"
+        <InsightsDateField
+          label="Insights start date"
           value={fromDateValue}
-          onChange={(event) => handleCustomFromChange(event.target.value)}
+          customInvalid={customInvalid}
+          onChange={handleCustomFromChange}
           onBlur={onCustomRangeCommit}
           onKeyDown={handleDateKeyDown}
         />
         <span className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
           to
         </span>
-        <input
-          type="date"
-          className={`app-input app-date-input-balanced min-w-0 ${customInvalid ? 'app-input-error' : ''}`}
-          aria-label="Insights end date"
+        <InsightsDateField
+          label="Insights end date"
           value={toDateValue}
-          onChange={(event) => handleCustomToChange(event.target.value)}
+          customInvalid={customInvalid}
+          onChange={handleCustomToChange}
           onBlur={onCustomRangeCommit}
           onKeyDown={handleDateKeyDown}
         />
