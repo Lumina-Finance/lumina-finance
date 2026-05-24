@@ -36,7 +36,7 @@ export default function BudgetFormScopeSection({
   const { setField, onBlur } = handlers
 
   return (
-    <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+    <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
       <div className="flex min-h-0 flex-col items-center">
         <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
           01

@@ -117,19 +117,20 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
     assert resp.status_code == 200
     assert resp.json() == {
         "expense": [
-            [str(housing_id), "Housing", 180_000],
-            [str(groceries_id), "Groceries", 90_000],
-            [str(dining_id), "Dining", 80_000],
-            [str(shopping_id), "Shopping", 70_000],
-            [str(transport_id), "Transport", 60_000],
-            [str(travel_id), "Travel", 50_000],
-            [str(medical_id), "Medical", 40_000],
-            ["expense-other", "Other", 50_000],
+            [str(housing_id), "Housing", "expense", 180_000],
+            [str(groceries_id), "Groceries", "expense", 90_000],
+            [str(dining_id), "Dining", "expense", 80_000],
+            [str(shopping_id), "Shopping", "expense", 70_000],
+            [str(transport_id), "Transport", "expense", 60_000],
+            [str(travel_id), "Travel", "expense", 50_000],
+            [str(medical_id), "Medical", "expense", 40_000],
+            [str(coffee_id), "Coffee", "expense", 30_000],
+            [str(pets_id), "Pets", "expense", 20_000],
         ],
         "income": [
-            [str(salary_id), "Salary", 500_000],
-            [str(freelance_id), "Freelance", 100_000],
-            [str(bonus_id), "Bonus", 80_000],
+            [str(salary_id), "Salary", "income", 500_000],
+            [str(freelance_id), "Freelance", "income", 100_000],
+            [str(bonus_id), "Bonus", "income", 80_000],
         ],
         "expense_increases": [
             [str(shopping_id), "Shopping", 70_000, 0, None, 1],
@@ -151,8 +152,8 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
     }
 
 
-async def test_income_expense_breakdown_keeps_modes_kind_aware(client):
-    """Negative income and expense refunds do not cross into the opposite mode."""
+async def test_income_expense_breakdown_counts_category_crossovers_by_sign(client):
+    """Income losses become expense rows; over-refunded expenses become income rows."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -187,8 +188,14 @@ async def test_income_expense_breakdown_keeps_modes_kind_aware(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["income"] == [[str(salary_id), "Salary", 300_000]]
-    assert data["expense"] == [[str(groceries_id), "Groceries", 60_000]]
+    assert data["income"] == [
+        [str(salary_id), "Salary", "income", 300_000],
+        [str(over_refund_id), "Over-refunded", "expense", 20_000],
+    ]
+    assert data["expense"] == [
+        [str(capital_gains_id), "Capital Gains", "income", 80_000],
+        [str(groceries_id), "Groceries", "expense", 60_000],
+    ]
     assert data["income_decreases"] == [[str(capital_gains_id), "Capital Gains", 0, 20_000, -100, 1]]
     assert data["expense_increases"] == [[str(groceries_id), "Groceries", 60_000, 0, None, 2]]
     assert data["expense_decreases"] == [[str(over_refund_id), "Over-refunded", 0, 30_000, -100, 1]]
@@ -225,7 +232,7 @@ async def test_income_expense_breakdown_does_not_emit_other_for_exact_limit(clie
     assert resp.status_code == 200
     data = resp.json()
     assert data["expense"] == [
-        [str(category_id), f"Category {index}", 10_000 * index]
+        [str(category_id), f"Category {index}", "expense", 10_000 * index]
         for index, (category_id, _category) in reversed(list(enumerate(category_rows, start=1)))
     ]
     assert all(entry[1] != "Other" for entry in data["expense"])
@@ -256,7 +263,7 @@ async def test_income_expense_breakdown_one_day_range_compares_previous_one_day(
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["expense"] == [[str(dining_id), "Dining", 70_000]]
+    assert data["expense"] == [[str(dining_id), "Dining", "expense", 70_000]]
     assert data["expense_increases"] == [[str(dining_id), "Dining", 70_000, 20_000, 250, 1]]
     assert data["expense_decreases"] == []
 
@@ -347,8 +354,8 @@ async def test_income_expense_breakdown_uses_stable_tie_breakers(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["expense"] == [
-        [str(alpha_id), "Alpha", 50_000],
-        [str(beta_id), "Beta", 50_000],
+        [str(alpha_id), "Alpha", "expense", 50_000],
+        [str(beta_id), "Beta", "expense", 50_000],
     ]
     assert data["expense_increases"] == [
         [str(alpha_id), "Alpha", 50_000, 0, None, 1],

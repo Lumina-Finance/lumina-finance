@@ -13,7 +13,7 @@ import TransactionsPage from '@/transactions/TransactionsPage'
 import BudgetsPage from '@/budgets/BudgetsPage'
 import InsightsPage from '@/insights/InsightsPage'
 import SettingsPage from '@/settings/SettingsPage'
-import TransactionImportPage from '@/components/TransactionImportPage'
+import ImportsPage from '@/imports/ImportsPage'
 import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
 
@@ -45,6 +45,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   const pageTransitioning = pageTransitionPhase !== 'idle';
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
   const isFocusedPage = location.pathname === '/settings/imports';
+  const desktopBottomPadding = location.pathname === '/' ? 'min-[1050px]:pb-0' : 'min-[1050px]:pb-12';
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
@@ -74,14 +75,16 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
           className="flex min-h-screen"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
-          {!isFocusedPage && <Navigation />}
+          <Navigation />
           <main
             id="app-page-content"
-            className={`relative min-w-0 flex-1 ${isFocusedPage ? 'p-0' : 'px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 min-[1050px]:pb-12 min-[1050px]:pt-12'}`}
+            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10`}`}
             aria-busy={pageTransitioning}
           >
             <AnimatePresence>
-              {pageTransitionPhase === 'loading' && <LoadingScreen variant="main" />}
+              {pageTransitionPhase === 'loading' && (
+                <LoadingScreen variant={isFocusedPage ? 'screen' : 'main'} />
+              )}
             </AnimatePresence>
             <motion.div
               initial={false}
@@ -188,7 +191,7 @@ function AnimatedRoutes() {
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/imports" element={<TransactionImportPage />} />
+          <Route path="/settings/imports" element={<ImportsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

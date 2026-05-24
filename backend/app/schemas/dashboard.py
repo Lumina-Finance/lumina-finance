@@ -12,12 +12,13 @@ RangeKind = Literal["WTD", "MTD", "QTD", "YTD"]
 class CategoryBreakdownEntry(BaseModel):
     """One category's contribution to the spending/income breakdown widget.
 
-    ``amount`` is a positive minor-unit total — expense rows are flipped so
-    the frontend can render both kinds with the same tooltip format.
+    ``amount`` is a positive minor-unit total. Rows are sign-directed, while
+    ``category_kind`` preserves the category's original income/expense kind.
     """
 
     category_id: uuid.UUID
     name: str
+    category_kind: str
     amount: int
 
 
@@ -28,7 +29,7 @@ class SpendingBreakdownResponse(BaseModel):
     toggle can flip instantly without refetching. ``range`` picks the calendar
     period (WTD / MTD / QTD / YTD) — the boundaries match the spending
     comparison endpoint's current-period slots. Entries are sorted largest-
-    first and include only categories with non-zero totals in the range.
+    first and compacted with an Other slice for the dashboard widget.
     """
 
     range: RangeKind
@@ -87,8 +88,8 @@ class CreditWidgetResponse(BaseModel):
 class NetWorthWidgetResponse(BaseModel):
     """Net worth totals and trend for the dashboard net worth widget.
 
-    - `current_net_worth` is the sum of latest balances across every readable
-      non-hidden account in the user's base currency, with liability balances subtracted.
+    - `current_net_worth` is the sum of latest signed balances across every readable
+      non-hidden account in the user's base currency.
     - `net_worth_history` is a day-by-day series of net worth over the last
       `net_worth_window_days` days (length = `net_worth_window_days`, index 0 =
       earliest day, final index = today). Forward-filled from

@@ -14,14 +14,18 @@ import {
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
+import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 
 export type BreakdownMode = 'expense' | 'income'
 
 export type BreakdownEntry = {
   id: string
   name: string
+  categoryKind: BreakdownMode
   amount: number
 }
 
@@ -72,16 +76,10 @@ const pieLegendItemVariants = {
 } as const
 
 const pieLegendItemTransition = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
-
-const insightsBreakdownColors = [
-  '#C9A96A',
-  'var(--app-chart-positive)',
-  '#D4906A',
-  '#9B8FC8',
-  'var(--app-chart-negative)',
-  '#7AAEC8',
-  '#8C8074',
-] as const
+const PIE_LEGEND_LIMIT = 5
+const PIE_LEGEND_ROW_HEIGHT = 20
+const PIE_LEGEND_ROW_GAP = 8
+const PIE_LEGEND_MIN_HEIGHT = 136
 
 const categoryTrendListVariants = {
   initial: { transition: { staggerChildren: 0.03 } },
@@ -118,6 +116,36 @@ function getTransactionCountLabel(count: number) {
   return `${count} ${count === 1 ? 'transaction' : 'transactions'}`
 }
 
+function getCrossoverKind(entry: BreakdownEntry, mode: BreakdownMode) {
+  if (mode === 'expense' && entry.categoryKind === 'income') return 'income-loss'
+  if (mode === 'income' && entry.categoryKind === 'expense') return 'expense-refund'
+  return null
+}
+
+function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
+  const kind = getCrossoverKind(entry, mode)
+  return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
+}
+
+function getLegendEntries(entries: BreakdownEntry[], mode: BreakdownMode) {
+  const visibleEntries = entries.slice(0, PIE_LEGEND_LIMIT)
+  const visibleIds = new Set(visibleEntries.map((entry) => entry.id))
+  const hiddenFlippedEntries = entries
+    .slice(PIE_LEGEND_LIMIT)
+    .filter((entry) => getCrossoverKind(entry, mode) && !visibleIds.has(entry.id))
+
+  return [...visibleEntries, ...hiddenFlippedEntries]
+}
+
+function getLegendMinHeight(entryCount: number) {
+  if (entryCount <= 0) return PIE_LEGEND_MIN_HEIGHT
+
+  return Math.max(
+    PIE_LEGEND_MIN_HEIGHT,
+    entryCount * PIE_LEGEND_ROW_HEIGHT + (entryCount - 1) * PIE_LEGEND_ROW_GAP + 4,
+  )
+}
+
 export function IncomeExpenseBreakdownCard({
   mode,
   onModeToggle,
@@ -146,6 +174,23 @@ export function IncomeExpenseBreakdownCard({
     transitionKey,
   })
   const total = getTotal(displaySnapshot.entries)
+  const breakdownColors = useMemo(() => getCategoryColorMap(displaySnapshot.entries.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    kind: entry.categoryKind,
+  }))), [displaySnapshot.entries])
+  const getBreakdownColor = (entry: BreakdownEntry) => getCategoryColor({
+    id: entry.id,
+    name: entry.name,
+    kind: entry.categoryKind,
+  })
+  const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
+    ?? getBreakdownColor(entry)
+  const legendEntries = useMemo(
+    () => getLegendEntries(displaySnapshot.entries, displaySnapshot.mode),
+    [displaySnapshot.entries, displaySnapshot.mode],
+  )
+  const legendMinHeight = getLegendMinHeight(legendEntries.length)
 
   return (
     <section className="app-card">
@@ -158,15 +203,13 @@ export function IncomeExpenseBreakdownCard({
           </span>
         )}
         action={(
-          <button
-            type="button"
-            onClick={onModeToggle}
+          <InsightActionButton
             title={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
-            aria-label={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
-            className="app-icon-button"
+            ariaLabel={mode === 'expense' ? 'Show income breakdown' : 'Show expense breakdown'}
+            onPress={onModeToggle}
           >
             <Repeat size={12} />
-          </button>
+          </InsightActionButton>
         )}
       />
       <div className="relative overflow-hidden">
@@ -195,18 +238,38 @@ export function IncomeExpenseBreakdownCard({
                       nameKey="name"
                       stroke="none"
                     >
-                      {displaySnapshot.entries.map((entry, index) => (
-                        <Cell key={entry.id} fill={insightsBreakdownColors[index % insightsBreakdownColors.length]} />
+                      {displaySnapshot.entries.map((entry) => (
+                        <Cell key={entry.id} fill={getSpacedBreakdownColor(entry)} />
                       ))}
                     </Pie>
                     <Tooltip
                       wrapperClassName="app-chart-tooltip-default"
-                      formatter={(value, name) => [formatCurrency(Number(value), displaySnapshot.displayCurrency), name]}
+                      content={({ active, payload }) => {
+                        const entry = payload?.[0]?.payload as BreakdownEntry | undefined
+                        if (!active || !entry) return null
+
+                        return (
+                          <div className="app-chart-tooltip-default-content min-w-40">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium" style={{ color: 'var(--app-text)' }}>
+                                {entry.name}
+                              </span>
+                              {renderCrossoverBadge(entry, displaySnapshot.mode)}
+                            </div>
+                            <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
+                              {formatCurrency(entry.amount, displaySnapshot.displayCurrency)}
+                            </div>
+                          </div>
+                        )
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="relative mt-auto min-h-[136px] overflow-hidden">
+              <div
+                className="relative mt-auto overflow-hidden"
+                style={{ minHeight: legendMinHeight }}
+              >
                 <AnimatePresence initial={false} mode="wait">
                   <motion.div
                     key={displaySnapshot.animationKey}
@@ -216,7 +279,7 @@ export function IncomeExpenseBreakdownCard({
                     animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
                     exit={shouldReduceMotion ? undefined : 'exit'}
                   >
-                    {displaySnapshot.entries.slice(0, 5).map((entry, index) => (
+                    {legendEntries.map((entry) => (
                       <motion.div
                         key={entry.id}
                         className="flex items-center gap-3 text-sm"
@@ -225,10 +288,13 @@ export function IncomeExpenseBreakdownCard({
                       >
                         <span
                           className="h-2.5 w-2.5 rounded-full"
-                          style={{ background: insightsBreakdownColors[index % insightsBreakdownColors.length] }}
+                          style={{ background: getSpacedBreakdownColor(entry) }}
                         />
-                        <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--app-text-muted)' }}>
-                          {entry.name}
+                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                          <span className="min-w-0 truncate" style={{ color: 'var(--app-text-muted)' }}>
+                            {entry.name}
+                          </span>
+                          {renderCrossoverBadge(entry, displaySnapshot.mode)}
                         </span>
                         <span className="font-financial">
                           {getPct(entry.amount, total)}%

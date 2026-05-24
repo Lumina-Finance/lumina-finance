@@ -59,7 +59,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   const amountLoadingText = formatCurrency(888888, displayCurrency)
 
   return (
-    <div className="app-card h-[420px] flex flex-col">
+    <div className="app-card h-[470px] flex flex-col">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <BarChart3 size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />

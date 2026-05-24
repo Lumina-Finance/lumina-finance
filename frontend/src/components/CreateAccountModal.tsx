@@ -50,6 +50,23 @@ const conditionalField = {
   transition: { duration: 0.25, ease: EASE },
 };
 
+function sanitizeMoneyInput(value: string) {
+  let sanitized = value.replace(/[^\d.]/g, '');
+  const parts = sanitized.split('.');
+  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`;
+  return sanitized;
+}
+
+function formatMoneyInputLive(value: string) {
+  if (!value.trim()) return value;
+  const [integerPart, decimalPart] = value.split('.', 2);
+  const formattedInteger = integerPart
+    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
+    : '0';
+  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger;
+}
+
 /* ── Validation ── */
 
 interface FieldErrors {
@@ -98,7 +115,7 @@ function validate(form: typeof INITIAL_FORM): FieldErrors {
   if (!form.currency) errors.currency = 'Select a currency';
 
   if (form.credit_limit) {
-    const n = parseInt(form.credit_limit, 10);
+    const n = Number(form.credit_limit.replace(/,/g, ''));
     if (isNaN(n) || n < 0) errors.credit_limit = 'Must be a positive number';
   }
   return errors;
@@ -136,6 +153,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const canLinkTaxPlan = accountKind === 'asset' && !!form.currency;
   const conditionalAccountField = canLinkTaxPlan ? 'tax-plan' : isRevolving ? 'credit-limit' : null;
   const selectedAccountType = ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type);
+  const selectedCurrencySymbol = currencies.find((currency) => currency.id === form.currency)?.symbol ?? '';
 
   // Dropdown options
   const currencyOptions = useMemo(
@@ -230,7 +248,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
     const toMinor = (value: string): number | null => {
       if (!value) return null;
-      const n = parseFloat(value);
+      const n = parseFloat(value.replace(/,/g, ''));
       if (isNaN(n) || n < 0) return null;
       return Math.round(n * minorMultiplier);
     };
@@ -313,7 +331,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
                     {/* Header */}
                     <div
-                      className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+                      className="shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8"
                       style={{ borderBottom: '1px solid var(--app-border)' }}
                     >
                       <div className="flex items-start justify-between gap-6">
@@ -342,9 +360,9 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                       </div>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8">
+                    <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8">
                       <div className="space-y-5">
-                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                           <div className="flex min-h-0 flex-col items-center">
                             <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                               01
@@ -410,7 +428,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           </div>
                         </section>
 
-                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                           <div className="flex min-h-0 flex-col items-center">
                             <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                               02
@@ -466,16 +484,29 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                                         label="Credit Limit"
                                         error={showError('credit_limit') || undefined}
                                       />
-                                      <input
-                                        id="credit-limit"
-                                        type="number"
-                                        min="0"
-                                        className={`app-input ${showError('credit_limit') ? 'app-input-error' : ''}`}
-                                        placeholder="Optional"
-                                        value={form.credit_limit}
-                                        onChange={(e) => handleChange('credit_limit', e.target.value)}
-                                        onBlur={() => handleBlur('credit_limit')}
-                                      />
+                                      <div className="relative">
+                                        {selectedCurrencySymbol && (
+                                          <span
+                                            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                            style={{ color: 'var(--app-text-subtle)' }}
+                                            aria-hidden
+                                          >
+                                            {selectedCurrencySymbol}
+                                          </span>
+                                        )}
+                                        <input
+                                          id="credit-limit"
+                                          className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('credit_limit') ? 'app-input-error' : ''}`}
+                                          inputMode="decimal"
+                                          placeholder="Optional"
+                                          value={form.credit_limit}
+                                          onChange={(e) => handleChange(
+                                            'credit_limit',
+                                            formatMoneyInputLive(sanitizeMoneyInput(e.target.value)),
+                                          )}
+                                          onBlur={() => handleBlur('credit_limit')}
+                                        />
+                                      </div>
                                     </div>
                                   )}
                                 </motion.div>
@@ -504,7 +535,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
                     {/* Footer */}
                     <div
-                      className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8"
+                      className="grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5"
                       style={{ borderTop: '1px solid var(--app-border)' }}
                     >
                       <button
@@ -518,7 +549,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                       <button
                         type="submit"
                         disabled={mutation.isPending}
-                        className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${mutation.isPending ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
+                        className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${mutation.isPending ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-40'}`}
                       >
                         {mutation.isPending ? <div className="app-spinner" /> : 'Create Account'}
                       </button>

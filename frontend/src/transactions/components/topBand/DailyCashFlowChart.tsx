@@ -61,7 +61,7 @@ export default function DailyCashFlowChart({
   return (
     <>
       <p className="app-label mb-3">Daily Cash Flow</p>
-      <div className="h-44">
+      <div className="h-[11.75rem]">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             key={`daily-flow-${chartAnimationKey}`}

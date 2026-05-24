@@ -125,6 +125,12 @@ function deleteAccount(accountId: string) {
   });
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function updateCachedAccountList(queryClient: QueryClient, account: AccountsOverview) {
   queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) => {
     if (!accounts) return [account];
@@ -205,6 +211,7 @@ export function useUpdateAccount() {
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
         queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
+        queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings(), exact: true });
         queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
       }
 
@@ -229,10 +236,20 @@ export function useUpdateAccount() {
   });
 }
 
-export function useDeleteAccount() {
+export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: deleteAccount,
+    mutationFn: async (accountId: string) => {
+      const minimumPending = delay(minimumPendingMs);
+      try {
+        const result = await deleteAccount(accountId);
+        await minimumPending;
+        return result;
+      } catch (error) {
+        await minimumPending;
+        throw error;
+      }
+    },
     onSuccess: (_, accountId) => {
       const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, accountId);
 
@@ -247,6 +264,7 @@ export function useDeleteAccount() {
       queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll });
       queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll });
       queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts() });
+      queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings() });
       queryClient.invalidateQueries({ queryKey: userKeys.runway() });
       invalidateTaxAdvantagedPlanCaches(queryClient, [previousPlanId]);
     },

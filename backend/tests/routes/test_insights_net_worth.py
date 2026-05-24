@@ -21,6 +21,17 @@ async def _seed_usd_currency():
         await session.commit()
 
 
+async def _create_plan(client, headers, **overrides):
+    """Create a tax-advantaged plan."""
+    payload = {
+        "name": "TFSA",
+        "tax_treatment": "tax_free",
+        "currency": "CAD",
+        **overrides,
+    }
+    return await client.post("/tax-advantaged-plans", json=payload, headers=headers)
+
+
 async def test_net_worth_returns_compact_daily_signed_group_series(client):
     """Daily buckets group balances, preserve debt signs, and exclude hidden/non-base accounts."""
     signup_resp = await _create_user(client)
@@ -75,6 +86,49 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
         ["2026-05-02", "2026-05-02", [150_000, -50_000]],
         ["2026-05-03", "2026-05-03", [150_000, -80_000]],
     ]
+
+
+async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
+    """Tax wrappers do not override the underlying asset composition."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    plan_id = (await _create_plan(client, headers)).json()["id"]
+    savings_account = (await _create_account(
+        client,
+        headers,
+        account_type="savings",
+        name="TFSA Savings",
+        tax_advantaged_plan_id=plan_id,
+    )).json()
+    investment_account = (await _create_account(
+        client,
+        headers,
+        account_type="investment",
+        name="TFSA Investment",
+        tax_advantaged_plan_id=plan_id,
+    )).json()
+
+    async with TestSession() as session:
+        session.add_all([
+            _snapshot(UUID(savings_account["id"]), date(2026, 5, 1), 25_000),
+            _snapshot(UUID(investment_account["id"]), date(2026, 5, 1), 175_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "groups": [
+            ["cash", "Cash", "asset"],
+            ["investments", "Investments", "asset"],
+        ],
+        "points": [["2026-05-01", "2026-05-01", [25_000, 175_000]]],
+    }
 
 
 async def test_net_worth_uses_weekly_buckets_for_mid_length_ranges(client):

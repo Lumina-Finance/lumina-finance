@@ -17,6 +17,7 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -212,18 +213,16 @@ export function SavingsRateTrendCard({
         icon={Repeat}
         label="Savings Rate Trend"
         action={(
-          <button
-            type="button"
-            onClick={onCapRatesToggle}
+          <InsightActionButton
             title={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
-            aria-label={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
-            className="app-icon-button"
+            ariaLabel={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}
+            onPress={onCapRatesToggle}
           >
             <ArrowUpToLine
               size={12}
               className={`transition-transform duration-150 motion-reduce:transition-none ${capRates ? 'rotate-180' : ''}`}
             />
-          </button>
+          </InsightActionButton>
         )}
       />
       <div className="relative overflow-hidden">

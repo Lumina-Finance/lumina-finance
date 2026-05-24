@@ -54,14 +54,12 @@ export default function AccountRow({
   account,
   accent,
   showCreditLimit,
-  displayCurrency,
   taxAdvantagedPlanById,
   isHidden = false,
 }: {
   account: AccountsOverview
   accent: AccountAccent
   showCreditLimit: boolean
-  displayCurrency: string
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
   isHidden?: boolean
 }) {
@@ -131,14 +129,14 @@ export default function AccountRow({
         </div>
         <div className="col-start-2 min-w-0 text-left min-[730px]:shrink-0 min-[730px]:text-right">
           <p className="font-financial font-medium" style={{ color: balanceColor }}>
-            {formatCurrency(account.current_balance, displayCurrency)}
+            {formatCurrency(account.current_balance, account.currency)}
           </p>
           {showCreditLimit && account.credit_limit !== null && (
             <p
               className="font-financial mt-0.5 text-xs"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              {formatCurrency(account.credit_limit + account.current_balance, displayCurrency)} avail.
+              {formatCurrency(account.credit_limit + account.current_balance, account.currency)} avail.
             </p>
           )}
         </div>

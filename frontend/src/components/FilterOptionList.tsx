@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react'
+import { useMemo, useRef, useState, useEffect, type KeyboardEvent } from 'react'
 import { Search } from 'lucide-react'
 
 export interface OptionItem {
@@ -14,6 +14,7 @@ interface Props {
   onSelect: (value: string) => void
   searchPlaceholder?: string
   emptyLabel?: string
+  selectFirstSearchResultOnEnter?: boolean
 }
 
 export default function FilterOptionList({
@@ -22,9 +23,11 @@ export default function FilterOptionList({
   onSelect,
   searchPlaceholder = 'Search...',
   emptyLabel = 'No matches',
+  selectFirstSearchResultOnEnter = false,
 }: Props) {
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const hasSearch = search.trim().length > 0
 
   // Auto-focus the search field when the popover opens
   useEffect(() => {
@@ -32,9 +35,9 @@ export default function FilterOptionList({
   }, [])
 
   const filtered = useMemo(() => {
-    if (!search) return options
-    const q = search.toLowerCase()
-    return options.filter((o) => o.label.toLowerCase().includes(q))
+    const query = search.trim().toLowerCase()
+    if (!query) return options
+    return options.filter((o) => o.label.toLowerCase().includes(query))
   }, [options, search])
 
   // Group adjacent items by their group label so each section has one sticky header
@@ -51,6 +54,13 @@ export default function FilterOptionList({
     }
     return groups
   }, [filtered])
+  const highlightedValue = selectFirstSearchResultOnEnter && hasSearch ? filtered[0]?.value : undefined
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || !highlightedValue) return
+    event.preventDefault()
+    onSelect(highlightedValue)
+  }
 
   return (
     <div className="flex flex-col">
@@ -71,6 +81,7 @@ export default function FilterOptionList({
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
           />
         </div>
       </div>
@@ -95,14 +106,26 @@ export default function FilterOptionList({
               </div>
               <ul>
                 {group.items.map((o) => (
-                  <Row key={o.value} option={o} selected={o.value === selectedValue} onSelect={onSelect} />
+                  <Row
+                    key={o.value}
+                    option={o}
+                    selected={o.value === selectedValue}
+                    highlighted={o.value === highlightedValue}
+                    onSelect={onSelect}
+                  />
                 ))}
               </ul>
             </li>
           ))
         ) : (
           filtered.map((o) => (
-            <Row key={o.value} option={o} selected={o.value === selectedValue} onSelect={onSelect} />
+            <Row
+              key={o.value}
+              option={o}
+              selected={o.value === selectedValue}
+              highlighted={o.value === highlightedValue}
+              onSelect={onSelect}
+            />
           ))
         )}
       </ul>
@@ -113,10 +136,12 @@ export default function FilterOptionList({
 function Row({
   option,
   selected,
+  highlighted,
   onSelect,
 }: {
   option: OptionItem
   selected: boolean
+  highlighted: boolean
   onSelect: (value: string) => void
 }) {
   return (
@@ -124,7 +149,9 @@ function Row({
       <button
         type="button"
         onClick={() => onSelect(option.value)}
-        className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-[var(--app-surface-soft)]"
+        className={`flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-[var(--app-surface-soft)] ${
+          highlighted ? 'bg-[var(--app-surface-soft)]' : ''
+        }`}
         style={{
           color: selected ? 'var(--app-accent)' : 'var(--app-text)',
           fontWeight: selected ? 500 : 400,

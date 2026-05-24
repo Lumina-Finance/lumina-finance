@@ -23,8 +23,12 @@ export function getSavingsRateSeries(
     }
 
     const monthDate = new Date(`${row.month}T00:00:00`)
+    const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'short' })
+    const year = row.month.slice(0, 4)
+    const previousYear = rows[index - 1]?.month.slice(0, 4)
+
     return {
-      monthLabel: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+      monthLabel: previousYear && previousYear !== year ? `${monthLabel} '${year.slice(2)}` : monthLabel,
       fullLabel: monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
       rate,
       income: row.income,

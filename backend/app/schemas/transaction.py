@@ -107,6 +107,7 @@ class TransactionImportCreateAccount(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     account_type: str
     currency: str = Field(min_length=3, max_length=3)
+    institution_id: uuid.UUID | None = None
 
 
 class TransactionImportAccountMapping(BaseModel):
@@ -166,6 +167,8 @@ class TransactionImportResponse(BaseModel):
     tags_created: int
     tags_reused: int
     affected_account_ids: list[uuid.UUID]
+    account_source_ids: dict[str, uuid.UUID]
+    category_source_ids: dict[str, uuid.UUID]
     created_account_ids: list[uuid.UUID]
     created_category_ids: list[uuid.UUID]
     created_merchant_ids: list[uuid.UUID]

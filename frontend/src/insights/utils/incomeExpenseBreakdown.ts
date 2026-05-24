@@ -11,7 +11,12 @@ import type {
 } from '../components/IncomeExpenseBreakdownCard'
 
 function getBreakdownEntries(entries: InsightsBreakdownEntry[] | undefined): BreakdownEntry[] {
-  return (entries ?? []).map(([id, name, amount]) => ({ id, name, amount }))
+  return (entries ?? []).map(([id, name, categoryKind, amount]) => ({
+    id,
+    name,
+    categoryKind,
+    amount,
+  }))
 }
 
 function getCategoryDrivers(entries: InsightsCategoryTrendEntry[] | undefined): CategoryDriver[] {

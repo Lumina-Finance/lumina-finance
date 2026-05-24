@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, EyeOff, Pencil, Trash2, X } from 'lucide-react'
 import {
@@ -15,7 +14,13 @@ import CreateInstitutionModal from '@/components/CreateInstitutionModal'
 import Dropdown from '@/components/Dropdown'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/accounts/detail/utils/formatAccountType'
-import { fromMinorUnits, isValidMoneyInput, toMinorUnits } from '@/accounts/detail/utils/moneyInput'
+import {
+  formatMoneyInputLive,
+  fromMinorUnits,
+  isValidMoneyInput,
+  sanitizeMoneyInput,
+  toMinorUnits,
+} from '@/accounts/detail/utils/moneyInput'
 
 function FieldLabelRow({
   label,
@@ -71,13 +76,18 @@ function wait(ms: number): Promise<void> {
 export default function EditAccountIdentityModal({
   account,
   onClose,
+  onDeleteStarted,
+  onDeleted,
+  onDeleteFailed,
 }: {
   account: Account
   onClose: () => void
+  onDeleteStarted: (account: Account) => void
+  onDeleted: (account: Account) => void
+  onDeleteFailed: () => void
 }) {
-  const navigate = useNavigate()
   const updateAccount = useUpdateAccount()
-  const deleteAccount = useDeleteAccount()
+  const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
   const { data: currencies = [] } = useCurrencies()
   const { data: institutions = [] } = useInstitutions()
   const { data: taxAdvantagedPlans = [] } = useTaxAdvantagedPlans()
@@ -94,27 +104,13 @@ export default function EditAccountIdentityModal({
   const [deleteStage, setDeleteStage] = useState<DeleteAccountStage>('idle')
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
-  const [deleteDelayPending, setDeleteDelayPending] = useState(false)
   const [institutionModalName, setInstitutionModalName] = useState('')
   const [showInstitutionModal, setShowInstitutionModal] = useState(false)
   const [institutionModalKey, setInstitutionModalKey] = useState(0)
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
-
-  // While the modal is open, lock page scroll and let Escape use the same
-  // close path as the visible close controls.
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onClose])
+  const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
 
   const institutionOptions = useMemo(
     () => [
@@ -215,27 +211,42 @@ export default function EditAccountIdentityModal({
   const handleDeleteAccount = async () => {
     if (deleteNameInput !== account.name || isBusy) return
     setDeleteError(null)
-    setDeleteDelayPending(true)
-    const minimumDelay = wait(MIN_DELETE_SPINNER_MS)
+    onDeleteStarted(account)
 
     try {
       await deleteAccount.mutateAsync(account.id)
-      await minimumDelay
-      onClose()
-      navigate('/accounts', { replace: true })
+      onDeleted(account)
     } catch (error) {
-      await minimumDelay
+      onDeleteFailed()
       setDeleteError(error instanceof Error ? error.message : 'Failed to delete account.')
-      setDeleteDelayPending(false)
     }
   }
 
-  const deleteLoading = deleteAccount.isPending || deleteDelayPending
+  const deleteLoading = deleteAccount.isPending
   const saveLoading = (updateAccount.isPending && deleteStage === 'idle') || saveDelayPending
   const isBusy = updateAccount.isPending || saveDelayPending || deleteLoading
   const canDelete = deleteNameInput === account.name
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
+
+  const requestClose = () => {
+    if (isBusy) return
+    onClose()
+  }
+
+  // While the modal is open, lock page scroll and let Escape use the same
+  // close path as the visible close controls.
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isBusy) onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isBusy, onClose])
 
   return (
     <>
@@ -248,7 +259,7 @@ export default function EditAccountIdentityModal({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={onClose}
+              onClick={requestClose}
               aria-hidden
             />
 
@@ -258,7 +269,7 @@ export default function EditAccountIdentityModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 16 }}
               transition={{ duration: 0.22, ease: EASE }}
-              onClick={onClose}
+              onClick={requestClose}
             >
               <motion.div
                 layout
@@ -297,7 +308,7 @@ export default function EditAccountIdentityModal({
                   transition={{ layout: { duration: 0.28, ease: EASE } }}
                 >
                   <div
-                    className="shrink-0 px-6 pb-5 pt-6 sm:px-7"
+                    className="shrink-0 pb-5 pl-4 pr-5 pt-6 min-[1050px]:px-7"
                     style={{ borderBottom: '1px solid var(--app-border)' }}
                   >
                     <div className="flex items-start justify-between gap-6">
@@ -309,15 +320,15 @@ export default function EditAccountIdentityModal({
                           Edit Account
                         </h2>
                       </div>
-                      <button type="button" onClick={onClose} className="app-icon-button shrink-0" aria-label="Close">
+                      <button type="button" onClick={requestClose} className="app-icon-button shrink-0" aria-label="Close" disabled={isBusy}>
                         <X size={20} aria-hidden />
                       </button>
                     </div>
                   </div>
 
-                  <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-7">
+                  <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7">
                     <div className="space-y-5">
-                      <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                      <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                         <div className="flex min-h-0 flex-col items-center">
                           <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                             01
@@ -358,7 +369,7 @@ export default function EditAccountIdentityModal({
                       </section>
 
                       {hasEditableAccountContext && (
-                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                           <div className="flex min-h-0 flex-col items-center">
                             <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                               02
@@ -388,21 +399,35 @@ export default function EditAccountIdentityModal({
                             {isRevolving && (
                               <div>
                                 <FieldLabelRow htmlFor="edit-credit-limit" label="Credit Limit" error={fieldErrors.credit_limit} />
-                                <input
-                                  id="edit-credit-limit"
-                                  className={`app-input ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
-                                  inputMode="decimal"
-                                  value={form.credit_limit}
-                                  onChange={(event) => setField('credit_limit', event.target.value)}
-                                  placeholder="Optional"
-                                />
+                                <div className="relative">
+                                  {selectedCurrencySymbol && (
+                                    <span
+                                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                      style={{ color: 'var(--app-text-subtle)' }}
+                                      aria-hidden
+                                    >
+                                      {selectedCurrencySymbol}
+                                    </span>
+                                  )}
+                                  <input
+                                    id="edit-credit-limit"
+                                    className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
+                                    inputMode="decimal"
+                                    value={form.credit_limit}
+                                    onChange={(event) => setField(
+                                      'credit_limit',
+                                      formatMoneyInputLive(sanitizeMoneyInput(event.target.value)),
+                                    )}
+                                    placeholder="Optional"
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>
                         </section>
                       )}
 
-                      <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                      <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                         <div className="flex min-h-0 flex-col items-center">
                           <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                             {visibilitySectionNumber}
@@ -609,7 +634,7 @@ export default function EditAccountIdentityModal({
                   </div>
 
                   <div
-                    className="flex shrink-0 items-center gap-3 px-6 py-5 sm:px-7"
+                    className="flex shrink-0 items-center gap-3 px-6 py-4 sm:px-7 min-[1050px]:py-5"
                     style={{ borderTop: '1px solid var(--app-border)' }}
                   >
                     <button
@@ -623,7 +648,7 @@ export default function EditAccountIdentityModal({
                       <Trash2 size={16} aria-hidden />
                     </button>
                     <div className="ml-auto flex items-center gap-3">
-                      <button type="button" className="app-secondary-button" onClick={onClose} disabled={isBusy}>
+                      <button type="button" className="app-secondary-button" onClick={requestClose} disabled={isBusy}>
                         Cancel
                       </button>
                       <button

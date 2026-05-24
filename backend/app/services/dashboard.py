@@ -47,6 +47,8 @@ from app.services.transaction_responses import (
     get_tags_batch,
 )
 
+DASHBOARD_BREAKDOWN_CATEGORY_LIMIT = 6
+
 # ---------------------------------------------------------------------------
 # Helpers for dashboard widgets (date & math)
 # ---------------------------------------------------------------------------
@@ -131,7 +133,8 @@ async def get_net_worth_history(
     before the window start, then advances it using snapshots inside the
     window. The final daily total == current net worth; intermediate totals
     form the history series (index 0 = earliest day, final index = today).
-    Asset balances add positively, liability balances subtract.
+    Balances are already signed from the user's perspective: positive asset
+    balances add to net worth, negative liability balances reduce it.
     """
     series = [0] * window_days
     if not base_currency_accounts:
@@ -140,10 +143,6 @@ async def get_net_worth_history(
     today = now.date()
     window_start = today - timedelta(days=window_days - 1)
     ids = [a.id for a in base_currency_accounts]
-    sign_by_id = {
-        a.id: 1 if a.account_kind == AccountKind.ASSET else -1
-        for a in base_currency_accounts
-    }
 
     # Anchor: most recent snapshot strictly before window_start per account.
     anchor_result = await db.execute(
@@ -182,9 +181,9 @@ async def get_net_worth_history(
             break
         for aid, balance in updates_by_day.get(current_day, {}).items():
             running[aid] = balance
-        series[day_idx] = sum(running[aid] * sign_by_id[aid] for aid in ids)
+        series[day_idx] = sum(running[aid] for aid in ids)
 
-    current_net_worth = sum(running[aid] * sign_by_id[aid] for aid in ids)
+    current_net_worth = sum(running[aid] for aid in ids)
     return current_net_worth, series
 
 
@@ -521,8 +520,7 @@ def _current_period_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
     """Return ``(start, today)`` bounds for the current ``range_``.
 
     Matches the current-period start used by ``_plan_spending_comparison`` so
-    the breakdown widget's totals agree with the comparison chart's cumulative
-    current-series endpoint.
+    the dashboard widgets share the same calendar window.
     """
     if range_ == "WTD":
         return today - timedelta(days=today.weekday()), today
@@ -543,9 +541,13 @@ async def get_spending_breakdown(
     """Return category-level expense and income totals for ``range_``.
 
     Aggregates transactions on base-currency accessible accounts between the
-    range's current-period start and today. Expense amounts are flipped to
-    positive minor units. Categories with zero totals are dropped; entries
-    are sorted largest-first so the frontend can take the top N directly.
+    range's current-period start and today. Negative category totals render as
+    spending, and positive category totals render as income. The original
+    category kind is preserved so the frontend can mark flipped categories.
+    Categories with zero totals are dropped; entries are sorted largest-first
+    and compacted into an Other slice when the dashboard donut has too many
+    small categories. Flipped categories stay visible so their badge context
+    is never swallowed by Other.
     """
     start, end = _current_period_bounds(range_, now.date())
     if not base_currency_account_ids:
@@ -571,15 +573,52 @@ async def get_spending_breakdown(
     expense: list[CategoryBreakdownEntry] = []
     income: list[CategoryBreakdownEntry] = []
     for row in result:
-        amount = abs(int(row.total))
-        if amount == 0:
+        total = int(row.total or 0)
+        if total < 0:
+            expense.append(CategoryBreakdownEntry(
+                category_id=row.id,
+                name=row.name,
+                category_kind=row.kind,
+                amount=-total,
+            ))
             continue
-        entry = CategoryBreakdownEntry(category_id=row.id, name=row.name, amount=amount)
-        if row.kind == CategoryKind.EXPENSE:
-            expense.append(entry)
-        else:
-            income.append(entry)
 
-    expense.sort(key=lambda e: e.amount, reverse=True)
-    income.sort(key=lambda e: e.amount, reverse=True)
-    return SpendingBreakdownResponse(range=range_, expense=expense, income=income)
+        if total > 0:
+            income.append(CategoryBreakdownEntry(
+                category_id=row.id,
+                name=row.name,
+                category_kind=row.kind,
+                amount=total,
+            ))
+
+    expense.sort(key=lambda e: (-e.amount, e.name))
+    income.sort(key=lambda e: (-e.amount, e.name))
+    return SpendingBreakdownResponse(
+        range=range_,
+        expense=_dashboard_breakdown_entries(expense, CategoryKind.EXPENSE),
+        income=_dashboard_breakdown_entries(income, CategoryKind.INCOME),
+    )
+
+
+def _dashboard_breakdown_entries(
+    entries: list[CategoryBreakdownEntry],
+    kind: CategoryKind,
+) -> list[CategoryBreakdownEntry]:
+    """Return visible dashboard slices plus one Other slice for same-kind hidden rows."""
+    visible = entries[:DASHBOARD_BREAKDOWN_CATEGORY_LIMIT]
+    hidden = entries[DASHBOARD_BREAKDOWN_CATEGORY_LIMIT:]
+    flipped_hidden = [entry for entry in hidden if entry.category_kind != kind]
+    other_amount = sum(entry.amount for entry in hidden if entry.category_kind == kind)
+    if other_amount <= 0:
+        return [*visible, *flipped_hidden]
+
+    return [
+        *visible,
+        *flipped_hidden,
+        CategoryBreakdownEntry(
+            category_id=uuid.uuid5(uuid.NAMESPACE_URL, f"dashboard-{kind.value}-other"),
+            name="Other",
+            category_kind=kind,
+            amount=other_amount,
+        ),
+    ]

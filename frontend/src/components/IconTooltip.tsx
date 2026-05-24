@@ -11,6 +11,7 @@ interface IconTooltipProps {
   level?: IconTooltipLevel
   placement?: IconTooltipPlacement
   widthClassName?: string
+  icon?: LucideIcon
   iconColor?: string
   size?: number
   strokeWidth?: number
@@ -42,11 +43,13 @@ export default function IconTooltip({
   level = 'info',
   placement = 'top',
   widthClassName = 'w-52',
+  icon: IconOverride,
   iconColor,
   size = 15,
   strokeWidth = 2.5,
 }: IconTooltipProps) {
-  const { Icon, color } = levelConfig[level]
+  const { Icon: DefaultIcon, color } = levelConfig[level]
+  const Icon = IconOverride ?? DefaultIcon
   const [isOpen, setIsOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
 

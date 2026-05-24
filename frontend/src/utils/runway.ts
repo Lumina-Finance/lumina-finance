@@ -3,20 +3,60 @@
 // classify it into one of three risk bands.
 
 export const RUNWAY_TARGET_MONTHS = 6
+export const RUNWAY_THRESHOLD_MIN_MONTHS = 0
+export const RUNWAY_THRESHOLD_MAX_MONTHS = 12
+export const RUNWAY_THRESHOLD_STEP_MONTHS = 0.5
+export const RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS = 2
 
-export type RunwayBand = 'healthy' | 'watch' | 'low'
+export type RunwayBand = 'healthy' | 'low' | 'risky'
+
+export type RunwayThresholds = {
+  riskyBelowMonths: number
+  healthyAtMonths: number
+}
+
+export const DEFAULT_RUNWAY_THRESHOLDS: RunwayThresholds = {
+  riskyBelowMonths: 1,
+  healthyAtMonths: 3,
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function roundRunwayThreshold(value: number) {
+  return Math.round(value / RUNWAY_THRESHOLD_STEP_MONTHS) * RUNWAY_THRESHOLD_STEP_MONTHS
+}
+
+export function normalizeRunwayThresholds(thresholds: RunwayThresholds): RunwayThresholds {
+  const riskyBelowMonths = clamp(
+    roundRunwayThreshold(thresholds.riskyBelowMonths),
+    RUNWAY_THRESHOLD_MIN_MONTHS,
+    RUNWAY_THRESHOLD_MAX_MONTHS - RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS,
+  )
+  const healthyAtMonths = clamp(
+    roundRunwayThreshold(thresholds.healthyAtMonths),
+    riskyBelowMonths + RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS,
+    RUNWAY_THRESHOLD_MAX_MONTHS,
+  )
+
+  return { riskyBelowMonths, healthyAtMonths }
+}
 
 export const RUNWAY_BAND_STYLE: Record<RunwayBand, { label: string; bg: string; fg: string }> = {
   healthy: { label: 'Healthy', bg: 'var(--app-positive-soft)', fg: 'var(--app-positive)' },
-  watch: { label: 'Watch', bg: 'var(--app-accent-soft)', fg: 'var(--app-accent)' },
-  low: { label: 'Low', bg: 'var(--app-negative-soft)', fg: 'var(--app-negative)' },
+  low: { label: 'Low', bg: 'var(--app-accent-soft)', fg: 'var(--app-accent)' },
+  risky: { label: 'Risky', bg: 'var(--app-negative-soft)', fg: 'var(--app-negative)' },
 }
 
-export function runwayBand(months: number | null): RunwayBand | null {
+export function runwayBand(
+  months: number | null,
+  thresholds: RunwayThresholds = DEFAULT_RUNWAY_THRESHOLDS,
+): RunwayBand | null {
   if (months === null) return null
-  if (months >= 3) return 'healthy'
-  if (months >= 1) return 'watch'
-  return 'low'
+  if (months >= thresholds.healthyAtMonths) return 'healthy'
+  if (months >= thresholds.riskyBelowMonths) return 'low'
+  return 'risky'
 }
 
 // Compact runway display. Prefixes with "≈" to signal that this is a rough
@@ -33,4 +73,8 @@ export function formatCompactRunway(months: number | null): string {
     return `≈ ${rounded} ${rounded === 1 ? 'yr' : 'yrs'}`
   }
   return `≈ ${Math.floor(years)} yrs`
+}
+
+export function formatRunwayBasis(months: number): string {
+  return `${months} ${months === 1 ? 'mth' : 'mths'} basis`
 }

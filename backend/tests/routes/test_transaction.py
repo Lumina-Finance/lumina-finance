@@ -1,4 +1,12 @@
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import update
+
+from app.models.base import InstitutionStatus
 from app.models.currency import Currency
+from app.models.institution import Institution
+from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.conftest import _create_user, _get_auth_header
 
@@ -16,6 +24,21 @@ async def _seed_usd_currency():
     async with TestSession() as session:
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
+
+
+async def _seed_institution():
+    """Seed an institution directly for import-created account linking."""
+    async with TestSession() as session:
+        inst = Institution(
+            status=InstitutionStatus.CANONICAL,
+            name="Test Bank",
+            country_code="CA",
+            website="https://testbank.example.com",
+        )
+        session.add(inst)
+        await session.commit()
+        await session.refresh(inst)
+        return inst
 
 
 async def _create_category(client, headers, **overrides):
@@ -159,13 +182,19 @@ async def _setup_user_with_deps(client, email="test@example.com", name_prefix="M
 
 async def test_import_transactions_creates_records_and_recomputes_snapshots(client):
     """Import creates requested records, transactions, tags, and account snapshots."""
+    institution = await _seed_institution()
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await client.post("/transactions/import", json={
         "accounts": [{
             "source": "TD Visa",
-            "create": {"name": "TD Visa", "account_type": "credit_card", "currency": "CAD"},
+            "create": {
+                "name": "TD Visa",
+                "account_type": "credit_card",
+                "currency": "CAD",
+                "institution_id": str(institution.id),
+            },
         }],
         "categories": [{
             "source": "Restaurants",
@@ -192,9 +221,13 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     assert data["affected_account_ids"] == data["created_account_ids"]
 
     account_id = data["created_account_ids"][0]
+    category_id = data["created_category_ids"][0]
+    assert data["account_source_ids"] == {"TD Visa": account_id}
+    assert data["category_source_ids"] == {"Restaurants": category_id}
     transactions_resp = await client.get("/transactions", headers=headers)
     transaction = transactions_resp.json()[0]
     assert transaction["account_id"] == account_id
+    assert transaction["category_id"] == category_id
     assert transaction["amount"] == -1234
     assert transaction["currency"] == "CAD"
     assert transaction["merchant_name"] == "Corner Cafe"
@@ -205,6 +238,7 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     account = next(item for item in accounts_resp.json() if item["id"] == account_id)
     assert account["account_kind"] == "revolving"
     assert account["account_type"] == "credit_card"
+    assert account["institution"]["id"] == str(institution.id)
     assert account["current_balance"] == -1234
 
     snapshots_resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
@@ -241,6 +275,8 @@ async def test_import_transactions_reuses_existing_records_and_parses_comma_amou
     assert data["created_category_ids"] == []
     assert data["created_merchant_ids"] == []
     assert data["created_tag_ids"] == []
+    assert data["account_source_ids"] == {"Main Chequing": account_id}
+    assert data["category_source_ids"] == {"Groceries": category_id}
 
     transactions_resp = await client.get("/transactions", headers=headers)
     transaction = transactions_resp.json()[0]
@@ -271,6 +307,33 @@ async def test_import_transactions_rejects_unmapped_account_source(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account source is not mapped: Missing Account"
+
+
+async def test_import_transactions_rejects_invalid_created_account_institution(client):
+    """Import-created accounts must reference an existing institution."""
+    headers, _, category_id = await _setup_user_with_deps(client)
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [{
+            "source": "Mapped Account",
+            "create": {
+                "name": "Imported Account",
+                "account_type": "checking",
+                "currency": "CAD",
+                "institution_id": NONEXISTENT_ID,
+            },
+        }],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [{
+            "account_source": "Mapped Account",
+            "category_source": "Groceries",
+            "dt": "2026-04-11",
+            "amount": "-10.00",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Institution not found"
 
 
 async def test_import_transactions_rejects_invalid_raw_amount(client):
@@ -692,6 +755,103 @@ async def test_list_transactions_default_sort_dt_desc(client):
 
     dates = [t["dt"] for t in resp.json()]
     assert dates == sorted(dates, reverse=True)
+
+
+async def test_list_transactions_default_sort_uses_created_at_within_day(client):
+    """Same-day transactions are sorted by creation time, newest first."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    older = await _create_transaction(client, headers, account_id, category_id, dt="2026-03-15", amount=-1000)
+    newer = await _create_transaction(client, headers, account_id, category_id, dt="2026-03-15", amount=-2000)
+    next_day = await _create_transaction(client, headers, account_id, category_id, dt="2026-03-16", amount=-3000)
+
+    async with TestSession() as session:
+        await session.execute(
+            update(Transaction)
+            .where(Transaction.id == uuid.UUID(older.json()["id"]))
+            .values(created_at=datetime(2026, 1, 1, 10, tzinfo=UTC)),
+        )
+        await session.execute(
+            update(Transaction)
+            .where(Transaction.id == uuid.UUID(newer.json()["id"]))
+            .values(created_at=datetime(2026, 1, 1, 11, tzinfo=UTC)),
+        )
+        await session.execute(
+            update(Transaction)
+            .where(Transaction.id == uuid.UUID(next_day.json()["id"]))
+            .values(created_at=datetime(2026, 1, 1, 9, tzinfo=UTC)),
+        )
+        await session.commit()
+
+    resp = await client.get("/transactions", headers=headers)
+
+    ids = [t["id"] for t in resp.json()]
+    assert ids == [next_day.json()["id"], newer.json()["id"], older.json()["id"]]
+
+
+async def test_list_transactions_default_sort_breaks_import_timestamp_ties(client):
+    """Imported same-timestamp rows sort by amount, category, merchant, notes, then tags."""
+    headers, account_id, _category_id = await _setup_user_with_deps(client)
+    alpha_category = (await _create_category(client, headers, name="Alpha")).json()["id"]
+    beta_category = (await _create_category(client, headers, name="Beta")).json()["id"]
+    zeta_category = (await _create_category(client, headers, name="Zeta")).json()["id"]
+    alpha_merchant = (await _create_merchant(client, headers, name="Alpha Merchant")).json()["id"]
+    zed_merchant = (await _create_merchant(client, headers, name="Zed Merchant")).json()["id"]
+    alpha_tag = (await _create_tag(client, headers, name="alpha-tag")).json()["id"]
+    zed_tag = (await _create_tag(client, headers, name="zed-tag")).json()["id"]
+
+    tag_zed = await _create_transaction(
+        client, headers, account_id, beta_category,
+        amount=-5000, merchant_id=zed_merchant, notes="z", tag_ids=[zed_tag],
+    )
+    tag_alpha = await _create_transaction(
+        client, headers, account_id, beta_category,
+        amount=-5000, merchant_id=zed_merchant, notes="z", tag_ids=[alpha_tag],
+    )
+    notes_first = await _create_transaction(
+        client, headers, account_id, beta_category,
+        amount=-5000, merchant_id=zed_merchant, notes="a", tag_ids=[zed_tag],
+    )
+    merchant_first = await _create_transaction(
+        client, headers, account_id, beta_category,
+        amount=-5000, merchant_id=alpha_merchant, notes="z", tag_ids=[zed_tag],
+    )
+    category_first = await _create_transaction(
+        client, headers, account_id, alpha_category,
+        amount=-5000, merchant_id=zed_merchant, notes="z", tag_ids=[zed_tag],
+    )
+    amount_first = await _create_transaction(
+        client, headers, account_id, zeta_category,
+        amount=-7000, merchant_id=zed_merchant, notes="z", tag_ids=[zed_tag],
+    )
+    transaction_ids = [
+        tag_zed.json()["id"],
+        tag_alpha.json()["id"],
+        notes_first.json()["id"],
+        merchant_first.json()["id"],
+        category_first.json()["id"],
+        amount_first.json()["id"],
+    ]
+
+    async with TestSession() as session:
+        await session.execute(
+            update(Transaction)
+            .where(Transaction.id.in_([uuid.UUID(transaction_id) for transaction_id in transaction_ids]))
+            .values(created_at=datetime(2026, 1, 1, 10, tzinfo=UTC)),
+        )
+        await session.commit()
+
+    resp = await client.get("/transactions", headers=headers)
+
+    ids = [t["id"] for t in resp.json()[:6]]
+    assert ids == [
+        amount_first.json()["id"],
+        category_first.json()["id"],
+        merchant_first.json()["id"],
+        notes_first.json()["id"],
+        tag_alpha.json()["id"],
+        tag_zed.json()["id"],
+    ]
 
 
 async def test_list_transactions_sort_by_amount_asc(client):

@@ -130,32 +130,34 @@ export default function TransactionsPage() {
 
   return (
     <div>
-      <header className="app-page-header">
+      <header className="app-page-header space-y-1.5">
         <h1 className="app-page-title">Transactions</h1>
         <p className="app-page-description">Every transaction, all in one place.</p>
       </header>
 
       <div className="space-y-6">
-        <TransactionsTopBand
-          overview={overview}
-          displayCurrency={displayCurrency}
-          filterListLoading={filterListLoading}
-          rangeLabel={rangeLabel}
-          chartAnimationKey={chartAnimationKey}
-          prefersReducedMotion={prefersReducedMotion}
-          openingOutlierId={openingOutlierId}
-          outlierOpenError={outlierOpenError}
-          onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
-        />
+        <div className="space-y-3">
+          <TransactionsTopBand
+            overview={overview}
+            displayCurrency={displayCurrency}
+            filterListLoading={filterListLoading}
+            rangeLabel={rangeLabel}
+            chartAnimationKey={chartAnimationKey}
+            prefersReducedMotion={prefersReducedMotion}
+            openingOutlierId={openingOutlierId}
+            outlierOpenError={outlierOpenError}
+            onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
+          />
 
-        <div
-          style={{
-            height: 2,
-            background: 'var(--app-accent)',
-            opacity: 0.35,
-            borderRadius: 1,
-          }}
-        />
+          <div
+            style={{
+              height: 2,
+              background: 'var(--app-accent)',
+              opacity: 0.35,
+              borderRadius: 1,
+            }}
+          />
+        </div>
 
         <TransactionListSection
           accounts={transactionAccounts}

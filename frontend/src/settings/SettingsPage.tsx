@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import {
-  useRunwayAccounts,
+  useRunwaySettings,
   useUpdateProfile,
-  useUpdateRunwayAccounts,
+  useUpdateRunwaySettings,
   type UpdateProfilePayload,
 } from '@/api/user'
 import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
+import {
+  DEFAULT_RUNWAY_THRESHOLDS,
+  normalizeRunwayThresholds,
+  type RunwayThresholds,
+} from '@/utils/runway'
 import CategorySettingsSection from '@/settings/components/CategorySettingsSection'
 import MerchantSettingsSection from '@/settings/components/MerchantSettingsSection'
 import TagSettingsSection from '@/settings/components/TagSettingsSection'
@@ -21,16 +26,21 @@ import TaxAdvantagedCategoriesSection from '@/settings/components/tax-advantaged
 import { profileFormFromUser, type ProfileFormState } from '@/settings/profileForm'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/settings/settingsNavigation'
 
+function runwayThresholdsEqual(a: RunwayThresholds, b: RunwayThresholds) {
+  return a.riskyBelowMonths === b.riskyBelowMonths && a.healthyAtMonths === b.healthyAtMonths
+}
+
 
 /* ── Top-level page ── */
 
 export default function SettingsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, setUser } = useAuth()
   const { data: accounts, isLoading: accountsLoading } = useAccounts()
-  const { data: serverSelection, isLoading: selectionLoading } = useRunwayAccounts()
+  const { data: runwaySettings, isLoading: runwaySettingsLoading } = useRunwaySettings()
   const updateProfile = useUpdateProfile()
-  const updateRunway = useUpdateRunwayAccounts()
+  const updateRunway = useUpdateRunwaySettings()
 
   // ── Profile draft ──
   // Effective form value = base (from user) + overrides. Derived on every
@@ -57,7 +67,7 @@ export default function SettingsPage() {
   // `null` means "use the persisted server selection"; once the user flips any
   // tile, keep a local override until Save or Discard resolves it.
   const [runwayDraft, setRunwayDraft] = useState<Set<string> | null>(null)
-  const runwayServerSet = useMemo(() => new Set(serverSelection ?? []), [serverSelection])
+  const runwayServerSet = useMemo(() => new Set(runwaySettings?.accountIds ?? []), [runwaySettings?.accountIds])
   const runwaySelection = runwayDraft ?? runwayServerSet
   // Only open asset accounts are eligible. Credit products (credit cards,
   // lines of credit, HELOCs) are borrowed headroom — treating them as runway
@@ -84,6 +94,23 @@ export default function SettingsPage() {
     for (const id of runwayDraft) if (!runwayServerSet.has(id)) return true
     return false
   }, [runwayDraft, runwayServerSet])
+  const runwayServerThresholds = useMemo(
+    () => normalizeRunwayThresholds(runwaySettings?.thresholds ?? DEFAULT_RUNWAY_THRESHOLDS),
+    [runwaySettings?.thresholds],
+  )
+  const [runwayThresholdDraft, setRunwayThresholdDraft] = useState<RunwayThresholds | null>(null)
+  const runwayThresholdValues = runwayThresholdDraft ?? runwayServerThresholds
+  const isRunwayThresholdDirty = runwayThresholdDraft !== null
+  const setRunwayThreshold = (field: keyof RunwayThresholds, value: number) => {
+    setRunwayThresholdDraft((prev) => {
+      const next = normalizeRunwayThresholds({
+        ...(prev ?? runwayServerThresholds),
+        [field]: value,
+      })
+      return runwayThresholdsEqual(next, runwayServerThresholds) ? null : next
+    })
+  }
+  const isRunwayPaneDirty = isRunwayDirty || isRunwayThresholdDirty
 
   // ── Pane-level save/discard ──
   const profileSaveFeedback = useActionFeedback()
@@ -95,7 +122,7 @@ export default function SettingsPage() {
   const isProfilePending = profileSaveFeedback.isPending || updateProfile.isPending
   const isRunwayPending = runwaySaveFeedback.isPending || updateRunway.isPending
   const canSaveProfile = isProfileDirty && !isProfilePending && firstNameValid
-  const canSaveRunway = isRunwayDirty && !isRunwayPending
+  const canSaveRunway = runwaySettings !== undefined && isRunwayPaneDirty && !isRunwayPending
 
   const handleSaveProfile = async () => {
     if (!canSaveProfile || !user) return
@@ -124,12 +151,16 @@ export default function SettingsPage() {
   }
 
   const handleSaveRunway = async () => {
-    if (!canSaveRunway || !runwayDraft) return
+    if (!canSaveRunway) return
 
     try {
       await runwaySaveFeedback.run(async () => {
-        await updateRunway.mutateAsync(Array.from(runwayDraft))
+        await updateRunway.mutateAsync({
+          accountIds: Array.from(runwaySelection),
+          thresholds: runwayThresholdValues,
+        })
         setRunwayDraft(null)
+        setRunwayThresholdDraft(null)
       })
     } catch {
       // Mutation errors surface through the pane-level save error text.
@@ -138,21 +169,22 @@ export default function SettingsPage() {
 
   const handleDiscardRunway = () => {
     setRunwayDraft(null)
+    setRunwayThresholdDraft(null)
   }
 
-  // ── Scroll-spy sidebar ──
+  // ── Scroll-spy navigation ──
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('profile')
-  // Suppress the IntersectionObserver while a programmatic scroll is settling,
+  // Suppress the scroll spy while a programmatic scroll is settling,
   // so clicks don't briefly flash the wrong item active.
-  const skipObserverRef = useRef(false)
+  const skipScrollSpyRef = useRef(false)
 
   const navigateToSection = (id: SettingsSectionId) => {
     const el = document.getElementById(id)
     if (!el) return
-    skipObserverRef.current = true
+    skipScrollSpyRef.current = true
     setActiveSection(id)
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.setTimeout(() => { skipObserverRef.current = false }, 600)
+    window.setTimeout(() => { skipScrollSpyRef.current = false }, 600)
   }
 
   const navigateFromMobileMenu = (id: SettingsSectionId) => {
@@ -166,22 +198,69 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (skipObserverRef.current) return
-        const topVisible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-        if (topVisible) setActiveSection(topVisible.target.id as SettingsSectionId)
-      },
-      { root: null, rootMargin: '-20% 0px -55% 0px', threshold: [0.2, 0.4, 0.6] },
-    )
+    if (!location.hash) return undefined
 
-    SETTINGS_SECTIONS.forEach((s) => {
-      const el = document.getElementById(s.id)
-      if (el) observer.observe(el)
+    const section = SETTINGS_SECTIONS.find(({ id }) => id === decodeURIComponent(location.hash.slice(1)))
+    if (!section) return undefined
+
+    let settleTimer: number | null = null
+    const frameId = window.requestAnimationFrame(() => {
+      const el = document.getElementById(section.id)
+      if (!el) return
+
+      skipScrollSpyRef.current = true
+      setActiveSection(section.id)
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      settleTimer = window.setTimeout(() => { skipScrollSpyRef.current = false }, 600)
     })
-    return () => observer.disconnect()
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      if (settleTimer !== null) window.clearTimeout(settleTimer)
+    }
+  }, [location.hash])
+
+  useEffect(() => {
+    let frameId: number | null = null
+
+    const syncActiveSection = () => {
+      if (frameId !== null) return
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null
+        if (skipScrollSpyRef.current) return
+
+        const isCompactMenu = window.matchMedia('(max-width: 1199.98px)').matches
+        const compactMenuBottom = mobileSettingsMenuRef.current?.getBoundingClientRect().bottom ?? 0
+        const activationLine = isCompactMenu
+          ? compactMenuBottom + 24
+          : Math.min(window.innerHeight * 0.32, 240)
+        let nextActiveSection = SETTINGS_SECTIONS[0].id
+
+        for (const section of SETTINGS_SECTIONS) {
+          const el = document.getElementById(section.id)
+          if (!el) continue
+          if (el.getBoundingClientRect().top > activationLine) break
+          nextActiveSection = section.id
+        }
+
+        setActiveSection((current) => (
+          current === nextActiveSection ? current : nextActiveSection
+        ))
+      })
+    }
+
+    syncActiveSection()
+    window.addEventListener('scroll', syncActiveSection, { passive: true })
+    window.addEventListener('resize', syncActiveSection)
+    window.addEventListener('orientationchange', syncActiveSection)
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+      window.removeEventListener('scroll', syncActiveSection)
+      window.removeEventListener('resize', syncActiveSection)
+      window.removeEventListener('orientationchange', syncActiveSection)
+    }
   }, [])
 
   useEffect(() => {
@@ -272,7 +351,7 @@ export default function SettingsPage() {
     ? ((updateProfile.error as Error)?.message ?? 'Failed to save profile.')
     : null
   const runwaySaveError = updateRunway.isError
-    ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway selection.')
+    ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway settings.')
     : null
   const profileActions = paneActions({
     canSave: canSaveProfile,
@@ -293,7 +372,7 @@ export default function SettingsPage() {
   })
   const runwayActions = paneActions({
     canSave: canSaveRunway,
-    dirty: isRunwayDirty,
+    dirty: isRunwayPaneDirty,
     error: runwaySaveError,
     onDiscard: handleDiscardRunway,
     onSave: handleSaveRunway,
@@ -305,7 +384,7 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <header className="app-page-header !mb-4 min-[1200px]:!mb-8">
+      <header className="app-page-header mb-3 min-[1050px]:mb-4 min-[1200px]:mb-6">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
           Manage your profile, runway preferences, categories, merchants, tags, and tax-advantaged categories.
@@ -315,7 +394,7 @@ export default function SettingsPage() {
       <div ref={mobileSettingsStickySentinelRef} aria-hidden className="h-px min-[1200px]:hidden" />
 
       <div
-        className="sticky top-0 z-20 -mx-2 mb-4 px-2 pt-5 max-[1049px]:pt-4 min-[1200px]:hidden"
+        className="sticky top-0 z-20 -mx-2 -mt-4 mb-4 px-2 pt-4 min-[1050px]:-mt-5 min-[1050px]:pt-5 min-[1200px]:hidden"
         style={{
           background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
           backdropFilter: 'blur(10px)',
@@ -435,10 +514,12 @@ export default function SettingsPage() {
             emailPasswordActions={emailPasswordActions}
           />
           <RunwaySection
-            loading={accountsLoading || selectionLoading}
+            loading={accountsLoading || runwaySettingsLoading}
             accounts={selectableAccounts}
             selection={runwaySelection}
             onToggle={toggleRunwayAccount}
+            thresholds={runwayThresholdValues}
+            onThresholdChange={setRunwayThreshold}
             actions={runwayActions}
           />
 

@@ -18,7 +18,7 @@ export function RecentActivityWidget() {
   const recentActivity = (dashboardRecentActivity?.recent_transactions ?? []).slice(0, 5)
 
   return (
-    <div className="app-card h-[400px] flex flex-col">
+    <div className="app-card h-[410px] flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <Activity size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
@@ -45,7 +45,7 @@ export function RecentActivityWidget() {
               return (
                 <div
                   key={transaction.id}
-                  className="flex items-center justify-between gap-2 py-2"
+                  className="flex items-center justify-between gap-2 py-2.5"
                   style={
                     index < recentActivity.length - 1
                       ? { borderBottom: '1px solid var(--app-border)' }

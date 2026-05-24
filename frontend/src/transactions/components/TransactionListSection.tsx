@@ -16,6 +16,8 @@ import type { TransactionListAccount, TransactionListFilters } from '@/transacti
 import { groupTransactionsByDate } from '@/transactions/utils/groupTransactionsByDate'
 import { normalizeTransactionFilters } from '@/transactions/utils/normalizeTransactionFilters'
 
+const DEFAULT_DATE_HEADER_STICKY_TOP = 72
+
 export default function TransactionListSection({
   fixedAccount,
   accounts = [],
@@ -54,6 +56,7 @@ export default function TransactionListSection({
   const [pendingClearReveal, setPendingClearReveal] = useState(false)
   const [clearExitRows, setClearExitRows] = useState<Transaction[] | null>(null)
   const [listRevealKey, setListRevealKey] = useState(0)
+  const [dateHeaderStickyTop, setDateHeaderStickyTop] = useState(DEFAULT_DATE_HEADER_STICKY_TOP)
 
   // `setFilter` reads the latest filters from a ref so child callbacks do not
   // need to be recreated for every filter change.
@@ -235,6 +238,7 @@ export default function TransactionListSection({
         }}
         onDateRangeClose={commitDateRange}
         onCreateTransaction={onCreateTransaction}
+        onStickyOffsetChange={setDateHeaderStickyTop}
       />
 
       <div className="relative" aria-busy={filterListLoading}>
@@ -279,6 +283,7 @@ export default function TransactionListSection({
                 fixedAccount={fixedAccount}
                 currency={currency}
                 listRevealKey={listRevealKey}
+                stickyTop={dateHeaderStickyTop}
                 prefersReducedMotion={prefersReducedMotion}
                 onEditTransaction={onEditTransaction}
               />

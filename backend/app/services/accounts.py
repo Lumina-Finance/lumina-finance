@@ -49,9 +49,11 @@ async def get_account_spending_breakdown(
 
     Filters to ``Category.kind == EXPENSE`` so transfers and income are dropped
     from both breakdowns. Merchants additionally require an inner join, which
-    naturally excludes transactions without a merchant. Totals are returned as
-    positive minor units; the grand total sums every expense in the range and
-    anchors the proportional fills on the frontend.
+    naturally excludes transactions without a merchant. Zero-sum category and
+    merchant groups are suppressed so fully offset refunds do not appear as
+    spend. Totals are returned as positive minor units; the grand total sums
+    every expense in the range and anchors the proportional fills on the
+    frontend.
     """
     start, end = _range_bounds(range_, now.date())
 
@@ -81,6 +83,8 @@ async def get_account_spending_breakdown(
             other_merchants_count=0,
         )
 
+    category_total = func.sum(Transaction.amount)
+
     # Categories — group by category, sort by largest spend (most negative sum).
     # Pull TOP_N + 1 to cheaply detect whether an "Other" bucket exists without
     # a second COUNT query.
@@ -88,12 +92,13 @@ async def get_account_spending_breakdown(
         select(
             Category.id,
             Category.name,
-            func.sum(Transaction.amount).label("total"),
+            category_total.label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(expense_where)
         .group_by(Category.id, Category.name)
-        .order_by(func.sum(Transaction.amount).asc())
+        .having(category_total != 0)
+        .order_by(category_total.asc())
         .limit(_TOP_N + 1),
     )
     cat_rows = cat_result.all()
@@ -102,10 +107,16 @@ async def get_account_spending_breakdown(
     # "Other (N)" tally. Skipped otherwise.
     other_categories_count = 0
     if len(cat_rows) > _TOP_N:
-        total_categories = (await db.execute(
-            select(func.count(func.distinct(Transaction.category_id)))
+        nonzero_categories = (
+            select(Transaction.category_id)
             .join(Category, Transaction.category_id == Category.id)
-            .where(expense_where),
+            .where(expense_where)
+            .group_by(Transaction.category_id)
+            .having(func.sum(Transaction.amount) != 0)
+            .subquery()
+        )
+        total_categories = (await db.execute(
+            select(func.count()).select_from(nonzero_categories),
         )).scalar_one()
         other_categories_count = int(total_categories) - _TOP_N
 
@@ -114,6 +125,8 @@ async def get_account_spending_breakdown(
         for row in cat_rows[:_TOP_N]
     ]
 
+    merchant_total = func.sum(Transaction.amount)
+
     # Merchants — inner join drops merchant-less transactions (e.g. transfers,
     # which are already excluded by the expense filter but also commonly have
     # no merchant anyway).
@@ -121,23 +134,30 @@ async def get_account_spending_breakdown(
         select(
             Merchant.id,
             Merchant.name,
-            func.sum(Transaction.amount).label("total"),
+            merchant_total.label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
         .join(Merchant, Transaction.merchant_id == Merchant.id)
         .where(expense_where)
         .group_by(Merchant.id, Merchant.name)
-        .order_by(func.sum(Transaction.amount).asc())
+        .having(merchant_total != 0)
+        .order_by(merchant_total.asc())
         .limit(_TOP_N + 1),
     )
     merchant_rows = merchant_result.all()
 
     other_merchants_count = 0
     if len(merchant_rows) > _TOP_N:
-        total_merchants = (await db.execute(
-            select(func.count(func.distinct(Transaction.merchant_id)))
+        nonzero_merchants = (
+            select(Transaction.merchant_id)
             .join(Category, Transaction.category_id == Category.id)
-            .where(expense_where, Transaction.merchant_id.is_not(None)),
+            .where(expense_where, Transaction.merchant_id.is_not(None))
+            .group_by(Transaction.merchant_id)
+            .having(func.sum(Transaction.amount) != 0)
+            .subquery()
+        )
+        total_merchants = (await db.execute(
+            select(func.count()).select_from(nonzero_merchants),
         )).scalar_one()
         other_merchants_count = int(total_merchants) - _TOP_N
 

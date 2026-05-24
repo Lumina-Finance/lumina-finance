@@ -9,10 +9,12 @@ import {
 } from 'recharts'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
+  type CategoryBreakdownEntry,
   type SpendingRange,
   useSpendingBreakdown,
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
+import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -20,13 +22,35 @@ import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/dashboard/constants/animation'
-import { BREAKDOWN_COLORS } from '@/dashboard/constants/breakdownColors'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { useBreakdownTooltipPosition } from '@/dashboard/hooks/useBreakdownTooltipPosition'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 
 type SpendingBreakdownWidgetProps = {
   displayCurrency: string
+}
+
+type BreakdownMode = 'spending' | 'income'
+
+function getCrossoverKind(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
+  if (mode === 'spending' && entry.category_kind === 'income') return 'income-loss'
+  if (mode === 'income' && entry.category_kind === 'expense') return 'expense-refund'
+  return null
+}
+
+function renderCrossoverBadge(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
+  const kind = getCrossoverKind(entry, mode)
+  return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
+}
+
+function getBreakdownCategoryColorId(
+  entry: CategoryBreakdownEntry,
+  fallbackKind: CategoryBreakdownEntry['category_kind'],
+) {
+  return entry.name === 'Other'
+    ? `${entry.category_kind || fallbackKind}-other`
+    : entry.category_id
 }
 
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
@@ -36,7 +60,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
     handleBreakdownMouseLeave,
     handleBreakdownMouseMove,
   } = useBreakdownTooltipPosition()
-  const [breakdownMode, setBreakdownMode] = useState<'spending' | 'income'>('spending')
+  const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
   const { data: spendingBreakdown, isLoading: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
   const breakdownEntries = useMemo(() => {
@@ -46,9 +70,24 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   const breakdownTotal = breakdownEntries.reduce((sum, entry) => sum + entry.amount, 0)
   const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
   const breakdownLoadingText = formatDashboardMoney(88888800, displayCurrency, 'breakdown')
+  const breakdownCategoryKind = breakdownMode === 'spending' ? 'expense' : 'income'
+  const breakdownColors = useMemo(() => getCategoryColorMap(breakdownEntries.map((entry) => ({
+    id: getBreakdownCategoryColorId(entry, breakdownCategoryKind),
+    name: entry.name,
+    kind: entry.category_kind || breakdownCategoryKind,
+  }))), [breakdownEntries, breakdownCategoryKind])
+  const getBreakdownColor = (entry: CategoryBreakdownEntry) => getCategoryColor({
+    id: getBreakdownCategoryColorId(entry, breakdownCategoryKind),
+    name: entry.name,
+    kind: entry.category_kind || breakdownCategoryKind,
+  })
+  const getSpacedBreakdownColor = (entry: CategoryBreakdownEntry) => (
+    breakdownColors.get(getBreakdownCategoryColorId(entry, breakdownCategoryKind) || entry.name)
+      ?? getBreakdownColor(entry)
+  )
 
   return (
-    <div className="app-card h-[420px] flex flex-col">
+    <div className="app-card h-[470px] flex flex-col">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
@@ -136,18 +175,32 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                         animationDuration={shouldReduceMotion ? 0 : BREAKDOWN_PIE_ANIMATION_MS}
                         animationEasing="ease-out"
                       >
-                        {breakdownEntries.map((_, index) => (
-                          <Cell key={index} fill={BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length]} />
+                        {breakdownEntries.map((entry) => (
+                          <Cell key={entry.category_id} fill={getSpacedBreakdownColor(entry)} />
                         ))}
                       </Pie>
                       <Tooltip
                         wrapperClassName="app-chart-tooltip-default"
                         cursor={false}
                         position={breakdownTipPos ?? undefined}
-                        formatter={(value, name) => [
-                          formatCurrency(Number(value), displayCurrency),
-                          name,
-                        ]}
+                        content={({ active, payload }) => {
+                          const entry = payload?.[0]?.payload as CategoryBreakdownEntry | undefined
+                          if (!active || !entry) return null
+
+                          return (
+                            <div className="app-chart-tooltip-default-content min-w-40">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium" style={{ color: 'var(--app-text)' }}>
+                                  {entry.name}
+                                </span>
+                                {renderCrossoverBadge(entry, breakdownMode)}
+                              </div>
+                              <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
+                                {formatCurrency(entry.amount, displayCurrency)}
+                              </div>
+                            </div>
+                          )
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -157,11 +210,11 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
           </div>
           {breakdownEntries.length > 0 && (
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
-              {breakdownEntries.slice(0, 6).map((entry, index) => (
+              {breakdownEntries.map((entry) => (
                 <div key={entry.category_id} className="flex items-center gap-1.5">
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-full"
-                    style={{ background: BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length] }}
+                    style={{ background: getSpacedBreakdownColor(entry) }}
                   />
                   <span
                     className="text-xs font-medium whitespace-nowrap max-[1000px]:text-[0.675rem]"
@@ -169,6 +222,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                   >
                     {entry.name}
                   </span>
+                  {renderCrossoverBadge(entry, breakdownMode)}
                 </div>
               ))}
             </div>

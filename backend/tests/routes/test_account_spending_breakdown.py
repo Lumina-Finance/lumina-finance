@@ -482,6 +482,44 @@ async def test_positive_amount_on_expense_category_subtracts_from_total(client):
     assert data["top_merchants"][0]["total"] == 800
 
 
+async def test_zero_sum_category_and_merchant_are_excluded(client):
+    """A fully refunded category/merchant does not appear in spending rows."""
+    headers, account_id = await _setup_account(client)
+    zero_category = (await _create_category(client, headers, name="Test OLG")).json()
+    spend_category = (await _create_category(client, headers, name="Test Groceries Net")).json()
+    zero_merchant = (await _create_merchant(client, headers, name="OLG")).json()
+    spend_merchant = (await _create_merchant(client, headers, name="Sobeys")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, zero_category["id"],
+        dt=today, amount=-500, merchant_id=zero_merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, zero_category["id"],
+        dt=today, amount=500, merchant_id=zero_merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, spend_category["id"],
+        dt=today, amount=-1200, merchant_id=spend_merchant["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["grand_total_spend"] == 1200
+    assert [c["category_id"] for c in data["top_categories"]] == [spend_category["id"]]
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [spend_merchant["id"]]
+    assert data["top_categories"][0]["total"] == 1200
+    assert data["top_merchants"][0]["total"] == 1200
+    assert data["other_categories_count"] == 0
+    assert data["other_merchants_count"] == 0
+
+
 async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client):
     """Endpoint sums all expense rows regardless of currency — no fx conversion.
 

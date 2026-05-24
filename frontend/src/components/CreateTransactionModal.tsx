@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
@@ -26,9 +26,11 @@ import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 /* ── Constants ── */
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
+const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const MIN_ADD_TRANSACTION_LOADING_MS = 800
 const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
+const MIN_DELETE_TRANSACTION_LOADING_MS = 800
 const MERCHANT_DROPDOWN_PAGE_SIZE = 10
 const MERCHANT_SEARCH_LOADING_TEXT_MIN_MS = 300
 const MERCHANT_SEARCH_DEBOUNCE_MS = 300
@@ -177,6 +179,65 @@ function defaultDirectionForKind(kind: Kind): TransactionDirection {
   return DEFAULT_DIRECTION_BY_KIND[kind]
 }
 
+function joinClassNames(...classNames: Array<string | undefined | false>) {
+  return classNames.filter(Boolean).join(' ')
+}
+
+function SlidingPillSelector<T extends string>({
+  value,
+  options,
+  ariaLabel,
+  onChange,
+  disabled = false,
+}: {
+  value: T
+  options: readonly { value: T; label: string }[]
+  ariaLabel: string
+  onChange: (value: T) => void
+  disabled?: boolean
+}) {
+  const shouldReduceMotion = useReducedMotion()
+  const activeIndex = Math.max(options.findIndex((option) => option.value === value), 0)
+
+  return (
+    <div
+      className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
+      role="tablist"
+      aria-label={ariaLabel}
+    >
+      <motion.span
+        className="app-create-transaction-pill-selector-indicator"
+        aria-hidden
+        style={{ width: `calc((100% - 0.5rem) / ${options.length})` }}
+        animate={{ x: `${activeIndex * 100}%` }}
+        transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
+      />
+      {options.map((option) => {
+        const active = option.value === value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            aria-disabled={disabled}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={joinClassNames(
+              'app-segmented-option relative z-10 flex-1 bg-transparent text-sm',
+              active && 'app-segmented-option-active',
+              disabled && 'cursor-not-allowed',
+              disabled && !active && 'opacity-40',
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ── Validation ── */
 
 interface FieldErrors {
@@ -226,7 +287,7 @@ export default function CreateTransactionModal({
   const editing = !!transaction
   const createMutation = useCreateTransaction()
   const updateMutation = useUpdateTransaction()
-  const deleteMutation = useDeleteTransaction()
+  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
@@ -361,6 +422,8 @@ export default function CreateTransactionModal({
     [visiblePagedTags],
   )
   const selectedMerchant = createdMerchant?.id === selectedMerchantId ? createdMerchant : fetchedSelectedMerchant
+  const deleteLoading = deleteMutation.isPending
+  const deleteButtonLoading = deleteLoading && confirmingDelete
 
   // Measure both label widths once after mount so we can drive a smooth width transition.
   useLayoutEffect(() => {
@@ -375,7 +438,7 @@ export default function CreateTransactionModal({
 
   // Cancel pending deletion if the user clicks anywhere outside the Delete button.
   useEffect(() => {
-    if (!confirmingDelete) return
+    if (!confirmingDelete || deleteLoading) return
     const onPointer = (e: PointerEvent) => {
       if (deleteButtonRef.current && !deleteButtonRef.current.contains(e.target as Node)) {
         setConfirmingDelete(false)
@@ -387,7 +450,7 @@ export default function CreateTransactionModal({
       clearTimeout(t)
       window.removeEventListener('pointerdown', onPointer)
     }
-  }, [confirmingDelete])
+  }, [confirmingDelete, deleteLoading])
 
   useEffect(() => {
     if (!merchantSearch.trim()) {
@@ -559,7 +622,7 @@ export default function CreateTransactionModal({
 
   const createLoading = createMutation.isPending || createDelayPending
   const submitLoading = editing ? updateMutation.isPending : createLoading
-  const isPending = createLoading || updateMutation.isPending || deleteMutation.isPending
+  const isPending = createLoading || updateMutation.isPending || deleteLoading
 
   const categoryById = useMemo(() => {
     const map = new Map<string, Category>()
@@ -882,6 +945,8 @@ export default function CreateTransactionModal({
         kind: form.kind,
         direction: form.direction,
         account_id: form.account_id,
+        category_id: form.category_id,
+        merchant_id: form.merchant_id,
         currency: form.currency,
         date: form.date,
       })
@@ -896,15 +961,18 @@ export default function CreateTransactionModal({
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!transaction) return
-    deleteMutation.mutate(transaction.id, {
-      onSuccess: () => onClose(),
-      onError: (err) => {
-        setConfirmingDelete(false)
-        setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
-      },
-    })
+
+    setSubmitError('')
+
+    try {
+      await deleteMutation.mutateAsync(transaction.id)
+      onClose()
+    } catch (err) {
+      setConfirmingDelete(false)
+      setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
+    }
   }
 
   const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field]
@@ -966,7 +1034,7 @@ export default function CreateTransactionModal({
                   <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
                 {/* Header */}
                 <div
-                  className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+                  className="shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8"
                   style={{ borderBottom: '1px solid var(--app-border)' }}
                 >
                   <div className="flex items-start justify-between gap-6">
@@ -995,9 +1063,9 @@ export default function CreateTransactionModal({
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8">
+                <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8">
                   <div className="space-y-5">
-                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                       <div className="flex min-h-0 flex-col items-center">
                         <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                           01
@@ -1013,51 +1081,37 @@ export default function CreateTransactionModal({
                         <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type</p>
 
                         {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                        <div className="app-segmented-control w-full">
-                          {KIND_OPTIONS.map((opt) => {
-                            const selected = form.kind === opt.value
-                            return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => !editing && handleKindChange(opt.value)}
-                                disabled={editing}
-                                aria-disabled={editing}
-                                className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''} ${editing ? 'cursor-not-allowed' : ''} ${editing && !selected ? 'opacity-40' : ''}`}
-                              >
-                                {opt.label}
-                              </button>
-                            )
-                          })}
-                        </div>
+                        <SlidingPillSelector
+                          value={form.kind}
+                          options={KIND_OPTIONS}
+                          ariaLabel="Transaction type"
+                          onChange={handleKindChange}
+                          disabled={editing}
+                        />
 
                         <div>
                           <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Direction</label>
-                          <motion.div
-                            key={directionHighlightKey}
-                            className="rounded-lg"
-                            initial={directionHighlightKey === 0 ? false : { boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
-                            animate={directionHighlightKey === 0
-                              ? undefined
-                              : { boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
-                            transition={{ duration: 0.45, ease: EASE }}
-                          >
-                            <div className="app-segmented-control w-full">
-                              {DIRECTION_OPTIONS.map((opt) => {
-                                const selected = form.direction === opt.value
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => handleField('direction', opt.value)}
-                                    className={`app-segmented-option flex-1 text-sm ${selected ? 'app-segmented-option-active' : ''}`}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </motion.div>
+                          <div className="relative rounded-lg">
+                            <AnimatePresence initial={false}>
+                              {directionHighlightKey > 0 && (
+                                <motion.span
+                                  key={directionHighlightKey}
+                                  className="pointer-events-none absolute inset-0 rounded-lg"
+                                  initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
+                                  animate={{ boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
+                                  exit={{ opacity: 0 }}
+                                  transition={{ duration: 0.45, ease: EASE }}
+                                  aria-hidden
+                                />
+                              )}
+                            </AnimatePresence>
+                            <SlidingPillSelector
+                              value={form.direction}
+                              options={DIRECTION_OPTIONS}
+                              ariaLabel="Transaction direction"
+                              onChange={(value) => handleField('direction', value)}
+                            />
+                          </div>
                         </div>
 
                         {/* Date */}
@@ -1075,7 +1129,7 @@ export default function CreateTransactionModal({
                       </div>
                     </section>
 
-                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                       <div className="flex min-h-0 flex-col items-center">
                         <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                           02
@@ -1236,7 +1290,7 @@ export default function CreateTransactionModal({
                       </div>
                     </section>
 
-                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                       <div className="flex min-h-0 flex-col items-center">
                         <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                           03
@@ -1335,7 +1389,7 @@ export default function CreateTransactionModal({
 
                 {/* Footer */}
                 <div
-                  className="flex shrink-0 flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:px-8"
+                  className="flex shrink-0 flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:px-8 min-[1050px]:py-5"
                   style={{ borderTop: '1px solid var(--app-border)' }}
                 >
                   {editing ? (
@@ -1344,13 +1398,15 @@ export default function CreateTransactionModal({
                       type="button"
                       onClick={() => {
                         if (isPending) return
-                        if (confirmingDelete) handleDelete()
+                        if (confirmingDelete) void handleDelete()
                         else setConfirmingDelete(true)
                       }}
                       disabled={isPending}
-                      className={`app-danger-button w-full sm:w-auto ${isPending && confirmingDelete ? 'app-primary-button-loading' : ''}`}
+                      className={`app-danger-button overflow-hidden whitespace-nowrap ${
+                        deleteButtonLoading ? 'app-primary-button-loading shrink-0' : 'w-full sm:w-auto'
+                      }`}
                     >
-                      {isPending && confirmingDelete ? (
+                      {deleteButtonLoading ? (
                         <div className="app-spinner" />
                       ) : (
                         <span
@@ -1417,12 +1473,12 @@ export default function CreateTransactionModal({
                           Keep modal open after adding
                         </span>
                         <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                          Keep type, date, and account
+                          Keep type, date, account, merchant, and category
                         </span>
                       </span>
                     </label>
                   )}
-                  <div className="flex flex-col-reverse gap-3 sm:ml-auto sm:flex-row sm:items-center">
+                  <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
                     <button
                       type="button"
                       className="app-secondary-button w-full sm:w-auto"
@@ -1434,7 +1490,7 @@ export default function CreateTransactionModal({
                     <button
                       type="submit"
                       disabled={isPending}
-                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
+                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
                     >
                       {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
                     </button>

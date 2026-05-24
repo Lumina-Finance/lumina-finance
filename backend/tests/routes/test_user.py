@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import pytest
 from sqlalchemy import update
 
 from app.models.account import AccountBalanceSnapshot
@@ -330,6 +331,179 @@ async def test_put_runway_accounts_rejects_other_users_account(client):
     assert get_resp.json() == []
 
 
+# --- /me/runway-settings ---
+
+
+async def test_get_runway_settings_requires_auth(client):
+    """GET /me/runway-settings is authenticated."""
+    resp = await client.get("/me/runway-settings")
+    assert resp.status_code == 401
+
+
+async def test_put_runway_settings_requires_auth(client):
+    """PUT /me/runway-settings is authenticated."""
+    resp = await client.put(
+        "/me/runway-settings",
+        json={
+            "account_ids": [],
+            "thresholds": {"risky_below_months": 1, "healthy_at_months": 3},
+        },
+    )
+    assert resp.status_code == 401
+
+
+async def test_get_runway_settings_returns_defaults(client):
+    """New users start with default runway status thresholds."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get("/me/runway-settings", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "account_ids": [],
+        "thresholds": {"risky_below_months": 1, "healthy_at_months": 3},
+    }
+
+
+async def test_put_runway_settings_persists_accounts_and_thresholds(client):
+    """PUT /me/runway-settings replaces selected accounts and threshold settings together."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    payload = {
+        "account_ids": [account_id],
+        "thresholds": {"risky_below_months": 2, "healthy_at_months": 7.5},
+    }
+    put_resp = await client.put("/me/runway-settings", json=payload, headers=headers)
+    get_resp = await client.get("/me/runway-settings", headers=headers)
+
+    assert put_resp.status_code == 200
+    assert put_resp.json() == payload
+    assert get_resp.status_code == 200
+    assert get_resp.json() == payload
+
+
+async def test_put_runway_settings_isolates_thresholds_across_users(client):
+    """Each user's runway thresholds are scoped to themselves."""
+    signup_a = await _create_user(client)
+    headers_a = _get_auth_header(signup_a)
+    headers_b = await _signup_second_user(client)
+
+    await client.put(
+        "/me/runway-settings",
+        json={
+            "account_ids": [],
+            "thresholds": {"risky_below_months": 2, "healthy_at_months": 6},
+        },
+        headers=headers_a,
+    )
+
+    resp_a = await client.get("/me/runway-settings", headers=headers_a)
+    resp_b = await client.get("/me/runway-settings", headers=headers_b)
+
+    assert resp_a.status_code == 200
+    assert resp_b.status_code == 200
+    assert resp_a.json()["thresholds"] == {"risky_below_months": 2, "healthy_at_months": 6}
+    assert resp_b.json()["thresholds"] == {"risky_below_months": 1, "healthy_at_months": 3}
+
+
+async def test_put_runway_settings_rejects_other_users_account(client):
+    """Combined runway settings cannot include accounts the user cannot access."""
+    signup_a = await _create_user(client)
+    headers_a = _get_auth_header(signup_a)
+    headers_b = await _signup_second_user(client)
+    account_b_id = (await _create_account(client, headers_b, name="B's account")).json()["id"]
+
+    resp = await client.put(
+        "/me/runway-settings",
+        json={
+            "account_ids": [account_b_id],
+            "thresholds": {"risky_below_months": 1, "healthy_at_months": 3},
+        },
+        headers=headers_a,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_put_runway_settings_rejects_invalid_account_without_changing_thresholds(client):
+    """Invalid account selections do not partially update runway thresholds."""
+    signup_a = await _create_user(client)
+    headers_a = _get_auth_header(signup_a)
+    headers_b = await _signup_second_user(client)
+    account_b_id = (await _create_account(client, headers_b, name="B's account")).json()["id"]
+
+    await client.put(
+        "/me/runway-settings",
+        json={
+            "account_ids": [],
+            "thresholds": {"risky_below_months": 2, "healthy_at_months": 6},
+        },
+        headers=headers_a,
+    )
+
+    resp = await client.put(
+        "/me/runway-settings",
+        json={
+            "account_ids": [account_b_id],
+            "thresholds": {"risky_below_months": 4, "healthy_at_months": 8},
+        },
+        headers=headers_a,
+    )
+    get_resp = await client.get("/me/runway-settings", headers=headers_a)
+
+    assert resp.status_code == 422
+    assert get_resp.status_code == 200
+    assert get_resp.json() == {
+        "account_ids": [],
+        "thresholds": {"risky_below_months": 2, "healthy_at_months": 6},
+    }
+
+
+@pytest.mark.parametrize(
+    "thresholds",
+    [
+        {"risky_below_months": -0.5, "healthy_at_months": 3},
+        {"risky_below_months": 1, "healthy_at_months": 12.5},
+        {"risky_below_months": 1.25, "healthy_at_months": 3},
+        {"risky_below_months": 2, "healthy_at_months": 3},
+    ],
+)
+async def test_put_runway_settings_rejects_invalid_thresholds(client, thresholds):
+    """Thresholds must fit the allowed range, step, and separation rules."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.put(
+        "/me/runway-settings",
+        json={"account_ids": [], "thresholds": thresholds},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_get_runway_includes_threshold_settings(client):
+    """GET /me/runway includes persisted thresholds so clients can classify the status pill."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await client.put(
+        "/me/runway-settings",
+        json={
+            "account_ids": [],
+            "thresholds": {"risky_below_months": 2, "healthy_at_months": 8},
+        },
+        headers=headers,
+    )
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["thresholds"] == {"risky_below_months": 2, "healthy_at_months": 8}
+
+
 async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkeypatch):
     """Hidden selected accounts are omitted from runway responses without deleting the stored pick."""
     from app.routes import user as user_routes
@@ -359,7 +533,7 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
                 created_by_user_id=user_id,
                 account_id=UUID(visible_account_id),
                 category_id=category.id,
-                dt=date(2026, 4, 1),
+                dt=date(2026, 3, 1),
                 amount=-12_000,
                 currency="CAD",
             ),
@@ -367,7 +541,7 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
                 created_by_user_id=user_id,
                 account_id=UUID(hidden_account_id),
                 category_id=category.id,
-                dt=date(2026, 4, 2),
+                dt=date(2026, 3, 2),
                 amount=-24_000,
                 currency="CAD",
             ),
@@ -394,25 +568,107 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
     await client.put("/me/runway-accounts", json={"account_ids": [visible_account_id]}, headers=headers)
 
     hidden_list_resp = await client.get("/me/runway-accounts", headers=headers)
+    hidden_settings_resp = await client.get("/me/runway-settings", headers=headers)
     hidden_runway_resp = await client.get("/me/runway", headers=headers)
 
     assert hidden_list_resp.status_code == 200
     assert hidden_list_resp.json() == [visible_account_id]
+    assert hidden_settings_resp.status_code == 200
+    assert hidden_settings_resp.json()["account_ids"] == [visible_account_id]
     assert hidden_runway_resp.status_code == 200
     hidden_runway = hidden_runway_resp.json()
     assert hidden_runway["liquid_balance"] == 120_000
+    assert hidden_runway["months_covered"] == 1
     assert hidden_runway["avg_monthly_expense"] == 12_000
 
     await client.patch(f"/accounts/{hidden_account_id}", json={"is_hidden": False}, headers=headers)
 
     restored_list_resp = await client.get("/me/runway-accounts", headers=headers)
+    restored_settings_resp = await client.get("/me/runway-settings", headers=headers)
     restored_runway_resp = await client.get("/me/runway", headers=headers)
 
     assert restored_list_resp.status_code == 200
     assert set(restored_list_resp.json()) == {visible_account_id, hidden_account_id}
+    assert restored_settings_resp.status_code == 200
+    assert set(restored_settings_resp.json()["account_ids"]) == {visible_account_id, hidden_account_id}
     restored_runway = restored_runway_resp.json()
     assert restored_runway["liquid_balance"] == 168_000
+    assert restored_runway["months_covered"] == 1
     assert restored_runway["avg_monthly_expense"] == 36_000
+
+
+async def test_get_runway_excludes_current_partial_month_from_average(client, monkeypatch):
+    """Runway averages over completed months with expenses, not the current partial month."""
+    from app.routes import user as user_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add_all([
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2025, 3, 31),
+                amount=-48_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2025, 4, 1),
+                amount=-12_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2026, 3, 31),
+                amount=-24_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=category.id,
+                dt=date(2026, 4, 1),
+                amount=-96_000,
+                currency="CAD",
+            ),
+        ])
+        session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 4, 15), balance=180_000))
+        await session.commit()
+
+    thresholds = {"risky_below_months": 2, "healthy_at_months": 8}
+    await client.put(
+        "/me/runway-settings",
+        json={"account_ids": [account_id], "thresholds": thresholds},
+        headers=headers,
+    )
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["months_covered"] == 2
+    assert data["avg_monthly_expense"] == 18_000
+    assert data["reason"] is None
+    assert data["thresholds"] == thresholds
 
 
 async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypatch):
@@ -445,6 +701,48 @@ async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypa
             currency="CAD",
         ))
         session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 12, 31), balance=120000))
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["months_covered"] == 1
+    assert data["avg_monthly_expense"] == 12000
+    assert data["reason"] is None
+
+
+async def test_get_runway_uses_calendar_months_for_window_start(client, monkeypatch):
+    """A leap-day expense stays inside the trailing 12-month runway window."""
+    from app.routes import user as user_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2025, 2, 28, 17, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add(Transaction(
+            created_by_user_id=user_id,
+            account_id=account_id,
+            category_id=category.id,
+            dt=date(2024, 2, 29),
+            amount=-12000,
+            currency="CAD",
+        ))
+        session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2025, 2, 28), balance=120000))
         await session.commit()
 
     await client.put("/me/runway-accounts", json={"account_ids": [account_id]}, headers=headers)

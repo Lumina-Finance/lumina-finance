@@ -6,6 +6,7 @@ import {
   RUNWAY_BAND_STYLE,
   RUNWAY_TARGET_MONTHS,
   formatCompactRunway,
+  formatRunwayBasis,
   runwayBand,
 } from '@/utils/runway'
 
@@ -66,7 +67,7 @@ export function useAccountsMetrics(
         : 'var(--app-negative)'
 
   const runwayMonths = runway?.months ?? null
-  const runwayBandKey = runwayBand(runwayMonths)
+  const runwayBandKey = runwayBand(runwayMonths, runway?.thresholds)
   const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
   const runwayProgress =
     runwayMonths === null ? 0 : Math.min((runwayMonths / RUNWAY_TARGET_MONTHS) * 100, 100)
@@ -77,7 +78,7 @@ export function useAccountsMetrics(
         ? 'Choose accounts in Settings'
         : runway.reason === 'insufficient_history'
           ? 'Need 1+ month of expense data'
-          : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo · ${runway.months_covered}mo basis`
+          : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth · ${formatRunwayBasis(runway.months_covered)}`
 
   const savingsRatePeriod = dashboardSavingsRate?.savings_rate_history.at(-1)
   const savingsRateIncome = savingsRatePeriod?.income ?? 0

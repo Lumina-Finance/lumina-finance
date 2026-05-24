@@ -13,6 +13,7 @@ export default function TransactionDateGroupList({
   fixedAccount,
   currency,
   listRevealKey,
+  stickyTop,
   prefersReducedMotion,
   onEditTransaction,
 }: {
@@ -22,6 +23,7 @@ export default function TransactionDateGroupList({
   fixedAccount?: TransactionListAccount
   currency: string
   listRevealKey: number
+  stickyTop: number
   prefersReducedMotion: boolean | null
   onEditTransaction: (transaction: Transaction) => void
 }) {
@@ -46,8 +48,9 @@ export default function TransactionDateGroupList({
             }}
           >
             <div
-              className="sticky top-[4.5rem] z-20 flex items-center justify-between px-3 py-2 rounded-lg"
+              className="sticky z-20 flex items-center justify-between rounded-lg px-3 py-2"
               style={{
+                top: stickyTop,
                 background: 'var(--app-input-bg)',
                 borderBottom: '1px solid var(--app-border)',
               }}

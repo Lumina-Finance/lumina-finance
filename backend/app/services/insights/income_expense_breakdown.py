@@ -14,7 +14,6 @@ from app.models.user import User
 from app.schemas.insights import InsightsIncomeExpenseBreakdownResponse
 from app.services.insights.common import get_base_currency_accounts, previous_period_bounds
 
-BREAKDOWN_CATEGORY_LIMIT = 7
 CATEGORY_TREND_LIMIT = 3
 
 
@@ -23,6 +22,13 @@ class CategoryStats:
     name: str
     amount: int
     transaction_count: int
+
+
+@dataclass(frozen=True)
+class BreakdownCategoryStats:
+    name: str
+    category_kind: CategoryKind
+    amount: int
 
 
 @dataclass(frozen=True)
@@ -37,7 +43,53 @@ class CategoryTrend:
 
 
 CategoryStatsById = dict[uuid.UUID, CategoryStats]
+BreakdownCategoryStatsById = dict[uuid.UUID, BreakdownCategoryStats]
 CategoryTrendRow = tuple[str, str, int, int, int | None, int]
+BreakdownEntryRow = tuple[str, str, str, int]
+
+
+async def _query_breakdown_entries(
+    db: AsyncSession,
+    account_ids: list[uuid.UUID],
+    from_date: date,
+    to_date: date,
+) -> tuple[BreakdownCategoryStatsById, BreakdownCategoryStatsById]:
+    """Return sign-directed category totals for the pie breakdowns."""
+    result = await db.execute(
+        select(
+            Category.id,
+            Category.name,
+            Category.kind,
+            func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id.in_(account_ids),
+            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
+            Transaction.dt >= from_date,
+            Transaction.dt <= to_date,
+        )
+        .group_by(Category.id, Category.name, Category.kind),
+    )
+
+    expense_stats: BreakdownCategoryStatsById = {}
+    income_stats: BreakdownCategoryStatsById = {}
+    for row in result:
+        total = int(row.total or 0)
+        if total < 0:
+            expense_stats[row.id] = BreakdownCategoryStats(
+                name=row.name,
+                category_kind=row.kind,
+                amount=-total,
+            )
+        elif total > 0:
+            income_stats[row.id] = BreakdownCategoryStats(
+                name=row.name,
+                category_kind=row.kind,
+                amount=total,
+            )
+
+    return expense_stats, income_stats
 
 
 async def _query_breakdown_category_stats(
@@ -77,32 +129,26 @@ async def _query_breakdown_category_stats(
     return stats_by_id
 
 
-def _category_sort_key(entry: tuple[uuid.UUID, CategoryStats]) -> tuple[int, str]:
+def _breakdown_sort_key(entry: tuple[uuid.UUID, BreakdownCategoryStats]) -> tuple[int, str]:
     _category_id, stats = entry
     return -stats.amount, stats.name
 
 
 def _breakdown_entries(
-    stats_by_id: CategoryStatsById,
-    kind: CategoryKind,
-) -> list[tuple[str, str, int]]:
-    """Return top category rows plus a compact Other row when needed."""
+    stats_by_id: BreakdownCategoryStatsById,
+) -> list[BreakdownEntryRow]:
+    """Return every positive category row for the pie breakdown."""
     positive_entries = [
         (category_id, stats)
         for category_id, stats in stats_by_id.items()
         if stats.amount > 0
     ]
-    positive_entries.sort(key=_category_sort_key)
+    positive_entries.sort(key=_breakdown_sort_key)
 
-    visible_entries = positive_entries[:BREAKDOWN_CATEGORY_LIMIT]
-    other_amount = sum(stats.amount for _category_id, stats in positive_entries[BREAKDOWN_CATEGORY_LIMIT:])
-    rows = [
-        (str(category_id), stats.name, stats.amount)
-        for category_id, stats in visible_entries
+    return [
+        (str(category_id), stats.name, stats.category_kind.value, stats.amount)
+        for category_id, stats in positive_entries
     ]
-    if other_amount > 0:
-        rows.append((f"{kind.value}-other", "Other", other_amount))
-    return rows
 
 
 def _change_pct(current_amount: int, previous_amount: int) -> int | None:
@@ -180,6 +226,12 @@ async def get_income_expense_breakdown(
             income_decreases=[],
         )
 
+    current_expense_breakdown, current_income_breakdown = await _query_breakdown_entries(
+        db,
+        account_ids,
+        from_date,
+        to_date,
+    )
     current_expense_stats = await _query_breakdown_category_stats(
         db,
         account_ids,
@@ -213,8 +265,8 @@ async def get_income_expense_breakdown(
     income_increases, income_decreases = _category_trends(current_income_stats, previous_income_stats)
 
     return InsightsIncomeExpenseBreakdownResponse(
-        expense=_breakdown_entries(current_expense_stats, CategoryKind.EXPENSE),
-        income=_breakdown_entries(current_income_stats, CategoryKind.INCOME),
+        expense=_breakdown_entries(current_expense_breakdown),
+        income=_breakdown_entries(current_income_breakdown),
         expense_increases=expense_increases,
         expense_decreases=expense_decreases,
         income_increases=income_increases,

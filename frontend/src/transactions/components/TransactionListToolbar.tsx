@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Check, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
@@ -16,6 +16,7 @@ const CATEGORY_KIND_LABELS: Record<string, string> = {
   transfer: 'Transfer',
 }
 const DESKTOP_SEARCH_MIN_WIDTH = 320
+const DATE_HEADER_STICKY_GAP_PX = 4
 
 export default function TransactionListToolbar({
   search,
@@ -35,6 +36,7 @@ export default function TransactionListToolbar({
   onDateRangeReset,
   onDateRangeClose,
   onCreateTransaction,
+  onStickyOffsetChange,
 }: {
   search: string
   onSearchChange: (value: string) => void
@@ -53,12 +55,15 @@ export default function TransactionListToolbar({
   onDateRangeReset: () => void
   onDateRangeClose: () => void
   onCreateTransaction: () => void
+  onStickyOffsetChange?: (offset: number) => void
 }) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
   const [isMobileBackdropActive, setIsMobileBackdropActive] = useState(false)
   const [desktopInlineLayout, setDesktopInlineLayout] = useState(false)
   const [desktopCreateStacked, setDesktopCreateStacked] = useState(false)
+  const [mobileSearchStuck, setMobileSearchStuck] = useState(false)
   const mobileSheetPanelRef = useRef<HTMLDivElement>(null)
+  const mobileSearchStickySentinelRef = useRef<HTMLDivElement>(null)
   const desktopToolbarRef = useRef<HTMLDivElement>(null)
   const desktopControlsRef = useRef<HTMLDivElement>(null)
   const desktopFilterGroupRef = useRef<HTMLDivElement>(null)
@@ -141,6 +146,53 @@ export default function TransactionListToolbar({
     }
   }, [selectedAccountLabel, selectedCategoryLabel, selectedDateLabel, showAccountFilter])
 
+  useLayoutEffect(() => {
+    const toolbar = desktopToolbarRef.current
+    if (!toolbar || !onStickyOffsetChange) return
+
+    const updateStickyOffset = () => {
+      onStickyOffsetChange(Math.ceil(toolbar.getBoundingClientRect().height + DATE_HEADER_STICKY_GAP_PX))
+    }
+
+    updateStickyOffset()
+
+    const resizeObserver = new ResizeObserver(updateStickyOffset)
+    resizeObserver.observe(toolbar)
+    window.addEventListener('resize', updateStickyOffset)
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateStickyOffset)
+    }
+  }, [onStickyOffsetChange])
+
+  useEffect(() => {
+    const sentinel = mobileSearchStickySentinelRef.current
+    if (!sentinel) return
+
+    const mobileQuery = window.matchMedia('(max-width: 1049px)')
+    let sentinelIntersecting = true
+
+    const updateStuck = () => {
+      setMobileSearchStuck(mobileQuery.matches && !sentinelIntersecting)
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        sentinelIntersecting = entry.isIntersecting
+        updateStuck()
+      },
+      { threshold: 0 },
+    )
+
+    observer.observe(sentinel)
+    mobileQuery.addEventListener('change', updateStuck)
+
+    return () => {
+      observer.disconnect()
+      mobileQuery.removeEventListener('change', updateStuck)
+    }
+  }, [])
+
   const openMobileSheet = useCallback(() => {
     setIsMobileBackdropActive(true)
     setIsMobileSheetOpen(true)
@@ -170,13 +222,8 @@ export default function TransactionListToolbar({
   useEffect(() => {
     if (!isMobileBackdropActive) return
 
-    const root = document.documentElement
     const blurTarget = document.getElementById('app-page-content')
     const mobileNavigationToggle = document.getElementById('app-mobile-navigation-toggle')
-    const previousOverflow = document.body.style.overflow
-    const previousRootOverflow = root.style.overflow
-    const previousRootOverscroll = root.style.overscrollBehavior
-    const previousBodyOverscroll = document.body.style.overscrollBehavior
     const previousBlurTargetFilter = blurTarget?.style.filter ?? ''
     const previousBlurTargetOpacity = blurTarget?.style.opacity ?? ''
     const previousBlurTargetTransition = blurTarget?.style.transition ?? ''
@@ -186,10 +233,6 @@ export default function TransactionListToolbar({
     const previousMobileNavigationToggleTransition = mobileNavigationToggle?.style.transition ?? ''
     const previousMobileNavigationToggleWillChange = mobileNavigationToggle?.style.willChange ?? ''
 
-    root.style.overflow = 'hidden'
-    root.style.overscrollBehavior = 'none'
-    document.body.style.overflow = 'hidden'
-    document.body.style.overscrollBehavior = 'none'
     if (blurTarget) {
       blurTarget.style.transition = 'filter 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms cubic-bezier(0.22, 1, 0.36, 1)'
       blurTarget.style.willChange = 'filter, opacity'
@@ -199,11 +242,16 @@ export default function TransactionListToolbar({
       mobileNavigationToggle.style.willChange = 'opacity'
     }
 
+    const preventBackgroundScroll = (event: TouchEvent) => {
+      const panel = mobileSheetPanelRef.current
+      if (panel?.contains(event.target as Node)) return
+      event.preventDefault()
+    }
+
+    document.addEventListener('touchmove', preventBackgroundScroll, { passive: false })
+
     return () => {
-      root.style.overflow = previousRootOverflow
-      root.style.overscrollBehavior = previousRootOverscroll
-      document.body.style.overflow = previousOverflow
-      document.body.style.overscrollBehavior = previousBodyOverscroll
+      document.removeEventListener('touchmove', preventBackgroundScroll)
       if (blurTarget) {
         blurTarget.style.filter = previousBlurTargetFilter
         blurTarget.style.opacity = previousBlurTargetOpacity
@@ -263,15 +311,18 @@ export default function TransactionListToolbar({
 
   return (
     <>
+      <div ref={mobileSearchStickySentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
       <div
         ref={desktopToolbarRef}
-        className={`sticky top-0 z-30 !mt-2 mb-2 flex flex-col gap-3 pb-2 pt-5 ${desktopInlineLayout ? 'min-[750px]:flex-row min-[750px]:items-center' : ''}`}
+        className={`sticky top-0 z-30 !mt-2 mb-2 flex flex-col gap-3 pb-2 pt-4 min-[1050px]:pt-5 ${desktopInlineLayout ? 'min-[750px]:flex-row min-[750px]:items-center' : ''}`}
         style={{
           background: 'var(--app-bg)',
           boxShadow: '0 0.25rem 0 var(--app-bg)',
         }}
       >
-        <div className={`relative min-w-0 ${desktopInlineLayout ? 'min-[750px]:min-w-80 min-[750px]:flex-1' : ''}`}>
+        <div
+          className={`relative min-w-0 transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${mobileSearchStuck ? 'max-[1049px]:mr-14' : 'max-[1049px]:mr-0'} ${desktopInlineLayout ? 'min-[750px]:min-w-80 min-[750px]:flex-1' : ''}`}
+        >
           <Search
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2"
@@ -286,14 +337,14 @@ export default function TransactionListToolbar({
             onKeyDown={(event) => {
               if (event.key === 'Enter') onSearchSubmit()
             }}
-            className="app-input w-full pl-9"
+            className="app-input h-11 w-full pl-9 min-[1050px]:h-10"
           />
         </div>
 
         <div className="flex w-full items-center gap-3 min-[750px]:hidden">
           <button
             type="button"
-            className="app-secondary-button min-w-0 flex-1 justify-between"
+            className="app-secondary-button h-11 min-w-0 flex-1 justify-between"
             onClick={openMobileSheet}
           >
             <span className="flex min-w-0 items-center gap-2">
@@ -315,7 +366,7 @@ export default function TransactionListToolbar({
 
           <button
             type="button"
-            className="app-primary-button h-10 w-10 shrink-0 px-0"
+            className="app-primary-button h-11 w-11 shrink-0 px-0"
             onClick={onCreateTransaction}
             aria-label="Add transaction"
           >
@@ -343,6 +394,7 @@ export default function TransactionListToolbar({
                     selectedValue={filters.account_id}
                     onSelect={(value) => { setFilter({ account_id: value }); close() }}
                     searchPlaceholder="Search accounts..."
+                    selectFirstSearchResultOnEnter
                   />
                 )}
               </FilterChip>
@@ -359,6 +411,7 @@ export default function TransactionListToolbar({
                   selectedValue={filters.category_id}
                   onSelect={(value) => { setFilter({ category_id: value }); close() }}
                   searchPlaceholder="Search categories..."
+                  selectFirstSearchResultOnEnter
                 />
               )}
             </FilterChip>
@@ -475,6 +528,7 @@ export default function TransactionListToolbar({
                       allLabel="All accounts"
                       onSelect={(value) => setFilter({ account_id: value })}
                       onClear={() => setFilter({ account_id: undefined })}
+                      selectFirstSearchResultOnEnter
                     />
                   )}
                   <MobileFilterSection
@@ -486,6 +540,7 @@ export default function TransactionListToolbar({
                     allLabel="All categories"
                     onSelect={(value) => setFilter({ category_id: value })}
                     onClear={() => setFilter({ category_id: undefined })}
+                    selectFirstSearchResultOnEnter
                   />
                   <MobileDateRangeSection
                     selectedLabel={selectedDateLabel}
@@ -577,6 +632,7 @@ function MobileFilterSection({
   allLabel,
   onSelect,
   onClear,
+  selectFirstSearchResultOnEnter = false,
 }: {
   title: string
   options: OptionItem[]
@@ -586,8 +642,10 @@ function MobileFilterSection({
   allLabel: string
   onSelect: (value: string) => void
   onClear: () => void
+  selectFirstSearchResultOnEnter?: boolean
 }) {
   const [search, setSearch] = useState('')
+  const hasSearch = search.trim().length > 0
 
   const filteredOptions = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -611,6 +669,13 @@ function MobileFilterSection({
 
     return groups
   }, [filteredOptions])
+  const highlightedValue = selectFirstSearchResultOnEnter && hasSearch ? filteredOptions[0]?.value : undefined
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || !highlightedValue) return
+    event.preventDefault()
+    onSelect(highlightedValue)
+  }
 
   return (
     <section>
@@ -643,6 +708,7 @@ function MobileFilterSection({
         placeholder={searchPlaceholder}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
+        onKeyDown={handleSearchKeyDown}
       />
 
       <div className="max-h-48 overflow-y-auto overscroll-contain rounded-xl border pr-2 [scrollbar-gutter:stable]" style={{ borderColor: 'var(--app-border)' }}>
@@ -672,6 +738,7 @@ function MobileFilterSection({
                   label={option.label}
                   icon={option.icon}
                   selected={option.value === selectedValue}
+                  highlighted={option.value === highlightedValue}
                   onClick={() => onSelect(option.value)}
                 />
               ))}
@@ -684,6 +751,7 @@ function MobileFilterSection({
               label={option.label}
               icon={option.icon}
               selected={option.value === selectedValue}
+              highlighted={option.value === highlightedValue}
               onClick={() => onSelect(option.value)}
             />
           ))
@@ -697,11 +765,13 @@ function MobileOptionRow({
   label,
   icon,
   selected,
+  highlighted = false,
   onClick,
 }: {
   label: string
   icon?: string | null
   selected: boolean
+  highlighted?: boolean
   onClick: () => void
 }) {
   return (
@@ -709,6 +779,7 @@ function MobileOptionRow({
       type="button"
       className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-[var(--app-surface-soft)]"
       style={{
+        background: highlighted ? 'var(--app-surface-soft)' : 'transparent',
         color: selected ? 'var(--app-accent)' : 'var(--app-text)',
         fontWeight: selected ? 600 : 400,
       }}

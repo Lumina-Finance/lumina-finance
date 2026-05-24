@@ -1,11 +1,14 @@
 import { useMemo } from 'react'
-import { LifeBuoy } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CircleHelp, LifeBuoy } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
 import { useRunway, useRunwayAccounts } from '@/api/user'
+import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   RUNWAY_BAND_STYLE,
   formatCompactRunway,
+  formatRunwayBasis,
   runwayBand,
 } from '@/utils/runway'
 import { useRunwayHover } from '@/dashboard/hooks/useRunwayHover'
@@ -24,7 +27,7 @@ function getRunwayCaption(
   if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
   if (runway.reason === 'insufficient_history') return 'Need 1+ month of expense data'
 
-  return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mo \u00B7 ${runway.months_covered}mo basis`
+  return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth \u00B7 ${formatRunwayBasis(runway.months_covered)}`
 }
 
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
@@ -32,7 +35,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const { data: runwayAccountIds } = useRunwayAccounts()
   const { data: accounts } = useAccounts()
   const runwayMonths = runway?.months ?? null
-  const runwayBandKey = runwayBand(runwayMonths)
+  const runwayBandKey = runwayBand(runwayMonths, runway?.thresholds)
   const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
   const runwayCaption = getRunwayCaption(runway, displayCurrency)
   const runwaySegments = useMemo(
@@ -54,6 +57,23 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
           <LifeBuoy size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
         </div>
         <span className="app-label">Runway</span>
+        <IconTooltip
+          label="How runway is calculated"
+          icon={CircleHelp}
+          placement="bottom"
+          widthClassName="w-64"
+        >
+          <span className="block">
+            Runway estimates how long selected asset accounts can cover spending, using completed months with recorded expenses.
+          </span>
+          <Link
+            to="/settings#runway"
+            className="mt-2 inline-flex font-semibold"
+            style={{ color: 'var(--app-accent)' }}
+          >
+            Runway settings
+          </Link>
+        </IconTooltip>
         {runwayStyle && (
           <span
             className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold max-[1000px]:text-[0.675rem]"

@@ -40,7 +40,7 @@ export default function BudgetFormCategorySection({
 
   return (
     <div className="flex min-h-0 min-[1050px]:overflow-hidden">
-      <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-3 min-[1050px]:overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3 min-[1050px]:overflow-hidden">
         <div className="flex min-h-0 flex-col items-center">
           <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
             03
