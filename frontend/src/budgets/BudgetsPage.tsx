@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
@@ -32,8 +32,8 @@ export default function BudgetsPage() {
   const createBackfillBudget = useCreateBudgetInstance()
   const [createOpen, setCreateOpen] = useState(false)
   const budgetParam = searchParams.get('budget')
-  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(budgetParam)
   const [budgetDetailsSnapshot, setBudgetDetailsSnapshot] = useState<BudgetCardViewModel | null>(null)
+  const selectedBudgetId = budgetParam
   const defaultCurrency = user?.base_currency ?? currencies?.[0]?.id ?? 'USD'
   const userTimeZone = user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const today = useMemo(() => todayYmd(userTimeZone), [userTimeZone])
@@ -60,31 +60,16 @@ export default function BudgetsPage() {
     budgetDetailsSnapshot?.baseBudget.id === selectedBudgetId ? budgetDetailsSnapshot : null
   )
 
-  // Keep the modal addressable via ?budget= while preserving its last data during refetches.
-  useEffect(() => {
-    setSelectedBudgetId(budgetParam)
-    if (!budgetParam) {
-      setBudgetDetailsSnapshot(null)
-    }
-  }, [budgetParam])
-
-  useEffect(() => {
-    if (selectedBudget) {
-      setBudgetDetailsSnapshot(selectedBudget)
-    }
-  }, [selectedBudget])
-
-  const openBudget = (budgetId: string) => {
-    setSelectedBudgetId(budgetId)
+  const openBudget = (budget: BudgetCardViewModel) => {
+    setBudgetDetailsSnapshot(budget)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
-      next.set('budget', budgetId)
+      next.set('budget', budget.baseBudget.id)
       return next
     })
   }
 
   const closeBudget = () => {
-    setSelectedBudgetId(null)
     setBudgetDetailsSnapshot(null)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
@@ -133,16 +118,19 @@ export default function BudgetsPage() {
         </section>
       ) : budgetCards.length > 0 ? (
         <section className="app-budget-grid">
-          {budgetCards.map(({ baseBudget, latestPeriod, categoryNames }) => (
-            <BudgetCard
-              key={baseBudget.id}
-              baseBudget={baseBudget}
-              latestPeriod={latestPeriod}
-              categoryNames={categoryNames}
-              utilization={latestPeriod ? latestUtilizationByBudgetId.get(latestPeriod.id) : undefined}
-              onOpen={() => openBudget(baseBudget.id)}
-            />
-          ))}
+          {budgetCards.map((budgetCard) => {
+            const { baseBudget, latestPeriod, categoryNames } = budgetCard
+            return (
+              <BudgetCard
+                key={baseBudget.id}
+                baseBudget={baseBudget}
+                latestPeriod={latestPeriod}
+                categoryNames={categoryNames}
+                utilization={latestPeriod ? latestUtilizationByBudgetId.get(latestPeriod.id) : undefined}
+                onOpen={() => openBudget(budgetCard)}
+              />
+            )
+          })}
         </section>
       ) : (
         <section className="flex min-h-[calc(100vh-16rem)] items-center justify-center text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
