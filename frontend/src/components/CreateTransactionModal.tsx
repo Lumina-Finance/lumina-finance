@@ -1478,7 +1478,7 @@ export default function CreateTransactionModal({
                       </span>
                     </label>
                   )}
-                  <div className="flex flex-col-reverse gap-3 sm:ml-auto sm:flex-row sm:items-center">
+                  <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
                     <button
                       type="button"
                       className="app-secondary-button w-full sm:w-auto"
@@ -1490,7 +1490,7 @@ export default function CreateTransactionModal({
                     <button
                       type="submit"
                       disabled={isPending}
-                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
+                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
                     >
                       {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
                     </button>

@@ -272,7 +272,7 @@ export default function CreateTaxAdvantagedCategoryModal({
             </div>
 
             <div
-              className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8"
+              className="grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8"
               style={{ borderTop: '1px solid var(--app-border)' }}
             >
               <button
@@ -285,7 +285,7 @@ export default function CreateTaxAdvantagedCategoryModal({
               </button>
               <button
                 type="submit"
-                className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
+                className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-40'}`}
                 disabled={isCreating}
               >
                 {isCreating ? <div className="app-spinner" aria-label="Creating" /> : 'Create Category'}
@@ -298,4 +298,3 @@ export default function CreateTaxAdvantagedCategoryModal({
     document.body,
   )
 }
-

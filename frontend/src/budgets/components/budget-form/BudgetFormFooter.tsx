@@ -23,7 +23,7 @@ export default function BudgetFormFooter({
       </button>
       <button
         type="submit"
-        className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading' : 'w-full sm:w-36'}`}
+        className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-36'}`}
         disabled={submitDisabled}
       >
         {isPending ? <div className="app-spinner" /> : submitLabel}

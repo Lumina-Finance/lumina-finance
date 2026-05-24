@@ -304,7 +304,7 @@ export default function CreateInstitutionModal({
                 </div>
 
                 <div
-                  className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-7"
+                  className="grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-7"
                   style={{ borderTop: '1px solid var(--app-border)' }}
                 >
                   <button
@@ -318,7 +318,7 @@ export default function CreateInstitutionModal({
                   <button
                     type="submit"
                     disabled={isCreating}
-                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading' : 'w-full sm:w-32'}`}
+                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-32'}`}
                   >
                     {isCreating ? <div className="app-spinner" /> : 'Create'}
                   </button>

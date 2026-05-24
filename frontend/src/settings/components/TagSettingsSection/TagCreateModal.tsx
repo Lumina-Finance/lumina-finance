@@ -172,11 +172,11 @@ export default function TagCreateModal({
                 </div>
 
                 <div
-                  className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8"
+                  className="grid shrink-0 grid-cols-2 items-center gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8"
                   style={{ borderTop: '1px solid var(--app-border)' }}
                 >
                   {formError && (
-                    <p className="text-sm font-medium sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
+                    <p className="col-span-2 text-sm font-medium sm:col-span-1 sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
                       {formError}
                     </p>
                   )}
@@ -190,7 +190,7 @@ export default function TagCreateModal({
                   </button>
                   <button
                     type="submit"
-                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isSubmitting ? 'app-primary-button-loading' : 'w-full sm:w-28'}`}
+                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isSubmitting ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-28'}`}
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (

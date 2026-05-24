@@ -114,7 +114,7 @@ export default function CreateTagModal({
   const railLabel = isSecondary ? 'Linked' : 'Tag'
   const headerPadding = isSecondary ? 'shrink-0 px-6 pb-5 pt-6 sm:px-7' : 'shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7'
   const bodyPadding = isSecondary ? 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-7' : 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8'
-  const footerPadding = isSecondary ? 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-7' : 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8'
+  const footerPadding = isSecondary ? 'grid shrink-0 grid-cols-2 items-center gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-7' : 'grid shrink-0 grid-cols-2 items-center gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8'
   const eyebrow = isSecondary ? 'Transaction setup' : 'New transaction tag'
   const title = isSecondary ? 'Add Tag' : 'Create Tag'
   const submitLabel = isSecondary ? 'Create' : 'Create'
@@ -222,7 +222,7 @@ export default function CreateTagModal({
 
                 <div className={footerPadding} style={{ borderTop: '1px solid var(--app-border)' }}>
                   {formError && (
-                    <p className="text-sm font-medium sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
+                    <p className="col-span-2 text-sm font-medium sm:col-span-1 sm:mr-auto" style={{ color: 'var(--app-negative)' }}>
                       {formError}
                     </p>
                   )}
@@ -236,7 +236,7 @@ export default function CreateTagModal({
                   </button>
                   <button
                     type="submit"
-                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isSubmitting ? 'app-primary-button-loading' : submitWidth}`}
+                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isSubmitting ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidth}`}
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (

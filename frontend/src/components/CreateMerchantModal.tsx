@@ -137,7 +137,7 @@ export default function CreateMerchantModal({
   const railLabel = isSecondary ? 'Linked' : 'Merchant'
   const headerPadding = isSecondary ? 'shrink-0 px-6 pb-5 pt-6 sm:px-7' : 'shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7'
   const bodyPadding = isSecondary ? 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-7' : 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8'
-  const footerPadding = isSecondary ? 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-7' : 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-8'
+  const footerPadding = isSecondary ? 'grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-7' : 'grid shrink-0 grid-cols-2 gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8'
   const eyebrow = isSecondary ? 'Transaction setup' : 'Personal merchant'
   const title = isSecondary ? 'Add Merchant' : 'Create Merchant'
   const submitLabel = isSecondary ? 'Create' : 'Create Merchant'
@@ -312,7 +312,7 @@ export default function CreateMerchantModal({
                   </button>
                   <button
                     type="submit"
-                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading' : submitWidth}`}
+                    className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isCreating ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidth}`}
                     disabled={isCreating}
                   >
                     {isCreating ? <div className="app-spinner" aria-label="Creating" /> : submitLabel}
