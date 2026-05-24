@@ -112,8 +112,8 @@ export default function CreateTagModal({
         color: 'var(--app-button-primary-text)',
       }
   const railLabel = isSecondary ? 'Linked' : 'Tag'
-  const headerPadding = isSecondary ? 'shrink-0 px-6 pb-5 pt-6 sm:px-7' : 'shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7'
-  const bodyPadding = isSecondary ? 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-7' : 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8'
+  const headerPadding = isSecondary ? 'shrink-0 pb-5 pl-4 pr-5 pt-6 min-[1050px]:px-7' : 'shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8'
+  const bodyPadding = isSecondary ? 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7' : 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8'
   const footerPadding = isSecondary ? 'grid shrink-0 grid-cols-2 items-center gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-7' : 'grid shrink-0 grid-cols-2 items-center gap-3 px-6 py-5 sm:flex sm:justify-end sm:px-8'
   const eyebrow = isSecondary ? 'Transaction setup' : 'New transaction tag'
   const title = isSecondary ? 'Add Tag' : 'Create Tag'
@@ -186,7 +186,7 @@ export default function CreateTagModal({
                 </div>
 
                 <div className={bodyPadding}>
-                  <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                  <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                     <div className="flex min-h-0 flex-col items-center">
                       <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                         01

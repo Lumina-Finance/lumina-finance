@@ -115,7 +115,7 @@ export default function TagCreateModal({
               </div>
 
               <form className="flex min-h-0 w-full flex-col" onSubmit={handleSubmit} noValidate>
-                <div className="shrink-0 px-6 pb-5 pt-6 sm:px-8 sm:pt-7" style={{ borderBottom: '1px solid var(--app-border)' }}>
+                <div className="shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8" style={{ borderBottom: '1px solid var(--app-border)' }}>
                   <div className="flex items-start justify-between gap-6">
                     <div className="min-w-0">
                       <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
@@ -137,8 +137,8 @@ export default function TagCreateModal({
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-8">
-                  <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3">
+                <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8">
+                  <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
                     <div className="flex min-h-0 flex-col items-center">
                       <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
                         01

@@ -40,8 +40,8 @@ const EDIT_SHELL_APPEARANCE: BudgetFormShellAppearance = {
   },
   sideRailIconSize: 18,
   sideLabelClassName: 'rotate-180 text-[0.6875rem] font-semibold uppercase',
-  headerClassName: 'shrink-0 px-6 pb-5 pt-6 sm:px-7',
-  bodyClassName: 'min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-4 sm:px-7',
+  headerClassName: 'shrink-0 pb-5 pl-4 pr-5 pt-6 min-[1050px]:px-7',
+  bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7',
 }
 
 const EDIT_FOOTER_CLASS_NAME = 'flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end sm:px-7'
