@@ -17,6 +17,11 @@ type NetWorthWidgetProps = {
   displayCurrency: string
 }
 
+function formatNetWorthChange(amount: number, currency: string) {
+  if (amount === 0) return formatDashboardMoney(0, currency, 'netWorth')
+  return `${amount > 0 ? '+' : '-'}${formatDashboardMoney(Math.abs(amount), currency, 'netWorth')}`
+}
+
 export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const { data: dashboardNetWorth } = useDashboardNetWorth()
   const netWorthData = useMemo(
@@ -24,7 +29,14 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
     [dashboardNetWorth],
   )
   const netWorth = dashboardNetWorth?.current_net_worth ?? 0
+  const netWorthChange = netWorthData.length >= 2 ? netWorth - netWorthData[0].value : null
   const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
+  const netWorthChangeColor =
+    netWorthChange == null || netWorthChange === 0
+      ? 'var(--app-text-muted)'
+      : netWorthChange > 0
+        ? 'var(--app-positive)'
+        : 'var(--app-negative)'
   const netWorthTrendUp =
     netWorthData.length >= 2 &&
     netWorthData[netWorthData.length - 1].value >= netWorthData[0].value
@@ -38,12 +50,23 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
         </div>
         <span className="app-label">Net Worth</span>
       </div>
-      <p
-        className="font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
-        style={{ color: netWorthColor }}
-      >
-        {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
-      </p>
+      <div className="inline-flex max-w-full items-end gap-2">
+        <p
+          className="min-w-0 font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
+          style={{ color: netWorthColor }}
+        >
+          {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
+        </p>
+        {netWorthChange != null && (
+          <p
+            className="shrink-0 pb-0.5 font-financial text-sm font-medium leading-none max-[1000px]:text-xs"
+            style={{ color: netWorthChangeColor }}
+            aria-label={`Net worth change ${formatNetWorthChange(netWorthChange, displayCurrency)}`}
+          >
+            {formatNetWorthChange(netWorthChange, displayCurrency)}
+          </p>
+        )}
+      </div>
       {netWorthData.length >= 2 && (
         <div className="mt-3 flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
