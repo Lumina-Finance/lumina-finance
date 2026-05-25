@@ -3,6 +3,8 @@ name: Backend lint
 on:
   workflow_dispatch:
   pull_request:
+    branches:
+      - main
     paths:
       - "backend/**/*.py"
   push:
