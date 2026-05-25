@@ -101,6 +101,15 @@ function sanitizeMoneyInput(value: string) {
   return sanitized
 }
 
+function directionFromAmountInputSign(value: string): TransactionDirection | null {
+  let direction: TransactionDirection | null = null
+  for (const char of value) {
+    if (char === '+') direction = 'credit'
+    if (char === '-') direction = 'debit'
+  }
+  return direction
+}
+
 function formatMoneyInputLive(value: string) {
   if (!value.trim()) return value
   const [integerPart, decimalPart] = value.split('.', 2)
@@ -910,6 +919,17 @@ export default function CreateTransactionModal({
     if (field in fieldErrors) clearError(field as keyof FieldErrors)
   }
 
+  const handleAmountChange = (value: string) => {
+    const signDirection = directionFromAmountInputSign(value)
+    setForm((f) => ({
+      ...f,
+      amount: sanitizeMoneyInput(value),
+      direction: signDirection ?? f.direction,
+    }))
+    if (signDirection && signDirection !== form.direction) setDirectionHighlightKey((key) => key + 1)
+    if ('amount' in fieldErrors) clearError('amount')
+  }
+
   const handleBlur = (field: keyof FieldErrors) => {
     setTouched((t) => ({ ...t, [field]: true }))
     const errors = validate(form)
@@ -1425,7 +1445,7 @@ export default function CreateTransactionModal({
                                 className={`app-input w-full ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('amount') ? 'app-input-error' : ''}`}
                                 placeholder="0.00"
                                 value={formatMoneyInputLive(form.amount)}
-                                onChange={(e) => handleField('amount', sanitizeMoneyInput(e.target.value))}
+                                onChange={(e) => handleAmountChange(e.target.value)}
                                 onBlur={() => handleBlur('amount')}
                               />
                             </div>
