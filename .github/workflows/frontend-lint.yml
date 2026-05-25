@@ -1,0 +1,43 @@
+name: Frontend lint
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/src/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/src/**"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
