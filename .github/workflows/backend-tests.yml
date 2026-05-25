@@ -1,0 +1,77 @@
+name: Backend tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "backend/**/*.py"
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**/*.py"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test backend
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: lumina_test
+          POSTGRES_USER: lumina_test
+          POSTGRES_PASSWORD: lumina_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lumina_test -d lumina_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      TESTING: "1"
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_NAME: lumina_test
+      DB_USER: lumina_test
+      DB_PASSWORD: lumina_test
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: "5432"
+      TEST_DB_NAME: lumina_test
+      TEST_DB_USER: lumina_test
+      TEST_DB_PASSWORD: lumina_test
+      JWT_ACCESS_PRIVATE_KEY_PATH: ${{ github.workspace }}/backend/keys/access_private.pem
+      JWT_REFRESH_PRIVATE_KEY_PATH: ${{ github.workspace }}/backend/keys/refresh_private.pem
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Generate JWT keys
+        run: |
+          mkdir -p keys
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out keys/access_private.pem
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out keys/refresh_private.pem
+
+      - name: Run tests
+        run: uv run pytest -n auto
