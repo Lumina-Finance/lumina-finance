@@ -6,6 +6,7 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/**"
       - "backend/**/*.py"
   push:
     branches:
