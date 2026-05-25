@@ -1276,6 +1276,8 @@ export default function CreateTransactionModal({
                             loadingText={merchantLoadingText}
                             loadingMinMs={0}
                             hideOptionsWhileLoading={showInitialMerchantLoading}
+                            autoHighlightFirstOption
+                            selectHighlightedOnSearchEnter
                             hasMore={!!merchantQuery.hasNextPage}
                             onLoadMore={() => {
                               if (
