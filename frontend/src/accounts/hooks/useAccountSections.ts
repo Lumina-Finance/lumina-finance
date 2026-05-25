@@ -19,6 +19,8 @@ export function useAccountSections({
   return useMemo(() => {
     const byBalanceDesc = (a: AccountsOverview, b: AccountsOverview) =>
       b.current_balance - a.current_balance
+    const byDebtBalanceDesc = (a: AccountsOverview, b: AccountsOverview) =>
+      a.current_balance - b.current_balance
 
     const totalAssets = sumByKind(rows, 'asset')
     const revolvingSubtotal = sumByKind(rows, 'revolving')
@@ -32,8 +34,8 @@ export function useAccountSections({
       assetCount: rows.filter((account) => account.account_kind === 'asset').length,
       debtCount: rows.filter(isDebtAccount).length,
       assetRows: filteredRows.filter((account) => account.account_kind === 'asset').sort(byBalanceDesc),
-      revolvingRows: filteredRows.filter((account) => account.account_kind === 'revolving').sort(byBalanceDesc),
-      amortizingRows: filteredRows.filter((account) => account.account_kind === 'amortizing').sort(byBalanceDesc),
+      revolvingRows: filteredRows.filter((account) => account.account_kind === 'revolving').sort(byDebtBalanceDesc),
+      amortizingRows: filteredRows.filter((account) => account.account_kind === 'amortizing').sort(byDebtBalanceDesc),
       revolvingSubtotal,
       amortizingSubtotal,
     }
