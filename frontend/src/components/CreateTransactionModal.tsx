@@ -1,5 +1,6 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
@@ -13,6 +14,7 @@ import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchant
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import {
+  invalidateTransactionAccountData,
   useCreateTransaction,
   useDeleteTransaction,
   useUpdateTransaction,
@@ -285,7 +287,8 @@ export default function CreateTransactionModal({
   defaultCurrency,
 }: CreateTransactionModalProps) {
   const editing = !!transaction
-  const createMutation = useCreateTransaction()
+  const queryClient = useQueryClient()
+  const createMutation = useCreateTransaction({ deferAccountInvalidation: true })
   const updateMutation = useUpdateTransaction()
   const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
   const { data: accounts = [] } = useAccounts()
@@ -353,7 +356,29 @@ export default function CreateTransactionModal({
   const merchantFetchMoreStartedAtRef = useRef<number | null>(null)
   const tagInitialFetchStartedAtRef = useRef<number | null>(null)
   const tagFetchMoreStartedAtRef = useRef<number | null>(null)
+  const createdAccountIdsRef = useRef<Set<string>>(new Set())
+  const openRef = useRef(open)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
+
+  const flushDeferredAccountInvalidation = useCallback(() => {
+    const accountIds = [...createdAccountIdsRef.current]
+    if (accountIds.length === 0) return
+
+    createdAccountIdsRef.current.clear()
+    invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true })
+  }, [queryClient])
+
+  const handleClose = useCallback(() => {
+    onClose()
+    window.setTimeout(flushDeferredAccountInvalidation, 0)
+  }, [flushDeferredAccountInvalidation, onClose])
+
+  useEffect(() => {
+    openRef.current = open
+    if (open) return
+    flushDeferredAccountInvalidation()
+  }, [flushDeferredAccountInvalidation, open])
+
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.account_id),
     [accounts, form.account_id],
@@ -712,10 +737,10 @@ export default function CreateTransactionModal({
 
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [handleClose, open])
 
   const clearError = (field: keyof FieldErrors) => {
     if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: undefined }))
@@ -898,14 +923,14 @@ export default function CreateTransactionModal({
       if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids
 
       if (Object.keys(patch).length === 0) {
-        onClose()
+        handleClose()
         return
       }
 
       updateMutation.mutate(
         { id: transaction.id, patch },
         {
-          onSuccess: () => onClose(),
+          onSuccess: () => handleClose(),
           onError: (err) => {
             setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
           },
@@ -932,11 +957,16 @@ export default function CreateTransactionModal({
     )
 
     try {
-      await createMutation.mutateAsync(payload)
+      const createdTransaction = await createMutation.mutateAsync(payload)
+      createdAccountIdsRef.current.add(createdTransaction.account_id)
+      if (!openRef.current) {
+        flushDeferredAccountInvalidation()
+        return
+      }
       await minimumLoading
 
       if (!keepOpenAfterCreate) {
-        onClose()
+        handleClose()
         return
       }
 
@@ -968,7 +998,7 @@ export default function CreateTransactionModal({
 
     try {
       await deleteMutation.mutateAsync(transaction.id)
-      onClose()
+      handleClose()
     } catch (err) {
       setConfirmingDelete(false)
       setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
@@ -991,7 +1021,7 @@ export default function CreateTransactionModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={onClose}
+            onClick={handleClose}
             aria-hidden
               />
 
@@ -1002,7 +1032,7 @@ export default function CreateTransactionModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ duration: 0.25, ease: EASE }}
-            onClick={onClose}
+            onClick={handleClose}
               >
                 <div
               role="dialog"
@@ -1054,7 +1084,7 @@ export default function CreateTransactionModal({
                     </div>
                     <button
                       type="button"
-                      onClick={onClose}
+                      onClick={handleClose}
                       className="app-icon-button shrink-0"
                       aria-label="Close"
                     >
@@ -1482,7 +1512,7 @@ export default function CreateTransactionModal({
                     <button
                       type="button"
                       className="app-secondary-button w-full sm:w-auto"
-                      onClick={onClose}
+                      onClick={handleClose}
                       disabled={isPending}
                     >
                       Cancel

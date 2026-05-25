@@ -276,13 +276,21 @@ function invalidateTransactionOverview(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
 }
 
-function invalidateAccountActivity(queryClient: QueryClient, accountIds: string[]) {
+interface AccountActivityInvalidationOptions {
+  refetchAccountList?: boolean;
+}
+
+function invalidateAccountActivity(
+  queryClient: QueryClient,
+  accountIds: string[],
+  options: AccountActivityInvalidationOptions = {},
+) {
   if (accountIds.length === 0) return;
 
   queryClient.invalidateQueries({
     queryKey: accountKeys.list(),
     exact: true,
-    refetchType: 'none',
+    refetchType: options.refetchAccountList ? 'active' : 'none',
   });
   for (const accountId of accountIds) {
     queryClient.invalidateQueries({ queryKey: accountKeys.accountScope(accountId), exact: false });
@@ -310,6 +318,15 @@ function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: s
   for (const planId of planIds) {
     queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.detail(planId), exact: true });
   }
+}
+
+export function invalidateTransactionAccountData(
+  queryClient: QueryClient,
+  accountIds: string[],
+  options: AccountActivityInvalidationOptions = {},
+) {
+  invalidateAccountActivity(queryClient, accountIds, options);
+  invalidateTaxAdvantagedActivity(queryClient, accountIds);
 }
 
 // ── Hooks ──
@@ -366,7 +383,13 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
   });
 }
 
-export function useCreateTransaction() {
+interface UseCreateTransactionOptions {
+  deferAccountInvalidation?: boolean;
+}
+
+export function useCreateTransaction({
+  deferAccountInvalidation = false,
+}: UseCreateTransactionOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateTransactionPayload) =>
@@ -378,9 +401,10 @@ export function useCreateTransaction() {
       const accountIds = [transaction.account_id];
       invalidateTransactionLists(queryClient);
       invalidateTransactionOverview(queryClient);
-      invalidateAccountActivity(queryClient, accountIds);
       invalidateDashboardActivity(queryClient);
-      invalidateTaxAdvantagedActivity(queryClient, accountIds);
+      if (!deferAccountInvalidation) {
+        invalidateTransactionAccountData(queryClient, accountIds);
+      }
     },
   });
 }
