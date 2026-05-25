@@ -1,5 +1,6 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
@@ -13,6 +14,7 @@ import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchant
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import {
+  invalidateTransactionAccountData,
   useCreateTransaction,
   useDeleteTransaction,
   useUpdateTransaction,
@@ -22,6 +24,7 @@ import {
 } from '@/api/transactions'
 import { ApiError } from '@/api/auth'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import { formatCurrency } from '@/utils/formatCurrency'
 
 /* ── Constants ── */
 
@@ -98,6 +101,15 @@ function sanitizeMoneyInput(value: string) {
   return sanitized
 }
 
+function directionFromAmountInputSign(value: string): TransactionDirection | null {
+  let direction: TransactionDirection | null = null
+  for (const char of value) {
+    if (char === '+') direction = 'credit'
+    if (char === '-') direction = 'debit'
+  }
+  return direction
+}
+
 function formatMoneyInputLive(value: string) {
   if (!value.trim()) return value
   const [integerPart, decimalPart] = value.split('.', 2)
@@ -105,6 +117,16 @@ function formatMoneyInputLive(value: string) {
     ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
     : '0'
   return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
+}
+
+function amountInputToMinorUnits(value: string, exponent: number): number | null {
+  const numericValue = Number.parseFloat(value)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return null
+  return Math.round(numericValue * Math.pow(10, exponent))
+}
+
+function applyDirection(amountMinor: number, direction: TransactionDirection): number {
+  return direction === 'credit' ? amountMinor : -amountMinor
 }
 
 function delay(ms: number) {
@@ -285,7 +307,8 @@ export default function CreateTransactionModal({
   defaultCurrency,
 }: CreateTransactionModalProps) {
   const editing = !!transaction
-  const createMutation = useCreateTransaction()
+  const queryClient = useQueryClient()
+  const createMutation = useCreateTransaction({ deferAccountInvalidation: true })
   const updateMutation = useUpdateTransaction()
   const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
   const { data: accounts = [] } = useAccounts()
@@ -342,6 +365,7 @@ export default function CreateTransactionModal({
   const [showMerchantModal, setShowMerchantModal] = useState(false)
   const [merchantModalKey, setMerchantModalKey] = useState(0)
   const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
+  const [sessionAccountDeltas, setSessionAccountDeltas] = useState<Record<string, number>>({})
   const [createDelayPending, setCreateDelayPending] = useState(false)
   const [directionHighlightKey, setDirectionHighlightKey] = useState(0)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
@@ -353,7 +377,29 @@ export default function CreateTransactionModal({
   const merchantFetchMoreStartedAtRef = useRef<number | null>(null)
   const tagInitialFetchStartedAtRef = useRef<number | null>(null)
   const tagFetchMoreStartedAtRef = useRef<number | null>(null)
+  const createdAccountIdsRef = useRef<Set<string>>(new Set())
+  const openRef = useRef(open)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
+
+  const flushDeferredAccountInvalidation = useCallback(() => {
+    const accountIds = [...createdAccountIdsRef.current]
+    if (accountIds.length === 0) return
+
+    createdAccountIdsRef.current.clear()
+    invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true })
+  }, [queryClient])
+
+  const handleClose = useCallback(() => {
+    onClose()
+    window.setTimeout(flushDeferredAccountInvalidation, 0)
+  }, [flushDeferredAccountInvalidation, onClose])
+
+  useEffect(() => {
+    openRef.current = open
+    if (open) return
+    flushDeferredAccountInvalidation()
+  }, [flushDeferredAccountInvalidation, open])
+
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.account_id),
     [accounts, form.account_id],
@@ -701,7 +747,14 @@ export default function CreateTransactionModal({
     [currencies, form.currency],
   )
 
-  const selectedCurrencySymbol = currencies.find((c) => c.id === form.currency)?.symbol ?? ''
+  const selectedCurrency = currencies.find((c) => c.id === form.currency)
+  const selectedCurrencySymbol = selectedCurrency?.symbol ?? ''
+  const selectedCurrencyExponent = selectedCurrency?.minor_unit_exponent ?? 2
+  const selectedAccountSessionDelta = selectedAccount ? (sessionAccountDeltas[selectedAccount.id] ?? 0) : 0
+  const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
+  const runningBalance = selectedAccount
+    ? selectedAccount.current_balance + selectedAccountSessionDelta
+    : 0
 
   // Scroll lock + Escape close
   useEffect(() => {
@@ -712,10 +765,10 @@ export default function CreateTransactionModal({
 
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [handleClose, open])
 
   const clearError = (field: keyof FieldErrors) => {
     if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: undefined }))
@@ -866,6 +919,17 @@ export default function CreateTransactionModal({
     if (field in fieldErrors) clearError(field as keyof FieldErrors)
   }
 
+  const handleAmountChange = (value: string) => {
+    const signDirection = directionFromAmountInputSign(value)
+    setForm((f) => ({
+      ...f,
+      amount: sanitizeMoneyInput(value),
+      direction: signDirection ?? f.direction,
+    }))
+    if (signDirection && signDirection !== form.direction) setDirectionHighlightKey((key) => key + 1)
+    if ('amount' in fieldErrors) clearError('amount')
+  }
+
   const handleBlur = (field: keyof FieldErrors) => {
     setTouched((t) => ({ ...t, [field]: true }))
     const errors = validate(form)
@@ -880,10 +944,8 @@ export default function CreateTransactionModal({
     setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true })
     if (Object.keys(errors).length > 0) return
 
-    const selectedCurrency = currencies.find((c) => c.id === form.currency)
-    const minorMultiplier = Math.pow(10, selectedCurrency?.minor_unit_exponent ?? 2)
-    const magnitude = Math.round(parseFloat(form.amount) * minorMultiplier)
-    const signedAmount = form.direction === 'credit' ? magnitude : -magnitude
+    const magnitude = amountInputToMinorUnits(form.amount, selectedCurrencyExponent) ?? 0
+    const signedAmount = applyDirection(magnitude, form.direction)
     const notes = form.notes.trim() || null
 
     if (editing && transaction) {
@@ -898,14 +960,14 @@ export default function CreateTransactionModal({
       if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids
 
       if (Object.keys(patch).length === 0) {
-        onClose()
+        handleClose()
         return
       }
 
       updateMutation.mutate(
         { id: transaction.id, patch },
         {
-          onSuccess: () => onClose(),
+          onSuccess: () => handleClose(),
           onError: (err) => {
             setSubmitError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
           },
@@ -932,11 +994,20 @@ export default function CreateTransactionModal({
     )
 
     try {
-      await createMutation.mutateAsync(payload)
+      const createdTransaction = await createMutation.mutateAsync(payload)
+      createdAccountIdsRef.current.add(createdTransaction.account_id)
+      setSessionAccountDeltas((deltas) => ({
+        ...deltas,
+        [createdTransaction.account_id]: (deltas[createdTransaction.account_id] ?? 0) + createdTransaction.amount,
+      }))
+      if (!openRef.current) {
+        flushDeferredAccountInvalidation()
+        return
+      }
       await minimumLoading
 
       if (!keepOpenAfterCreate) {
-        onClose()
+        handleClose()
         return
       }
 
@@ -968,7 +1039,7 @@ export default function CreateTransactionModal({
 
     try {
       await deleteMutation.mutateAsync(transaction.id)
-      onClose()
+      handleClose()
     } catch (err) {
       setConfirmingDelete(false)
       setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
@@ -991,7 +1062,7 @@ export default function CreateTransactionModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={onClose}
+            onClick={handleClose}
             aria-hidden
               />
 
@@ -1002,13 +1073,15 @@ export default function CreateTransactionModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ duration: 0.25, ease: EASE }}
-            onClick={onClose}
+            onClick={handleClose}
               >
-                <div
+                <motion.div
+              layout
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-txn-title"
               className="app-modal-panel flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
+              transition={{ layout: { duration: 0.22, ease: EASE } }}
               style={{
                 background: 'var(--app-bg)',
                 border: '1px solid var(--app-border-strong)',
@@ -1054,7 +1127,7 @@ export default function CreateTransactionModal({
                     </div>
                     <button
                       type="button"
-                      onClick={onClose}
+                      onClick={handleClose}
                       className="app-icon-button shrink-0"
                       aria-label="Close"
                     >
@@ -1156,6 +1229,31 @@ export default function CreateTransactionModal({
                             searchable
                             searchPlaceholder="Search accounts..."
                           />
+                          <AnimatePresence initial={false}>
+                            {showRunningBalance && selectedAccount && (
+	                              <motion.div
+	                                key="running-balance"
+	                                className="overflow-hidden"
+	                                initial={{ height: 0, opacity: 0, y: -3 }}
+	                                animate={{ height: 'auto', opacity: 1, y: 0 }}
+	                                exit={{ height: 0, opacity: 0, y: -3 }}
+	                                transition={{ duration: 0.2, ease: EASE }}
+	                                aria-live="polite"
+	                              >
+	                                <div className="flex items-center justify-between gap-3 px-0.5 pt-2 text-xs">
+	                                  <span className="font-medium" style={{ color: 'var(--app-text-muted)' }}>
+	                                    Running balance
+	                                  </span>
+	                                  <span
+	                                    className="font-financial text-sm font-semibold"
+	                                    style={{ color: 'var(--app-text)' }}
+	                                  >
+	                                    {formatCurrency(runningBalance, selectedAccount.currency)}
+	                                  </span>
+	                                </div>
+	                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
 
                         {/* Merchant */}
@@ -1178,6 +1276,8 @@ export default function CreateTransactionModal({
                             loadingText={merchantLoadingText}
                             loadingMinMs={0}
                             hideOptionsWhileLoading={showInitialMerchantLoading}
+                            autoHighlightFirstOption
+                            selectHighlightedOnSearchEnter
                             hasMore={!!merchantQuery.hasNextPage}
                             onLoadMore={() => {
                               if (
@@ -1347,7 +1447,7 @@ export default function CreateTransactionModal({
                                 className={`app-input w-full ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('amount') ? 'app-input-error' : ''}`}
                                 placeholder="0.00"
                                 value={formatMoneyInputLive(form.amount)}
-                                onChange={(e) => handleField('amount', sanitizeMoneyInput(e.target.value))}
+                                onChange={(e) => handleAmountChange(e.target.value)}
                                 onBlur={() => handleBlur('amount')}
                               />
                             </div>
@@ -1455,34 +1555,36 @@ export default function CreateTransactionModal({
                       )}
                     </button>
                   ) : (
-                    <label
-                      htmlFor="txn-keep-open"
-                      className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1 sm:max-w-xs"
-                    >
-                      <input
-                        id="txn-keep-open"
-                        type="checkbox"
-                        checked={keepOpenAfterCreate}
-                        onChange={(event) => setKeepOpenAfterCreate(event.target.checked)}
-                        disabled={isPending}
-                        className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
-                        style={{ accentColor: 'var(--app-accent)' }}
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                          Keep modal open after adding
+                    <div className="min-w-0 sm:max-w-xs">
+                      <label
+                        htmlFor="txn-keep-open"
+                        className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
+                      >
+                        <input
+                          id="txn-keep-open"
+                          type="checkbox"
+                          checked={keepOpenAfterCreate}
+                          onChange={(event) => setKeepOpenAfterCreate(event.target.checked)}
+                          disabled={isPending}
+                          className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                          style={{ accentColor: 'var(--app-accent)' }}
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                            Keep modal open after adding
+                          </span>
+                          <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                            Keep type, date, account, merchant, and category
+                          </span>
                         </span>
-                        <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                          Keep type, date, account, merchant, and category
-                        </span>
-                      </span>
-                    </label>
+                      </label>
+                    </div>
                   )}
                   <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
                     <button
                       type="button"
                       className="app-secondary-button w-full sm:w-auto"
-                      onClick={onClose}
+                      onClick={handleClose}
                       disabled={isPending}
                     >
                       Cancel
@@ -1497,7 +1599,7 @@ export default function CreateTransactionModal({
                   </div>
                 </div>
                   </form>
-                </div>
+                </motion.div>
               </motion.div>
             </>
           )}

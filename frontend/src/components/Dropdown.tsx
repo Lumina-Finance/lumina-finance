@@ -27,6 +27,8 @@ interface DropdownProps {
   loadingText?: string;
   loadingMinMs?: number;
   hideOptionsWhileLoading?: boolean;
+  autoHighlightFirstOption?: boolean;
+  selectHighlightedOnSearchEnter?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
   onSearchCommit?: (value: string) => void;
@@ -61,6 +63,8 @@ const Dropdown = ({
   loadingText = 'Loading...',
   loadingMinMs = LOADING_TEXT_MIN_MS,
   hideOptionsWhileLoading = false,
+  autoHighlightFirstOption = false,
+  selectHighlightedOnSearchEnter = false,
   hasMore = false,
   onLoadMore,
   onSearchCommit,
@@ -100,6 +104,13 @@ const Dropdown = ({
     () => (showLoading && hideOptionsWhileLoading ? [] : filtered),
     [filtered, hideOptionsWhileLoading, showLoading],
   );
+  const effectiveHighlightedIndex = (
+    autoHighlightFirstOption &&
+    visibleFiltered.length > 0 &&
+    (highlightedIndex < 0 || highlightedIndex >= visibleFiltered.length)
+  )
+    ? 0
+    : highlightedIndex;
 
   // Group filtered options by their `group` field for sectioned rendering.
   // Each group wraps its options so sticky headers stay pinned for the full section.
@@ -205,10 +216,10 @@ const Dropdown = ({
 
   // Scroll highlighted option into view
   useEffect(() => {
-    if (!open || highlightedIndex < 0 || !listRef.current) return;
-    const item = listRef.current.querySelector(`[data-option-index="${highlightedIndex}"]`) as HTMLElement;
+    if (!open || effectiveHighlightedIndex < 0 || !listRef.current) return;
+    const item = listRef.current.querySelector(`[data-option-index="${effectiveHighlightedIndex}"]`) as HTMLElement;
     item?.scrollIntoView({ block: 'nearest' });
-  }, [highlightedIndex, open]);
+  }, [effectiveHighlightedIndex, open]);
 
   // Focus search input when dropdown opens
   useEffect(() => {
@@ -251,8 +262,8 @@ const Dropdown = ({
         break;
       case 'Enter':
         e.preventDefault();
-        if (open && highlightedIndex >= 0 && highlightedIndex < visibleFiltered.length) {
-          handleSelect(visibleFiltered[highlightedIndex].value);
+        if (open && effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length) {
+          handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
         } else if (!open) {
           updateListPosition();
           setOpen(true);
@@ -348,6 +359,12 @@ const Dropdown = ({
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   onKeyDown={(e) => {
+                    const canSelectHighlighted = effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length;
+                    if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
+                      e.preventDefault();
+                      handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
+                      return;
+                    }
                     if (e.key === 'Enter' && onSearchCommit) {
                       e.preventDefault();
                       onSearchCommit(searchText);
@@ -398,7 +415,7 @@ const Dropdown = ({
                     </div>
                     {group.items.map(({ option, flatIndex }) => {
                       const isSelected = option.value === value;
-                      const isHighlighted = flatIndex === highlightedIndex;
+                      const isHighlighted = flatIndex === effectiveHighlightedIndex;
                       return (
                         <div
                           key={option.value}
@@ -428,7 +445,7 @@ const Dropdown = ({
               ) : (
                 visibleFiltered.map((option, i) => {
                   const isSelected = option.value === value;
-                  const isHighlighted = i === highlightedIndex;
+                  const isHighlighted = i === effectiveHighlightedIndex;
                   return (
                     <li
                       key={option.value}
