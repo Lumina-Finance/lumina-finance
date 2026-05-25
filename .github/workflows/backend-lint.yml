@@ -1,6 +1,7 @@
 name: Backend lint
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "backend/**/*.py"

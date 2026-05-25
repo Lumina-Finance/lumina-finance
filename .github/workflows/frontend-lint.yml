@@ -1,6 +1,7 @@
 name: Frontend lint
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "frontend/src/**"
