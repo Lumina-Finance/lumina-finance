@@ -60,7 +60,10 @@ async def test_dashboard_spending_breakdown_uses_viewer_timezone_at_utc_boundary
     resp = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["expense"][0]["amount"] == 4100
+    data = resp.json()
+    assert data["expense"][0]["amount"] == 4100
+    assert data["expense_total"] == 4100
+    assert data["income_total"] == 0
 
 
 async def test_dashboard_spending_breakdown_counts_category_crossovers_by_sign(client, monkeypatch):
@@ -115,6 +118,8 @@ async def test_dashboard_spending_breakdown_counts_category_crossovers_by_sign(c
             "amount": 20_000,
         },
     ]
+    assert data["expense_total"] == 120_000
+    assert data["income_total"] == 240_000
 
 
 async def test_dashboard_spending_breakdown_uses_other_for_tiny_slices(client, monkeypatch):
@@ -157,6 +162,8 @@ async def test_dashboard_spending_breakdown_uses_other_for_tiny_slices(client, m
     assert data["expense"][-1]["name"] == "Other"
     assert data["expense"][-1]["category_kind"] == "expense"
     assert data["expense"][-1]["amount"] == 10_000
+    assert data["expense_total"] == 280_000
+    assert data["income_total"] == 0
 
 
 async def test_dashboard_spending_breakdown_keeps_hidden_flipped_categories_out_of_other(client, monkeypatch):
@@ -253,6 +260,8 @@ async def test_dashboard_spending_breakdown_keeps_hidden_flipped_categories_out_
     }
     assert data["income"][-1]["category_kind"] == "income"
     assert data["income"][-1]["amount"] == 1_000
+    assert data["expense_total"] == 391_000
+    assert data["income_total"] == 391_000
 
 
 async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):

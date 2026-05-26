@@ -551,7 +551,13 @@ async def get_spending_breakdown(
     """
     start, end = _current_period_bounds(range_, now.date())
     if not base_currency_account_ids:
-        return SpendingBreakdownResponse(range=range_, expense=[], income=[])
+        return SpendingBreakdownResponse(
+            range=range_,
+            expense=[],
+            income=[],
+            expense_total=0,
+            income_total=0,
+        )
 
     result = await db.execute(
         select(
@@ -593,10 +599,14 @@ async def get_spending_breakdown(
 
     expense.sort(key=lambda e: (-e.amount, e.name))
     income.sort(key=lambda e: (-e.amount, e.name))
+    expense_refunds = sum(entry.amount for entry in income if entry.category_kind == CategoryKind.EXPENSE)
+    income_losses = sum(entry.amount for entry in expense if entry.category_kind == CategoryKind.INCOME)
     return SpendingBreakdownResponse(
         range=range_,
         expense=_dashboard_breakdown_entries(expense, CategoryKind.EXPENSE),
         income=_dashboard_breakdown_entries(income, CategoryKind.INCOME),
+        expense_total=max(sum(entry.amount for entry in expense) - expense_refunds, 0),
+        income_total=max(sum(entry.amount for entry in income) - income_losses, 0),
     )
 
 
