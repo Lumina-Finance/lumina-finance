@@ -53,6 +53,10 @@ function getBreakdownCategoryColorId(
     : entry.category_id
 }
 
+function getEntryTotal(entries: CategoryBreakdownEntry[]) {
+  return entries.reduce((sum, entry) => sum + entry.amount, 0)
+}
+
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
   const shouldReduceMotion = useReducedMotion()
   const {
@@ -67,7 +71,12 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
     if (!spendingBreakdown) return []
     return breakdownMode === 'spending' ? spendingBreakdown.expense : spendingBreakdown.income
   }, [spendingBreakdown, breakdownMode])
-  const breakdownTotal = breakdownEntries.reduce((sum, entry) => sum + entry.amount, 0)
+  const fallbackBreakdownTotal = getEntryTotal(breakdownEntries)
+  const breakdownTotal = spendingBreakdown
+    ? breakdownMode === 'spending'
+      ? spendingBreakdown.expense_total
+      : spendingBreakdown.income_total
+    : fallbackBreakdownTotal
   const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
   const breakdownLoadingText = formatDashboardMoney(88888800, displayCurrency, 'breakdown')
   const breakdownCategoryKind = breakdownMode === 'spending' ? 'expense' : 'income'
