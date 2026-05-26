@@ -47,11 +47,9 @@ export const transactionKeys = {
   ] as const,
 };
 
-const TRANSACTION_OVERVIEW_VERSION = 'category-net-v2';
-
 export const transactionOverviewKeys = {
   all: ['transactions-overview'] as const,
-  detail: (filters: Record<string, unknown>) => ['transactions-overview', TRANSACTION_OVERVIEW_VERSION, filters] as const,
+  detail: (filters: Record<string, unknown>) => ['transactions-overview', filters] as const,
 };
 
 export const taxAdvantagedPlanKeys = {
@@ -61,15 +59,11 @@ export const taxAdvantagedPlanKeys = {
   limits: (planId: string | undefined) => ['tax-advantaged-plans', planId, 'limits'] as const,
 };
 
-const DASHBOARD_SAVINGS_RATE_VERSION = 'category-net-v2';
-const INSIGHTS_PERIOD_GLANCE_VERSION = 'category-change-v3';
-const INSIGHTS_SAVINGS_RATE_TREND_VERSION = 'category-net-v2';
-
 export const dashboardKeys = {
   credit: () => ['dashboard-credit'] as const,
   netWorth: (windowDays: number) => ['dashboard-net-worth', windowDays] as const,
   netWorthAll: ['dashboard-net-worth'] as const,
-  savingsRate: () => ['dashboard-savings-rate', DASHBOARD_SAVINGS_RATE_VERSION] as const,
+  savingsRate: () => ['dashboard-savings-rate'] as const,
   savingsRateAll: ['dashboard-savings-rate'] as const,
   recentActivity: (windowDays: number) => ['dashboard-recent-activity', windowDays] as const,
   recentActivityAll: ['dashboard-recent-activity'] as const,
@@ -80,12 +74,12 @@ export const dashboardKeys = {
 };
 
 export const insightsKeys = {
-  periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', INSIGHTS_PERIOD_GLANCE_VERSION, fromDate, toDate] as const,
+  periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', fromDate, toDate] as const,
   fundFlow: (fromDate: string, toDate: string) => ['insights-fund-flow', fromDate, toDate] as const,
   incomeExpenseBreakdown: (fromDate: string, toDate: string) => ['insights-income-expense-breakdown', fromDate, toDate] as const,
   cashFlow: (fromDate: string, toDate: string) => ['insights-cash-flow', fromDate, toDate] as const,
-  netWorth: (fromDate: string, toDate: string) => ['insights-net-worth', 'groups-v1', fromDate, toDate] as const,
-  savingsRateTrend: () => ['insights-savings-rate-trend', INSIGHTS_SAVINGS_RATE_TREND_VERSION] as const,
+  netWorth: (fromDate: string, toDate: string) => ['insights-net-worth', fromDate, toDate] as const,
+  savingsRateTrend: () => ['insights-savings-rate-trend'] as const,
   merchantDistribution: (fromDate: string, toDate: string) => ['insights-merchant-distribution', fromDate, toDate] as const,
   merchantRanking: (fromDate: string, toDate: string) => ['insights-merchant-ranking', fromDate, toDate] as const,
 };
