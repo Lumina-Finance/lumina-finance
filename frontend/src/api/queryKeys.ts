@@ -60,6 +60,7 @@ export const taxAdvantagedPlanKeys = {
 };
 
 const DASHBOARD_SAVINGS_RATE_VERSION = 'category-net-v2';
+const INSIGHTS_SAVINGS_RATE_TREND_VERSION = 'category-net-v2';
 
 export const dashboardKeys = {
   credit: () => ['dashboard-credit'] as const,
@@ -81,7 +82,7 @@ export const insightsKeys = {
   incomeExpenseBreakdown: (fromDate: string, toDate: string) => ['insights-income-expense-breakdown', fromDate, toDate] as const,
   cashFlow: (fromDate: string, toDate: string) => ['insights-cash-flow', fromDate, toDate] as const,
   netWorth: (fromDate: string, toDate: string) => ['insights-net-worth', 'groups-v1', fromDate, toDate] as const,
-  savingsRateTrend: () => ['insights-savings-rate-trend'] as const,
+  savingsRateTrend: () => ['insights-savings-rate-trend', INSIGHTS_SAVINGS_RATE_TREND_VERSION] as const,
   merchantDistribution: (fromDate: string, toDate: string) => ['insights-merchant-distribution', fromDate, toDate] as const,
   merchantRanking: (fromDate: string, toDate: string) => ['insights-merchant-ranking', fromDate, toDate] as const,
 };
