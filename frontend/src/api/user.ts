@@ -148,7 +148,7 @@ interface RunwayResultResponse {
 }
 
 // Mirrors backend RunwayResponse. `months` is null when `reason` is set —
-// either the user hasn't chosen accounts or there's not enough expense data.
+// either the user hasn't chosen accounts or there's not enough net expense data.
 export interface RunwayResult {
   months: number | null;
   reason: 'no_accounts' | 'insufficient_history' | null;

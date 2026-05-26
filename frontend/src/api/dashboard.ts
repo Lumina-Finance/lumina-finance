@@ -49,6 +49,8 @@ export interface SpendingBreakdownResponse {
   range: SpendingRange;
   expense: CategoryBreakdownEntry[];
   income: CategoryBreakdownEntry[];
+  expense_total: number;
+  income_total: number;
 }
 
 export interface SpendingComparisonResponse {

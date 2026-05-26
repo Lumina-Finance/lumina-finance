@@ -41,7 +41,7 @@ export default function MostExpensiveTransactionsPanel({
           placement="bottom"
           widthClassName="w-64"
         >
-          Shows the three largest expense transactions in the selected period
+          Shows the three largest net expense-side transaction contributors in the selected period
         </IconTooltip>
       </p>
       <div className="mt-2 flex flex-col gap-2.5">

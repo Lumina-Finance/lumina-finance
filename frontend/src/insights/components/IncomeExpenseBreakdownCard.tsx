@@ -48,6 +48,7 @@ type IncomeExpenseBreakdownCardProps = {
   mode: BreakdownMode
   onModeToggle: () => void
   entries: BreakdownEntry[]
+  total: number
   trendSections: CategoryTrendSection[]
   displayCurrency: string
   animationKey: string
@@ -58,6 +59,7 @@ type IncomeExpenseBreakdownCardProps = {
 type IncomeExpenseBreakdownSnapshot = {
   mode: BreakdownMode
   entries: BreakdownEntry[]
+  total: number
   trendSections: CategoryTrendSection[]
   displayCurrency: string
   animationKey: string
@@ -150,6 +152,7 @@ export function IncomeExpenseBreakdownCard({
   mode,
   onModeToggle,
   entries,
+  total,
   trendSections,
   displayCurrency,
   animationKey,
@@ -159,10 +162,11 @@ export function IncomeExpenseBreakdownCard({
   const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
     mode,
     entries,
+    total,
     trendSections,
     displayCurrency,
     animationKey,
-  }), [animationKey, displayCurrency, entries, mode, trendSections])
+  }), [animationKey, displayCurrency, entries, mode, total, trendSections])
   const {
     displaySnapshot,
     contentConcealed,
@@ -173,7 +177,7 @@ export function IncomeExpenseBreakdownCard({
     loading,
     transitionKey,
   })
-  const total = getTotal(displaySnapshot.entries)
+  const sliceTotal = getTotal(displaySnapshot.entries)
   const breakdownColors = useMemo(() => getCategoryColorMap(displaySnapshot.entries.map((entry) => ({
     id: entry.id,
     name: entry.name,
@@ -222,7 +226,7 @@ export function IncomeExpenseBreakdownCard({
                     Total {displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'}
                   </span>
                   <span className="font-financial text-3xl leading-none tracking-tight">
-                    {formatCurrency(total, displaySnapshot.displayCurrency)}
+                    {formatCurrency(displaySnapshot.total, displaySnapshot.displayCurrency)}
                   </span>
                 </div>
                 <ResponsiveContainer width="100%" height="100%">
@@ -297,7 +301,7 @@ export function IncomeExpenseBreakdownCard({
                           {renderCrossoverBadge(entry, displaySnapshot.mode)}
                         </span>
                         <span className="font-financial">
-                          {getPct(entry.amount, total)}%
+                          {getPct(entry.amount, sliceTotal)}%
                         </span>
                       </motion.div>
                     ))}

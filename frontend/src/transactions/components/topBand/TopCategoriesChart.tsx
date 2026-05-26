@@ -83,7 +83,7 @@ export default function TopCategoriesChart({
           placement="bottom"
           widthClassName="w-64"
         >
-          The top 5 categories as ranked by total amount spent in the selected period. The progress bar is relative to the highest-spend category, not an absolute scale.
+          The top 5 categories ranked by net expense-side total in the selected period. The progress bar is relative to the highest-spend category, not an absolute scale.
         </IconTooltip>
       </p>
       <div className="mt-2">

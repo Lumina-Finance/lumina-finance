@@ -30,11 +30,15 @@ class SpendingBreakdownResponse(BaseModel):
     period (WTD / MTD / QTD / YTD) — the boundaries match the spending
     comparison endpoint's current-period slots. Entries are sorted largest-
     first and compacted with an Other slice for the dashboard widget.
+    ``expense_total`` and ``income_total`` are authoritative center totals
+    after flipped refund/loss categories are netted against their original side.
     """
 
     range: RangeKind
     expense: list[CategoryBreakdownEntry]
     income: list[CategoryBreakdownEntry]
+    expense_total: int
+    income_total: int
 
 
 class SpendingComparisonResponse(BaseModel):

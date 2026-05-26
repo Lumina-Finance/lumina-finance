@@ -25,7 +25,7 @@ function getRunwayCaption(
   if (!runway) return ''
 
   if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
-  if (runway.reason === 'insufficient_history') return 'Need 1+ month of expense data'
+  if (runway.reason === 'insufficient_history') return 'Need 1+ month of net expense data'
 
   return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth \u00B7 ${formatRunwayBasis(runway.months_covered)}`
 }
@@ -64,7 +64,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
           widthClassName="w-64"
         >
           <span className="block">
-            Runway estimates how long selected asset accounts can cover spending, using completed months with recorded expenses.
+            Runway estimates how long selected asset accounts can cover net expenses, using completed months with recorded expenses.
           </span>
           <Link
             to="/settings#runway"

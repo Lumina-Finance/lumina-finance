@@ -60,7 +60,10 @@ async def test_dashboard_spending_breakdown_uses_viewer_timezone_at_utc_boundary
     resp = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["expense"][0]["amount"] == 4100
+    data = resp.json()
+    assert data["expense"][0]["amount"] == 4100
+    assert data["expense_total"] == 4100
+    assert data["income_total"] == 0
 
 
 async def test_dashboard_spending_breakdown_counts_category_crossovers_by_sign(client, monkeypatch):
@@ -115,6 +118,8 @@ async def test_dashboard_spending_breakdown_counts_category_crossovers_by_sign(c
             "amount": 20_000,
         },
     ]
+    assert data["expense_total"] == 120_000
+    assert data["income_total"] == 240_000
 
 
 async def test_dashboard_spending_breakdown_uses_other_for_tiny_slices(client, monkeypatch):
@@ -157,6 +162,8 @@ async def test_dashboard_spending_breakdown_uses_other_for_tiny_slices(client, m
     assert data["expense"][-1]["name"] == "Other"
     assert data["expense"][-1]["category_kind"] == "expense"
     assert data["expense"][-1]["amount"] == 10_000
+    assert data["expense_total"] == 280_000
+    assert data["income_total"] == 0
 
 
 async def test_dashboard_spending_breakdown_keeps_hidden_flipped_categories_out_of_other(client, monkeypatch):
@@ -253,6 +260,8 @@ async def test_dashboard_spending_breakdown_keeps_hidden_flipped_categories_out_
     }
     assert data["income"][-1]["category_kind"] == "income"
     assert data["income"][-1]["amount"] == 1_000
+    assert data["expense_total"] == 391_000
+    assert data["income_total"] == 391_000
 
 
 async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):
@@ -280,6 +289,42 @@ async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):
         "month": "2026-03-01",
         "income": 500_000,
         "expenses": 200_000,
+    }
+
+
+async def test_dashboard_savings_rate_routes_flipped_categories_by_monthly_net(client, monkeypatch):
+    """Savings rate nets each monthly category before assigning income or expense."""
+    from app.routes import dashboard as dashboard_routes
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 4, 20, 16, 0, tzinfo=UTC)))
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers, name="Main Cash")).json()["id"]
+    salary_id = (await _create_category(client, headers, name="Test Salary", kind="income")).json()["id"]
+    capital_loss_id = (await _create_category(client, headers, name="Test Capital Gains", kind="income")).json()["id"]
+    groceries_id = (await _create_category(client, headers, name="Test Groceries Net", kind="expense")).json()["id"]
+    over_refund_id = (await _create_category(client, headers, name="Test Over-refunded", kind="expense")).json()["id"]
+    transfer_id = (await _create_category(client, headers, name="Test Transfer", kind="transfer")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, salary_id, dt="2026-04-02", amount=360_000)
+    await _create_transaction(client, headers, account_id, salary_id, dt="2026-04-03", amount=-60_000)
+    await _create_transaction(client, headers, account_id, capital_loss_id, dt="2026-04-04", amount=20_000)
+    await _create_transaction(client, headers, account_id, capital_loss_id, dt="2026-04-05", amount=-100_000)
+    await _create_transaction(client, headers, account_id, groceries_id, dt="2026-04-06", amount=-100_000)
+    await _create_transaction(client, headers, account_id, groceries_id, dt="2026-04-07", amount=40_000)
+    await _create_transaction(client, headers, account_id, over_refund_id, dt="2026-04-08", amount=-30_000)
+    await _create_transaction(client, headers, account_id, over_refund_id, dt="2026-04-09", amount=50_000)
+    await _create_transaction(client, headers, account_id, transfer_id, dt="2026-04-10", amount=999_999)
+    await _create_transaction(client, headers, account_id, transfer_id, dt="2026-04-11", amount=-999_999)
+
+    resp = await client.get("/dashboard/savings-rate", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["savings_rate_history"][-1] == {
+        "month": "2026-04-01",
+        "income": 320_000,
+        "expenses": 140_000,
     }
 
 

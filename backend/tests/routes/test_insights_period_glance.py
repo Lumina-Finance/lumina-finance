@@ -225,8 +225,8 @@ async def test_period_glance_nets_expense_refunds(client):
     assert data["top_category_share_pct"] == 100
 
 
-async def test_period_glance_nets_refunds_for_savings_rate_but_not_category_share(client):
-    """Expense refunds affect the total expense figure without distorting top-category share."""
+async def test_period_glance_routes_flipped_categories_to_opposite_side(client):
+    """Refunds and income losses are netted per category, then routed by sign."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -258,17 +258,17 @@ async def test_period_glance_nets_refunds_for_savings_rate_but_not_category_shar
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["income"] == 195_000
-    assert data["expenses"] == 40_000
+    assert data["income"] == 220_000
+    assert data["expenses"] == 65_000
     assert data["top_category_name"] == "Groceries"
-    assert data["top_category_share_pct"] == 100
+    assert data["top_category_share_pct"] == 92
     assert data["biggest_change_name"] == "Groceries"
     assert data["biggest_change_amount"] == 60_000
     assert "biggest_change_pct" not in data
 
 
-async def test_period_glance_keeps_negative_capital_gains_in_income(client):
-    """Negative income-kind totals reduce income instead of becoming expenses."""
+async def test_period_glance_counts_net_negative_income_categories_as_expenses(client):
+    """Income-kind categories become expenses when their period net is negative."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -293,13 +293,73 @@ async def test_period_glance_keeps_negative_capital_gains_in_income(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["income"] == 220_000
+    assert data["income"] == 300_000
+    assert data["expenses"] == 80_000
+    assert data["top_category_name"] == "Capital Gains"
+    assert data["top_category_share_pct"] == 100
+    assert data["biggest_change_name"] == "Capital Gains"
+    assert data["biggest_change_amount"] == -80_000
+    assert "biggest_change_pct" not in data
+
+
+async def test_period_glance_excludes_resolved_income_loss(client):
+    """An income-kind category moving from loss to zero is not a current-period change driver."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Investment Cash")).json()["id"])
+    capital_gains_id, capital_gains = _category(user_id, "Capital Gains", CategoryKind.INCOME)
+
+    async with TestSession() as session:
+        session.add_all([
+            capital_gains,
+            _transaction(user_id, account_id, capital_gains_id, date(2026, 1, 4), -466_541),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-01-08", "to_date": "2026-01-14"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income"] == 0
     assert data["expenses"] == 0
-    assert "top_category_name" not in data
-    assert "top_category_share_pct" not in data
     assert "biggest_change_name" not in data
     assert "biggest_change_amount" not in data
     assert "biggest_change_pct" not in data
+
+
+async def test_period_glance_reports_vanished_over_refund_as_negative_change(client):
+    """An expense-kind category moving from over-refund to zero is negative movement."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    shopping_id, shopping = _category(user_id, "Shopping", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            shopping,
+            _transaction(user_id, account_id, shopping_id, date(2026, 2, 4), 25_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-02-08", "to_date": "2026-02-14"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income"] == 0
+    assert data["expenses"] == 0
+    assert data["biggest_change_name"] == "Shopping"
+    assert data["biggest_change_amount"] == -25_000
+    assert data["biggest_change_pct"] == -100
 
 
 async def test_period_glance_uses_stable_tie_breakers(client):

@@ -91,7 +91,7 @@ class RunwayResponse(BaseModel):
     """Runway projection in months.
 
     How many months the user's selected visible liquid balance covers at their
-    trailing 12-month average monthly expense across readable non-hidden accounts.
+    trailing 12-month average monthly net expense across readable non-hidden accounts.
     """
 
     months: float | None

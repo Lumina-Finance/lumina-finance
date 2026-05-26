@@ -57,7 +57,7 @@ async def get_savings_rate_trend(
     user: User,
     now: datetime,
 ) -> InsightsSavingsRateTrendResponse:
-    """Return latest available monthly income and expense totals for savings-rate trend."""
+    """Return latest available sign-directed monthly totals for savings-rate trend."""
     accounts = await get_base_currency_accounts(db, user)
     account_ids = [account.id for account in accounts]
     if not account_ids:
@@ -72,11 +72,11 @@ async def get_savings_rate_trend(
     earliest_visible_month = _add_months(current_month, -(SAVINGS_RATE_TREND_MONTHS - 1))
     start_month = max(first_activity_month, earliest_visible_month)
     months = _build_months(start_month, current_month)
-    totals: dict[date, dict[CategoryKind, int]] = {month: {} for month in months}
+    totals = {month: {"income": 0, "expenses": 0} for month in months}
 
     month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
     result = await db.execute(
-        select(month_start_expr, Category.kind, func.sum(Transaction.amount).label("total"))
+        select(month_start_expr, func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(account_ids),
@@ -84,19 +84,23 @@ async def get_savings_rate_trend(
             Transaction.dt >= start_month,
             Transaction.dt < window_end,
         )
-        .group_by(month_start_expr, Category.kind),
+        .group_by(month_start_expr, Category.id),
     )
 
     for row in result:
         month = row.month_start.date() if hasattr(row.month_start, "date") else row.month_start
-        totals[month][row.kind] = int(row.total or 0)
+        total = int(row.total or 0)
+        if total > 0:
+            totals[month]["income"] += total
+        elif total < 0:
+            totals[month]["expenses"] += -total
 
     return InsightsSavingsRateTrendResponse(
         points=[
             (
                 month,
-                totals[month].get(CategoryKind.INCOME, 0),
-                max(-totals[month].get(CategoryKind.EXPENSE, 0), 0),
+                totals[month]["income"],
+                totals[month]["expenses"],
             )
             for month in months
         ],

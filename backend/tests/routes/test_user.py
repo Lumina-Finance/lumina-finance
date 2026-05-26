@@ -671,6 +671,111 @@ async def test_get_runway_excludes_current_partial_month_from_average(client, mo
     assert data["thresholds"] == thresholds
 
 
+async def test_get_runway_handles_refunds_and_excludes_income_losses_and_transfers(client, monkeypatch):
+    """Runway uses net expense category totals and excludes income/transfers."""
+    from app.routes import user as user_routes
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    async with TestSession() as session:
+        expense_category = Category(owner_id=user_id, name="Groceries", kind=CategoryKind.EXPENSE)
+        over_refunded_category = Category(owner_id=user_id, name="Shopping", kind=CategoryKind.EXPENSE)
+        income_category = Category(owner_id=user_id, name="Capital Gains", kind=CategoryKind.INCOME)
+        transfer_category = Category(owner_id=user_id, name="Transfer", kind=CategoryKind.TRANSFER)
+        session.add_all([expense_category, over_refunded_category, income_category, transfer_category])
+        await session.flush()
+        session.add_all([
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=expense_category.id,
+                dt=date(2026, 3, 1),
+                amount=-12_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=income_category.id,
+                dt=date(2026, 3, 2),
+                amount=-6_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=expense_category.id,
+                dt=date(2026, 3, 3),
+                amount=4_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=income_category.id,
+                dt=date(2026, 3, 3),
+                amount=1_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=over_refunded_category.id,
+                dt=date(2026, 3, 3),
+                amount=-5_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=over_refunded_category.id,
+                dt=date(2026, 3, 3),
+                amount=7_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=transfer_category.id,
+                dt=date(2026, 3, 4),
+                amount=-99_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=account_id,
+                category_id=expense_category.id,
+                dt=date(2026, 4, 1),
+                amount=-48_000,
+                currency="CAD",
+            ),
+        ])
+        session.add(AccountBalanceSnapshot(account_id=account_id, dt=date(2026, 4, 15), balance=180_000))
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["months_covered"] == 1
+    # Groceries net to $80.00. Capital Gains, transfers, over-refunded Shopping,
+    # and the current partial month are excluded.
+    assert data["avg_monthly_expense"] == 8_000
+    assert data["reason"] is None
+
+
 async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypatch):
     """A Toronto viewer still treats Jan 1 01:00 UTC as Dec 31 for runway history."""
     from app.routes import user as user_routes

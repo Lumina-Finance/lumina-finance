@@ -702,34 +702,45 @@ async def test_transactions_overview_explicit_hidden_account_is_allowed(client):
     assert data["total_outflow"] == -30_000
 
 
-async def test_transactions_overview_top_categories_only_include_expense_categories(client):
-    """Top categories exclude negative income and transfer rows."""
+async def test_transactions_overview_top_categories_use_net_expense_side_categories(client):
+    """Top categories net refunds and include net-negative income categories."""
     headers, account_id, expense_category_id = await _setup_user_with_deps(client)
     transfer_category_id = (await _create_category(client, headers, name="Main Transfer", kind="transfer")).json()["id"]
     income_category_id = (await _create_category(client, headers, name="Main Income", kind="income")).json()["id"]
+    over_refund_category_id = (await _create_category(client, headers, name="Over Refund", kind="expense")).json()["id"]
 
     await _create_transaction(client, headers, account_id, transfer_category_id, amount=-20_000)
     await _create_transaction(client, headers, account_id, income_category_id, amount=-15_000)
     await _create_transaction(client, headers, account_id, expense_category_id, amount=-4_000)
     await _create_transaction(client, headers, account_id, expense_category_id, amount=-3_000)
+    await _create_transaction(client, headers, account_id, expense_category_id, amount=2_000)
+    await _create_transaction(client, headers, account_id, over_refund_category_id, amount=-1_000)
+    await _create_transaction(client, headers, account_id, over_refund_category_id, amount=1_500)
 
     resp = await client.get("/transactions/overview", headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()
     assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
-        (expense_category_id, -7_000),
+        (income_category_id, -15_000),
+        (expense_category_id, -5_000),
     ]
 
 
-async def test_transactions_overview_outliers_only_include_expense_categories(client):
-    """Most expensive transactions exclude negative income and transfer rows."""
+async def test_transactions_overview_outliers_include_income_loss_transactions(client):
+    """Most expensive transactions include income losses but exclude transfers."""
     headers, account_id, expense_category_id = await _setup_user_with_deps(client)
     transfer_category_id = (await _create_category(client, headers, name="Main Transfer", kind="transfer")).json()["id"]
     income_category_id = (await _create_category(client, headers, name="Main Income", kind="income")).json()["id"]
+    refunded_category_id = (await _create_category(client, headers, name="Refunded Expense", kind="expense")).json()["id"]
+    over_refund_category_id = (await _create_category(client, headers, name="Over-refunded Expense", kind="expense")).json()["id"]
 
     await _create_transaction(client, headers, account_id, transfer_category_id, amount=-20_000)
     await _create_transaction(client, headers, account_id, income_category_id, amount=-15_000)
+    await _create_transaction(client, headers, account_id, refunded_category_id, amount=-10_000)
+    await _create_transaction(client, headers, account_id, refunded_category_id, amount=4_000)
+    await _create_transaction(client, headers, account_id, over_refund_category_id, amount=-9_000)
+    await _create_transaction(client, headers, account_id, over_refund_category_id, amount=9_500)
     await _create_transaction(client, headers, account_id, expense_category_id, amount=-4_000)
     await _create_transaction(client, headers, account_id, expense_category_id, amount=-3_000)
 
@@ -737,7 +748,7 @@ async def test_transactions_overview_outliers_only_include_expense_categories(cl
 
     assert resp.status_code == 200
     data = resp.json()
-    assert [row["amount"] for row in data["outliers"]] == [-4_000, -3_000]
+    assert [row["amount"] for row in data["outliers"]] == [-15_000, -6_000, -4_000]
 
 
 # --- Sorting ---

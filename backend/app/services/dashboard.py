@@ -264,8 +264,9 @@ async def get_savings_rate_history(
     The series covers ``DASHBOARD_SAVINGS_HISTORY_MONTHS`` calendar months
     ending with the current (in-progress) month, ordered oldest-first. Months
     with no activity are emitted as zeros so every chart slot has a value.
-    Expenses are stored as negative amounts; the returned ``expenses`` field
-    is the absolute value so the frontend can compute the rate directly.
+    Income/expense categories are netted per category within each month, then
+    positive category totals count as income and negative category totals count
+    as expenses. Transfers are excluded.
     """
     months_count = DASHBOARD_SAVINGS_HISTORY_MONTHS
     first_month = _months_before(now, months_count - 1)
@@ -287,7 +288,7 @@ async def get_savings_rate_history(
 
     month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
     result = await db.execute(
-        select(month_start_expr, Category.kind, func.sum(Transaction.amount).label("total"))
+        select(month_start_expr, Category.id.label("category_id"), func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(base_currency_account_ids),
@@ -295,22 +296,24 @@ async def get_savings_rate_history(
             Transaction.dt >= first_month,
             Transaction.dt < window_end,
         )
-        .group_by(month_start_expr, Category.kind),
+        .group_by(month_start_expr, Category.id),
     )
 
-    # Collect row totals keyed by first-of-month, keeping income and expense
-    # buckets separate so we can emit one MonthlyIncomeExpense per month below.
-    totals: dict[date, dict[CategoryKind, int]] = {m: {} for m in months}
+    totals = {m: {"income": 0, "expenses": 0} for m in months}
     for row in result:
         # date_trunc returns a timestamp; coerce to a plain date for the key.
         key = row.month_start.date() if hasattr(row.month_start, "date") else row.month_start
-        totals[key][row.kind] = int(row.total)
+        total = int(row.total or 0)
+        if total > 0:
+            totals[key]["income"] += total
+        elif total < 0:
+            totals[key]["expenses"] += -total
 
     return [
         MonthlyIncomeExpense(
             month=m,
-            income=totals[m].get(CategoryKind.INCOME, 0),
-            expenses=abs(totals[m].get(CategoryKind.EXPENSE, 0)),
+            income=totals[m]["income"],
+            expenses=totals[m]["expenses"],
         )
         for m in months
     ]
@@ -551,7 +554,13 @@ async def get_spending_breakdown(
     """
     start, end = _current_period_bounds(range_, now.date())
     if not base_currency_account_ids:
-        return SpendingBreakdownResponse(range=range_, expense=[], income=[])
+        return SpendingBreakdownResponse(
+            range=range_,
+            expense=[],
+            income=[],
+            expense_total=0,
+            income_total=0,
+        )
 
     result = await db.execute(
         select(
@@ -593,10 +602,14 @@ async def get_spending_breakdown(
 
     expense.sort(key=lambda e: (-e.amount, e.name))
     income.sort(key=lambda e: (-e.amount, e.name))
+    expense_refunds = sum(entry.amount for entry in income if entry.category_kind == CategoryKind.EXPENSE)
+    income_losses = sum(entry.amount for entry in expense if entry.category_kind == CategoryKind.INCOME)
     return SpendingBreakdownResponse(
         range=range_,
         expense=_dashboard_breakdown_entries(expense, CategoryKind.EXPENSE),
         income=_dashboard_breakdown_entries(income, CategoryKind.INCOME),
+        expense_total=max(sum(entry.amount for entry in expense) - expense_refunds, 0),
+        income_total=max(sum(entry.amount for entry in income) - income_losses, 0),
     )
 
 

@@ -55,10 +55,10 @@ export default function RunwaySection({
         description={
           <>
             <p>
-              Pick which accounts should count toward calculating your runway — how long the total balance in the selected accounts will last if your average monthly spend doesn't change. The average uses up to the last 12 completed months with recorded expenses; the current partial month and months with no expense data are excluded. Only open asset accounts are eligible; liabilities like credit cards or loans can't be counted.
+              Pick which accounts should count toward calculating your runway — how long the total balance in the selected accounts will last if your average monthly net expenses don't change. The average uses up to the last 12 completed months with recorded expenses; the current partial month and months with no net expense data are excluded. Only open asset accounts are eligible; liabilities like credit cards or loans can't be counted.
             </p>
             <p>
-              For example, if your selected accounts hold $30,000 and you've averaged $5,000 a month in spending, that's a 6-month runway.
+              For example, if your selected accounts hold $30,000 and you've averaged $5,000 a month in net expenses, that's a 6-month runway.
             </p>
           </>
         }

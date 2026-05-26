@@ -77,7 +77,7 @@ export function useAccountsMetrics(
       : runway.reason === 'no_accounts'
         ? 'Choose accounts in Settings'
         : runway.reason === 'insufficient_history'
-          ? 'Need 1+ month of expense data'
+          ? 'Need 1+ month of net expense data'
           : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth · ${formatRunwayBasis(runway.months_covered)}`
 
   const savingsRatePeriod = dashboardSavingsRate?.savings_rate_history.at(-1)

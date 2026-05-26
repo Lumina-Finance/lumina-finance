@@ -32,6 +32,8 @@ export type InsightsCategoryTrendEntry = [string, string, number, number, number
 export interface InsightsIncomeExpenseBreakdownResponse {
   expense: InsightsBreakdownEntry[];
   income: InsightsBreakdownEntry[];
+  expense_total: number;
+  income_total: number;
   expense_increases: InsightsCategoryTrendEntry[];
   expense_decreases: InsightsCategoryTrendEntry[];
   income_increases: InsightsCategoryTrendEntry[];

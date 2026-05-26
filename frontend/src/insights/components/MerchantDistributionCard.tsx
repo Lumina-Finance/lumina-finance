@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Store } from 'lucide-react'
+import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -378,7 +379,21 @@ export function MerchantDistributionCard({
 
   return (
     <div className="app-card flex h-[560px] flex-col min-[1300px]:h-full">
-      <SectionHeader icon={Store} label="Spending Distribution by Merchant" />
+      <SectionHeader
+        icon={Store}
+        label={(
+          <span className="inline-flex items-center gap-2">
+            Spending Distribution by Merchant
+            <IconTooltip
+              label="How merchant distribution is calculated"
+              placement="bottom"
+              widthClassName="w-64"
+            >
+              Shows merchant spending after refunds. Income losses are not included.
+            </IconTooltip>
+          </span>
+        )}
+      />
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <InsightLoadingContent
           className="flex min-h-0 flex-1 flex-col"

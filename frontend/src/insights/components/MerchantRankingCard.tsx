@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
+import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -66,7 +67,21 @@ export function MerchantRankingCard({
 
   return (
     <div className="app-card min-[1300px]:h-[560px]">
-      <SectionHeader icon={ListChecks} label="Merchant Ranking" />
+      <SectionHeader
+        icon={ListChecks}
+        label={(
+          <span className="inline-flex items-center gap-2">
+            Merchant Ranking
+            <IconTooltip
+              label="How merchant ranking is calculated"
+              placement="bottom"
+              widthClassName="w-64"
+            >
+              Ranks merchants by spending after refunds. Income losses are not included.
+            </IconTooltip>
+          </span>
+        )}
+      />
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.merchants.length > 0 ? (
