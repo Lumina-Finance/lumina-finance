@@ -14,6 +14,8 @@ from app.models.user import User
 from app.schemas.insights import InsightsPeriodGlanceResponse
 from app.services.insights.common import get_base_currency_accounts, previous_period_bounds
 
+CategoryNetTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
+
 
 async def _query_period_totals(
     db: AsyncSession,
@@ -77,6 +79,38 @@ async def _query_expense_category_totals(
     return totals
 
 
+async def _query_category_net_totals(
+    db: AsyncSession,
+    account_ids: list[uuid.UUID],
+    from_date: date,
+    to_date: date,
+) -> CategoryNetTotals:
+    """Return signed category totals keyed by category id for an inclusive period."""
+    result = await db.execute(
+        select(
+            Category.id,
+            Category.name,
+            Category.kind,
+            func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.account_id.in_(account_ids),
+            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
+            Transaction.dt >= from_date,
+            Transaction.dt <= to_date,
+        )
+        .group_by(Category.id, Category.name, Category.kind),
+    )
+
+    totals: CategoryNetTotals = {}
+    for row in result:
+        amount = int(row.total or 0)
+        if amount:
+            totals[row.id] = (row.name, row.kind, amount)
+    return totals
+
+
 def _top_category(
     current_totals: dict[uuid.UUID, tuple[str, int]],
 ) -> tuple[str, int | None] | None:
@@ -89,26 +123,72 @@ def _top_category(
 
 
 def _biggest_category_change(
-    current_totals: dict[uuid.UUID, tuple[str, int]],
-    previous_totals: dict[uuid.UUID, tuple[str, int]],
+    current_totals: CategoryNetTotals,
+    previous_totals: CategoryNetTotals,
 ) -> tuple[str, int, int | None] | None:
-    """Return the expense category with the largest absolute dollar change."""
-    category_ids = set(current_totals) | set(previous_totals)
+    """Return the tracked category with the largest comparable dollar change."""
+    category_ids = [
+        category_id
+        for category_id in set(current_totals) | set(previous_totals)
+        if _is_change_candidate(category_id, current_totals, previous_totals)
+    ]
     if not category_ids:
         return None
 
     def change_sort_key(candidate: uuid.UUID) -> tuple[int, str]:
-        current_name, current_amount = current_totals.get(candidate, ("", 0))
-        previous_name, previous_amount = previous_totals.get(candidate, ("", 0))
-        return -abs(current_amount - previous_amount), current_name or previous_name
+        name, kind = _category_identity(candidate, current_totals, previous_totals)
+        current_amount = current_totals.get(candidate, ("", kind, 0))[2]
+        previous_amount = previous_totals.get(candidate, ("", kind, 0))[2]
+        return -abs(_category_change_amount(kind, current_amount, previous_amount)), name
 
     category_id = sorted(category_ids, key=change_sort_key)[0]
-    name = current_totals.get(category_id, previous_totals.get(category_id, ("", 0)))[0]
-    current_amount = current_totals.get(category_id, ("", 0))[1]
-    previous_amount = previous_totals.get(category_id, ("", 0))[1]
-    change_amount = current_amount - previous_amount
-    change_pct = round((change_amount / previous_amount) * 100) if previous_amount > 0 else None
+    name, kind = _category_identity(category_id, current_totals, previous_totals)
+    current_amount = current_totals.get(category_id, ("", kind, 0))[2]
+    previous_amount = previous_totals.get(category_id, ("", kind, 0))[2]
+    change_amount = _category_change_amount(kind, current_amount, previous_amount)
+    previous_basis = _category_change_basis(kind, current_amount, previous_amount)
+    change_pct = round((change_amount / previous_basis) * 100) if previous_basis > 0 else None
     return name, change_amount, change_pct
+
+
+def _category_identity(
+    category_id: uuid.UUID,
+    current_totals: CategoryNetTotals,
+    previous_totals: CategoryNetTotals,
+) -> tuple[str, CategoryKind]:
+    name, kind, _amount = current_totals.get(
+        category_id,
+        previous_totals.get(category_id, ("", CategoryKind.EXPENSE, 0)),
+    )
+    return name, kind
+
+
+def _is_change_candidate(
+    category_id: uuid.UUID,
+    current_totals: CategoryNetTotals,
+    previous_totals: CategoryNetTotals,
+) -> bool:
+    _name, kind = _category_identity(category_id, current_totals, previous_totals)
+    current_amount = current_totals.get(category_id, ("", kind, 0))[2]
+    previous_amount = previous_totals.get(category_id, ("", kind, 0))[2]
+
+    if kind == CategoryKind.INCOME:
+        return current_amount < 0
+    return current_amount != 0 or previous_amount != 0
+
+
+def _category_change_amount(kind: CategoryKind, current_amount: int, previous_amount: int) -> int:
+    if kind == CategoryKind.EXPENSE and current_amount <= 0 and previous_amount <= 0:
+        return (-current_amount) - (-previous_amount)
+    return current_amount - previous_amount
+
+
+def _category_change_basis(kind: CategoryKind, current_amount: int, previous_amount: int) -> int:
+    if previous_amount == 0:
+        return 0
+    if kind == CategoryKind.EXPENSE and current_amount <= 0 and previous_amount <= 0:
+        return -previous_amount
+    return abs(previous_amount)
 
 
 async def _net_worth_at(
@@ -168,7 +248,13 @@ async def get_period_glance(
         from_date,
         to_date,
     )
-    previous_category_totals = await _query_expense_category_totals(
+    current_category_net_totals = await _query_category_net_totals(
+        db,
+        account_ids,
+        from_date,
+        to_date,
+    )
+    previous_category_net_totals = await _query_category_net_totals(
         db,
         account_ids,
         previous_from_date,
@@ -177,7 +263,7 @@ async def get_period_glance(
     start_net_worth = await _net_worth_at(db, base_currency_accounts, from_date)
     end_net_worth = await _net_worth_at(db, base_currency_accounts, to_date)
     top_category = _top_category(current_category_totals)
-    biggest_change = _biggest_category_change(current_category_totals, previous_category_totals)
+    biggest_change = _biggest_category_change(current_category_net_totals, previous_category_net_totals)
 
     return InsightsPeriodGlanceResponse(
         income=income,
