@@ -201,9 +201,9 @@ async def get_runway(
     """Compute the user's cash runway in months.
 
     Runway = (sum of current balance across selected runway accounts) divided
-    by the average monthly expense over the last 12 completed months. Transfer-category
-    transactions are excluded from the denominator so inter-account moves and
-    debt payments (which the app models as transfers) don't shorten runway.
+    by the average monthly net expense over the last 12 completed months.
+    Expense refunds reduce expenses, while income and transfer-category
+    transactions are excluded.
     """
     accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
     stored = await db.execute(
@@ -225,22 +225,34 @@ async def get_runway(
     today = datetime.now(ZoneInfo(user.tz)).date()
     window_end = date(today.year, today.month, 1)
     window_start = _add_months_anchored(window_end, -_RUNWAY_WINDOW_MONTHS)
-    expense_filter = (Transaction.amount < 0) & (Category.kind == CategoryKind.EXPENSE)
-    # COUNT(DISTINCT … FILTER …) only counts completed month buckets that
-    # actually contain expenses, so missing history is not treated as zero spend.
-    agg = (await db.execute(
+    month_bucket = sa.func.date_trunc("month", Transaction.dt).label("month")
+    category_month_totals = (
         select(
-            sa.func.count(sa.distinct(sa.func.date_trunc("month", Transaction.dt)))
-                .filter(expense_filter).label("months_covered"),
-            sa.func.coalesce(
-                sa.func.sum(sa.case((expense_filter, Transaction.amount), else_=0)), 0,
-            ).label("expense_outflow"),
+            month_bucket,
+            Category.id.label("category_id"),
+            sa.func.sum(Transaction.amount).label("total"),
         )
         .select_from(Transaction)
         .join(Category, Category.id == Transaction.category_id)
         .where(Transaction.account_id.in_(accessible_ids))
         .where(Transaction.dt >= window_start)
-        .where(Transaction.dt < window_end),
+        .where(Transaction.dt < window_end)
+        .where(Category.kind == CategoryKind.EXPENSE)
+        .group_by(month_bucket, Category.id)
+        .cte("category_month_totals")
+    )
+    outflow_filter = category_month_totals.c.total < 0
+    # Negative expense category-month totals count toward runway. Refunds reduce
+    # expenses; over-refunded categories, income, and transfers are ignored.
+    agg = (await db.execute(
+        select(
+            sa.func.count(sa.distinct(category_month_totals.c.month))
+                .filter(outflow_filter).label("months_covered"),
+            sa.func.coalesce(
+                sa.func.sum(sa.case((outflow_filter, category_month_totals.c.total), else_=0)), 0,
+            ).label("expense_outflow"),
+        )
+        .select_from(category_month_totals),
     )).one()
 
     months_covered = int(agg.months_covered)
