@@ -31,6 +31,8 @@ function utilizationPercent(spent: number, limit: number) {
   return (spent / limit) * 100
 }
 
+const CHART_INITIAL_DIMENSION = { width: 1, height: 192 }
+
 export default function BudgetDetailsModal({
   baseBudget,
   periods,
@@ -455,7 +457,7 @@ export default function BudgetDetailsModal({
                       Utilization history could not load.
                     </div>
                   ) : chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
                       <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                         <CartesianGrid stroke="var(--app-border)" vertical={false} />
                         <XAxis

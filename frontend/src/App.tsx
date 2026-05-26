@@ -123,7 +123,16 @@ function AnimatedRoutes() {
 
   // Keep rendering the previous protected route until its exit fade completes.
   useEffect(() => {
-    if (location.pathname === displayLocation.pathname) return;
+    if (location.pathname === displayLocation.pathname) {
+      if (location.search !== displayLocation.search || location.hash !== displayLocation.hash) {
+        const syncTimer = window.setTimeout(() => {
+          setDisplayLocation(location);
+        }, 0);
+
+        return () => window.clearTimeout(syncTimer);
+      }
+      return;
+    }
 
     let exitTimer: number | undefined;
 
@@ -147,7 +156,7 @@ function AnimatedRoutes() {
       window.clearTimeout(transitionTimer);
       if (exitTimer !== undefined) window.clearTimeout(exitTimer);
     };
-  }, [displayLocation.pathname, location]);
+  }, [displayLocation.hash, displayLocation.pathname, displayLocation.search, location]);
 
   // Hold the route-level loading state until queries settle and the minimum
   // transition duration has elapsed.
