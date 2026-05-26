@@ -21,7 +21,7 @@ class DailyCashFlow(BaseModel):
 
 
 class OutlierTransaction(BaseModel):
-    """A single large-spend transaction surfaced as unusual."""
+    """A large expense-side transaction contribution surfaced as unusual."""
 
     id: uuid.UUID
     merchant_name: str | None

@@ -220,7 +220,7 @@ async def get_transactions_overview(
     ).where(base_where)
     flow = (await db.execute(flow_query)).one()
 
-    # Top 5 expense categories by total spend
+    # Top 5 expense-side categories by net category outflow.
     cat_query = (
         select(
             Transaction.category_id,
@@ -229,9 +229,9 @@ async def get_transactions_overview(
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(base_where)
-        .where(Category.kind == CategoryKind.EXPENSE)
-        .where(Transaction.amount < 0)
+        .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
         .group_by(Transaction.category_id, Category.name)
+        .having(sa.func.sum(Transaction.amount) < 0)
         .order_by(sa.func.sum(Transaction.amount).asc())
         .limit(5)
     )
@@ -250,7 +250,25 @@ async def get_transactions_overview(
     )
     daily_rows = (await db.execute(daily_query)).all()
 
-    # Top 3 largest expense transactions
+    expense_side_category_query = (
+        select(
+            Transaction.category_id,
+            sa.func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .where(base_where)
+        .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
+        .group_by(Transaction.category_id)
+        .having(sa.func.sum(Transaction.amount) < 0)
+    )
+    expense_side_category_rows = (await db.execute(expense_side_category_query)).all()
+    remaining_by_category = {
+        row.category_id: -int(row.total)
+        for row in expense_side_category_rows
+    }
+
+    # Top 3 largest expense-side transaction contributors after category-level
+    # refunds/income offsets have been netted for the selected period.
     outlier_query = (
         select(
             Transaction.id,
@@ -258,16 +276,30 @@ async def get_transactions_overview(
             Transaction.notes,
             Transaction.amount,
             Transaction.dt,
+            Transaction.category_id,
         )
         .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
         .join(Category, Transaction.category_id == Category.id)
         .where(base_where)
-        .where(Category.kind == CategoryKind.EXPENSE)
+        .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
         .where(Transaction.amount < 0)
         .order_by(Transaction.amount.asc())
-        .limit(3)
     )
-    outlier_rows = (await db.execute(outlier_query)).all()
+    outlier_candidates = []
+    for row in (await db.execute(outlier_query)).all():
+        remaining = remaining_by_category.get(row.category_id, 0)
+        if remaining <= 0:
+            continue
+        amount = -min(-int(row.amount), remaining)
+        remaining_by_category[row.category_id] = remaining + amount
+        outlier_candidates.append(OutlierTransaction(
+            id=row.id,
+            merchant_name=row.merchant_name,
+            notes=row.notes,
+            amount=amount,
+            dt=row.dt,
+        ))
+    outliers = sorted(outlier_candidates, key=lambda row: row.amount)[:3]
 
     return TransactionsOverview(
         total_inflow=flow.inflow,
@@ -280,10 +312,7 @@ async def get_transactions_overview(
             DailyCashFlow(date=r.date, inflow=r.inflow, outflow=r.outflow)
             for r in daily_rows
         ],
-        outliers=[
-            OutlierTransaction(id=r.id, merchant_name=r.merchant_name, notes=r.notes, amount=r.amount, dt=r.dt)
-            for r in outlier_rows
-        ],
+        outliers=outliers,
     )
 
 
