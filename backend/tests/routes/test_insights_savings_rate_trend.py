@@ -190,8 +190,8 @@ async def test_savings_rate_trend_uses_user_timezone_for_current_month(client, m
     }
 
 
-async def test_savings_rate_trend_keeps_monthly_totals_kind_aware(client, monkeypatch):
-    """Income reversals and expense refunds net only within their own category kind."""
+async def test_savings_rate_trend_routes_flipped_categories_by_monthly_net(client, monkeypatch):
+    """Savings trend nets each monthly category before assigning income or expense."""
     from app.routes import insights as insights_routes
 
     monkeypatch.setattr(insights_routes, "datetime", _FixedClock(datetime(2026, 5, 19, 16, 0, tzinfo=UTC)))
@@ -223,7 +223,7 @@ async def test_savings_rate_trend_keeps_monthly_totals_kind_aware(client, monkey
     assert resp.status_code == 200
     assert resp.json() == {
         "points": [
-            ["2026-05-01", 220_000, 40_000],
+            ["2026-05-01", 320_000, 140_000],
         ],
     }
 
