@@ -47,9 +47,11 @@ export const transactionKeys = {
   ] as const,
 };
 
+const TRANSACTION_OVERVIEW_VERSION = 'category-net-v2';
+
 export const transactionOverviewKeys = {
   all: ['transactions-overview'] as const,
-  detail: (filters: Record<string, unknown>) => ['transactions-overview', filters] as const,
+  detail: (filters: Record<string, unknown>) => ['transactions-overview', TRANSACTION_OVERVIEW_VERSION, filters] as const,
 };
 
 export const taxAdvantagedPlanKeys = {
