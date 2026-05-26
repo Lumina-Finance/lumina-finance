@@ -21,9 +21,9 @@ async def _query_period_totals(
     from_date: date,
     to_date: date,
 ) -> tuple[int, int]:
-    """Return kind-aware net income and expense totals for the period."""
+    """Return sign-directed net income and expense totals for the period."""
     result = await db.execute(
-        select(Category.kind, func.sum(Transaction.amount).label("total"))
+        select(Category.id, func.sum(Transaction.amount).label("total"))
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(account_ids),
@@ -31,19 +31,19 @@ async def _query_period_totals(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.kind),
+        .group_by(Category.id),
     )
 
     income = 0
     expenses = 0
     for row in result:
         total = int(row.total or 0)
-        if row.kind == CategoryKind.INCOME:
+        if total > 0:
             income += total
-        else:
-            expenses += total
+        elif total < 0:
+            expenses += -total
 
-    return income, max(-expenses, 0)
+    return income, expenses
 
 
 async def _query_expense_category_totals(
@@ -52,7 +52,7 @@ async def _query_expense_category_totals(
     from_date: date,
     to_date: date,
 ) -> dict[uuid.UUID, tuple[str, int]]:
-    """Return positive expense-kind totals keyed by category id for an inclusive period."""
+    """Return positive expense-side totals keyed by category id for an inclusive period."""
     result = await db.execute(
         select(
             Category.id,
@@ -62,7 +62,7 @@ async def _query_expense_category_totals(
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.account_id.in_(account_ids),
-            Category.kind == CategoryKind.EXPENSE,
+            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
