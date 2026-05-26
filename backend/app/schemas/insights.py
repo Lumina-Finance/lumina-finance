@@ -34,10 +34,14 @@ class InsightsIncomeExpenseBreakdownResponse(BaseModel):
     """Payload for the insights income/expense breakdown card.
 
     Pie rows are ``(id, name, original_category_kind, amount)``.
+    ``expense_total`` and ``income_total`` are authoritative center totals
+    after flipped refund/loss categories are netted against their original side.
     """
 
     expense: list[tuple[str, str, str, int]]
     income: list[tuple[str, str, str, int]]
+    expense_total: int
+    income_total: int
     expense_increases: list[tuple[str, str, int, int, int | None, int]]
     expense_decreases: list[tuple[str, str, int, int, int | None, int]]
     income_increases: list[tuple[str, str, int, int, int | None, int]]

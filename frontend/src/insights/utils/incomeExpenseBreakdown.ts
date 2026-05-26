@@ -37,6 +37,18 @@ export function getBreakdownEntriesForMode(
   return getBreakdownEntries(mode === 'expense' ? data?.expense : data?.income)
 }
 
+export function getBreakdownTotalForMode(
+  data: InsightsIncomeExpenseBreakdownResponse | undefined,
+  mode: BreakdownMode,
+): number {
+  if (!data) return 0
+  const total = mode === 'expense' ? data.expense_total : data.income_total
+  if (Number.isFinite(total)) return total
+
+  return getBreakdownEntries(mode === 'expense' ? data.expense : data.income)
+    .reduce((sum, entry) => sum + entry.amount, 0)
+}
+
 export function getCategoryTrendSections(
   data: InsightsIncomeExpenseBreakdownResponse | undefined,
   mode: BreakdownMode,

@@ -151,6 +151,10 @@ def _breakdown_entries(
     ]
 
 
+def _breakdown_total(stats_by_id: BreakdownCategoryStatsById) -> int:
+    return sum(stats.amount for stats in stats_by_id.values())
+
+
 def _change_pct(current_amount: int, previous_amount: int) -> int | None:
     if previous_amount <= 0:
         return None
@@ -220,6 +224,8 @@ async def get_income_expense_breakdown(
         return InsightsIncomeExpenseBreakdownResponse(
             expense=[],
             income=[],
+            expense_total=0,
+            income_total=0,
             expense_increases=[],
             expense_decreases=[],
             income_increases=[],
@@ -263,10 +269,22 @@ async def get_income_expense_breakdown(
 
     expense_increases, expense_decreases = _category_trends(current_expense_stats, previous_expense_stats)
     income_increases, income_decreases = _category_trends(current_income_stats, previous_income_stats)
+    expense_refunds = sum(
+        stats.amount
+        for stats in current_income_breakdown.values()
+        if stats.category_kind == CategoryKind.EXPENSE
+    )
+    income_losses = sum(
+        stats.amount
+        for stats in current_expense_breakdown.values()
+        if stats.category_kind == CategoryKind.INCOME
+    )
 
     return InsightsIncomeExpenseBreakdownResponse(
         expense=_breakdown_entries(current_expense_breakdown),
         income=_breakdown_entries(current_income_breakdown),
+        expense_total=max(_breakdown_total(current_expense_breakdown) - expense_refunds, 0),
+        income_total=max(_breakdown_total(current_income_breakdown) - income_losses, 0),
         expense_increases=expense_increases,
         expense_decreases=expense_decreases,
         income_increases=income_increases,

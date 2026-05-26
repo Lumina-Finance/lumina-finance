@@ -18,6 +18,7 @@ import { useInsightsRange } from './hooks/useInsightsRange'
 import { getCashFlowBarData } from './utils/cashFlow'
 import {
   getBreakdownEntriesForMode,
+  getBreakdownTotalForMode,
   getCategoryTrendSections,
 } from './utils/incomeExpenseBreakdown'
 import { getFundFlowCardData } from './utils/fundFlow'
@@ -58,6 +59,10 @@ export default function InsightsPage() {
   const displayCurrency = user?.base_currency ?? 'CAD'
   const selectedBreakdown = useMemo(
     () => getBreakdownEntriesForMode(queries.incomeExpenseBreakdown.data, breakdownMode),
+    [breakdownMode, queries.incomeExpenseBreakdown.data],
+  )
+  const selectedBreakdownTotal = useMemo(
+    () => getBreakdownTotalForMode(queries.incomeExpenseBreakdown.data, breakdownMode),
     [breakdownMode, queries.incomeExpenseBreakdown.data],
   )
   const selectedCategoryTrendSections = useMemo(
@@ -156,6 +161,7 @@ export default function InsightsPage() {
             mode={breakdownMode}
             onModeToggle={() => setBreakdownMode((mode) => (mode === 'expense' ? 'income' : 'expense'))}
             entries={selectedBreakdown}
+            total={selectedBreakdownTotal}
             trendSections={selectedCategoryTrendSections}
             displayCurrency={displayCurrency}
             animationKey={`${breakdownMode}-${range.cardTransitionKey}`}

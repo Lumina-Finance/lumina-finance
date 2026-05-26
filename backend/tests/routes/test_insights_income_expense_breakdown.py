@@ -132,6 +132,8 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
             [str(freelance_id), "Freelance", "income", 100_000],
             [str(bonus_id), "Bonus", "income", 80_000],
         ],
+        "expense_total": 620_000,
+        "income_total": 680_000,
         "expense_increases": [
             [str(shopping_id), "Shopping", 70_000, 0, None, 1],
             [str(groceries_id), "Groceries", 90_000, 30_000, 200, 1],
@@ -169,11 +171,14 @@ async def test_income_expense_breakdown_counts_category_crossovers_by_sign(clien
             capital_gains,
             groceries,
             over_refund,
-            _transaction(user_id, account_id, salary_id, date(2026, 4, 2), 300_000),
-            _transaction(user_id, account_id, capital_gains_id, date(2026, 4, 3), -80_000),
+            _transaction(user_id, account_id, salary_id, date(2026, 4, 2), 360_000),
+            _transaction(user_id, account_id, salary_id, date(2026, 4, 3), -60_000),
+            _transaction(user_id, account_id, capital_gains_id, date(2026, 4, 3), 20_000),
+            _transaction(user_id, account_id, capital_gains_id, date(2026, 4, 4), -100_000),
             _transaction(user_id, account_id, groceries_id, date(2026, 4, 4), -100_000),
             _transaction(user_id, account_id, groceries_id, date(2026, 4, 5), 40_000),
-            _transaction(user_id, account_id, over_refund_id, date(2026, 4, 6), 20_000),
+            _transaction(user_id, account_id, over_refund_id, date(2026, 4, 6), -30_000),
+            _transaction(user_id, account_id, over_refund_id, date(2026, 4, 7), 50_000),
             _transaction(user_id, account_id, salary_id, date(2026, 3, 5), 300_000),
             _transaction(user_id, account_id, capital_gains_id, date(2026, 3, 6), 20_000),
             _transaction(user_id, account_id, over_refund_id, date(2026, 3, 7), -30_000),
@@ -196,9 +201,11 @@ async def test_income_expense_breakdown_counts_category_crossovers_by_sign(clien
         [str(capital_gains_id), "Capital Gains", "income", 80_000],
         [str(groceries_id), "Groceries", "expense", 60_000],
     ]
-    assert data["income_decreases"] == [[str(capital_gains_id), "Capital Gains", 0, 20_000, -100, 1]]
+    assert data["expense_total"] == 120_000
+    assert data["income_total"] == 240_000
+    assert data["income_decreases"] == [[str(capital_gains_id), "Capital Gains", 0, 20_000, -100, 2]]
     assert data["expense_increases"] == [[str(groceries_id), "Groceries", 60_000, 0, None, 2]]
-    assert data["expense_decreases"] == [[str(over_refund_id), "Over-refunded", 0, 30_000, -100, 1]]
+    assert data["expense_decreases"] == [[str(over_refund_id), "Over-refunded", 0, 30_000, -100, 2]]
 
 
 async def test_income_expense_breakdown_does_not_emit_other_for_exact_limit(client):
@@ -298,6 +305,8 @@ async def test_income_expense_breakdown_omits_zero_net_current_categories(client
     assert resp.json() == {
         "expense": [],
         "income": [],
+        "expense_total": 0,
+        "income_total": 0,
         "expense_increases": [],
         "expense_decreases": [],
         "income_increases": [],
@@ -320,6 +329,8 @@ async def test_income_expense_breakdown_returns_empty_payload_without_accounts(c
     assert resp.json() == {
         "expense": [],
         "income": [],
+        "expense_total": 0,
+        "income_total": 0,
         "expense_increases": [],
         "expense_decreases": [],
         "income_increases": [],
