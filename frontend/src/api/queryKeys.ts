@@ -59,11 +59,13 @@ export const taxAdvantagedPlanKeys = {
   limits: (planId: string | undefined) => ['tax-advantaged-plans', planId, 'limits'] as const,
 };
 
+const DASHBOARD_SAVINGS_RATE_VERSION = 'category-net-v2';
+
 export const dashboardKeys = {
   credit: () => ['dashboard-credit'] as const,
   netWorth: (windowDays: number) => ['dashboard-net-worth', windowDays] as const,
   netWorthAll: ['dashboard-net-worth'] as const,
-  savingsRate: () => ['dashboard-savings-rate'] as const,
+  savingsRate: () => ['dashboard-savings-rate', DASHBOARD_SAVINGS_RATE_VERSION] as const,
   savingsRateAll: ['dashboard-savings-rate'] as const,
   recentActivity: (windowDays: number) => ['dashboard-recent-activity', windowDays] as const,
   recentActivityAll: ['dashboard-recent-activity'] as const,
