@@ -1,5 +1,15 @@
 # Lumina Finance
 
+<!-- markdownlint-disable MD033 -->
+<div style="display: flex; flex-wrap: wrap; justify-content: left; align-items: center; column-gap: 16px; row-gap: 0;">
+  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/backend-tests.yml"><img alt="Backend Tests" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/backend-tests.yml?branch=main&label=Backend%20Tests&style=flat&logo=githubactions&logoColor=white"></a>
+  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/build-and-push-docker-image.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/build-and-push-docker-image.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>
+  <a style="flex: 0 0 auto;" href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>
+  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>
+</div>
+
+<!-- markdownlint-enable MD033 -->
+
 Lumina Finance is a self-hosted personal finance app for managing your finances, track expenses, set budgets, and perform analysis on your spending behaviour.
 
 ## DISCLAIMER
