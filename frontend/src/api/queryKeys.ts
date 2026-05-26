@@ -62,6 +62,7 @@ export const taxAdvantagedPlanKeys = {
 };
 
 const DASHBOARD_SAVINGS_RATE_VERSION = 'category-net-v2';
+const INSIGHTS_PERIOD_GLANCE_VERSION = 'category-change-v3';
 const INSIGHTS_SAVINGS_RATE_TREND_VERSION = 'category-net-v2';
 
 export const dashboardKeys = {
@@ -79,7 +80,7 @@ export const dashboardKeys = {
 };
 
 export const insightsKeys = {
-  periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', fromDate, toDate] as const,
+  periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', INSIGHTS_PERIOD_GLANCE_VERSION, fromDate, toDate] as const,
   fundFlow: (fromDate: string, toDate: string) => ['insights-fund-flow', fromDate, toDate] as const,
   incomeExpenseBreakdown: (fromDate: string, toDate: string) => ['insights-income-expense-breakdown', fromDate, toDate] as const,
   cashFlow: (fromDate: string, toDate: string) => ['insights-cash-flow', fromDate, toDate] as const,
