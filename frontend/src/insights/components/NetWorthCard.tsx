@@ -1,4 +1,10 @@
-import { useMemo } from 'react'
+import {
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import {
@@ -8,7 +14,6 @@ import {
   Line,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -70,6 +75,10 @@ type NetWorthSnapshot = {
   emptyLabel: string
 }
 
+type NetWorthTooltipState = {
+  activeLabel?: string | number
+}
+
 const netWorthLegendContainerVariants = {
   initial: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
   enter: { transition: { staggerChildren: 0.045, staggerDirection: 1, delayChildren: 0.03 } },
@@ -82,6 +91,7 @@ const netWorthLegendItemVariants = {
   exit: { opacity: 0, x: 10 },
 } as const
 
+const netWorthChartMargin = { top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin } as const
 const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
 
 function NetWorthXAxisTick({
@@ -115,28 +125,24 @@ function NetWorthXAxisTick({
   )
 }
 
-function NetWorthChartTooltip({
-  active,
-  payload,
+function NetWorthChartTooltipContent({
+  point,
   items,
   displayCurrency,
   mode,
 }: {
-  active?: boolean
-  payload?: Array<{ payload?: NetWorthDeltaPoint }>
+  point: NetWorthDeltaPoint
   items: NetWorthChartItem[]
   displayCurrency: string
   mode: NetWorthViewMode
 }) {
-  const point = payload?.[0]?.payload
-  if (!active || !point) return null
   const detailItems = items.map((item, index) => ({ item, index }))
   const displayedNetWorth = mode === 'composition'
     ? detailItems.reduce((sum, { index }) => sum + Number(point[getValueKey(index)] ?? 0), 0)
     : point.total
 
   return (
-    <div className="app-chart-tooltip-default-content min-w-64">
+    <>
       <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
         <span className="app-chart-tooltip-default-value">Net Worth</span>
@@ -173,7 +179,7 @@ function NetWorthChartTooltip({
           )
         })}
       </div>
-    </div>
+    </>
   )
 }
 
@@ -186,6 +192,10 @@ export function NetWorthCard({
   loading = false,
   transitionKey,
 }: NetWorthCardProps) {
+  const netWorthChartRef = useRef<HTMLDivElement>(null)
+  const netWorthTooltipRef = useRef<HTMLDivElement>(null)
+  const [hoveredNetWorthPoint, setHoveredNetWorthPoint] = useState<NetWorthDeltaPoint | null>(null)
+  const [netWorthTooltipVisible, setNetWorthTooltipVisible] = useState(false)
   const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
     mode,
     groups,
@@ -223,6 +233,10 @@ export function NetWorthCard({
     () => new Map(deltaSeries.map((point) => [point.dateMs, point.dateLabel])),
     [deltaSeries],
   )
+  const netWorthPointsByMs = useMemo(
+    () => new Map(deltaSeries.map((point) => [point.dateMs, point])),
+    [deltaSeries],
+  )
   const startNetWorthAxisLabel = formatNetWorthAxisMoney(
     deltaSeries[0]?.startTotal ?? 0,
     displaySnapshot.displayCurrency,
@@ -239,6 +253,48 @@ export function NetWorthCard({
       ? 'var(--app-chart-negative)'
       : 'var(--app-text-muted)'
   const NetWorthTrendIcon = latestChange > 0 ? TrendingUp : latestChange < 0 ? TrendingDown : Minus
+  const updateNetWorthTooltipPosition = (event: ReactMouseEvent<Element>) => {
+    const rect = netWorthChartRef.current?.getBoundingClientRect()
+    const tooltip = netWorthTooltipRef.current
+    if (!rect || !tooltip) return
+
+    const tooltipX = Math.min(
+      Math.max(event.clientX - rect.left, 0),
+      Math.max(rect.width - tooltip.offsetWidth, 0),
+    )
+    const tooltipY = Math.min(
+      Math.max(event.clientY - rect.top, 0),
+      Math.max(rect.height - tooltip.offsetHeight, 0),
+    )
+
+    tooltip.style.setProperty('--net-worth-tooltip-x', `${tooltipX}px`)
+    tooltip.style.setProperty('--net-worth-tooltip-y', `${tooltipY}px`)
+  }
+  const showNetWorthTooltip = (
+    state: NetWorthTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    updateNetWorthTooltipPosition(event)
+
+    const activeDateMs = Number(state.activeLabel)
+    const point = Number.isFinite(activeDateMs) ? netWorthPointsByMs.get(activeDateMs) : undefined
+    if (!point) {
+      setNetWorthTooltipVisible(false)
+      return
+    }
+
+    setHoveredNetWorthPoint((current) => (
+      current?.dateMs === point.dateMs ? current : point
+    ))
+    setNetWorthTooltipVisible(true)
+  }
+  const hideNetWorthTooltip = () => {
+    setNetWorthTooltipVisible(false)
+  }
+  const handleNetWorthTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || netWorthTooltipVisible) return
+    setHoveredNetWorthPoint(null)
+  }
 
   return (
     <section className="app-card">
@@ -273,7 +329,11 @@ export function NetWorthCard({
             </div>
           </div>
         </div>
-        <div className="min-h-0 flex-1">
+        <div
+          ref={netWorthChartRef}
+          className="relative min-h-0 flex-1"
+          onMouseLeave={hideNetWorthTooltip}
+        >
           {!hasChartData ? (
             <div
               className="flex h-full w-full items-center justify-center rounded-lg text-sm"
@@ -285,7 +345,9 @@ export function NetWorthCard({
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={deltaSeries}
-                margin={{ top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin }}
+                margin={netWorthChartMargin}
+                onMouseMove={(state, event) => showNetWorthTooltip(state, event)}
+                onMouseLeave={hideNetWorthTooltip}
               >
                 <XAxis
                   dataKey="dateMs"
@@ -324,17 +386,6 @@ export function NetWorthCard({
                       }
                     : undefined}
                 />
-                <Tooltip
-                  wrapperClassName="app-chart-tooltip-default"
-                  cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-                  content={(
-                    <NetWorthChartTooltip
-                      items={chartItems}
-                      displayCurrency={displaySnapshot.displayCurrency}
-                      mode={displaySnapshot.mode}
-                    />
-                  )}
-                />
                 {displaySnapshot.mode === 'composition' ? (
                   chartItems.map((item, index) => (
                     <Area
@@ -371,8 +422,36 @@ export function NetWorthCard({
                     />
                   </>
                 )}
+                {netWorthTooltipVisible && hoveredNetWorthPoint && (
+                  <ReferenceLine
+                    x={hoveredNetWorthPoint.dateMs}
+                    stroke="var(--app-border-strong)"
+                    strokeWidth={1}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
+          )}
+          {hasChartData && (
+            <div
+              ref={netWorthTooltipRef}
+              className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-64"
+              onTransitionEnd={handleNetWorthTooltipTransitionEnd}
+              style={{
+                opacity: netWorthTooltipVisible ? 1 : 0,
+                transition: 'opacity 150ms ease-out',
+                transform: 'translate3d(var(--net-worth-tooltip-x, 0px), var(--net-worth-tooltip-y, 0px), 0)',
+              }}
+            >
+              {hoveredNetWorthPoint && (
+                <NetWorthChartTooltipContent
+                  point={hoveredNetWorthPoint}
+                  items={chartItems}
+                  displayCurrency={displaySnapshot.displayCurrency}
+                  mode={displaySnapshot.mode}
+                />
+              )}
+            </div>
           )}
         </div>
         <div className="mt-3 overflow-hidden">
