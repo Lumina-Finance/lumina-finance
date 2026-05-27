@@ -50,6 +50,10 @@ function clampSavingsRate(rate: number | null) {
   return Math.max(-100, Math.min(100, rate))
 }
 
+function hasSavingsRateActivity(point: Pick<SavingsRateSeriesPoint, 'income' | 'expenses'>) {
+  return point.income !== 0 || point.expenses !== 0
+}
+
 function getSavingsRateTooltipKey(point: SavingsRateChartPoint) {
   return point.fullLabel
 }
@@ -116,10 +120,15 @@ export function SavingsRateWidget() {
     () => getSavingsRateSeries(dashboardSavingsRate),
     [dashboardSavingsRate],
   )
-  const chartData = useMemo(() => savingsData.map((point) => ({
-    ...point,
-    chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
-  })), [capSavingsRateChart, savingsData])
+  const chartData = useMemo(
+    () => savingsData
+      .filter(hasSavingsRateActivity)
+      .map((point) => ({
+        ...point,
+        chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
+      })),
+    [capSavingsRateChart, savingsData],
+  )
   const showSavingsRateTooltip = (
     state: SavingsRateTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
