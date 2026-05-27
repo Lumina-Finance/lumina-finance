@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
@@ -6,7 +6,6 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -159,6 +158,9 @@ export function IncomeExpenseBreakdownCard({
   loading = false,
   transitionKey,
 }: IncomeExpenseBreakdownCardProps) {
+  const breakdownChartRef = useRef<HTMLDivElement>(null)
+  const breakdownTooltipRef = useRef<HTMLDivElement>(null)
+  const [hoveredBreakdownEntry, setHoveredBreakdownEntry] = useState<BreakdownEntry | null>(null)
   const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
     mode,
     entries,
@@ -190,6 +192,28 @@ export function IncomeExpenseBreakdownCard({
   })
   const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
     ?? getBreakdownColor(entry)
+  const updateBreakdownTooltipPosition = (event: ReactMouseEvent<SVGGraphicsElement>) => {
+    const rect = breakdownChartRef.current?.getBoundingClientRect()
+    const tooltip = breakdownTooltipRef.current
+    if (!rect || !tooltip) return
+
+    tooltip.style.setProperty('--breakdown-tooltip-x', `${event.clientX - rect.left}px`)
+    tooltip.style.setProperty('--breakdown-tooltip-y', `${event.clientY - rect.top}px`)
+  }
+  const showBreakdownTooltip = (
+    entry: BreakdownEntry | undefined,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    if (!entry) return
+
+    updateBreakdownTooltipPosition(event)
+    setHoveredBreakdownEntry((current) => (
+      current?.id === entry.id ? current : entry
+    ))
+  }
+  const hideBreakdownTooltip = () => {
+    setHoveredBreakdownEntry(null)
+  }
   const legendEntries = useMemo(
     () => getLegendEntries(displaySnapshot.entries, displaySnapshot.mode),
     [displaySnapshot.entries, displaySnapshot.mode],
@@ -220,7 +244,11 @@ export function IncomeExpenseBreakdownCard({
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
             <div className="flex min-h-[620px] flex-col">
-              <div className="relative h-[450px] shrink-0">
+              <div
+                ref={breakdownChartRef}
+                className="relative h-[450px] shrink-0"
+                onMouseLeave={hideBreakdownTooltip}
+              >
                 <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
                   <span className="app-label app-label-compact">
                     Total {displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'}
@@ -241,34 +269,43 @@ export function IncomeExpenseBreakdownCard({
                       dataKey="amount"
                       nameKey="name"
                       stroke="none"
+                      onMouseEnter={(_sector, index, event) => {
+                        showBreakdownTooltip(displaySnapshot.entries[index], event)
+                      }}
+                      onMouseMove={(_sector, index, event) => {
+                        showBreakdownTooltip(displaySnapshot.entries[index], event)
+                      }}
+                      onMouseLeave={hideBreakdownTooltip}
                     >
                       {displaySnapshot.entries.map((entry) => (
                         <Cell key={entry.id} fill={getSpacedBreakdownColor(entry)} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      wrapperClassName="app-chart-tooltip-default"
-                      content={({ active, payload }) => {
-                        const entry = payload?.[0]?.payload as BreakdownEntry | undefined
-                        if (!active || !entry) return null
-
-                        return (
-                          <div className="app-chart-tooltip-default-content min-w-40">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium" style={{ color: 'var(--app-text)' }}>
-                                {entry.name}
-                              </span>
-                              {renderCrossoverBadge(entry, displaySnapshot.mode)}
-                            </div>
-                            <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
-                              {formatCurrency(entry.amount, displaySnapshot.displayCurrency)}
-                            </div>
-                          </div>
-                        )
-                      }}
-                    />
                   </PieChart>
                 </ResponsiveContainer>
+                <div
+                  ref={breakdownTooltipRef}
+                  className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-40"
+                  style={{
+                    opacity: hoveredBreakdownEntry ? 1 : 0,
+                    transition: 'opacity 150ms ease-out',
+                    transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
+                  }}
+                >
+                  {hoveredBreakdownEntry && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="app-chart-tooltip-default-title">
+                          {hoveredBreakdownEntry.name}
+                        </span>
+                        {renderCrossoverBadge(hoveredBreakdownEntry, displaySnapshot.mode)}
+                      </div>
+                      <div className="app-chart-tooltip-default-value">
+                        {formatCurrency(hoveredBreakdownEntry.amount, displaySnapshot.displayCurrency)}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               <div
                 className="relative mt-auto overflow-hidden"
