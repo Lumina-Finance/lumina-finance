@@ -12,10 +12,12 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission, TaxAdvantagedPlan
-from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, PermissionLevel, TaxTreatment
+from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, CategoryKind, PermissionLevel, TaxTreatment
+from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.institution import Institution
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.account import (
@@ -32,7 +34,7 @@ from app.services.accounts import (
     get_account_cash_flow_history,
     get_account_spending_breakdown,
 )
-from app.services.snapshots import attach_current_balances
+from app.services.snapshots import attach_current_balances, recompute_snapshots_from
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -42,6 +44,24 @@ _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 
 # UpdateAccountRequest fields that map to NOT NULL columns — explicit null on these is rejected with 422.
 _UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_hidden"})
+_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
+_STARTING_BALANCE_NOTE = "Starting balance"
+
+
+async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.UUID:
+    category_id = await db.scalar(
+        select(Category.id).where(
+            Category.is_system.is_(True),
+            Category.kind == CategoryKind.TRANSFER,
+            Category.name == _BALANCE_ADJUSTMENT_CATEGORY_NAME,
+        ),
+    )
+    if category_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Balance adjustment category is not configured",
+        )
+    return category_id
 
 
 async def _validate_tax_advantaged_plan_link(
@@ -344,11 +364,26 @@ async def create_account(
     # This gives the frontend a stable starting point for charts without needing
     # to join against account.created_at. Recompute restores this anchor when
     # transaction history is emptied.
+    anchor_dt = account.created_at.astimezone(ZoneInfo(anchor_tz)).date()
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
-        dt=account.created_at.astimezone(ZoneInfo(anchor_tz)).date(),
+        dt=anchor_dt,
         balance=0,
     ))
+
+    if data.starting_balance:
+        db.add(Transaction(
+            created_by_user_id=user.id,
+            account_id=account.id,
+            dt=anchor_dt,
+            category_id=await _get_system_balance_adjustment_category_id(db),
+            amount=data.starting_balance,
+            currency=account.currency,
+            fx_rate=None,
+            notes=_STARTING_BALANCE_NOTE,
+        ))
+        await db.flush()
+        await recompute_snapshots_from(db, account.id, anchor_dt)
 
     await db.commit()
     # Re-fetch with eager loading so the institution relationship is populated for serialization

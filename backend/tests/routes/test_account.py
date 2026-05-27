@@ -1,9 +1,17 @@
-from datetime import date
+from datetime import date, datetime
+from uuid import UUID
+from zoneinfo import ZoneInfo
 
-from app.models.base import InstitutionStatus
+import pytest
+from sqlalchemy import delete, func, select
+
+from app.models.account import Account, AccountBalanceSnapshot
+from app.models.base import CategoryKind, InstitutionStatus
+from app.models.category import Category
 from app.models.institution import Institution
+from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.conftest import ACCOUNT_PAYLOAD, _create_account, _create_user, _get_auth_header
+from tests.routes.conftest import ACCOUNT_PAYLOAD, _create_account, _create_user, _get_auth_header, _seed_currency
 
 # --- Helpers ---
 
@@ -49,6 +57,20 @@ async def _create_second_user(client):
         "tz": "America/Toronto",
         "base_currency": "CAD",
     })
+
+
+async def _signup_user(client, *, email: str, first_name: str, tz: str):
+    return await client.post("/auth/signup", json={
+        "email": email,
+        "password": "securepassword123",
+        "first_name": first_name,
+        "tz": tz,
+        "base_currency": "CAD",
+    })
+
+
+def _created_at_in_tz(account_data: dict, tz: str) -> date:
+    return datetime.fromisoformat(account_data["created_at"]).astimezone(ZoneInfo(tz)).date()
 
 
 # --- GET /accounts ---
@@ -178,6 +200,194 @@ async def test_create_account_returns_current_balance(client):
 
     assert resp.status_code == 201
     assert resp.json()["current_balance"] == 0
+
+
+async def test_create_account_with_starting_balance_creates_adjustment(client):
+    """Non-zero starting_balance creates a Balance Adjustment transaction."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+
+    resp = await _create_account(client, headers, starting_balance=123_45)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["current_balance"] == 123_45
+    account_id = UUID(data["id"])
+    expected_dt = _created_at_in_tz(data, "America/Toronto")
+
+    async with TestSession() as session:
+        result = await session.execute(
+            select(Transaction, Category)
+            .join(Category, Transaction.category_id == Category.id)
+            .where(Transaction.account_id == account_id)
+            .order_by(Transaction.dt, Transaction.created_at, Transaction.id),
+        )
+        rows = result.all()
+        snapshots_result = await session.execute(
+            select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id),
+        )
+        snapshots = snapshots_result.scalars().all()
+
+    assert len(rows) == 1
+    txn, category = rows[0]
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert txn.created_by_user_id == user_id
+    assert txn.account_id == account_id
+    assert txn.dt == expected_dt
+    assert txn.merchant_id is None
+    assert txn.fx_rate is None
+    assert txn.amount == 123_45
+    assert txn.currency == data["currency"]
+    assert txn.notes == "Starting balance"
+    assert category.name == "Balance Adjustment"
+    assert category.kind == CategoryKind.TRANSFER
+    assert category.is_system is True
+    assert category.owner_id is None
+    assert category.group_id is None
+    assert snapshot.account_id == account_id
+    assert snapshot.dt == expected_dt
+    assert snapshot.balance == 123_45
+
+    detail_resp = await client.get(f"/accounts/{account_id}", headers=headers)
+    list_resp = await client.get("/accounts", headers=headers)
+
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["current_balance"] == 123_45
+    assert list_resp.status_code == 200
+    assert list_resp.json()[0]["current_balance"] == 123_45
+
+
+async def test_create_group_account_starting_balance_uses_group_owner_creation_day(client):
+    """Group-account starting balances are dated in the group owner's timezone."""
+    await _seed_currency()
+    owner_resp = await _signup_user(
+        client,
+        email="owner@example.com",
+        first_name="Owner",
+        tz="Pacific/Kiritimati",
+    )
+    member_resp = await _signup_user(
+        client,
+        email="member@example.com",
+        first_name="Member",
+        tz="America/Adak",
+    )
+    owner_headers = _get_auth_header(owner_resp)
+    member_headers = _get_auth_header(member_resp)
+    member_user_id = member_resp.json()["user"]["id"]
+
+    group_resp = await client.post("/groups", json={"name": "Global Household"}, headers=owner_headers)
+    assert group_resp.status_code == 201
+    group_id = group_resp.json()["id"]
+    add_member_resp = await client.post(f"/groups/{group_id}/members", json={"user_id": member_user_id}, headers=owner_headers)
+    assert add_member_resp.status_code == 201
+    promote_resp = await client.patch(f"/groups/{group_id}/members/{member_user_id}", json={"is_admin": True}, headers=owner_headers)
+    assert promote_resp.status_code == 200
+
+    resp = await _create_account(client, member_headers, group_id=group_id, starting_balance=50_00)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    account_id = UUID(data["id"])
+    owner_local_dt = _created_at_in_tz(data, "Pacific/Kiritimati")
+    acting_user_local_dt = _created_at_in_tz(data, "America/Adak")
+    assert owner_local_dt != acting_user_local_dt
+
+    async with TestSession() as session:
+        txn = await session.scalar(select(Transaction).where(Transaction.account_id == account_id))
+        snapshot = await session.scalar(select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id))
+
+    assert txn is not None
+    assert snapshot is not None
+    assert txn.dt == owner_local_dt
+    assert snapshot.dt == owner_local_dt
+    assert txn.dt != acting_user_local_dt
+    assert snapshot.balance == 50_00
+
+
+async def test_create_account_starting_balance_rolls_back_if_balance_adjustment_category_missing(client):
+    """Missing Balance Adjustment configuration does not leave partial account rows."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    async with TestSession() as session:
+        await session.execute(delete(Category).where(Category.name == "Balance Adjustment", Category.is_system.is_(True)))
+        await session.commit()
+
+    resp = await _create_account(client, headers, starting_balance=100_00)
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Balance adjustment category is not configured"
+
+    async with TestSession() as session:
+        account_count = await session.scalar(select(func.count(Account.id)))
+        transaction_count = await session.scalar(select(func.count(Transaction.id)))
+        snapshot_count = await session.scalar(select(func.count(AccountBalanceSnapshot.account_id)))
+
+    assert account_count == 0
+    assert transaction_count == 0
+    assert snapshot_count == 0
+
+
+async def test_create_revolving_account_with_signed_starting_balance(client):
+    """Liability starting balances are accepted as signed debt values."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
+        starting_balance=-42_42,
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["current_balance"] == -42_42
+    account_id = UUID(data["id"])
+    expected_dt = _created_at_in_tz(data, "America/Toronto")
+
+    async with TestSession() as session:
+        txn = await session.scalar(select(Transaction).where(Transaction.account_id == account_id))
+        snapshot = await session.scalar(select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id))
+
+    assert txn is not None
+    assert snapshot is not None
+    assert txn.dt == expected_dt
+    assert txn.amount == -42_42
+    assert txn.notes == "Starting balance"
+    assert snapshot.dt == expected_dt
+    assert snapshot.balance == -42_42
+
+
+@pytest.mark.parametrize("starting_balance", [None, 0])
+async def test_create_account_without_nonzero_starting_balance_creates_no_adjustment(client, starting_balance):
+    """Null and zero starting balances keep the zero anchor and skip a transaction row."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(client, headers, starting_balance=starting_balance)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["current_balance"] == 0
+    account_id = UUID(data["id"])
+    expected_dt = _created_at_in_tz(data, "America/Toronto")
+
+    async with TestSession() as session:
+        transaction_id = await session.scalar(select(Transaction.id).where(Transaction.account_id == account_id))
+        snapshot = await session.scalar(
+            select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id),
+        )
+
+    assert transaction_id is None
+    assert snapshot is not None
+    assert snapshot.dt == expected_dt
+    assert snapshot.balance == 0
 
 
 async def test_list_accounts_without_auth_returns_401(client):
