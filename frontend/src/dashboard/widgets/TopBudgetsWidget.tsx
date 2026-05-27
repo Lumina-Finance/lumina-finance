@@ -87,7 +87,7 @@ export function TopBudgetsWidget() {
                     <div className="min-w-0">
                       <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
                       <p
-                        className="mt-0.5 text-xs max-[1000px]:text-[0.675rem]"
+                        className="mt-0.5 text-base max-[1000px]:text-[0.9rem]"
                         style={{ color: 'var(--app-text-muted)' }}
                       >
                         {formatCurrency(budget.total_spent, budget.currency)}
