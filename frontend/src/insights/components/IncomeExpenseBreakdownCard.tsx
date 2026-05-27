@@ -1,4 +1,10 @@
-import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
@@ -161,6 +167,7 @@ export function IncomeExpenseBreakdownCard({
   const breakdownChartRef = useRef<HTMLDivElement>(null)
   const breakdownTooltipRef = useRef<HTMLDivElement>(null)
   const [hoveredBreakdownEntry, setHoveredBreakdownEntry] = useState<BreakdownEntry | null>(null)
+  const [breakdownTooltipVisible, setBreakdownTooltipVisible] = useState(false)
   const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
     mode,
     entries,
@@ -204,14 +211,22 @@ export function IncomeExpenseBreakdownCard({
     entry: BreakdownEntry | undefined,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    if (!entry) return
+    if (!entry) {
+      setBreakdownTooltipVisible(false)
+      return
+    }
 
     updateBreakdownTooltipPosition(event)
     setHoveredBreakdownEntry((current) => (
       current?.id === entry.id ? current : entry
     ))
+    setBreakdownTooltipVisible(true)
   }
   const hideBreakdownTooltip = () => {
+    setBreakdownTooltipVisible(false)
+  }
+  const handleBreakdownTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || breakdownTooltipVisible) return
     setHoveredBreakdownEntry(null)
   }
   const legendEntries = useMemo(
@@ -286,8 +301,9 @@ export function IncomeExpenseBreakdownCard({
                 <div
                   ref={breakdownTooltipRef}
                   className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-40"
+                  onTransitionEnd={handleBreakdownTooltipTransitionEnd}
                   style={{
-                    opacity: hoveredBreakdownEntry ? 1 : 0,
+                    opacity: breakdownTooltipVisible ? 1 : 0,
                     transition: 'opacity 150ms ease-out',
                     transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
                   }}
