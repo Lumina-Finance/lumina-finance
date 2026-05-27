@@ -1,4 +1,10 @@
-import { useMemo } from 'react'
+import {
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { Link } from 'react-router-dom'
 import { CircleHelp, LifeBuoy } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
@@ -11,12 +17,14 @@ import {
   formatRunwayBasis,
   runwayBand,
 } from '@/utils/runway'
-import { useRunwayHover } from '@/dashboard/hooks/useRunwayHover'
+import type { RunwaySegment } from '@/dashboard/types/dashboard'
 import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
 
 type RunwayWidgetProps = {
   displayCurrency: string
 }
+
+const RUNWAY_TOOLTIP_CARD_MARGIN = 8
 
 function getRunwayCaption(
   runway: ReturnType<typeof useRunway>['data'],
@@ -30,7 +38,29 @@ function getRunwayCaption(
   return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth \u00B7 ${formatRunwayBasis(runway.months_covered)}`
 }
 
+function getRunwaySegmentAtX(runwaySegments: RunwaySegment[], xPct: number) {
+  if (runwaySegments.length === 0) return undefined
+
+  let cursor = 0
+  for (const segment of runwaySegments) {
+    cursor += segment.pct
+    if (xPct <= cursor) return segment
+  }
+
+  return runwaySegments[runwaySegments.length - 1]
+}
+
+function clampToRange(value: number, min: number, max: number) {
+  if (max < min) return min
+  return Math.min(Math.max(value, min), max)
+}
+
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
+  const runwayCardRef = useRef<HTMLDivElement>(null)
+  const runwayBarRef = useRef<HTMLDivElement>(null)
+  const runwayTooltipRef = useRef<HTMLDivElement>(null)
+  const [hoveredSegment, setHoveredSegment] = useState<RunwaySegment | null>(null)
+  const [runwayTooltipVisible, setRunwayTooltipVisible] = useState(false)
   const { data: runway } = useRunway()
   const { data: runwayAccountIds } = useRunwayAccounts()
   const { data: accounts } = useAccounts()
@@ -42,16 +72,50 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
     () => getRunwaySegments(accounts, runwayAccountIds, runway),
     [accounts, runwayAccountIds, runway],
   )
-  const {
-    hoveredSegment,
-    runwayBarRef,
-    runwayHoverXPct,
-    handleRunwayMouseLeave,
-    handleRunwayMouseMove,
-  } = useRunwayHover(runwaySegments)
+  const updateRunwayTooltipPosition = (clientX: number, clientY: number) => {
+    const cardRect = runwayCardRef.current?.getBoundingClientRect()
+    const tooltip = runwayTooltipRef.current
+    if (!cardRect || !tooltip) return
+
+    const maxX = cardRect.width - tooltip.offsetWidth - RUNWAY_TOOLTIP_CARD_MARGIN
+    const maxY = cardRect.height - tooltip.offsetHeight - RUNWAY_TOOLTIP_CARD_MARGIN
+    const x = clampToRange(clientX - cardRect.left, RUNWAY_TOOLTIP_CARD_MARGIN, maxX)
+    const y = clampToRange(clientY - cardRect.top, RUNWAY_TOOLTIP_CARD_MARGIN, maxY)
+
+    tooltip.style.setProperty('--runway-tooltip-x', `${x}px`)
+    tooltip.style.setProperty('--runway-tooltip-y', `${y}px`)
+  }
+  const showRunwayTooltip = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (runwaySegments.length === 0) {
+      setRunwayTooltipVisible(false)
+      return
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const xPct = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100))
+    const segment = getRunwaySegmentAtX(runwaySegments, xPct)
+    if (!segment) {
+      setRunwayTooltipVisible(false)
+      return
+    }
+
+    updateRunwayTooltipPosition(event.clientX, event.clientY)
+    setHoveredSegment((current) => (
+      current?.id === segment.id ? current : segment
+    ))
+    setRunwayTooltipVisible(true)
+    requestAnimationFrame(() => updateRunwayTooltipPosition(event.clientX, event.clientY))
+  }
+  const hideRunwayTooltip = () => {
+    setRunwayTooltipVisible(false)
+  }
+  const handleRunwayTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || runwayTooltipVisible) return
+    setHoveredSegment(null)
+  }
 
   return (
-    <div className="app-card h-[14rem] flex flex-col">
+    <div ref={runwayCardRef} className="app-card relative h-[14rem] flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
           <LifeBuoy size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
@@ -94,8 +158,9 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
           <div
             ref={runwayBarRef}
             className="flex h-full gap-0.5 rounded-xl overflow-hidden"
-            onMouseMove={handleRunwayMouseMove}
-            onMouseLeave={handleRunwayMouseLeave}
+            onMouseEnter={showRunwayTooltip}
+            onMouseMove={showRunwayTooltip}
+            onMouseLeave={hideRunwayTooltip}
           >
             {runwaySegments.length > 0 ? (
               runwaySegments.map((segment) => (
@@ -116,32 +181,6 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
               </div>
             )}
           </div>
-          {hoveredSegment && runwayHoverXPct !== null && (
-            <div
-              className="absolute -top-2 -translate-y-full whitespace-nowrap rounded-md px-2.5 py-1.5 pointer-events-none z-10 w-[11rem]"
-              style={{
-                left: `clamp(5.5rem, ${runwayHoverXPct}%, calc(100% - 5.5rem))`,
-                transform: 'translateX(-50%)',
-                transition: 'left 280ms cubic-bezier(0.22, 1, 0.36, 1)',
-                background: 'var(--app-bg)',
-                border: '1px solid var(--app-border-strong)',
-                boxShadow: 'var(--app-shadow-soft)',
-              }}
-            >
-              <div
-                className="font-medium truncate text-[0.8125rem] max-[1000px]:text-[0.73125rem]"
-                style={{ color: 'var(--app-text)' }}
-              >
-                {hoveredSegment.name}
-              </div>
-              <div
-                className="font-financial text-[0.8125rem] max-[1000px]:text-[0.73125rem]"
-                style={{ color: 'var(--app-text-muted)' }}
-              >
-                {formatCurrency(hoveredSegment.amount, displayCurrency)}
-              </div>
-            </div>
-          )}
         </div>
       </div>
       {runwaySegments.length > 0 && (
@@ -149,6 +188,27 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
           {runwayCaption}
         </p>
       )}
+      <div
+        ref={runwayTooltipRef}
+        className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 w-[11rem]"
+        onTransitionEnd={handleRunwayTooltipTransitionEnd}
+        style={{
+          opacity: runwayTooltipVisible ? 1 : 0,
+          transition: 'opacity 150ms ease-out',
+          transform: 'translate3d(var(--runway-tooltip-x, 0px), var(--runway-tooltip-y, 0px), 0)',
+        }}
+      >
+        {hoveredSegment && (
+          <>
+            <div className="app-chart-tooltip-default-title truncate font-medium">
+              {hoveredSegment.name}
+            </div>
+            <div className="app-chart-tooltip-default-value font-financial">
+              {formatCurrency(hoveredSegment.amount, displayCurrency)}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
