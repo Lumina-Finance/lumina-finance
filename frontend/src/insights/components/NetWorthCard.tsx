@@ -1,9 +1,7 @@
 import {
   useMemo,
   useRef,
-  useState,
   type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
@@ -23,6 +21,11 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from './DeferredChartTooltipOverlay'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -77,6 +80,9 @@ type NetWorthSnapshot = {
 
 type NetWorthTooltipState = {
   activeLabel?: string | number
+  activeCoordinate?: {
+    x?: number
+  }
 }
 
 const netWorthLegendContainerVariants = {
@@ -93,6 +99,21 @@ const netWorthLegendItemVariants = {
 
 const netWorthChartMargin = { top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin } as const
 const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
+
+function getNetWorthTooltipKey(point: NetWorthDeltaPoint) {
+  return point.dateMs
+}
+
+function getNetWorthTooltipPointer(
+  state: NetWorthTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
 
 function NetWorthXAxisTick({
   x = 0,
@@ -193,9 +214,7 @@ export function NetWorthCard({
   transitionKey,
 }: NetWorthCardProps) {
   const netWorthChartRef = useRef<HTMLDivElement>(null)
-  const netWorthTooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredNetWorthPoint, setHoveredNetWorthPoint] = useState<NetWorthDeltaPoint | null>(null)
-  const [netWorthTooltipVisible, setNetWorthTooltipVisible] = useState(false)
+  const netWorthTooltipRef = useRef<DeferredChartTooltipOverlayHandle<NetWorthDeltaPoint>>(null)
   const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
     mode,
     groups,
@@ -253,48 +272,21 @@ export function NetWorthCard({
       ? 'var(--app-chart-negative)'
       : 'var(--app-text-muted)'
   const NetWorthTrendIcon = latestChange > 0 ? TrendingUp : latestChange < 0 ? TrendingDown : Minus
-  const updateNetWorthTooltipPosition = (event: ReactMouseEvent<Element>) => {
-    const rect = netWorthChartRef.current?.getBoundingClientRect()
-    const tooltip = netWorthTooltipRef.current
-    if (!rect || !tooltip) return
-
-    const tooltipX = Math.min(
-      Math.max(event.clientX - rect.left, 0),
-      Math.max(rect.width - tooltip.offsetWidth, 0),
-    )
-    const tooltipY = Math.min(
-      Math.max(event.clientY - rect.top, 0),
-      Math.max(rect.height - tooltip.offsetHeight, 0),
-    )
-
-    tooltip.style.setProperty('--net-worth-tooltip-x', `${tooltipX}px`)
-    tooltip.style.setProperty('--net-worth-tooltip-y', `${tooltipY}px`)
-  }
   const showNetWorthTooltip = (
     state: NetWorthTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    updateNetWorthTooltipPosition(event)
-
     const activeDateMs = Number(state.activeLabel)
     const point = Number.isFinite(activeDateMs) ? netWorthPointsByMs.get(activeDateMs) : undefined
+    const pointer = getNetWorthTooltipPointer(state, event)
     if (!point) {
-      setNetWorthTooltipVisible(false)
+      netWorthTooltipRef.current?.show(null, pointer)
       return
     }
 
-    setHoveredNetWorthPoint((current) => (
-      current?.dateMs === point.dateMs ? current : point
-    ))
-    setNetWorthTooltipVisible(true)
+    netWorthTooltipRef.current?.show(point, pointer)
   }
-  const hideNetWorthTooltip = () => {
-    setNetWorthTooltipVisible(false)
-  }
-  const handleNetWorthTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || netWorthTooltipVisible) return
-    setHoveredNetWorthPoint(null)
-  }
+  const hideNetWorthTooltip = () => netWorthTooltipRef.current?.hide()
 
   return (
     <section className="app-card">
@@ -422,36 +414,24 @@ export function NetWorthCard({
                     />
                   </>
                 )}
-                {netWorthTooltipVisible && hoveredNetWorthPoint && (
-                  <ReferenceLine
-                    x={hoveredNetWorthPoint.dateMs}
-                    stroke="var(--app-border-strong)"
-                    strokeWidth={1}
-                  />
-                )}
               </ComposedChart>
             </ResponsiveContainer>
           )}
           {hasChartData && (
-            <div
+            <DeferredChartTooltipOverlay
               ref={netWorthTooltipRef}
-              className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-64"
-              onTransitionEnd={handleNetWorthTooltipTransitionEnd}
-              style={{
-                opacity: netWorthTooltipVisible ? 1 : 0,
-                transition: 'opacity 150ms ease-out',
-                transform: 'translate3d(var(--net-worth-tooltip-x, 0px), var(--net-worth-tooltip-y, 0px), 0)',
-              }}
-            >
-              {hoveredNetWorthPoint && (
+              chartRef={netWorthChartRef}
+              className="min-w-64"
+              getKey={getNetWorthTooltipKey}
+              renderContent={(point) => (
                 <NetWorthChartTooltipContent
-                  point={hoveredNetWorthPoint}
+                  point={point}
                   items={chartItems}
                   displayCurrency={displaySnapshot.displayCurrency}
                   mode={displaySnapshot.mode}
                 />
               )}
-            </div>
+            />
           )}
         </div>
         <div className="mt-3 overflow-hidden">

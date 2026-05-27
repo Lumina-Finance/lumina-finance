@@ -1,9 +1,7 @@
 import {
   useMemo,
   useRef,
-  useState,
   type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUpToLine, Repeat } from 'lucide-react'
@@ -23,6 +21,11 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from './DeferredChartTooltipOverlay'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -66,9 +69,27 @@ type SavingsRateTrendSnapshot = {
 type SavingsRateTooltipState = {
   activeLabel?: string | number
   activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
 }
 
 const savingsRateChartMargin = { top: 8, right: 8, bottom: 0, left: 4 } as const
+
+function getSavingsRateTooltipKey(point: SavingsRateHistoryPoint) {
+  return point.monthKey
+}
+
+function getSavingsRateTooltipPointer(
+  state: SavingsRateTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
 
 function getSavingsTier(rate: number | null) {
   if (rate === null) return 'negative'
@@ -157,9 +178,7 @@ export function SavingsRateTrendCard({
   transitionKey,
 }: SavingsRateTrendCardProps) {
   const savingsRateChartRef = useRef<HTMLDivElement>(null)
-  const savingsRateTooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredSavingsRatePoint, setHoveredSavingsRatePoint] = useState<SavingsRateHistoryPoint | null>(null)
-  const [savingsRateTooltipVisible, setSavingsRateTooltipVisible] = useState(false)
+  const savingsRateTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateHistoryPoint>>(null)
   const incomingSnapshot = useMemo<SavingsRateTrendSnapshot>(() => ({
     series,
     displayCurrency,
@@ -224,50 +243,23 @@ export function SavingsRateTrendCard({
   ]))
     .filter((tick) => tick >= yAxisDomain[0] && tick <= yAxisDomain[1])
     .sort((a, b) => a - b)
-  const updateSavingsRateTooltipPosition = (event: ReactMouseEvent<Element>) => {
-    const rect = savingsRateChartRef.current?.getBoundingClientRect()
-    const tooltip = savingsRateTooltipRef.current
-    if (!rect || !tooltip) return
-
-    const tooltipX = Math.min(
-      Math.max(event.clientX - rect.left, 0),
-      Math.max(rect.width - tooltip.offsetWidth, 0),
-    )
-    const tooltipY = Math.min(
-      Math.max(event.clientY - rect.top, 0),
-      Math.max(rect.height - tooltip.offsetHeight, 0),
-    )
-
-    tooltip.style.setProperty('--savings-rate-tooltip-x', `${tooltipX}px`)
-    tooltip.style.setProperty('--savings-rate-tooltip-y', `${tooltipY}px`)
-  }
   const showSavingsRateTooltip = (
     state: SavingsRateTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    updateSavingsRateTooltipPosition(event)
-
     const activeIndex = Number(state.activeTooltipIndex)
     const point = Number.isInteger(activeIndex)
       ? displaySnapshot.series[activeIndex]
       : displaySnapshot.series.find((item) => item.monthKey === String(state.activeLabel))
+    const pointer = getSavingsRateTooltipPointer(state, event)
     if (!point) {
-      setSavingsRateTooltipVisible(false)
+      savingsRateTooltipRef.current?.show(null, pointer)
       return
     }
 
-    setHoveredSavingsRatePoint((current) => (
-      current?.monthKey === point.monthKey ? current : point
-    ))
-    setSavingsRateTooltipVisible(true)
+    savingsRateTooltipRef.current?.show(point, pointer)
   }
-  const hideSavingsRateTooltip = () => {
-    setSavingsRateTooltipVisible(false)
-  }
-  const handleSavingsRateTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || savingsRateTooltipVisible) return
-    setHoveredSavingsRatePoint(null)
-  }
+  const hideSavingsRateTooltip = () => savingsRateTooltipRef.current?.hide()
 
   return (
     <section className="app-card">
@@ -406,13 +398,6 @@ export function SavingsRateTrendCard({
                     />
                   )}
                   {currentPoint && <SavingsCurrentBoundary currentLabel={currentPoint.monthKey} />}
-                  {savingsRateTooltipVisible && hoveredSavingsRatePoint && (
-                    <ReferenceLine
-                      x={hoveredSavingsRatePoint.monthKey}
-                      stroke="var(--app-border-strong)"
-                      strokeWidth={1}
-                    />
-                  )}
                   <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={30}>
                     {chartSeries.map((entry) => {
                       const tier = getSavingsTier(entry.rate)
@@ -430,23 +415,18 @@ export function SavingsRateTrendCard({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <div
+              <DeferredChartTooltipOverlay
                 ref={savingsRateTooltipRef}
-                className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-48"
-                onTransitionEnd={handleSavingsRateTooltipTransitionEnd}
-                style={{
-                  opacity: savingsRateTooltipVisible ? 1 : 0,
-                  transition: 'opacity 150ms ease-out',
-                  transform: 'translate3d(var(--savings-rate-tooltip-x, 0px), var(--savings-rate-tooltip-y, 0px), 0)',
-                }}
-              >
-                {hoveredSavingsRatePoint && (
+                chartRef={savingsRateChartRef}
+                className="min-w-48"
+                getKey={getSavingsRateTooltipKey}
+                renderContent={(point) => (
                   <SavingsRateHistoryTooltipContent
-                    point={hoveredSavingsRatePoint}
+                    point={point}
                     displayCurrency={displaySnapshot.displayCurrency}
                   />
                 )}
-              </div>
+              />
             </div>
           )}
         </div>

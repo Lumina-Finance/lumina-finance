@@ -1,9 +1,7 @@
 import {
   useMemo,
   useRef,
-  useState,
   type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { CalendarDays } from 'lucide-react'
 import {
@@ -21,6 +19,11 @@ import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from './DeferredChartTooltipOverlay'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -51,9 +54,27 @@ type CashFlowSnapshot = {
 type CashFlowTooltipState = {
   activeLabel?: string | number
   activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
 }
 
 const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
+
+function getCashFlowTooltipKey(bucket: CashFlowBarBucket) {
+  return bucket.rangeLabel
+}
+
+function getCashFlowTooltipPointer(
+  state: CashFlowTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
 
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
@@ -116,9 +137,7 @@ export function CashFlowCard({
   transitionKey,
 }: CashFlowCardProps) {
   const cashFlowChartRef = useRef<HTMLDivElement>(null)
-  const cashFlowTooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredCashFlowBucket, setHoveredCashFlowBucket] = useState<CashFlowBarBucket | null>(null)
-  const [cashFlowTooltipVisible, setCashFlowTooltipVisible] = useState(false)
+  const cashFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
     granularity,
     buckets,
@@ -140,50 +159,23 @@ export function CashFlowCard({
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
   const yAxisWidth = getCashFlowYAxisWidth(displaySnapshot.buckets, displaySnapshot.displayCurrency)
-  const updateCashFlowTooltipPosition = (event: ReactMouseEvent<Element>) => {
-    const rect = cashFlowChartRef.current?.getBoundingClientRect()
-    const tooltip = cashFlowTooltipRef.current
-    if (!rect || !tooltip) return
-
-    const tooltipX = Math.min(
-      Math.max(event.clientX - rect.left, 0),
-      Math.max(rect.width - tooltip.offsetWidth, 0),
-    )
-    const tooltipY = Math.min(
-      Math.max(event.clientY - rect.top, 0),
-      Math.max(rect.height - tooltip.offsetHeight, 0),
-    )
-
-    tooltip.style.setProperty('--cash-flow-tooltip-x', `${tooltipX}px`)
-    tooltip.style.setProperty('--cash-flow-tooltip-y', `${tooltipY}px`)
-  }
   const showCashFlowTooltip = (
     state: CashFlowTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    updateCashFlowTooltipPosition(event)
-
     const activeIndex = Number(state.activeTooltipIndex)
     const bucket = Number.isInteger(activeIndex)
       ? displaySnapshot.buckets[activeIndex]
       : displaySnapshot.buckets.find((item) => item.label === String(state.activeLabel))
+    const pointer = getCashFlowTooltipPointer(state, event)
     if (!bucket) {
-      setCashFlowTooltipVisible(false)
+      cashFlowTooltipRef.current?.show(null, pointer)
       return
     }
 
-    setHoveredCashFlowBucket((current) => (
-      current?.rangeLabel === bucket.rangeLabel ? current : bucket
-    ))
-    setCashFlowTooltipVisible(true)
+    cashFlowTooltipRef.current?.show(bucket, pointer)
   }
-  const hideCashFlowTooltip = () => {
-    setCashFlowTooltipVisible(false)
-  }
-  const handleCashFlowTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || cashFlowTooltipVisible) return
-    setHoveredCashFlowBucket(null)
-  }
+  const hideCashFlowTooltip = () => cashFlowTooltipRef.current?.hide()
 
   return (
     <section className="app-card">
@@ -242,13 +234,6 @@ export function CashFlowCard({
                       tickFormatter={(value) => formatCurrency(Number(value), displaySnapshot.displayCurrency)}
                     />
                     <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
-                    {cashFlowTooltipVisible && hoveredCashFlowBucket && (
-                      <ReferenceLine
-                        x={hoveredCashFlowBucket.label}
-                        stroke="var(--app-border-strong)"
-                        strokeWidth={1}
-                      />
-                    )}
                     <Bar dataKey="net" radius={4} maxBarSize={40}>
                       {displaySnapshot.buckets.map((bucket) => (
                         <Cell
@@ -261,23 +246,18 @@ export function CashFlowCard({
                 </ResponsiveContainer>
               )}
               {hasActivity && (
-                <div
+                <DeferredChartTooltipOverlay
                   ref={cashFlowTooltipRef}
-                  className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-48"
-                  onTransitionEnd={handleCashFlowTooltipTransitionEnd}
-                  style={{
-                    opacity: cashFlowTooltipVisible ? 1 : 0,
-                    transition: 'opacity 150ms ease-out',
-                    transform: 'translate3d(var(--cash-flow-tooltip-x, 0px), var(--cash-flow-tooltip-y, 0px), 0)',
-                  }}
-                >
-                  {hoveredCashFlowBucket && (
+                  chartRef={cashFlowChartRef}
+                  className="min-w-48"
+                  getKey={getCashFlowTooltipKey}
+                  renderContent={(bucket) => (
                     <CashFlowBarTooltipContent
-                      bucket={hoveredCashFlowBucket}
+                      bucket={bucket}
                       displayCurrency={displaySnapshot.displayCurrency}
                     />
                   )}
-                </div>
+                />
               )}
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
