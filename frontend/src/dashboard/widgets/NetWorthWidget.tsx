@@ -9,10 +9,15 @@ import {
 } from 'recharts'
 import { Wallet } from 'lucide-react'
 import { useDashboardNetWorth } from '@/api/dashboard'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import {
+  DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
+  DASHBOARD_NET_WORTH_X_AXIS_TICK_COUNT,
+  DASHBOARD_X_AXIS_TICK_FONT_SIZE,
+} from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
+import type { NetWorthSeriesPoint } from '@/dashboard/types/dashboard'
 
 type NetWorthWidgetProps = {
   displayCurrency: string
@@ -23,11 +28,25 @@ function formatNetWorthChange(amount: number, currency: string) {
   return `${amount > 0 ? '+' : '-'}${formatDashboardMoney(Math.abs(amount), currency, 'netWorth')}`
 }
 
+function getNetWorthXAxisTicks(data: NetWorthSeriesPoint[]) {
+  const tickCount = Math.min(DASHBOARD_NET_WORTH_X_AXIS_TICK_COUNT, data.length)
+  if (tickCount <= 1) return data.map((point) => point.date)
+
+  const lastIndex = data.length - 1
+  return Array.from({ length: tickCount }, (_, index) => (
+    data[Math.round((lastIndex * index) / (tickCount - 1))].date
+  ))
+}
+
 export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const { data: dashboardNetWorth } = useDashboardNetWorth()
   const netWorthData = useMemo(
     () => getNetWorthSeries(dashboardNetWorth),
     [dashboardNetWorth],
+  )
+  const netWorthXAxisTicks = useMemo(
+    () => getNetWorthXAxisTicks(netWorthData),
+    [netWorthData],
   )
   const netWorth = dashboardNetWorth?.current_net_worth ?? 0
   const netWorthChange = netWorthData.length >= 2 ? netWorth - netWorthData[0].value : null
@@ -71,13 +90,26 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
       {netWorthData.length >= 2 && (
         <div className="mt-3 flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={netWorthData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <LineChart
+              data={netWorthData}
+              margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+            >
               <XAxis
+                xAxisId="plot"
+                dataKey="date"
+                hide
+              />
+              <XAxis
+                xAxisId="labels"
                 dataKey="date"
                 axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
                 tickLine={false}
-                interval="preserveStartEnd"
-                minTickGap={40}
+                interval={0}
+                ticks={netWorthXAxisTicks}
+                padding={{
+                  left: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
+                  right: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
+                }}
                 tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
                 tickMargin={3}
               />
@@ -88,6 +120,7 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
                 cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
               />
               <Line
+                xAxisId="plot"
                 type="monotone"
                 dataKey="value"
                 stroke={netWorthLineColor}
