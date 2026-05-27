@@ -27,6 +27,7 @@ import {
   PREVIOUS_LABEL_BY_RANGE,
   PREVIOUS_PERIOD_LABEL_BY_RANGE,
 } from '@/dashboard/constants/ranges'
+import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
 import { getSpendingComparisonSeries } from '@/dashboard/utils/getSpendingComparisonSeries'
 
 type SpendingComparisonWidgetProps = {
@@ -257,6 +258,10 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
             <Tooltip
               wrapperClassName="app-chart-tooltip-default"
               cursor={{ stroke: 'var(--app-accent-border)', strokeWidth: 1 }}
+              labelFormatter={(_, payload) => {
+                const point = payload?.[0]?.payload as SpendingComparisonSeriesPoint | undefined
+                return point?.label ?? ''
+              }}
               formatter={(value, name) => [
                 formatCurrency(Number(value), displayCurrency),
                 name === 'current' ? CURRENT_LABEL_BY_RANGE[spendingRange] : PREVIOUS_LABEL_BY_RANGE[spendingRange],
