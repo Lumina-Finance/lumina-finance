@@ -93,6 +93,7 @@ export interface CreateAccountPayload {
   institution_id: string | null;
   currency: string;
   credit_limit: number | null;
+  starting_balance: number | null;
   is_hidden: boolean;
 }
 

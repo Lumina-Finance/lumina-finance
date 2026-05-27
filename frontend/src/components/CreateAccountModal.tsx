@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Landmark, X } from 'lucide-react';
 import Dropdown from '@/components/Dropdown';
+import IconTooltip from '@/components/IconTooltip';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
 import { useTaxAdvantagedPlans } from '@/api/taxAdvantagedPlans';
@@ -40,6 +41,7 @@ const INITIAL_FORM = {
   institution_id: '',
   tax_advantaged_plan_id: '',
   credit_limit: '',
+  starting_balance: '',
 };
 
 // Shared animation for conditional fields sliding in/out
@@ -74,20 +76,25 @@ interface FieldErrors {
   name?: string;
   currency?: string;
   credit_limit?: string;
+  starting_balance?: string;
 }
 
 interface FieldLabelRowProps {
   label: React.ReactNode;
   htmlFor?: string;
   error?: string;
+  accessory?: React.ReactNode;
 }
 
-function FieldLabelRow({ label, htmlFor, error }: FieldLabelRowProps) {
+function FieldLabelRow({ label, htmlFor, error, accessory }: FieldLabelRowProps) {
   return (
     <div className="mb-1.5 flex items-start justify-between gap-3">
-      <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
-        {label}
-      </label>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
+          {label}
+        </label>
+        {accessory}
+      </div>
       <AnimatePresence initial={false}>
         {error && (
           <motion.p
@@ -117,6 +124,10 @@ function validate(form: typeof INITIAL_FORM): FieldErrors {
   if (form.credit_limit) {
     const n = Number(form.credit_limit.replace(/,/g, ''));
     if (isNaN(n) || n < 0) errors.credit_limit = 'Must be a positive number';
+  }
+  if (form.starting_balance) {
+    const n = Number(form.starting_balance.replace(/,/g, ''));
+    if (isNaN(n) || n < 0) errors.starting_balance = 'Must be zero or higher';
   }
   return errors;
 }
@@ -150,10 +161,12 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   // credit_limit applies only to revolving-credit products (credit cards,
   // LOCs, HELOCs). Amortizing debt has a fixed principal schedule, not a limit.
   const isRevolving = accountKind === 'revolving';
+  const isLiability = accountKind === 'revolving' || accountKind === 'amortizing';
   const canLinkTaxPlan = accountKind === 'asset' && !!form.currency;
   const conditionalAccountField = canLinkTaxPlan ? 'tax-plan' : isRevolving ? 'credit-limit' : null;
   const selectedAccountType = ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type);
   const selectedCurrencySymbol = currencies.find((currency) => currency.id === form.currency)?.symbol ?? '';
+  const startingBalanceLabel = isLiability ? 'Starting Amount Owed' : 'Starting Balance';
 
   // Dropdown options
   const currencyOptions = useMemo(
@@ -239,7 +252,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
     const errors = validate(form);
     setFieldErrors(errors);
-    setTouched({ account_type: true, name: true, currency: true, credit_limit: true });
+    setTouched({ account_type: true, name: true, currency: true, credit_limit: true, starting_balance: true });
     if (Object.keys(errors).length > 0) return;
 
     // Convert user-entered major units (e.g. dollars) to minor units (e.g. cents)
@@ -261,6 +274,11 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       institution_id: form.institution_id || null,
       currency: form.currency,
       credit_limit: isRevolving ? toMinor(form.credit_limit) : null,
+      starting_balance: (() => {
+        const amount = toMinor(form.starting_balance);
+        if (amount === null) return null;
+        return isLiability ? -amount : amount;
+      })(),
       is_hidden: false,
     };
 
@@ -456,6 +474,47 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                                 onCreateNew={handleCreateInstitution}
                                 createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
                               />
+                            </div>
+
+                            <div>
+                              <FieldLabelRow
+                                htmlFor="starting-balance"
+                                label={startingBalanceLabel}
+                                error={showError('starting_balance') || undefined}
+                                accessory={(
+                                  <IconTooltip
+                                    label={`${startingBalanceLabel} info`}
+                                    placement="top"
+                                    widthClassName="w-56"
+                                    size={14}
+                                  >
+                                    If provided, this account will be created with a balance adjustment transaction for this amount.
+                                  </IconTooltip>
+                                )}
+                              />
+                              <div className="relative">
+                                {selectedCurrencySymbol && (
+                                  <span
+                                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                                    style={{ color: 'var(--app-text-subtle)' }}
+                                    aria-hidden
+                                  >
+                                    {selectedCurrencySymbol}
+                                  </span>
+                                )}
+                                <input
+                                  id="starting-balance"
+                                  className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('starting_balance') ? 'app-input-error' : ''}`}
+                                  inputMode="decimal"
+                                  placeholder="Optional"
+                                  value={form.starting_balance}
+                                  onChange={(e) => handleChange(
+                                    'starting_balance',
+                                    formatMoneyInputLive(sanitizeMoneyInput(e.target.value)),
+                                  )}
+                                  onBlur={() => handleBlur('starting_balance')}
+                                />
+                              </div>
                             </div>
 
                             <AnimatePresence initial={false} mode="wait">
