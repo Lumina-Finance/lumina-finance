@@ -27,7 +27,7 @@ const LoadingScreen = ({ variant = 'screen' }: LoadingScreenProps) => (
     />
     <p
       className="max-w-64 text-[0.6875rem] font-medium uppercase tracking-[0.18em] min-[730px]:text-xs min-[730px]:tracking-[0.2em]"
-      style={{ color: 'var(--app-text-subtle)' }}
+      style={{ color: 'var(--app-text-muted)' }}
     >
       Your financial future awaits
     </p>
