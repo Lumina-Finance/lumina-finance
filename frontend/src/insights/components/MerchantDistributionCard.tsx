@@ -9,6 +9,7 @@ import {
 import { Store } from 'lucide-react'
 import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -160,30 +161,28 @@ function MerchantMarketMap({
     () => splitTreemapItems(merchants, 0, 0, layoutWidth, layoutHeight),
     [layoutHeight, layoutWidth, merchants],
   )
-  const updateMerchantTooltipPosition = (event: ReactMouseEvent<Element>) => {
-    const rect = mapRef.current?.getBoundingClientRect()
+  const updateMerchantTooltipPosition = (clientX: number, clientY: number) => {
+    const map = mapRef.current
     const tooltip = tooltipRef.current
-    if (!rect || !tooltip) return
+    if (!map || !tooltip) return
 
-    const tooltipX = Math.min(
-      Math.max(event.clientX - rect.left, 0),
-      Math.max(rect.width - tooltip.offsetWidth, 0),
-    )
-    const tooltipY = Math.min(
-      Math.max(event.clientY - rect.top, 0),
-      Math.max(rect.height - tooltip.offsetHeight, 0),
-    )
-
-    tooltip.style.setProperty('--merchant-tooltip-x', `${tooltipX}px`)
-    tooltip.style.setProperty('--merchant-tooltip-y', `${tooltipY}px`)
+    applyCursorTooltipPosition({
+      origin: map,
+      tooltip,
+      clientX,
+      clientY,
+      xProperty: '--merchant-tooltip-x',
+      yProperty: '--merchant-tooltip-y',
+    })
   }
   const showMerchantTooltip = (
     merchant: MerchantMarketTile,
     event: ReactMouseEvent<Element>,
   ) => {
-    updateMerchantTooltipPosition(event)
+    updateMerchantTooltipPosition(event.clientX, event.clientY)
     setHoveredTile((current) => (current?.merchant.id === merchant.id ? current : { merchant }))
     setTooltipVisible(true)
+    requestAnimationFrame(() => updateMerchantTooltipPosition(event.clientX, event.clientY))
   }
   const hideMerchantTooltip = () => {
     setTooltipVisible(false)

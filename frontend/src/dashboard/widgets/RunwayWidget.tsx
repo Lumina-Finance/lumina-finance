@@ -17,14 +17,13 @@ import {
   formatRunwayBasis,
   runwayBand,
 } from '@/utils/runway'
+import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
 import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
 
 type RunwayWidgetProps = {
   displayCurrency: string
 }
-
-const RUNWAY_TOOLTIP_CARD_MARGIN = 8
 
 function getRunwayCaption(
   runway: ReturnType<typeof useRunway>['data'],
@@ -50,11 +49,6 @@ function getRunwaySegmentAtX(runwaySegments: RunwaySegment[], xPct: number) {
   return runwaySegments[runwaySegments.length - 1]
 }
 
-function clampToRange(value: number, min: number, max: number) {
-  if (max < min) return min
-  return Math.min(Math.max(value, min), max)
-}
-
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const runwayCardRef = useRef<HTMLDivElement>(null)
   const runwayBarRef = useRef<HTMLDivElement>(null)
@@ -73,17 +67,18 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
     [accounts, runwayAccountIds, runway],
   )
   const updateRunwayTooltipPosition = (clientX: number, clientY: number) => {
-    const cardRect = runwayCardRef.current?.getBoundingClientRect()
+    const card = runwayCardRef.current
     const tooltip = runwayTooltipRef.current
-    if (!cardRect || !tooltip) return
+    if (!card || !tooltip) return
 
-    const maxX = cardRect.width - tooltip.offsetWidth - RUNWAY_TOOLTIP_CARD_MARGIN
-    const maxY = cardRect.height - tooltip.offsetHeight - RUNWAY_TOOLTIP_CARD_MARGIN
-    const x = clampToRange(clientX - cardRect.left, RUNWAY_TOOLTIP_CARD_MARGIN, maxX)
-    const y = clampToRange(clientY - cardRect.top, RUNWAY_TOOLTIP_CARD_MARGIN, maxY)
-
-    tooltip.style.setProperty('--runway-tooltip-x', `${x}px`)
-    tooltip.style.setProperty('--runway-tooltip-y', `${y}px`)
+    applyCursorTooltipPosition({
+      origin: card,
+      tooltip,
+      clientX,
+      clientY,
+      xProperty: '--runway-tooltip-x',
+      yProperty: '--runway-tooltip-y',
+    })
   }
   const showRunwayTooltip = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (runwaySegments.length === 0) {

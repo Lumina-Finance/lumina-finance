@@ -13,6 +13,7 @@ import {
   type RefObject,
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
+import { getCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 type TooltipKey = string | number
 type GuideVariant = 'line' | 'bar'
@@ -43,10 +44,6 @@ type DeferredChartTooltipOverlayProps<T> = {
 
 const DEFAULT_DEFERRED_TOOLTIP_DELAY_MS = 45
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
-
 function DeferredChartTooltipOverlayInner<T>({
   chartRef,
   boundsRef,
@@ -70,18 +67,20 @@ function DeferredChartTooltipOverlayInner<T>({
   const visibleRef = useRef(false)
 
   const positionTooltip = useCallback((pointer: ChartTooltipPointer) => {
-    const rect = chartRef.current?.getBoundingClientRect()
+    const chart = chartRef.current
+    const rect = chart?.getBoundingClientRect()
     const boundsRect = boundsRef?.current?.getBoundingClientRect() ?? rect
     const tooltip = tooltipRef.current
-    if (!rect || !boundsRect || !tooltip) return
+    if (!chart || !rect || !boundsRect || !tooltip) return
 
-    const minTooltipX = boundsRect.left - rect.left
-    const minTooltipY = boundsRect.top - rect.top
-    const maxTooltipX = Math.max(minTooltipX, boundsRect.right - rect.left - tooltip.offsetWidth)
-    const maxTooltipY = Math.max(minTooltipY, boundsRect.bottom - rect.top - tooltip.offsetHeight)
-    const tooltipX = clamp(pointer.clientX - rect.left, minTooltipX, maxTooltipX)
-    const tooltipY = clamp(pointer.clientY - rect.top, minTooltipY, maxTooltipY)
-    const guideX = clamp(pointer.chartX ?? pointer.clientX - rect.left, 0, rect.width)
+    const { x: tooltipX, y: tooltipY } = getCursorTooltipPosition({
+      origin: chart,
+      tooltip,
+      clientX: pointer.clientX,
+      clientY: pointer.clientY,
+      bounds: boundsRect,
+    })
+    const guideX = Math.min(Math.max(pointer.chartX ?? pointer.clientX - rect.left, 0), rect.width)
     const maxGuideWidth = typeof guideMaxWidth === 'function' ? guideMaxWidth(rect.width) : guideMaxWidth
     const resolvedGuideWidth = guideVariant === 'bar'
       ? Math.max(1, Math.min(guideWidth, maxGuideWidth ?? guideWidth))

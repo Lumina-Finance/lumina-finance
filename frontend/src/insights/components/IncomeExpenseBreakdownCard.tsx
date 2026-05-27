@@ -24,6 +24,7 @@ import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
+import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 export type BreakdownMode = 'expense' | 'income'
 
@@ -199,13 +200,19 @@ export function IncomeExpenseBreakdownCard({
   })
   const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
     ?? getBreakdownColor(entry)
-  const updateBreakdownTooltipPosition = (event: ReactMouseEvent<SVGGraphicsElement>) => {
-    const rect = breakdownChartRef.current?.getBoundingClientRect()
+  const updateBreakdownTooltipPosition = (clientX: number, clientY: number) => {
+    const chart = breakdownChartRef.current
     const tooltip = breakdownTooltipRef.current
-    if (!rect || !tooltip) return
+    if (!chart || !tooltip) return
 
-    tooltip.style.setProperty('--breakdown-tooltip-x', `${event.clientX - rect.left}px`)
-    tooltip.style.setProperty('--breakdown-tooltip-y', `${event.clientY - rect.top}px`)
+    applyCursorTooltipPosition({
+      origin: chart,
+      tooltip,
+      clientX,
+      clientY,
+      xProperty: '--breakdown-tooltip-x',
+      yProperty: '--breakdown-tooltip-y',
+    })
   }
   const showBreakdownTooltip = (
     entry: BreakdownEntry | undefined,
@@ -216,11 +223,12 @@ export function IncomeExpenseBreakdownCard({
       return
     }
 
-    updateBreakdownTooltipPosition(event)
+    updateBreakdownTooltipPosition(event.clientX, event.clientY)
     setHoveredBreakdownEntry((current) => (
       current?.id === entry.id ? current : entry
     ))
     setBreakdownTooltipVisible(true)
+    requestAnimationFrame(() => updateBreakdownTooltipPosition(event.clientX, event.clientY))
   }
   const hideBreakdownTooltip = () => {
     setBreakdownTooltipVisible(false)
@@ -304,7 +312,7 @@ export function IncomeExpenseBreakdownCard({
                   onTransitionEnd={handleBreakdownTooltipTransitionEnd}
                   style={{
                     opacity: breakdownTooltipVisible ? 1 : 0,
-                    transition: 'opacity 150ms ease-out',
+                    transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
                     transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
                   }}
                 >

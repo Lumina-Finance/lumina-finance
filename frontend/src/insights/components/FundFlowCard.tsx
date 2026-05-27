@@ -16,6 +16,7 @@ import {
   type SankeyNodeProps,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -378,20 +379,26 @@ export function FundFlowCard({
   })
   const normalIncomeSources = withoutMatchingEntries(displaySnapshot.incomeSources, displaySnapshot.expenseInflows)
   const normalExpenseCategories = withoutMatchingEntries(displaySnapshot.expenseCategories, displaySnapshot.incomeOutflows)
-  const updateFlowTooltipPosition = (event: ReactMouseEvent<Element>) => {
-    const rect = flowChartRef.current?.getBoundingClientRect()
+  const updateFlowTooltipPosition = (clientX: number, clientY: number) => {
+    const chart = flowChartRef.current
     const tooltip = flowTooltipRef.current
-    if (!rect || !tooltip) return
+    if (!chart || !tooltip) return
 
-    tooltip.style.setProperty('--flow-tooltip-x', `${event.clientX - rect.left}px`)
-    tooltip.style.setProperty('--flow-tooltip-y', `${event.clientY - rect.top}px`)
+    applyCursorTooltipPosition({
+      origin: chart,
+      tooltip,
+      clientX,
+      clientY,
+      xProperty: '--flow-tooltip-x',
+      yProperty: '--flow-tooltip-y',
+    })
   }
   const showFlowTooltip = (
     item: SankeyNodeProps | SankeyLinkProps,
     type: SankeyElementType,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    updateFlowTooltipPosition(event)
+    updateFlowTooltipPosition(event.clientX, event.clientY)
 
     const tooltip = getSankeyFlowTooltipData(item, type)
     if (!tooltip) {
@@ -403,6 +410,7 @@ export function FundFlowCard({
       current?.name === tooltip.name && current.amount === tooltip.amount ? current : tooltip
     ))
     setFlowTooltipVisible(true)
+    requestAnimationFrame(() => updateFlowTooltipPosition(event.clientX, event.clientY))
   }
   const hideFlowTooltip = () => {
     setFlowTooltipVisible(false)
@@ -458,7 +466,7 @@ export function FundFlowCard({
           <div
             ref={flowChartRef}
             className="relative h-full"
-            onMouseMove={updateFlowTooltipPosition}
+            onMouseMove={(event) => updateFlowTooltipPosition(event.clientX, event.clientY)}
             onMouseLeave={hideFlowTooltip}
           >
             {displaySnapshot.flowData.nodes.length > 0 ? (
@@ -486,7 +494,7 @@ export function FundFlowCard({
               onTransitionEnd={handleFlowTooltipTransitionEnd}
               style={{
                 opacity: flowTooltipVisible ? 1 : 0,
-                transition: 'opacity 150ms ease-out',
+                transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
                 transform: 'translate3d(var(--flow-tooltip-x, 0px), var(--flow-tooltip-y, 0px), 0)',
               }}
             >
