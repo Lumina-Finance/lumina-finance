@@ -75,7 +75,7 @@ export default function TransactionsTopBand({
   }, [])
 
   return (
-    <section className="relative">
+    <section className="relative" data-tooltip-bounds>
       <AnimatePresence>
         {filterListLoading && (
           <TransactionFilterLoadingOverlay

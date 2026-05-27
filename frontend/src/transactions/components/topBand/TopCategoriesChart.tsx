@@ -1,4 +1,9 @@
 import {
+  useMemo,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
+import {
   AnimatePresence,
   motion,
 } from 'motion/react'
@@ -7,10 +12,14 @@ import {
   BarChart,
   Cell,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -23,6 +32,68 @@ import {
 import type { OverviewCategorySpend } from '@/transactions/components/topBand/types'
 
 const emptyTopCategoryHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT
+
+type TopCategoryTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+  activePayload?: Array<{
+    payload?: OverviewCategorySpend
+  }>
+}
+
+function getTopCategoryTooltipKey(point: OverviewCategorySpend) {
+  return point.name
+}
+
+function getTopCategoryTooltipPointer(
+  state: TopCategoryTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
+function getTopCategoryTooltipPoint(
+  state: TopCategoryTooltipState,
+  data: OverviewCategorySpend[],
+  pointsByName: Map<string, OverviewCategorySpend>,
+) {
+  const payloadPoint = state.activePayload?.[0]?.payload
+  if (payloadPoint) return payloadPoint
+
+  const activeIndex = Number(state.activeTooltipIndex)
+  if (Number.isInteger(activeIndex)) return data[activeIndex]
+
+  return state.activeLabel === undefined
+    ? undefined
+    : pointsByName.get(String(state.activeLabel))
+}
+
+function TopCategoryTooltipContent({
+  point,
+  displayCurrency,
+}: {
+  point: OverviewCategorySpend
+  displayCurrency: string
+}) {
+  return (
+    <>
+      <p className="app-chart-tooltip-default-title">{point.name}</p>
+      <div className="mt-1 flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-value">Spent</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.amount, displayCurrency)}
+        </span>
+      </div>
+    </>
+  )
+}
 
 function TopCategoryYAxisTick({
   x = 0,
@@ -60,6 +131,8 @@ export default function TopCategoriesChart({
   prefersReducedMotion: boolean | null
   className?: string
 }) {
+  const topCategoryChartRef = useRef<HTMLDivElement>(null)
+  const topCategoryTooltipRef = useRef<DeferredChartTooltipOverlayHandle<OverviewCategorySpend>>(null)
   const topCategoryChartHeight = Math.max(24, categorySpend.length * TOP_CATEGORY_ROW_HEIGHT)
   // Recharts needs an explicit Y-axis width; estimate it from label length to avoid clipping.
   const topCategoryAxisWidth = Math.max(
@@ -70,8 +143,27 @@ export default function TopCategoriesChart({
       + TOP_CATEGORY_AXIS_LABEL_PADDING,
     ),
   )
+  const topCategoryPointsByName = useMemo(
+    () => new Map(categorySpend.map((category) => [category.name, category])),
+    [categorySpend],
+  )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
   const contentTransition = { duration: prefersReducedMotion ? 0 : 0.24, ease: [0.25, 0.1, 0.25, 1] } as const
+  const showTopCategoryTooltip = (
+    state: TopCategoryTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const point = getTopCategoryTooltipPoint(state, categorySpend, topCategoryPointsByName)
+    const pointer = getTopCategoryTooltipPointer(state, event)
+
+    if (!point) {
+      topCategoryTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    topCategoryTooltipRef.current?.show(point, pointer)
+  }
+  const hideTopCategoryTooltip = () => topCategoryTooltipRef.current?.hide()
 
   return (
     <div className={`flex min-w-0 flex-col ${className}`}>
@@ -108,9 +200,12 @@ export default function TopCategoriesChart({
             </motion.div>
           ) : (
             <motion.div
+              ref={topCategoryChartRef}
               key="category-chart"
               layout
+              className="relative"
               style={{ height: topCategoryChartHeight }}
+              onMouseLeave={hideTopCategoryTooltip}
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
@@ -122,6 +217,8 @@ export default function TopCategoriesChart({
                   data={categorySpend}
                   layout="vertical"
                   margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+                  onMouseMove={(state, event) => showTopCategoryTooltip(state, event)}
+                  onMouseLeave={hideTopCategoryTooltip}
                 >
                   <XAxis type="number" hide />
                   <YAxis
@@ -133,11 +230,6 @@ export default function TopCategoriesChart({
                     tick={<TopCategoryYAxisTick />}
                     axisLine={false}
                     tickLine={false}
-                  />
-                  <Tooltip
-                    wrapperClassName="app-chart-tooltip-compact"
-                    cursor={{ fill: 'var(--app-surface-soft)' }}
-                    formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Spent']}
                   />
                   <Bar
                     dataKey="amount"
@@ -155,6 +247,19 @@ export default function TopCategoriesChart({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              <DeferredChartTooltipOverlay
+                ref={topCategoryTooltipRef}
+                chartRef={topCategoryChartRef}
+                className="min-w-40"
+                showGuide={false}
+                getKey={getTopCategoryTooltipKey}
+                renderContent={(point) => (
+                  <TopCategoryTooltipContent
+                    point={point}
+                    displayCurrency={displayCurrency}
+                  />
+                )}
+              />
             </motion.div>
           )}
         </AnimatePresence>
