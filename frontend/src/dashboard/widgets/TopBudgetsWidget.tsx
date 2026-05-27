@@ -77,7 +77,7 @@ export function TopBudgetsWidget() {
                 <Link
                   key={budget.budget_id}
                   to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
-                  className="block px-1 py-3 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+                  className="block px-1 py-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
                   style={{
                     borderBottom: index < budgets.length - 1 ? '1px solid var(--app-border)' : undefined,
                   }}
@@ -104,7 +104,7 @@ export function TopBudgetsWidget() {
                       </p>
                     </div>
                   </div>
-                  <div className="mt-2.5 flex items-center gap-3">
+                  <div className="mt-2 flex items-center gap-3">
                     <div
                       className="h-1.5 flex-1 overflow-hidden rounded-full"
                       style={{ background: 'var(--app-border)' }}
