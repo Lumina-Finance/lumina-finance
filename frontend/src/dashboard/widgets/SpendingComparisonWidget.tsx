@@ -33,12 +33,30 @@ type SpendingComparisonWidgetProps = {
   displayCurrency: string
 }
 
+function getSpendingComparisonXAxisTicks(
+  range: SpendingRange,
+  data: Array<{ label: string }>,
+) {
+  const labels = data.map((point) => point.label)
+  if (range === 'MTD') {
+    return labels.filter((_, index) => (
+      index % 2 === 0 || index === labels.length - 1
+    ))
+  }
+
+  return labels
+}
+
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison, isLoading: spendingComparisonLoading } = useSpendingComparison(spendingRange)
   const spendingChartData = useMemo(
     () => getSpendingComparisonSeries(spendingComparison),
     [spendingComparison],
+  )
+  const spendingXAxisTicks = useMemo(
+    () => getSpendingComparisonXAxisTicks(spendingRange, spendingChartData),
+    [spendingRange, spendingChartData],
   )
   const currentSeries = spendingComparison?.current ?? []
   const previousSeries = spendingComparison?.previous ?? []
@@ -182,8 +200,8 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
               dataKey="label"
               axisLine={false}
               tickLine={false}
-              interval="preserveStartEnd"
-              minTickGap={32}
+              interval={0}
+              ticks={spendingXAxisTicks}
               tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
               tickMargin={4}
             />
