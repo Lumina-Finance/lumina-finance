@@ -1,20 +1,46 @@
 import {
+  useMemo,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
+import {
   Area,
   AreaChart,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import type { DailyCashFlow } from '@/api/transactions'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { PLACEHOLDER_DAILY_FLOW } from '@/transactions/components/topBand/constants'
 import { parseYmdLocal } from '@/transactions/utils/date'
 
+type DailyCashFlowPoint = {
+  date: string
+  inflow: number
+  outflow: number
+}
+
+type DailyCashFlowTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+  activePayload?: Array<{
+    payload?: DailyCashFlowPoint
+  }>
+}
+
 function getDailyCashFlowSeries(
   raw: DailyCashFlow[],
-): { date: string; inflow: number; outflow: number }[] {
+): DailyCashFlowPoint[] {
   if (raw.length === 0) return []
 
   // The API only returns days with activity; pad missing days so the line chart has a continuous axis.
@@ -42,6 +68,63 @@ function getDailyCashFlowSeries(
   return result
 }
 
+function getDailyCashFlowTooltipKey(point: DailyCashFlowPoint) {
+  return point.date
+}
+
+function getDailyCashFlowTooltipPointer(
+  state: DailyCashFlowTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
+function getDailyCashFlowTooltipPoint(
+  state: DailyCashFlowTooltipState,
+  data: DailyCashFlowPoint[],
+  pointsByDate: Map<string, DailyCashFlowPoint>,
+) {
+  const payloadPoint = state.activePayload?.[0]?.payload
+  if (payloadPoint) return payloadPoint
+
+  const activeIndex = Number(state.activeTooltipIndex)
+  if (Number.isInteger(activeIndex)) return data[activeIndex]
+
+  return state.activeLabel === undefined
+    ? undefined
+    : pointsByDate.get(String(state.activeLabel))
+}
+
+function DailyCashFlowTooltipContent({
+  point,
+  displayCurrency,
+}: {
+  point: DailyCashFlowPoint
+  displayCurrency: string
+}) {
+  return (
+    <>
+      <p className="app-chart-tooltip-default-title">{point.date}</p>
+      <div className="mt-1 flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-value">Inflow</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(Math.abs(point.inflow), displayCurrency)}
+        </span>
+      </div>
+      <div className="mt-1 flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-value">Outflow</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(Math.abs(point.outflow), displayCurrency)}
+        </span>
+      </div>
+    </>
+  )
+}
+
 export default function DailyCashFlowChart({
   rawDailyFlow,
   hasOverviewData,
@@ -55,18 +138,48 @@ export default function DailyCashFlowChart({
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
 }) {
-  const dailyFlow = hasOverviewData ? getDailyCashFlowSeries(rawDailyFlow) : PLACEHOLDER_DAILY_FLOW
+  const dailyFlowChartRef = useRef<HTMLDivElement>(null)
+  const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
+  const dailyFlow = useMemo(
+    () => (hasOverviewData ? getDailyCashFlowSeries(rawDailyFlow) : PLACEHOLDER_DAILY_FLOW),
+    [hasOverviewData, rawDailyFlow],
+  )
+  const dailyFlowPointsByDate = useMemo(
+    () => new Map(dailyFlow.map((point) => [point.date, point])),
+    [dailyFlow],
+  )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
+  const showDailyCashFlowTooltip = (
+    state: DailyCashFlowTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const point = getDailyCashFlowTooltipPoint(state, dailyFlow, dailyFlowPointsByDate)
+    const pointer = getDailyCashFlowTooltipPointer(state, event)
+
+    if (!point) {
+      dailyFlowTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    dailyFlowTooltipRef.current?.show(point, pointer)
+  }
+  const hideDailyCashFlowTooltip = () => dailyFlowTooltipRef.current?.hide()
 
   return (
     <>
       <p className="app-label mb-3">Daily Cash Flow</p>
-      <div className="h-[11.75rem]">
+      <div
+        ref={dailyFlowChartRef}
+        className="relative h-[11.75rem]"
+        onMouseLeave={hideDailyCashFlowTooltip}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             key={`daily-flow-${chartAnimationKey}`}
             data={dailyFlow}
             margin={{ top: 4, right: 12, bottom: 0, left: 12 }}
+            onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
+            onMouseLeave={hideDailyCashFlowTooltip}
           >
             <defs>
               <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
@@ -87,13 +200,6 @@ export default function DailyCashFlowChart({
             />
             <YAxis hide />
             <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
-            <Tooltip
-              wrapperClassName="app-chart-tooltip-compact"
-              formatter={(value, name) => [
-                formatCurrency(Math.abs(Number(value)), displayCurrency),
-                name === 'inflow' ? 'Inflow' : 'Outflow',
-              ]}
-            />
             <Area
               type="monotone"
               dataKey="inflow"
@@ -114,6 +220,18 @@ export default function DailyCashFlowChart({
             />
           </AreaChart>
         </ResponsiveContainer>
+        <DeferredChartTooltipOverlay
+          ref={dailyFlowTooltipRef}
+          chartRef={dailyFlowChartRef}
+          className="min-w-44"
+          getKey={getDailyCashFlowTooltipKey}
+          renderContent={(point) => (
+            <DailyCashFlowTooltipContent
+              point={point}
+              displayCurrency={displayCurrency}
+            />
+          )}
+        />
       </div>
     </>
   )
