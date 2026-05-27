@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -107,7 +108,7 @@ function NetWorthXAxisTick({
       dy={12}
       textAnchor={textAnchor}
       fill="var(--app-text-subtle)"
-      fontSize={11}
+      fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
     >
       {dateLabelsByMs.get(value) ?? formatNetWorthAxisDate(value)}
     </text>

@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -165,7 +166,7 @@ export function CashFlowCard({
                       tickLine={false}
                       interval="preserveStartEnd"
                       minTickGap={32}
-                      tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+                      tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
                       tickMargin={4}
                     />
                     <YAxis

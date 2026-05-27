@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -318,7 +319,7 @@ export function SavingsRateTrendCard({
                     tickLine={false}
                     interval="preserveStartEnd"
                     minTickGap={28}
-                    tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+                    tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
                     tickFormatter={(value) => tickLabels.get(String(value)) ?? String(value)}
                     tickMargin={4}
                   />
