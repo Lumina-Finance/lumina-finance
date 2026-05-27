@@ -1,19 +1,42 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
   Cell,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import { ArrowUpToLine, Repeat } from 'lucide-react'
 import { useDashboardSavingsRate } from '@/api/dashboard'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import type { SavingsRateSeriesPoint } from '@/dashboard/types/dashboard'
 import { getSavingsRateSeries } from '@/dashboard/utils/getSavingsRateSeries'
+
+type SavingsRateChartPoint = SavingsRateSeriesPoint & {
+  chartRate: number | null
+}
+
+type SavingsRateTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+  activePayload?: Array<{
+    payload?: SavingsRateChartPoint
+  }>
+}
+
+const savingsRateChartMargin = { top: 4, right: 4, bottom: 0, left: 4 } as const
+const savingsRateHoverHighlightWidth = 70
 
 function getSavingsTier(rate: number | null) {
   if (rate === null) return 'negative'
@@ -27,7 +50,66 @@ function clampSavingsRate(rate: number | null) {
   return Math.max(-100, Math.min(100, rate))
 }
 
+function getSavingsRateTooltipKey(point: SavingsRateChartPoint) {
+  return point.fullLabel
+}
+
+function getSavingsRateTooltipPointer(
+  state: SavingsRateTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
+function getSavingsRateDisplay(point: SavingsRateChartPoint) {
+  if (point.income === 0 && point.expenses === 0) return null
+  return point.income > 0
+    ? `${Math.round(((point.income - point.expenses) / point.income) * 100)}%`
+    : '−∞%'
+}
+
+function SavingsRateTooltipContent({ point }: { point: SavingsRateChartPoint }) {
+  const display = getSavingsRateDisplay(point)
+  if (!display) return null
+
+  return (
+    <>
+      <div className="app-chart-tooltip-default-title">{point.fullLabel}</div>
+      <div className="app-chart-tooltip-default-value">Savings Rate: {display}</div>
+    </>
+  )
+}
+
+function getSavingsRateTooltipPoint(
+  state: SavingsRateTooltipState,
+  data: SavingsRateChartPoint[],
+) {
+  const payloadPoint = state.activePayload?.[0]?.payload
+  if (payloadPoint) return payloadPoint
+
+  const activeIndex = Number(state.activeTooltipIndex)
+  if (Number.isInteger(activeIndex)) return data[activeIndex]
+
+  return state.activeLabel === undefined
+    ? undefined
+    : data.find((point) => point.monthLabel === String(state.activeLabel))
+}
+
+function getSavingsRateGuideMaxWidth(chartWidth: number, pointCount: number) {
+  if (pointCount <= 0) return savingsRateHoverHighlightWidth
+  return Math.max(
+    1,
+    (chartWidth - savingsRateChartMargin.left - savingsRateChartMargin.right) / pointCount,
+  )
+}
+
 export function SavingsRateWidget() {
+  const savingsRateChartRef = useRef<HTMLDivElement>(null)
+  const savingsRateTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateChartPoint>>(null)
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const { data: dashboardSavingsRate } = useDashboardSavingsRate()
   const savingsData = useMemo(
@@ -38,6 +120,21 @@ export function SavingsRateWidget() {
     ...point,
     chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
   })), [capSavingsRateChart, savingsData])
+  const showSavingsRateTooltip = (
+    state: SavingsRateTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const point = getSavingsRateTooltipPoint(state, chartData)
+    const pointer = getSavingsRateTooltipPointer(state, event)
+
+    if (!point || getSavingsRateDisplay(point) === null) {
+      savingsRateTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    savingsRateTooltipRef.current?.show(point, pointer)
+  }
+  const hideSavingsRateTooltip = () => savingsRateTooltipRef.current?.hide()
 
   return (
     <div className="app-card h-[14rem] pb-2 flex flex-col">
@@ -60,7 +157,11 @@ export function SavingsRateWidget() {
         </button>
       </div>
       {chartData.length > 0 && (
-        <div className="flex-1 min-h-0 relative">
+        <div
+          ref={savingsRateChartRef}
+          className="relative min-h-0 flex-1"
+          onMouseLeave={hideSavingsRateTooltip}
+        >
           {/* Pattern definitions live beside the chart so Recharts can resolve
               the url(#id) fills regardless of its internal SVG structure. */}
           <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
@@ -84,7 +185,12 @@ export function SavingsRateWidget() {
             </defs>
           </svg>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <BarChart
+              data={chartData}
+              margin={savingsRateChartMargin}
+              onMouseMove={(state, event) => showSavingsRateTooltip(state, event)}
+              onMouseLeave={hideSavingsRateTooltip}
+            >
               <XAxis
                 dataKey="monthLabel"
                 axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
@@ -104,30 +210,6 @@ export function SavingsRateWidget() {
               <SavingsCurrentBoundary
                 currentLabel={chartData[chartData.length - 1].monthLabel}
               />
-              <Tooltip
-                wrapperClassName="app-chart-tooltip-default"
-                labelClassName="app-chart-tooltip-default-title"
-                cursor={{ fill: 'var(--app-border)', opacity: 0.4 }}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.[0]) return null
-                  const { fullLabel, income, expenses } = payload[0].payload as {
-                    fullLabel: string
-                    income: number
-                    expenses: number
-                  }
-                  if (income === 0 && expenses === 0) return null
-                  const display =
-                    income > 0
-                      ? `${Math.round(((income - expenses) / income) * 100)}%`
-                      : '−∞%'
-                  return (
-                    <div className="app-chart-tooltip-default-content">
-                      <div className="app-chart-tooltip-default-title">{fullLabel}</div>
-                      <div className="app-chart-tooltip-default-value">Savings Rate: {display}</div>
-                    </div>
-                  )
-                }}
-              />
               <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={28}>
                 {chartData.map((entry, index) => {
                   const tier = getSavingsTier(entry.rate)
@@ -145,6 +227,18 @@ export function SavingsRateWidget() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <DeferredChartTooltipOverlay
+            ref={savingsRateTooltipRef}
+            chartRef={savingsRateChartRef}
+            className="min-w-44"
+            guideVariant="bar"
+            guideWidth={savingsRateHoverHighlightWidth}
+            guideMaxWidth={(chartWidth) => getSavingsRateGuideMaxWidth(chartWidth, chartData.length)}
+            getKey={getSavingsRateTooltipKey}
+            renderContent={(point) => (
+              <SavingsRateTooltipContent point={point} />
+            )}
+          />
         </div>
       )}
     </div>

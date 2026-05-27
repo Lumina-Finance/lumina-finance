@@ -15,6 +15,7 @@ import {
 } from 'react'
 
 type TooltipKey = string | number
+type GuideVariant = 'line' | 'bar'
 
 export type ChartTooltipPointer = {
   clientX: number
@@ -34,6 +35,9 @@ type DeferredChartTooltipOverlayProps<T> = {
   className?: string
   delayMs?: number
   showGuide?: boolean
+  guideVariant?: GuideVariant
+  guideWidth?: number
+  guideMaxWidth?: number | ((chartWidth: number) => number)
 }
 
 const DEFAULT_DEFERRED_TOOLTIP_DELAY_MS = 45
@@ -49,6 +53,9 @@ function DeferredChartTooltipOverlayInner<T>({
   className = '',
   delayMs = DEFAULT_DEFERRED_TOOLTIP_DELAY_MS,
   showGuide = true,
+  guideVariant = 'line',
+  guideWidth = 28,
+  guideMaxWidth,
 }: DeferredChartTooltipOverlayProps<T>, ref: ForwardedRef<DeferredChartTooltipOverlayHandle<T>>) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const guideRef = useRef<HTMLDivElement>(null)
@@ -68,11 +75,17 @@ function DeferredChartTooltipOverlayInner<T>({
     const tooltipX = clamp(pointer.clientX - rect.left, 0, Math.max(rect.width - tooltip.offsetWidth, 0))
     const tooltipY = clamp(pointer.clientY - rect.top, 0, Math.max(rect.height - tooltip.offsetHeight, 0))
     const guideX = clamp(pointer.chartX ?? pointer.clientX - rect.left, 0, rect.width)
+    const maxGuideWidth = typeof guideMaxWidth === 'function' ? guideMaxWidth(rect.width) : guideMaxWidth
+    const resolvedGuideWidth = guideVariant === 'bar'
+      ? Math.max(1, Math.min(guideWidth, maxGuideWidth ?? guideWidth))
+      : 1
 
     tooltip.style.setProperty('--chart-tooltip-x', `${tooltipX}px`)
     tooltip.style.setProperty('--chart-tooltip-y', `${tooltipY}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-x', `${guideX}px`)
-  }, [chartRef])
+    guideRef.current?.style.setProperty('--chart-tooltip-guide-width', `${resolvedGuideWidth}px`)
+    guideRef.current?.style.setProperty('--chart-tooltip-guide-offset', `${resolvedGuideWidth / -2}px`)
+  }, [chartRef, guideMaxWidth, guideVariant, guideWidth])
 
   const clearPending = useCallback(() => {
     if (timerRef.current) {
@@ -158,12 +171,16 @@ function DeferredChartTooltipOverlayInner<T>({
       {showGuide && (
         <div
           ref={guideRef}
-          className="absolute top-0 h-full w-px"
+          className="absolute top-0 h-full"
           style={{
-            background: 'var(--app-border-strong)',
-            opacity: visible && item ? 1 : 0,
-            transform: 'translate3d(var(--chart-tooltip-guide-x, 0px), 0, 0)',
+            background: guideVariant === 'bar' ? 'var(--app-border)' : 'var(--app-border-strong)',
+            borderRadius: guideVariant === 'bar' ? 4 : undefined,
+            opacity: visible && item ? (guideVariant === 'bar' ? 0.4 : 1) : 0,
+            transform: guideVariant === 'bar'
+              ? 'translate3d(calc(var(--chart-tooltip-guide-x, 0px) + var(--chart-tooltip-guide-offset, -14px)), 0, 0)'
+              : 'translate3d(var(--chart-tooltip-guide-x, 0px), 0, 0)',
             transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
+            width: guideVariant === 'bar' ? 'var(--chart-tooltip-guide-width, 28px)' : 1,
           }}
         />
       )}
