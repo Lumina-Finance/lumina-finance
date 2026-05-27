@@ -30,6 +30,7 @@ export type DeferredChartTooltipOverlayHandle<T> = {
 
 type DeferredChartTooltipOverlayProps<T> = {
   chartRef: RefObject<HTMLDivElement | null>
+  boundsRef?: RefObject<HTMLDivElement | null>
   getKey: (item: T) => TooltipKey
   renderContent: (item: T) => ReactNode
   className?: string
@@ -48,6 +49,7 @@ function clamp(value: number, min: number, max: number) {
 
 function DeferredChartTooltipOverlayInner<T>({
   chartRef,
+  boundsRef,
   getKey,
   renderContent,
   className = '',
@@ -69,11 +71,16 @@ function DeferredChartTooltipOverlayInner<T>({
 
   const positionTooltip = useCallback((pointer: ChartTooltipPointer) => {
     const rect = chartRef.current?.getBoundingClientRect()
+    const boundsRect = boundsRef?.current?.getBoundingClientRect() ?? rect
     const tooltip = tooltipRef.current
-    if (!rect || !tooltip) return
+    if (!rect || !boundsRect || !tooltip) return
 
-    const tooltipX = clamp(pointer.clientX - rect.left, 0, Math.max(rect.width - tooltip.offsetWidth, 0))
-    const tooltipY = clamp(pointer.clientY - rect.top, 0, Math.max(rect.height - tooltip.offsetHeight, 0))
+    const minTooltipX = boundsRect.left - rect.left
+    const minTooltipY = boundsRect.top - rect.top
+    const maxTooltipX = Math.max(minTooltipX, boundsRect.right - rect.left - tooltip.offsetWidth)
+    const maxTooltipY = Math.max(minTooltipY, boundsRect.bottom - rect.top - tooltip.offsetHeight)
+    const tooltipX = clamp(pointer.clientX - rect.left, minTooltipX, maxTooltipX)
+    const tooltipY = clamp(pointer.clientY - rect.top, minTooltipY, maxTooltipY)
     const guideX = clamp(pointer.chartX ?? pointer.clientX - rect.left, 0, rect.width)
     const maxGuideWidth = typeof guideMaxWidth === 'function' ? guideMaxWidth(rect.width) : guideMaxWidth
     const resolvedGuideWidth = guideVariant === 'bar'
@@ -85,7 +92,7 @@ function DeferredChartTooltipOverlayInner<T>({
     guideRef.current?.style.setProperty('--chart-tooltip-guide-x', `${guideX}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-width', `${resolvedGuideWidth}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-offset', `${resolvedGuideWidth / -2}px`)
-  }, [chartRef, guideMaxWidth, guideVariant, guideWidth])
+  }, [boundsRef, chartRef, guideMaxWidth, guideVariant, guideWidth])
 
   const clearPending = useCallback(() => {
     if (timerRef.current) {
