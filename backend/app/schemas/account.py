@@ -61,6 +61,7 @@ class CreateAccountRequest(BaseModel):
     institution_id: uuid.UUID | None = None
     currency: str = Field(min_length=3, max_length=3)
     credit_limit: int | None = None  # Only valid on liability accounts
+    starting_balance: int | None = None  # Signed initial balance adjustment in minor units
     is_hidden: bool = False
     group_id: uuid.UUID | None = None
 
