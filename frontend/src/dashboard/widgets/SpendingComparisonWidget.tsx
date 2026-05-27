@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Area,
   AreaChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -18,6 +17,11 @@ import {
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
@@ -42,6 +46,17 @@ type SpendingComparisonXAxisTickProps = {
   }
   firstLabel?: string
   lastLabel?: string
+}
+
+type SpendingComparisonTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+  activePayload?: Array<{
+    payload?: SpendingComparisonSeriesPoint
+  }>
 }
 
 function getSpendingComparisonXAxisTicks(
@@ -82,7 +97,77 @@ function SpendingComparisonXAxisTick({
   )
 }
 
+function getSpendingComparisonTooltipKey(point: SpendingComparisonSeriesPoint) {
+  return point.label
+}
+
+function getSpendingComparisonTooltipPointer(
+  state: SpendingComparisonTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
+function getSpendingComparisonTooltipPoint(
+  state: SpendingComparisonTooltipState,
+  data: SpendingComparisonSeriesPoint[],
+  pointsByLabel: Map<string, SpendingComparisonSeriesPoint>,
+) {
+  const payloadPoint = state.activePayload?.[0]?.payload
+  if (payloadPoint) return payloadPoint
+
+  const activeIndex = Number(state.activeTooltipIndex)
+  if (Number.isInteger(activeIndex)) return data[activeIndex]
+
+  return state.activeLabel === undefined
+    ? undefined
+    : pointsByLabel.get(String(state.activeLabel))
+}
+
+function SpendingComparisonTooltipContent({
+  point,
+  displayCurrency,
+  spendingRange,
+}: {
+  point: SpendingComparisonSeriesPoint
+  displayCurrency: string
+  spendingRange: SpendingRange
+}) {
+  const rows = [
+    {
+      key: 'current',
+      label: CURRENT_LABEL_BY_RANGE[spendingRange],
+      value: point.current,
+    },
+    {
+      key: 'previous',
+      label: PREVIOUS_LABEL_BY_RANGE[spendingRange],
+      value: point.previous,
+    },
+  ].filter((row) => row.value != null)
+
+  return (
+    <>
+      <p className="app-chart-tooltip-default-title">{point.label}</p>
+      {rows.map((row) => (
+        <div key={row.key} className="mt-1 flex justify-between gap-4">
+          <span className="app-chart-tooltip-default-value">{row.label}</span>
+          <span className="app-chart-tooltip-default-value font-financial">
+            {formatCurrency(Number(row.value), displayCurrency)}
+          </span>
+        </div>
+      ))}
+    </>
+  )
+}
+
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
+  const spendingComparisonChartRef = useRef<HTMLDivElement>(null)
+  const spendingComparisonTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SpendingComparisonSeriesPoint>>(null)
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison, isLoading: spendingComparisonLoading } = useSpendingComparison(spendingRange)
   const spendingChartData = useMemo(
@@ -95,6 +180,10 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   )
   const firstSpendingXAxisTick = spendingXAxisTicks[0]
   const lastSpendingXAxisTick = spendingXAxisTicks[spendingXAxisTicks.length - 1]
+  const spendingPointsByLabel = useMemo(
+    () => new Map(spendingChartData.map((point) => [point.label, point])),
+    [spendingChartData],
+  )
   const currentSeries = spendingComparison?.current ?? []
   const previousSeries = spendingComparison?.previous ?? []
   const currentHasData = currentSeries.some((value) => value > 0)
@@ -113,6 +202,21 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
       ? '+00.0%'
       : `${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`
   const amountLoadingText = formatCurrency(888888, displayCurrency)
+  const showSpendingComparisonTooltip = (
+    state: SpendingComparisonTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const point = getSpendingComparisonTooltipPoint(state, spendingChartData, spendingPointsByLabel)
+    const pointer = getSpendingComparisonTooltipPointer(state, event)
+
+    if (!point || (point.current == null && point.previous == null)) {
+      spendingComparisonTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    spendingComparisonTooltipRef.current?.show(point, pointer)
+  }
+  const hideSpendingComparisonTooltip = () => spendingComparisonTooltipRef.current?.hide()
 
   return (
     <div className="app-card h-[470px] flex flex-col">
@@ -217,11 +321,17 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
           </span>
         </div>
       </div>
-      <div className="flex-1 min-h-0">
+      <div
+        ref={spendingComparisonChartRef}
+        className="relative flex-1 min-h-0"
+        onMouseLeave={hideSpendingComparisonTooltip}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={spendingChartData}
             margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+            onMouseMove={(state, event) => showSpendingComparisonTooltip(state, event)}
+            onMouseLeave={hideSpendingComparisonTooltip}
           >
             <defs>
               <linearGradient id="spendCurrentFill" x1="0" y1="0" x2="0" y2="1">
@@ -255,19 +365,6 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
               tickMargin={4}
             />
             <YAxis hide />
-            <Tooltip
-              wrapperClassName="app-chart-tooltip-default"
-              labelClassName="app-chart-tooltip-default-title"
-              cursor={{ stroke: 'var(--app-accent-border)', strokeWidth: 1 }}
-              labelFormatter={(_, payload) => {
-                const point = payload?.[0]?.payload as SpendingComparisonSeriesPoint | undefined
-                return point?.label ?? ''
-              }}
-              formatter={(value, name) => [
-                formatCurrency(Number(value), displayCurrency),
-                name === 'current' ? CURRENT_LABEL_BY_RANGE[spendingRange] : PREVIOUS_LABEL_BY_RANGE[spendingRange],
-              ]}
-            />
             <Area
               xAxisId="plot"
               type="monotone"
@@ -289,6 +386,19 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
             />
           </AreaChart>
         </ResponsiveContainer>
+        <DeferredChartTooltipOverlay
+          ref={spendingComparisonTooltipRef}
+          chartRef={spendingComparisonChartRef}
+          className="min-w-48"
+          getKey={getSpendingComparisonTooltipKey}
+          renderContent={(point) => (
+            <SpendingComparisonTooltipContent
+              point={point}
+              displayCurrency={displayCurrency}
+              spendingRange={spendingRange}
+            />
+          )}
+        />
       </div>
     </div>
   )
