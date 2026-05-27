@@ -257,6 +257,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
             <YAxis hide />
             <Tooltip
               wrapperClassName="app-chart-tooltip-default"
+              labelClassName="app-chart-tooltip-default-title"
               cursor={{ stroke: 'var(--app-accent-border)', strokeWidth: 1 }}
               labelFormatter={(_, payload) => {
                 const point = payload?.[0]?.payload as SpendingComparisonSeriesPoint | undefined

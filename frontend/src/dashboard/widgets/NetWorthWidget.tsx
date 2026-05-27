@@ -116,6 +116,7 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
               <YAxis hide domain={['dataMin', 'dataMax']} />
               <Tooltip
                 wrapperClassName="app-chart-tooltip-default"
+                labelClassName="app-chart-tooltip-default-title"
                 labelFormatter={(_, payload) => {
                   const point = payload?.[0]?.payload as NetWorthSeriesPoint | undefined
                   return point?.date ?? ''

@@ -699,11 +699,12 @@
     font-size: 13px !important;
   }
 
-  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-label {
-    color: var(--app-text-subtle) !important;
+  .app-chart-tooltip-default-title {
+    color: var(--app-text-muted) !important;
   }
 
-  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-item {
+  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-item,
+  .app-chart-tooltip-default-value {
     color: var(--app-text) !important;
   }
 

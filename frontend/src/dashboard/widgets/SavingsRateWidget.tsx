@@ -106,6 +106,7 @@ export function SavingsRateWidget() {
               />
               <Tooltip
                 wrapperClassName="app-chart-tooltip-default"
+                labelClassName="app-chart-tooltip-default-title"
                 cursor={{ fill: 'var(--app-border)', opacity: 0.4 }}
                 content={({ active, payload }) => {
                   if (!active || !payload?.[0]) return null
@@ -121,8 +122,8 @@ export function SavingsRateWidget() {
                       : '−∞%'
                   return (
                     <div className="app-chart-tooltip-default-content">
-                      <div style={{ color: 'var(--app-text-subtle)' }}>{fullLabel}</div>
-                      <div style={{ color: 'var(--app-text)' }}>Savings Rate: {display}</div>
+                      <div className="app-chart-tooltip-default-title">{fullLabel}</div>
+                      <div className="app-chart-tooltip-default-value">Savings Rate: {display}</div>
                     </div>
                   )
                 }}
