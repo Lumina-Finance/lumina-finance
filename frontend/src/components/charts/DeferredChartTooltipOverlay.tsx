@@ -69,16 +69,16 @@ function DeferredChartTooltipOverlayInner<T>({
   const positionTooltip = useCallback((pointer: ChartTooltipPointer) => {
     const chart = chartRef.current
     const rect = chart?.getBoundingClientRect()
-    const boundsRect = boundsRef?.current?.getBoundingClientRect() ?? rect
+    const bounds = boundsRef?.current ?? undefined
     const tooltip = tooltipRef.current
-    if (!chart || !rect || !boundsRect || !tooltip) return
+    if (!chart || !rect || !tooltip) return
 
     const { x: tooltipX, y: tooltipY } = getCursorTooltipPosition({
       origin: chart,
       tooltip,
       clientX: pointer.clientX,
       clientY: pointer.clientY,
-      bounds: boundsRect,
+      bounds,
     })
     const guideX = Math.min(Math.max(pointer.chartX ?? pointer.clientX - rect.left, 0), rect.width)
     const maxGuideWidth = typeof guideMaxWidth === 'function' ? guideMaxWidth(rect.width) : guideMaxWidth

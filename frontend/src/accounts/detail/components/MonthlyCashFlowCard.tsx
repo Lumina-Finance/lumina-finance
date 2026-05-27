@@ -1,4 +1,4 @@
-import { useMemo, useRef, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
+import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
@@ -117,13 +117,11 @@ function CashFlowBarChart({
   domain,
   currency,
   tooltipLabel,
-  tooltipBoundsRef,
 }: {
   data: CashFlowBar[]
   domain: [number, number]
   currency: string
   tooltipLabel: (label: string) => string
-  tooltipBoundsRef: RefObject<HTMLDivElement | null>
 }) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBar>>(null)
@@ -186,7 +184,6 @@ function CashFlowBarChart({
       <DeferredChartTooltipOverlay
         ref={tooltipRef}
         chartRef={chartRef}
-        boundsRef={tooltipBoundsRef}
         className="min-w-44"
         guideVariant="bar"
         guideWidth={cashFlowHoverHighlightWidth}
@@ -205,7 +202,6 @@ function CashFlowBarChart({
 }
 
 export default function MonthlyCashFlowCard({ account }: { account: Account }) {
-  const graphAreaRef = useRef<HTMLDivElement>(null)
   const { data } = useAccountCashFlow(account.id, CASH_FLOW_CHART_MONTHS)
 
   const chartData = useMemo(
@@ -272,7 +268,7 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
         </div>
       </div>
 
-      <div ref={graphAreaRef} className="relative flex-1 min-h-[200px] w-full flex gap-4">
+      <div className="relative flex-1 min-h-[200px] w-full flex gap-4">
         <div className="flex-1 min-w-0">
           {!hasActivity ? (
             <div
@@ -287,7 +283,6 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
               domain={[0, yMax]}
               currency={account.currency}
               tooltipLabel={(label) => monthlyLabelByKey.get(label) ?? label}
-              tooltipBoundsRef={graphAreaRef}
             />
           )}
         </div>
@@ -305,7 +300,6 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
                 domain={[0, yMax]}
                 currency={account.currency}
                 tooltipLabel={() => `${CASH_FLOW_AVG_MONTHS}-month average`}
-                tooltipBoundsRef={graphAreaRef}
               />
             </div>
           </>

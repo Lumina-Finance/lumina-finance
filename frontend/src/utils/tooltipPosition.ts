@@ -26,6 +26,13 @@ function getBoundsRect(bounds: HTMLElement | DOMRect | undefined, fallback: DOMR
   return 'getBoundingClientRect' in bounds ? bounds.getBoundingClientRect() : bounds
 }
 
+function getDefaultBoundsRect(origin: HTMLElement) {
+  const surface = origin.closest('[data-tooltip-bounds], .app-card')
+  return surface && 'getBoundingClientRect' in surface
+    ? surface.getBoundingClientRect()
+    : origin.getBoundingClientRect()
+}
+
 export function getCursorTooltipPosition({
   origin,
   tooltip,
@@ -36,7 +43,7 @@ export function getCursorTooltipPosition({
   margin = DEFAULT_CURSOR_TOOLTIP_MARGIN,
 }: CursorTooltipPositionOptions) {
   const originRect = origin.getBoundingClientRect()
-  const boundsRect = getBoundsRect(bounds, originRect)
+  const boundsRect = getBoundsRect(bounds, getDefaultBoundsRect(origin))
   const minX = boundsRect.left - originRect.left + margin
   const minY = boundsRect.top - originRect.top + margin
   const maxX = boundsRect.right - originRect.left - tooltip.offsetWidth - margin
