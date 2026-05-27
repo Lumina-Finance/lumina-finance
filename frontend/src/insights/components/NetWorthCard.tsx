@@ -136,15 +136,19 @@ function NetWorthChartTooltip({
 
   return (
     <div className="app-chart-tooltip-default-content min-w-64">
-      <p className="app-tooltip-muted">{point.tooltipLabel}</p>
+      <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Net Worth</span>
-        <span className="font-financial">{formatCurrency(displayedNetWorth, displayCurrency)}</span>
+        <span className="app-chart-tooltip-default-value">Net Worth</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(displayedNetWorth, displayCurrency)}
+        </span>
       </div>
       {mode === 'overview' && (
         <div className="mt-1 flex justify-between gap-4">
-          <span>Change</span>
-          <span className="font-financial">{formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}</span>
+          <span className="app-chart-tooltip-default-value">Change</span>
+          <span className="app-chart-tooltip-default-value font-financial">
+            {formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}
+          </span>
         </div>
       )}
       <div className="mt-2 space-y-1 border-t border-[var(--app-border)] pt-2">
@@ -154,8 +158,8 @@ function NetWorthChartTooltip({
           const displayValue = item.kind === 'debt' ? Math.abs(value) : value
           return (
             <div key={item.id} className="flex justify-between gap-4">
-              <span className="app-tooltip-muted">{item.name}</span>
-              <span className="font-financial">
+              <span className="app-chart-tooltip-default-value">{item.name}</span>
+              <span className="app-chart-tooltip-default-value font-financial">
                 {formatCurrency(displayValue, displayCurrency)}
                 {mode === 'overview' && (
                   <>

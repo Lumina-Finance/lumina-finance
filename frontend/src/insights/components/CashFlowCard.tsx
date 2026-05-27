@@ -77,21 +77,21 @@ function CashFlowBarTooltip({
 
   return (
     <div className="app-chart-tooltip-default-content min-w-48">
-      <p className="app-tooltip-muted">{bucket.rangeLabel}</p>
+      <p className="app-chart-tooltip-default-title">{bucket.rangeLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Net</span>
+        <span className="app-chart-tooltip-default-value">Net</span>
         <span className="font-financial" style={{ color: getSignedAmountColor(bucket.net) }}>
           {formatSignedCurrency(bucket.net, displayCurrency)}
         </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Inflow</span>
+        <span className="app-chart-tooltip-default-value">Inflow</span>
         <span className="font-financial" style={{ color: 'var(--app-positive)' }}>
           {formatCurrency(bucket.inflow, displayCurrency)}
         </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Outflow</span>
+        <span className="app-chart-tooltip-default-value">Outflow</span>
         <span className="font-financial" style={{ color: 'var(--app-negative)' }}>
           {formatCurrency(bucket.outflow, displayCurrency)}
         </span>

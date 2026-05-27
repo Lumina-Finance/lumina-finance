@@ -93,18 +93,24 @@ function SavingsRateHistoryTooltip({
 
   return (
     <div className="app-chart-tooltip-default-content min-w-48">
-      <p className="app-tooltip-muted">{point.fullLabel}</p>
+      <p className="app-chart-tooltip-default-title">{point.fullLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Savings Rate</span>
-        <span className="font-financial">{formatSavingsRateValue(point.rate)}</span>
+        <span className="app-chart-tooltip-default-value">Savings Rate</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatSavingsRateValue(point.rate)}
+        </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Income</span>
-        <span className="font-financial">{formatCurrency(point.income, displayCurrency)}</span>
+        <span className="app-chart-tooltip-default-value">Income</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.income, displayCurrency)}
+        </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Expenses</span>
-        <span className="font-financial">{formatCurrency(point.expenses, displayCurrency)}</span>
+        <span className="app-chart-tooltip-default-value">Expenses</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.expenses, displayCurrency)}
+        </span>
       </div>
     </div>
   )

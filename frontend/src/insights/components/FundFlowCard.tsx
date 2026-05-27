@@ -175,8 +175,10 @@ function SankeyFlowTooltip({
   return (
     <div className="app-chart-tooltip-default-content">
       <div className="flex min-w-36 justify-between gap-4">
-        <span className="app-tooltip-muted">{getFlowTooltipName(item)}</span>
-        <span className="font-financial">{formatCurrency(Number(amount), displayCurrency)}</span>
+        <span className="app-chart-tooltip-default-title">{getFlowTooltipName(item)}</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(Number(amount), displayCurrency)}
+        </span>
       </div>
     </div>
   )

@@ -329,10 +329,12 @@ function MerchantMarketMap({
             transform: 'translateX(-50%)',
           }}
         >
-          <p className="app-tooltip-muted">{hoveredTile.merchant.name}</p>
+          <p className="app-chart-tooltip-default-title">{hoveredTile.merchant.name}</p>
           <div className="mt-1 flex justify-between gap-4">
-            <span>Total Spend</span>
-            <span className="font-financial">{formatCurrency(hoveredTile.merchant.totalAmount, currency)}</span>
+            <span className="app-chart-tooltip-default-value">Total Spend</span>
+            <span className="app-chart-tooltip-default-value font-financial">
+              {formatCurrency(hoveredTile.merchant.totalAmount, currency)}
+            </span>
           </div>
           {hoveredTile.merchant.changeAmount === null ? (
             <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
@@ -340,8 +342,8 @@ function MerchantMarketMap({
             </p>
           ) : (
             <div className="mt-1 flex justify-between gap-4">
-              <span>Change</span>
-              <span className="font-financial">
+              <span className="app-chart-tooltip-default-value">Change</span>
+              <span className="app-chart-tooltip-default-value font-financial">
                 {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
                 {hoveredTile.merchant.changePct === null
                   ? ' (no prior spend)'
