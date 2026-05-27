@@ -230,12 +230,12 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
               {hoveredBreakdownEntry && (
                 <>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium" style={{ color: 'var(--app-text)' }}>
+                    <span style={{ color: 'var(--app-text-subtle)' }}>
                       {hoveredBreakdownEntry.name}
                     </span>
                     {renderCrossoverBadge(hoveredBreakdownEntry, breakdownMode)}
                   </div>
-                  <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
+                  <div style={{ color: 'var(--app-text)' }}>
                     {formatCurrency(hoveredBreakdownEntry.amount, displayCurrency)}
                   </div>
                 </>
