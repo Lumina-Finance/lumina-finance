@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { Store } from 'lucide-react'
 import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -26,8 +33,6 @@ export type MerchantMarketTile = MerchantMarketMerchant & {
 
 type MerchantMarketHover = {
   merchant: MerchantMarketTile
-  x: number
-  y: number
 }
 
 type MerchantDistributionCardProps = {
@@ -45,7 +50,6 @@ type MerchantDistributionSnapshot = {
 
 const DEFAULT_MAP_WIDTH = 1000
 const DEFAULT_MAP_HEIGHT = 460
-const TOOLTIP_GAP = 10
 const TOOLTIP_MARGIN = 8
 const TOOLTIP_PREFERRED_WIDTH = 300
 
@@ -144,36 +148,50 @@ function MerchantMarketMap({
   currency: string
 }) {
   const [hoveredTile, setHoveredTile] = useState<MerchantMarketHover | null>(null)
-  const hoveredMerchantId = hoveredTile?.merchant.id
   const mapRef = useRef<HTMLDivElement | null>(null)
   const tooltipRef = useRef<HTMLDivElement | null>(null)
+  const [tooltipVisible, setTooltipVisible] = useState(false)
   const [mapSize, setMapSize] = useState({ width: DEFAULT_MAP_WIDTH, height: DEFAULT_MAP_HEIGHT })
-  const [tooltipHeight, setTooltipHeight] = useState(96)
   const layoutWidth = Math.max(mapSize.width, 1)
   const layoutHeight = Math.max(mapSize.height, 1)
   const tooltipMaxWidth = Math.max(layoutWidth - TOOLTIP_MARGIN * 2, 1)
   const tooltipWidth = Math.min(TOOLTIP_PREFERRED_WIDTH, tooltipMaxWidth)
-  const clampedTooltipHeight = Math.min(tooltipHeight, Math.max(layoutHeight - TOOLTIP_MARGIN * 2, 1))
-  const tooltipLeft = hoveredTile
-    ? Math.min(
-        Math.max(hoveredTile.x, TOOLTIP_MARGIN + tooltipWidth / 2),
-        layoutWidth - TOOLTIP_MARGIN - tooltipWidth / 2,
-      )
-    : 0
-  const tooltipTop = hoveredTile
-    ? hoveredTile.y - TOOLTIP_GAP - clampedTooltipHeight >= TOOLTIP_MARGIN
-      ? hoveredTile.y - TOOLTIP_GAP - clampedTooltipHeight
-      : hoveredTile.y + TOOLTIP_GAP + clampedTooltipHeight <= layoutHeight - TOOLTIP_MARGIN
-        ? hoveredTile.y + TOOLTIP_GAP
-        : Math.min(
-            Math.max(hoveredTile.y - clampedTooltipHeight / 2, TOOLTIP_MARGIN),
-            layoutHeight - TOOLTIP_MARGIN - clampedTooltipHeight,
-          )
-    : 0
   const laidOutMerchants = useMemo(
     () => splitTreemapItems(merchants, 0, 0, layoutWidth, layoutHeight),
     [layoutHeight, layoutWidth, merchants],
   )
+  const updateMerchantTooltipPosition = (event: ReactMouseEvent<Element>) => {
+    const rect = mapRef.current?.getBoundingClientRect()
+    const tooltip = tooltipRef.current
+    if (!rect || !tooltip) return
+
+    const tooltipX = Math.min(
+      Math.max(event.clientX - rect.left, 0),
+      Math.max(rect.width - tooltip.offsetWidth, 0),
+    )
+    const tooltipY = Math.min(
+      Math.max(event.clientY - rect.top, 0),
+      Math.max(rect.height - tooltip.offsetHeight, 0),
+    )
+
+    tooltip.style.setProperty('--merchant-tooltip-x', `${tooltipX}px`)
+    tooltip.style.setProperty('--merchant-tooltip-y', `${tooltipY}px`)
+  }
+  const showMerchantTooltip = (
+    merchant: MerchantMarketTile,
+    event: ReactMouseEvent<Element>,
+  ) => {
+    updateMerchantTooltipPosition(event)
+    setHoveredTile((current) => (current?.merchant.id === merchant.id ? current : { merchant }))
+    setTooltipVisible(true)
+  }
+  const hideMerchantTooltip = () => {
+    setTooltipVisible(false)
+  }
+  const handleMerchantTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
+    setHoveredTile(null)
+  }
 
   useEffect(() => {
     const element = mapRef.current
@@ -198,17 +216,12 @@ function MerchantMarketMap({
     return () => observer.disconnect()
   }, [])
 
-  useLayoutEffect(() => {
-    const tooltip = tooltipRef.current
-    if (!tooltip || !hoveredMerchantId) return
-
-    const rect = tooltip.getBoundingClientRect()
-    const nextHeight = Math.max(Math.round(rect.height), 1)
-    setTooltipHeight((current) => (current === nextHeight ? current : nextHeight))
-  }, [currency, hoveredMerchantId])
-
   return (
-    <div ref={mapRef} className="relative min-h-0 flex-1">
+    <div
+      ref={mapRef}
+      className="relative min-h-0 flex-1"
+      onMouseLeave={hideMerchantTooltip}
+    >
       <div className="absolute inset-0 overflow-hidden rounded-lg border border-[var(--app-border)]">
         <svg
           viewBox={`0 0 ${layoutWidth} ${layoutHeight}`}
@@ -255,25 +268,8 @@ function MerchantMarketMap({
                   width: `${(merchant.width / layoutWidth) * 100}%`,
                   height: `${(merchant.height / layoutHeight) * 100}%`,
                 }}
-                onMouseEnter={(event) => {
-                  const rect = event.currentTarget.parentElement?.getBoundingClientRect()
-                  if (!rect) return
-                  setHoveredTile({
-                    merchant,
-                    x: event.clientX - rect.left,
-                    y: event.clientY - rect.top,
-                  })
-                }}
-                onMouseMove={(event) => {
-                  const rect = event.currentTarget.parentElement?.getBoundingClientRect()
-                  if (!rect) return
-                  setHoveredTile({
-                    merchant,
-                    x: event.clientX - rect.left,
-                    y: event.clientY - rect.top,
-                  })
-                }}
-                onMouseLeave={() => setHoveredTile(null)}
+                onMouseEnter={(event) => showMerchantTooltip(merchant, event)}
+                onMouseMove={(event) => showMerchantTooltip(merchant, event)}
               >
                 {showName && (
                   <p
@@ -318,41 +314,44 @@ function MerchantMarketMap({
           })}
         </div>
       </div>
-      {hoveredTile && (
-        <div
-          ref={tooltipRef}
-          className="app-chart-tooltip-default-content pointer-events-none absolute z-20"
-          style={{
-            left: tooltipLeft,
-            top: tooltipTop,
-            width: tooltipWidth,
-            transform: 'translateX(-50%)',
-          }}
-        >
-          <p className="app-chart-tooltip-default-title">{hoveredTile.merchant.name}</p>
-          <div className="mt-1 flex justify-between gap-4">
-            <span className="app-chart-tooltip-default-value">Total Spend</span>
-            <span className="app-chart-tooltip-default-value font-financial">
-              {formatCurrency(hoveredTile.merchant.totalAmount, currency)}
-            </span>
-          </div>
-          {hoveredTile.merchant.changeAmount === null ? (
-            <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              Change not shown because this group changes by period.
-            </p>
-          ) : (
+      <div
+        ref={tooltipRef}
+        className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20"
+        onTransitionEnd={handleMerchantTooltipTransitionEnd}
+        style={{
+          opacity: tooltipVisible ? 1 : 0,
+          transition: 'opacity 150ms ease-out',
+          transform: 'translate3d(var(--merchant-tooltip-x, 0px), var(--merchant-tooltip-y, 0px), 0)',
+          width: tooltipWidth,
+        }}
+      >
+        {hoveredTile && (
+          <>
+            <p className="app-chart-tooltip-default-title">{hoveredTile.merchant.name}</p>
             <div className="mt-1 flex justify-between gap-4">
-              <span className="app-chart-tooltip-default-value">Change</span>
+              <span className="app-chart-tooltip-default-value">Total Spend</span>
               <span className="app-chart-tooltip-default-value font-financial">
-                {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
-                {hoveredTile.merchant.changePct === null
-                  ? ' (no prior spend)'
-                  : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
+                {formatCurrency(hoveredTile.merchant.totalAmount, currency)}
               </span>
             </div>
-          )}
-        </div>
-      )}
+            {hoveredTile.merchant.changeAmount === null ? (
+              <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Change not shown because this group changes by period.
+              </p>
+            ) : (
+              <div className="mt-1 flex justify-between gap-4">
+                <span className="app-chart-tooltip-default-value">Change</span>
+                <span className="app-chart-tooltip-default-value font-financial">
+                  {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
+                  {hoveredTile.merchant.changePct === null
+                    ? ' (no prior spend)'
+                    : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
