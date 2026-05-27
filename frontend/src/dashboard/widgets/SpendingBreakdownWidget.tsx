@@ -1,4 +1,10 @@
-import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   Cell,
@@ -60,6 +66,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   const breakdownChartRef = useRef<HTMLDivElement>(null)
   const breakdownTooltipRef = useRef<HTMLDivElement>(null)
   const [hoveredBreakdownEntry, setHoveredBreakdownEntry] = useState<CategoryBreakdownEntry | null>(null)
+  const [breakdownTooltipVisible, setBreakdownTooltipVisible] = useState(false)
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
   const { data: spendingBreakdown, isLoading: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
@@ -102,14 +109,22 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
     entry: CategoryBreakdownEntry | undefined,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    if (!entry) return
+    if (!entry) {
+      setBreakdownTooltipVisible(false)
+      return
+    }
 
     updateBreakdownTooltipPosition(event)
     setHoveredBreakdownEntry((current) => (
       current?.category_id === entry.category_id ? current : entry
     ))
+    setBreakdownTooltipVisible(true)
   }
   const hideBreakdownTooltip = () => {
+    setBreakdownTooltipVisible(false)
+  }
+  const handleBreakdownTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || breakdownTooltipVisible) return
     setHoveredBreakdownEntry(null)
   }
 
@@ -221,8 +236,9 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
             <div
               ref={breakdownTooltipRef}
               className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-40"
+              onTransitionEnd={handleBreakdownTooltipTransitionEnd}
               style={{
-                opacity: hoveredBreakdownEntry ? 1 : 0,
+                opacity: breakdownTooltipVisible ? 1 : 0,
                 transition: 'opacity 150ms ease-out',
                 transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
               }}
