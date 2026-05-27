@@ -1,0 +1,1 @@
+export const DASHBOARD_X_AXIS_TICK_FONT_SIZE = 12

@@ -12,6 +12,7 @@ import {
 import { ArrowUpToLine, Repeat } from 'lucide-react'
 import { useDashboardSavingsRate } from '@/api/dashboard'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { getSavingsRateSeries } from '@/dashboard/utils/getSavingsRateSeries'
 
 function getSavingsTier(rate: number | null) {
@@ -89,7 +90,7 @@ export function SavingsRateWidget() {
                 axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
                 tickLine={false}
                 interval={0}
-                tick={{ fill: 'var(--app-text-subtle)', fontSize: 9 }}
+                tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
                 tickMargin={3}
               />
               <YAxis

@@ -9,6 +9,7 @@ import {
 } from 'recharts'
 import { Wallet } from 'lucide-react'
 import { useDashboardNetWorth } from '@/api/dashboard'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
@@ -77,7 +78,7 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
                 tickLine={false}
                 interval="preserveStartEnd"
                 minTickGap={40}
-                tick={{ fill: 'var(--app-text-subtle)', fontSize: 9 }}
+                tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
                 tickMargin={3}
               />
               <YAxis hide domain={['dataMin', 'dataMax']} />

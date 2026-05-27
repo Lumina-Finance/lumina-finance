@@ -20,6 +20,7 @@ import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import {
   CURRENT_LABEL_BY_RANGE,
   DASHBOARD_RANGE_SELECT_OPTIONS,
@@ -183,7 +184,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
               tickLine={false}
               interval="preserveStartEnd"
               minTickGap={32}
-              tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+              tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
               tickMargin={4}
             />
             <YAxis hide />
