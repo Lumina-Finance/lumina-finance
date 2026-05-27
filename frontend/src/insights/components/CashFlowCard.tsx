@@ -23,7 +23,7 @@ import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
-} from './DeferredChartTooltipOverlay'
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 

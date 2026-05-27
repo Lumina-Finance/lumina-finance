@@ -1,14 +1,18 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import { Wallet } from 'lucide-react'
 import { useDashboardNetWorth } from '@/api/dashboard'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import {
   DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
   DASHBOARD_NET_WORTH_X_AXIS_TICK_COUNT,
@@ -21,6 +25,22 @@ import type { NetWorthSeriesPoint } from '@/dashboard/types/dashboard'
 
 type NetWorthWidgetProps = {
   displayCurrency: string
+}
+
+type NetWorthTooltipTarget = {
+  point: NetWorthSeriesPoint
+  chartX: number
+}
+
+type NetWorthTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+  activePayload?: Array<{
+    payload?: NetWorthSeriesPoint
+  }>
 }
 
 function formatNetWorthChange(amount: number, currency: string) {
@@ -38,7 +58,82 @@ function getNetWorthXAxisTicks(data: NetWorthSeriesPoint[]) {
   ))
 }
 
+const netWorthChartMargin = { top: 4, right: 4, bottom: 0, left: 4 } as const
+
+function getNetWorthTooltipKey(point: NetWorthSeriesPoint) {
+  return point.date
+}
+
+function getNetWorthTooltipPointer(
+  state: NetWorthTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
+function NetWorthTooltipContent({
+  point,
+  displayCurrency,
+}: {
+  point: NetWorthSeriesPoint
+  displayCurrency: string
+}) {
+  return (
+    <>
+      <p className="app-chart-tooltip-default-title">{point.date}</p>
+      <div className="mt-1 flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-value">Net Worth</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.value, displayCurrency)}
+        </span>
+      </div>
+    </>
+  )
+}
+
+function getNetWorthTooltipPoint(
+  state: NetWorthTooltipState,
+  data: NetWorthSeriesPoint[],
+  pointsByDate: Map<string, NetWorthSeriesPoint>,
+) {
+  const payloadPoint = state.activePayload?.[0]?.payload
+  if (payloadPoint) return payloadPoint
+
+  const activeIndex = Number(state.activeTooltipIndex)
+  if (Number.isInteger(activeIndex)) return data[activeIndex]
+
+  return state.activeLabel === undefined
+    ? undefined
+    : pointsByDate.get(String(state.activeLabel))
+}
+
+function getNetWorthTooltipTargetFromCursor(
+  clientX: number,
+  chart: HTMLDivElement | null,
+  data: NetWorthSeriesPoint[],
+): NetWorthTooltipTarget | undefined {
+  const rect = chart?.getBoundingClientRect()
+  if (!rect || data.length === 0) return undefined
+
+  const plotLeft = netWorthChartMargin.left
+  const plotWidth = Math.max(rect.width - netWorthChartMargin.left - netWorthChartMargin.right, 1)
+  const ratio = Math.min(Math.max((clientX - rect.left - plotLeft) / plotWidth, 0), 1)
+  const index = data.length === 1 ? 0 : Math.round(ratio * (data.length - 1))
+  const chartX = plotLeft + (data.length === 1 ? 0 : (plotWidth * index) / (data.length - 1))
+
+  return {
+    point: data[index],
+    chartX,
+  }
+}
+
 export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
+  const netWorthChartRef = useRef<HTMLDivElement>(null)
+  const netWorthTooltipRef = useRef<DeferredChartTooltipOverlayHandle<NetWorthSeriesPoint>>(null)
   const { data: dashboardNetWorth } = useDashboardNetWorth()
   const netWorthData = useMemo(
     () => getNetWorthSeries(dashboardNetWorth),
@@ -46,6 +141,10 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   )
   const netWorthXAxisTicks = useMemo(
     () => getNetWorthXAxisTicks(netWorthData),
+    [netWorthData],
+  )
+  const netWorthPointsByDate = useMemo(
+    () => new Map(netWorthData.map((point) => [point.date, point])),
     [netWorthData],
   )
   const netWorth = dashboardNetWorth?.current_net_worth ?? 0
@@ -61,6 +160,27 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
     netWorthData.length >= 2 &&
     netWorthData[netWorthData.length - 1].value >= netWorthData[0].value
   const netWorthLineColor = netWorthTrendUp ? 'var(--app-positive)' : 'var(--app-negative)'
+  const showNetWorthTooltip = (
+    state: NetWorthTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const fallbackTarget = getNetWorthTooltipTargetFromCursor(event.clientX, netWorthChartRef.current, netWorthData)
+    const point = getNetWorthTooltipPoint(state, netWorthData, netWorthPointsByDate) ?? fallbackTarget?.point
+    const pointer = {
+      ...getNetWorthTooltipPointer(state, event),
+      chartX: typeof state.activeCoordinate?.x === 'number'
+        ? state.activeCoordinate.x
+        : fallbackTarget?.chartX,
+    }
+
+    if (!point) {
+      netWorthTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    netWorthTooltipRef.current?.show(point, pointer)
+  }
+  const hideNetWorthTooltip = () => netWorthTooltipRef.current?.hide()
 
   return (
     <div className="app-card h-[14rem] pb-2 flex flex-col">
@@ -88,11 +208,17 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
         )}
       </div>
       {netWorthData.length >= 2 && (
-        <div className="mt-3 flex-1 min-h-0">
+        <div
+          ref={netWorthChartRef}
+          className="relative mt-3 min-h-0 flex-1"
+          onMouseLeave={hideNetWorthTooltip}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={netWorthData}
-              margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+              margin={netWorthChartMargin}
+              onMouseMove={(state, event) => showNetWorthTooltip(state, event)}
+              onMouseLeave={hideNetWorthTooltip}
             >
               <XAxis
                 xAxisId="plot"
@@ -114,16 +240,6 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
                 tickMargin={3}
               />
               <YAxis hide domain={['dataMin', 'dataMax']} />
-              <Tooltip
-                wrapperClassName="app-chart-tooltip-default"
-                labelClassName="app-chart-tooltip-default-title"
-                labelFormatter={(_, payload) => {
-                  const point = payload?.[0]?.payload as NetWorthSeriesPoint | undefined
-                  return point?.date ?? ''
-                }}
-                formatter={(value) => [formatCurrency(Number(value), displayCurrency), 'Net Worth']}
-                cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-              />
               <Line
                 xAxisId="plot"
                 type="monotone"
@@ -134,6 +250,19 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
               />
             </LineChart>
           </ResponsiveContainer>
+          <DeferredChartTooltipOverlay
+            ref={netWorthTooltipRef}
+            chartRef={netWorthChartRef}
+            className="min-w-44"
+            getKey={getNetWorthTooltipKey}
+            showGuide={false}
+            renderContent={(point) => (
+              <NetWorthTooltipContent
+                point={point}
+                displayCurrency={displayCurrency}
+              />
+            )}
+          />
         </div>
       )}
     </div>
