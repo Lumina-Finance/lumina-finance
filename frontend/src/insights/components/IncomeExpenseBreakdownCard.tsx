@@ -1,4 +1,10 @@
-import { useMemo } from 'react'
+import {
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
@@ -6,7 +12,6 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -19,6 +24,7 @@ import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
+import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 export type BreakdownMode = 'expense' | 'income'
 
@@ -159,6 +165,10 @@ export function IncomeExpenseBreakdownCard({
   loading = false,
   transitionKey,
 }: IncomeExpenseBreakdownCardProps) {
+  const breakdownChartRef = useRef<HTMLDivElement>(null)
+  const breakdownTooltipRef = useRef<HTMLDivElement>(null)
+  const [hoveredBreakdownEntry, setHoveredBreakdownEntry] = useState<BreakdownEntry | null>(null)
+  const [breakdownTooltipVisible, setBreakdownTooltipVisible] = useState(false)
   const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
     mode,
     entries,
@@ -190,6 +200,43 @@ export function IncomeExpenseBreakdownCard({
   })
   const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
     ?? getBreakdownColor(entry)
+  const updateBreakdownTooltipPosition = (clientX: number, clientY: number) => {
+    const chart = breakdownChartRef.current
+    const tooltip = breakdownTooltipRef.current
+    if (!chart || !tooltip) return
+
+    applyCursorTooltipPosition({
+      origin: chart,
+      tooltip,
+      clientX,
+      clientY,
+      xProperty: '--breakdown-tooltip-x',
+      yProperty: '--breakdown-tooltip-y',
+    })
+  }
+  const showBreakdownTooltip = (
+    entry: BreakdownEntry | undefined,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    if (!entry) {
+      setBreakdownTooltipVisible(false)
+      return
+    }
+
+    updateBreakdownTooltipPosition(event.clientX, event.clientY)
+    setHoveredBreakdownEntry((current) => (
+      current?.id === entry.id ? current : entry
+    ))
+    setBreakdownTooltipVisible(true)
+    requestAnimationFrame(() => updateBreakdownTooltipPosition(event.clientX, event.clientY))
+  }
+  const hideBreakdownTooltip = () => {
+    setBreakdownTooltipVisible(false)
+  }
+  const handleBreakdownTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || breakdownTooltipVisible) return
+    setHoveredBreakdownEntry(null)
+  }
   const legendEntries = useMemo(
     () => getLegendEntries(displaySnapshot.entries, displaySnapshot.mode),
     [displaySnapshot.entries, displaySnapshot.mode],
@@ -220,7 +267,11 @@ export function IncomeExpenseBreakdownCard({
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
             <div className="flex min-h-[620px] flex-col">
-              <div className="relative h-[450px] shrink-0">
+              <div
+                ref={breakdownChartRef}
+                className="relative h-[450px] shrink-0"
+                onMouseLeave={hideBreakdownTooltip}
+              >
                 <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
                   <span className="app-label app-label-compact">
                     Total {displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'}
@@ -241,34 +292,44 @@ export function IncomeExpenseBreakdownCard({
                       dataKey="amount"
                       nameKey="name"
                       stroke="none"
+                      onMouseEnter={(_sector, index, event) => {
+                        showBreakdownTooltip(displaySnapshot.entries[index], event)
+                      }}
+                      onMouseMove={(_sector, index, event) => {
+                        showBreakdownTooltip(displaySnapshot.entries[index], event)
+                      }}
+                      onMouseLeave={hideBreakdownTooltip}
                     >
                       {displaySnapshot.entries.map((entry) => (
                         <Cell key={entry.id} fill={getSpacedBreakdownColor(entry)} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      wrapperClassName="app-chart-tooltip-default"
-                      content={({ active, payload }) => {
-                        const entry = payload?.[0]?.payload as BreakdownEntry | undefined
-                        if (!active || !entry) return null
-
-                        return (
-                          <div className="app-chart-tooltip-default-content min-w-40">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium" style={{ color: 'var(--app-text)' }}>
-                                {entry.name}
-                              </span>
-                              {renderCrossoverBadge(entry, displaySnapshot.mode)}
-                            </div>
-                            <div className="mt-1 font-financial" style={{ color: 'var(--app-text)' }}>
-                              {formatCurrency(entry.amount, displaySnapshot.displayCurrency)}
-                            </div>
-                          </div>
-                        )
-                      }}
-                    />
                   </PieChart>
                 </ResponsiveContainer>
+                <div
+                  ref={breakdownTooltipRef}
+                  className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-40"
+                  onTransitionEnd={handleBreakdownTooltipTransitionEnd}
+                  style={{
+                    opacity: breakdownTooltipVisible ? 1 : 0,
+                    transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
+                    transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
+                  }}
+                >
+                  {hoveredBreakdownEntry && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="app-chart-tooltip-default-title">
+                          {hoveredBreakdownEntry.name}
+                        </span>
+                        {renderCrossoverBadge(hoveredBreakdownEntry, displaySnapshot.mode)}
+                      </div>
+                      <div className="app-chart-tooltip-default-value">
+                        {formatCurrency(hoveredBreakdownEntry.amount, displaySnapshot.displayCurrency)}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               <div
                 className="relative mt-auto overflow-hidden"

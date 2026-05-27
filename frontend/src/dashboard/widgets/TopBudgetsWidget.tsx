@@ -77,7 +77,7 @@ export function TopBudgetsWidget() {
                 <Link
                   key={budget.budget_id}
                   to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
-                  className="block px-1 py-3 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+                  className="block px-1 py-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
                   style={{
                     borderBottom: index < budgets.length - 1 ? '1px solid var(--app-border)' : undefined,
                   }}
@@ -87,7 +87,7 @@ export function TopBudgetsWidget() {
                     <div className="min-w-0">
                       <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
                       <p
-                        className="mt-0.5 text-xs max-[1000px]:text-[0.675rem]"
+                        className="mt-0.5 text-base max-[1000px]:text-[0.9rem]"
                         style={{ color: 'var(--app-text-muted)' }}
                       >
                         {formatCurrency(budget.total_spent, budget.currency)}
@@ -104,7 +104,7 @@ export function TopBudgetsWidget() {
                       </p>
                     </div>
                   </div>
-                  <div className="mt-2.5 flex items-center gap-3">
+                  <div className="mt-2 flex items-center gap-3">
                     <div
                       className="h-1.5 flex-1 overflow-hidden rounded-full"
                       style={{ background: 'var(--app-border)' }}
@@ -118,7 +118,7 @@ export function TopBudgetsWidget() {
                         }}
                       />
                     </div>
-                    <span className="shrink-0 text-xs max-[1000px]:text-[0.675rem]" style={{ color: 'var(--app-text-subtle)' }}>
+                    <span className="shrink-0 text-sm max-[1000px]:text-xs" style={{ color: 'var(--app-text-subtle)' }}>
                       Ends {formatDashboardShortDate(budget.period_end)}
                     </span>
                   </div>

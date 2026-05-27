@@ -1,15 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import {
   Area,
   AreaChart,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import { useAccountSnapshots, type Account } from '@/api/accounts'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -46,6 +50,10 @@ const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
 ]
 const BALANCE_AXIS_EDGE_PADDING_PX = 4
 
+type BalanceChartDataPoint = BalanceChartPoint & {
+  periodBalance?: number
+}
+
 type BalanceChartSnapshot = {
   range: BalanceRange
   chartMode: BalanceChartMode
@@ -58,7 +66,7 @@ type BalanceChartSnapshot = {
   trendUp: boolean
   deltaColor: string
   chartLineColor: string
-  chartSeries: BalanceChartPoint[]
+  chartSeries: BalanceChartDataPoint[]
   chartDataKey: 'balance' | 'periodBalance'
   axisStartMs: number
   axisEndMs: number
@@ -76,6 +84,17 @@ type AxisTickProps = {
   payload?: {
     value: number | string
   }
+}
+
+type BalanceChartTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+  activePayload?: Array<{
+    payload?: BalanceChartDataPoint
+  }>
 }
 
 function BalanceXAxisTick({
@@ -109,7 +128,65 @@ function BalanceXAxisTick({
   )
 }
 
+function getBalanceChartTooltipPointer(
+  state: BalanceChartTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
+function getBalanceChartTooltipPoint(
+  state: BalanceChartTooltipState,
+  data: BalanceChartDataPoint[],
+) {
+  const payloadPoint = state.activePayload?.[0]?.payload
+  if (payloadPoint) return payloadPoint
+
+  const activeIndex = Number(state.activeTooltipIndex)
+  if (Number.isInteger(activeIndex)) return data[activeIndex]
+
+  const activeDateMs = Number(state.activeLabel)
+  if (Number.isFinite(activeDateMs)) {
+    return data.find((point) => point.dateMs === activeDateMs)
+  }
+
+  return undefined
+}
+
+function BalanceChartTooltipContent({
+  point,
+  chartMode,
+  currency,
+}: {
+  point: BalanceChartDataPoint
+  chartMode: BalanceChartMode
+  currency: string
+}) {
+  const label = chartMode === 'balance' ? 'Balance' : 'Change'
+  const value = chartMode === 'balance'
+    ? formatCurrency(point.balance, currency)
+    : formatSignedBalanceCurrency(point.periodBalance ?? 0, currency)
+
+  return (
+    <>
+      <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
+      <div className="mt-1 flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-value">{label}</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {value}
+        </span>
+      </div>
+    </>
+  )
+}
+
 export default function BalanceChartCard({ account }: { account: Account }) {
+  const balanceChartRef = useRef<HTMLDivElement>(null)
+  const balanceTooltipRef = useRef<DeferredChartTooltipOverlayHandle<BalanceChartDataPoint>>(null)
   const [range, setRange] = useState<BalanceRange>('30D')
   const [chartMode, setChartMode] = useState<BalanceChartMode>('balance')
 
@@ -217,6 +294,25 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     loading: isFetching,
     transitionKey: range,
   })
+  const showBalanceTooltip = (
+    state: BalanceChartTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const point = getBalanceChartTooltipPoint(state, displaySnapshot.chartSeries)
+    const pointer = getBalanceChartTooltipPointer(state, event)
+
+    if (!point) {
+      balanceTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    balanceTooltipRef.current?.show(point, pointer)
+  }
+  const hideBalanceTooltip = () => balanceTooltipRef.current?.hide()
+
+  useEffect(() => {
+    balanceTooltipRef.current?.hide()
+  }, [displaySnapshot.chartMode, displaySnapshot.range])
 
   return (
     <section
@@ -281,7 +377,11 @@ export default function BalanceChartCard({ account }: { account: Account }) {
             )}
           </div>
 
-          <div className="flex-1 min-h-[240px] w-full">
+          <div
+            ref={balanceChartRef}
+            className="relative flex-1 min-h-[240px] w-full"
+            onMouseLeave={hideBalanceTooltip}
+          >
             {displaySnapshot.chartSeries.length < 2 ? (
               <div
                 className="h-full w-full rounded-lg flex items-center justify-center text-sm"
@@ -299,6 +399,8 @@ export default function BalanceChartCard({ account }: { account: Account }) {
                     bottom: 0,
                     left: BALANCE_AXIS_EDGE_PADDING_PX,
                   }}
+                  onMouseMove={(state, event) => showBalanceTooltip(state, event)}
+                  onMouseLeave={hideBalanceTooltip}
                 >
                   <defs>
                     <linearGradient id={`balanceFill-${account.id}`} x1="0" y1="0" x2="0" y2="1">
@@ -326,19 +428,6 @@ export default function BalanceChartCard({ account }: { account: Account }) {
                     tickMargin={4}
                   />
                   <YAxis hide domain={['dataMin', 'dataMax']} />
-                  <Tooltip
-                    wrapperClassName="app-chart-tooltip-default"
-                    cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-                    labelFormatter={(value) =>
-                      displaySnapshot.seriesByDateMs.get(Number(value))?.tooltipLabel ?? String(value)
-                    }
-                    formatter={(value) => [
-                      displaySnapshot.chartMode === 'balance'
-                        ? formatCurrency(Number(value), displaySnapshot.currency)
-                        : formatSignedBalanceCurrency(Number(value), displaySnapshot.currency),
-                      displaySnapshot.chartMode === 'balance' ? 'Balance' : 'Change',
-                    ]}
-                  />
                   <ReferenceLine
                     y={0}
                     stroke="var(--app-text-subtle)"
@@ -369,6 +458,21 @@ export default function BalanceChartCard({ account }: { account: Account }) {
                   )}
                 </AreaChart>
               </ResponsiveContainer>
+            )}
+            {displaySnapshot.chartSeries.length >= 2 && (
+              <DeferredChartTooltipOverlay
+                ref={balanceTooltipRef}
+                chartRef={balanceChartRef}
+                className="min-w-44"
+                getKey={(point) => `${displaySnapshot.chartMode}:${point.dateMs}`}
+                renderContent={(point) => (
+                  <BalanceChartTooltipContent
+                    point={point}
+                    chartMode={displaySnapshot.chartMode}
+                    currency={displaySnapshot.currency}
+                  />
+                )}
+              />
             )}
           </div>
         </InsightLoadingContent>

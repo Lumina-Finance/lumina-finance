@@ -1,9 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -12,6 +11,11 @@ import {
   type Account,
   type AccountMonthlyCashFlow,
 } from '@/api/accounts'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { parseYmdLocal } from '@/accounts/detail/utils/date'
 
@@ -20,6 +24,8 @@ import { parseYmdLocal } from '@/accounts/detail/utils/date'
 // average excludes it.
 const CASH_FLOW_AVG_MONTHS = 6
 const CASH_FLOW_CHART_MONTHS = CASH_FLOW_AVG_MONTHS + 1
+const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
+const cashFlowHoverHighlightWidth = 70
 
 // Reused for both the monthly history and the average bar. Both callers pass
 // the same `domain` so heights stay comparable.
@@ -27,6 +33,83 @@ interface CashFlowBar {
   label: string
   income: number
   expense: number
+}
+
+type CashFlowTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+  activePayload?: Array<{
+    payload?: CashFlowBar
+  }>
+}
+
+function getCashFlowTooltipKey(point: CashFlowBar) {
+  return point.label
+}
+
+function getCashFlowTooltipPointer(
+  state: CashFlowTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
+function getCashFlowTooltipPoint(
+  state: CashFlowTooltipState,
+  data: CashFlowBar[],
+) {
+  const payloadPoint = state.activePayload?.[0]?.payload
+  if (payloadPoint) return payloadPoint
+
+  const activeIndex = Number(state.activeTooltipIndex)
+  if (Number.isInteger(activeIndex)) return data[activeIndex]
+
+  return state.activeLabel === undefined
+    ? undefined
+    : data.find((point) => point.label === String(state.activeLabel))
+}
+
+function getCashFlowGuideMaxWidth(chartWidth: number, pointCount: number) {
+  if (pointCount <= 0) return cashFlowHoverHighlightWidth
+  return Math.max(
+    1,
+    (chartWidth - cashFlowChartMargin.left - cashFlowChartMargin.right) / pointCount,
+  )
+}
+
+function CashFlowTooltipContent({
+  point,
+  currency,
+  title,
+}: {
+  point: CashFlowBar
+  currency: string
+  title: string
+}) {
+  return (
+    <>
+      <p className="app-chart-tooltip-default-title">{title}</p>
+      <div className="mt-1 flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-value">In</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.income, currency)}
+        </span>
+      </div>
+      <div className="mt-1 flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-value">Out</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.expense, currency)}
+        </span>
+      </div>
+    </>
+  )
 }
 
 function CashFlowBarChart({
@@ -40,48 +123,81 @@ function CashFlowBarChart({
   currency: string
   tooltipLabel: (label: string) => string
 }) {
+  const chartRef = useRef<HTMLDivElement>(null)
+  const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBar>>(null)
+  const showTooltip = (
+    state: CashFlowTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const point = getCashFlowTooltipPoint(state, data)
+    const pointer = getCashFlowTooltipPointer(state, event)
+
+    if (!point) {
+      tooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    tooltipRef.current?.show(point, pointer)
+  }
+  const hideTooltip = () => tooltipRef.current?.hide()
+
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart
-        data={data}
-        margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
-        barGap={2}
-        barCategoryGap="18%"
-      >
-        <XAxis
-          dataKey="label"
-          axisLine={false}
-          tickLine={false}
-          tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
-          tickMargin={4}
-          interval={0}
-        />
-        <YAxis hide domain={domain} />
-        <Tooltip
-          cursor={{ fill: 'var(--app-accent-soft)', radius: 4 }}
-          wrapperClassName="app-chart-tooltip-default"
-          labelFormatter={(label) => tooltipLabel(String(label))}
-          formatter={(value, name) => [
-            formatCurrency(Number(value), currency),
-            name === 'income' ? 'In' : 'Out',
-          ]}
-        />
-        <Bar
-          dataKey="income"
-          fill="var(--app-positive)"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={24}
-          opacity={0.85}
-        />
-        <Bar
-          dataKey="expense"
-          fill="var(--app-negative)"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={24}
-          opacity={0.85}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <div
+      ref={chartRef}
+      className="relative h-full w-full"
+      onMouseLeave={hideTooltip}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          margin={cashFlowChartMargin}
+          barGap={2}
+          barCategoryGap="18%"
+          onMouseMove={(state, event) => showTooltip(state, event)}
+          onMouseLeave={hideTooltip}
+        >
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+            tickMargin={4}
+            interval={0}
+          />
+          <YAxis hide domain={domain} />
+          <Bar
+            dataKey="income"
+            fill="var(--app-positive)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={24}
+            opacity={0.85}
+          />
+          <Bar
+            dataKey="expense"
+            fill="var(--app-negative)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={24}
+            opacity={0.85}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+      <DeferredChartTooltipOverlay
+        ref={tooltipRef}
+        chartRef={chartRef}
+        className="min-w-44"
+        guideVariant="bar"
+        guideWidth={cashFlowHoverHighlightWidth}
+        guideMaxWidth={(chartWidth) => getCashFlowGuideMaxWidth(chartWidth, data.length)}
+        getKey={getCashFlowTooltipKey}
+        renderContent={(point) => (
+          <CashFlowTooltipContent
+            point={point}
+            currency={currency}
+            title={tooltipLabel(point.label)}
+          />
+        )}
+      />
+    </div>
   )
 }
 
@@ -152,7 +268,7 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-[200px] w-full flex gap-4">
+      <div className="relative flex-1 min-h-[200px] w-full flex gap-4">
         <div className="flex-1 min-w-0">
           {!hasActivity ? (
             <div

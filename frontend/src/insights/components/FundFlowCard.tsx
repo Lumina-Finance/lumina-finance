@@ -1,13 +1,22 @@
-import { useId, useMemo, useState } from 'react'
+import {
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, Network } from 'lucide-react'
 import {
   ResponsiveContainer,
   Sankey,
-  Tooltip,
+  type SankeyElementType,
+  type SankeyLinkProps,
   type SankeyNodeProps,
 } from 'recharts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -45,6 +54,11 @@ type FlowTooltipItem = {
   name?: string
   value?: number | string
   payload?: FlowTooltipPayload
+}
+
+type SankeyFlowTooltipData = {
+  name: string
+  amount: number
 }
 
 type SignAdjustedFlowEntry = [string, number]
@@ -117,6 +131,25 @@ function getFlowTooltipName(item: FlowTooltipItem) {
   return target.name
 }
 
+function getSankeyFlowTooltipData(
+  item: SankeyNodeProps | SankeyLinkProps,
+  type: SankeyElementType,
+): SankeyFlowTooltipData | null {
+  const payload = item.payload as FlowTooltipPayload | undefined
+  const amount = payload?.value
+  const numericAmount = Number(amount)
+  if (amount === undefined || !Number.isFinite(numericAmount)) return null
+
+  return {
+    name: getFlowTooltipName({
+      name: type === 'node' ? payload?.name : undefined,
+      value: amount,
+      payload,
+    }),
+    amount: numericAmount,
+  }
+}
+
 function FlowNodeShape({ x, y, width, height, payload }: SankeyNodeProps) {
   const node = payload as unknown as FundFlowNode
   const fillByKind: Record<FundFlowNodeKind, string> = {
@@ -159,25 +192,19 @@ function FlowNodeShape({ x, y, width, height, payload }: SankeyNodeProps) {
   )
 }
 
-function SankeyFlowTooltip({
-  active,
-  payload,
+function SankeyFlowTooltipContent({
+  tooltip,
   displayCurrency,
 }: {
-  active?: boolean
-  payload?: FlowTooltipItem[]
+  tooltip: SankeyFlowTooltipData
   displayCurrency: string
 }) {
-  const item = payload?.[0]
-  const amount = item?.value ?? item?.payload?.value ?? item?.payload?.payload?.value
-  if (!active || !item || amount === undefined) return null
-
   return (
-    <div className="app-chart-tooltip-default-content">
-      <div className="flex min-w-36 justify-between gap-4">
-        <span className="app-tooltip-muted">{getFlowTooltipName(item)}</span>
-        <span className="font-financial">{formatCurrency(Number(amount), displayCurrency)}</span>
-      </div>
+    <div className="flex min-w-36 justify-between gap-4">
+      <span className="app-chart-tooltip-default-title">{tooltip.name}</span>
+      <span className="app-chart-tooltip-default-value font-financial">
+        {formatCurrency(tooltip.amount, displayCurrency)}
+      </span>
     </div>
   )
 }
@@ -312,6 +339,10 @@ export function FundFlowCard({
   loading = false,
   transitionKey,
 }: FundFlowCardProps) {
+  const flowChartRef = useRef<HTMLDivElement>(null)
+  const flowTooltipRef = useRef<HTMLDivElement>(null)
+  const [hoveredFlowTooltip, setHoveredFlowTooltip] = useState<SankeyFlowTooltipData | null>(null)
+  const [flowTooltipVisible, setFlowTooltipVisible] = useState(false)
   const incomingSnapshot = useMemo<FundFlowSnapshot>(() => ({
     flowData,
     incomeSources,
@@ -348,6 +379,46 @@ export function FundFlowCard({
   })
   const normalIncomeSources = withoutMatchingEntries(displaySnapshot.incomeSources, displaySnapshot.expenseInflows)
   const normalExpenseCategories = withoutMatchingEntries(displaySnapshot.expenseCategories, displaySnapshot.incomeOutflows)
+  const updateFlowTooltipPosition = (clientX: number, clientY: number) => {
+    const chart = flowChartRef.current
+    const tooltip = flowTooltipRef.current
+    if (!chart || !tooltip) return
+
+    applyCursorTooltipPosition({
+      origin: chart,
+      tooltip,
+      clientX,
+      clientY,
+      xProperty: '--flow-tooltip-x',
+      yProperty: '--flow-tooltip-y',
+    })
+  }
+  const showFlowTooltip = (
+    item: SankeyNodeProps | SankeyLinkProps,
+    type: SankeyElementType,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    updateFlowTooltipPosition(event.clientX, event.clientY)
+
+    const tooltip = getSankeyFlowTooltipData(item, type)
+    if (!tooltip) {
+      setFlowTooltipVisible(false)
+      return
+    }
+
+    setHoveredFlowTooltip((current) => (
+      current?.name === tooltip.name && current.amount === tooltip.amount ? current : tooltip
+    ))
+    setFlowTooltipVisible(true)
+    requestAnimationFrame(() => updateFlowTooltipPosition(event.clientX, event.clientY))
+  }
+  const hideFlowTooltip = () => {
+    setFlowTooltipVisible(false)
+  }
+  const handleFlowTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || flowTooltipVisible) return
+    setHoveredFlowTooltip(null)
+  }
 
   return (
     <section
@@ -392,28 +463,49 @@ export function FundFlowCard({
           shouldReduceMotion={shouldReduceMotion}
           style={{ height: displaySnapshot.chartHeight }}
         >
-          {displaySnapshot.flowData.nodes.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <Sankey
-                data={displaySnapshot.flowData}
-                node={FlowNodeShape}
-                nodePadding={18}
-                nodeWidth={6}
-                verticalAlign="top"
-                link={{ stroke: 'var(--app-accent)', strokeOpacity: 0.24 }}
-                margin={{ top: 18, right: 12, bottom: 18, left: 12 }}
-              >
-                <Tooltip
-                  wrapperClassName="app-chart-tooltip-default"
-                  content={<SankeyFlowTooltip displayCurrency={displaySnapshot.displayCurrency} />}
+          <div
+            ref={flowChartRef}
+            className="relative h-full"
+            onMouseMove={(event) => updateFlowTooltipPosition(event.clientX, event.clientY)}
+            onMouseLeave={hideFlowTooltip}
+          >
+            {displaySnapshot.flowData.nodes.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <Sankey
+                  data={displaySnapshot.flowData}
+                  node={FlowNodeShape}
+                  nodePadding={18}
+                  nodeWidth={6}
+                  verticalAlign="top"
+                  link={{ stroke: 'var(--app-accent)', strokeOpacity: 0.24 }}
+                  margin={{ top: 18, right: 12, bottom: 18, left: 12 }}
+                  onMouseEnter={showFlowTooltip}
+                  onMouseLeave={hideFlowTooltip}
                 />
-              </Sankey>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              {displaySnapshot.emptyLabel}
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                {displaySnapshot.emptyLabel}
+              </div>
+            )}
+            <div
+              ref={flowTooltipRef}
+              className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20"
+              onTransitionEnd={handleFlowTooltipTransitionEnd}
+              style={{
+                opacity: flowTooltipVisible ? 1 : 0,
+                transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: 'translate3d(var(--flow-tooltip-x, 0px), var(--flow-tooltip-y, 0px), 0)',
+              }}
+            >
+              {hoveredFlowTooltip && (
+                <SankeyFlowTooltipContent
+                  tooltip={hoveredFlowTooltip}
+                  displayCurrency={displaySnapshot.displayCurrency}
+                />
+              )}
             </div>
-          )}
+          </div>
         </InsightLoadingContent>
         <InsightLoadingOverlay
           visible={loadingVisible}

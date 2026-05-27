@@ -109,12 +109,7 @@ function DetailLimitUsage({
           />
         </div>
         <div
-          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100"
-          style={{
-            background: 'var(--app-bg)',
-            border: '1px solid var(--app-border-strong)',
-            color: 'var(--app-text)',
-          }}
+          className="app-chart-tooltip-default-content app-chart-tooltip-default-value pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap font-medium opacity-0 transition-opacity duration-150 group-hover:opacity-100"
         >
           {usageLabel}
         </div>

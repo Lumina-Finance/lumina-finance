@@ -1,4 +1,8 @@
-import { useMemo } from 'react'
+import {
+  useMemo,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import {
@@ -8,15 +12,20 @@ import {
   Line,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -69,6 +78,13 @@ type NetWorthSnapshot = {
   emptyLabel: string
 }
 
+type NetWorthTooltipState = {
+  activeLabel?: string | number
+  activeCoordinate?: {
+    x?: number
+  }
+}
+
 const netWorthLegendContainerVariants = {
   initial: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
   enter: { transition: { staggerChildren: 0.045, staggerDirection: 1, delayChildren: 0.03 } },
@@ -81,7 +97,23 @@ const netWorthLegendItemVariants = {
   exit: { opacity: 0, x: 10 },
 } as const
 
+const netWorthChartMargin = { top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin } as const
 const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
+
+function getNetWorthTooltipKey(point: NetWorthDeltaPoint) {
+  return point.dateMs
+}
+
+function getNetWorthTooltipPointer(
+  state: NetWorthTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
 
 function NetWorthXAxisTick({
   x = 0,
@@ -107,44 +139,44 @@ function NetWorthXAxisTick({
       dy={12}
       textAnchor={textAnchor}
       fill="var(--app-text-subtle)"
-      fontSize={11}
+      fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
     >
       {dateLabelsByMs.get(value) ?? formatNetWorthAxisDate(value)}
     </text>
   )
 }
 
-function NetWorthChartTooltip({
-  active,
-  payload,
+function NetWorthChartTooltipContent({
+  point,
   items,
   displayCurrency,
   mode,
 }: {
-  active?: boolean
-  payload?: Array<{ payload?: NetWorthDeltaPoint }>
+  point: NetWorthDeltaPoint
   items: NetWorthChartItem[]
   displayCurrency: string
   mode: NetWorthViewMode
 }) {
-  const point = payload?.[0]?.payload
-  if (!active || !point) return null
   const detailItems = items.map((item, index) => ({ item, index }))
   const displayedNetWorth = mode === 'composition'
     ? detailItems.reduce((sum, { index }) => sum + Number(point[getValueKey(index)] ?? 0), 0)
     : point.total
 
   return (
-    <div className="app-chart-tooltip-default-content min-w-64">
-      <p className="app-tooltip-muted">{point.tooltipLabel}</p>
+    <>
+      <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Net Worth</span>
-        <span className="font-financial">{formatCurrency(displayedNetWorth, displayCurrency)}</span>
+        <span className="app-chart-tooltip-default-value">Net Worth</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(displayedNetWorth, displayCurrency)}
+        </span>
       </div>
       {mode === 'overview' && (
         <div className="mt-1 flex justify-between gap-4">
-          <span>Change</span>
-          <span className="font-financial">{formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}</span>
+          <span className="app-chart-tooltip-default-value">Change</span>
+          <span className="app-chart-tooltip-default-value font-financial">
+            {formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}
+          </span>
         </div>
       )}
       <div className="mt-2 space-y-1 border-t border-[var(--app-border)] pt-2">
@@ -154,8 +186,8 @@ function NetWorthChartTooltip({
           const displayValue = item.kind === 'debt' ? Math.abs(value) : value
           return (
             <div key={item.id} className="flex justify-between gap-4">
-              <span className="app-tooltip-muted">{item.name}</span>
-              <span className="font-financial">
+              <span className="app-chart-tooltip-default-value">{item.name}</span>
+              <span className="app-chart-tooltip-default-value font-financial">
                 {formatCurrency(displayValue, displayCurrency)}
                 {mode === 'overview' && (
                   <>
@@ -168,7 +200,7 @@ function NetWorthChartTooltip({
           )
         })}
       </div>
-    </div>
+    </>
   )
 }
 
@@ -181,6 +213,8 @@ export function NetWorthCard({
   loading = false,
   transitionKey,
 }: NetWorthCardProps) {
+  const netWorthChartRef = useRef<HTMLDivElement>(null)
+  const netWorthTooltipRef = useRef<DeferredChartTooltipOverlayHandle<NetWorthDeltaPoint>>(null)
   const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
     mode,
     groups,
@@ -218,6 +252,10 @@ export function NetWorthCard({
     () => new Map(deltaSeries.map((point) => [point.dateMs, point.dateLabel])),
     [deltaSeries],
   )
+  const netWorthPointsByMs = useMemo(
+    () => new Map(deltaSeries.map((point) => [point.dateMs, point])),
+    [deltaSeries],
+  )
   const startNetWorthAxisLabel = formatNetWorthAxisMoney(
     deltaSeries[0]?.startTotal ?? 0,
     displaySnapshot.displayCurrency,
@@ -234,6 +272,21 @@ export function NetWorthCard({
       ? 'var(--app-chart-negative)'
       : 'var(--app-text-muted)'
   const NetWorthTrendIcon = latestChange > 0 ? TrendingUp : latestChange < 0 ? TrendingDown : Minus
+  const showNetWorthTooltip = (
+    state: NetWorthTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const activeDateMs = Number(state.activeLabel)
+    const point = Number.isFinite(activeDateMs) ? netWorthPointsByMs.get(activeDateMs) : undefined
+    const pointer = getNetWorthTooltipPointer(state, event)
+    if (!point) {
+      netWorthTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    netWorthTooltipRef.current?.show(point, pointer)
+  }
+  const hideNetWorthTooltip = () => netWorthTooltipRef.current?.hide()
 
   return (
     <section className="app-card">
@@ -268,7 +321,11 @@ export function NetWorthCard({
             </div>
           </div>
         </div>
-        <div className="min-h-0 flex-1">
+        <div
+          ref={netWorthChartRef}
+          className="relative min-h-0 flex-1"
+          onMouseLeave={hideNetWorthTooltip}
+        >
           {!hasChartData ? (
             <div
               className="flex h-full w-full items-center justify-center rounded-lg text-sm"
@@ -280,7 +337,9 @@ export function NetWorthCard({
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={deltaSeries}
-                margin={{ top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin }}
+                margin={netWorthChartMargin}
+                onMouseMove={(state, event) => showNetWorthTooltip(state, event)}
+                onMouseLeave={hideNetWorthTooltip}
               >
                 <XAxis
                   dataKey="dateMs"
@@ -318,17 +377,6 @@ export function NetWorthCard({
                         fontWeight: 600,
                       }
                     : undefined}
-                />
-                <Tooltip
-                  wrapperClassName="app-chart-tooltip-default"
-                  cursor={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
-                  content={(
-                    <NetWorthChartTooltip
-                      items={chartItems}
-                      displayCurrency={displaySnapshot.displayCurrency}
-                      mode={displaySnapshot.mode}
-                    />
-                  )}
                 />
                 {displaySnapshot.mode === 'composition' ? (
                   chartItems.map((item, index) => (
@@ -368,6 +416,22 @@ export function NetWorthCard({
                 )}
               </ComposedChart>
             </ResponsiveContainer>
+          )}
+          {hasChartData && (
+            <DeferredChartTooltipOverlay
+              ref={netWorthTooltipRef}
+              chartRef={netWorthChartRef}
+              className="min-w-64"
+              getKey={getNetWorthTooltipKey}
+              renderContent={(point) => (
+                <NetWorthChartTooltipContent
+                  point={point}
+                  items={chartItems}
+                  displayCurrency={displaySnapshot.displayCurrency}
+                  mode={displaySnapshot.mode}
+                />
+              )}
+            />
           )}
         </div>
         <div className="mt-3 overflow-hidden">

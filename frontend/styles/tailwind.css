@@ -699,11 +699,12 @@
     font-size: 13px !important;
   }
 
-  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-label {
-    color: var(--app-text-subtle) !important;
+  .app-chart-tooltip-default-title {
+    color: var(--app-text-muted) !important;
   }
 
-  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-item {
+  .recharts-default-tooltip.app-chart-tooltip-default .recharts-tooltip-item,
+  .app-chart-tooltip-default-value {
     color: var(--app-text) !important;
   }
 
@@ -731,15 +732,6 @@
   .app-tooltip-panel {
     background: var(--app-bg);
     color: var(--app-text);
-  }
-
-  .app-tooltip-muted {
-    color: var(--app-text-subtle);
-  }
-
-  .app-budget-chart-tooltip {
-    @apply rounded-lg px-3 py-2 text-sm shadow-sm;
-    border: 1px solid var(--app-border);
   }
 
   .app-hover-tooltip {

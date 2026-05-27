@@ -1,4 +1,8 @@
-import { useMemo } from 'react'
+import {
+  useMemo,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { CalendarDays } from 'lucide-react'
 import {
   Bar,
@@ -6,15 +10,20 @@ import {
   Cell,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -42,6 +51,31 @@ type CashFlowSnapshot = {
   displayCurrency: string
 }
 
+type CashFlowTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+}
+
+const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
+
+function getCashFlowTooltipKey(bucket: CashFlowBarBucket) {
+  return bucket.rangeLabel
+}
+
+function getCashFlowTooltipPointer(
+  state: CashFlowTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
@@ -63,40 +97,35 @@ function getCashFlowYAxisWidth(buckets: CashFlowBarBucket[], currency: string) {
   return Math.min(92, Math.max(52, longestLabel.length * 6 + 10))
 }
 
-function CashFlowBarTooltip({
-  active,
-  payload,
+function CashFlowBarTooltipContent({
+  bucket,
   displayCurrency,
 }: {
-  active?: boolean
-  payload?: Array<{ payload?: CashFlowBarBucket }>
+  bucket: CashFlowBarBucket
   displayCurrency: string
 }) {
-  const bucket = payload?.[0]?.payload
-  if (!active || !bucket) return null
-
   return (
-    <div className="app-chart-tooltip-default-content min-w-48">
-      <p className="app-tooltip-muted">{bucket.rangeLabel}</p>
+    <>
+      <p className="app-chart-tooltip-default-title">{bucket.rangeLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Net</span>
+        <span className="app-chart-tooltip-default-value">Net</span>
         <span className="font-financial" style={{ color: getSignedAmountColor(bucket.net) }}>
           {formatSignedCurrency(bucket.net, displayCurrency)}
         </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Inflow</span>
+        <span className="app-chart-tooltip-default-value">Inflow</span>
         <span className="font-financial" style={{ color: 'var(--app-positive)' }}>
           {formatCurrency(bucket.inflow, displayCurrency)}
         </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Outflow</span>
+        <span className="app-chart-tooltip-default-value">Outflow</span>
         <span className="font-financial" style={{ color: 'var(--app-negative)' }}>
           {formatCurrency(bucket.outflow, displayCurrency)}
         </span>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -107,6 +136,8 @@ export function CashFlowCard({
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
+  const cashFlowChartRef = useRef<HTMLDivElement>(null)
+  const cashFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
     granularity,
     buckets,
@@ -128,6 +159,23 @@ export function CashFlowCard({
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
   const yAxisWidth = getCashFlowYAxisWidth(displaySnapshot.buckets, displaySnapshot.displayCurrency)
+  const showCashFlowTooltip = (
+    state: CashFlowTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const activeIndex = Number(state.activeTooltipIndex)
+    const bucket = Number.isInteger(activeIndex)
+      ? displaySnapshot.buckets[activeIndex]
+      : displaySnapshot.buckets.find((item) => item.label === String(state.activeLabel))
+    const pointer = getCashFlowTooltipPointer(state, event)
+    if (!bucket) {
+      cashFlowTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    cashFlowTooltipRef.current?.show(bucket, pointer)
+  }
+  const hideCashFlowTooltip = () => cashFlowTooltipRef.current?.hide()
 
   return (
     <section className="app-card">
@@ -144,7 +192,11 @@ export function CashFlowCard({
                 {formatSignedCurrency(totalNet, displaySnapshot.displayCurrency)}
               </p>
             </div>
-            <div className="min-h-0 flex-1">
+            <div
+              ref={cashFlowChartRef}
+              className="relative min-h-0 flex-1"
+              onMouseLeave={hideCashFlowTooltip}
+            >
               {!hasActivity ? (
                 <div
                   className="flex h-full w-full items-center justify-center text-sm"
@@ -156,8 +208,10 @@ export function CashFlowCard({
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={displaySnapshot.buckets}
-                    margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+                    margin={cashFlowChartMargin}
                     barCategoryGap="22%"
+                    onMouseMove={(state, event) => showCashFlowTooltip(state, event)}
+                    onMouseLeave={hideCashFlowTooltip}
                   >
                     <XAxis
                       dataKey="label"
@@ -165,7 +219,7 @@ export function CashFlowCard({
                       tickLine={false}
                       interval="preserveStartEnd"
                       minTickGap={32}
-                      tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+                      tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
                       tickMargin={4}
                     />
                     <YAxis
@@ -180,11 +234,6 @@ export function CashFlowCard({
                       tickFormatter={(value) => formatCurrency(Number(value), displaySnapshot.displayCurrency)}
                     />
                     <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
-                    <Tooltip
-                      cursor={{ fill: 'var(--app-accent-soft)', radius: 4 }}
-                      wrapperClassName="app-chart-tooltip-default"
-                      content={<CashFlowBarTooltip displayCurrency={displaySnapshot.displayCurrency} />}
-                    />
                     <Bar dataKey="net" radius={4} maxBarSize={40}>
                       {displaySnapshot.buckets.map((bucket) => (
                         <Cell
@@ -195,6 +244,20 @@ export function CashFlowCard({
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              )}
+              {hasActivity && (
+                <DeferredChartTooltipOverlay
+                  ref={cashFlowTooltipRef}
+                  chartRef={cashFlowChartRef}
+                  className="min-w-48"
+                  getKey={getCashFlowTooltipKey}
+                  renderContent={(bucket) => (
+                    <CashFlowBarTooltipContent
+                      bucket={bucket}
+                      displayCurrency={displaySnapshot.displayCurrency}
+                    />
+                  )}
+                />
               )}
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">

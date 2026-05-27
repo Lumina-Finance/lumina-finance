@@ -1,4 +1,8 @@
-import { useMemo } from 'react'
+import {
+  useMemo,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUpToLine, Repeat } from 'lucide-react'
 import {
@@ -7,16 +11,21 @@ import {
   Cell,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import {
+  DeferredChartTooltipOverlay,
+  type ChartTooltipPointer,
+  type DeferredChartTooltipOverlayHandle,
+} from '@/components/charts/DeferredChartTooltipOverlay'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -57,6 +66,31 @@ type SavingsRateTrendSnapshot = {
   emptyLabel: string
 }
 
+type SavingsRateTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+  activeCoordinate?: {
+    x?: number
+  }
+}
+
+const savingsRateChartMargin = { top: 8, right: 8, bottom: 0, left: 4 } as const
+
+function getSavingsRateTooltipKey(point: SavingsRateHistoryPoint) {
+  return point.monthKey
+}
+
+function getSavingsRateTooltipPointer(
+  state: SavingsRateTooltipState,
+  event: ReactMouseEvent<SVGGraphicsElement>,
+): ChartTooltipPointer {
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
+  }
+}
+
 function getSavingsTier(rate: number | null) {
   if (rate === null) return 'negative'
   if (rate >= 20) return 'positive'
@@ -79,34 +113,35 @@ function clampSavingsRate(rate: number | null) {
   return Math.max(-100, Math.min(100, rate))
 }
 
-function SavingsRateHistoryTooltip({
-  active,
-  payload,
+function SavingsRateHistoryTooltipContent({
+  point,
   displayCurrency,
 }: {
-  active?: boolean
-  payload?: Array<{ payload?: SavingsRateHistoryPoint }>
+  point: SavingsRateHistoryPoint
   displayCurrency: string
 }) {
-  const point = payload?.[0]?.payload
-  if (!active || !point) return null
-
   return (
-    <div className="app-chart-tooltip-default-content min-w-48">
-      <p className="app-tooltip-muted">{point.fullLabel}</p>
+    <>
+      <p className="app-chart-tooltip-default-title">{point.fullLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Savings Rate</span>
-        <span className="font-financial">{formatSavingsRateValue(point.rate)}</span>
+        <span className="app-chart-tooltip-default-value">Savings Rate</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatSavingsRateValue(point.rate)}
+        </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Income</span>
-        <span className="font-financial">{formatCurrency(point.income, displayCurrency)}</span>
+        <span className="app-chart-tooltip-default-value">Income</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.income, displayCurrency)}
+        </span>
       </div>
       <div className="mt-1 flex justify-between gap-4">
-        <span>Expenses</span>
-        <span className="font-financial">{formatCurrency(point.expenses, displayCurrency)}</span>
+        <span className="app-chart-tooltip-default-value">Expenses</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(point.expenses, displayCurrency)}
+        </span>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -142,6 +177,8 @@ export function SavingsRateTrendCard({
   loading = false,
   transitionKey,
 }: SavingsRateTrendCardProps) {
+  const savingsRateChartRef = useRef<HTMLDivElement>(null)
+  const savingsRateTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateHistoryPoint>>(null)
   const incomingSnapshot = useMemo<SavingsRateTrendSnapshot>(() => ({
     series,
     displayCurrency,
@@ -206,6 +243,23 @@ export function SavingsRateTrendCard({
   ]))
     .filter((tick) => tick >= yAxisDomain[0] && tick <= yAxisDomain[1])
     .sort((a, b) => a - b)
+  const showSavingsRateTooltip = (
+    state: SavingsRateTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    const activeIndex = Number(state.activeTooltipIndex)
+    const point = Number.isInteger(activeIndex)
+      ? displaySnapshot.series[activeIndex]
+      : displaySnapshot.series.find((item) => item.monthKey === String(state.activeLabel))
+    const pointer = getSavingsRateTooltipPointer(state, event)
+    if (!point) {
+      savingsRateTooltipRef.current?.show(null, pointer)
+      return
+    }
+
+    savingsRateTooltipRef.current?.show(point, pointer)
+  }
+  const hideSavingsRateTooltip = () => savingsRateTooltipRef.current?.hide()
 
   return (
     <section className="app-card">
@@ -283,7 +337,11 @@ export function SavingsRateTrendCard({
                   {displaySnapshot.emptyLabel}
                 </div>
               ) : (
-                <div className="relative h-full">
+                <div
+                  ref={savingsRateChartRef}
+                  className="relative h-full"
+                  onMouseLeave={hideSavingsRateTooltip}
+                >
               <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
                 <defs>
                   {(['positive', 'accent', 'negative'] as const).map((tier) => (
@@ -305,14 +363,19 @@ export function SavingsRateTrendCard({
                 </defs>
               </svg>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartSeries} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+                <BarChart
+                  data={chartSeries}
+                  margin={savingsRateChartMargin}
+                  onMouseMove={(state, event) => showSavingsRateTooltip(state, event)}
+                  onMouseLeave={hideSavingsRateTooltip}
+                >
                   <XAxis
                     dataKey="monthKey"
                     axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
                     tickLine={false}
                     interval="preserveStartEnd"
                     minTickGap={28}
-                    tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+                    tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
                     tickFormatter={(value) => tickLabels.get(String(value)) ?? String(value)}
                     tickMargin={4}
                   />
@@ -335,11 +398,6 @@ export function SavingsRateTrendCard({
                     />
                   )}
                   {currentPoint && <SavingsCurrentBoundary currentLabel={currentPoint.monthKey} />}
-                  <Tooltip
-                    wrapperClassName="app-chart-tooltip-default"
-                    cursor={{ fill: 'var(--app-border)', opacity: 0.4 }}
-                    content={<SavingsRateHistoryTooltip displayCurrency={displaySnapshot.displayCurrency} />}
-                  />
                   <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={30}>
                     {chartSeries.map((entry) => {
                       const tier = getSavingsTier(entry.rate)
@@ -357,6 +415,18 @@ export function SavingsRateTrendCard({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              <DeferredChartTooltipOverlay
+                ref={savingsRateTooltipRef}
+                chartRef={savingsRateChartRef}
+                className="min-w-48"
+                getKey={getSavingsRateTooltipKey}
+                renderContent={(point) => (
+                  <SavingsRateHistoryTooltipContent
+                    point={point}
+                    displayCurrency={displaySnapshot.displayCurrency}
+                  />
+                )}
+              />
             </div>
           )}
         </div>
