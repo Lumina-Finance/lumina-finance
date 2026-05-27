@@ -118,7 +118,7 @@ export function TopBudgetsWidget() {
                         }}
                       />
                     </div>
-                    <span className="shrink-0 text-xs max-[1000px]:text-[0.675rem]" style={{ color: 'var(--app-text-subtle)' }}>
+                    <span className="shrink-0 text-sm max-[1000px]:text-xs" style={{ color: 'var(--app-text-subtle)' }}>
                       Ends {formatDashboardShortDate(budget.period_end)}
                     </span>
                   </div>
