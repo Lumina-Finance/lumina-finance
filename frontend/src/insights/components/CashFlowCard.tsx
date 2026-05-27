@@ -1,4 +1,10 @@
-import { useMemo } from 'react'
+import {
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type TransitionEvent as ReactTransitionEvent,
+} from 'react'
 import { CalendarDays } from 'lucide-react'
 import {
   Bar,
@@ -6,7 +12,6 @@ import {
   Cell,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -43,6 +48,13 @@ type CashFlowSnapshot = {
   displayCurrency: string
 }
 
+type CashFlowTooltipState = {
+  activeLabel?: string | number
+  activeTooltipIndex?: string | number | null
+}
+
+const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
+
 function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
@@ -64,20 +76,15 @@ function getCashFlowYAxisWidth(buckets: CashFlowBarBucket[], currency: string) {
   return Math.min(92, Math.max(52, longestLabel.length * 6 + 10))
 }
 
-function CashFlowBarTooltip({
-  active,
-  payload,
+function CashFlowBarTooltipContent({
+  bucket,
   displayCurrency,
 }: {
-  active?: boolean
-  payload?: Array<{ payload?: CashFlowBarBucket }>
+  bucket: CashFlowBarBucket
   displayCurrency: string
 }) {
-  const bucket = payload?.[0]?.payload
-  if (!active || !bucket) return null
-
   return (
-    <div className="app-chart-tooltip-default-content min-w-48">
+    <>
       <p className="app-chart-tooltip-default-title">{bucket.rangeLabel}</p>
       <div className="mt-1 flex justify-between gap-4">
         <span className="app-chart-tooltip-default-value">Net</span>
@@ -97,7 +104,7 @@ function CashFlowBarTooltip({
           {formatCurrency(bucket.outflow, displayCurrency)}
         </span>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -108,6 +115,10 @@ export function CashFlowCard({
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
+  const cashFlowChartRef = useRef<HTMLDivElement>(null)
+  const cashFlowTooltipRef = useRef<HTMLDivElement>(null)
+  const [hoveredCashFlowBucket, setHoveredCashFlowBucket] = useState<CashFlowBarBucket | null>(null)
+  const [cashFlowTooltipVisible, setCashFlowTooltipVisible] = useState(false)
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
     granularity,
     buckets,
@@ -129,6 +140,50 @@ export function CashFlowCard({
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
   const yAxisWidth = getCashFlowYAxisWidth(displaySnapshot.buckets, displaySnapshot.displayCurrency)
+  const updateCashFlowTooltipPosition = (event: ReactMouseEvent<Element>) => {
+    const rect = cashFlowChartRef.current?.getBoundingClientRect()
+    const tooltip = cashFlowTooltipRef.current
+    if (!rect || !tooltip) return
+
+    const tooltipX = Math.min(
+      Math.max(event.clientX - rect.left, 0),
+      Math.max(rect.width - tooltip.offsetWidth, 0),
+    )
+    const tooltipY = Math.min(
+      Math.max(event.clientY - rect.top, 0),
+      Math.max(rect.height - tooltip.offsetHeight, 0),
+    )
+
+    tooltip.style.setProperty('--cash-flow-tooltip-x', `${tooltipX}px`)
+    tooltip.style.setProperty('--cash-flow-tooltip-y', `${tooltipY}px`)
+  }
+  const showCashFlowTooltip = (
+    state: CashFlowTooltipState,
+    event: ReactMouseEvent<SVGGraphicsElement>,
+  ) => {
+    updateCashFlowTooltipPosition(event)
+
+    const activeIndex = Number(state.activeTooltipIndex)
+    const bucket = Number.isInteger(activeIndex)
+      ? displaySnapshot.buckets[activeIndex]
+      : displaySnapshot.buckets.find((item) => item.label === String(state.activeLabel))
+    if (!bucket) {
+      setCashFlowTooltipVisible(false)
+      return
+    }
+
+    setHoveredCashFlowBucket((current) => (
+      current?.rangeLabel === bucket.rangeLabel ? current : bucket
+    ))
+    setCashFlowTooltipVisible(true)
+  }
+  const hideCashFlowTooltip = () => {
+    setCashFlowTooltipVisible(false)
+  }
+  const handleCashFlowTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || cashFlowTooltipVisible) return
+    setHoveredCashFlowBucket(null)
+  }
 
   return (
     <section className="app-card">
@@ -145,7 +200,11 @@ export function CashFlowCard({
                 {formatSignedCurrency(totalNet, displaySnapshot.displayCurrency)}
               </p>
             </div>
-            <div className="min-h-0 flex-1">
+            <div
+              ref={cashFlowChartRef}
+              className="relative min-h-0 flex-1"
+              onMouseLeave={hideCashFlowTooltip}
+            >
               {!hasActivity ? (
                 <div
                   className="flex h-full w-full items-center justify-center text-sm"
@@ -157,8 +216,10 @@ export function CashFlowCard({
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={displaySnapshot.buckets}
-                    margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+                    margin={cashFlowChartMargin}
                     barCategoryGap="22%"
+                    onMouseMove={(state, event) => showCashFlowTooltip(state, event)}
+                    onMouseLeave={hideCashFlowTooltip}
                   >
                     <XAxis
                       dataKey="label"
@@ -181,11 +242,13 @@ export function CashFlowCard({
                       tickFormatter={(value) => formatCurrency(Number(value), displaySnapshot.displayCurrency)}
                     />
                     <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
-                    <Tooltip
-                      cursor={{ fill: 'var(--app-accent-soft)', radius: 4 }}
-                      wrapperClassName="app-chart-tooltip-default"
-                      content={<CashFlowBarTooltip displayCurrency={displaySnapshot.displayCurrency} />}
-                    />
+                    {cashFlowTooltipVisible && hoveredCashFlowBucket && (
+                      <ReferenceLine
+                        x={hoveredCashFlowBucket.label}
+                        stroke="var(--app-border-strong)"
+                        strokeWidth={1}
+                      />
+                    )}
                     <Bar dataKey="net" radius={4} maxBarSize={40}>
                       {displaySnapshot.buckets.map((bucket) => (
                         <Cell
@@ -196,6 +259,25 @@ export function CashFlowCard({
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              )}
+              {hasActivity && (
+                <div
+                  ref={cashFlowTooltipRef}
+                  className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-48"
+                  onTransitionEnd={handleCashFlowTooltipTransitionEnd}
+                  style={{
+                    opacity: cashFlowTooltipVisible ? 1 : 0,
+                    transition: 'opacity 150ms ease-out',
+                    transform: 'translate3d(var(--cash-flow-tooltip-x, 0px), var(--cash-flow-tooltip-y, 0px), 0)',
+                  }}
+                >
+                  {hoveredCashFlowBucket && (
+                    <CashFlowBarTooltipContent
+                      bucket={hoveredCashFlowBucket}
+                      displayCurrency={displaySnapshot.displayCurrency}
+                    />
+                  )}
+                </div>
               )}
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
