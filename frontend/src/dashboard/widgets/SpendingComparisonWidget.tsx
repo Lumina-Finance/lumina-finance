@@ -33,6 +33,16 @@ type SpendingComparisonWidgetProps = {
   displayCurrency: string
 }
 
+type SpendingComparisonXAxisTickProps = {
+  x?: number | string
+  y?: number | string
+  payload?: {
+    value?: number | string
+  }
+  firstLabel?: string
+  lastLabel?: string
+}
+
 function getSpendingComparisonXAxisTicks(
   range: SpendingRange,
   data: Array<{ label: string }>,
@@ -47,6 +57,30 @@ function getSpendingComparisonXAxisTicks(
   return labels
 }
 
+function SpendingComparisonXAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  firstLabel,
+  lastLabel,
+}: SpendingComparisonXAxisTickProps) {
+  const value = String(payload?.value ?? '')
+  const textAnchor = value === firstLabel ? 'start' : value === lastLabel ? 'end' : 'middle'
+
+  return (
+    <text
+      x={Number(x)}
+      y={Number(y)}
+      dy={12}
+      textAnchor={textAnchor}
+      fill="var(--app-text-subtle)"
+      fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
+    >
+      {value}
+    </text>
+  )
+}
+
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison, isLoading: spendingComparisonLoading } = useSpendingComparison(spendingRange)
@@ -58,6 +92,8 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
     () => getSpendingComparisonXAxisTicks(spendingRange, spendingChartData),
     [spendingRange, spendingChartData],
   )
+  const firstSpendingXAxisTick = spendingXAxisTicks[0]
+  const lastSpendingXAxisTick = spendingXAxisTicks[spendingXAxisTicks.length - 1]
   const currentSeries = spendingComparison?.current ?? []
   const previousSeries = spendingComparison?.previous ?? []
   const currentHasData = currentSeries.some((value) => value > 0)
@@ -197,12 +233,24 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
               </linearGradient>
             </defs>
             <XAxis
+              xAxisId="plot"
+              dataKey="label"
+              hide
+            />
+            <XAxis
+              xAxisId="labels"
               dataKey="label"
               axisLine={false}
               tickLine={false}
               interval={0}
               ticks={spendingXAxisTicks}
-              tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
+              tick={(props) => (
+                <SpendingComparisonXAxisTick
+                  {...props}
+                  firstLabel={firstSpendingXAxisTick}
+                  lastLabel={lastSpendingXAxisTick}
+                />
+              )}
               tickMargin={4}
             />
             <YAxis hide />
@@ -215,6 +263,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
               ]}
             />
             <Area
+              xAxisId="plot"
               type="monotone"
               dataKey="previous"
               stroke="var(--app-text-muted)"
@@ -224,6 +273,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
               connectNulls={false}
             />
             <Area
+              xAxisId="plot"
               type="monotone"
               dataKey="current"
               stroke="var(--app-accent)"
