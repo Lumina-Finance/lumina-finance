@@ -23,5 +23,7 @@ export function getFxStatusMessage(fxStatus: FxStatus) {
 }
 
 export function getFxStatusTone(fxStatus: FxStatus | undefined) {
-  return fxStatus?.state === 'complete' ? 'blue' : 'red'
+  if (fxStatus?.state === 'complete') return 'blue'
+  if (fxStatus?.state === 'none') return 'gray'
+  return 'red'
 }

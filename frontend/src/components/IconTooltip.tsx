@@ -5,7 +5,7 @@ export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
 type IconTooltipPlacement = 'top' | 'bottom'
 type IconTooltipIcon = LucideIcon | 'fx'
-type IconTooltipFxTone = 'blue' | 'red'
+type IconTooltipFxTone = 'blue' | 'red' | 'gray'
 
 interface IconTooltipProps {
   label: string
@@ -53,6 +53,10 @@ const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }>
   red: {
     idle: 'border-[color-mix(in_srgb,var(--app-negative)_48%,transparent)] bg-[color-mix(in_srgb,var(--app-negative)_13%,var(--app-bg))] text-[var(--app-negative)] group-hover:border-[var(--app-negative)] group-hover:bg-[var(--app-negative)] group-hover:text-white',
     active: 'border-[var(--app-negative)] bg-[var(--app-negative)] text-white',
+  },
+  gray: {
+    idle: 'border-[var(--app-border)] bg-transparent text-[var(--app-text-subtle)] opacity-70 group-hover:border-[var(--app-text-muted)] group-hover:bg-[var(--app-text-muted)] group-hover:text-white group-hover:opacity-100',
+    active: 'border-[var(--app-text-muted)] bg-[var(--app-text-muted)] text-white opacity-100',
   },
 }
 const TOOLTIP_WRAPPER_CLASS = 'pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 p-2 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100'
