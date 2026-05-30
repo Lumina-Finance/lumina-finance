@@ -40,6 +40,7 @@ export interface NetWorthWidgetResponse {
 
 export interface SavingsRateWidgetResponse {
   savings_rate_history: MonthlyIncomeExpense[];
+  fx_status: FxStatus;
 }
 
 export interface RecentActivityWidgetResponse {

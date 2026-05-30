@@ -15,9 +15,11 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import IconTooltip from '@/components/IconTooltip'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import type { SavingsRateSeriesPoint } from '@/dashboard/types/dashboard'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getSavingsRateSeries } from '@/dashboard/utils/getSavingsRateSeries'
 
 type SavingsRateChartPoint = SavingsRateSeriesPoint & {
@@ -116,6 +118,7 @@ export function SavingsRateWidget() {
   const savingsRateTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateChartPoint>>(null)
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const { data: dashboardSavingsRate } = useDashboardSavingsRate()
+  const fxStatus = dashboardSavingsRate?.fx_status
   const savingsData = useMemo(
     () => getSavingsRateSeries(dashboardSavingsRate),
     [dashboardSavingsRate],
@@ -152,6 +155,22 @@ export function SavingsRateWidget() {
           <Repeat size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
         </div>
         <span className="app-label">Savings Rate</span>
+        {fxStatus && (
+          <IconTooltip
+            label="Savings rate FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="top"
+            widthClassName="w-64"
+          >
+            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
         <button
           type="button"
           onClick={() => setCapSavingsRateChart((current) => !current)}
