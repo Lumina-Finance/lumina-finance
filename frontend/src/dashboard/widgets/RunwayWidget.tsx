@@ -19,6 +19,7 @@ import {
 } from '@/utils/runway'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
 
 type RunwayWidgetProps = {
@@ -62,6 +63,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const runwayBandKey = runwayBand(runwayMonths, runway?.thresholds)
   const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
   const runwayCaption = getRunwayCaption(runway, displayCurrency)
+  const fxStatus = runway?.fx_status
   const runwaySegments = useMemo(
     () => getRunwaySegments(accounts, runwayAccountIds, runway),
     [accounts, runwayAccountIds, runway],
@@ -133,6 +135,22 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
             Runway settings
           </Link>
         </IconTooltip>
+        {fxStatus && (
+          <IconTooltip
+            label="Runway FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="top"
+            widthClassName="w-64"
+          >
+            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
         {runwayStyle && (
           <span
             className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold max-[1000px]:text-[0.675rem]"
