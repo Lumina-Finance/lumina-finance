@@ -1,6 +1,6 @@
 import calendar
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -16,7 +16,9 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User, UserRunwayAccount
+from app.schemas.fx import FxStatus
 from app.schemas.user import (
+    RunwayAccountBalance,
     RunwayAccountsRequest,
     RunwayResponse,
     RunwaySettings,
@@ -25,6 +27,7 @@ from app.schemas.user import (
     UserProfile,
 )
 from app.services.dashboard import get_accessible_accounts
+from app.services.fx import FxConverter
 from app.services.snapshots import get_current_balances
 
 # Trailing window the runway average is taken over. 12 months gives enough data
@@ -85,6 +88,11 @@ async def _replace_runway_account_ids(
         db.add(UserRunwayAccount(user_id=user.id, account_id=account_id))
 
     return sorted(requested_ids)
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)))
+    return {row.id: row.minor_unit_exponent for row in result}
 
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -205,30 +213,33 @@ async def get_runway(
     Expense refunds reduce expenses, while income and transfer-category
     transactions are excluded.
     """
-    accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
+    accounts = await get_accessible_accounts(db, user)
+    account_by_id = {account.id: account for account in accounts}
+    accessible_ids = set(account_by_id)
     stored = await db.execute(
         select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
     )
     selected_ids = [aid for aid in stored.scalars().all() if aid in accessible_ids]
+    selected_accounts = [account_by_id[account_id] for account_id in selected_ids]
     thresholds = _runway_thresholds_from_user(user)
 
     if not selected_ids:
         return RunwayResponse(
             months=None, reason="no_accounts",
             avg_monthly_expense=0, months_covered=0, liquid_balance=0,
+            account_balances=[],
             thresholds=thresholds,
+            fx_status=FxStatus(),
         )
-
-    balances = await get_current_balances(db, selected_ids)
-    liquid_balance = sum(balances.values())
 
     today = datetime.now(ZoneInfo(user.tz)).date()
     window_end = date(today.year, today.month, 1)
     window_start = _add_months_anchored(window_end, -_RUNWAY_WINDOW_MONTHS)
-    month_bucket = sa.func.date_trunc("month", Transaction.dt).label("month")
-    category_month_totals = (
+
+    expense_result = await db.execute(
         select(
-            month_bucket,
+            Transaction.dt,
+            Transaction.account_id,
             Category.id.label("category_id"),
             sa.func.sum(Transaction.amount).label("total"),
         )
@@ -238,32 +249,75 @@ async def get_runway(
         .where(Transaction.dt >= window_start)
         .where(Transaction.dt < window_end)
         .where(Category.kind == CategoryKind.EXPENSE)
-        .group_by(month_bucket, Category.id)
-        .cte("category_month_totals")
+        .group_by(Transaction.dt, Transaction.account_id, Category.id)
     )
-    outflow_filter = category_month_totals.c.total < 0
+    expense_rows = list(expense_result)
+    expense_currencies = {account_by_id[row.account_id].currency for row in expense_rows}
+    selected_currencies = {account.currency for account in selected_accounts}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {user.base_currency, *expense_currencies, *selected_currencies},
+        ),
+    )
+    for currency in sorted((expense_currencies | selected_currencies) - {user.base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=user.base_currency,
+            start_date=window_start if currency in expense_currencies else today,
+            end_date=today if currency in selected_currencies else window_end - timedelta(days=1),
+        )
+
+    balances = await get_current_balances(db, selected_ids)
+    account_balances: list[RunwayAccountBalance] = []
+    liquid_balance = 0
+    for account in selected_accounts:
+        converted_balance = await converter.convert_minor_units(
+            balances.get(account.id, 0),
+            base=account.currency,
+            quote=user.base_currency,
+            rate_date=today,
+        )
+        if converted_balance is None:
+            continue
+
+        liquid_balance += converted_balance
+        account_balances.append(RunwayAccountBalance(account_id=account.id, balance=converted_balance))
+
+    category_month_totals: dict[tuple[date, uuid.UUID], int] = {}
+    for row in expense_rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=account_by_id[row.account_id].currency,
+            quote=user.base_currency,
+            rate_date=row.dt,
+        )
+        if converted_total is None:
+            continue
+
+        key = (date(row.dt.year, row.dt.month, 1), row.category_id)
+        category_month_totals[key] = category_month_totals.get(key, 0) + converted_total
+
+    outflow_totals = [
+        (month, total)
+        for (month, _category_id), total in category_month_totals.items()
+        if total < 0
+    ]
+    months_covered = len({month for month, _total in outflow_totals})
     # Negative expense category-month totals count toward runway. Refunds reduce
     # expenses; over-refunded categories, income, and transfers are ignored.
-    agg = (await db.execute(
-        select(
-            sa.func.count(sa.distinct(category_month_totals.c.month))
-                .filter(outflow_filter).label("months_covered"),
-            sa.func.coalesce(
-                sa.func.sum(sa.case((outflow_filter, category_month_totals.c.total), else_=0)), 0,
-            ).label("expense_outflow"),
-        )
-        .select_from(category_month_totals),
-    )).one()
-
-    months_covered = int(agg.months_covered)
-    expense_outflow = int(agg.expense_outflow)
+    expense_outflow = sum(total for _month, total in outflow_totals)
+    fx_status = converter.get_status()
 
     if months_covered < 1 or expense_outflow >= 0:
         return RunwayResponse(
             months=None, reason="insufficient_history",
             avg_monthly_expense=0, months_covered=months_covered,
             liquid_balance=liquid_balance,
+            account_balances=account_balances,
             thresholds=thresholds,
+            fx_status=fx_status,
         )
 
     avg_monthly_expense = abs(expense_outflow) // months_covered
@@ -274,5 +328,7 @@ async def get_runway(
         avg_monthly_expense=avg_monthly_expense,
         months_covered=months_covered,
         liquid_balance=liquid_balance,
+        account_balances=account_balances,
         thresholds=thresholds,
+        fx_status=fx_status,
     )
