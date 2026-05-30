@@ -17,6 +17,7 @@ import {
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import IconTooltip from '@/components/IconTooltip'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
@@ -32,6 +33,7 @@ import {
   PREVIOUS_PERIOD_LABEL_BY_RANGE,
 } from '@/dashboard/constants/ranges'
 import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getSpendingComparisonSeries } from '@/dashboard/utils/getSpendingComparisonSeries'
 
 type SpendingComparisonWidgetProps = {
@@ -170,6 +172,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   const spendingComparisonTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SpendingComparisonSeriesPoint>>(null)
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: spendingComparison, isLoading: spendingComparisonLoading } = useSpendingComparison(spendingRange)
+  const fxStatus = spendingComparison?.fx_status
   const spendingChartData = useMemo(
     () => getSpendingComparisonSeries(spendingComparison),
     [spendingComparison],
@@ -228,6 +231,22 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
           Spending vs. Last&nbsp;
           <AppSlotMachineText text={PREVIOUS_PERIOD_LABEL_BY_RANGE[spendingRange]} />
         </span>
+        {fxStatus && (
+          <IconTooltip
+            label="Spending comparison FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="top"
+            widthClassName="w-64"
+          >
+            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
         <TimeRangeSelector
           value={spendingRange}
           options={DASHBOARD_RANGE_SELECT_OPTIONS}

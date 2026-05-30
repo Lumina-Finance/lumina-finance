@@ -77,6 +77,7 @@ export interface SpendingComparisonResponse {
   // period's last day). The frontend zips by index against slot_labels.
   current: number[];
   previous: number[];
+  fx_status: FxStatus;
 }
 
 // ── Hooks ──
