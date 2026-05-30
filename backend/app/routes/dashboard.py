@@ -146,10 +146,10 @@ async def get_spending_breakdown_route(
     """Return category-level expense and income totals for the breakdown widget.
 
     Both breakdowns are returned in one payload so the spending/income toggle
-    can flip without refetching. Scoped to base-currency accessible accounts
-    and the same current-period bounds as the spending comparison chart.
+    can flip without refetching. Foreign-currency account activity is converted
+    to the user's base currency and uses the same current-period bounds as the
+    spending comparison chart.
     """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
-    return await get_spending_breakdown(db, base_currency_account_ids, range_, now)
+    return await get_spending_breakdown(db, accounts, user.base_currency, range_, now)

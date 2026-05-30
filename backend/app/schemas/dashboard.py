@@ -33,6 +33,8 @@ class SpendingBreakdownResponse(BaseModel):
     first and compacted with an Other slice for the dashboard widget.
     ``expense_total`` and ``income_total`` are authoritative center totals
     after flipped refund/loss categories are netted against their original side.
+    ``fx_status`` reports whether conversions were complete, incomplete,
+    unavailable, or unnecessary.
     """
 
     range: RangeKind
@@ -40,6 +42,7 @@ class SpendingBreakdownResponse(BaseModel):
     income: list[CategoryBreakdownEntry]
     expense_total: int
     income_total: int
+    fx_status: FxStatus
 
 
 class SpendingComparisonResponse(BaseModel):

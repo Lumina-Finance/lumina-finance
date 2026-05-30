@@ -10,10 +10,8 @@ Scoping rules mirror the default aggregate/list endpoints:
 - accessible budgets  = same pattern against base budgets
 so the dashboard never surfaces data the user couldn't read elsewhere.
 
-Currency rule: spending breakdown sums only activity on accounts whose currency
-matches the user's base currency. Spending comparison, net worth, credit usage,
-and savings rate convert foreign-currency account values to the user's base
-currency.
+Currency rule: dashboard money widgets convert foreign-currency account values
+to the user's base currency. Recent activity keeps transaction rows as-is.
 """
 import calendar
 import uuid
@@ -717,15 +715,17 @@ def _current_period_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
 
 async def get_spending_breakdown(
     db: AsyncSession,
-    base_currency_account_ids: list[uuid.UUID],
+    accounts: list[Account],
+    base_currency: str,
     range_: RangeKind,
     now: datetime,
 ) -> SpendingBreakdownResponse:
     """Return category-level expense and income totals for ``range_``.
 
-    Aggregates transactions on base-currency accessible accounts between the
-    range's current-period start and today. Negative category totals render as
-    spending, and positive category totals render as income. The original
+    Aggregates transactions on accessible accounts between the range's
+    current-period start and today. Foreign-currency account activity is
+    converted at transaction-date granularity. Negative category totals render
+    as spending, and positive category totals render as income. The original
     category kind is preserved so the frontend can mark flipped categories.
     Categories with zero totals are dropped; entries are sorted largest-first
     and compacted into an Other slice when the dashboard donut has too many
@@ -733,17 +733,21 @@ async def get_spending_breakdown(
     is never swallowed by Other.
     """
     start, end = _current_period_bounds(range_, now.date())
-    if not base_currency_account_ids:
+    if not accounts:
         return SpendingBreakdownResponse(
             range=range_,
             expense=[],
             income=[],
             expense_total=0,
             income_total=0,
+            fx_status=FxStatus(),
         )
 
+    account_by_id = {account.id: account for account in accounts}
     result = await db.execute(
         select(
+            Transaction.dt,
+            Transaction.account_id,
             Category.id,
             Category.name,
             Category.kind,
@@ -751,32 +755,60 @@ async def get_spending_breakdown(
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(base_currency_account_ids),
+            Transaction.account_id.in_(list(account_by_id)),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= start,
             Transaction.dt <= end,
         )
-        .group_by(Category.id, Category.name, Category.kind),
+        .group_by(Transaction.dt, Transaction.account_id, Category.id, Category.name, Category.kind),
     )
+    rows = list(result)
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    for currency in sorted({account_by_id[row.account_id].currency for row in rows if account_by_id[row.account_id].currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=start,
+            end_date=end,
+        )
+
+    category_totals: dict[uuid.UUID, tuple[str, CategoryKind, int]] = {}
+    for row in rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=account_by_id[row.account_id].currency,
+            quote=base_currency,
+            rate_date=row.dt,
+        )
+        if converted_total is None:
+            continue
+
+        name, kind, current_total = category_totals.get(row.id, (row.name, row.kind, 0))
+        category_totals[row.id] = (name, kind, current_total + converted_total)
 
     expense: list[CategoryBreakdownEntry] = []
     income: list[CategoryBreakdownEntry] = []
-    for row in result:
-        total = int(row.total or 0)
+    for category_id, (name, kind, total) in category_totals.items():
         if total < 0:
             expense.append(CategoryBreakdownEntry(
-                category_id=row.id,
-                name=row.name,
-                category_kind=row.kind,
+                category_id=category_id,
+                name=name,
+                category_kind=kind,
                 amount=-total,
             ))
             continue
 
         if total > 0:
             income.append(CategoryBreakdownEntry(
-                category_id=row.id,
-                name=row.name,
-                category_kind=row.kind,
+                category_id=category_id,
+                name=name,
+                category_kind=kind,
                 amount=total,
             ))
 
@@ -790,6 +822,7 @@ async def get_spending_breakdown(
         income=_dashboard_breakdown_entries(income, CategoryKind.INCOME),
         expense_total=max(sum(entry.amount for entry in expense) - expense_refunds, 0),
         income_total=max(sum(entry.amount for entry in income) - income_losses, 0),
+        fx_status=converter.get_status(),
     )
 
 
