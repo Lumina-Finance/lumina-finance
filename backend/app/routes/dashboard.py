@@ -76,10 +76,10 @@ async def get_net_worth_widget_route(
     """Return net worth totals and trend for the dashboard net worth widget."""
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
-    current_net_worth, net_worth_history = await get_net_worth_history(
+    current_net_worth, net_worth_history, fx_status = await get_net_worth_history(
         db,
-        base_currency_accounts,
+        accounts,
+        user.base_currency,
         window_days,
         now,
     )
@@ -87,6 +87,7 @@ async def get_net_worth_widget_route(
         current_net_worth=current_net_worth,
         net_worth_history=net_worth_history,
         net_worth_window_days=window_days,
+        fx_status=fx_status,
     )
 
 

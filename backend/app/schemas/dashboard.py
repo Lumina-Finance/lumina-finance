@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.fx import FxStatus
 from app.schemas.transaction import TransactionResponse
 
 RangeKind = Literal["WTD", "MTD", "QTD", "YTD"]
@@ -93,17 +94,20 @@ class NetWorthWidgetResponse(BaseModel):
     """Net worth totals and trend for the dashboard net worth widget.
 
     - `current_net_worth` is the sum of latest signed balances across every readable
-      non-hidden account in the user's base currency.
+      non-hidden account converted to the user's base currency when needed.
     - `net_worth_history` is a day-by-day series of net worth over the last
       `net_worth_window_days` days (length = `net_worth_window_days`, index 0 =
       earliest day, final index = today). Forward-filled from
       `AccountBalanceSnapshot` rows so days without activity carry the previous
       day's balance.
+    - `fx_status` reports whether foreign-currency conversions were complete,
+      incomplete, unavailable, or unnecessary.
     """
 
     current_net_worth: int
     net_worth_history: list[int]
     net_worth_window_days: int
+    fx_status: FxStatus
 
 
 class SavingsRateWidgetResponse(BaseModel):

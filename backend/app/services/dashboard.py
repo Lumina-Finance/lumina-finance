@@ -10,9 +10,9 @@ Scoping rules mirror the default aggregate/list endpoints:
 - accessible budgets  = same pattern against base budgets
 so the dashboard never surfaces data the user couldn't read elsewhere.
 
-Currency rule: spending, credit, net worth, and savings widgets sum only
-activity on accounts whose currency matches the user's base currency.
-Foreign-currency rows are excluded until fx conversion lands.
+Currency rule: spending, credit, and savings widgets sum only activity on
+accounts whose currency matches the user's base currency. Net worth converts
+foreign-currency account snapshots to the user's base currency.
 """
 import calendar
 import uuid
@@ -28,6 +28,7 @@ from app.config import (
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
 from app.models.base import AccountKind, CategoryKind
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -38,7 +39,9 @@ from app.schemas.dashboard import (
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
 )
+from app.schemas.fx import FxStatus
 from app.schemas.transaction import TransactionResponse
+from app.services.fx import FxConverter
 from app.services.snapshots import get_current_balances
 from app.services.transaction_responses import (
     build_transaction_response,
@@ -123,10 +126,11 @@ async def get_accessible_accounts(
 
 async def get_net_worth_history(
     db: AsyncSession,
-    base_currency_accounts: list[Account],
+    accounts: list[Account],
+    base_currency: str,
     window_days: int,
     now: datetime,
-) -> tuple[int, list[int]]:
+) -> tuple[int, list[int], FxStatus]:
     """Return ``(current_net_worth, daily_history)`` across the last ``window_days`` days.
 
     Seeds a per-account running balance from the last snapshot strictly
@@ -137,12 +141,26 @@ async def get_net_worth_history(
     balances add to net worth, negative liability balances reduce it.
     """
     series = [0] * window_days
-    if not base_currency_accounts:
-        return 0, series
+    if not accounts:
+        return 0, series, FxStatus()
 
     today = now.date()
     window_start = today - timedelta(days=window_days - 1)
-    ids = [a.id for a in base_currency_accounts]
+    ids = [a.id for a in accounts]
+    account_by_id = {account.id: account for account in accounts}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    for currency in sorted({account.currency for account in accounts if account.currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=window_start,
+            end_date=today,
+        )
 
     # Anchor: most recent snapshot strictly before window_start per account.
     anchor_result = await db.execute(
@@ -181,10 +199,48 @@ async def get_net_worth_history(
             break
         for aid, balance in updates_by_day.get(current_day, {}).items():
             running[aid] = balance
-        series[day_idx] = sum(running[aid] for aid in ids)
+        series[day_idx] = await _sum_converted_balances(
+            account_by_id,
+            running,
+            base_currency=base_currency,
+            rate_date=current_day,
+            converter=converter,
+        )
 
-    current_net_worth = sum(running[aid] for aid in ids)
-    return current_net_worth, series
+    current_net_worth = await _sum_converted_balances(
+        account_by_id,
+        running,
+        base_currency=base_currency,
+        rate_date=today,
+        converter=converter,
+    )
+    return current_net_worth, series, converter.get_status()
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)))
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def _sum_converted_balances(
+    account_by_id: dict[uuid.UUID, Account],
+    running: dict[uuid.UUID, int],
+    *,
+    base_currency: str,
+    rate_date: date,
+    converter: FxConverter,
+) -> int:
+    total = 0
+    for account_id, account in account_by_id.items():
+        converted = await converter.convert_minor_units(
+            running[account_id],
+            base=account.currency,
+            quote=base_currency,
+            rate_date=rate_date,
+        )
+        if converted is not None:
+            total += converted
+    return total
 
 
 # ---------------------------------------------------------------------------
