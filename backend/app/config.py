@@ -59,6 +59,12 @@ ALLOWED_ORIGINS = _unique_values([origin for origin in _configured_origins if or
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
+# --- FX ---
+
+FRANKFURTER_BASE_URL = os.getenv("FRANKFURTER_BASE_URL", "https://api.frankfurter.dev").strip().rstrip("/")
+if not FRANKFURTER_BASE_URL:
+    raise RuntimeError("FRANKFURTER_BASE_URL cannot be blank")
+
 # --- JWT ---
 
 JWT_ALGORITHM = "RS256"

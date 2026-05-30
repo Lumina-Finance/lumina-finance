@@ -105,12 +105,13 @@ If you'd like to deploy this bare metal, please clone the repo. The frontend is 
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 | --- | --- | --- | --- | --- |
-| `APP_URL` | No | URL origin | None | Public frontend origin. Automatically included in the backend CORS allowed origins. If unset, CORS allows all origins. |
-| `DB_HOST` | Yes | Hostname or IP | None | PostgreSQL host. |
-| `DB_PORT` | Yes | Port number | None | PostgreSQL port. |
-| `DB_NAME` | Yes | Database name | None | PostgreSQL database name. |
-| `DB_USER` | Yes | Database user | None | PostgreSQL username. |
-| `DB_PASSWORD` | Yes | Database password | None | PostgreSQL password. |
+| `APP_URL` | No | URL origin | None | Public frontend origin. Automatically included in the backend CORS allowed origins. If unset, CORS allows all origins |
+| `DB_HOST` | Yes | Hostname or IP | None | PostgreSQL host |
+| `DB_PORT` | Yes | Port number | None | PostgreSQL port |
+| `DB_NAME` | Yes | Database name | None | PostgreSQL database name |
+| `DB_USER` | Yes | Database user | None | PostgreSQL username |
+| `DB_PASSWORD` | Yes | Database password | None | PostgreSQL password |
+| `FRANKFURTER_BASE_URL` | No | URL origin | `https://api.frankfurter.dev` | Frankfurter-compatible FX rate API base URL. Set this to a self-hosted Frankfurter instance to keep FX lookups private |
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
@@ -118,12 +119,12 @@ These are some advanced variables that you could also set. Lumina Finance provid
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 | --- | --- | --- | --- | --- |
-| `JWT_ACCESS_KID` | No | String | `access-kid` | Key ID written into access-token JWT headers and published in JWKS. It does not need to match the private key filename. |
-| `JWT_REFRESH_KID` | No | String | `refresh-kid` | Key ID written into refresh-token JWT headers and published in JWKS. It does not need to match the private key filename. |
-| `JWT_ACCESS_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `900` | Access-token lifetime in seconds. |
-| `JWT_REFRESH_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `86400` | Refresh-token lifetime in seconds. |
-| `JWT_ISSUER` | No | String | `lumina-finance` | JWT issuer claim. |
-| `JWT_ACCESS_PRIVATE_KEY_PATH` | No | File path | `/data/keys/access_private.pem` | Access token RSA256 private key path inside the container. If a key is not provided, the app will generate one automatically. |
+| `JWT_ACCESS_KID` | No | String | `access-kid` | Key ID written into access-token JWT headers and published in JWKS. It does not need to match the private key filename |
+| `JWT_REFRESH_KID` | No | String | `refresh-kid` | Key ID written into refresh-token JWT headers and published in JWKS. It does not need to match the private key filename |
+| `JWT_ACCESS_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `900` | Access-token lifetime in seconds |
+| `JWT_REFRESH_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `86400` | Refresh-token lifetime in seconds |
+| `JWT_ISSUER` | No | String | `lumina-finance` | JWT issuer claim |
+| `JWT_ACCESS_PRIVATE_KEY_PATH` | No | File path | `/data/keys/access_private.pem` | Access token RSA256 private key path inside the container. If a key is not provided, the app will generate one automatically |
 | `JWT_REFRESH_PRIVATE_KEY_PATH` | No | File path | `/data/keys/refresh_private.pem` | Refresh token RSA256 private key path inside the container. If a key is not provided, the app will generate one automatically |
 
 ## FAQs
