@@ -16,6 +16,7 @@ export interface MonthlyIncomeExpense {
 export interface CreditWidgetResponse {
   credit_limit_total: number;
   credit_used: number;
+  fx_status: FxStatus;
 }
 
 export type FxState = 'none' | 'complete' | 'incomplete' | 'unavailable';

@@ -7,7 +7,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Wallet } from 'lucide-react'
-import { useDashboardNetWorth, type FxRateIssue, type FxStatus } from '@/api/dashboard'
+import { useDashboardNetWorth } from '@/api/dashboard'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
@@ -21,6 +21,7 @@ import {
 } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
 import type { NetWorthSeriesPoint } from '@/dashboard/types/dashboard'
 
@@ -63,28 +64,6 @@ const netWorthChartMargin = { top: 4, right: 4, bottom: 0, left: 4 } as const
 
 function getNetWorthTooltipKey(point: NetWorthSeriesPoint) {
   return point.date
-}
-
-function formatMissingPairs(missingPairs: FxRateIssue[]) {
-  const distinctPairs = Array.from(new Set(missingPairs.map((pair) => `${pair.base}/${pair.quote}`)))
-  const visiblePairs = distinctPairs.slice(0, 3)
-  const remainingCount = distinctPairs.length - visiblePairs.length
-  return remainingCount > 0
-    ? `${visiblePairs.join(', ')} and ${remainingCount} more`
-    : visiblePairs.join(', ')
-}
-
-function getFxStatusMessage(fxStatus: FxStatus) {
-  switch (fxStatus.state) {
-    case 'none':
-      return 'FX not used. No foreign-currency balance needed conversion.'
-    case 'complete':
-      return 'Foreign currency conversion applied'
-    case 'incomplete':
-      return 'FX incomplete. Some foreign-currency balances could not be converted.'
-    case 'unavailable':
-      return 'FX unavailable. Foreign-currency balances could not be converted.'
-  }
 }
 
 function getNetWorthTooltipPointer(
@@ -173,7 +152,7 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const netWorth = dashboardNetWorth?.current_net_worth ?? 0
   const netWorthChange = netWorthData.length >= 2 ? netWorth - netWorthData[0].value : null
   const fxStatus = dashboardNetWorth?.fx_status
-  const fxTone = fxStatus?.state === 'complete' ? 'blue' : 'red'
+  const fxTone = getFxStatusTone(fxStatus)
   const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
   const netWorthChangeColor =
     netWorthChange == null || netWorthChange === 0
@@ -225,7 +204,7 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
             <span className="block">{getFxStatusMessage(fxStatus)}</span>
             {fxStatus.missing_pairs.length > 0 && (
               <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Missing: {formatMissingPairs(fxStatus.missing_pairs)}
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
               </span>
             )}
           </IconTooltip>

@@ -3,7 +3,9 @@ import { CreditCard, Repeat } from 'lucide-react'
 import { useDashboardCredit } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import IconTooltip from '@/components/IconTooltip'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 
 function getCreditTier(utilization: number) {
   if (utilization <= 30) return 'positive'
@@ -20,6 +22,7 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
   const creditLimit = dashboardCredit?.credit_limit_total ?? 0
   const creditUsed = dashboardCredit?.credit_used ?? 0
+  const fxStatus = dashboardCredit?.fx_status
   const utilization = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0
   const hasCredit = creditLimit > 0
 
@@ -47,8 +50,26 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
         <div className="p-2 rounded-xl" style={{ background: tierSoft }}>
           <CreditCard size={16} style={{ color: tierColor }} aria-hidden />
         </div>
-        <span className="app-label">
-          Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} reserveText="Remaining" />
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <span className="app-label">
+            Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} />
+          </span>
+          {fxStatus && (
+            <IconTooltip
+              label="Credit FX status"
+              icon="fx"
+              fxTone={getFxStatusTone(fxStatus)}
+              placement="top"
+              widthClassName="w-64"
+            >
+              <span className="block">{getFxStatusMessage(fxStatus)}</span>
+              {fxStatus.missing_pairs.length > 0 && (
+                <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+                </span>
+              )}
+            </IconTooltip>
+          )}
         </span>
         {hasCredit && (
           <button
