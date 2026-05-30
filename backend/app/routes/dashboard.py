@@ -97,12 +97,18 @@ async def get_credit_widget_route(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Return credit usage totals for the dashboard credit widget."""
+    now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
-    credit_limit_total, credit_used = await get_credit_widget(db, base_currency_accounts)
+    credit_limit_total, credit_used, fx_status = await get_credit_widget(
+        db,
+        accounts,
+        user.base_currency,
+        now.date(),
+    )
     return CreditWidgetResponse(
         credit_limit_total=credit_limit_total,
         credit_used=credit_used,
+        fx_status=fx_status,
     )
 
 

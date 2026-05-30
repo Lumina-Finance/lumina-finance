@@ -81,13 +81,16 @@ class CreditWidgetResponse(BaseModel):
     """Credit usage totals for the dashboard credit widget.
 
     - `credit_limit_total` sums `credit_limit` across readable non-hidden
-      revolving-credit accounts in the user's base currency that have a limit set.
+      revolving-credit accounts converted to the user's base currency when needed.
     - `credit_used` flips negative account balances into positive usage and
       treats positive stored-credit balances as zero used.
+    - `fx_status` reports whether foreign-currency conversions were complete,
+      incomplete, unavailable, or unnecessary.
     """
 
     credit_limit_total: int
     credit_used: int
+    fx_status: FxStatus
 
 
 class NetWorthWidgetResponse(BaseModel):
