@@ -1,4 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
+import type { FxStatus } from '@/api/dashboard'
 import { useDashboardSavingsRate } from '@/api/dashboard'
 import { useRunway } from '@/api/user'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -29,6 +30,7 @@ export interface AccountsMetricsViewModel {
   runway: {
     label: string
     style: { bg: string; fg: string; label: string } | null
+    fxStatus: FxStatus | undefined
     progress: number
     caption: string
     months: number | null
@@ -117,6 +119,7 @@ export function useAccountsMetrics(
     runway: {
       label: formatCompactRunway(runwayMonths),
       style: runwayStyle,
+      fxStatus: runway?.fx_status,
       progress: runwayProgress,
       caption: runwayCaption,
       months: runwayMonths,

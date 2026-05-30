@@ -1,5 +1,7 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetrics'
+import IconTooltip from '@/components/IconTooltip'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 
 export default function AccountsMetricsBand({
   metrics,
@@ -95,18 +97,34 @@ export default function AccountsMetricsBand({
           </div>
         </div>
 
-        <div className="order-3 min-w-0 border-l border-[var(--app-border)] pl-4 pt-3 min-[730px]:border-l-0 min-[730px]:pl-6 min-[730px]:pt-0">
-          <div className="mb-1 flex items-center gap-2">
+        <div className="relative order-3 min-w-0 border-l border-[var(--app-border)] pl-4 pt-3 min-[730px]:border-l-0 min-[730px]:pl-6 min-[730px]:pt-0">
+          <div className="mb-1 flex items-center gap-2 pr-20">
             <p className="app-label">Runway</p>
-            {runway.style && (
-              <span
-                className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
-                style={{ background: runway.style.bg, color: runway.style.fg }}
+            {runway.fxStatus && (
+              <IconTooltip
+                label="Runway FX status"
+                icon="fx"
+                fxTone={getFxStatusTone(runway.fxStatus)}
+                placement="top"
+                widthClassName="w-64"
               >
-                {runway.style.label}
-              </span>
+                <span className="block">{getFxStatusMessage(runway.fxStatus)}</span>
+                {runway.fxStatus.missing_pairs.length > 0 && (
+                  <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    Missing: {formatMissingFxPairs(runway.fxStatus.missing_pairs)}
+                  </span>
+                )}
+              </IconTooltip>
             )}
           </div>
+          {runway.style && (
+            <span
+              className="absolute right-0 top-3 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold min-[730px]:top-0"
+              style={{ background: runway.style.bg, color: runway.style.fg }}
+            >
+              {runway.style.label}
+            </span>
+          )}
           <p
             className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
             style={{ color: runway.months === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
