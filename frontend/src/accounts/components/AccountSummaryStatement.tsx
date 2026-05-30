@@ -1,4 +1,7 @@
 import { formatCurrency } from '@/utils/formatCurrency'
+import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 
 export default function AccountSummaryStatement({
   error,
@@ -9,6 +12,7 @@ export default function AccountSummaryStatement({
   assetCount,
   debtCount,
   displayCurrency,
+  fxStatus,
 }: {
   error: unknown
   isLoading: boolean
@@ -18,6 +22,7 @@ export default function AccountSummaryStatement({
   assetCount: number
   debtCount: number
   displayCurrency: string
+  fxStatus: FxStatus
 }) {
   if (error) {
     return (
@@ -41,7 +46,23 @@ export default function AccountSummaryStatement({
       />
       <div className="grid gap-5 min-[730px]:flex min-[730px]:flex-wrap min-[730px]:items-end min-[730px]:justify-between min-[730px]:gap-6">
         <div className="min-w-0">
-          <p className="app-label mb-1.5">Net Worth</p>
+          <div className="mb-1.5 flex items-center gap-2">
+            <p className="app-label">Net Worth</p>
+            <IconTooltip
+              label="Net worth FX status"
+              icon="fx"
+              fxTone={getFxStatusTone(fxStatus)}
+              placement="top"
+              widthClassName="w-64"
+            >
+              <span className="block">{getFxStatusMessage(fxStatus)}</span>
+              {fxStatus.missing_pairs.length > 0 && (
+                <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+                </span>
+              )}
+            </IconTooltip>
+          </div>
           <p
             className="font-financial text-[3.125rem] font-semibold leading-none tracking-tight min-[730px]:text-[3.375rem]"
             style={{

@@ -55,12 +55,14 @@ export default function AccountRow({
   accent,
   showCreditLimit,
   taxAdvantagedPlanById,
+  displayCurrency,
   isHidden = false,
 }: {
   account: AccountsOverview
   accent: AccountAccent
   showCreditLimit: boolean
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
+  displayCurrency: string
   isHidden?: boolean
 }) {
   const barColor = isHidden
@@ -82,6 +84,11 @@ export default function AccountRow({
     ? taxAdvantagedPlanById.get(account.tax_advantaged_plan_id)
     : undefined
   const metadataLabel = `${humanizeAccountType(account.account_type)}${account.institution ? ` · ${account.institution.name}` : ''}`
+  const fxStatus = account.current_balance_fx_status
+  const showConvertedBalance = fxStatus.state !== 'none'
+  const convertedBalanceText = fxStatus.state === 'complete' && account.base_currency_current_balance !== null
+    ? `≈ ${formatCurrency(account.base_currency_current_balance, displayCurrency)}`
+    : 'FX unavailable'
 
   return (
     <Link
@@ -131,6 +138,14 @@ export default function AccountRow({
           <p className="font-financial font-medium" style={{ color: balanceColor }}>
             {formatCurrency(account.current_balance, account.currency)}
           </p>
+          {showConvertedBalance && (
+            <p
+              className="font-financial mt-0.5 text-xs"
+              style={{ color: fxStatus.state === 'complete' ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
+            >
+              {convertedBalanceText}
+            </p>
+          )}
           {showCreditLimit && account.credit_limit !== null && (
             <p
               className="font-financial mt-0.5 text-xs"

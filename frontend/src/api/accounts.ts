@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient, useMutation, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import type { FxStatus } from '@/api/dashboard';
 import {
   accountKeys,
   dashboardKeys,
@@ -50,6 +51,8 @@ export interface AccountsOverview {
   institution: Institution | null;
   currency: string;
   current_balance: number;
+  base_currency_current_balance: number | null;
+  current_balance_fx_status: FxStatus;
   credit_limit: number | null;
   is_hidden: boolean;
   closed_at: string | null;

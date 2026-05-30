@@ -70,6 +70,7 @@ export default function AccountsPage() {
           assetCount={accountSections.assetCount}
           debtCount={accountSections.debtCount}
           displayCurrency={displayCurrency}
+          fxStatus={accountSections.fxStatus}
         />
 
         <div>
@@ -123,6 +124,7 @@ export default function AccountsPage() {
         <HiddenAccountsSection
           accounts={hiddenRows}
           taxAdvantagedPlanById={taxAdvantagedPlanById}
+          displayCurrency={displayCurrency}
         />
       </div>
 
