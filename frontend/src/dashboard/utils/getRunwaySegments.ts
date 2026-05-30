@@ -18,15 +18,25 @@ export function getRunwaySegments(
   if (!runway || runway.reason !== null) return []
 
   const ids = new Set(runwayAccountIds ?? [])
+  const balanceByAccountId = new Map(
+    runway.account_balances.map((accountBalance) => [
+      accountBalance.account_id,
+      accountBalance.balance,
+    ]),
+  )
   // Only selected visible accounts with positive balances contribute to the
   // bar; hidden accounts and liabilities are excluded before this helper.
   const rows = (accounts ?? [])
-    .filter((account) => ids.has(account.id) && !account.is_hidden && account.current_balance > 0)
-    .sort((a, b) => b.current_balance - a.current_balance)
-  const total = rows.reduce((sum, account) => sum + account.current_balance, 0)
+    .map((account) => ({
+      account,
+      balance: balanceByAccountId.get(account.id) ?? 0,
+    }))
+    .filter(({ account, balance }) => ids.has(account.id) && !account.is_hidden && balance > 0)
+    .sort((a, b) => b.balance - a.balance)
+  const total = rows.reduce((sum, row) => sum + row.balance, 0)
   if (total === 0) return []
 
-  const accountColors = getDeterministicChartColorMap(rows.map((account) => {
+  const accountColors = getDeterministicChartColorMap(rows.map(({ account }) => {
     const key = account.id || account.name
 
     return {
@@ -36,9 +46,9 @@ export function getRunwaySegments(
   }))
 
   let cursor = 0
-  return rows.map((account) => {
+  return rows.map(({ account, balance }) => {
     const key = account.id || account.name
-    const pct = (account.current_balance / total) * 100
+    const pct = (balance / total) * 100
     // centerPct is kept for consumers that need a stable tooltip anchor without
     // querying DOM widths for each proportional segment.
     const centerPct = cursor + pct / 2
@@ -47,7 +57,7 @@ export function getRunwaySegments(
     return {
       id: account.id,
       name: account.name,
-      amount: account.current_balance,
+      amount: balance,
       pct,
       centerPct,
       color: accountColors.get(key) ?? getDeterministicChartColor(`runway-account:${key}`),

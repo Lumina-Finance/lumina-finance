@@ -2,6 +2,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import type { User } from '@/api/auth';
 import { authenticatedFetch } from '@/api/client';
+import type { FxStatus } from '@/api/dashboard';
 import { userKeys } from '@/api/queryKeys';
 import { normalizeRunwayThresholds, type RunwayThresholds } from '@/utils/runway';
 
@@ -144,7 +145,14 @@ interface RunwayResultResponse {
   avg_monthly_expense: number;
   months_covered: number;
   liquid_balance: number;
+  account_balances: RunwayAccountBalance[];
   thresholds: RunwayThresholdsResponse;
+  fx_status: FxStatus;
+}
+
+export interface RunwayAccountBalance {
+  account_id: string;
+  balance: number;
 }
 
 // Mirrors backend RunwayResponse. `months` is null when `reason` is set —
@@ -155,7 +163,9 @@ export interface RunwayResult {
   avg_monthly_expense: number;
   months_covered: number;
   liquid_balance: number;
+  account_balances: RunwayAccountBalance[];
   thresholds: RunwayThresholds;
+  fx_status: FxStatus;
 }
 
 function fromRunwayResultResponse(result: RunwayResultResponse): RunwayResult {
