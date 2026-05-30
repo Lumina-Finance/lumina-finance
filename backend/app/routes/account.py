@@ -31,6 +31,7 @@ from app.schemas.account import (
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
 from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
 from app.services.accounts import (
+    attach_base_currency_current_balances,
     get_account_cash_flow_history,
     get_account_spending_breakdown,
 )
@@ -46,6 +47,16 @@ _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 _UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_hidden"})
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"
+
+
+async def _attach_account_balance_fields(db: AsyncSession, accounts: list[Account], user: User) -> None:
+    await attach_current_balances(db, accounts)
+    await attach_base_currency_current_balances(
+        db,
+        accounts,
+        user.base_currency,
+        datetime.now(ZoneInfo(user.tz)).date(),
+    )
 
 
 async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.UUID:
@@ -149,7 +160,7 @@ async def list_accounts(
     )
     result = await db.execute(query)
     accounts = result.scalars().unique().all()
-    await attach_current_balances(db, accounts)
+    await _attach_account_balance_fields(db, accounts, user)
     return accounts
 
 
@@ -161,7 +172,7 @@ async def get_account(
 ):
     """Return a single account by ID. Requires read access."""
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-    await attach_current_balances(db, [account])
+    await _attach_account_balance_fields(db, [account], user)
     return account
 
 
@@ -391,7 +402,7 @@ async def create_account(
         select(Account).where(Account.id == account.id).options(selectinload(Account.institution)),
     )
     fresh = result.scalar_one()
-    await attach_current_balances(db, [fresh])
+    await _attach_account_balance_fields(db, [fresh], user)
     return fresh
 
 
@@ -407,7 +418,7 @@ async def update_account(
 
     updates = data.model_dump(exclude_unset=True)
     if not updates:
-        await attach_current_balances(db, [account])
+        await _attach_account_balance_fields(db, [account], user)
         return account
 
     # Reject explicit null on fields that map to NOT NULL columns before they reach the DB.
@@ -458,7 +469,7 @@ async def update_account(
         .execution_options(populate_existing=True),
     )
     fresh = result.scalar_one()
-    await attach_current_balances(db, [fresh])
+    await _attach_account_balance_fields(db, [fresh], user)
     return fresh
 
 

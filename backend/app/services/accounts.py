@@ -5,8 +5,10 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.schemas.account import (
@@ -15,6 +17,8 @@ from app.schemas.account import (
     AccountTopMerchant,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
+from app.schemas.fx import FxRateIssue, FxStatus
+from app.services.fx import FxConverter, FxRateKey
 
 _TOP_N = 5
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
@@ -37,6 +41,72 @@ def _range_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
         return date(today.year, q_month, 1), today
     # YTD
     return date(today.year, 1, 1), today
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)))
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def attach_base_currency_current_balances(
+    db: AsyncSession,
+    accounts: list[Account],
+    base_currency: str,
+    rate_date: date,
+) -> None:
+    """Attach current balances converted to the user's base currency."""
+    if not accounts:
+        return
+
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+
+    for account in accounts:
+        current_balance = getattr(account, "current_balance", 0)
+        normalized_base = account.currency.upper()
+        normalized_quote = base_currency.upper()
+        converted = await converter.convert_minor_units(
+            current_balance,
+            base=account.currency,
+            quote=base_currency,
+            rate_date=rate_date,
+        )
+        account.base_currency_current_balance = converted if converted is not None else 0
+        account.current_balance_fx_status = _get_current_balance_fx_status(
+            converter,
+            rate_date=rate_date,
+            base=normalized_base,
+            quote=normalized_quote,
+            converted=converted,
+            amount=current_balance,
+        )
+
+
+def _get_current_balance_fx_status(
+    converter: FxConverter,
+    *,
+    rate_date: date,
+    base: str,
+    quote: str,
+    converted: int | None,
+    amount: int,
+) -> FxStatus:
+    if base == quote or amount == 0:
+        return FxStatus()
+    if converted is not None:
+        return FxStatus(state="complete")
+
+    key = FxRateKey(rate_date, base, quote)
+    reason = converter.failed_rates.get(key)
+    state = "unavailable" if reason == "provider_unavailable" else "incomplete"
+    return FxStatus(
+        state=state,
+        missing_pairs=[FxRateIssue(base=base, quote=quote)],
+    )
 
 
 async def get_account_spending_breakdown(
