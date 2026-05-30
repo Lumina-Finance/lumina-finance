@@ -129,13 +129,12 @@ async def get_spending_comparison_route(
 
     ``range`` picks the calendar period: week-, month-, quarter-, or
     year-to-date. The payload is always same-length ``current`` / ``previous``
-    cumulative totals in positive minor units, scoped to base-currency
-    accounts and expense categories.
+    cumulative totals in positive minor units, converted to the user's base
+    currency when needed and scoped to expense categories.
     """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
-    return await get_spending_comparison(db, base_currency_account_ids, range_, now)
+    return await get_spending_comparison(db, accounts, user.base_currency, range_, now)
 
 
 @router.get("/spending-breakdown", response_model=SpendingBreakdownResponse)

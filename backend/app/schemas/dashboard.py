@@ -50,18 +50,21 @@ class SpendingComparisonResponse(BaseModel):
     quarter for QTD, 12 months for YTD) and drives the chart's x-axis.
 
     ``current`` / ``previous`` are cumulative positive minor-unit totals in
-    the user's base currency (expense-kind transactions on base-currency
-    accounts only). They contain only the slots with real data — ``current``
+    the user's base currency. Foreign-currency account activity is converted
+    when needed. They contain only the slots with real data — ``current``
     stops at today, and ``previous`` stops at the prior period's last day
     (so it can be shorter than ``current`` for MTD when the prior month had
     fewer days, or up to ``len(slot_labels)`` otherwise). The frontend zips
     by index and treats missing trailing entries as no data.
+    ``fx_status`` reports whether conversions were complete, incomplete,
+    unavailable, or unnecessary.
     """
 
     range: RangeKind
     slot_labels: list[str]
     current: list[int]
     previous: list[int]
+    fx_status: FxStatus
 
 
 class MonthlyIncomeExpense(BaseModel):

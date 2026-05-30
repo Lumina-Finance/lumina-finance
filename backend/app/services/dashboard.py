@@ -10,9 +10,10 @@ Scoping rules mirror the default aggregate/list endpoints:
 - accessible budgets  = same pattern against base budgets
 so the dashboard never surfaces data the user couldn't read elsewhere.
 
-Currency rule: spending widgets sum only activity on accounts whose currency
-matches the user's base currency. Net worth, credit usage, and savings rate
-convert foreign-currency account values to the user's base currency.
+Currency rule: spending breakdown sums only activity on accounts whose currency
+matches the user's base currency. Spending comparison, net worth, credit usage,
+and savings rate convert foreign-currency account values to the user's base
+currency.
 """
 import calendar
 import uuid
@@ -565,9 +566,11 @@ def _plan_spending_comparison(
 
 async def _query_daily_expense(
     db: AsyncSession,
-    base_currency_account_ids: list[uuid.UUID],
+    account_by_id: dict[uuid.UUID, Account],
+    base_currency: str,
     start: date,
     end: date,
+    converter: FxConverter,
 ) -> dict[date, int]:
     """Return ``{dt: positive_expense_minor_units}`` for ``[start, end]`` inclusive.
 
@@ -575,17 +578,43 @@ async def _query_daily_expense(
     callers can cumsum into positive display values directly.
     """
     result = await db.execute(
-        select(Transaction.dt, func.sum(Transaction.amount).label("total"))
+        select(
+            Transaction.dt,
+            Transaction.account_id,
+            func.sum(Transaction.amount).label("total"),
+        )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(base_currency_account_ids),
+            Transaction.account_id.in_(list(account_by_id)),
             Category.kind == CategoryKind.EXPENSE,
             Transaction.dt >= start,
             Transaction.dt <= end,
         )
-        .group_by(Transaction.dt),
+        .group_by(Transaction.dt, Transaction.account_id),
     )
-    return {row.dt: -int(row.total) for row in result}
+    rows = list(result)
+    for currency in sorted({account_by_id[row.account_id].currency for row in rows if account_by_id[row.account_id].currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=start,
+            end_date=end,
+        )
+
+    daily: dict[date, int] = {}
+    for row in rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=account_by_id[row.account_id].currency,
+            quote=base_currency,
+            rate_date=row.dt,
+        )
+        if converted_total is None:
+            continue
+
+        daily[row.dt] = daily.get(row.dt, 0) - converted_total
+    return daily
 
 
 def _sum_days(daily: dict[date, int], start: date, end: date) -> int:
@@ -600,7 +629,8 @@ def _sum_days(daily: dict[date, int], start: date, end: date) -> int:
 
 async def get_spending_comparison(
     db: AsyncSession,
-    base_currency_account_ids: list[uuid.UUID],
+    accounts: list[Account],
+    base_currency: str,
     range_: RangeKind,
     now: datetime,
 ) -> SpendingComparisonResponse:
@@ -612,26 +642,42 @@ async def get_spending_comparison(
     """
     labels, current_ranges, previous_ranges = _plan_spending_comparison(range_, now.date())
 
-    if not base_currency_account_ids:
+    if not accounts:
         return SpendingComparisonResponse(
             range=range_,
             slot_labels=labels,
             current=[0] * len(current_ranges),
             previous=[0] * len(previous_ranges),
+            fx_status=FxStatus(),
         )
 
+    account_by_id = {account.id: account for account in accounts}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
     current_daily_spend = (
         await _query_daily_expense(
-            db, base_currency_account_ids,
-            current_ranges[0][0], current_ranges[-1][1],
+            db,
+            account_by_id,
+            base_currency,
+            current_ranges[0][0],
+            current_ranges[-1][1],
+            converter,
         )
         if current_ranges
         else {}
     )
     previous_daily_spend = (
         await _query_daily_expense(
-            db, base_currency_account_ids,
-            previous_ranges[0][0], previous_ranges[-1][1],
+            db,
+            account_by_id,
+            base_currency,
+            previous_ranges[0][0],
+            previous_ranges[-1][1],
+            converter,
         )
         if previous_ranges
         else {}
@@ -645,6 +691,7 @@ async def get_spending_comparison(
         slot_labels=labels,
         current=_cumsum(current_slot_totals),
         previous=_cumsum(previous_slot_totals),
+        fx_status=converter.get_status(),
     )
 
 
