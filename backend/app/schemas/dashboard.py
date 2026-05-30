@@ -118,13 +118,17 @@ class SavingsRateWidgetResponse(BaseModel):
 
     `savings_rate_history` is a per-month series of raw income and expense
     totals covering the current (in-progress) calendar month plus the prior
-    six months, ordered oldest-first. Base-currency accounts only. The rate
-    itself is derived on the frontend so it can handle the three zero-income
-    cases (real rate, ``-inf`` when expenses exist without income, ``0``
-    when both are zero) without having to serialize non-finite floats.
+    six months, ordered oldest-first. Foreign-currency account activity is
+    converted to the user's base currency when needed. The rate itself is
+    derived on the frontend so it can handle the three zero-income cases
+    (real rate, ``-inf`` when expenses exist without income, ``0`` when both
+    are zero) without having to serialize non-finite floats.
+    `fx_status` reports whether conversions were complete, incomplete,
+    unavailable, or unnecessary.
     """
 
     savings_rate_history: list[MonthlyIncomeExpense]
+    fx_status: FxStatus
 
 
 class RecentActivityWidgetResponse(BaseModel):

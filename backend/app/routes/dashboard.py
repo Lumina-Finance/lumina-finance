@@ -62,9 +62,16 @@ async def get_savings_rate_widget_route(
     """Return savings-rate history for the dashboard savings-rate widget."""
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
-    savings_rate_history = await get_savings_rate_history(db, base_currency_account_ids, now)
-    return SavingsRateWidgetResponse(savings_rate_history=savings_rate_history)
+    savings_rate_history, fx_status = await get_savings_rate_history(
+        db,
+        accounts,
+        user.base_currency,
+        now,
+    )
+    return SavingsRateWidgetResponse(
+        savings_rate_history=savings_rate_history,
+        fx_status=fx_status,
+    )
 
 
 @router.get("/net-worth", response_model=NetWorthWidgetResponse)

@@ -10,9 +10,9 @@ Scoping rules mirror the default aggregate/list endpoints:
 - accessible budgets  = same pattern against base budgets
 so the dashboard never surfaces data the user couldn't read elsewhere.
 
-Currency rule: spending and savings widgets sum only activity on accounts whose
-currency matches the user's base currency. Net worth and credit usage convert
-foreign-currency account snapshots to the user's base currency.
+Currency rule: spending widgets sum only activity on accounts whose currency
+matches the user's base currency. Net worth, credit usage, and savings rate
+convert foreign-currency account values to the user's base currency.
 """
 import calendar
 import uuid
@@ -348,8 +348,11 @@ async def get_recent_transactions(
 # ---------------------------------------------------------------------------
 
 async def get_savings_rate_history(
-    db: AsyncSession, base_currency_account_ids: list[uuid.UUID], now: datetime,
-) -> list[MonthlyIncomeExpense]:
+    db: AsyncSession,
+    accounts: list[Account],
+    base_currency: str,
+    now: datetime,
+) -> tuple[list[MonthlyIncomeExpense], FxStatus]:
     """Return per-month income / expense totals for the savings-rate chart.
 
     The series covers ``DASHBOARD_SAVINGS_HISTORY_MONTHS`` calendar months
@@ -374,40 +377,79 @@ async def get_savings_rate_history(
         else:
             month += 1
 
-    if not base_currency_account_ids:
-        return [MonthlyIncomeExpense(month=m, income=0, expenses=0) for m in months]
+    empty_history = [MonthlyIncomeExpense(month=m, income=0, expenses=0) for m in months]
+    if not accounts:
+        return empty_history, FxStatus()
 
-    month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
+    account_by_id = {account.id: account for account in accounts}
     result = await db.execute(
-        select(month_start_expr, Category.id.label("category_id"), func.sum(Transaction.amount).label("total"))
+        select(
+            Transaction.dt,
+            Transaction.account_id,
+            Category.id.label("category_id"),
+            func.sum(Transaction.amount).label("total"),
+        )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(base_currency_account_ids),
+            Transaction.account_id.in_(list(account_by_id)),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= first_month,
             Transaction.dt < window_end,
         )
-        .group_by(month_start_expr, Category.id),
+        .group_by(Transaction.dt, Transaction.account_id, Category.id),
     )
+    rows = list(result)
+    if not rows:
+        return empty_history, FxStatus()
+
+    row_currencies = {account_by_id[row.account_id].currency for row in rows}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *row_currencies},
+        ),
+    )
+    for currency in sorted(row_currencies - {base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=first_month,
+            end_date=window_end - timedelta(days=1),
+        )
 
     totals = {m: {"income": 0, "expenses": 0} for m in months}
-    for row in result:
-        # date_trunc returns a timestamp; coerce to a plain date for the key.
-        key = row.month_start.date() if hasattr(row.month_start, "date") else row.month_start
-        total = int(row.total or 0)
-        if total > 0:
-            totals[key]["income"] += total
-        elif total < 0:
-            totals[key]["expenses"] += -total
-
-    return [
-        MonthlyIncomeExpense(
-            month=m,
-            income=totals[m]["income"],
-            expenses=totals[m]["expenses"],
+    category_totals: dict[tuple[date, uuid.UUID], int] = {}
+    for row in rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=account_by_id[row.account_id].currency,
+            quote=base_currency,
+            rate_date=row.dt,
         )
-        for m in months
-    ]
+        if total is None:
+            continue
+
+        key = (date(row.dt.year, row.dt.month, 1), row.category_id)
+        category_totals[key] = category_totals.get(key, 0) + total
+
+    for (month, _category_id), total in category_totals.items():
+        if total > 0:
+            totals[month]["income"] += total
+        elif total < 0:
+            totals[month]["expenses"] += -total
+
+    return (
+        [
+            MonthlyIncomeExpense(
+                month=m,
+                income=totals[m]["income"],
+                expenses=totals[m]["expenses"],
+            )
+            for m in months
+        ],
+        converter.get_status(),
+    )
 
 
 # ---------------------------------------------------------------------------
