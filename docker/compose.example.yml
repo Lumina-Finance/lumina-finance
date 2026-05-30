@@ -1,6 +1,7 @@
 services:
   app:
     image: luminahq/lumina-finance:latest
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -18,6 +19,7 @@ services:
 
   postgres:
     image: postgres:17
+    restart: unless-stopped
     environment:
       POSTGRES_DB: "${DB_NAME:?DB_NAME is required}"
       POSTGRES_USER: "${DB_USER:?DB_USER is required}"

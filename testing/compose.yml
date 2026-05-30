@@ -2,6 +2,7 @@
 services:
   app:
     image: "${TEST_INSTANCE_IMAGE:-lumina-finance:testing}"
+    restart: unless-stopped
     container_name: lumina-finance-docker-stack-test-app
     depends_on:
       postgres:
@@ -20,6 +21,7 @@ services:
 
   postgres:
     image: postgres:17
+    restart: unless-stopped
     container_name: lumina-finance-docker-stack-test-db
     environment:
       POSTGRES_DB: "${DB_NAME:?DB_NAME is required}"
