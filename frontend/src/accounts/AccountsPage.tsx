@@ -25,6 +25,7 @@ export default function AccountsPage() {
 
   useFocusRefetch([
     accountKeys.list(),
+    dashboardKeys.credit(),
     { queryKey: dashboardKeys.savingsRateAll, exact: false },
     taxAdvantagedPlanKeys.list(),
   ])

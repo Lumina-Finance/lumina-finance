@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { FxStatus } from '@/api/dashboard'
-import { useDashboardSavingsRate } from '@/api/dashboard'
+import { useDashboardCredit, useDashboardSavingsRate } from '@/api/dashboard'
 import { useRunway } from '@/api/user'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -21,11 +21,14 @@ export interface AccountsMetricsViewModel {
   }
   creditUsage: {
     hasCreditAccounts: boolean
+    hasCreditLimits: boolean
     hasCreditData: boolean
+    isLoading: boolean
     utilization: number
     totalUsed: number
     totalLimit: number
     color: string
+    fxStatus: FxStatus | undefined
   }
   runway: {
     label: string
@@ -41,26 +44,20 @@ export function useAccountsMetrics(
   rows: AccountsOverview[],
   displayCurrency: string,
 ): AccountsMetricsViewModel {
+  const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
   const { data: dashboardSavingsRate } = useDashboardSavingsRate()
   const { data: runway } = useRunway()
 
-  // Revolving balances are signed from the user's perspective: negative means
-  // debt, positive means stored credit. Stored credit should not offset usage.
   const revolvingAccounts = rows.filter((account) => account.account_kind === 'revolving')
   const creditAccountsWithLimits = revolvingAccounts.filter((account) => account.credit_limit !== null)
   const hasCreditAccounts = revolvingAccounts.length > 0
-  const hasCreditData = creditAccountsWithLimits.length > 0
-  const totalCreditUsed = creditAccountsWithLimits.reduce(
-    (sum, account) => sum + Math.max(-account.current_balance, 0),
-    0,
-  )
-  const totalCreditLimit = creditAccountsWithLimits.reduce(
-    (sum, account) => sum + (account.credit_limit ?? 0),
-    0,
-  )
+  const hasCreditLimits = creditAccountsWithLimits.length > 0
+  const totalCreditUsed = dashboardCredit?.credit_used ?? 0
+  const totalCreditLimit = dashboardCredit?.credit_limit_total ?? 0
+  const hasCreditData = Boolean(dashboardCredit) && totalCreditLimit > 0
   const creditUtilization =
     totalCreditLimit > 0 ? Math.round((totalCreditUsed / totalCreditLimit) * 100) : 0
-  const creditUtilColor = !hasCreditData
+  const creditUtilColor = dashboardCreditLoading || !hasCreditData
     ? 'var(--app-text-subtle)'
     : creditUtilization <= 30
       ? 'var(--app-positive)'
@@ -110,11 +107,14 @@ export function useAccountsMetrics(
     },
     creditUsage: {
       hasCreditAccounts,
+      hasCreditLimits,
       hasCreditData,
+      isLoading: dashboardCreditLoading,
       utilization: creditUtilization,
       totalUsed: totalCreditUsed,
       totalLimit: totalCreditLimit,
       color: creditUtilColor,
+      fxStatus: dashboardCredit?.fx_status,
     },
     runway: {
       label: formatCompactRunway(runwayMonths),

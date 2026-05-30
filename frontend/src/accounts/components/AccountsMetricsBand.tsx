@@ -3,6 +3,33 @@ import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetri
 import IconTooltip from '@/components/IconTooltip'
 import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 
+function FxStatusTooltip({
+  label,
+  fxStatus,
+}: {
+  label: string
+  fxStatus: AccountsMetricsViewModel['creditUsage']['fxStatus']
+}) {
+  if (!fxStatus) return null
+
+  return (
+    <IconTooltip
+      label={label}
+      icon="fx"
+      fxTone={getFxStatusTone(fxStatus)}
+      placement="top"
+      widthClassName="w-64"
+    >
+      <span className="block">{getFxStatusMessage(fxStatus)}</span>
+      {fxStatus.missing_pairs.length > 0 && (
+        <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+        </span>
+      )}
+    </IconTooltip>
+  )
+}
+
 export default function AccountsMetricsBand({
   metrics,
   displayCurrency,
@@ -11,6 +38,17 @@ export default function AccountsMetricsBand({
   displayCurrency: string
 }) {
   const { savingsRate, creditUsage, runway } = metrics
+  const creditUsageValue =
+    !creditUsage.isLoading && creditUsage.hasCreditData ? `${creditUsage.utilization}%` : 'N/A'
+  const creditUsageCaption = creditUsage.isLoading
+    ? 'Loading credit totals'
+    : creditUsage.hasCreditData
+      ? `${formatCurrency(creditUsage.totalUsed, displayCurrency)} of ${formatCurrency(creditUsage.totalLimit, displayCurrency)}`
+      : creditUsage.hasCreditLimits && creditUsage.fxStatus?.state !== 'none'
+        ? 'FX unavailable'
+        : creditUsage.hasCreditAccounts
+          ? 'No credit limits set'
+          : 'No revolving credit accounts'
 
   return (
     <section>
@@ -64,12 +102,15 @@ export default function AccountsMetricsBand({
         </div>
 
         <div className="order-1 col-span-2 min-w-0 border-b border-[var(--app-border)] pb-3 min-[730px]:order-2 min-[730px]:col-span-1 min-[730px]:border-x min-[730px]:border-b-0 min-[730px]:px-6 min-[730px]:pb-0">
-          <p className="app-label mb-1">Credit Usage</p>
+          <div className="mb-1 flex items-center gap-2">
+            <p className="app-label">Credit Usage</p>
+            <FxStatusTooltip label="Credit FX status" fxStatus={creditUsage.fxStatus} />
+          </div>
           <p
             className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
             style={{ color: creditUsage.color }}
           >
-            {creditUsage.hasCreditData ? `${creditUsage.utilization}%` : 'N/A'}
+            {creditUsageValue}
           </p>
           <div className="mt-2 space-y-1">
             <div
@@ -88,11 +129,7 @@ export default function AccountsMetricsBand({
               className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
               style={{ color: 'var(--app-text-subtle)' }}
             >
-              {creditUsage.hasCreditData
-                ? `${formatCurrency(creditUsage.totalUsed, displayCurrency)} of ${formatCurrency(creditUsage.totalLimit, displayCurrency)}`
-                : creditUsage.hasCreditAccounts
-                  ? 'No credit limits set'
-                  : 'No revolving credit accounts'}
+              {creditUsageCaption}
             </p>
           </div>
         </div>
@@ -100,22 +137,7 @@ export default function AccountsMetricsBand({
         <div className="relative order-3 min-w-0 border-l border-[var(--app-border)] pl-4 pt-3 min-[730px]:border-l-0 min-[730px]:pl-6 min-[730px]:pt-0">
           <div className="mb-1 flex items-center gap-2 pr-20">
             <p className="app-label">Runway</p>
-            {runway.fxStatus && (
-              <IconTooltip
-                label="Runway FX status"
-                icon="fx"
-                fxTone={getFxStatusTone(runway.fxStatus)}
-                placement="top"
-                widthClassName="w-64"
-              >
-                <span className="block">{getFxStatusMessage(runway.fxStatus)}</span>
-                {runway.fxStatus.missing_pairs.length > 0 && (
-                  <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    Missing: {formatMissingFxPairs(runway.fxStatus.missing_pairs)}
-                  </span>
-                )}
-              </IconTooltip>
-            )}
+            <FxStatusTooltip label="Runway FX status" fxStatus={runway.fxStatus} />
           </div>
           {runway.style && (
             <span
