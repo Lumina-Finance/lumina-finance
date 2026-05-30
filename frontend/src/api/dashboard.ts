@@ -66,6 +66,7 @@ export interface SpendingBreakdownResponse {
   income: CategoryBreakdownEntry[];
   expense_total: number;
   income_total: number;
+  fx_status: FxStatus;
 }
 
 export interface SpendingComparisonResponse {

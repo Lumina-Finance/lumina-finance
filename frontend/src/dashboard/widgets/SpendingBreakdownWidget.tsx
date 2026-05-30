@@ -21,6 +21,7 @@ import {
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import IconTooltip from '@/components/IconTooltip'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -29,6 +30,7 @@ import {
 } from '@/dashboard/constants/animation'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
@@ -71,6 +73,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
   const { data: spendingBreakdown, isLoading: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
+  const fxStatus = spendingBreakdown?.fx_status
   const breakdownEntries = useMemo(() => {
     if (!spendingBreakdown) return []
     return breakdownMode === 'spending' ? spendingBreakdown.expense : spendingBreakdown.income
@@ -146,6 +149,22 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
           <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
           <span className="ml-[0.25em]">Breakdown</span>
         </span>
+        {fxStatus && (
+          <IconTooltip
+            label="Spending breakdown FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="top"
+            widthClassName="w-64"
+          >
+            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
         <button
           type="button"
           onClick={() => setBreakdownMode((mode) => (mode === 'spending' ? 'income' : 'spending'))}
