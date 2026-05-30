@@ -18,10 +18,23 @@ export interface CreditWidgetResponse {
   credit_used: number;
 }
 
+export type FxState = 'none' | 'complete' | 'incomplete' | 'unavailable';
+
+export interface FxRateIssue {
+  base: string;
+  quote: string;
+}
+
+export interface FxStatus {
+  state: FxState;
+  missing_pairs: FxRateIssue[];
+}
+
 export interface NetWorthWidgetResponse {
   current_net_worth: number;
   net_worth_history: number[];
   net_worth_window_days: number;
+  fx_status: FxStatus;
 }
 
 export interface SavingsRateWidgetResponse {

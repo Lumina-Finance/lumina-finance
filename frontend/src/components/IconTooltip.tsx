@@ -5,6 +5,7 @@ export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
 type IconTooltipPlacement = 'top' | 'bottom'
 type IconTooltipIcon = LucideIcon | 'fx'
+type IconTooltipFxTone = 'blue' | 'red'
 
 interface IconTooltipProps {
   label: string
@@ -14,6 +15,7 @@ interface IconTooltipProps {
   widthClassName?: string
   icon?: IconTooltipIcon
   iconColor?: string
+  fxTone?: IconTooltipFxTone
   size?: number
   strokeWidth?: number
 }
@@ -43,8 +45,16 @@ const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:n
 const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]'
-const FX_IDLE_CLASS = 'border-[color-mix(in_srgb,#2563eb_48%,transparent)] bg-[color-mix(in_srgb,#2563eb_13%,var(--app-bg))] text-[#2563eb] group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white'
-const FX_ACTIVE_CLASS = 'border-[#2563eb] bg-[#2563eb] text-white'
+const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }> = {
+  blue: {
+    idle: 'border-[color-mix(in_srgb,#2563eb_48%,transparent)] bg-[color-mix(in_srgb,#2563eb_13%,var(--app-bg))] text-[#2563eb] group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white',
+    active: 'border-[#2563eb] bg-[#2563eb] text-white',
+  },
+  red: {
+    idle: 'border-[color-mix(in_srgb,var(--app-negative)_48%,transparent)] bg-[color-mix(in_srgb,var(--app-negative)_13%,var(--app-bg))] text-[var(--app-negative)] group-hover:border-[var(--app-negative)] group-hover:bg-[var(--app-negative)] group-hover:text-white',
+    active: 'border-[var(--app-negative)] bg-[var(--app-negative)] text-white',
+  },
+}
 const TOOLTIP_WRAPPER_CLASS = 'pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 p-2 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100'
 const TOOLTIP_OPEN_CLASS = 'pointer-events-auto opacity-100'
 
@@ -80,6 +90,7 @@ export default function IconTooltip({
   widthClassName = 'w-52',
   icon: IconOverride,
   iconColor,
+  fxTone = 'blue',
   size = 15,
   strokeWidth = 2.5,
 }: IconTooltipProps) {
@@ -116,8 +127,9 @@ export default function IconTooltip({
     return () => document.removeEventListener('pointerdown', handlePointerDown)
   }, [isOpen])
 
+  const fxToneClass = FX_TONE_CLASS[fxTone]
   const triggerClassName = isFxIcon
-    ? joinClassNames(FX_TRIGGER_CLASS, isOpen ? FX_ACTIVE_CLASS : FX_IDLE_CLASS)
+    ? joinClassNames(FX_TRIGGER_CLASS, isOpen ? fxToneClass.active : fxToneClass.idle)
     : ICON_TRIGGER_CLASS
   const iconClassName = joinClassNames(ICON_CLASS, ICON_HOVER_CLASS, isOpen && ICON_ACTIVE_CLASS)
   const tooltipWrapperClassName = joinClassNames(
