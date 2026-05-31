@@ -114,7 +114,7 @@ export default function TransactionsTopBand({
           <NetFlowSummary
             inflow={inflow}
             outflow={outflow}
-            fxStatus={overview?.net_flow_fx_status}
+            fxStatus={overview?.daily_cash_flow_fx_status}
             displayCurrency={displayCurrency}
             className="min-[730px]:col-span-2 min-[1750px]:col-span-1 min-[1750px]:pr-6"
           />
