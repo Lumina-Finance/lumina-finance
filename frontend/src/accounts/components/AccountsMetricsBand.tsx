@@ -38,6 +38,19 @@ export default function AccountsMetricsBand({
   displayCurrency: string
 }) {
   const { savingsRate, creditUsage, runway } = metrics
+  const savingsRateValue =
+    !savingsRate.isLoading && savingsRate.value !== null
+      ? `${savingsRate.value}%`
+      : savingsRate.hasExpenses
+        ? '−∞%'
+        : 'N/A'
+  const savingsRateCaption = savingsRate.isLoading
+    ? 'Loading savings rate'
+    : savingsRate.value !== null
+      ? `${formatCurrency(savingsRate.net, displayCurrency)} of ${formatCurrency(savingsRate.income, displayCurrency)} this month`
+      : savingsRate.hasExpenses
+        ? 'No income this month'
+        : 'No data this month'
   const creditUsageValue =
     !creditUsage.isLoading && creditUsage.hasCreditData ? `${creditUsage.utilization}%` : 'N/A'
   const creditUsageCaption = creditUsage.isLoading
@@ -64,16 +77,15 @@ export default function AccountsMetricsBand({
         style={{ borderBottom: '1px solid var(--app-border-strong)' }}
       >
         <div className="order-2 min-w-0 pr-4 pt-3 min-[730px]:order-1 min-[730px]:pr-6 min-[730px]:pt-0">
-          <p className="app-label mb-1">Savings Rate</p>
+          <div className="mb-1 flex items-center gap-2">
+            <p className="app-label">Savings Rate</p>
+            <FxStatusTooltip label="Savings rate FX status" fxStatus={savingsRate.fxStatus} />
+          </div>
           <p
             className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
             style={{ color: savingsRate.color }}
           >
-            {savingsRate.value !== null
-              ? `${savingsRate.value}%`
-              : savingsRate.hasExpenses
-                ? '−∞%'
-                : 'N/A'}
+            {savingsRateValue}
           </p>
           <div className="mt-2 space-y-1">
             <div
@@ -92,11 +104,7 @@ export default function AccountsMetricsBand({
               className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
               style={{ color: 'var(--app-text-subtle)' }}
             >
-              {savingsRate.value !== null
-                ? `${formatCurrency(savingsRate.net, displayCurrency)} of ${formatCurrency(savingsRate.income, displayCurrency)} this month`
-                : savingsRate.hasExpenses
-                  ? 'No income this month'
-                  : 'No data this month'}
+              {savingsRateCaption}
             </p>
           </div>
         </div>

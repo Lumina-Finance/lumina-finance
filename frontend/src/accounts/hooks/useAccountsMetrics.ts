@@ -15,9 +15,11 @@ export interface AccountsMetricsViewModel {
   savingsRate: {
     value: number | null
     hasExpenses: boolean
+    isLoading: boolean
     net: number
     income: number
     color: string
+    fxStatus: FxStatus | undefined
   }
   creditUsage: {
     hasCreditAccounts: boolean
@@ -45,7 +47,7 @@ export function useAccountsMetrics(
   displayCurrency: string,
 ): AccountsMetricsViewModel {
   const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
-  const { data: dashboardSavingsRate } = useDashboardSavingsRate()
+  const { data: dashboardSavingsRate, isLoading: dashboardSavingsRateLoading } = useDashboardSavingsRate()
   const { data: runway } = useRunway()
 
   const revolvingAccounts = rows.filter((account) => account.account_kind === 'revolving')
@@ -87,7 +89,9 @@ export function useAccountsMetrics(
     savingsRateIncome > 0 ? Math.round((savingsRateNet / savingsRateIncome) * 100) : null
   const savingsRateHasExpenses = savingsRateExpenses > 0
   const savingsRateColor =
-    savingsRate !== null
+    dashboardSavingsRateLoading
+      ? 'var(--app-text-subtle)'
+      : savingsRate !== null
       ? savingsRate >= 20
         ? 'var(--app-positive)'
         : savingsRate >= 10
@@ -101,9 +105,11 @@ export function useAccountsMetrics(
     savingsRate: {
       value: savingsRate,
       hasExpenses: savingsRateHasExpenses,
+      isLoading: dashboardSavingsRateLoading,
       net: savingsRateNet,
       income: savingsRateIncome,
       color: savingsRateColor,
+      fxStatus: dashboardSavingsRate?.fx_status,
     },
     creditUsage: {
       hasCreditAccounts,
