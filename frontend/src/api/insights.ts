@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import type { FxStatus } from '@/api/dashboard';
 import { insightsKeys } from '@/api/queryKeys';
 
 export interface InsightsPeriodGlanceResponse {
   income: number;
   expenses: number;
+  income_expense_fx_status: FxStatus;
   net_worth_change: number;
   top_category_name?: string;
   top_category_share_pct?: number;

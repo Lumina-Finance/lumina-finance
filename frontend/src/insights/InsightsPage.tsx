@@ -135,6 +135,7 @@ export default function InsightsPage() {
             supportItems={periodGlanceData.supportItems}
             income={periodGlanceData.income}
             expenses={periodGlanceData.expenses}
+            incomeExpenseFxStatus={queries.periodGlance.data?.income_expense_fx_status}
             displayCurrency={displayCurrency}
             loading={queries.periodGlance.isFetching}
             transitionKey={range.cardTransitionKey}

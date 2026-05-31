@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Sparkles } from 'lucide-react'
+import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -32,6 +35,7 @@ type PeriodGlanceSnapshot = {
   supportItems: PeriodGlanceSupportItem[]
   income: number
   expenses: number
+  incomeExpenseFxStatus: FxStatus | undefined
   displayCurrency: string
 }
 
@@ -40,6 +44,7 @@ type PeriodGlanceCardProps = {
   supportItems: PeriodGlanceSupportItem[]
   income: number
   expenses: number
+  incomeExpenseFxStatus: FxStatus | undefined
   displayCurrency: string
   loading?: boolean
   transitionKey: string
@@ -116,6 +121,7 @@ export function PeriodGlanceCard({
   supportItems,
   income,
   expenses,
+  incomeExpenseFxStatus,
   displayCurrency,
   loading = false,
   transitionKey,
@@ -125,8 +131,9 @@ export function PeriodGlanceCard({
     supportItems,
     income,
     expenses,
+    incomeExpenseFxStatus,
     displayCurrency,
-  }), [displayCurrency, expenses, income, primaryMetric, supportItems])
+  }), [displayCurrency, expenses, income, incomeExpenseFxStatus, primaryMetric, supportItems])
   const {
     displaySnapshot,
     contentConcealed,
@@ -150,7 +157,25 @@ export function PeriodGlanceCard({
           <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
             <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1400px]:flex min-[1400px]:min-h-52 min-[1400px]:flex-col min-[1400px]:items-stretch min-[1400px]:justify-between">
               <div className="min-w-0 [container-type:inline-size]">
-                <p className="app-label">{displaySnapshot.primaryMetric.label}</p>
+                <p className="app-label inline-flex items-center gap-2">
+                  {displaySnapshot.primaryMetric.label}
+                  {displaySnapshot.incomeExpenseFxStatus && (
+                    <IconTooltip
+                      label="Income and expense FX status"
+                      icon="fx"
+                      fxTone={getFxStatusTone(displaySnapshot.incomeExpenseFxStatus)}
+                      placement="top"
+                      widthClassName="w-64"
+                    >
+                      <span className="block">{getFxStatusMessage(displaySnapshot.incomeExpenseFxStatus)}</span>
+                      {displaySnapshot.incomeExpenseFxStatus.missing_pairs.length > 0 && (
+                        <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                          Missing: {formatMissingFxPairs(displaySnapshot.incomeExpenseFxStatus.missing_pairs)}
+                        </span>
+                      )}
+                    </IconTooltip>
+                  )}
+                </p>
                 <p
                   ref={primaryAmountRef}
                   className={[
