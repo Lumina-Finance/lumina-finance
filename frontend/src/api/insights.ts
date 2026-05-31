@@ -12,6 +12,7 @@ export interface InsightsPeriodGlanceResponse {
   net_worth_change_fx_status: FxStatus;
   top_category_name?: string;
   top_category_share_pct?: number;
+  top_category_fx_status: FxStatus;
   biggest_change_name?: string;
   biggest_change_amount?: number;
   biggest_change_pct?: number;

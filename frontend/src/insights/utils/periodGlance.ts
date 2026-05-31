@@ -92,6 +92,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: data.top_category_share_pct === undefined
           ? 'No recorded expenses in this range'
           : `${data.top_category_share_pct}% of recorded expenses`,
+        fxStatus: data.top_category_fx_status,
       },
       {
         label: 'Savings Rate',
