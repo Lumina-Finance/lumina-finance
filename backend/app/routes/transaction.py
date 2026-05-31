@@ -183,38 +183,6 @@ def _fork_overview_converter(converter: FxConverter) -> FxConverter:
     return fork
 
 
-async def _convert_overview_net_flow(
-    *,
-    flow_rows,
-    account_by_id: dict[uuid.UUID, Account],
-    converter: FxConverter,
-    base_currency: str,
-) -> tuple[int, int, FxStatus]:
-    total_inflow = 0
-    total_outflow = 0
-    for row in flow_rows:
-        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
-        currency = account_by_id[row.account_id].currency
-        converted_inflow = await converter.convert_minor_units(
-            int(row.inflow or 0),
-            base=currency,
-            quote=base_currency,
-            rate_date=row.date,
-        )
-        converted_outflow = await converter.convert_minor_units(
-            int(row.outflow or 0),
-            base=currency,
-            quote=base_currency,
-            rate_date=row.date,
-        )
-        if converted_inflow is not None:
-            total_inflow += converted_inflow
-        if converted_outflow is not None:
-            total_outflow += converted_outflow
-
-    return total_inflow, total_outflow, converter.get_status()
-
-
 async def _convert_overview_daily_cash_flow(
     *,
     flow_rows,
@@ -256,6 +224,13 @@ async def _convert_overview_daily_cash_flow(
         for flow_date, (inflow, outflow) in sorted(daily_totals.items())
     ]
     return daily_cash_flow, converter.get_status()
+
+
+def _sum_overview_net_flow(daily_cash_flow: list[DailyCashFlow]) -> tuple[int, int]:
+    return (
+        sum(day.inflow for day in daily_cash_flow),
+        sum(day.outflow for day in daily_cash_flow),
+    )
 
 
 async def _convert_overview_outliers(
@@ -510,12 +485,6 @@ async def get_transactions_overview(
         account_by_id=account_by_id,
         base_currency=user.base_currency,
     )
-    total_inflow, total_outflow, net_flow_fx_status = await _convert_overview_net_flow(
-        flow_rows=flow_rows,
-        account_by_id=account_by_id,
-        converter=_fork_overview_converter(overview_converter),
-        base_currency=user.base_currency,
-    )
     top_categories, top_categories_fx_status = await _convert_overview_top_categories(
         category_rows=cat_rows,
         account_by_id=account_by_id,
@@ -528,6 +497,7 @@ async def get_transactions_overview(
         converter=_fork_overview_converter(overview_converter),
         base_currency=user.base_currency,
     )
+    total_inflow, total_outflow = _sum_overview_net_flow(daily_cash_flow)
     outliers, outliers_fx_status = await _convert_overview_outliers(
         category_rows=cat_rows,
         candidate_rows=outlier_rows,
@@ -539,7 +509,7 @@ async def get_transactions_overview(
     return TransactionsOverview(
         total_inflow=total_inflow,
         total_outflow=total_outflow,
-        net_flow_fx_status=net_flow_fx_status,
+        net_flow_fx_status=daily_cash_flow_fx_status,
         top_categories=top_categories,
         top_categories_fx_status=top_categories_fx_status,
         daily_cash_flow=daily_cash_flow,

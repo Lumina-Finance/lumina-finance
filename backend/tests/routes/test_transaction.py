@@ -740,6 +740,9 @@ async def test_transactions_overview_net_flow_converts_foreign_accounts(client, 
     assert data["total_inflow"] == 16_000
     assert data["total_outflow"] == -8_500
     assert data["net_flow_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["net_flow_fx_status"] == data["daily_cash_flow_fx_status"]
+    assert data["total_inflow"] == sum(day["inflow"] for day in data["daily_cash_flow"])
+    assert data["total_outflow"] == sum(day["outflow"] for day in data["daily_cash_flow"])
     assert ("USD", "CAD", date(2026, 3, 14), date(2026, 3, 15)) in calls
 
 
@@ -804,6 +807,9 @@ async def test_transactions_overview_net_flow_reports_incomplete_fx(client, monk
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
     }
+    assert data["net_flow_fx_status"] == data["daily_cash_flow_fx_status"]
+    assert data["total_inflow"] == sum(day["inflow"] for day in data["daily_cash_flow"])
+    assert data["total_outflow"] == sum(day["outflow"] for day in data["daily_cash_flow"])
 
 
 async def test_transactions_overview_daily_cash_flow_converts_foreign_accounts(client, monkeypatch):
