@@ -21,6 +21,7 @@ import {
   userKeys,
 } from '@/api/queryKeys';
 import type { Account, AccountsOverview } from '@/api/accounts';
+import type { FxStatus } from '@/api/dashboard';
 
 // ── Types (mirror backend schemas) ──
 
@@ -72,6 +73,7 @@ export interface OutlierTransaction {
 export interface TransactionsOverview {
   total_inflow: number | null;
   total_outflow: number | null;
+  net_flow_fx_status: FxStatus;
   top_categories: TopCategorySpend[] | null;
   daily_cash_flow: DailyCashFlow[] | null;
   outliers: OutlierTransaction[] | null;
