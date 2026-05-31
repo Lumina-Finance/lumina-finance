@@ -1,3 +1,5 @@
+import type { FxStatus } from '@/api/dashboard'
+
 export type CreditTier = 'positive' | 'accent' | 'negative'
 
 export type SavingsTier = 'positive' | 'accent' | 'negative'
@@ -12,6 +14,7 @@ export type TopBudget = {
   period_end: string
   overall_limit: number
   total_spent: number
+  fx_status: FxStatus
   usageRatio: number
   usagePct: number
 }

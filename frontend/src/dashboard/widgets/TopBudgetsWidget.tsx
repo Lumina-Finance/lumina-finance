@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
+import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
+import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
 
@@ -46,6 +48,10 @@ export function TopBudgetsWidget() {
     () => getTopBudgets(latestBudgetUtilizations),
     [latestBudgetUtilizations],
   )
+  const fxStatus = useMemo(
+    () => combineFxStatuses(budgets.map((budget) => budget.fx_status)),
+    [budgets],
+  )
 
   return (
     <div className="app-card h-[410px] flex flex-col">
@@ -54,6 +60,11 @@ export function TopBudgetsWidget() {
           <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
         </div>
         <span className="app-label">Top Budgets</span>
+        <BudgetFxStatusTooltip
+          fxStatus={fxStatus}
+          label="Top budgets FX status"
+          placement="bottom"
+        />
       </div>
 
       {loading ? (

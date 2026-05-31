@@ -9,6 +9,26 @@ export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
     : visiblePairs.join(', ')
 }
 
+export function combineFxStatuses(statuses: Array<FxStatus | undefined | null>): FxStatus {
+  const activeStatuses = statuses.filter((status): status is FxStatus => Boolean(status) && status.state !== 'none')
+
+  if (activeStatuses.length === 0) return { state: 'none', missing_pairs: [] }
+
+  const missingPairKeys = new Set<string>()
+  const missingPairs = activeStatuses.flatMap((status) => status.missing_pairs).filter((pair) => {
+    const key = `${pair.base}/${pair.quote}`
+    if (missingPairKeys.has(key)) return false
+    missingPairKeys.add(key)
+    return true
+  })
+
+  if (missingPairs.length === 0) return { state: 'complete', missing_pairs: [] }
+  return {
+    state: activeStatuses.every((status) => status.state === 'unavailable') ? 'unavailable' : 'incomplete',
+    missing_pairs: missingPairs,
+  }
+}
+
 export function getFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':

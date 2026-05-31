@@ -23,12 +23,14 @@ import {
 import BudgetChartTooltip, { type BudgetChartPoint } from '@/budgets/components/budget-details-modal/BudgetChartTooltip'
 import BudgetEditModal from '@/budgets/components/budget-form/BudgetEditModal'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
+import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import MarqueeText from '@/components/MarqueeText'
 import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
 import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFACE_TRANSITION_SECONDS } from '@/budgets/constants'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { formatCalendarDate, parseYmd } from '@/budgets/utils/date'
 import { attentionState } from '@/budgets/utils/budgetStatus'
+import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
 
 function utilizationPercent(spent: number, limit: number) {
   if (limit <= 0) return 0
@@ -175,6 +177,9 @@ export default function BudgetDetailsModal({
   const utilizationHistoryLoading = utilizationQueries.some((query) => query.isLoading)
   const utilizationHistoryError = utilizationQueries.some((query) => query.isError)
   const latestUtilization = latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined
+  const utilizationHistoryFxStatus = combineFxStatuses(
+    sortedPeriods.map((period) => utilizationByBudgetId.get(period.id)?.fx_status),
+  )
   const spent = latestUtilization?.total_spent ?? 0
   const limit = latestPeriod?.overall_limit ?? 0
   const remaining = latestPeriod ? limit - spent : 0
@@ -378,9 +383,15 @@ export default function BudgetDetailsModal({
 
               <section className="shrink-0">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
-                    Current budget
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+                      Current budget
+                    </p>
+                    <BudgetFxStatusTooltip
+                      fxStatus={latestUtilization?.fx_status}
+                      label="Current budget FX status"
+                    />
+                  </div>
                 </div>
                 <div className="mt-2 flex items-baseline gap-2 min-[750px]:mt-3">
                   <p className="min-w-0 text-3xl font-semibold leading-none tracking-tight min-[750px]:text-4xl">
@@ -509,7 +520,13 @@ export default function BudgetDetailsModal({
             >
               <header className="flex shrink-0 items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
+                    <BudgetFxStatusTooltip
+                      fxStatus={utilizationHistoryFxStatus}
+                      label="Historical utilization FX status"
+                    />
+                  </div>
                   <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
                     Percentage used for each budget period.
                   </p>

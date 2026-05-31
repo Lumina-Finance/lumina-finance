@@ -1,5 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/api/client';
+import type { FxStatus } from '@/api/dashboard';
 import { budgetKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -43,6 +44,7 @@ export interface BudgetUtilization {
   overall_limit: number;
   total_spent: number;
   categories: BudgetCategoryUtilization[];
+  fx_status: FxStatus;
 }
 
 export interface LatestBudgetUtilization extends BudgetUtilization {
