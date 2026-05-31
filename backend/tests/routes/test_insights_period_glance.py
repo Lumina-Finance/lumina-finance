@@ -99,6 +99,7 @@ async def test_period_glance_returns_compact_period_summary(client):
         "net_worth_change_fx_status": {"state": "none", "missing_pairs": []},
         "top_category_name": "Groceries",
         "top_category_share_pct": 67,
+        "top_category_fx_status": {"state": "none", "missing_pairs": []},
         "biggest_change_name": "Groceries",
         "biggest_change_amount": 80_000,
         "biggest_change_pct": 200,
@@ -173,6 +174,7 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
     assert data["net_worth_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["top_category_name"] == "Food"
     assert data["top_category_share_pct"] == 100
+    assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["biggest_change_name"] == "Food"
     assert data["biggest_change_amount"] == 1_070_000
     assert data["biggest_change_fx_status"] == {"state": "complete", "missing_pairs": []}
@@ -224,10 +226,55 @@ async def test_period_glance_income_expenses_report_incomplete_fx(client, monkey
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
     }
     assert data["net_worth_change_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["top_category_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
     assert data["biggest_change_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
     }
+
+
+async def test_period_glance_top_category_uses_converted_expense_totals(client, monkeypatch):
+    """Top Category ranking uses converted expense-side totals."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 5, 3): Decimal("1.5")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_usd_currency()
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+    travel_id, travel = _category(user_id, "Travel", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            food,
+            travel,
+            _transaction(user_id, cad_account_id, food_id, date(2026, 5, 3), -100_000),
+            _transaction(user_id, usd_account_id, travel_id, date(2026, 5, 3), -90_000, "USD"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-07"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["top_category_name"] == "Travel"
+    assert data["top_category_share_pct"] == 57
+    assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
 
 
 async def test_period_glance_biggest_change_reports_incomplete_fx(client, monkeypatch):

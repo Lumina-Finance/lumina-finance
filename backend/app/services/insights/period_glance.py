@@ -117,37 +117,6 @@ async def _prefetch_period_total_rates(
         )
 
 
-async def _query_expense_category_totals(
-    db: AsyncSession,
-    account_ids: list[uuid.UUID],
-    from_date: date,
-    to_date: date,
-) -> dict[uuid.UUID, tuple[str, int]]:
-    """Return positive expense-side totals keyed by category id for an inclusive period."""
-    result = await db.execute(
-        select(
-            Category.id,
-            Category.name,
-            func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.account_id.in_(account_ids),
-            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
-            Transaction.dt >= from_date,
-            Transaction.dt <= to_date,
-        )
-        .group_by(Category.id, Category.name),
-    )
-
-    totals: dict[uuid.UUID, tuple[str, int]] = {}
-    for row in result:
-        amount = max(-int(row.total or 0), 0)
-        if amount:
-            totals[row.id] = (row.name, amount)
-    return totals
-
-
 async def _query_category_net_totals(
     db: AsyncSession,
     accounts: list[Account],
@@ -206,6 +175,18 @@ async def _query_category_net_totals(
         for category_id, (name, kind, amount) in raw_totals.items()
         if amount
     }
+
+
+def _expense_totals_from_category_net_totals(
+    category_totals: CategoryNetTotals,
+) -> dict[uuid.UUID, tuple[str, int]]:
+    """Return positive expense-side totals keyed by category id."""
+    totals: dict[uuid.UUID, tuple[str, int]] = {}
+    for category_id, (name, _kind, total) in category_totals.items():
+        amount = max(-total, 0)
+        if amount:
+            totals[category_id] = (name, amount)
+    return totals
 
 
 def _top_category(
@@ -412,8 +393,6 @@ async def get_period_glance(
     """Return compact insight totals for the top period-glance card."""
     previous_from_date, previous_to_date = previous_period_bounds(from_date, to_date)
     all_accounts = await get_accessible_accounts(db, user)
-    base_currency_accounts = [account for account in all_accounts if account.currency == user.base_currency]
-    account_ids = [account.id for account in base_currency_accounts]
 
     if not all_accounts:
         return InsightsPeriodGlanceResponse(
@@ -429,12 +408,21 @@ async def get_period_glance(
         from_date,
         to_date,
     )
-    current_category_totals = await _query_expense_category_totals(
+    top_category_converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {user.base_currency, *(account.currency for account in all_accounts)},
+        ),
+    )
+    current_top_category_net_totals = await _query_category_net_totals(
         db,
-        account_ids,
+        all_accounts,
+        user.base_currency,
         from_date,
         to_date,
+        top_category_converter,
     )
+    current_category_totals = _expense_totals_from_category_net_totals(current_top_category_net_totals)
     biggest_change_converter = FxConverter(
         currency_exponents=await _get_currency_exponents(
             db,
@@ -465,6 +453,7 @@ async def get_period_glance(
         to_date,
     )
     top_category = _top_category(current_category_totals)
+    top_category_fx_status = top_category_converter.get_status()
     biggest_change = _biggest_category_change(current_category_net_totals, previous_category_net_totals)
     biggest_change_fx_status = biggest_change_converter.get_status()
 
@@ -476,6 +465,7 @@ async def get_period_glance(
         net_worth_change_fx_status=net_worth_change_fx_status,
         top_category_name=top_category[0] if top_category else None,
         top_category_share_pct=top_category[1] if top_category else None,
+        top_category_fx_status=top_category_fx_status,
         biggest_change_name=biggest_change[0] if biggest_change else None,
         biggest_change_amount=biggest_change[1] if biggest_change else None,
         biggest_change_pct=biggest_change[2] if biggest_change else None,

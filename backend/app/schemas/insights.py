@@ -18,6 +18,7 @@ class InsightsPeriodGlanceResponse(BaseModel):
     net_worth_change_fx_status: FxStatus = Field(default_factory=FxStatus)
     top_category_name: str | None = None
     top_category_share_pct: int | None = None
+    top_category_fx_status: FxStatus = Field(default_factory=FxStatus)
     biggest_change_name: str | None = None
     biggest_change_amount: int | None = None
     biggest_change_pct: int | None = None
