@@ -215,6 +215,49 @@ async def _convert_overview_net_flow(
     return total_inflow, total_outflow, converter.get_status()
 
 
+async def _convert_overview_daily_cash_flow(
+    *,
+    flow_rows,
+    account_by_id: dict[uuid.UUID, Account],
+    converter: FxConverter,
+    base_currency: str,
+) -> tuple[list[DailyCashFlow], FxStatus]:
+    daily_totals: dict[date, tuple[int, int]] = {}
+    for row in flow_rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        currency = account_by_id[row.account_id].currency
+        row_inflow = int(row.inflow or 0)
+        row_outflow = int(row.outflow or 0)
+        converted_inflow = await converter.convert_minor_units(
+            row_inflow,
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        converted_outflow = await converter.convert_minor_units(
+            row_outflow,
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if (
+            (row_inflow == 0 or converted_inflow is None)
+            and (row_outflow == 0 or converted_outflow is None)
+        ):
+            continue
+        inflow, outflow = daily_totals.get(row.date, (0, 0))
+        daily_totals[row.date] = (
+            inflow + (converted_inflow or 0),
+            outflow + (converted_outflow or 0),
+        )
+
+    daily_cash_flow = [
+        DailyCashFlow(date=flow_date, inflow=inflow, outflow=outflow)
+        for flow_date, (inflow, outflow) in sorted(daily_totals.items())
+    ]
+    return daily_cash_flow, converter.get_status()
+
+
 async def _convert_overview_outliers(
     *,
     category_rows,
@@ -434,19 +477,6 @@ async def get_transactions_overview(
     )
     cat_rows = (await db.execute(cat_query)).all()
 
-    # Daily cash flow
-    daily_query = (
-        select(
-            Transaction.dt.label("date"),
-            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
-            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
-        )
-        .where(base_where)
-        .group_by(Transaction.dt)
-        .order_by(Transaction.dt)
-    )
-    daily_rows = (await db.execute(daily_query)).all()
-
     # Top 3 largest expense-side transaction contributors after category-level
     # refunds/income offsets have been netted for the selected period.
     outlier_query = (
@@ -492,6 +522,12 @@ async def get_transactions_overview(
         converter=_fork_overview_converter(overview_converter),
         base_currency=user.base_currency,
     )
+    daily_cash_flow, daily_cash_flow_fx_status = await _convert_overview_daily_cash_flow(
+        flow_rows=flow_rows,
+        account_by_id=account_by_id,
+        converter=_fork_overview_converter(overview_converter),
+        base_currency=user.base_currency,
+    )
     outliers, outliers_fx_status = await _convert_overview_outliers(
         category_rows=cat_rows,
         candidate_rows=outlier_rows,
@@ -506,10 +542,8 @@ async def get_transactions_overview(
         net_flow_fx_status=net_flow_fx_status,
         top_categories=top_categories,
         top_categories_fx_status=top_categories_fx_status,
-        daily_cash_flow=[
-            DailyCashFlow(date=r.date, inflow=r.inflow, outflow=r.outflow)
-            for r in daily_rows
-        ],
+        daily_cash_flow=daily_cash_flow,
+        daily_cash_flow_fx_status=daily_cash_flow_fx_status,
         outliers=outliers,
         outliers_fx_status=outliers_fx_status,
     )
