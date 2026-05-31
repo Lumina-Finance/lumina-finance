@@ -1,10 +1,12 @@
 """Route tests for the shared insights merchants endpoint."""
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.models.base import CategoryKind
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
@@ -30,6 +32,7 @@ def _transaction(
     dt: date,
     amount: int,
     merchant_id: UUID | None = None,
+    currency: str = "CAD",
 ) -> Transaction:
     """Build a transaction row for direct test setup."""
     return Transaction(
@@ -39,8 +42,15 @@ def _transaction(
         merchant_id=merchant_id,
         category_id=category_id,
         amount=amount,
-        currency="CAD",
+        currency=currency,
     )
+
+
+async def _seed_currency(currency_id: str, name: str, symbol: str):
+    """Insert a currency row for foreign-account tests."""
+    async with TestSession() as session:
+        session.add(Currency(id=currency_id, name=name, symbol=symbol, minor_unit_exponent=2))
+        await session.commit()
 
 
 async def test_merchants_returns_distribution_and_ranking_payloads(client):
@@ -86,6 +96,122 @@ async def test_merchants_returns_distribution_and_ranking_payloads(client):
             [str(alpha_id), "Alpha Market", 80_000, 2, 100],
             [str(beta_id), "Beta Grocer", 50_000, 1, None],
         ],
+        "fx_status": {"state": "none", "missing_pairs": []},
+    }
+
+
+async def test_merchants_converts_foreign_entries_by_transaction_date(client, monkeypatch):
+    """Merchant rows use converted daily spend for ranking, distribution, and changes."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        assert (base, quote) == ("USD", "CAD")
+        if (start_date, end_date) == (date(2026, 5, 1), date(2026, 5, 2)):
+            return {
+                date(2026, 5, 1): Decimal("1.5"),
+                date(2026, 5, 2): Decimal("2"),
+            }
+        if (start_date, end_date) == (date(2026, 4, 30), date(2026, 4, 30)):
+            return {date(2026, 4, 30): Decimal("1.25")}
+        raise AssertionError(f"unexpected FX range: {start_date} to {end_date}")
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
+    alpha_id, alpha = _merchant(user_id, "Alpha Market")
+    beta_id, beta = _merchant(user_id, "Beta Grocer")
+
+    async with TestSession() as session:
+        session.add_all([
+            expense,
+            alpha,
+            beta,
+            _transaction(user_id, cad_account_id, expense_id, date(2026, 5, 1), -20_00, alpha_id),
+            _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 1), -100_00, alpha_id, "USD"),
+            _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 2), 20_00, alpha_id, "USD"),
+            _transaction(user_id, cad_account_id, expense_id, date(2026, 5, 2), -50_00, beta_id),
+            _transaction(user_id, usd_account_id, expense_id, date(2026, 4, 30), -40_00, alpha_id, "USD"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/merchants",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-02"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "distribution": [
+            [str(alpha_id), "Alpha Market", 13_000, 160, 8_000],
+            [str(beta_id), "Beta Grocer", 5_000, None, 5_000],
+        ],
+        "ranking": [
+            [str(alpha_id), "Alpha Market", 13_000, 3, 160],
+            [str(beta_id), "Beta Grocer", 5_000, 1, None],
+        ],
+        "fx_status": {"state": "complete", "missing_pairs": []},
+    }
+
+
+async def test_merchants_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
+    """Unconverted foreign merchant rows are skipped and reported."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        if base == "USD":
+            return {date(2026, 5, 1): Decimal("1.5")}
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+    await _seed_currency("ABC", "Unsupported Test Currency", "A")
+
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+    expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
+    alpha_id, alpha = _merchant(user_id, "Alpha Market")
+    beta_id, beta = _merchant(user_id, "Beta Grocer")
+
+    async with TestSession() as session:
+        session.add_all([
+            expense,
+            alpha,
+            beta,
+            _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 1), -100_00, alpha_id, "USD"),
+            _transaction(user_id, abc_account_id, expense_id, date(2026, 5, 2), -90_00, beta_id, "ABC"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/merchants",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-02"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "distribution": [
+            [str(alpha_id), "Alpha Market", 15_000, None, 15_000],
+        ],
+        "ranking": [
+            [str(alpha_id), "Alpha Market", 15_000, 1, None],
+        ],
+        "fx_status": {
+            "state": "incomplete",
+            "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        },
     }
 
 

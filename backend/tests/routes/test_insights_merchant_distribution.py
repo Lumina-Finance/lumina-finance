@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
@@ -45,23 +44,14 @@ def _transaction(
     )
 
 
-async def _seed_usd_currency():
-    """Insert USD for base-currency exclusion tests."""
-    async with TestSession() as session:
-        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
-        await session.commit()
-
-
 async def test_merchant_distribution_returns_top_merchants_and_other_with_changes(client):
     """The card receives only current-period expense merchants, capped to top eight plus Other."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
-    await _seed_usd_currency()
 
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
     hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
-    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
     expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
     income_id, income = _category(user_id, "Salary", CategoryKind.INCOME)
     transfer_id, transfer = _category(user_id, "Transfer", CategoryKind.TRANSFER)
@@ -82,7 +72,6 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             "Income Merchant",
             "Transfer Merchant",
             "Hidden Merchant",
-            "USD Merchant",
         ]
     ]
     merchant_ids = {merchant.name: merchant_id for merchant_id, merchant in merchant_rows}
@@ -109,7 +98,6 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             _transaction(user_id, account_id, transfer_id, date(2026, 4, 10), -999_999, merchant_ids["Transfer Merchant"]),
             _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -999_999, None),
             _transaction(user_id, hidden_account_id, expense_id, date(2026, 4, 10), -999_999, merchant_ids["Hidden Merchant"]),
-            _transaction(user_id, usd_account_id, expense_id, date(2026, 4, 10), -999_999, merchant_ids["USD Merchant"], "USD"),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -50_000, merchant_ids["Alpha Market"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -100_000, merchant_ids["Beta Grocer"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -90_000, merchant_ids["Diner Echo"]),

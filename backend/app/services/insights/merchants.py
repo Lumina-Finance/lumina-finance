@@ -7,17 +7,22 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.schemas.fx import FxStatus
 from app.schemas.insights import (
     InsightsMerchantDistributionResponse,
     InsightsMerchantRankingResponse,
     InsightsMerchantsResponse,
 )
-from app.services.insights.common import get_base_currency_accounts, previous_period_bounds
+from app.services.dashboard import get_accessible_accounts
+from app.services.fx import FxConverter
+from app.services.insights.common import previous_period_bounds
 
 MERCHANT_DISTRIBUTION_LIMIT = 8
 MERCHANT_RANKING_LIMIT = 10
@@ -37,20 +42,28 @@ MerchantRankingRow = tuple[str, str, int, int, int | None]
 
 async def _query_merchant_stats(
     db: AsyncSession,
-    account_ids: list[uuid.UUID],
+    accounts: list[Account],
+    base_currency: str,
     from_date: date,
     to_date: date,
-) -> MerchantSpendStatsById:
-    """Return net expense-kind spend and transaction counts by merchant."""
+) -> tuple[MerchantSpendStatsById, FxStatus]:
+    """Return converted net expense-kind spend and transaction counts by merchant."""
+    if not accounts:
+        return {}, FxStatus()
+
+    account_ids = [account.id for account in accounts]
     result = await db.execute(
         select(
             Merchant.id,
             Merchant.name,
+            Transaction.dt.label("date"),
+            Account.currency.label("account_currency"),
             func.sum(Transaction.amount).label("total"),
             func.count(Transaction.id).label("transaction_count"),
         )
         .join(Merchant, Transaction.merchant_id == Merchant.id)
         .join(Category, Transaction.category_id == Category.id)
+        .join(Account, Transaction.account_id == Account.id)
         .where(
             Transaction.account_id.in_(account_ids),
             Transaction.merchant_id.is_not(None),
@@ -58,19 +71,98 @@ async def _query_merchant_stats(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Merchant.id, Merchant.name),
+        .group_by(Merchant.id, Merchant.name, Transaction.dt, Account.currency),
+    )
+    rows = result.all()
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    await _prefetch_merchant_rates(
+        converter,
+        rows=rows,
+        base_currency=base_currency,
     )
 
     stats_by_id: MerchantSpendStatsById = {}
-    for row in result:
-        amount = max(-int(row.total or 0), 0)
-        if amount > 0:
-            stats_by_id[row.id] = MerchantSpendStats(
-                name=row.name,
-                amount=amount,
-                transaction_count=int(row.transaction_count or 0),
-            )
-    return stats_by_id
+    for row in rows:
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=row.account_currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if converted_total is None:
+            continue
+
+        current_stats = stats_by_id.get(row.id, MerchantSpendStats(row.name, 0, 0))
+        stats_by_id[row.id] = MerchantSpendStats(
+            name=current_stats.name,
+            amount=current_stats.amount - converted_total,
+            transaction_count=current_stats.transaction_count + int(row.transaction_count or 0),
+        )
+
+    return (
+        {
+            merchant_id: stats
+            for merchant_id, stats in stats_by_id.items()
+            if stats.amount > 0
+        },
+        converter.get_status(),
+    )
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+    )
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def _prefetch_merchant_rates(
+    converter: FxConverter,
+    *,
+    rows,
+    base_currency: str,
+) -> None:
+    ranges: dict[str, tuple[date, date]] = {}
+    for row in rows:
+        currency = row.account_currency
+        if currency == base_currency:
+            continue
+        start, end = ranges.get(currency, (row.date, row.date))
+        ranges[currency] = (min(start, row.date), max(end, row.date))
+
+    for currency, (start_date, end_date) in sorted(ranges.items()):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+
+def _combine_fx_statuses(current: FxStatus, previous: FxStatus) -> FxStatus:
+    if current.state == "none":
+        return previous
+    if previous.state == "none":
+        return current
+
+    missing_pairs = [
+        *current.missing_pairs,
+        *[
+            pair
+            for pair in previous.missing_pairs
+            if not any(existing.base == pair.base and existing.quote == pair.quote for existing in current.missing_pairs)
+        ],
+    ]
+    if current.state == "complete" and previous.state == "complete":
+        return FxStatus(state="complete")
+    if current.state == "unavailable" and previous.state == "unavailable":
+        return FxStatus(state="unavailable", missing_pairs=missing_pairs)
+    return FxStatus(state="incomplete", missing_pairs=missing_pairs)
 
 
 def _change_pct(current_amount: int, previous_amount: int) -> int | None:
@@ -140,18 +232,30 @@ async def get_merchants(
 ) -> InsightsMerchantsResponse:
     """Return shared merchant spend data for the insights merchant cards."""
     previous_from_date, previous_to_date = previous_period_bounds(from_date, to_date)
-    base_currency_accounts = await get_base_currency_accounts(db, user)
-    account_ids = [account.id for account in base_currency_accounts]
+    accounts = await get_accessible_accounts(db, user)
 
-    if not account_ids:
+    if not accounts:
         return InsightsMerchantsResponse(distribution=[], ranking=[])
 
-    current_stats = await _query_merchant_stats(db, account_ids, from_date, to_date)
-    previous_stats = await _query_merchant_stats(db, account_ids, previous_from_date, previous_to_date)
+    current_stats, current_fx_status = await _query_merchant_stats(
+        db,
+        accounts,
+        user.base_currency,
+        from_date,
+        to_date,
+    )
+    previous_stats, previous_fx_status = await _query_merchant_stats(
+        db,
+        accounts,
+        user.base_currency,
+        previous_from_date,
+        previous_to_date,
+    )
 
     return InsightsMerchantsResponse(
         distribution=_merchant_distribution_rows(current_stats, previous_stats),
         ranking=_merchant_ranking_rows(current_stats, previous_stats),
+        fx_status=_combine_fx_statuses(current_fx_status, previous_fx_status),
     )
 
 

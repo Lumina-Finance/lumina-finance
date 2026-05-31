@@ -95,3 +95,4 @@ class InsightsMerchantsResponse(BaseModel):
 
     distribution: list[tuple[str, str, int, int | None, int | None]]
     ranking: list[tuple[str, str, int, int, int | None]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
