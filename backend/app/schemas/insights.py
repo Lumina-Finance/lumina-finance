@@ -15,6 +15,7 @@ class InsightsPeriodGlanceResponse(BaseModel):
     expenses: int
     income_expense_fx_status: FxStatus = Field(default_factory=FxStatus)
     net_worth_change: int
+    net_worth_change_fx_status: FxStatus = Field(default_factory=FxStatus)
     top_category_name: str | None = None
     top_category_share_pct: int | None = None
     biggest_change_name: str | None = None

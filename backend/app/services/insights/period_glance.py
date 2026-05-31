@@ -260,20 +260,15 @@ def _category_change_basis(kind: CategoryKind, current_amount: int, previous_amo
     return abs(previous_amount)
 
 
-async def _net_worth_at(
+async def _balances_at(
     db: AsyncSession,
-    accounts: list[Account],
+    account_ids: list[uuid.UUID],
     target_date: date,
-) -> int:
-    """Return net worth from latest per-account snapshots on or before target_date."""
-    if not accounts:
-        return 0
+) -> dict[uuid.UUID, int]:
+    """Return latest balances on or before target_date keyed by account id."""
+    if not account_ids:
+        return {}
 
-    account_ids = [account.id for account in accounts]
-    sign_by_id = {
-        account.id: 1 if account.account_kind == AccountKind.ASSET else -1
-        for account in accounts
-    }
     result = await db.execute(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
         .where(
@@ -283,8 +278,101 @@ async def _net_worth_at(
         .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
         .distinct(AccountBalanceSnapshot.account_id),
     )
-    balances = {row.account_id: int(row.balance) for row in result}
-    return sum(balances.get(account_id, 0) * sign_by_id[account_id] for account_id in account_ids)
+    return {row.account_id: int(row.balance) for row in result}
+
+
+async def _query_net_worth_change(
+    db: AsyncSession,
+    accounts: list[Account],
+    base_currency: str,
+    from_date: date,
+    to_date: date,
+) -> tuple[int, FxStatus]:
+    """Return converted net-worth movement between the two valuation dates."""
+    if not accounts:
+        return 0, FxStatus()
+
+    account_ids = [account.id for account in accounts]
+    start_balances = await _balances_at(db, account_ids, from_date)
+    end_balances = await _balances_at(db, account_ids, to_date)
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    await _prefetch_net_worth_change_rates(
+        converter,
+        base_currency=base_currency,
+        required_dates_by_currency=_net_worth_change_rate_dates(
+            accounts,
+            base_currency=base_currency,
+            start_balances=start_balances,
+            end_balances=end_balances,
+            from_date=from_date,
+            to_date=to_date,
+        ),
+    )
+
+    net_worth_change = 0
+    for account in accounts:
+        sign = 1 if account.account_kind == AccountKind.ASSET else -1
+        start_amount = start_balances.get(account.id, 0) * sign
+        end_amount = end_balances.get(account.id, 0) * sign
+        converted_start = await converter.convert_minor_units(
+            start_amount,
+            base=account.currency,
+            quote=base_currency,
+            rate_date=from_date,
+        )
+        converted_end = await converter.convert_minor_units(
+            end_amount,
+            base=account.currency,
+            quote=base_currency,
+            rate_date=to_date,
+        )
+        if converted_start is None or converted_end is None:
+            continue
+        net_worth_change += converted_end - converted_start
+
+    return net_worth_change, converter.get_status()
+
+
+async def _prefetch_net_worth_change_rates(
+    converter: FxConverter,
+    *,
+    base_currency: str,
+    required_dates_by_currency: dict[str, set[date]],
+) -> None:
+    for currency, target_dates in sorted(required_dates_by_currency.items()):
+        for target_date in sorted(target_dates):
+            await converter.prefetch_rates(
+                base=currency,
+                quote=base_currency,
+                start_date=target_date,
+                end_date=target_date,
+            )
+
+
+def _net_worth_change_rate_dates(
+    accounts: list[Account],
+    *,
+    base_currency: str,
+    start_balances: dict[uuid.UUID, int],
+    end_balances: dict[uuid.UUID, int],
+    from_date: date,
+    to_date: date,
+) -> dict[str, set[date]]:
+    dates_by_currency: dict[str, set[date]] = {}
+    for account in accounts:
+        if account.currency == base_currency:
+            continue
+        sign = 1 if account.account_kind == AccountKind.ASSET else -1
+        if start_balances.get(account.id, 0) * sign != 0:
+            dates_by_currency.setdefault(account.currency, set()).add(from_date)
+        if end_balances.get(account.id, 0) * sign != 0:
+            dates_by_currency.setdefault(account.currency, set()).add(to_date)
+    return dates_by_currency
 
 
 async def get_period_glance(
@@ -331,8 +419,13 @@ async def get_period_glance(
         previous_from_date,
         previous_to_date,
     )
-    start_net_worth = await _net_worth_at(db, base_currency_accounts, from_date)
-    end_net_worth = await _net_worth_at(db, base_currency_accounts, to_date)
+    net_worth_change, net_worth_change_fx_status = await _query_net_worth_change(
+        db,
+        all_accounts,
+        user.base_currency,
+        from_date,
+        to_date,
+    )
     top_category = _top_category(current_category_totals)
     biggest_change = _biggest_category_change(current_category_net_totals, previous_category_net_totals)
 
@@ -340,7 +433,8 @@ async def get_period_glance(
         income=income,
         expenses=expenses,
         income_expense_fx_status=income_expense_fx_status,
-        net_worth_change=end_net_worth - start_net_worth,
+        net_worth_change=net_worth_change,
+        net_worth_change_fx_status=net_worth_change_fx_status,
         top_category_name=top_category[0] if top_category else None,
         top_category_share_pct=top_category[1] if top_category else None,
         biggest_change_name=biggest_change[0] if biggest_change else None,

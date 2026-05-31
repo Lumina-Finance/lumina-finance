@@ -96,6 +96,7 @@ async def test_period_glance_returns_compact_period_summary(client):
         "expenses": 180_000,
         "income_expense_fx_status": {"state": "none", "missing_pairs": []},
         "net_worth_change": 320_000,
+        "net_worth_change_fx_status": {"state": "none", "missing_pairs": []},
         "top_category_name": "Groceries",
         "top_category_share_pct": 67,
         "biggest_change_name": "Groceries",
@@ -105,13 +106,15 @@ async def test_period_glance_returns_compact_period_summary(client):
 
 
 async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liability_balances(client, monkeypatch):
-    """Income and expenses include foreign accounts, while net worth stays on the current base-currency path."""
+    """Income, expenses, and net-worth movement include converted foreign account values."""
     from app.services.fx import FrankfurterProvider
 
     async def fake_get_rates(self, base, quote, start_date, end_date):
         return {
+            date(2026, 5, 1): Decimal("1.5"),
             date(2026, 5, 2): Decimal("1.5"),
             date(2026, 5, 3): Decimal("1.5"),
+            date(2026, 5, 7): Decimal("1.5"),
         }
 
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
@@ -165,7 +168,8 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
     assert data["income"] == 1_450_000
     assert data["expenses"] == 1_070_000
     assert data["income_expense_fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert data["net_worth_change"] == 50_000
+    assert data["net_worth_change"] == 6_050_000
+    assert data["net_worth_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["top_category_name"] == "Food"
     assert data["top_category_share_pct"] == 100
     assert data["biggest_change_name"] == "Food"
@@ -214,6 +218,50 @@ async def test_period_glance_income_expenses_report_incomplete_fx(client, monkey
     assert data["income"] == 100_000
     assert data["expenses"] == 0
     assert data["income_expense_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
+    assert data["net_worth_change_fx_status"] == {"state": "none", "missing_pairs": []}
+
+
+async def test_period_glance_net_worth_change_reports_incomplete_fx(client, monkeypatch):
+    """Net-worth movement skips foreign accounts that cannot be converted."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+
+    async with TestSession() as session:
+        session.add_all([
+            _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
+            _snapshot(cad_account_id, date(2026, 5, 7), 150_000),
+            _snapshot(abc_account_id, date(2026, 5, 1), 500_000),
+            _snapshot(abc_account_id, date(2026, 5, 7), 900_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-07"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income_expense_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["net_worth_change"] == 50_000
+    assert data["net_worth_change_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
     }
