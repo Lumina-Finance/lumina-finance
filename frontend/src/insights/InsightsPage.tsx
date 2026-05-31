@@ -165,6 +165,7 @@ export default function InsightsPage() {
             entries={selectedBreakdown}
             total={selectedBreakdownTotal}
             trendSections={selectedCategoryTrendSections}
+            fxStatus={queries.incomeExpenseBreakdown.data?.fx_status}
             displayCurrency={displayCurrency}
             animationKey={`${breakdownMode}-${range.cardTransitionKey}`}
             loading={queries.incomeExpenseBreakdown.isFetching}

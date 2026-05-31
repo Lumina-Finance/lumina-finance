@@ -44,6 +44,7 @@ export interface InsightsIncomeExpenseBreakdownResponse {
   expense_decreases: InsightsCategoryTrendEntry[];
   income_increases: InsightsCategoryTrendEntry[];
   income_decreases: InsightsCategoryTrendEntry[];
+  fx_status: FxStatus;
 }
 
 export type InsightsCashFlowPoint = [string, string, number, number];
