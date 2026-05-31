@@ -845,6 +845,109 @@ async def test_transactions_overview_top_categories_use_net_expense_side_categor
         (income_category_id, -15_000),
         (expense_category_id, -5_000),
     ]
+    assert data["top_categories_fx_status"] == {"state": "none", "missing_pairs": []}
+
+
+async def test_transactions_overview_top_categories_convert_and_rank_foreign_accounts(client, monkeypatch):
+    """Top categories are ranked by converted base-currency net expense totals."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 15): Decimal("1.5")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    await _seed_usd_currency()
+    headers, cad_account_id, cad_category_id = await _setup_user_with_deps(client)
+    usd_account_id = (await _create_account(
+        client,
+        headers,
+        name="USD Chequing",
+        currency="USD",
+    )).json()["id"]
+    usd_category_id = (await _create_category(client, headers, name="USD Expenses")).json()["id"]
+
+    await _create_transaction(client, headers, cad_account_id, cad_category_id, amount=-8_500)
+    await _create_transaction(
+        client,
+        headers,
+        usd_account_id,
+        usd_category_id,
+        amount=-6_000,
+        currency="USD",
+    )
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
+        (usd_category_id, -9_000),
+        (cad_category_id, -8_500),
+    ]
+    assert data["top_categories_fx_status"] == {"state": "complete", "missing_pairs": []}
+
+
+async def test_transactions_overview_top_categories_report_incomplete_fx(client, monkeypatch):
+    """Top categories skip unconverted rows and report missing pairs."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        if base == "USD":
+            return {date(2026, 3, 15): Decimal("1.5")}
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    async with TestSession() as session:
+        session.add_all([
+            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+        ])
+        await session.commit()
+
+    headers, _, category_id = await _setup_user_with_deps(client)
+    usd_account_id = (await _create_account(
+        client,
+        headers,
+        name="USD Chequing",
+        currency="USD",
+    )).json()["id"]
+    abc_account_id = (await _create_account(
+        client,
+        headers,
+        name="ABC Chequing",
+        currency="ABC",
+    )).json()["id"]
+
+    await _create_transaction(
+        client,
+        headers,
+        usd_account_id,
+        category_id,
+        amount=-10_000,
+        currency="USD",
+    )
+    await _create_transaction(
+        client,
+        headers,
+        abc_account_id,
+        category_id,
+        amount=-90_000,
+        currency="ABC",
+    )
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
+        (category_id, -15_000),
+    ]
+    assert data["top_categories_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
 
 
 async def test_transactions_overview_outliers_include_income_loss_transactions(client):

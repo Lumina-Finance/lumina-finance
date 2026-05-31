@@ -44,6 +44,7 @@ class TransactionsOverview(BaseModel):
     total_outflow: int | None
     net_flow_fx_status: FxStatus = Field(default_factory=FxStatus)
     top_categories: list[TopCategorySpend] | None
+    top_categories_fx_status: FxStatus = Field(default_factory=FxStatus)
     daily_cash_flow: list[DailyCashFlow] | None
     outliers: list[OutlierTransaction] | None
     outliers_fx_status: FxStatus = Field(default_factory=FxStatus)

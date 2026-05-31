@@ -173,25 +173,23 @@ async def _prefetch_overview_rates(
             )
 
 
+def _fork_overview_converter(converter: FxConverter) -> FxConverter:
+    fork = FxConverter(
+        provider=converter.provider,
+        currency_exponents=converter.currency_exponents,
+    )
+    fork.rates = converter.rates.copy()
+    fork.failed_rates = converter.failed_rates.copy()
+    return fork
+
+
 async def _convert_overview_net_flow(
-    db: AsyncSession,
     *,
     flow_rows,
+    account_by_id: dict[uuid.UUID, Account],
+    converter: FxConverter,
     base_currency: str,
 ) -> tuple[int, int, FxStatus]:
-    account_by_id = await _get_overview_accounts_by_id(db, flow_rows)
-    converter = await _get_overview_converter(
-        db,
-        account_by_id=account_by_id,
-        base_currency=base_currency,
-    )
-    await _prefetch_overview_rates(
-        converter,
-        rows=flow_rows,
-        account_by_id=account_by_id,
-        base_currency=base_currency,
-    )
-
     total_inflow = 0
     total_outflow = 0
     for row in flow_rows:
@@ -218,25 +216,13 @@ async def _convert_overview_net_flow(
 
 
 async def _convert_overview_outliers(
-    db: AsyncSession,
     *,
     category_rows,
     candidate_rows,
+    account_by_id: dict[uuid.UUID, Account],
+    converter: FxConverter,
     base_currency: str,
 ) -> tuple[list[OutlierTransaction], FxStatus]:
-    account_by_id = await _get_overview_accounts_by_id(db, [*category_rows, *candidate_rows])
-    converter = await _get_overview_converter(
-        db,
-        account_by_id=account_by_id,
-        base_currency=base_currency,
-    )
-    await _prefetch_overview_rates(
-        converter,
-        rows=[*category_rows, *candidate_rows],
-        account_by_id=account_by_id,
-        base_currency=base_currency,
-    )
-
     category_totals: dict[uuid.UUID, int] = {}
     for row in category_rows:
         # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
@@ -289,6 +275,38 @@ async def _convert_overview_outliers(
         ))
 
     return outlier_candidates[:3], converter.get_status()
+
+
+async def _convert_overview_top_categories(
+    *,
+    category_rows,
+    account_by_id: dict[uuid.UUID, Account],
+    converter: FxConverter,
+    base_currency: str,
+) -> tuple[list[TopCategorySpend], FxStatus]:
+    category_totals: dict[uuid.UUID, tuple[str, int]] = {}
+    for row in category_rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        currency = account_by_id[row.account_id].currency
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if converted_total is None:
+            continue
+
+        name, current_total = category_totals.get(row.category_id, (row.category_name, 0))
+        category_totals[row.category_id] = (name, current_total + converted_total)
+
+    top_categories = [
+        TopCategorySpend(category_id=category_id, category_name=name, total=total)
+        for category_id, (name, total) in category_totals.items()
+        if total < 0
+    ]
+    top_categories.sort(key=lambda category: category.total)
+    return top_categories[:5], converter.get_status()
 
 
 async def _check_category_access_or_422(
@@ -399,26 +417,20 @@ async def get_transactions_overview(
         .group_by(Transaction.dt, Transaction.account_id)
     )
     flow_rows = (await db.execute(flow_query)).all()
-    total_inflow, total_outflow, net_flow_fx_status = await _convert_overview_net_flow(
-        db,
-        flow_rows=flow_rows,
-        base_currency=user.base_currency,
-    )
 
     # Top 5 expense-side categories by net category outflow.
     cat_query = (
         select(
             Transaction.category_id,
             Category.name.label("category_name"),
+            Transaction.account_id,
+            Transaction.dt.label("date"),
             sa.func.sum(Transaction.amount).label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(base_where)
         .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
-        .group_by(Transaction.category_id, Category.name)
-        .having(sa.func.sum(Transaction.amount) < 0)
-        .order_by(sa.func.sum(Transaction.amount).asc())
-        .limit(5)
+        .group_by(Transaction.category_id, Category.name, Transaction.account_id, Transaction.dt)
     )
     cat_rows = (await db.execute(cat_query)).all()
 
@@ -434,20 +446,6 @@ async def get_transactions_overview(
         .order_by(Transaction.dt)
     )
     daily_rows = (await db.execute(daily_query)).all()
-
-    expense_side_category_query = (
-        select(
-            Transaction.category_id,
-            Transaction.account_id,
-            Transaction.dt.label("date"),
-            sa.func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .where(base_where)
-        .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
-        .group_by(Transaction.category_id, Transaction.account_id, Transaction.dt)
-    )
-    expense_side_category_rows = (await db.execute(expense_side_category_query)).all()
 
     # Top 3 largest expense-side transaction contributors after category-level
     # refunds/income offsets have been netted for the selected period.
@@ -468,10 +466,37 @@ async def get_transactions_overview(
         .where(Transaction.amount < 0)
         .order_by(Transaction.amount.asc())
     )
-    outliers, outliers_fx_status = await _convert_overview_outliers(
+    outlier_rows = (await db.execute(outlier_query)).all()
+    overview_fx_rows = [*flow_rows, *cat_rows, *outlier_rows]
+    account_by_id = await _get_overview_accounts_by_id(db, overview_fx_rows)
+    overview_converter = await _get_overview_converter(
         db,
-        category_rows=expense_side_category_rows,
-        candidate_rows=(await db.execute(outlier_query)).all(),
+        account_by_id=account_by_id,
+        base_currency=user.base_currency,
+    )
+    await _prefetch_overview_rates(
+        overview_converter,
+        rows=overview_fx_rows,
+        account_by_id=account_by_id,
+        base_currency=user.base_currency,
+    )
+    total_inflow, total_outflow, net_flow_fx_status = await _convert_overview_net_flow(
+        flow_rows=flow_rows,
+        account_by_id=account_by_id,
+        converter=_fork_overview_converter(overview_converter),
+        base_currency=user.base_currency,
+    )
+    top_categories, top_categories_fx_status = await _convert_overview_top_categories(
+        category_rows=cat_rows,
+        account_by_id=account_by_id,
+        converter=_fork_overview_converter(overview_converter),
+        base_currency=user.base_currency,
+    )
+    outliers, outliers_fx_status = await _convert_overview_outliers(
+        category_rows=cat_rows,
+        candidate_rows=outlier_rows,
+        account_by_id=account_by_id,
+        converter=_fork_overview_converter(overview_converter),
         base_currency=user.base_currency,
     )
 
@@ -479,10 +504,8 @@ async def get_transactions_overview(
         total_inflow=total_inflow,
         total_outflow=total_outflow,
         net_flow_fx_status=net_flow_fx_status,
-        top_categories=[
-            TopCategorySpend(category_id=r.category_id, category_name=r.category_name, total=r.total)
-            for r in cat_rows
-        ],
+        top_categories=top_categories,
+        top_categories_fx_status=top_categories_fx_status,
         daily_cash_flow=[
             DailyCashFlow(date=r.date, inflow=r.inflow, outflow=r.outflow)
             for r in daily_rows
