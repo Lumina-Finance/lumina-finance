@@ -34,6 +34,7 @@ class InsightsFundFlowResponse(BaseModel):
     expense_inflows: list[tuple[str, int]]
     income_source_count: int
     expense_category_count: int
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsIncomeExpenseBreakdownResponse(BaseModel):
