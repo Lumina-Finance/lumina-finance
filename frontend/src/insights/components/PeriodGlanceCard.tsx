@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { FxStatus } from '@/api/dashboard'
-import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { FxStatusBadge } from './FxStatusBadge'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -55,25 +54,6 @@ function metricToneClass(tone: PeriodGlanceTone) {
   if (tone === 'positive') return 'text-[var(--app-positive)]'
   if (tone === 'negative') return 'text-[var(--app-negative)]'
   return ''
-}
-
-function FxStatusBadge({ label, status }: { label: string; status: FxStatus }) {
-  return (
-    <IconTooltip
-      label={label}
-      icon="fx"
-      fxTone={getFxStatusTone(status)}
-      placement="top"
-      widthClassName="w-64"
-    >
-      <span className="block">{getFxStatusMessage(status)}</span>
-      {status.missing_pairs.length > 0 && (
-        <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          Missing: {formatMissingFxPairs(status.missing_pairs)}
-        </span>
-      )}
-    </IconTooltip>
-  )
 }
 
 function useFittedPrimaryAmount(value: string) {

@@ -28,6 +28,7 @@ export interface InsightsFundFlowResponse {
   expense_inflows: InsightsFlowEntry[];
   income_source_count: number;
   expense_category_count: number;
+  fx_status: FxStatus;
 }
 
 export type InsightsBreakdownCategoryKind = 'expense' | 'income';

@@ -151,6 +151,7 @@ export default function InsightsPage() {
             expenseInflows={fundFlowData.expenseInflows}
             incomeSourceCount={fundFlowData.incomeSourceCount}
             expenseCategoryCount={fundFlowData.expenseCategoryCount}
+            fxStatus={queries.fundFlow.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.fundFlow.isFetching}
             transitionKey={range.cardTransitionKey}
