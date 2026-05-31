@@ -14,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import type { FxStatus } from '@/api/dashboard'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -26,6 +27,7 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import { FxStatusBadge } from './FxStatusBadge'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -52,6 +54,7 @@ type SavingsRateYAxisTickProps = {
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   capRates: boolean
   onCapRatesToggle: () => void
@@ -61,6 +64,7 @@ type SavingsRateTrendCardProps = {
 
 type SavingsRateTrendSnapshot = {
   series: SavingsRateHistoryPoint[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   capRates: boolean
   emptyLabel: string
@@ -171,6 +175,7 @@ function SavingsRateYAxisTick({
 
 export function SavingsRateTrendCard({
   series,
+  fxStatus,
   displayCurrency,
   capRates,
   onCapRatesToggle,
@@ -181,10 +186,11 @@ export function SavingsRateTrendCard({
   const savingsRateTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateHistoryPoint>>(null)
   const incomingSnapshot = useMemo<SavingsRateTrendSnapshot>(() => ({
     series,
+    fxStatus,
     displayCurrency,
     capRates,
     emptyLabel: loading ? 'Loading savings-rate history...' : 'No savings-rate history available',
-  }), [capRates, displayCurrency, loading, series])
+  }), [capRates, displayCurrency, fxStatus, loading, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -265,7 +271,17 @@ export function SavingsRateTrendCard({
     <section className="app-card">
       <SectionHeader
         icon={Repeat}
-        label="Savings Rate Trend"
+        label={(
+          <span className="inline-flex items-center gap-2">
+            Savings Rate Trend
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Savings Rate Trend FX status"
+                status={displaySnapshot.fxStatus}
+              />
+            )}
+          </span>
+        )}
         action={(
           <InsightActionButton
             title={capRates ? 'Show uncapped savings rate chart' : 'Cap savings rate chart at plus or minus 100%'}

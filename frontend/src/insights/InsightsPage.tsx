@@ -200,6 +200,7 @@ export default function InsightsPage() {
         <div ref={savingsRateCardRef}>
           <SavingsRateTrendCard
             series={savingsRateHistory}
+            fxStatus={queries.savingsRateTrend.data?.fx_status}
             displayCurrency={displayCurrency}
             capRates={capSavingsRateChart}
             onCapRatesToggle={() => setCapSavingsRateChart((current) => !current)}

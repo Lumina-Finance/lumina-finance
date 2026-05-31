@@ -67,6 +67,7 @@ export type InsightsSavingsRateTrendPoint = [string, number, number];
 
 export interface InsightsSavingsRateTrendResponse {
   points: InsightsSavingsRateTrendPoint[];
+  fx_status: FxStatus;
 }
 
 export type InsightsMerchantDistributionEntry = [string, string, number, number | null, number | null];
