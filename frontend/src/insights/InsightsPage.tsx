@@ -98,12 +98,12 @@ export default function InsightsPage() {
     [queries.savingsRateTrend.data],
   )
   const merchantDistributionMerchants = useMemo(
-    () => getMerchantDistributionMerchants(queries.merchantDistribution.data),
-    [queries.merchantDistribution.data],
+    () => getMerchantDistributionMerchants(queries.merchants.data),
+    [queries.merchants.data],
   )
   const rankedMerchants = useMemo(
-    () => getMerchantRankingRows(queries.merchantRanking.data),
-    [queries.merchantRanking.data],
+    () => getMerchantRankingRows(queries.merchants.data),
+    [queries.merchants.data],
   )
 
   return (
@@ -214,7 +214,7 @@ export default function InsightsPage() {
             <MerchantDistributionCard
               merchants={merchantDistributionMerchants}
               currency={displayCurrency}
-              loading={queries.merchantDistribution.isFetching}
+              loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}
             />
           </div>
@@ -223,7 +223,7 @@ export default function InsightsPage() {
             <MerchantRankingCard
               merchants={rankedMerchants}
               currency={displayCurrency}
-              loading={queries.merchantRanking.isFetching}
+              loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}
             />
           </div>

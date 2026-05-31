@@ -72,14 +72,11 @@ export interface InsightsSavingsRateTrendResponse {
 
 export type InsightsMerchantDistributionEntry = [string, string, number, number | null, number | null];
 
-export interface InsightsMerchantDistributionResponse {
-  merchants: InsightsMerchantDistributionEntry[];
-}
-
 export type InsightsMerchantRankingEntry = [string, string, number, number, number | null];
 
-export interface InsightsMerchantRankingResponse {
-  merchants: InsightsMerchantRankingEntry[];
+export interface InsightsMerchantsResponse {
+  distribution: InsightsMerchantDistributionEntry[];
+  ranking: InsightsMerchantRankingEntry[];
 }
 
 export function useInsightsPeriodGlance(fromDate: string, toDate: string, enabled = true) {
@@ -158,26 +155,13 @@ export function useInsightsFundFlow(fromDate: string, toDate: string, enabled = 
   });
 }
 
-export function useInsightsMerchantDistribution(fromDate: string, toDate: string, enabled = true) {
+export function useInsightsMerchants(fromDate: string, toDate: string, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: insightsKeys.merchantDistribution(fromDate, toDate),
+    queryKey: insightsKeys.merchants(fromDate, toDate),
     queryFn: () =>
-      authenticatedFetch<InsightsMerchantDistributionResponse>(
-        `/insights/merchant-distribution?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
-      ),
-    enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useInsightsMerchantRanking(fromDate: string, toDate: string, enabled = true) {
-  const { accessToken } = useAuth();
-  return useQuery({
-    queryKey: insightsKeys.merchantRanking(fromDate, toDate),
-    queryFn: () =>
-      authenticatedFetch<InsightsMerchantRankingResponse>(
-        `/insights/merchant-ranking?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+      authenticatedFetch<InsightsMerchantsResponse>(
+        `/insights/merchants?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,

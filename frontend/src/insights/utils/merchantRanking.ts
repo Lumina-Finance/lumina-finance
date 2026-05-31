@@ -1,10 +1,10 @@
-import type { InsightsMerchantRankingResponse } from '@/api/insights'
+import type { InsightsMerchantsResponse } from '@/api/insights'
 import type { MerchantRankingRow } from '../components/MerchantRankingCard'
 
 export function getMerchantRankingRows(
-  response: InsightsMerchantRankingResponse | undefined,
+  response: InsightsMerchantsResponse | undefined,
 ): MerchantRankingRow[] {
-  return (response?.merchants ?? []).map(([id, name, totalAmount, transactionCount, changePct]) => ({
+  return (response?.ranking ?? []).map(([id, name, totalAmount, transactionCount, changePct]) => ({
     id,
     name,
     totalAmount,

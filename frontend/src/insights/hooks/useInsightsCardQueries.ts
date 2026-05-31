@@ -2,8 +2,7 @@ import {
   useInsightsCashFlow,
   useInsightsFundFlow,
   useInsightsIncomeExpenseBreakdown,
-  useInsightsMerchantDistribution,
-  useInsightsMerchantRanking,
+  useInsightsMerchants,
   useInsightsNetWorth,
   useInsightsPeriodGlance,
   useInsightsSavingsRateTrend,
@@ -57,15 +56,10 @@ export function useInsightsCardQueries({
     rangeInputDates.to,
     cardQueriesEnabled && visibility.cashFlow,
   )
-  const merchantDistribution = useInsightsMerchantDistribution(
+  const merchants = useInsightsMerchants(
     rangeInputDates.from,
     rangeInputDates.to,
-    cardQueriesEnabled && visibility.merchantDistribution,
-  )
-  const merchantRanking = useInsightsMerchantRanking(
-    rangeInputDates.from,
-    rangeInputDates.to,
-    cardQueriesEnabled && visibility.merchantRanking,
+    cardQueriesEnabled && (visibility.merchantDistribution || visibility.merchantRanking),
   )
   const savingsRateTrend = useInsightsSavingsRateTrend(visibility.savingsRate)
 
@@ -76,7 +70,6 @@ export function useInsightsCardQueries({
     netWorth,
     cashFlow,
     savingsRateTrend,
-    merchantDistribution,
-    merchantRanking,
+    merchants,
   }
 }
