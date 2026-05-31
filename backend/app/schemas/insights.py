@@ -60,6 +60,7 @@ class InsightsCashFlowResponse(BaseModel):
     """Payload for the insights cash-flow card."""
 
     points: list[tuple[date, date, int, int]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsNetWorthResponse(BaseModel):
