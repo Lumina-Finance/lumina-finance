@@ -51,6 +51,7 @@ export type InsightsCashFlowPoint = [string, string, number, number];
 
 export interface InsightsCashFlowResponse {
   points: InsightsCashFlowPoint[];
+  fx_status: FxStatus;
 }
 
 export type InsightsNetWorthGroup = [string, string, 'asset' | 'debt'];

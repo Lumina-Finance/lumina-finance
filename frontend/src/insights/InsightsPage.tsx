@@ -190,6 +190,7 @@ export default function InsightsPage() {
           <CashFlowCard
             granularity={cashFlowBars.granularity}
             buckets={cashFlowBars.buckets}
+            fxStatus={queries.cashFlow.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.cashFlow.isFetching}
             transitionKey={range.cardTransitionKey}
