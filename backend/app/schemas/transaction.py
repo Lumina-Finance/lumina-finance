@@ -3,6 +3,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.fx import FxStatus
+
 
 class TopCategorySpend(BaseModel):
     """One row in the top-categories breakdown."""
@@ -39,6 +41,7 @@ class TransactionsOverview(BaseModel):
 
     total_inflow: int | None
     total_outflow: int | None
+    net_flow_fx_status: FxStatus = Field(default_factory=FxStatus)
     top_categories: list[TopCategorySpend] | None
     daily_cash_flow: list[DailyCashFlow] | None
     outliers: list[OutlierTransaction] | None

@@ -21,6 +21,7 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
+from app.schemas.fx import FxStatus
 from app.schemas.transaction import (
     CreateTransactionRequest,
     DailyCashFlow,
@@ -32,6 +33,7 @@ from app.schemas.transaction import (
     TransactionsOverview,
     UpdateTransactionRequest,
 )
+from app.services.fx import FxConverter
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_imports import import_transactions
 from app.services.transaction_responses import (
@@ -115,6 +117,73 @@ def _accessible_account_ids(user_id: uuid.UUID, *, include_hidden: bool = False)
     if not include_hidden:
         query = query.where(Account.is_hidden.is_(False))
     return query.scalar_subquery()
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+    )
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def _convert_overview_net_flow(
+    db: AsyncSession,
+    *,
+    flow_rows,
+    base_currency: str,
+) -> tuple[int, int, FxStatus]:
+    account_ids = {row.account_id for row in flow_rows}
+    accounts = (
+        (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
+        if account_ids
+        else []
+    )
+    account_by_id = {account.id: account for account in accounts}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+
+    if flow_rows:
+        start = min(row.date for row in flow_rows)
+        end = max(row.date for row in flow_rows)
+        for currency in sorted({
+            account_by_id[row.account_id].currency
+            for row in flow_rows
+            if account_by_id[row.account_id].currency != base_currency
+        }):
+            await converter.prefetch_rates(
+                base=currency,
+                quote=base_currency,
+                start_date=start,
+                end_date=end,
+            )
+
+    total_inflow = 0
+    total_outflow = 0
+    for row in flow_rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        currency = account_by_id[row.account_id].currency
+        converted_inflow = await converter.convert_minor_units(
+            int(row.inflow or 0),
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        converted_outflow = await converter.convert_minor_units(
+            int(row.outflow or 0),
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if converted_inflow is not None:
+            total_inflow += converted_inflow
+        if converted_outflow is not None:
+            total_outflow += converted_outflow
+
+    return total_inflow, total_outflow, converter.get_status()
 
 
 async def _check_category_access_or_422(
@@ -214,11 +283,22 @@ async def get_transactions_overview(
         )
 
     # Inflow / outflow totals
-    flow_query = select(
-        sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
-        sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
-    ).where(base_where)
-    flow = (await db.execute(flow_query)).one()
+    flow_query = (
+        select(
+            Transaction.dt.label("date"),
+            Transaction.account_id,
+            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
+            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
+        )
+        .where(base_where)
+        .group_by(Transaction.dt, Transaction.account_id)
+    )
+    flow_rows = (await db.execute(flow_query)).all()
+    total_inflow, total_outflow, net_flow_fx_status = await _convert_overview_net_flow(
+        db,
+        flow_rows=flow_rows,
+        base_currency=user.base_currency,
+    )
 
     # Top 5 expense-side categories by net category outflow.
     cat_query = (
@@ -302,8 +382,9 @@ async def get_transactions_overview(
     outliers = sorted(outlier_candidates, key=lambda row: row.amount)[:3]
 
     return TransactionsOverview(
-        total_inflow=flow.inflow,
-        total_outflow=flow.outflow,
+        total_inflow=total_inflow,
+        total_outflow=total_outflow,
+        net_flow_fx_status=net_flow_fx_status,
         top_categories=[
             TopCategorySpend(category_id=r.category_id, category_name=r.category_name, total=r.total)
             for r in cat_rows
