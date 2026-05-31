@@ -75,6 +75,7 @@ class InsightsSavingsRateTrendResponse(BaseModel):
     """Payload for the insights savings-rate trend card."""
 
     points: list[tuple[date, int, int]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsMerchantDistributionResponse(BaseModel):
