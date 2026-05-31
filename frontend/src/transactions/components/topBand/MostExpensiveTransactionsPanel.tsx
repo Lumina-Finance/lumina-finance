@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
+import type { FxStatus } from '@/api/dashboard'
 import type { OutlierTransaction } from '@/api/transactions'
 import IconTooltip from '@/components/IconTooltip'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   OUTLIER_TRANSACTION_LIMIT,
@@ -14,7 +16,7 @@ const emptyOutliersHeight =
 
 export default function MostExpensiveTransactionsPanel({
   outliers,
-  displayCurrency,
+  fxStatus,
   prefersReducedMotion,
   openingOutlierId,
   outlierOpenError,
@@ -22,7 +24,7 @@ export default function MostExpensiveTransactionsPanel({
   className = '',
 }: {
   outliers: OutlierTransaction[]
-  displayCurrency: string
+  fxStatus: FxStatus | undefined
   prefersReducedMotion: boolean | null
   openingOutlierId: string | null
   outlierOpenError: string | null
@@ -43,6 +45,22 @@ export default function MostExpensiveTransactionsPanel({
         >
           Shows the three largest net expense-side transaction contributors in the selected period
         </IconTooltip>
+        {fxStatus && (
+          <IconTooltip
+            label="Most expensive transactions FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="bottom"
+            widthClassName="w-64"
+          >
+            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
       </p>
       <div className="mt-2 flex flex-col gap-2.5">
         <AnimatePresence initial={false} mode="popLayout">
@@ -100,7 +118,7 @@ export default function MostExpensiveTransactionsPanel({
                       className="font-financial text-sm font-medium shrink-0"
                       style={{ color: 'var(--app-negative)' }}
                     >
-                      {formatCurrency(Math.abs(transaction.amount), displayCurrency)}
+                      {formatCurrency(Math.abs(transaction.amount), transaction.currency)}
                     </p>
                   )}
                 </motion.button>

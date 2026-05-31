@@ -67,6 +67,7 @@ export interface OutlierTransaction {
   merchant_name: string | null;
   notes: string | null;
   amount: number;
+  currency: string;
   dt: string;
 }
 
@@ -77,6 +78,7 @@ export interface TransactionsOverview {
   top_categories: TopCategorySpend[] | null;
   daily_cash_flow: DailyCashFlow[] | null;
   outliers: OutlierTransaction[] | null;
+  outliers_fx_status: FxStatus;
 }
 
 export interface TransactionFilters {

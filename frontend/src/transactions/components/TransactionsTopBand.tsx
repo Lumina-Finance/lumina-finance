@@ -47,7 +47,9 @@ export default function TransactionsTopBand({
   const hasOverviewData = overview?.total_inflow !== null && overview?.total_inflow !== undefined
   const inflow = hasOverviewData ? overview!.total_inflow! : PLACEHOLDER_FLOW.total_inflow
   const outflow = hasOverviewData ? overview!.total_outflow! : PLACEHOLDER_FLOW.total_outflow
-  const outliers = hasOverviewData ? (overview!.outliers ?? []) : PLACEHOLDER_OUTLIERS
+  const outliers = hasOverviewData
+    ? (overview!.outliers ?? [])
+    : PLACEHOLDER_OUTLIERS.map((outlier) => ({ ...outlier, currency: displayCurrency }))
   const categorySpend = hasOverviewData
     ? (overview!.top_categories ?? []).map((category) => ({
         name: category.category_name,
@@ -118,7 +120,7 @@ export default function TransactionsTopBand({
           />
           <MostExpensiveTransactionsPanel
             outliers={outliers}
-            displayCurrency={displayCurrency}
+            fxStatus={overview?.outliers_fx_status}
             prefersReducedMotion={prefersReducedMotion}
             openingOutlierId={openingOutlierId}
             outlierOpenError={outlierOpenError}
