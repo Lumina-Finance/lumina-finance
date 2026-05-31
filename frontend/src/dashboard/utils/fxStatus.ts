@@ -10,7 +10,7 @@ export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
 }
 
 export function combineFxStatuses(statuses: Array<FxStatus | undefined | null>): FxStatus {
-  const activeStatuses = statuses.filter((status): status is FxStatus => Boolean(status) && status.state !== 'none')
+  const activeStatuses = statuses.filter((status): status is FxStatus => status != null && status.state !== 'none')
 
   if (activeStatuses.length === 0) return { state: 'none', missing_pairs: [] }
 
