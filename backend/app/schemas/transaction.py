@@ -29,6 +29,7 @@ class OutlierTransaction(BaseModel):
     merchant_name: str | None
     notes: str | None
     amount: int
+    currency: str
     dt: date
 
 
@@ -45,6 +46,7 @@ class TransactionsOverview(BaseModel):
     top_categories: list[TopCategorySpend] | None
     daily_cash_flow: list[DailyCashFlow] | None
     outliers: list[OutlierTransaction] | None
+    outliers_fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class TransactionTagSummary(BaseModel):
