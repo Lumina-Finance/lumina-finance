@@ -1,7 +1,9 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.fx import FxStatus
 
 NetWorthGroupKind = Literal["asset", "debt"]
 
@@ -11,6 +13,7 @@ class InsightsPeriodGlanceResponse(BaseModel):
 
     income: int
     expenses: int
+    income_expense_fx_status: FxStatus = Field(default_factory=FxStatus)
     net_worth_change: int
     top_category_name: str | None = None
     top_category_share_pct: int | None = None

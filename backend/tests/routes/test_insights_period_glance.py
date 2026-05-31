@@ -1,6 +1,7 @@
 """Route tests for insights period-glance endpoint."""
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.models.account import AccountBalanceSnapshot
@@ -93,6 +94,7 @@ async def test_period_glance_returns_compact_period_summary(client):
     assert data == {
         "income": 500_000,
         "expenses": 180_000,
+        "income_expense_fx_status": {"state": "none", "missing_pairs": []},
         "net_worth_change": 320_000,
         "top_category_name": "Groceries",
         "top_category_share_pct": 67,
@@ -102,8 +104,18 @@ async def test_period_glance_returns_compact_period_summary(client):
     }
 
 
-async def test_period_glance_excludes_non_base_currency_and_signs_liability_balances(client):
-    """Only base-currency accounts count, and liabilities reduce net worth."""
+async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liability_balances(client, monkeypatch):
+    """Income and expenses include foreign accounts, while net worth stays on the current base-currency path."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {
+            date(2026, 5, 2): Decimal("1.5"),
+            date(2026, 5, 3): Decimal("1.5"),
+        }
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -150,14 +162,61 @@ async def test_period_glance_excludes_non_base_currency_and_signs_liability_bala
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["income"] == 100_000
-    assert data["expenses"] == 20_000
+    assert data["income"] == 1_450_000
+    assert data["expenses"] == 1_070_000
+    assert data["income_expense_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["net_worth_change"] == 50_000
     assert data["top_category_name"] == "Food"
     assert data["top_category_share_pct"] == 100
     assert data["biggest_change_name"] == "Food"
     assert data["biggest_change_amount"] == 20_000
     assert "biggest_change_pct" not in data
+
+
+async def test_period_glance_income_expenses_report_incomplete_fx(client, monkeypatch):
+    """Income and expenses skip unconverted foreign rows and report missing pairs."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            food,
+            _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 2), 100_000),
+            _transaction(user_id, abc_account_id, food_id, date(2026, 5, 3), -70_000, "ABC"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-07"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income"] == 100_000
+    assert data["expenses"] == 0
+    assert data["income_expense_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
 
 
 async def test_period_glance_handles_one_day_range_no_income_and_flat_category_change(client):
