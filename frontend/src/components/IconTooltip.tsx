@@ -44,6 +44,8 @@ const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
 const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
+const ROOT_CLASS = 'group relative inline-flex'
+const FX_ROOT_CLASS = 'shrink-0 items-center align-middle leading-none'
 const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]'
 const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }> = {
   blue: {
@@ -141,9 +143,10 @@ export default function IconTooltip({
     isOpen && TOOLTIP_OPEN_CLASS,
     placementClass[actualPlacement],
   )
+  const rootClassName = joinClassNames(ROOT_CLASS, isFxIcon && FX_ROOT_CLASS)
 
   return (
-    <span ref={rootRef} className="group relative inline-flex">
+    <span ref={rootRef} className={rootClassName}>
       <button
         ref={triggerRef}
         type="button"
