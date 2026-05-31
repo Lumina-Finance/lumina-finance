@@ -148,6 +148,7 @@ export default function TransactionsTopBand({
 
       <DailyCashFlowChart
         rawDailyFlow={overview?.daily_cash_flow ?? []}
+        fxStatus={overview?.daily_cash_flow_fx_status}
         hasOverviewData={hasOverviewData}
         displayCurrency={displayCurrency}
         chartAnimationKey={chartAnimationKey}
