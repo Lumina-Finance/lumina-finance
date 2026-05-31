@@ -15,6 +15,7 @@ type InsightSignal = {
   value: string
   detail: string
   tone: PeriodGlancePrimaryMetric['tone']
+  fxStatus?: PeriodGlanceSupportItem['fxStatus']
 }
 
 type PeriodBrief = {
@@ -24,6 +25,7 @@ type PeriodBrief = {
     detail: string
     tone: PeriodGlancePrimaryMetric['tone']
     signed?: boolean
+    fxStatus?: PeriodGlanceSupportItem['fxStatus']
   }>
   signals: Array<{
     label: string
@@ -71,6 +73,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: 'Across all accounts',
         tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
         signed: true,
+        fxStatus: data.net_worth_change_fx_status,
       },
     ],
     signals: [
@@ -151,6 +154,7 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
     value: formatBriefMetricValue(secondaryMetric, displayCurrency),
     detail: secondaryMetric.detail,
     tone: secondaryMetric.tone,
+    fxStatus: secondaryMetric.fxStatus,
   }
 
   return [

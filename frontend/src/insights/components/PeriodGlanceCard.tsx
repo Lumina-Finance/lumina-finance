@@ -28,6 +28,7 @@ export type PeriodGlanceSupportItem = {
   value: string
   detail: string
   tone: PeriodGlanceTone
+  fxStatus?: FxStatus
 }
 
 type PeriodGlanceSnapshot = {
@@ -54,6 +55,25 @@ function metricToneClass(tone: PeriodGlanceTone) {
   if (tone === 'positive') return 'text-[var(--app-positive)]'
   if (tone === 'negative') return 'text-[var(--app-negative)]'
   return ''
+}
+
+function FxStatusBadge({ label, status }: { label: string; status: FxStatus }) {
+  return (
+    <IconTooltip
+      label={label}
+      icon="fx"
+      fxTone={getFxStatusTone(status)}
+      placement="top"
+      widthClassName="w-64"
+    >
+      <span className="block">{getFxStatusMessage(status)}</span>
+      {status.missing_pairs.length > 0 && (
+        <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          Missing: {formatMissingFxPairs(status.missing_pairs)}
+        </span>
+      )}
+    </IconTooltip>
+  )
 }
 
 function useFittedPrimaryAmount(value: string) {
@@ -160,20 +180,10 @@ export function PeriodGlanceCard({
                 <p className="app-label inline-flex items-center gap-2">
                   {displaySnapshot.primaryMetric.label}
                   {displaySnapshot.incomeExpenseFxStatus && (
-                    <IconTooltip
+                    <FxStatusBadge
                       label="Income and expense FX status"
-                      icon="fx"
-                      fxTone={getFxStatusTone(displaySnapshot.incomeExpenseFxStatus)}
-                      placement="top"
-                      widthClassName="w-64"
-                    >
-                      <span className="block">{getFxStatusMessage(displaySnapshot.incomeExpenseFxStatus)}</span>
-                      {displaySnapshot.incomeExpenseFxStatus.missing_pairs.length > 0 && (
-                        <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                          Missing: {formatMissingFxPairs(displaySnapshot.incomeExpenseFxStatus.missing_pairs)}
-                        </span>
-                      )}
-                    </IconTooltip>
+                      status={displaySnapshot.incomeExpenseFxStatus}
+                    />
                   )}
                 </p>
                 <p
@@ -219,7 +229,15 @@ export function PeriodGlanceCard({
                   ].join(' ')}
                 >
                   <div className="flex min-h-28 flex-col items-center justify-center text-center">
-                    <p className="app-label">{item.label}</p>
+                    <p className="app-label inline-flex items-center justify-center gap-2">
+                      {item.label}
+                      {item.fxStatus && (
+                        <FxStatusBadge
+                          label={`${item.label} FX status`}
+                          status={item.fxStatus}
+                        />
+                      )}
+                    </p>
                     <p
                       className={['mt-1 text-2xl font-semibold leading-tight', metricToneClass(item.tone)].join(' ')}
                     >

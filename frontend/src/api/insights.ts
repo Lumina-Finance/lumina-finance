@@ -9,6 +9,7 @@ export interface InsightsPeriodGlanceResponse {
   expenses: number;
   income_expense_fx_status: FxStatus;
   net_worth_change: number;
+  net_worth_change_fx_status: FxStatus;
   top_category_name?: string;
   top_category_share_pct?: number;
   biggest_change_name?: string;
