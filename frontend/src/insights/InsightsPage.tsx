@@ -213,6 +213,7 @@ export default function InsightsPage() {
           <div ref={merchantDistributionCardRef} className="min-w-0">
             <MerchantDistributionCard
               merchants={merchantDistributionMerchants}
+              fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
               loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}
@@ -222,6 +223,7 @@ export default function InsightsPage() {
           <div ref={merchantRankingCardRef} className="min-w-0">
             <MerchantRankingCard
               merchants={rankedMerchants}
+              fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
               loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}

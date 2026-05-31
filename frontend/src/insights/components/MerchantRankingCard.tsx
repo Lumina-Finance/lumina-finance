@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
+import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -20,6 +22,7 @@ export type MerchantRankingRow = {
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]
+  fxStatus: FxStatus | undefined
   currency: string
   loading?: boolean
   transitionKey: string
@@ -27,6 +30,7 @@ type MerchantRankingCardProps = {
 
 type MerchantRankingSnapshot = {
   merchants: MerchantRankingRow[]
+  fxStatus: FxStatus | undefined
   currency: string
   emptyLabel: string
 }
@@ -45,15 +49,17 @@ function getChangeLabel(changePct: number | null) {
 
 export function MerchantRankingCard({
   merchants,
+  fxStatus,
   currency,
   loading = false,
   transitionKey,
 }: MerchantRankingCardProps) {
   const incomingSnapshot = useMemo<MerchantRankingSnapshot>(() => ({
     merchants,
+    fxStatus,
     currency,
     emptyLabel: loading ? 'Loading merchant ranking...' : 'No merchant spending in this range.',
-  }), [currency, loading, merchants])
+  }), [currency, fxStatus, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -72,6 +78,12 @@ export function MerchantRankingCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Merchant Ranking
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Merchant Ranking FX status"
+                status={displaySnapshot.fxStatus}
+              />
+            )}
             <IconTooltip
               label="How merchant ranking is calculated"
               placement="bottom"

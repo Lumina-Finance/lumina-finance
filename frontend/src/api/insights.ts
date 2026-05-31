@@ -77,6 +77,7 @@ export type InsightsMerchantRankingEntry = [string, string, number, number, numb
 export interface InsightsMerchantsResponse {
   distribution: InsightsMerchantDistributionEntry[];
   ranking: InsightsMerchantRankingEntry[];
+  fx_status: FxStatus;
 }
 
 export function useInsightsPeriodGlance(fromDate: string, toDate: string, enabled = true) {
