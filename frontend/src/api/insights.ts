@@ -15,6 +15,7 @@ export interface InsightsPeriodGlanceResponse {
   biggest_change_name?: string;
   biggest_change_amount?: number;
   biggest_change_pct?: number;
+  biggest_change_fx_status: FxStatus;
 }
 
 export type InsightsFlowEntry = [string, number];

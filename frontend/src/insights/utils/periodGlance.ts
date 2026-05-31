@@ -31,6 +31,7 @@ type PeriodBrief = {
     label: string
     value: string
     detail: string
+    fxStatus?: PeriodGlanceSupportItem['fxStatus']
   }>
 }
 
@@ -83,6 +84,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: data.biggest_change_name && data.biggest_change_amount !== undefined
           ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency)
           : 'No comparable category movement in this range',
+        fxStatus: data.biggest_change_fx_status,
       },
       {
         label: 'Top Category',
@@ -164,6 +166,7 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
       value: signal.value,
       detail: signal.detail,
       tone: 'neutral' as const,
+      fxStatus: signal.fxStatus,
     })),
   ]
 }
