@@ -76,6 +76,7 @@ export interface TransactionsOverview {
   total_outflow: number | null;
   net_flow_fx_status: FxStatus;
   top_categories: TopCategorySpend[] | null;
+  top_categories_fx_status: FxStatus;
   daily_cash_flow: DailyCashFlow[] | null;
   outliers: OutlierTransaction[] | null;
   outliers_fx_status: FxStatus;

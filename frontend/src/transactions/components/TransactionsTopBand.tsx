@@ -129,6 +129,7 @@ export default function TransactionsTopBand({
           />
           <TopCategoriesChart
             categorySpend={categorySpend}
+            fxStatus={overview?.top_categories_fx_status}
             displayCurrency={displayCurrency}
             chartAnimationKey={chartAnimationKey}
             prefersReducedMotion={prefersReducedMotion}
