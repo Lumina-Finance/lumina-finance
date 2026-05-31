@@ -53,6 +53,7 @@ class InsightsIncomeExpenseBreakdownResponse(BaseModel):
     expense_decreases: list[tuple[str, str, int, int, int | None, int]]
     income_increases: list[tuple[str, str, int, int, int | None, int]]
     income_decreases: list[tuple[str, str, int, int, int | None, int]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsCashFlowResponse(BaseModel):
