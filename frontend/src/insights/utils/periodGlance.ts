@@ -100,6 +100,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: savingsRate === null
           ? 'No recorded income in the selected range'
           : 'Income kept after expenses, excluding transfers',
+        fxStatus: data.income_expense_fx_status,
       },
     ],
   }
