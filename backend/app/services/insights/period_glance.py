@@ -150,34 +150,62 @@ async def _query_expense_category_totals(
 
 async def _query_category_net_totals(
     db: AsyncSession,
-    account_ids: list[uuid.UUID],
+    accounts: list[Account],
+    base_currency: str,
     from_date: date,
     to_date: date,
+    converter: FxConverter,
 ) -> CategoryNetTotals:
-    """Return signed category totals keyed by category id for an inclusive period."""
+    """Return converted signed category totals keyed by category id for an inclusive period."""
+    if not accounts:
+        return {}
+
+    account_ids = [account.id for account in accounts]
     result = await db.execute(
         select(
             Category.id,
             Category.name,
             Category.kind,
+            Transaction.account_id,
+            Transaction.dt.label("date"),
+            Account.currency.label("account_currency"),
             func.sum(Transaction.amount).label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
+        .join(Account, Transaction.account_id == Account.id)
         .where(
             Transaction.account_id.in_(account_ids),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.id, Category.name, Category.kind),
+        .group_by(Category.id, Category.name, Category.kind, Transaction.account_id, Transaction.dt, Account.currency),
+    )
+    rows = result.all()
+    await _prefetch_period_total_rates(
+        converter,
+        rows=rows,
+        base_currency=base_currency,
     )
 
-    totals: CategoryNetTotals = {}
-    for row in result:
-        amount = int(row.total or 0)
-        if amount:
-            totals[row.id] = (row.name, row.kind, amount)
-    return totals
+    raw_totals: dict[uuid.UUID, tuple[str, CategoryKind, int]] = {}
+    for row in rows:
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=row.account_currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if converted_total is None:
+            continue
+        name, kind, current_total = raw_totals.get(row.id, (row.name, row.kind, 0))
+        raw_totals[row.id] = (name, kind, current_total + converted_total)
+
+    return {
+        category_id: (name, kind, amount)
+        for category_id, (name, kind, amount) in raw_totals.items()
+        if amount
+    }
 
 
 def _top_category(
@@ -407,17 +435,27 @@ async def get_period_glance(
         from_date,
         to_date,
     )
+    biggest_change_converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {user.base_currency, *(account.currency for account in all_accounts)},
+        ),
+    )
     current_category_net_totals = await _query_category_net_totals(
         db,
-        account_ids,
+        all_accounts,
+        user.base_currency,
         from_date,
         to_date,
+        biggest_change_converter,
     )
     previous_category_net_totals = await _query_category_net_totals(
         db,
-        account_ids,
+        all_accounts,
+        user.base_currency,
         previous_from_date,
         previous_to_date,
+        biggest_change_converter,
     )
     net_worth_change, net_worth_change_fx_status = await _query_net_worth_change(
         db,
@@ -428,6 +466,7 @@ async def get_period_glance(
     )
     top_category = _top_category(current_category_totals)
     biggest_change = _biggest_category_change(current_category_net_totals, previous_category_net_totals)
+    biggest_change_fx_status = biggest_change_converter.get_status()
 
     return InsightsPeriodGlanceResponse(
         income=income,
@@ -440,4 +479,5 @@ async def get_period_glance(
         biggest_change_name=biggest_change[0] if biggest_change else None,
         biggest_change_amount=biggest_change[1] if biggest_change else None,
         biggest_change_pct=biggest_change[2] if biggest_change else None,
+        biggest_change_fx_status=biggest_change_fx_status,
     )

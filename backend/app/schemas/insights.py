@@ -21,6 +21,7 @@ class InsightsPeriodGlanceResponse(BaseModel):
     biggest_change_name: str | None = None
     biggest_change_amount: int | None = None
     biggest_change_pct: int | None = None
+    biggest_change_fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsFundFlowResponse(BaseModel):
