@@ -10,6 +10,7 @@ from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
+from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -22,6 +23,7 @@ from app.schemas.budget import (
     UpdateBudgetRequest,
 )
 from app.services.budget_responses import build_budget_response, load_tracked_categories
+from app.services.fx import FxConverter
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -32,6 +34,42 @@ async def _build_budget_response(
     """Build a BudgetResponse for a single budget instance (convenience wrapper)."""
     cats = await load_tracked_categories(db, [base_budget.id])
     return build_budget_response(budget, base_budget, cats.get(base_budget.id, []))
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+    )
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+def _fork_budget_converter(converter: FxConverter) -> FxConverter:
+    fork = FxConverter(
+        provider=converter.provider,
+        currency_exponents=converter.currency_exponents,
+    )
+    fork.rates = converter.rates.copy()
+    fork.failed_rates = converter.failed_rates.copy()
+    return fork
+
+
+async def _prefetch_budget_rates(converter: FxConverter, spend_rows) -> None:
+    ranges: dict[tuple[str, str], tuple] = {}
+    for row in spend_rows:
+        base = row.account_currency
+        quote = row.budget_currency
+        if base == quote:
+            continue
+        start, end = ranges.get((base, quote), (row.date, row.date))
+        ranges[(base, quote)] = (min(start, row.date), max(end, row.date))
+
+    for (base, quote), (start_date, end_date) in sorted(ranges.items()):
+        await converter.prefetch_rates(
+            base=base,
+            quote=quote,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
 
 async def _build_budget_utilization_responses(
@@ -61,6 +99,10 @@ async def _build_budget_utilization_responses(
         select(
             Budget.id,
             Transaction.category_id,
+            Transaction.account_id,
+            Transaction.dt.label("date"),
+            Account.currency.label("account_currency"),
+            BaseBudget.currency.label("budget_currency"),
             func.sum(Transaction.amount).label("amount_sum"),
         )
         .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
@@ -79,25 +121,59 @@ async def _build_budget_utilization_responses(
             Budget.id.in_(budget_ids),
             Transaction.dt >= Budget.period_start,
             Transaction.dt <= Budget.period_end,
-            Account.currency == BaseBudget.currency,
             (
                 (BaseBudget.group_id.is_not(None) & (Account.group_id == BaseBudget.group_id))
                 | (BaseBudget.group_id.is_(None) & (Account.owner_id == BaseBudget.owner_id))
             ),
         )
-        .group_by(Budget.id, Transaction.category_id),
+        .group_by(
+            Budget.id,
+            Transaction.category_id,
+            Transaction.account_id,
+            Transaction.dt,
+            Account.currency,
+            BaseBudget.currency,
+        ),
     )
-    spend_by_budget_category = {
-        (budget_id, category_id): amount_sum
-        for budget_id, category_id, amount_sum in spend_result
-    }
+    spend_rows = spend_result.all()
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {
+                *(base_budget.currency for _, base_budget in rows),
+                *(row.account_currency for row in spend_rows),
+            },
+        ),
+    )
+    await _prefetch_budget_rates(converter, spend_rows)
+
+    spend_rows_by_budget: dict[uuid.UUID, list] = {}
+    for row in spend_rows:
+        spend_rows_by_budget.setdefault(row.id, []).append(row)
 
     responses = []
-    for budget, _ in rows:
+    for budget, base_budget in rows:
+        budget_converter = _fork_budget_converter(converter)
+        spend_by_category = {
+            category_id: 0
+            for category_id in tracked_by_budget.get(budget.id, [])
+        }
+        for row in spend_rows_by_budget.get(budget.id, []):
+            converted_amount = await budget_converter.convert_minor_units(
+                int(row.amount_sum or 0),
+                base=row.account_currency,
+                quote=base_budget.currency,
+                rate_date=row.date,
+            )
+            if converted_amount is None:
+                continue
+
+            spend_by_category[row.category_id] = spend_by_category.get(row.category_id, 0) - converted_amount
+
         categories = [
             BudgetCategoryUtilization(
                 category_id=category_id,
-                spent=-(spend_by_budget_category.get((budget.id, category_id), 0) or 0),
+                spent=spend_by_category.get(category_id, 0),
             )
             for category_id in tracked_by_budget.get(budget.id, [])
         ]
@@ -109,6 +185,7 @@ async def _build_budget_utilization_responses(
                 overall_limit=budget.overall_limit,
                 total_spent=sum(category.spent for category in categories),
                 categories=categories,
+                fx_status=budget_converter.get_status(),
             ),
         )
     return responses
