@@ -179,6 +179,7 @@ export default function InsightsPage() {
             onModeToggle={() => setNetWorthMode((mode) => (mode === 'overview' ? 'composition' : 'overview'))}
             groups={netWorthCardData.groups}
             series={netWorthCardData.series}
+            fxStatus={queries.netWorth.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.netWorth.isFetching}
             transitionKey={range.cardTransitionKey}

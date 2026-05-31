@@ -59,6 +59,7 @@ export type InsightsNetWorthPoint = [string, string, number[]];
 export interface InsightsNetWorthResponse {
   groups: InsightsNetWorthGroup[];
   points: InsightsNetWorthPoint[];
+  fx_status: FxStatus;
 }
 
 export type InsightsSavingsRateTrendPoint = [string, number, number];

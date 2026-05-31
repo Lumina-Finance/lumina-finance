@@ -15,8 +15,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import type { FxStatus } from '@/api/dashboard'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { FxStatusBadge } from './FxStatusBadge'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -65,6 +67,7 @@ type NetWorthCardProps = {
   onModeToggle: () => void
   groups: NetWorthGroup[]
   series: NetWorthPoint[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   loading?: boolean
   transitionKey: string
@@ -74,6 +77,7 @@ type NetWorthSnapshot = {
   mode: NetWorthViewMode
   groups: NetWorthGroup[]
   series: NetWorthPoint[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   emptyLabel: string
 }
@@ -209,6 +213,7 @@ export function NetWorthCard({
   onModeToggle,
   groups,
   series,
+  fxStatus,
   displayCurrency,
   loading = false,
   transitionKey,
@@ -219,9 +224,10 @@ export function NetWorthCard({
     mode,
     groups,
     series,
+    fxStatus,
     displayCurrency,
     emptyLabel: loading ? 'Loading net worth history...' : 'No net worth history in this range.',
-  }), [displayCurrency, groups, loading, mode, series])
+  }), [displayCurrency, fxStatus, groups, loading, mode, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -292,7 +298,17 @@ export function NetWorthCard({
     <section className="app-card">
       <SectionHeader
         icon={Wallet}
-        label="Net Worth"
+        label={(
+          <span className="inline-flex items-center gap-2">
+            Net Worth
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Net Worth FX status"
+                status={displaySnapshot.fxStatus}
+              />
+            )}
+          </span>
+        )}
         action={(
           <InsightActionButton
             title={mode === 'overview' ? 'Show account type composition' : 'Show net worth change'}
