@@ -1,6 +1,7 @@
 """Route tests for insights net-worth endpoint."""
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from app.models.account import AccountBalanceSnapshot
@@ -14,10 +15,10 @@ def _snapshot(account_id: UUID, dt: date, balance: int) -> AccountBalanceSnapsho
     return AccountBalanceSnapshot(account_id=account_id, dt=dt, balance=balance)
 
 
-async def _seed_usd_currency():
-    """Insert USD for base-currency exclusion tests."""
+async def _seed_currency(currency_id: str, name: str, symbol: str, minor_unit_exponent: int = 2):
+    """Insert a currency row for foreign-account tests."""
     async with TestSession() as session:
-        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        session.add(Currency(id=currency_id, name=name, symbol=symbol, minor_unit_exponent=minor_unit_exponent))
         await session.commit()
 
 
@@ -33,10 +34,9 @@ async def _create_plan(client, headers, **overrides):
 
 
 async def test_net_worth_returns_compact_daily_signed_group_series(client):
-    """Daily buckets group balances, preserve debt signs, and exclude hidden/non-base accounts."""
+    """Daily buckets group balances, preserve debt signs, and exclude hidden accounts."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    await _seed_usd_currency()
 
     cash_account = (await _create_account(client, headers, name="CAD Cash")).json()
     savings_account = (await _create_account(client, headers, account_type="savings", name="CAD Savings")).json()
@@ -49,12 +49,10 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
         credit_limit=500_000,
     )).json()
     hidden_account = (await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()
-    usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
     cash_account_id = UUID(cash_account["id"])
     savings_account_id = UUID(savings_account["id"])
     card_account_id = UUID(card_account["id"])
     hidden_account_id = UUID(hidden_account["id"])
-    usd_account_id = UUID(usd_account["id"])
 
     async with TestSession() as session:
         session.add_all([
@@ -65,7 +63,6 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
             _snapshot(card_account_id, date(2026, 4, 30), -50_000),
             _snapshot(card_account_id, date(2026, 5, 3), -80_000),
             _snapshot(hidden_account_id, date(2026, 5, 2), 9_000_000),
-            _snapshot(usd_account_id, date(2026, 5, 2), 8_000_000),
         ])
         await session.commit()
 
@@ -86,6 +83,7 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
         ["2026-05-02", "2026-05-02", [150_000, -50_000]],
         ["2026-05-03", "2026-05-03", [150_000, -80_000]],
     ]
+    assert data["fx_status"] == {"state": "none", "missing_pairs": []}
 
 
 async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
@@ -128,6 +126,113 @@ async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
             ["investments", "Investments", "asset"],
         ],
         "points": [["2026-05-01", "2026-05-01", [25_000, 175_000]]],
+        "fx_status": {"state": "none", "missing_pairs": []},
+    }
+
+
+async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, monkeypatch):
+    """Foreign balances convert on each bucket's value date while preserving liability signs."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        assert (base, quote, start_date, end_date) == (
+            "USD",
+            "CAD",
+            date(2026, 5, 1),
+            date(2026, 5, 3),
+        )
+        return {
+            date(2026, 5, 1): Decimal("1.5"),
+            date(2026, 5, 2): Decimal("2"),
+            date(2026, 5, 3): Decimal("2.5"),
+        }
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_cash_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    usd_card_id = UUID((await _create_account(
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="USD Card",
+        currency="USD",
+        credit_limit=500_000,
+    )).json()["id"])
+
+    async with TestSession() as session:
+        session.add_all([
+            _snapshot(cad_account_id, date(2026, 4, 30), 100_000),
+            _snapshot(usd_cash_id, date(2026, 4, 30), 10_000),
+            _snapshot(usd_cash_id, date(2026, 5, 2), 20_000),
+            _snapshot(usd_card_id, date(2026, 4, 30), -4_000),
+            _snapshot(usd_card_id, date(2026, 5, 3), -8_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-03"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "groups": [
+            ["cash", "Cash", "asset"],
+            ["revolving_debt", "Revolving Debt", "debt"],
+        ],
+        "points": [
+            ["2026-05-01", "2026-05-01", [115_000, -6_000]],
+            ["2026-05-02", "2026-05-02", [140_000, -8_000]],
+            ["2026-05-03", "2026-05-03", [150_000, -20_000]],
+        ],
+        "fx_status": {"state": "complete", "missing_pairs": []},
+    }
+
+
+async def test_net_worth_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
+    """Unconverted foreign balances are skipped and reported through the Net Worth FX status."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("ABC", "Unsupported Test Currency", "A")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+
+    async with TestSession() as session:
+        session.add_all([
+            _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
+            _snapshot(abc_account_id, date(2026, 5, 1), 70_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "groups": [["cash", "Cash", "asset"]],
+        "points": [["2026-05-01", "2026-05-01", [100_000]]],
+        "fx_status": {
+            "state": "incomplete",
+            "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        },
     }
 
 
@@ -207,7 +312,7 @@ async def test_net_worth_omits_zero_only_groups(client):
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"groups": [], "points": []}
+    assert resp.json() == {"groups": [], "points": [], "fx_status": {"state": "none", "missing_pairs": []}}
 
 
 async def test_net_worth_rejects_invalid_date_range(client):

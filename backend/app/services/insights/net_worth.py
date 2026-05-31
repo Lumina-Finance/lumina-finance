@@ -9,9 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountBalanceSnapshot
 from app.models.base import AccountKind, AccountType
+from app.models.currency import Currency
 from app.models.user import User
+from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsNetWorthResponse, NetWorthGroupKind
-from app.services.insights.common import get_base_currency_accounts
+from app.services.dashboard import get_accessible_accounts
+from app.services.fx import FxConverter
 
 NetWorthGranularity = Literal["day", "week", "month"]
 
@@ -100,19 +103,33 @@ def _group_id_for_account(account: Account) -> str:
 async def _query_net_worth_points(
     db: AsyncSession,
     accounts: list[Account],
+    base_currency: str,
     from_date: date,
     to_date: date,
-) -> list[tuple[date, date, list[int]]]:
-    """Return signed grouped balances for each chart bucket."""
+) -> tuple[list[tuple[date, date, list[int]]], FxStatus]:
+    """Return signed grouped balances converted to base currency for each chart bucket."""
     buckets = _build_buckets(from_date, to_date)
     if not accounts or not buckets:
-        return []
+        return [], FxStatus()
 
     account_ids = [account.id for account in accounts]
+    account_by_id = {account.id: account for account in accounts}
     group_index_by_account_id = {
         account.id: GROUP_INDEX_BY_ID[_group_id_for_account(account)]
         for account in accounts
     }
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    await _prefetch_net_worth_rates(
+        converter,
+        accounts=accounts,
+        buckets=buckets,
+        base_currency=base_currency,
+    )
     first_bucket_start = buckets[0][0]
     anchor_result = await db.execute(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
@@ -152,11 +169,49 @@ async def _query_net_worth_points(
 
         values = [0] * len(NET_WORTH_GROUPS)
         for account_id in account_ids:
+            account = account_by_id[account_id]
+            converted_balance = await converter.convert_minor_units(
+                running[account_id],
+                base=account.currency,
+                quote=base_currency,
+                rate_date=value_date,
+            )
+            if converted_balance is None:
+                continue
+
             group_index = group_index_by_account_id[account_id]
-            values[group_index] += running[account_id]
+            values[group_index] += converted_balance
         points.append((label_date, value_date, values))
 
-    return points
+    return points, converter.get_status()
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+    )
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def _prefetch_net_worth_rates(
+    converter: FxConverter,
+    *,
+    accounts: list[Account],
+    buckets: list[tuple[date, date]],
+    base_currency: str,
+) -> None:
+    if not buckets:
+        return
+
+    start_date = min(value_date for _label_date, value_date in buckets)
+    end_date = max(value_date for _label_date, value_date in buckets)
+    for currency in sorted({account.currency for account in accounts if account.currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
 
 async def get_net_worth(
@@ -166,18 +221,18 @@ async def get_net_worth(
     to_date: date,
 ) -> InsightsNetWorthResponse:
     """Return compact grouped net worth history for the insights card."""
-    accounts = await get_base_currency_accounts(db, user)
+    accounts = await get_accessible_accounts(db, user)
     if not accounts:
         return InsightsNetWorthResponse(groups=[], points=[])
 
-    points = await _query_net_worth_points(db, accounts, from_date, to_date)
+    points, fx_status = await _query_net_worth_points(db, accounts, user.base_currency, from_date, to_date)
     active_group_indexes = [
         index
         for index in range(len(NET_WORTH_GROUPS))
         if any(point_values[index] != 0 for _label_date, _value_date, point_values in points)
     ]
     if not active_group_indexes:
-        return InsightsNetWorthResponse(groups=[], points=[])
+        return InsightsNetWorthResponse(groups=[], points=[], fx_status=fx_status)
 
     return InsightsNetWorthResponse(
         groups=[
@@ -192,4 +247,5 @@ async def get_net_worth(
             )
             for label_date, value_date, point_values in points
         ],
+        fx_status=fx_status,
     )

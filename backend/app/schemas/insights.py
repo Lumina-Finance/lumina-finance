@@ -67,6 +67,7 @@ class InsightsNetWorthResponse(BaseModel):
 
     groups: list[tuple[str, str, NetWorthGroupKind]]
     points: list[tuple[date, date, list[int]]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsSavingsRateTrendResponse(BaseModel):
