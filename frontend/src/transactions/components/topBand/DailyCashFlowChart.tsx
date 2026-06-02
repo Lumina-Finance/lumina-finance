@@ -19,10 +19,11 @@ import {
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { PLACEHOLDER_DAILY_FLOW } from '@/transactions/components/topBand/constants'
 import { parseYmdLocal } from '@/transactions/utils/date'
+import { getCashFlowFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
 type DailyCashFlowPoint = {
   date: string
@@ -181,7 +182,7 @@ export default function DailyCashFlowChart({
             fxTone={getFxStatusTone(fxStatus)}
             placement="top"
           >
-            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            <span className="block">{getCashFlowFxStatusMessage(fxStatus)}</span>
             {fxStatus.missing_pairs.length > 0 && (
               <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                 Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}

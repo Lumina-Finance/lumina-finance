@@ -2,7 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getCashFlowFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 const MAX_NET_FLOW_FONT_SIZE = 60
@@ -63,7 +64,7 @@ export default function NetFlowSummary({
             fxTone={getFxStatusTone(fxStatus)}
             placement="bottom"
           >
-            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            <span className="block">{getCashFlowFxStatusMessage(fxStatus)}</span>
             {fxStatus.missing_pairs.length > 0 && (
               <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                 Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}

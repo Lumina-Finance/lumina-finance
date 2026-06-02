@@ -2,13 +2,14 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FxStatus } from '@/api/dashboard'
 import type { OutlierTransaction } from '@/api/transactions'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   OUTLIER_TRANSACTION_LIMIT,
   OUTLIER_TRANSACTION_ROW_GAP,
   OUTLIER_TRANSACTION_ROW_HEIGHT,
 } from '@/transactions/components/topBand/constants'
+import { getMostExpensiveTransactionsFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
 const emptyOutliersHeight =
   OUTLIER_TRANSACTION_LIMIT * OUTLIER_TRANSACTION_ROW_HEIGHT
@@ -52,7 +53,7 @@ export default function MostExpensiveTransactionsPanel({
             fxTone={getFxStatusTone(fxStatus)}
             placement="bottom"
           >
-            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            <span className="block">{getMostExpensiveTransactionsFxStatusMessage(fxStatus)}</span>
             {fxStatus.missing_pairs.length > 0 && (
               <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                 Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}

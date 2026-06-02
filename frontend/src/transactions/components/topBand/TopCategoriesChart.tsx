@@ -22,7 +22,7 @@ import {
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   TOP_CATEGORY_AXIS_AVG_CHAR_WIDTH,
@@ -32,6 +32,7 @@ import {
   TOP_CATEGORY_ROW_HEIGHT,
 } from '@/transactions/components/topBand/constants'
 import type { OverviewCategorySpend } from '@/transactions/components/topBand/types'
+import { getTopCategoriesFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
 const emptyTopCategoryHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT
 
@@ -188,7 +189,7 @@ export default function TopCategoriesChart({
             fxTone={getFxStatusTone(fxStatus)}
             placement="bottom"
           >
-            <span className="block">{getFxStatusMessage(fxStatus)}</span>
+            <span className="block">{getTopCategoriesFxStatusMessage(fxStatus)}</span>
             {fxStatus.missing_pairs.length > 0 && (
               <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                 Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
