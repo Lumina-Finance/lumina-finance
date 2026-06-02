@@ -17,6 +17,7 @@ import {
 import type { FxStatus } from '@/api/dashboard'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import { getSavingsRateTrendFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -278,6 +279,7 @@ export function SavingsRateTrendCard({
               <FxStatusBadge
                 label="Savings Rate Trend FX status"
                 status={displaySnapshot.fxStatus}
+                getMessage={getSavingsRateTrendFxStatusMessage}
               />
             )}
           </span>

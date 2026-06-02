@@ -5,9 +5,10 @@ import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/das
 type FxStatusBadgeProps = {
   label: string
   status: FxStatus
+  getMessage?: (status: FxStatus) => string
 }
 
-export function FxStatusBadge({ label, status }: FxStatusBadgeProps) {
+export function FxStatusBadge({ label, status, getMessage = getFxStatusMessage }: FxStatusBadgeProps) {
   return (
     <IconTooltip
       label={label}
@@ -15,7 +16,7 @@ export function FxStatusBadge({ label, status }: FxStatusBadgeProps) {
       fxTone={getFxStatusTone(status)}
       placement="top"
     >
-      <span className="block">{getFxStatusMessage(status)}</span>
+      <span className="block">{getMessage(status)}</span>
       {status.missing_pairs.length > 0 && (
         <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
           Missing: {formatMissingFxPairs(status.missing_pairs)}

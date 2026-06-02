@@ -16,6 +16,7 @@ import {
   type SankeyNodeProps,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import { FxStatusBadge } from './FxStatusBadge'
@@ -444,6 +445,7 @@ export function FundFlowCard({
               <FxStatusBadge
                 label="Fund Flow FX status"
                 status={displaySnapshot.fxStatus}
+                getMessage={getFundFlowFxStatusMessage}
               />
             )}
           </span>

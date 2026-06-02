@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { FxStatus } from '@/api/dashboard'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getPeriodIncomeExpenseFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from './FxStatusBadge'
 import {
   InsightLoadingContent,
@@ -28,6 +29,7 @@ export type PeriodGlanceSupportItem = {
   detail: string
   tone: PeriodGlanceTone
   fxStatus?: FxStatus
+  getFxStatusMessage?: (fxStatus: FxStatus) => string
 }
 
 type PeriodGlanceSnapshot = {
@@ -163,6 +165,7 @@ export function PeriodGlanceCard({
                     <FxStatusBadge
                       label="Income and expense FX status"
                       status={displaySnapshot.incomeExpenseFxStatus}
+                      getMessage={getPeriodIncomeExpenseFxStatusMessage}
                     />
                   )}
                 </p>
@@ -215,6 +218,7 @@ export function PeriodGlanceCard({
                         <FxStatusBadge
                           label={`${item.label} FX status`}
                           status={item.fxStatus}
+                          getMessage={item.getFxStatusMessage}
                         />
                       )}
                     </p>

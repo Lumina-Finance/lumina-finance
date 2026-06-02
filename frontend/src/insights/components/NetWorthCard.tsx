@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import { getInsightsNetWorthFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { FxStatusBadge } from './FxStatusBadge'
 import {
@@ -305,6 +306,7 @@ export function NetWorthCard({
               <FxStatusBadge
                 label="Net Worth FX status"
                 status={displaySnapshot.fxStatus}
+                getMessage={getInsightsNetWorthFxStatusMessage}
               />
             )}
           </span>

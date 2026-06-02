@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -263,6 +264,7 @@ export function IncomeExpenseBreakdownCard({
               <FxStatusBadge
                 label="Income and expense breakdown FX status"
                 status={displaySnapshot.fxStatus}
+                getMessage={getIncomeExpenseBreakdownFxStatusMessage}
               />
             )}
           </span>

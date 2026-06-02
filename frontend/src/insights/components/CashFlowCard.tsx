@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import { getInsightsCashFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -194,6 +195,7 @@ export function CashFlowCard({
               <FxStatusBadge
                 label="Cash Flow FX status"
                 status={displaySnapshot.fxStatus}
+                getMessage={getInsightsCashFlowFxStatusMessage}
               />
             )}
           </span>

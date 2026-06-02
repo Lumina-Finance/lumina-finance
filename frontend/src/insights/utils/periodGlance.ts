@@ -9,6 +9,12 @@ import {
   formatSignedCurrency,
   getSavingsRate,
 } from './money'
+import {
+  getBiggestChangeFxStatusMessage,
+  getNetWorthChangeFxStatusMessage,
+  getPeriodSavingsRateFxStatusMessage,
+  getPeriodTopCategoryFxStatusMessage,
+} from './fxTooltipMessages'
 
 type InsightSignal = {
   label: string
@@ -16,6 +22,7 @@ type InsightSignal = {
   detail: string
   tone: PeriodGlancePrimaryMetric['tone']
   fxStatus?: PeriodGlanceSupportItem['fxStatus']
+  getFxStatusMessage?: PeriodGlanceSupportItem['getFxStatusMessage']
 }
 
 type PeriodBrief = {
@@ -26,12 +33,14 @@ type PeriodBrief = {
     tone: PeriodGlancePrimaryMetric['tone']
     signed?: boolean
     fxStatus?: PeriodGlanceSupportItem['fxStatus']
+    getFxStatusMessage?: PeriodGlanceSupportItem['getFxStatusMessage']
   }>
   signals: Array<{
     label: string
     value: string
     detail: string
     fxStatus?: PeriodGlanceSupportItem['fxStatus']
+    getFxStatusMessage?: PeriodGlanceSupportItem['getFxStatusMessage']
   }>
 }
 
@@ -75,6 +84,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
         signed: true,
         fxStatus: data.net_worth_change_fx_status,
+        getFxStatusMessage: getNetWorthChangeFxStatusMessage,
       },
     ],
     signals: [
@@ -85,6 +95,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
           ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency)
           : 'No comparable category movement in this range',
         fxStatus: data.biggest_change_fx_status,
+        getFxStatusMessage: getBiggestChangeFxStatusMessage,
       },
       {
         label: 'Top Category',
@@ -93,6 +104,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
           ? 'No recorded expenses in this range'
           : `${data.top_category_share_pct}% of recorded expenses`,
         fxStatus: data.top_category_fx_status,
+        getFxStatusMessage: getPeriodTopCategoryFxStatusMessage,
       },
       {
         label: 'Savings Rate',
@@ -101,6 +113,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
           ? 'No recorded income in the selected range'
           : 'Income kept after expenses, excluding transfers',
         fxStatus: data.income_expense_fx_status,
+        getFxStatusMessage: getPeriodSavingsRateFxStatusMessage,
       },
     ],
   }
@@ -159,6 +172,7 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
     detail: secondaryMetric.detail,
     tone: secondaryMetric.tone,
     fxStatus: secondaryMetric.fxStatus,
+    getFxStatusMessage: secondaryMetric.getFxStatusMessage,
   }
 
   return [
@@ -169,6 +183,7 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
       detail: signal.detail,
       tone: 'neutral' as const,
       fxStatus: signal.fxStatus,
+      getFxStatusMessage: signal.getFxStatusMessage,
     })),
   ]
 }

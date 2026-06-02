@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
 import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
+import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -82,6 +83,7 @@ export function MerchantRankingCard({
               <FxStatusBadge
                 label="Merchant Ranking FX status"
                 status={displaySnapshot.fxStatus}
+                getMessage={getMerchantSpendingFxStatusMessage}
               />
             )}
             <IconTooltip

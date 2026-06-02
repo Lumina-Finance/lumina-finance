@@ -9,6 +9,7 @@ import {
 import { Store } from 'lucide-react'
 import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
+import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import {
@@ -394,6 +395,7 @@ export function MerchantDistributionCard({
               <FxStatusBadge
                 label="Merchant Distribution FX status"
                 status={displaySnapshot.fxStatus}
+                getMessage={getMerchantSpendingFxStatusMessage}
               />
             )}
             <IconTooltip
