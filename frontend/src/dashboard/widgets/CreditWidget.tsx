@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { CreditCard, Repeat } from 'lucide-react'
-import { useDashboardCredit } from '@/api/dashboard'
+import { useDashboardCredit, type FxStatus } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import IconTooltip from '@/components/IconTooltip'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 
 function getCreditTier(utilization: number) {
   if (utilization <= 30) return 'positive'
@@ -17,9 +17,26 @@ type CreditWidgetProps = {
   displayCurrency: string
 }
 
+type CreditMode = 'used' | 'available'
+
+function getCreditFxStatusMessage(fxStatus: FxStatus, creditMode: CreditMode) {
+  const metricLabel = creditMode === 'used' ? 'Credit used' : 'Credit remaining'
+
+  switch (fxStatus.state) {
+    case 'none':
+      return 'All credit balances and limits were already in your base currency'
+    case 'complete':
+      return 'Foreign currency credit balances and limits were converted into your base currency'
+    case 'incomplete':
+      return `Some foreign currency credit accounts could not be converted. ${metricLabel} is incomplete and only includes credit accounts with available conversion rates`
+    case 'unavailable':
+      return `Foreign currency credit accounts could not be converted. ${metricLabel} is incomplete and only includes base currency credit accounts`
+  }
+}
+
 export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
-  const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
+  const [creditMode, setCreditMode] = useState<CreditMode>('used')
   const creditLimit = dashboardCredit?.credit_limit_total ?? 0
   const creditUsed = dashboardCredit?.credit_used ?? 0
   const fxStatus = dashboardCredit?.fx_status
@@ -61,7 +78,7 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
               fxTone={getFxStatusTone(fxStatus)}
               placement="top"
             >
-              <span className="block">{getFxStatusMessage(fxStatus)}</span>
+              <span className="block">{getCreditFxStatusMessage(fxStatus, creditMode)}</span>
               {fxStatus.missing_pairs.length > 0 && (
                 <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                   Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}

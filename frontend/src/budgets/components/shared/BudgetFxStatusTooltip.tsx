@@ -8,11 +8,13 @@ export default function BudgetFxStatusTooltip({
   label,
   placement = 'top',
   stopPropagation = false,
+  getMessage = getFxStatusMessage,
 }: {
   fxStatus: FxStatus | undefined
   label: string
   placement?: 'top' | 'bottom'
   stopPropagation?: boolean
+  getMessage?: (fxStatus: FxStatus) => string
 }) {
   if (!fxStatus) return null
 
@@ -30,7 +32,7 @@ export default function BudgetFxStatusTooltip({
         fxTone={getFxStatusTone(fxStatus)}
         placement={placement}
       >
-        <span className="block">{getFxStatusMessage(fxStatus)}</span>
+        <span className="block">{getMessage(fxStatus)}</span>
         {fxStatus.missing_pairs.length > 0 && (
           <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
             Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
