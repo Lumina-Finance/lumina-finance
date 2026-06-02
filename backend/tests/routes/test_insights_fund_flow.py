@@ -1,6 +1,7 @@
 """Route tests for the insights Fund Flow endpoint."""
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.models.base import CategoryKind
@@ -29,10 +30,10 @@ def _transaction(user_id: UUID, account_id: UUID, category_id: UUID, dt: date, a
     )
 
 
-async def _seed_usd_currency():
-    """Insert USD for base-currency exclusion tests."""
+async def _seed_currency(currency_id: str, name: str, symbol: str, minor_unit_exponent: int = 2):
+    """Insert a currency row for foreign-account tests."""
     async with TestSession() as session:
-        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        session.add(Currency(id=currency_id, name=name, symbol=symbol, minor_unit_exponent=minor_unit_exponent))
         await session.commit()
 
 
@@ -41,11 +42,9 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
-    await _seed_usd_currency()
 
     visible_account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
     hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
-    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
 
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     freelance_id, freelance = _category(user_id, "Freelance", CategoryKind.INCOME)
@@ -95,8 +94,6 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
             _transaction(user_id, visible_account_id, salary_id, date(2026, 2, 28), 300_000),
             _transaction(user_id, hidden_account_id, salary_id, date(2026, 3, 11), 700_000),
             _transaction(user_id, hidden_account_id, housing_id, date(2026, 3, 11), -700_000),
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 3, 11), 900_000, "USD"),
-            _transaction(user_id, usd_account_id, housing_id, date(2026, 3, 11), -900_000, "USD"),
         ])
         await session.commit()
 
@@ -129,6 +126,114 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
         "expense_inflows": [],
         "income_source_count": 6,
         "expense_category_count": 7,
+        "fx_status": {"state": "none", "missing_pairs": []},
+    }
+
+
+async def test_fund_flow_converts_foreign_entries_by_transaction_date(client, monkeypatch):
+    """Foreign entries are converted daily before category totals are ranked."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        assert (base, quote, start_date, end_date) == (
+            "USD",
+            "CAD",
+            date(2026, 5, 1),
+            date(2026, 5, 2),
+        )
+        return {
+            date(2026, 5, 1): Decimal("1.5"),
+            date(2026, 5, 2): Decimal("2"),
+        }
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    rent_id, rent = _category(user_id, "Rent", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            rent,
+            _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 100_00),
+            _transaction(user_id, cad_account_id, rent_id, date(2026, 5, 2), -50_00),
+            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 10_00, "USD"),
+            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 2), 10_00, "USD"),
+            _transaction(user_id, usd_account_id, rent_id, date(2026, 5, 2), -30_00, "USD"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/fund-flow",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-02"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "income_sources": [["Salary", 13_500]],
+        "expense_categories": [["Rent", 11_000]],
+        "income_outflows": [],
+        "expense_inflows": [],
+        "income_source_count": 1,
+        "expense_category_count": 1,
+        "fx_status": {"state": "complete", "missing_pairs": []},
+    }
+
+
+async def test_fund_flow_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
+    """Unconverted foreign rows are skipped and reported through the Fund Flow FX status."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("ABC", "Unsupported Test Currency", "A")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            food,
+            _transaction(user_id, cad_account_id, salary_id, date(2026, 6, 1), 100_000),
+            _transaction(user_id, abc_account_id, food_id, date(2026, 6, 2), -70_000, "ABC"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/fund-flow",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "income_sources": [["Salary", 100_000]],
+        "expense_categories": [],
+        "income_outflows": [],
+        "expense_inflows": [],
+        "income_source_count": 1,
+        "expense_category_count": 0,
+        "fx_status": {
+            "state": "incomplete",
+            "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        },
     }
 
 
@@ -171,6 +276,7 @@ async def test_fund_flow_reclassifies_categories_by_net_sign(client):
         "expense_inflows": [["Over-refunded", 20_000]],
         "income_source_count": 2,
         "expense_category_count": 2,
+        "fx_status": {"state": "none", "missing_pairs": []},
     }
 
 
@@ -206,6 +312,7 @@ async def test_fund_flow_shows_negative_capital_gains_as_expense(client):
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 1,
+        "fx_status": {"state": "none", "missing_pairs": []},
     }
 
 
@@ -228,6 +335,7 @@ async def test_fund_flow_returns_empty_payload_without_accounts(client):
         "expense_inflows": [],
         "income_source_count": 0,
         "expense_category_count": 0,
+        "fx_status": {"state": "none", "missing_pairs": []},
     }
 
 
@@ -260,6 +368,7 @@ async def test_fund_flow_handles_single_sided_period(client):
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 0,
+        "fx_status": {"state": "none", "missing_pairs": []},
     }
 
 

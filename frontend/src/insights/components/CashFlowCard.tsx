@@ -13,7 +13,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import type { FxStatus } from '@/api/dashboard'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import { getInsightsCashFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -24,6 +26,7 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -40,6 +43,7 @@ export type CashFlowBarBucket = {
 type CashFlowCardProps = {
   granularity: CashFlowGranularity
   buckets: CashFlowBarBucket[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   loading?: boolean
   transitionKey: string
@@ -48,6 +52,7 @@ type CashFlowCardProps = {
 type CashFlowSnapshot = {
   granularity: CashFlowGranularity
   buckets: CashFlowBarBucket[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
 }
 
@@ -132,6 +137,7 @@ function CashFlowBarTooltipContent({
 export function CashFlowCard({
   granularity,
   buckets,
+  fxStatus,
   displayCurrency,
   loading = false,
   transitionKey,
@@ -141,8 +147,9 @@ export function CashFlowCard({
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
     granularity,
     buckets,
+    fxStatus,
     displayCurrency,
-  }), [buckets, displayCurrency, granularity])
+  }), [buckets, displayCurrency, fxStatus, granularity])
   const {
     displaySnapshot,
     contentConcealed,
@@ -179,7 +186,21 @@ export function CashFlowCard({
 
   return (
     <section className="app-card">
-      <SectionHeader icon={CalendarDays} label="Cash Flow" />
+      <SectionHeader
+        icon={CalendarDays}
+        label={(
+          <span className="inline-flex items-center gap-2">
+            Cash Flow
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Cash Flow FX status"
+                status={displaySnapshot.fxStatus}
+                getMessage={getInsightsCashFlowFxStatusMessage}
+              />
+            )}
+          </span>
+        )}
+      />
       <div className="relative overflow-hidden">
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[390px] flex-col">

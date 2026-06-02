@@ -15,12 +15,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import type { FxStatus } from '@/api/dashboard'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import IconTooltip from '@/components/IconTooltip'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   TOP_CATEGORY_AXIS_AVG_CHAR_WIDTH,
@@ -30,6 +32,7 @@ import {
   TOP_CATEGORY_ROW_HEIGHT,
 } from '@/transactions/components/topBand/constants'
 import type { OverviewCategorySpend } from '@/transactions/components/topBand/types'
+import { getTopCategoriesFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
 const emptyTopCategoryHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT
 
@@ -120,12 +123,14 @@ function TopCategoryYAxisTick({
 
 export default function TopCategoriesChart({
   categorySpend,
+  fxStatus,
   displayCurrency,
   chartAnimationKey,
   prefersReducedMotion,
   className = '',
 }: {
   categorySpend: OverviewCategorySpend[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
@@ -177,6 +182,21 @@ export default function TopCategoriesChart({
         >
           The top 5 categories ranked by net expense-side total in the selected period. The progress bar is relative to the highest-spend category, not an absolute scale.
         </IconTooltip>
+        {fxStatus && (
+          <IconTooltip
+            label="Top categories FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="bottom"
+          >
+            <span className="block">{getTopCategoriesFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
       </p>
       <div className="mt-2">
         <AnimatePresence initial={false} mode="popLayout">

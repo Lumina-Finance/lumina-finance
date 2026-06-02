@@ -3,6 +3,7 @@ import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CategoryRow from '@/budgets/components/budget-card/CategoryRow'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
+import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import { budgetCadenceLabel, formatBudgetPeriod, nextBudgetPeriods } from '@/budgets/utils/budgetPeriods'
 import { attentionState } from '@/budgets/utils/budgetStatus'
 
@@ -47,9 +48,16 @@ export default function BudgetCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
-            {baseBudget.name}
-          </h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
+              {baseBudget.name}
+            </h2>
+            <BudgetFxStatusTooltip
+              fxStatus={utilization?.fx_status}
+              label="Budget FX status"
+              stopPropagation
+            />
+          </div>
           <p className="mt-1 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>

@@ -10,9 +10,8 @@ Scoping rules mirror the default aggregate/list endpoints:
 - accessible budgets  = same pattern against base budgets
 so the dashboard never surfaces data the user couldn't read elsewhere.
 
-Currency rule: spending, credit, net worth, and savings widgets sum only
-activity on accounts whose currency matches the user's base currency.
-Foreign-currency rows are excluded until fx conversion lands.
+Currency rule: dashboard money widgets convert foreign-currency account values
+to the user's base currency. Recent activity keeps transaction rows as-is.
 """
 import calendar
 import uuid
@@ -28,6 +27,7 @@ from app.config import (
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
 from app.models.base import AccountKind, CategoryKind
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -38,7 +38,9 @@ from app.schemas.dashboard import (
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
 )
+from app.schemas.fx import FxStatus
 from app.schemas.transaction import TransactionResponse
+from app.services.fx import FxConverter
 from app.services.snapshots import get_current_balances
 from app.services.transaction_responses import (
     build_transaction_response,
@@ -123,10 +125,11 @@ async def get_accessible_accounts(
 
 async def get_net_worth_history(
     db: AsyncSession,
-    base_currency_accounts: list[Account],
+    accounts: list[Account],
+    base_currency: str,
     window_days: int,
     now: datetime,
-) -> tuple[int, list[int]]:
+) -> tuple[int, list[int], FxStatus]:
     """Return ``(current_net_worth, daily_history)`` across the last ``window_days`` days.
 
     Seeds a per-account running balance from the last snapshot strictly
@@ -137,12 +140,26 @@ async def get_net_worth_history(
     balances add to net worth, negative liability balances reduce it.
     """
     series = [0] * window_days
-    if not base_currency_accounts:
-        return 0, series
+    if not accounts:
+        return 0, series, FxStatus()
 
     today = now.date()
     window_start = today - timedelta(days=window_days - 1)
-    ids = [a.id for a in base_currency_accounts]
+    ids = [a.id for a in accounts]
+    account_by_id = {account.id: account for account in accounts}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    for currency in sorted({account.currency for account in accounts if account.currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=window_start,
+            end_date=today,
+        )
 
     # Anchor: most recent snapshot strictly before window_start per account.
     anchor_result = await db.execute(
@@ -181,10 +198,48 @@ async def get_net_worth_history(
             break
         for aid, balance in updates_by_day.get(current_day, {}).items():
             running[aid] = balance
-        series[day_idx] = sum(running[aid] for aid in ids)
+        series[day_idx] = await _sum_converted_balances(
+            account_by_id,
+            running,
+            base_currency=base_currency,
+            rate_date=current_day,
+            converter=converter,
+        )
 
-    current_net_worth = sum(running[aid] for aid in ids)
-    return current_net_worth, series
+    current_net_worth = await _sum_converted_balances(
+        account_by_id,
+        running,
+        base_currency=base_currency,
+        rate_date=today,
+        converter=converter,
+    )
+    return current_net_worth, series, converter.get_status()
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)))
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def _sum_converted_balances(
+    account_by_id: dict[uuid.UUID, Account],
+    running: dict[uuid.UUID, int],
+    *,
+    base_currency: str,
+    rate_date: date,
+    converter: FxConverter,
+) -> int:
+    total = 0
+    for account_id, account in account_by_id.items():
+        converted = await converter.convert_minor_units(
+            running[account_id],
+            base=account.currency,
+            quote=base_currency,
+            rate_date=rate_date,
+        )
+        if converted is not None:
+            total += converted
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -192,26 +247,61 @@ async def get_net_worth_history(
 # ---------------------------------------------------------------------------
 
 async def get_credit_widget(
-    db: AsyncSession, base_currency_accounts: list[Account],
-) -> tuple[int, int]:
+    db: AsyncSession,
+    accounts: list[Account],
+    base_currency: str,
+    rate_date: date,
+) -> tuple[int, int, FxStatus]:
     """Return ``(credit_limit_total, credit_used)`` summed across eligible accounts.
 
-    Only base-currency revolving-credit accounts with ``credit_limit`` set
-    contribute. Account balances stay signed from the user's perspective:
-    negative means debt, positive means stored credit. Stored credit does not
-    reduce the usage total below zero.
+    Revolving-credit accounts with ``credit_limit`` set contribute after
+    converting foreign-currency limits and balances to the user's base currency.
+    Account balances stay signed from the user's perspective: negative means
+    debt, positive means stored credit. Stored credit does not reduce the usage
+    total below zero.
     """
     credit_accounts = [
-        a for a in base_currency_accounts
+        a for a in accounts
         if a.account_kind == AccountKind.REVOLVING and a.credit_limit is not None
     ]
     if not credit_accounts:
-        return 0, 0
+        return 0, 0, FxStatus()
 
     balances = await get_current_balances(db, [a.id for a in credit_accounts])
-    credit_limit_total = sum(a.credit_limit for a in credit_accounts)
-    credit_used = sum(max(-balances.get(a.id, 0), 0) for a in credit_accounts)
-    return credit_limit_total, credit_used
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in credit_accounts)},
+        ),
+    )
+    for currency in sorted({account.currency for account in credit_accounts if account.currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=rate_date,
+            end_date=rate_date,
+        )
+
+    credit_limit_total = 0
+    credit_used = 0
+    for account in credit_accounts:
+        converted_limit = await converter.convert_minor_units(
+            account.credit_limit or 0,
+            base=account.currency,
+            quote=base_currency,
+            rate_date=rate_date,
+        )
+        converted_used = await converter.convert_minor_units(
+            max(-balances.get(account.id, 0), 0),
+            base=account.currency,
+            quote=base_currency,
+            rate_date=rate_date,
+        )
+        if converted_limit is not None:
+            credit_limit_total += converted_limit
+        if converted_used is not None:
+            credit_used += converted_used
+    return credit_limit_total, credit_used, converter.get_status()
 
 
 # ---------------------------------------------------------------------------
@@ -257,8 +347,11 @@ async def get_recent_transactions(
 # ---------------------------------------------------------------------------
 
 async def get_savings_rate_history(
-    db: AsyncSession, base_currency_account_ids: list[uuid.UUID], now: datetime,
-) -> list[MonthlyIncomeExpense]:
+    db: AsyncSession,
+    accounts: list[Account],
+    base_currency: str,
+    now: datetime,
+) -> tuple[list[MonthlyIncomeExpense], FxStatus]:
     """Return per-month income / expense totals for the savings-rate chart.
 
     The series covers ``DASHBOARD_SAVINGS_HISTORY_MONTHS`` calendar months
@@ -283,40 +376,79 @@ async def get_savings_rate_history(
         else:
             month += 1
 
-    if not base_currency_account_ids:
-        return [MonthlyIncomeExpense(month=m, income=0, expenses=0) for m in months]
+    empty_history = [MonthlyIncomeExpense(month=m, income=0, expenses=0) for m in months]
+    if not accounts:
+        return empty_history, FxStatus()
 
-    month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
+    account_by_id = {account.id: account for account in accounts}
     result = await db.execute(
-        select(month_start_expr, Category.id.label("category_id"), func.sum(Transaction.amount).label("total"))
+        select(
+            Transaction.dt,
+            Transaction.account_id,
+            Category.id.label("category_id"),
+            func.sum(Transaction.amount).label("total"),
+        )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(base_currency_account_ids),
+            Transaction.account_id.in_(list(account_by_id)),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= first_month,
             Transaction.dt < window_end,
         )
-        .group_by(month_start_expr, Category.id),
+        .group_by(Transaction.dt, Transaction.account_id, Category.id),
     )
+    rows = list(result)
+    if not rows:
+        return empty_history, FxStatus()
+
+    row_currencies = {account_by_id[row.account_id].currency for row in rows}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *row_currencies},
+        ),
+    )
+    for currency in sorted(row_currencies - {base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=first_month,
+            end_date=window_end - timedelta(days=1),
+        )
 
     totals = {m: {"income": 0, "expenses": 0} for m in months}
-    for row in result:
-        # date_trunc returns a timestamp; coerce to a plain date for the key.
-        key = row.month_start.date() if hasattr(row.month_start, "date") else row.month_start
-        total = int(row.total or 0)
-        if total > 0:
-            totals[key]["income"] += total
-        elif total < 0:
-            totals[key]["expenses"] += -total
-
-    return [
-        MonthlyIncomeExpense(
-            month=m,
-            income=totals[m]["income"],
-            expenses=totals[m]["expenses"],
+    category_totals: dict[tuple[date, uuid.UUID], int] = {}
+    for row in rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=account_by_id[row.account_id].currency,
+            quote=base_currency,
+            rate_date=row.dt,
         )
-        for m in months
-    ]
+        if total is None:
+            continue
+
+        key = (date(row.dt.year, row.dt.month, 1), row.category_id)
+        category_totals[key] = category_totals.get(key, 0) + total
+
+    for (month, _category_id), total in category_totals.items():
+        if total > 0:
+            totals[month]["income"] += total
+        elif total < 0:
+            totals[month]["expenses"] += -total
+
+    return (
+        [
+            MonthlyIncomeExpense(
+                month=m,
+                income=totals[m]["income"],
+                expenses=totals[m]["expenses"],
+            )
+            for m in months
+        ],
+        converter.get_status(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -432,9 +564,11 @@ def _plan_spending_comparison(
 
 async def _query_daily_expense(
     db: AsyncSession,
-    base_currency_account_ids: list[uuid.UUID],
+    account_by_id: dict[uuid.UUID, Account],
+    base_currency: str,
     start: date,
     end: date,
+    converter: FxConverter,
 ) -> dict[date, int]:
     """Return ``{dt: positive_expense_minor_units}`` for ``[start, end]`` inclusive.
 
@@ -442,17 +576,43 @@ async def _query_daily_expense(
     callers can cumsum into positive display values directly.
     """
     result = await db.execute(
-        select(Transaction.dt, func.sum(Transaction.amount).label("total"))
+        select(
+            Transaction.dt,
+            Transaction.account_id,
+            func.sum(Transaction.amount).label("total"),
+        )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(base_currency_account_ids),
+            Transaction.account_id.in_(list(account_by_id)),
             Category.kind == CategoryKind.EXPENSE,
             Transaction.dt >= start,
             Transaction.dt <= end,
         )
-        .group_by(Transaction.dt),
+        .group_by(Transaction.dt, Transaction.account_id),
     )
-    return {row.dt: -int(row.total) for row in result}
+    rows = list(result)
+    for currency in sorted({account_by_id[row.account_id].currency for row in rows if account_by_id[row.account_id].currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=start,
+            end_date=end,
+        )
+
+    daily: dict[date, int] = {}
+    for row in rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=account_by_id[row.account_id].currency,
+            quote=base_currency,
+            rate_date=row.dt,
+        )
+        if converted_total is None:
+            continue
+
+        daily[row.dt] = daily.get(row.dt, 0) - converted_total
+    return daily
 
 
 def _sum_days(daily: dict[date, int], start: date, end: date) -> int:
@@ -467,7 +627,8 @@ def _sum_days(daily: dict[date, int], start: date, end: date) -> int:
 
 async def get_spending_comparison(
     db: AsyncSession,
-    base_currency_account_ids: list[uuid.UUID],
+    accounts: list[Account],
+    base_currency: str,
     range_: RangeKind,
     now: datetime,
 ) -> SpendingComparisonResponse:
@@ -479,26 +640,42 @@ async def get_spending_comparison(
     """
     labels, current_ranges, previous_ranges = _plan_spending_comparison(range_, now.date())
 
-    if not base_currency_account_ids:
+    if not accounts:
         return SpendingComparisonResponse(
             range=range_,
             slot_labels=labels,
             current=[0] * len(current_ranges),
             previous=[0] * len(previous_ranges),
+            fx_status=FxStatus(),
         )
 
+    account_by_id = {account.id: account for account in accounts}
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
     current_daily_spend = (
         await _query_daily_expense(
-            db, base_currency_account_ids,
-            current_ranges[0][0], current_ranges[-1][1],
+            db,
+            account_by_id,
+            base_currency,
+            current_ranges[0][0],
+            current_ranges[-1][1],
+            converter,
         )
         if current_ranges
         else {}
     )
     previous_daily_spend = (
         await _query_daily_expense(
-            db, base_currency_account_ids,
-            previous_ranges[0][0], previous_ranges[-1][1],
+            db,
+            account_by_id,
+            base_currency,
+            previous_ranges[0][0],
+            previous_ranges[-1][1],
+            converter,
         )
         if previous_ranges
         else {}
@@ -512,6 +689,7 @@ async def get_spending_comparison(
         slot_labels=labels,
         current=_cumsum(current_slot_totals),
         previous=_cumsum(previous_slot_totals),
+        fx_status=converter.get_status(),
     )
 
 
@@ -537,15 +715,17 @@ def _current_period_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
 
 async def get_spending_breakdown(
     db: AsyncSession,
-    base_currency_account_ids: list[uuid.UUID],
+    accounts: list[Account],
+    base_currency: str,
     range_: RangeKind,
     now: datetime,
 ) -> SpendingBreakdownResponse:
     """Return category-level expense and income totals for ``range_``.
 
-    Aggregates transactions on base-currency accessible accounts between the
-    range's current-period start and today. Negative category totals render as
-    spending, and positive category totals render as income. The original
+    Aggregates transactions on accessible accounts between the range's
+    current-period start and today. Foreign-currency account activity is
+    converted at transaction-date granularity. Negative category totals render
+    as spending, and positive category totals render as income. The original
     category kind is preserved so the frontend can mark flipped categories.
     Categories with zero totals are dropped; entries are sorted largest-first
     and compacted into an Other slice when the dashboard donut has too many
@@ -553,17 +733,21 @@ async def get_spending_breakdown(
     is never swallowed by Other.
     """
     start, end = _current_period_bounds(range_, now.date())
-    if not base_currency_account_ids:
+    if not accounts:
         return SpendingBreakdownResponse(
             range=range_,
             expense=[],
             income=[],
             expense_total=0,
             income_total=0,
+            fx_status=FxStatus(),
         )
 
+    account_by_id = {account.id: account for account in accounts}
     result = await db.execute(
         select(
+            Transaction.dt,
+            Transaction.account_id,
             Category.id,
             Category.name,
             Category.kind,
@@ -571,32 +755,60 @@ async def get_spending_breakdown(
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(base_currency_account_ids),
+            Transaction.account_id.in_(list(account_by_id)),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= start,
             Transaction.dt <= end,
         )
-        .group_by(Category.id, Category.name, Category.kind),
+        .group_by(Transaction.dt, Transaction.account_id, Category.id, Category.name, Category.kind),
     )
+    rows = list(result)
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    for currency in sorted({account_by_id[row.account_id].currency for row in rows if account_by_id[row.account_id].currency != base_currency}):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=start,
+            end_date=end,
+        )
+
+    category_totals: dict[uuid.UUID, tuple[str, CategoryKind, int]] = {}
+    for row in rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=account_by_id[row.account_id].currency,
+            quote=base_currency,
+            rate_date=row.dt,
+        )
+        if converted_total is None:
+            continue
+
+        name, kind, current_total = category_totals.get(row.id, (row.name, row.kind, 0))
+        category_totals[row.id] = (name, kind, current_total + converted_total)
 
     expense: list[CategoryBreakdownEntry] = []
     income: list[CategoryBreakdownEntry] = []
-    for row in result:
-        total = int(row.total or 0)
+    for category_id, (name, kind, total) in category_totals.items():
         if total < 0:
             expense.append(CategoryBreakdownEntry(
-                category_id=row.id,
-                name=row.name,
-                category_kind=row.kind,
+                category_id=category_id,
+                name=name,
+                category_kind=kind,
                 amount=-total,
             ))
             continue
 
         if total > 0:
             income.append(CategoryBreakdownEntry(
-                category_id=row.id,
-                name=row.name,
-                category_kind=row.kind,
+                category_id=category_id,
+                name=name,
+                category_kind=kind,
                 amount=total,
             ))
 
@@ -610,6 +822,7 @@ async def get_spending_breakdown(
         income=_dashboard_breakdown_entries(income, CategoryKind.INCOME),
         expense_total=max(sum(entry.amount for entry in expense) - expense_refunds, 0),
         income_total=max(sum(entry.amount for entry in income) - income_losses, 0),
+        fx_status=converter.get_status(),
     )
 
 

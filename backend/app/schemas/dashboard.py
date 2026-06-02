@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.fx import FxStatus
 from app.schemas.transaction import TransactionResponse
 
 RangeKind = Literal["WTD", "MTD", "QTD", "YTD"]
@@ -32,6 +33,8 @@ class SpendingBreakdownResponse(BaseModel):
     first and compacted with an Other slice for the dashboard widget.
     ``expense_total`` and ``income_total`` are authoritative center totals
     after flipped refund/loss categories are netted against their original side.
+    ``fx_status`` reports whether conversions were complete, incomplete,
+    unavailable, or unnecessary.
     """
 
     range: RangeKind
@@ -39,6 +42,7 @@ class SpendingBreakdownResponse(BaseModel):
     income: list[CategoryBreakdownEntry]
     expense_total: int
     income_total: int
+    fx_status: FxStatus
 
 
 class SpendingComparisonResponse(BaseModel):
@@ -49,18 +53,21 @@ class SpendingComparisonResponse(BaseModel):
     quarter for QTD, 12 months for YTD) and drives the chart's x-axis.
 
     ``current`` / ``previous`` are cumulative positive minor-unit totals in
-    the user's base currency (expense-kind transactions on base-currency
-    accounts only). They contain only the slots with real data — ``current``
+    the user's base currency. Foreign-currency account activity is converted
+    when needed. They contain only the slots with real data — ``current``
     stops at today, and ``previous`` stops at the prior period's last day
     (so it can be shorter than ``current`` for MTD when the prior month had
     fewer days, or up to ``len(slot_labels)`` otherwise). The frontend zips
     by index and treats missing trailing entries as no data.
+    ``fx_status`` reports whether conversions were complete, incomplete,
+    unavailable, or unnecessary.
     """
 
     range: RangeKind
     slot_labels: list[str]
     current: list[int]
     previous: list[int]
+    fx_status: FxStatus
 
 
 class MonthlyIncomeExpense(BaseModel):
@@ -80,30 +87,36 @@ class CreditWidgetResponse(BaseModel):
     """Credit usage totals for the dashboard credit widget.
 
     - `credit_limit_total` sums `credit_limit` across readable non-hidden
-      revolving-credit accounts in the user's base currency that have a limit set.
+      revolving-credit accounts converted to the user's base currency when needed.
     - `credit_used` flips negative account balances into positive usage and
       treats positive stored-credit balances as zero used.
+    - `fx_status` reports whether foreign-currency conversions were complete,
+      incomplete, unavailable, or unnecessary.
     """
 
     credit_limit_total: int
     credit_used: int
+    fx_status: FxStatus
 
 
 class NetWorthWidgetResponse(BaseModel):
     """Net worth totals and trend for the dashboard net worth widget.
 
     - `current_net_worth` is the sum of latest signed balances across every readable
-      non-hidden account in the user's base currency.
+      non-hidden account converted to the user's base currency when needed.
     - `net_worth_history` is a day-by-day series of net worth over the last
       `net_worth_window_days` days (length = `net_worth_window_days`, index 0 =
       earliest day, final index = today). Forward-filled from
       `AccountBalanceSnapshot` rows so days without activity carry the previous
       day's balance.
+    - `fx_status` reports whether foreign-currency conversions were complete,
+      incomplete, unavailable, or unnecessary.
     """
 
     current_net_worth: int
     net_worth_history: list[int]
     net_worth_window_days: int
+    fx_status: FxStatus
 
 
 class SavingsRateWidgetResponse(BaseModel):
@@ -111,13 +124,17 @@ class SavingsRateWidgetResponse(BaseModel):
 
     `savings_rate_history` is a per-month series of raw income and expense
     totals covering the current (in-progress) calendar month plus the prior
-    six months, ordered oldest-first. Base-currency accounts only. The rate
-    itself is derived on the frontend so it can handle the three zero-income
-    cases (real rate, ``-inf`` when expenses exist without income, ``0``
-    when both are zero) without having to serialize non-finite floats.
+    six months, ordered oldest-first. Foreign-currency account activity is
+    converted to the user's base currency when needed. The rate itself is
+    derived on the frontend so it can handle the three zero-income cases
+    (real rate, ``-inf`` when expenses exist without income, ``0`` when both
+    are zero) without having to serialize non-finite floats.
+    `fx_status` reports whether conversions were complete, incomplete,
+    unavailable, or unnecessary.
     """
 
     savings_rate_history: list[MonthlyIncomeExpense]
+    fx_status: FxStatus
 
 
 class RecentActivityWidgetResponse(BaseModel):

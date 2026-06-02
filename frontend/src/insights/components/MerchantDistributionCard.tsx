@@ -7,13 +7,16 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { Store } from 'lucide-react'
+import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
+import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
+import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
@@ -38,6 +41,7 @@ type MerchantMarketHover = {
 
 type MerchantDistributionCardProps = {
   merchants: MerchantMarketMerchant[]
+  fxStatus: FxStatus | undefined
   currency: string
   loading?: boolean
   transitionKey: string
@@ -45,6 +49,7 @@ type MerchantDistributionCardProps = {
 
 type MerchantDistributionSnapshot = {
   merchants: MerchantMarketMerchant[]
+  fxStatus: FxStatus | undefined
   currency: string
   emptyLabel: string
 }
@@ -357,15 +362,17 @@ function MerchantMarketMap({
 
 export function MerchantDistributionCard({
   merchants,
+  fxStatus,
   currency,
   loading = false,
   transitionKey,
 }: MerchantDistributionCardProps) {
   const incomingSnapshot = useMemo<MerchantDistributionSnapshot>(() => ({
     merchants,
+    fxStatus,
     currency,
     emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range.',
-  }), [currency, loading, merchants])
+  }), [currency, fxStatus, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -384,6 +391,13 @@ export function MerchantDistributionCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Spending Distribution by Merchant
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Merchant Distribution FX status"
+                status={displaySnapshot.fxStatus}
+                getMessage={getMerchantSpendingFxStatusMessage}
+              />
+            )}
             <IconTooltip
               label="How merchant distribution is calculated"
               placement="bottom"

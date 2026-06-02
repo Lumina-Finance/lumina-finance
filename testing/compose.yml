@@ -2,6 +2,7 @@
 services:
   app:
     image: "${TEST_INSTANCE_IMAGE:-lumina-finance:testing}"
+    restart: unless-stopped
     container_name: lumina-finance-docker-stack-test-app
     depends_on:
       postgres:
@@ -15,11 +16,13 @@ services:
       DB_USER: "${DB_USER}"
       DB_PASSWORD: "${DB_PASSWORD}"
       APP_URL: "${APP_URL:-}"
+      FRANKFURTER_BASE_URL: "${FRANKFURTER_BASE_URL:-https://api.frankfurter.dev}"
     volumes:
       - lumina_data:/data
 
   postgres:
     image: postgres:17
+    restart: unless-stopped
     container_name: lumina-finance-docker-stack-test-db
     environment:
       POSTGRES_DB: "${DB_NAME:?DB_NAME is required}"

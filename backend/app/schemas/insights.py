@@ -1,7 +1,9 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.fx import FxStatus
 
 NetWorthGroupKind = Literal["asset", "debt"]
 
@@ -11,12 +13,16 @@ class InsightsPeriodGlanceResponse(BaseModel):
 
     income: int
     expenses: int
+    income_expense_fx_status: FxStatus = Field(default_factory=FxStatus)
     net_worth_change: int
+    net_worth_change_fx_status: FxStatus = Field(default_factory=FxStatus)
     top_category_name: str | None = None
     top_category_share_pct: int | None = None
+    top_category_fx_status: FxStatus = Field(default_factory=FxStatus)
     biggest_change_name: str | None = None
     biggest_change_amount: int | None = None
     biggest_change_pct: int | None = None
+    biggest_change_fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsFundFlowResponse(BaseModel):
@@ -28,6 +34,7 @@ class InsightsFundFlowResponse(BaseModel):
     expense_inflows: list[tuple[str, int]]
     income_source_count: int
     expense_category_count: int
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsIncomeExpenseBreakdownResponse(BaseModel):
@@ -46,12 +53,14 @@ class InsightsIncomeExpenseBreakdownResponse(BaseModel):
     expense_decreases: list[tuple[str, str, int, int, int | None, int]]
     income_increases: list[tuple[str, str, int, int, int | None, int]]
     income_decreases: list[tuple[str, str, int, int, int | None, int]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsCashFlowResponse(BaseModel):
     """Payload for the insights cash-flow card."""
 
     points: list[tuple[date, date, int, int]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsNetWorthResponse(BaseModel):
@@ -59,12 +68,14 @@ class InsightsNetWorthResponse(BaseModel):
 
     groups: list[tuple[str, str, NetWorthGroupKind]]
     points: list[tuple[date, date, list[int]]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsSavingsRateTrendResponse(BaseModel):
     """Payload for the insights savings-rate trend card."""
 
     points: list[tuple[date, int, int]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class InsightsMerchantDistributionResponse(BaseModel):
@@ -77,3 +88,11 @@ class InsightsMerchantRankingResponse(BaseModel):
     """Payload for the insights merchant ranking card."""
 
     merchants: list[tuple[str, str, int, int, int | None]]
+
+
+class InsightsMerchantsResponse(BaseModel):
+    """Shared payload for insights merchant cards."""
+
+    distribution: list[tuple[str, str, int, int | None, int | None]]
+    ranking: list[tuple[str, str, int, int, int | None]]
+    fx_status: FxStatus = Field(default_factory=FxStatus)

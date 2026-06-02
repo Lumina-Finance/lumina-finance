@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.auth import validate_iana_timezone
+from app.schemas.fx import FxStatus
 
 RUNWAY_THRESHOLD_MIN_MONTHS = 0
 RUNWAY_THRESHOLD_MAX_MONTHS = 12
@@ -87,6 +88,13 @@ class RunwaySettings(BaseModel):
     thresholds: RunwayThresholds
 
 
+class RunwayAccountBalance(BaseModel):
+    """Selected runway account balance converted to the user's base currency."""
+
+    account_id: uuid.UUID
+    balance: int
+
+
 class RunwayResponse(BaseModel):
     """Runway projection in months.
 
@@ -99,7 +107,9 @@ class RunwayResponse(BaseModel):
     avg_monthly_expense: int
     months_covered: int
     liquid_balance: int
+    account_balances: list[RunwayAccountBalance] = Field(default_factory=list)
     thresholds: RunwayThresholds
+    fx_status: FxStatus
 
 
 def _is_runway_threshold_step(value: float) -> bool:

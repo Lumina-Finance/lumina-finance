@@ -13,6 +13,8 @@ import {
   PieChart,
   ResponsiveContainer,
 } from 'recharts'
+import type { FxStatus } from '@/api/dashboard'
+import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -20,6 +22,7 @@ import {
 } from './InsightLoadingTransition'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
+import { FxStatusBadge } from './FxStatusBadge'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
@@ -56,6 +59,7 @@ type IncomeExpenseBreakdownCardProps = {
   entries: BreakdownEntry[]
   total: number
   trendSections: CategoryTrendSection[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   animationKey: string
   loading?: boolean
@@ -67,6 +71,7 @@ type IncomeExpenseBreakdownSnapshot = {
   entries: BreakdownEntry[]
   total: number
   trendSections: CategoryTrendSection[]
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   animationKey: string
 }
@@ -160,6 +165,7 @@ export function IncomeExpenseBreakdownCard({
   entries,
   total,
   trendSections,
+  fxStatus,
   displayCurrency,
   animationKey,
   loading = false,
@@ -174,9 +180,10 @@ export function IncomeExpenseBreakdownCard({
     entries,
     total,
     trendSections,
+    fxStatus,
     displayCurrency,
     animationKey,
-  }), [animationKey, displayCurrency, entries, mode, total, trendSections])
+  }), [animationKey, displayCurrency, entries, fxStatus, mode, total, trendSections])
   const {
     displaySnapshot,
     contentConcealed,
@@ -248,9 +255,18 @@ export function IncomeExpenseBreakdownCard({
       <SectionHeader
         icon={PieChartIcon}
         label={(
-          <span className="inline-flex items-baseline whitespace-nowrap">
-            <AppSlotMachineText text={mode === 'expense' ? 'Expense' : 'Income'} />
-            <span className="ml-[0.25em]">Breakdown</span>
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-flex items-baseline whitespace-nowrap">
+              <AppSlotMachineText text={displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} />
+              <span className="ml-[0.25em]">Breakdown</span>
+            </span>
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Income and expense breakdown FX status"
+                status={displaySnapshot.fxStatus}
+                getMessage={getIncomeExpenseBreakdownFxStatusMessage}
+              />
+            )}
           </span>
         )}
         action={(

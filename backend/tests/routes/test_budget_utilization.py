@@ -1,6 +1,7 @@
 """Route tests for budget utilization endpoints."""
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import sqlalchemy as sa
 
@@ -218,6 +219,7 @@ async def test_list_latest_budget_utilizations_returns_latest_period_only(client
     assert data[0]["currency"] == "CAD"
     assert data[0]["total_spent"] == 5000
     assert data[0]["overall_limit"] == 100000
+    assert data[0]["fx_status"] == {"state": "none", "missing_pairs": []}
 
 
 async def test_list_latest_budget_utilizations_excludes_inaccessible_budgets(client):
@@ -1010,13 +1012,15 @@ async def test_get_budget_utilization_with_zero_amount_transaction(client):
 # --- GET /budgets/{id}/utilization — currency and scope filtering ---
 
 
-async def test_get_budget_utilization_excludes_transactions_on_different_currency_account(client):
-    """A CAD budget must not aggregate transactions stored on a USD account.
+async def test_get_budget_utilization_converts_foreign_account_transactions(client, monkeypatch):
+    """A CAD budget converts tracked USD-account spending into CAD."""
+    from app.services.fx import FrankfurterProvider
 
-    `Transaction.amount` is stored in the parent account's currency, so summing
-    a USD-account transaction into a CAD budget would mix currencies. This test
-    pins the fix that scopes the utilization query by `Account.currency`.
-    """
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 15): Decimal("1.5")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     await _seed_usd_currency()
@@ -1031,17 +1035,64 @@ async def test_get_budget_utilization_excludes_transactions_on_different_currenc
         client, headers, category_ids=[groceries],
     )
 
-    # Same tracked category, two accounts in different currencies — only the CAD
-    # txn should appear in a CAD budget's utilization
+    # Same tracked category, two account currencies — the USD row is converted
+    # before being added to the CAD budget's utilization.
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
-    await _create_transaction(client, headers, usd_account_id, groceries, amount=-3000)
+    await _create_transaction(client, headers, usd_account_id, groceries, amount=-3000, currency="USD")
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total_spent"] == 5000
+    assert data["total_spent"] == 9500
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
     by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
-    assert by_id[groceries] == 5000
+    assert by_id[groceries] == 9500
+
+
+async def test_get_budget_utilization_reports_incomplete_fx(client, monkeypatch):
+    """Budget utilization skips unconverted foreign rows and reports missing pairs."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        if base == "USD":
+            return {date(2026, 3, 15): Decimal("1.5")}
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add_all([
+            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+        ])
+        await session.commit()
+
+    usd_account_id = (
+        await _create_account(client, headers, name="USD Chequing", currency="USD")
+    ).json()["id"]
+    abc_account_id = (
+        await _create_account(client, headers, name="ABC Chequing", currency="ABC")
+    ).json()["id"]
+    groceries = await _create_category(client, headers, name="Test Groceries")
+
+    _, budget_id = await _create_base_with_instance(
+        client, headers, category_ids=[groceries],
+    )
+
+    await _create_transaction(client, headers, usd_account_id, groceries, amount=-3000, currency="USD")
+    await _create_transaction(client, headers, abc_account_id, groceries, amount=-9000, currency="ABC")
+
+    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_spent"] == 4500
+    assert data["categories"][0]["spent"] == 4500
+    assert data["fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
 
 
 async def test_get_budget_utilization_personal_budget_excludes_group_account_transactions(client):
@@ -1137,13 +1188,15 @@ async def test_get_budget_utilization_group_budget_excludes_personal_account_tra
     assert data["categories"][0]["spent"] == 3000
 
 
-async def test_get_budget_utilization_non_base_currency_aggregates_only_matching_currency(client):
-    """A non-base currency budget aggregates only same-currency account transactions.
+async def test_get_budget_utilization_non_base_currency_converts_other_currencies(client, monkeypatch):
+    """A USD budget converts CAD-account spending into USD."""
+    from app.services.fx import FrankfurterProvider
 
-    End-to-end happy path: a CAD-base user can create a USD base budget alongside
-    their CAD one, and each aggregates spend only from accounts in the matching
-    currency.
-    """
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 15): Decimal("0.75")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     await _seed_usd_currency()
@@ -1160,23 +1213,26 @@ async def test_get_budget_utilization_non_base_currency_aggregates_only_matching
         base_overrides={"name": "USD Groceries", "currency": "USD"},
     )
 
-    # 4000 CAD on the CAD account, 7000 USD on the USD account — both in the same period
+    # 4000 CAD converts to 3000 USD, then adds to 7000 USD same-currency spend.
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-4000)
     await _create_transaction(client, headers, usd_account_id, groceries, amount=-7000, currency="USD")
 
     resp = await client.get(f"/budgets/{usd_budget_id}/utilization", headers=headers)
     data = resp.json()
-    assert data["total_spent"] == 7000
-    assert data["categories"][0]["spent"] == 7000
+    assert data["total_spent"] == 10000
+    assert data["categories"][0]["spent"] == 10000
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
 
 
-async def test_get_budget_utilization_zero_when_no_account_matches_budget_currency(client):
-    """A budget in a currency the user has no accounts in returns zero spent.
+async def test_get_budget_utilization_converts_when_no_account_matches_budget_currency(client, monkeypatch):
+    """A USD budget can still count CAD-account spending through FX conversion."""
+    from app.services.fx import FrankfurterProvider
 
-    Useful when a user is planning ahead — e.g., creating a USD vacation budget
-    before they open the USD account. The endpoint should return tracked
-    categories with zero spend rather than erroring.
-    """
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 15): Decimal("0.75")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     await _seed_usd_currency()
@@ -1191,14 +1247,15 @@ async def test_get_budget_utilization_zero_when_no_account_matches_budget_curren
         base_overrides={"name": "USD Vacation", "currency": "USD"},
     )
 
-    # CAD spending exists but should be invisible to a USD budget
+    # CAD spending exists and is converted into the USD budget currency.
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
 
     resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
     data = resp.json()
-    assert data["total_spent"] == 0
+    assert data["total_spent"] == 3750
     assert data["categories"][0]["category_id"] == groceries
-    assert data["categories"][0]["spent"] == 0
+    assert data["categories"][0]["spent"] == 3750
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
 
 
 # --- GET /budgets/{id}/utilization — period_end cutoff semantics ---
@@ -1831,14 +1888,17 @@ async def test_get_budget_utilization_personal_budget_aggregates_multiple_person
     assert data["categories"][0]["spent"] == 5500
 
 
-async def test_get_budget_utilization_three_currency_user_filters_to_budget_currency(client):
-    """With accounts in three currencies, the budget aggregates only its own currency.
+async def test_get_budget_utilization_three_currency_user_converts_all_account_currencies(client, monkeypatch):
+    """A USD budget converts CAD and EUR account spend before summing."""
+    from app.services.fx import FrankfurterProvider
 
-    Locks in that the currency filter is exact-match, not "match if any" or
-    "prefer the user's base currency". A USD budget must see only USD-account
-    spend even when CAD and EUR accounts also hold matching-category
-    transactions.
-    """
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        if base == "CAD":
+            return {date(2026, 3, 15): Decimal("0.75")}
+        return {date(2026, 3, 20): Decimal("1.1")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     await _seed_usd_currency()
@@ -1874,9 +1934,10 @@ async def test_get_budget_utilization_three_currency_user_filters_to_budget_curr
     resp = await client.get(f"/budgets/{usd_budget_id}/utilization", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    # Only the USD spend — CAD and EUR are filtered out
-    assert data["total_spent"] == 7000
-    assert data["categories"][0]["spent"] == 7000
+    # 4000 CAD -> 3000 USD, 3500 EUR -> 3850 USD, plus 7000 USD.
+    assert data["total_spent"] == 13850
+    assert data["categories"][0]["spent"] == 13850
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
 
 
 # --- GET /budgets/{id}/utilization — path parameter validation ---

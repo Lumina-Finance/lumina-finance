@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Sparkles } from 'lucide-react'
+import type { FxStatus } from '@/api/dashboard'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getPeriodIncomeExpenseFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
+import { FxStatusBadge } from './FxStatusBadge'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -25,6 +28,8 @@ export type PeriodGlanceSupportItem = {
   value: string
   detail: string
   tone: PeriodGlanceTone
+  fxStatus?: FxStatus
+  getFxStatusMessage?: (fxStatus: FxStatus) => string
 }
 
 type PeriodGlanceSnapshot = {
@@ -32,6 +37,7 @@ type PeriodGlanceSnapshot = {
   supportItems: PeriodGlanceSupportItem[]
   income: number
   expenses: number
+  incomeExpenseFxStatus: FxStatus | undefined
   displayCurrency: string
 }
 
@@ -40,6 +46,7 @@ type PeriodGlanceCardProps = {
   supportItems: PeriodGlanceSupportItem[]
   income: number
   expenses: number
+  incomeExpenseFxStatus: FxStatus | undefined
   displayCurrency: string
   loading?: boolean
   transitionKey: string
@@ -116,6 +123,7 @@ export function PeriodGlanceCard({
   supportItems,
   income,
   expenses,
+  incomeExpenseFxStatus,
   displayCurrency,
   loading = false,
   transitionKey,
@@ -125,8 +133,9 @@ export function PeriodGlanceCard({
     supportItems,
     income,
     expenses,
+    incomeExpenseFxStatus,
     displayCurrency,
-  }), [displayCurrency, expenses, income, primaryMetric, supportItems])
+  }), [displayCurrency, expenses, income, incomeExpenseFxStatus, primaryMetric, supportItems])
   const {
     displaySnapshot,
     contentConcealed,
@@ -145,12 +154,21 @@ export function PeriodGlanceCard({
     <section className="app-card">
       <SectionHeader icon={Sparkles} label="This Period at a Glance" />
 
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
             <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1400px]:flex min-[1400px]:min-h-52 min-[1400px]:flex-col min-[1400px]:items-stretch min-[1400px]:justify-between">
               <div className="min-w-0 [container-type:inline-size]">
-                <p className="app-label">{displaySnapshot.primaryMetric.label}</p>
+                <p className="app-label inline-flex items-center gap-2">
+                  {displaySnapshot.primaryMetric.label}
+                  {displaySnapshot.incomeExpenseFxStatus && (
+                    <FxStatusBadge
+                      label="Income and expense FX status"
+                      status={displaySnapshot.incomeExpenseFxStatus}
+                      getMessage={getPeriodIncomeExpenseFxStatusMessage}
+                    />
+                  )}
+                </p>
                 <p
                   ref={primaryAmountRef}
                   className={[
@@ -194,7 +212,16 @@ export function PeriodGlanceCard({
                   ].join(' ')}
                 >
                   <div className="flex min-h-28 flex-col items-center justify-center text-center">
-                    <p className="app-label">{item.label}</p>
+                    <p className="app-label inline-flex items-center justify-center gap-2">
+                      {item.label}
+                      {item.fxStatus && (
+                        <FxStatusBadge
+                          label={`${item.label} FX status`}
+                          status={item.fxStatus}
+                          getMessage={item.getFxStatusMessage}
+                        />
+                      )}
+                    </p>
                     <p
                       className={['mt-1 text-2xl font-semibold leading-tight', metricToneClass(item.tone)].join(' ')}
                     >

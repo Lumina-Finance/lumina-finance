@@ -3,9 +3,11 @@ import { motion } from 'motion/react'
 export default function TransactionFilterLoadingOverlay({
   placement = 'top',
   reducedMotion,
+  label = 'Loading transactions',
 }: {
   placement?: 'center' | 'top'
   reducedMotion: boolean | null
+  label?: string
 }) {
   return (
     <motion.div
@@ -35,7 +37,7 @@ export default function TransactionFilterLoadingOverlay({
         className="text-xs font-medium uppercase tracking-[0.2em]"
         style={{ color: 'var(--app-text-subtle)' }}
       >
-        Loading transactions
+        {label}
       </p>
     </motion.div>
   )

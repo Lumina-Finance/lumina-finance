@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -774,6 +775,254 @@ async def test_get_runway_handles_refunds_and_excludes_income_losses_and_transfe
     # and the current partial month are excluded.
     assert data["avg_monthly_expense"] == 8_000
     assert data["reason"] is None
+
+
+async def test_get_runway_converts_foreign_currency_balances_and_daily_expenses(client, monkeypatch):
+    """Runway converts selected balances and historical expense rows to the user's base currency."""
+    from app.routes import user as user_routes
+    from app.services.fx import FrankfurterProvider
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    calls = []
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        calls.append((base, quote, start_date, end_date))
+        return {
+            date(2026, 3, 13): Decimal("1.25"),
+            date(2026, 3, 14): Decimal("1.75"),
+            date(2026, 4, 15): Decimal("1.5"),
+        }
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    await _seed_usd()
+    cad_account = (await _create_account(client, headers, name="CAD Cash")).json()
+    usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
+    cad_account_id = cad_account["id"]
+    usd_account_id = usd_account["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add_all([
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(cad_account_id),
+                category_id=category.id,
+                dt=date(2026, 3, 13),
+                amount=-12_000,
+                currency="CAD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(usd_account_id),
+                category_id=category.id,
+                dt=date(2026, 3, 13),
+                amount=-10_000,
+                currency="USD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(usd_account_id),
+                category_id=category.id,
+                dt=date(2026, 3, 14),
+                amount=-10_000,
+                currency="USD",
+            ),
+            AccountBalanceSnapshot(account_id=UUID(cad_account_id), dt=date(2026, 4, 15), balance=100_000),
+            AccountBalanceSnapshot(account_id=UUID(usd_account_id), dt=date(2026, 4, 15), balance=20_000),
+        ])
+        for account, balance in [(cad_account, 100_000), (usd_account, 20_000)]:
+            await session.execute(
+                update(AccountBalanceSnapshot)
+                .where(
+                    AccountBalanceSnapshot.account_id == UUID(account["id"]),
+                    AccountBalanceSnapshot.dt == _owner_local_creation_day(account),
+                )
+                .values(balance=balance),
+            )
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [cad_account_id, usd_account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["liquid_balance"] == 130_000
+    account_balances = {row["account_id"]: row["balance"] for row in data["account_balances"]}
+    assert account_balances == {
+        cad_account_id: 100_000,
+        usd_account_id: 30_000,
+    }
+    assert data["months_covered"] == 1
+    assert data["avg_monthly_expense"] == 42_000
+    assert data["months"] == pytest.approx(130_000 / 42_000)
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert calls == [("USD", "CAD", date(2025, 4, 1), date(2026, 4, 15))]
+
+
+async def test_get_runway_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
+    """Runway skips unconverted foreign expense rows and reports the missing pair."""
+    from app.routes import user as user_routes
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        if base == "USD":
+            return {date(2026, 3, 13): Decimal("1.5")}
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    async with TestSession() as session:
+        session.add_all([
+            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+        ])
+        await session.commit()
+
+    cad_account = (await _create_account(client, headers, name="CAD Cash")).json()
+    cad_account_id = cad_account["id"]
+    usd_account_id = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"]
+    abc_account_id = (await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add_all([
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(usd_account_id),
+                category_id=category.id,
+                dt=date(2026, 3, 13),
+                amount=-20_000,
+                currency="USD",
+            ),
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(abc_account_id),
+                category_id=category.id,
+                dt=date(2026, 3, 13),
+                amount=-90_000,
+                currency="ABC",
+            ),
+            AccountBalanceSnapshot(account_id=UUID(cad_account_id), dt=date(2026, 4, 15), balance=120_000),
+        ])
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(
+                AccountBalanceSnapshot.account_id == UUID(cad_account_id),
+                AccountBalanceSnapshot.dt == _owner_local_creation_day(cad_account),
+            )
+            .values(balance=120_000),
+        )
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [cad_account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["liquid_balance"] == 120_000
+    assert data["avg_monthly_expense"] == 30_000
+    assert data["fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [
+            {
+                "base": "ABC",
+                "quote": "CAD",
+            },
+        ],
+    }
+
+
+async def test_get_runway_reports_unavailable_fx(client, monkeypatch):
+    """Runway reports unavailable FX when every provider lookup fails."""
+    from app.routes import user as user_routes
+    from app.services.fx import FrankfurterProvider, FxProviderUnavailableError
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxProviderUnavailableError()
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    await _seed_usd()
+    usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
+    usd_account_id = usd_account["id"]
+
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add_all([
+            Transaction(
+                created_by_user_id=user_id,
+                account_id=UUID(usd_account_id),
+                category_id=category.id,
+                dt=date(2026, 3, 13),
+                amount=-20_000,
+                currency="USD",
+            ),
+            AccountBalanceSnapshot(account_id=UUID(usd_account_id), dt=date(2026, 4, 15), balance=20_000),
+        ])
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(
+                AccountBalanceSnapshot.account_id == UUID(usd_account_id),
+                AccountBalanceSnapshot.dt == _owner_local_creation_day(usd_account),
+            )
+            .values(balance=20_000),
+        )
+        await session.commit()
+
+    await client.put("/me/runway-accounts", json={"account_ids": [usd_account_id]}, headers=headers)
+    resp = await client.get("/me/runway", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["reason"] == "insufficient_history"
+    assert data["liquid_balance"] == 0
+    assert data["account_balances"] == []
+    assert data["avg_monthly_expense"] == 0
+    assert data["fx_status"] == {
+        "state": "unavailable",
+        "missing_pairs": [
+            {
+                "base": "USD",
+                "quote": "CAD",
+            },
+        ],
+    }
 
 
 async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypatch):

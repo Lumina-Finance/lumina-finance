@@ -62,9 +62,16 @@ async def get_savings_rate_widget_route(
     """Return savings-rate history for the dashboard savings-rate widget."""
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
-    savings_rate_history = await get_savings_rate_history(db, base_currency_account_ids, now)
-    return SavingsRateWidgetResponse(savings_rate_history=savings_rate_history)
+    savings_rate_history, fx_status = await get_savings_rate_history(
+        db,
+        accounts,
+        user.base_currency,
+        now,
+    )
+    return SavingsRateWidgetResponse(
+        savings_rate_history=savings_rate_history,
+        fx_status=fx_status,
+    )
 
 
 @router.get("/net-worth", response_model=NetWorthWidgetResponse)
@@ -76,10 +83,10 @@ async def get_net_worth_widget_route(
     """Return net worth totals and trend for the dashboard net worth widget."""
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
-    current_net_worth, net_worth_history = await get_net_worth_history(
+    current_net_worth, net_worth_history, fx_status = await get_net_worth_history(
         db,
-        base_currency_accounts,
+        accounts,
+        user.base_currency,
         window_days,
         now,
     )
@@ -87,6 +94,7 @@ async def get_net_worth_widget_route(
         current_net_worth=current_net_worth,
         net_worth_history=net_worth_history,
         net_worth_window_days=window_days,
+        fx_status=fx_status,
     )
 
 
@@ -96,12 +104,18 @@ async def get_credit_widget_route(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Return credit usage totals for the dashboard credit widget."""
+    now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_accounts = [a for a in accounts if a.currency == user.base_currency]
-    credit_limit_total, credit_used = await get_credit_widget(db, base_currency_accounts)
+    credit_limit_total, credit_used, fx_status = await get_credit_widget(
+        db,
+        accounts,
+        user.base_currency,
+        now.date(),
+    )
     return CreditWidgetResponse(
         credit_limit_total=credit_limit_total,
         credit_used=credit_used,
+        fx_status=fx_status,
     )
 
 
@@ -115,13 +129,12 @@ async def get_spending_comparison_route(
 
     ``range`` picks the calendar period: week-, month-, quarter-, or
     year-to-date. The payload is always same-length ``current`` / ``previous``
-    cumulative totals in positive minor units, scoped to base-currency
-    accounts and expense categories.
+    cumulative totals in positive minor units, converted to the user's base
+    currency when needed and scoped to expense categories.
     """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
-    return await get_spending_comparison(db, base_currency_account_ids, range_, now)
+    return await get_spending_comparison(db, accounts, user.base_currency, range_, now)
 
 
 @router.get("/spending-breakdown", response_model=SpendingBreakdownResponse)
@@ -133,10 +146,10 @@ async def get_spending_breakdown_route(
     """Return category-level expense and income totals for the breakdown widget.
 
     Both breakdowns are returned in one payload so the spending/income toggle
-    can flip without refetching. Scoped to base-currency accessible accounts
-    and the same current-period bounds as the spending comparison chart.
+    can flip without refetching. Foreign-currency account activity is converted
+    to the user's base currency and uses the same current-period bounds as the
+    spending comparison chart.
     """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
-    base_currency_account_ids = [a.id for a in accounts if a.currency == user.base_currency]
-    return await get_spending_breakdown(db, base_currency_account_ids, range_, now)
+    return await get_spending_breakdown(db, accounts, user.base_currency, range_, now)

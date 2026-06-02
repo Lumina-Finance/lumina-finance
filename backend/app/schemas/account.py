@@ -4,6 +4,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 from app.schemas.dashboard import RangeKind
+from app.schemas.fx import FxStatus
 from app.schemas.institution import InstitutionResponse
 
 
@@ -23,6 +24,8 @@ class AccountsOverview(BaseModel):
     institution: InstitutionResponse | None
     currency: str
     current_balance: int
+    base_currency_current_balance: int | None = None
+    current_balance_fx_status: FxStatus = Field(default_factory=FxStatus)
     credit_limit: int | None
     is_hidden: bool
     closed_at: datetime | None
@@ -43,6 +46,8 @@ class AccountResponse(BaseModel):
     institution: InstitutionResponse | None
     currency: str
     current_balance: int
+    base_currency_current_balance: int | None = None
+    current_balance_fx_status: FxStatus = Field(default_factory=FxStatus)
     credit_limit: int | None
     is_hidden: bool
     closed_at: datetime | None

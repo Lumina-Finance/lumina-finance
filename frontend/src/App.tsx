@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
-import { useIsFetching } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -18,11 +17,10 @@ import LoadingScreen from '@/components/LoadingScreen'
 import Auth from '@/pages/Auth'
 
 const LOADING_SCREEN_MIN_MS = 1000;
-const PAGE_TRANSITION_EXIT_MS = 180;
-const PAGE_TRANSITION_MIN_LOADING_MS = 800;
-const PAGE_TRANSITION_ENTER_MS = 260;
+const PAGE_TRANSITION_MS = 350;
+const PAGE_TRANSITION_OFFSET_PX = 12;
 
-type PageTransitionPhase = 'idle' | 'exiting' | 'loading' | 'entering';
+type PageTransitionPhase = 'idle' | 'exiting' | 'entering';
 
 function isProtectedPath(pathname: string) {
   return (
@@ -49,6 +47,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
+  const [animateInitialPageMount] = useState(() => !hasShownLoadingScreen);
 
   // Enforce the first-session loading-screen minimum before revealing the app.
   useEffect(() => {
@@ -64,6 +63,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   const ready = !loading && minTimePassed;
+  const pageContentEntering = pageTransitionPhase === 'entering' || animateInitialPageMount;
 
   return (
     <>
@@ -81,17 +81,18 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
             className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10`}`}
             aria-busy={pageTransitioning}
           >
-            <AnimatePresence>
-              {pageTransitionPhase === 'loading' && (
-                <LoadingScreen variant={isFocusedPage ? 'screen' : 'main'} />
-              )}
-            </AnimatePresence>
             <motion.div
-              initial={false}
-              animate={{ opacity: pageContentVisible ? 1 : 0 }}
+              initial={{
+                opacity: pageContentEntering ? 0 : 1,
+                y: pageContentEntering ? PAGE_TRANSITION_OFFSET_PX : 0,
+              }}
+              animate={{
+                opacity: pageContentVisible ? 1 : 0,
+                y: pageTransitionPhase === 'exiting' ? -PAGE_TRANSITION_OFFSET_PX : 0,
+              }}
               transition={{
-                duration: (pageTransitionPhase === 'exiting' ? PAGE_TRANSITION_EXIT_MS : PAGE_TRANSITION_ENTER_MS) / 1000,
-                ease: 'easeOut',
+                duration: PAGE_TRANSITION_MS / 1000,
+                ease: 'easeInOut',
               }}
               style={{ pointerEvents: pageContentVisible ? 'auto' : 'none' }}
             >
@@ -116,10 +117,8 @@ function PublicRoute() {
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const fetchingCount = useIsFetching();
   const [displayLocation, setDisplayLocation] = useState(location);
   const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('idle');
-  const loadingStartedAtRef = useRef<number | null>(null);
 
   // Keep rendering the previous protected route until its exit fade completes.
   useEffect(() => {
@@ -147,9 +146,8 @@ function AnimatedRoutes() {
 
       exitTimer = window.setTimeout(() => {
         setDisplayLocation(location);
-        loadingStartedAtRef.current = null;
-        setPageTransitionPhase('loading');
-      }, PAGE_TRANSITION_EXIT_MS);
+        setPageTransitionPhase('entering');
+      }, PAGE_TRANSITION_MS);
     }, 0);
 
     return () => {
@@ -158,31 +156,13 @@ function AnimatedRoutes() {
     };
   }, [displayLocation.hash, displayLocation.pathname, displayLocation.search, location]);
 
-  // Hold the route-level loading state until queries settle and the minimum
-  // transition duration has elapsed.
-  useEffect(() => {
-    if (pageTransitionPhase !== 'loading') return;
-
-    loadingStartedAtRef.current ??= performance.now();
-
-    if (fetchingCount > 0) return;
-
-    const elapsed = performance.now() - loadingStartedAtRef.current;
-    const remaining = Math.max(0, PAGE_TRANSITION_MIN_LOADING_MS - elapsed);
-    const timer = window.setTimeout(() => {
-      setPageTransitionPhase('entering');
-    }, remaining);
-
-    return () => window.clearTimeout(timer);
-  }, [fetchingCount, pageTransitionPhase]);
-
   // Finish the enter phase after the content fade-in completes.
   useEffect(() => {
     if (pageTransitionPhase !== 'entering') return;
 
     const timer = window.setTimeout(() => {
       setPageTransitionPhase('idle');
-    }, PAGE_TRANSITION_ENTER_MS);
+    }, PAGE_TRANSITION_MS);
 
     return () => window.clearTimeout(timer);
   }, [pageTransitionPhase]);

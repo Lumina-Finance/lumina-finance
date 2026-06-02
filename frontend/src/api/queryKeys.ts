@@ -80,8 +80,7 @@ export const insightsKeys = {
   cashFlow: (fromDate: string, toDate: string) => ['insights-cash-flow', fromDate, toDate] as const,
   netWorth: (fromDate: string, toDate: string) => ['insights-net-worth', fromDate, toDate] as const,
   savingsRateTrend: () => ['insights-savings-rate-trend'] as const,
-  merchantDistribution: (fromDate: string, toDate: string) => ['insights-merchant-distribution', fromDate, toDate] as const,
-  merchantRanking: (fromDate: string, toDate: string) => ['insights-merchant-ranking', fromDate, toDate] as const,
+  merchants: (fromDate: string, toDate: string) => ['insights-merchants', fromDate, toDate] as const,
 };
 
 export const budgetKeys = {

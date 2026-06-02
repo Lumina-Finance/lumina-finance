@@ -21,6 +21,7 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
+from app.schemas.fx import FxStatus
 from app.schemas.transaction import (
     CreateTransactionRequest,
     DailyCashFlow,
@@ -32,6 +33,7 @@ from app.schemas.transaction import (
     TransactionsOverview,
     UpdateTransactionRequest,
 )
+from app.services.fx import FxConverter
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_imports import import_transactions
 from app.services.transaction_responses import (
@@ -115,6 +117,214 @@ def _accessible_account_ids(user_id: uuid.UUID, *, include_hidden: bool = False)
     if not include_hidden:
         query = query.where(Account.is_hidden.is_(False))
     return query.scalar_subquery()
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    result = await db.execute(
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+    )
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def _get_overview_accounts_by_id(db: AsyncSession, rows) -> dict[uuid.UUID, Account]:
+    account_ids = {row.account_id for row in rows}
+    accounts = (
+        (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
+        if account_ids
+        else []
+    )
+    return {account.id: account for account in accounts}
+
+
+async def _get_overview_converter(
+    db: AsyncSession,
+    *,
+    account_by_id: dict[uuid.UUID, Account],
+    base_currency: str,
+) -> FxConverter:
+    return FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in account_by_id.values())},
+        ),
+    )
+
+
+async def _prefetch_overview_rates(
+    converter: FxConverter,
+    *,
+    rows,
+    account_by_id: dict[uuid.UUID, Account],
+    base_currency: str,
+) -> None:
+    if rows:
+        start = min(row.date for row in rows)
+        end = max(row.date for row in rows)
+        for currency in sorted({
+            account_by_id[row.account_id].currency
+            for row in rows
+            if account_by_id[row.account_id].currency != base_currency
+        }):
+            await converter.prefetch_rates(
+                base=currency,
+                quote=base_currency,
+                start_date=start,
+                end_date=end,
+            )
+
+
+def _fork_overview_converter(converter: FxConverter) -> FxConverter:
+    fork = FxConverter(
+        provider=converter.provider,
+        currency_exponents=converter.currency_exponents,
+    )
+    fork.rates = converter.rates.copy()
+    fork.failed_rates = converter.failed_rates.copy()
+    return fork
+
+
+async def _convert_overview_daily_cash_flow(
+    *,
+    flow_rows,
+    account_by_id: dict[uuid.UUID, Account],
+    converter: FxConverter,
+    base_currency: str,
+) -> tuple[list[DailyCashFlow], FxStatus]:
+    daily_totals: dict[date, tuple[int, int]] = {}
+    for row in flow_rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        currency = account_by_id[row.account_id].currency
+        row_inflow = int(row.inflow or 0)
+        row_outflow = int(row.outflow or 0)
+        converted_inflow = await converter.convert_minor_units(
+            row_inflow,
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        converted_outflow = await converter.convert_minor_units(
+            row_outflow,
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if (
+            (row_inflow == 0 or converted_inflow is None)
+            and (row_outflow == 0 or converted_outflow is None)
+        ):
+            continue
+        inflow, outflow = daily_totals.get(row.date, (0, 0))
+        daily_totals[row.date] = (
+            inflow + (converted_inflow or 0),
+            outflow + (converted_outflow or 0),
+        )
+
+    daily_cash_flow = [
+        DailyCashFlow(date=flow_date, inflow=inflow, outflow=outflow)
+        for flow_date, (inflow, outflow) in sorted(daily_totals.items())
+    ]
+    return daily_cash_flow, converter.get_status()
+
+
+def _sum_overview_net_flow(daily_cash_flow: list[DailyCashFlow]) -> tuple[int, int]:
+    return (
+        sum(day.inflow for day in daily_cash_flow),
+        sum(day.outflow for day in daily_cash_flow),
+    )
+
+
+async def _convert_overview_outliers(
+    *,
+    category_rows,
+    candidate_rows,
+    account_by_id: dict[uuid.UUID, Account],
+    converter: FxConverter,
+    base_currency: str,
+) -> tuple[list[OutlierTransaction], FxStatus]:
+    category_totals: dict[uuid.UUID, int] = {}
+    for row in category_rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        currency = account_by_id[row.account_id].currency
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if converted_total is None:
+            continue
+
+        category_totals[row.category_id] = category_totals.get(row.category_id, 0) + converted_total
+
+    remaining_by_category = {
+        category_id: -total
+        for category_id, total in category_totals.items()
+        if total < 0
+    }
+
+    converted_candidates = []
+    for row in candidate_rows:
+        currency = account_by_id[row.account_id].currency
+        converted_amount = await converter.convert_minor_units(
+            int(row.amount),
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if converted_amount is None or converted_amount >= 0:
+            continue
+
+        converted_candidates.append((row, converted_amount))
+
+    outlier_candidates = []
+    for row, converted_amount in sorted(converted_candidates, key=lambda item: item[1]):
+        remaining = remaining_by_category.get(row.category_id, 0)
+        if remaining <= 0:
+            continue
+        amount = -min(-converted_amount, remaining)
+        remaining_by_category[row.category_id] = remaining + amount
+        outlier_candidates.append(OutlierTransaction(
+            id=row.id,
+            merchant_name=row.merchant_name,
+            notes=row.notes,
+            amount=int(row.amount),
+            currency=account_by_id[row.account_id].currency,
+            dt=row.date,
+        ))
+
+    return outlier_candidates[:3], converter.get_status()
+
+
+async def _convert_overview_top_categories(
+    *,
+    category_rows,
+    account_by_id: dict[uuid.UUID, Account],
+    converter: FxConverter,
+    base_currency: str,
+) -> tuple[list[TopCategorySpend], FxStatus]:
+    category_totals: dict[uuid.UUID, tuple[str, int]] = {}
+    for row in category_rows:
+        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+        currency = account_by_id[row.account_id].currency
+        converted_total = await converter.convert_minor_units(
+            int(row.total or 0),
+            base=currency,
+            quote=base_currency,
+            rate_date=row.date,
+        )
+        if converted_total is None:
+            continue
+
+        name, current_total = category_totals.get(row.category_id, (row.category_name, 0))
+        category_totals[row.category_id] = (name, current_total + converted_total)
+
+    top_categories = [
+        TopCategorySpend(category_id=category_id, category_name=name, total=total)
+        for category_id, (name, total) in category_totals.items()
+        if total < 0
+    ]
+    top_categories.sort(key=lambda category: category.total)
+    return top_categories[:5], converter.get_status()
 
 
 async def _check_category_access_or_422(
@@ -214,68 +424,44 @@ async def get_transactions_overview(
         )
 
     # Inflow / outflow totals
-    flow_query = select(
-        sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
-        sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
-    ).where(base_where)
-    flow = (await db.execute(flow_query)).one()
+    flow_query = (
+        select(
+            Transaction.dt.label("date"),
+            Transaction.account_id,
+            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
+            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
+        )
+        .where(base_where)
+        .group_by(Transaction.dt, Transaction.account_id)
+    )
+    flow_rows = (await db.execute(flow_query)).all()
 
     # Top 5 expense-side categories by net category outflow.
     cat_query = (
         select(
             Transaction.category_id,
             Category.name.label("category_name"),
+            Transaction.account_id,
+            Transaction.dt.label("date"),
             sa.func.sum(Transaction.amount).label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(base_where)
         .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
-        .group_by(Transaction.category_id, Category.name)
-        .having(sa.func.sum(Transaction.amount) < 0)
-        .order_by(sa.func.sum(Transaction.amount).asc())
-        .limit(5)
+        .group_by(Transaction.category_id, Category.name, Transaction.account_id, Transaction.dt)
     )
     cat_rows = (await db.execute(cat_query)).all()
-
-    # Daily cash flow
-    daily_query = (
-        select(
-            Transaction.dt.label("date"),
-            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
-            sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
-        )
-        .where(base_where)
-        .group_by(Transaction.dt)
-        .order_by(Transaction.dt)
-    )
-    daily_rows = (await db.execute(daily_query)).all()
-
-    expense_side_category_query = (
-        select(
-            Transaction.category_id,
-            sa.func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .where(base_where)
-        .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
-        .group_by(Transaction.category_id)
-        .having(sa.func.sum(Transaction.amount) < 0)
-    )
-    expense_side_category_rows = (await db.execute(expense_side_category_query)).all()
-    remaining_by_category = {
-        row.category_id: -int(row.total)
-        for row in expense_side_category_rows
-    }
 
     # Top 3 largest expense-side transaction contributors after category-level
     # refunds/income offsets have been netted for the selected period.
     outlier_query = (
         select(
             Transaction.id,
+            Transaction.account_id,
             Merchant.name.label("merchant_name"),
             Transaction.notes,
             Transaction.amount,
-            Transaction.dt,
+            Transaction.dt.label("date"),
             Transaction.category_id,
         )
         .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
@@ -285,34 +471,51 @@ async def get_transactions_overview(
         .where(Transaction.amount < 0)
         .order_by(Transaction.amount.asc())
     )
-    outlier_candidates = []
-    for row in (await db.execute(outlier_query)).all():
-        remaining = remaining_by_category.get(row.category_id, 0)
-        if remaining <= 0:
-            continue
-        amount = -min(-int(row.amount), remaining)
-        remaining_by_category[row.category_id] = remaining + amount
-        outlier_candidates.append(OutlierTransaction(
-            id=row.id,
-            merchant_name=row.merchant_name,
-            notes=row.notes,
-            amount=amount,
-            dt=row.dt,
-        ))
-    outliers = sorted(outlier_candidates, key=lambda row: row.amount)[:3]
+    outlier_rows = (await db.execute(outlier_query)).all()
+    overview_fx_rows = [*flow_rows, *cat_rows, *outlier_rows]
+    account_by_id = await _get_overview_accounts_by_id(db, overview_fx_rows)
+    overview_converter = await _get_overview_converter(
+        db,
+        account_by_id=account_by_id,
+        base_currency=user.base_currency,
+    )
+    await _prefetch_overview_rates(
+        overview_converter,
+        rows=overview_fx_rows,
+        account_by_id=account_by_id,
+        base_currency=user.base_currency,
+    )
+    top_categories, top_categories_fx_status = await _convert_overview_top_categories(
+        category_rows=cat_rows,
+        account_by_id=account_by_id,
+        converter=_fork_overview_converter(overview_converter),
+        base_currency=user.base_currency,
+    )
+    daily_cash_flow, daily_cash_flow_fx_status = await _convert_overview_daily_cash_flow(
+        flow_rows=flow_rows,
+        account_by_id=account_by_id,
+        converter=_fork_overview_converter(overview_converter),
+        base_currency=user.base_currency,
+    )
+    total_inflow, total_outflow = _sum_overview_net_flow(daily_cash_flow)
+    outliers, outliers_fx_status = await _convert_overview_outliers(
+        category_rows=cat_rows,
+        candidate_rows=outlier_rows,
+        account_by_id=account_by_id,
+        converter=_fork_overview_converter(overview_converter),
+        base_currency=user.base_currency,
+    )
 
     return TransactionsOverview(
-        total_inflow=flow.inflow,
-        total_outflow=flow.outflow,
-        top_categories=[
-            TopCategorySpend(category_id=r.category_id, category_name=r.category_name, total=r.total)
-            for r in cat_rows
-        ],
-        daily_cash_flow=[
-            DailyCashFlow(date=r.date, inflow=r.inflow, outflow=r.outflow)
-            for r in daily_rows
-        ],
+        total_inflow=total_inflow,
+        total_outflow=total_outflow,
+        net_flow_fx_status=daily_cash_flow_fx_status,
+        top_categories=top_categories,
+        top_categories_fx_status=top_categories_fx_status,
+        daily_cash_flow=daily_cash_flow,
+        daily_cash_flow_fx_status=daily_cash_flow_fx_status,
         outliers=outliers,
+        outliers_fx_status=outliers_fx_status,
     )
 
 

@@ -16,6 +16,7 @@ export default function AccountListSection({
   displayCurrency,
   taxAdvantagedPlanById,
   showCreditLimit = false,
+  loading = false,
 }: {
   title: string
   accent: AccountAccent
@@ -25,6 +26,7 @@ export default function AccountListSection({
   displayCurrency: string
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
   showCreditLimit?: boolean
+  loading?: boolean
 }) {
   const prefersReducedMotion = useReducedMotion()
   const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
@@ -46,16 +48,34 @@ export default function AccountListSection({
           }}
         />
         <span
-          className="font-financial shrink-0 text-xl font-semibold"
-          style={{ color: subtotalColor }}
+          className="font-financial flex min-h-7 min-w-24 shrink-0 items-center justify-end text-xl font-semibold"
+          style={{ color: loading ? 'var(--app-text)' : subtotalColor }}
         >
-          {formatCurrency(subtotal, displayCurrency)}
+          {loading ? (
+            <span className="app-spinner" aria-label={`Loading ${title.toLowerCase()} total`} />
+          ) : (
+            formatCurrency(subtotal, displayCurrency)
+          )}
         </span>
       </div>
 
-      <div className="relative min-h-[4.625rem]">
+      <div className="relative min-h-[4.625rem] overflow-hidden rounded-lg">
         <AnimatePresence initial={false}>
-          {accounts.length === 0 && (
+          {loading && (
+            <motion.div
+              key="loading"
+              className="absolute inset-0 flex items-center justify-center"
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: ACCOUNT_ROW_EASE }}
+            >
+              <div className="app-spinner" aria-label={`Loading ${title.toLowerCase()} accounts`} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {!loading && accounts.length === 0 && (
             <motion.p
               key="empty"
               className="pointer-events-none absolute inset-x-0 top-0 flex overflow-hidden text-center text-sm italic"
@@ -69,25 +89,26 @@ export default function AccountListSection({
             </motion.p>
           )}
         </AnimatePresence>
-        <AnimatePresence initial={false}>
-          {accounts.map((account) => (
-            <motion.div
-              key={account.id}
-              className="overflow-hidden"
-              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: ACCOUNT_ROW_EASE }}
-            >
-              <AccountRow
-                account={account}
-                accent={accent}
-                showCreditLimit={showCreditLimit}
-                taxAdvantagedPlanById={taxAdvantagedPlanById}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {!loading && accounts.map((account) => (
+          <motion.div
+            key={account.id}
+            className="overflow-hidden"
+            initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            transition={{
+              duration: prefersReducedMotion ? 0 : 0.22,
+              ease: ACCOUNT_ROW_EASE,
+            }}
+          >
+            <AccountRow
+              account={account}
+              accent={accent}
+              showCreditLimit={showCreditLimit}
+              taxAdvantagedPlanById={taxAdvantagedPlanById}
+              displayCurrency={displayCurrency}
+            />
+          </motion.div>
+        ))}
       </div>
     </section>
   )

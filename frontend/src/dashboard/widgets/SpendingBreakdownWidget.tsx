@@ -5,7 +5,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   Cell,
   Pie,
@@ -21,14 +21,19 @@ import {
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import IconTooltip from '@/components/IconTooltip'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/dashboard/constants/animation'
+import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getBreakdownFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
@@ -63,14 +68,29 @@ function getEntryTotal(entries: CategoryBreakdownEntry[]) {
 }
 
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
-  const shouldReduceMotion = useReducedMotion()
   const breakdownChartRef = useRef<HTMLDivElement>(null)
   const breakdownTooltipRef = useRef<HTMLDivElement>(null)
   const [hoveredBreakdownEntry, setHoveredBreakdownEntry] = useState<CategoryBreakdownEntry | null>(null)
   const [breakdownTooltipVisible, setBreakdownTooltipVisible] = useState(false)
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
-  const { data: spendingBreakdown, isLoading: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
+  const { data: incomingSpendingBreakdown, isFetching: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
+  const loadingSnapshot = useMemo(
+    () => ({ spendingBreakdown: incomingSpendingBreakdown }),
+    [incomingSpendingBreakdown],
+  )
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useLoadingSnapshot({
+    snapshot: loadingSnapshot,
+    loading: spendingBreakdownLoading,
+    transitionKey: breakdownRange,
+  })
+  const spendingBreakdown = displaySnapshot.spendingBreakdown
+  const fxStatus = spendingBreakdown?.fx_status
   const breakdownEntries = useMemo(() => {
     if (!spendingBreakdown) return []
     return breakdownMode === 'spending' ? spendingBreakdown.expense : spendingBreakdown.income
@@ -82,7 +102,6 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
       : spendingBreakdown.income_total
     : fallbackBreakdownTotal
   const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
-  const breakdownLoadingText = formatDashboardMoney(88888800, displayCurrency, 'breakdown')
   const breakdownCategoryKind = breakdownMode === 'spending' ? 'expense' : 'income'
   const breakdownColors = useMemo(() => getCategoryColorMap(breakdownEntries.map((entry) => ({
     id: getBreakdownCategoryColorId(entry, breakdownCategoryKind),
@@ -146,6 +165,21 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
           <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
           <span className="ml-[0.25em]">Breakdown</span>
         </span>
+        {fxStatus && (
+          <IconTooltip
+            label="Spending breakdown FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="top"
+          >
+            <span className="block">{getBreakdownFxStatusMessage(fxStatus, breakdownMode)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
         <button
           type="button"
           onClick={() => setBreakdownMode((mode) => (mode === 'spending' ? 'income' : 'spending'))}
@@ -173,34 +207,37 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
         />
       </div>
 
-      {breakdownEntries.length === 0 && !spendingBreakdownLoading ? (
-        <div
-          className="flex-1 flex items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          No {breakdownMode === 'spending' ? 'expense' : 'income'} activity in this range
-        </div>
-      ) : (
-        <>
+      <DashboardWidgetLoadingBody
+        contentConcealed={contentConcealed}
+        loadingVisible={loadingVisible}
+        shouldReduceMotion={shouldReduceMotion}
+        label="Loading spending breakdown"
+        className="flex-1"
+        contentClassName="flex h-full min-h-0 flex-col"
+      >
+        {breakdownEntries.length === 0 ? (
           <div
-            ref={breakdownChartRef}
-            className="flex-1 min-h-0 relative"
-            onMouseLeave={hideBreakdownTooltip}
+            className="flex flex-1 items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
+            style={{ color: 'var(--app-text-subtle)' }}
           >
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="app-label app-label-compact">
-                Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
-              </span>
-              <span className="font-financial font-normal tracking-tight text-3xl mt-1 max-[1000px]:text-[1.6875rem]">
-                <AppScrambledNumber
-                  text={formatDashboardMoney(breakdownTotal, displayCurrency, 'breakdown')}
-                  loading={spendingBreakdownLoading}
-                  loadingText={breakdownLoadingText}
-                />
-              </span>
-            </div>
-            <AnimatePresence initial={false}>
-              {breakdownEntries.length > 0 && (
+            No {breakdownMode === 'spending' ? 'expense' : 'income'} activity in this range
+          </div>
+        ) : (
+          <>
+            <div
+              ref={breakdownChartRef}
+              className="relative min-h-0 flex-1"
+              onMouseLeave={hideBreakdownTooltip}
+            >
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="app-label app-label-compact">
+                  Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
+                </span>
+                <span className="font-financial mt-1 text-3xl font-normal tracking-tight max-[1000px]:text-[1.6875rem]">
+                  <AppScrambledNumber text={formatDashboardMoney(breakdownTotal, displayCurrency, 'breakdown')} />
+                </span>
+              </div>
+              <AnimatePresence initial={false}>
                 <motion.div
                   key={breakdownChartKey}
                   className="absolute inset-0"
@@ -239,43 +276,41 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                     </PieChart>
                   </ResponsiveContainer>
                 </motion.div>
-              )}
-            </AnimatePresence>
-            <div
-              ref={breakdownTooltipRef}
-              className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-40"
-              onTransitionEnd={handleBreakdownTooltipTransitionEnd}
-              style={{
-                opacity: breakdownTooltipVisible ? 1 : 0,
-                transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
-                transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
-              }}
-            >
-              {hoveredBreakdownEntry && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="app-chart-tooltip-default-title">
-                      {hoveredBreakdownEntry.name}
-                    </span>
-                    {renderCrossoverBadge(hoveredBreakdownEntry, breakdownMode)}
-                  </div>
-                  <div className="app-chart-tooltip-default-value">
-                    {formatCurrency(hoveredBreakdownEntry.amount, displayCurrency)}
-                  </div>
-                </>
-              )}
+              </AnimatePresence>
+              <div
+                ref={breakdownTooltipRef}
+                className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-40"
+                onTransitionEnd={handleBreakdownTooltipTransitionEnd}
+                style={{
+                  opacity: breakdownTooltipVisible ? 1 : 0,
+                  transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
+                }}
+              >
+                {hoveredBreakdownEntry && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="app-chart-tooltip-default-title">
+                        {hoveredBreakdownEntry.name}
+                      </span>
+                      {renderCrossoverBadge(hoveredBreakdownEntry, breakdownMode)}
+                    </div>
+                    <div className="app-chart-tooltip-default-value">
+                      {formatCurrency(hoveredBreakdownEntry.amount, displayCurrency)}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-          {breakdownEntries.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3">
+            <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2">
               {breakdownEntries.map((entry) => (
                 <div key={entry.category_id} className="flex items-center gap-1.5">
                   <span
-                    className="inline-block w-2.5 h-2.5 rounded-full"
+                    className="inline-block h-2.5 w-2.5 rounded-full"
                     style={{ background: getSpacedBreakdownColor(entry) }}
                   />
                   <span
-                    className="text-xs font-medium whitespace-nowrap max-[1000px]:text-[0.675rem]"
+                    className="whitespace-nowrap text-xs font-medium max-[1000px]:text-[0.675rem]"
                     style={{ color: 'var(--app-text-muted)' }}
                   >
                     {entry.name}
@@ -284,9 +319,9 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                 </div>
               ))}
             </div>
-          )}
-        </>
-      )}
+          </>
+        )}
+      </DashboardWidgetLoadingBody>
     </div>
   )
 }

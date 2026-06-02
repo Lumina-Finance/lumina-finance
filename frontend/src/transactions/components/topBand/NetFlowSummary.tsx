@@ -1,5 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getCashFlowFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 const MAX_NET_FLOW_FONT_SIZE = 60
@@ -7,11 +11,13 @@ const MAX_NET_FLOW_FONT_SIZE = 60
 export default function NetFlowSummary({
   inflow,
   outflow,
+  fxStatus,
   displayCurrency,
   className = '',
 }: {
   inflow: number
   outflow: number
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   className?: string
 }) {
@@ -49,7 +55,24 @@ export default function NetFlowSummary({
 
   return (
     <div ref={containerRef} className={`relative min-w-0 ${className}`}>
-      <p className="app-label mb-1.5">Net Flow</p>
+      <div className="mb-1.5 flex items-center gap-2">
+        <p className="app-label">Net Flow</p>
+        {fxStatus && (
+          <IconTooltip
+            label="Net flow FX status"
+            icon="fx"
+            fxTone={getFxStatusTone(fxStatus)}
+            placement="bottom"
+          >
+            <span className="block">{getCashFlowFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
+        )}
+      </div>
       <p
         className="max-w-full whitespace-nowrap font-financial font-semibold leading-none tracking-tight"
         style={{ color: netColor, fontSize: `${netFlowFontSize}px` }}

@@ -13,6 +13,9 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import IconTooltip from '@/components/IconTooltip'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import {
   DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
   DASHBOARD_NET_WORTH_X_AXIS_TICK_COUNT,
@@ -20,6 +23,8 @@ import {
 } from '@/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getNetWorthFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
 import type { NetWorthSeriesPoint } from '@/dashboard/types/dashboard'
 
@@ -134,7 +139,22 @@ function getNetWorthTooltipTargetFromCursor(
 export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const netWorthChartRef = useRef<HTMLDivElement>(null)
   const netWorthTooltipRef = useRef<DeferredChartTooltipOverlayHandle<NetWorthSeriesPoint>>(null)
-  const { data: dashboardNetWorth } = useDashboardNetWorth()
+  const { data: incomingDashboardNetWorth, isFetching: dashboardNetWorthLoading } = useDashboardNetWorth()
+  const loadingSnapshot = useMemo(
+    () => ({ dashboardNetWorth: incomingDashboardNetWorth }),
+    [incomingDashboardNetWorth],
+  )
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useLoadingSnapshot({
+    snapshot: loadingSnapshot,
+    loading: dashboardNetWorthLoading,
+    transitionKey: 'net-worth',
+  })
+  const dashboardNetWorth = displaySnapshot.dashboardNetWorth
   const netWorthData = useMemo(
     () => getNetWorthSeries(dashboardNetWorth),
     [dashboardNetWorth],
@@ -149,6 +169,8 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   )
   const netWorth = dashboardNetWorth?.current_net_worth ?? 0
   const netWorthChange = netWorthData.length >= 2 ? netWorth - netWorthData[0].value : null
+  const fxStatus = dashboardNetWorth?.fx_status
+  const fxTone = getFxStatusTone(fxStatus)
   const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
   const netWorthChangeColor =
     netWorthChange == null || netWorthChange === 0
@@ -189,82 +211,106 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
           <Wallet size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
         </div>
         <span className="app-label">Net Worth</span>
-      </div>
-      <div className="inline-flex max-w-full items-end gap-2">
-        <p
-          className="min-w-0 font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
-          style={{ color: netWorthColor }}
-        >
-          {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
-        </p>
-        {netWorthChange != null && (
-          <p
-            className="shrink-0 pb-0.5 font-financial text-sm font-medium leading-none max-[1000px]:text-xs"
-            style={{ color: netWorthChangeColor }}
-            aria-label={`Net worth change ${formatNetWorthChange(netWorthChange, displayCurrency)}`}
+        {fxStatus && (
+          <IconTooltip
+            label="Net worth FX status"
+            icon="fx"
+            fxTone={fxTone}
+            placement="top"
           >
-            {formatNetWorthChange(netWorthChange, displayCurrency)}
-          </p>
+            <span className="block">{getNetWorthFxStatusMessage(fxStatus)}</span>
+            {fxStatus.missing_pairs.length > 0 && (
+              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+              </span>
+            )}
+          </IconTooltip>
         )}
       </div>
-      {netWorthData.length >= 2 && (
-        <div
-          ref={netWorthChartRef}
-          className="relative mt-3 min-h-0 flex-1"
-          onMouseLeave={hideNetWorthTooltip}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={netWorthData}
-              margin={netWorthChartMargin}
-              onMouseMove={(state, event) => showNetWorthTooltip(state, event)}
-              onMouseLeave={hideNetWorthTooltip}
+      <DashboardWidgetLoadingBody
+        contentConcealed={contentConcealed}
+        loadingVisible={loadingVisible}
+        shouldReduceMotion={shouldReduceMotion}
+        label="Loading net worth"
+        className="flex-1"
+        contentClassName="flex h-full min-h-0 flex-col"
+      >
+        <div className="inline-flex max-w-full items-end gap-2">
+          <p
+            className="min-w-0 font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
+            style={{ color: netWorthColor }}
+          >
+            {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
+          </p>
+          {netWorthChange != null && (
+            <p
+              className="shrink-0 pb-0.5 font-financial text-sm font-medium leading-none max-[1000px]:text-xs"
+              style={{ color: netWorthChangeColor }}
+              aria-label={`Net worth change ${formatNetWorthChange(netWorthChange, displayCurrency)}`}
             >
-              <XAxis
-                xAxisId="plot"
-                dataKey="date"
-                hide
-              />
-              <XAxis
-                xAxisId="labels"
-                dataKey="date"
-                axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
-                tickLine={false}
-                interval={0}
-                ticks={netWorthXAxisTicks}
-                padding={{
-                  left: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
-                  right: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
-                }}
-                tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
-                tickMargin={3}
-              />
-              <YAxis hide domain={['dataMin', 'dataMax']} />
-              <Line
-                xAxisId="plot"
-                type="monotone"
-                dataKey="value"
-                stroke={netWorthLineColor}
-                strokeWidth={1.5}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          <DeferredChartTooltipOverlay
-            ref={netWorthTooltipRef}
-            chartRef={netWorthChartRef}
-            className="min-w-44"
-            getKey={getNetWorthTooltipKey}
-            showGuide={false}
-            renderContent={(point) => (
-              <NetWorthTooltipContent
-                point={point}
-                displayCurrency={displayCurrency}
-              />
-            )}
-          />
+              {formatNetWorthChange(netWorthChange, displayCurrency)}
+            </p>
+          )}
         </div>
-      )}
+        {netWorthData.length >= 2 && (
+          <div
+            ref={netWorthChartRef}
+            className="relative mt-3 min-h-0 flex-1"
+            onMouseLeave={hideNetWorthTooltip}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={netWorthData}
+                margin={netWorthChartMargin}
+                onMouseMove={(state, event) => showNetWorthTooltip(state, event)}
+                onMouseLeave={hideNetWorthTooltip}
+              >
+                <XAxis
+                  xAxisId="plot"
+                  dataKey="date"
+                  hide
+                />
+                <XAxis
+                  xAxisId="labels"
+                  dataKey="date"
+                  axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
+                  tickLine={false}
+                  interval={0}
+                  ticks={netWorthXAxisTicks}
+                  padding={{
+                    left: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
+                    right: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
+                  }}
+                  tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
+                  tickMargin={3}
+                />
+                <YAxis hide domain={['dataMin', 'dataMax']} />
+                <Line
+                  xAxisId="plot"
+                  type="monotone"
+                  dataKey="value"
+                  stroke={netWorthLineColor}
+                  strokeWidth={1.5}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <DeferredChartTooltipOverlay
+              ref={netWorthTooltipRef}
+              chartRef={netWorthChartRef}
+              className="min-w-44"
+              getKey={getNetWorthTooltipKey}
+              showGuide={false}
+              renderContent={(point) => (
+                <NetWorthTooltipContent
+                  point={point}
+                  displayCurrency={displayCurrency}
+                />
+              )}
+            />
+          </div>
+        )}
+      </DashboardWidgetLoadingBody>
     </div>
   )
 }

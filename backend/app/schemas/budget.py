@@ -4,6 +4,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, model_validator
 
 from app.models.base import RecurrenceFreq
+from app.schemas.fx import FxStatus
 
 
 class CreateBaseBudgetRequest(BaseModel):
@@ -133,6 +134,7 @@ class BudgetUtilizationResponse(BaseModel):
     overall_limit: int
     total_spent: int
     categories: list[BudgetCategoryUtilization]
+    fx_status: FxStatus = Field(default_factory=FxStatus)
 
 
 class LatestBudgetUtilizationResponse(BudgetUtilizationResponse):

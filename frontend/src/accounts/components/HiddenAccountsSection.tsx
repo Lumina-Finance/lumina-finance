@@ -7,9 +7,11 @@ import AccountRow from '@/accounts/components/AccountRow'
 export default function HiddenAccountsSection({
   accounts,
   taxAdvantagedPlanById,
+  displayCurrency,
 }: {
   accounts: AccountsOverview[]
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
+  displayCurrency: string
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -51,6 +53,7 @@ export default function HiddenAccountsSection({
               accent={account.account_kind === 'asset' ? 'positive' : 'negative'}
               showCreditLimit={account.account_kind === 'revolving'}
               taxAdvantagedPlanById={taxAdvantagedPlanById}
+              displayCurrency={displayCurrency}
               isHidden
             />
           ))}

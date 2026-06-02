@@ -1,6 +1,7 @@
 """Route tests for insights income-expense breakdown endpoint."""
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.models.base import CategoryKind
@@ -29,10 +30,10 @@ def _transaction(user_id: UUID, account_id: UUID, category_id: UUID, dt: date, a
     )
 
 
-async def _seed_usd_currency():
-    """Insert USD for base-currency exclusion tests."""
+async def _seed_currency(currency_id: str, name: str, symbol: str, minor_unit_exponent: int = 2):
+    """Insert a currency row for foreign-account tests."""
     async with TestSession() as session:
-        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        session.add(Currency(id=currency_id, name=name, symbol=symbol, minor_unit_exponent=minor_unit_exponent))
         await session.commit()
 
 
@@ -41,11 +42,9 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
-    await _seed_usd_currency()
 
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
     hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
-    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
 
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     freelance_id, freelance = _category(user_id, "Freelance", CategoryKind.INCOME)
@@ -103,8 +102,6 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
             _transaction(user_id, account_id, salary_id, date(2026, 2, 28), 300_000),
             _transaction(user_id, hidden_account_id, salary_id, date(2026, 3, 11), 700_000),
             _transaction(user_id, hidden_account_id, housing_id, date(2026, 3, 11), -700_000),
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 3, 11), 900_000, "USD"),
-            _transaction(user_id, usd_account_id, housing_id, date(2026, 3, 11), -900_000, "USD"),
         ])
         await session.commit()
 
@@ -151,6 +148,122 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
         "income_decreases": [
             [str(freelance_id), "Freelance", 100_000, 120_000, -17, 1],
         ],
+        "fx_status": {"state": "none", "missing_pairs": []},
+    }
+
+
+async def test_income_expense_breakdown_converts_foreign_entries_by_transaction_date(client, monkeypatch):
+    """Breakdown slices and movement rows use converted daily totals."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        assert base == "USD"
+        assert quote == "CAD"
+        if (start_date, end_date) == (date(2026, 5, 1), date(2026, 5, 2)):
+            return {
+                date(2026, 5, 1): Decimal("1.5"),
+                date(2026, 5, 2): Decimal("2"),
+            }
+        if (start_date, end_date) == (date(2026, 4, 30), date(2026, 4, 30)):
+            return {
+                date(2026, 4, 30): Decimal("1.2"),
+            }
+        raise AssertionError(f"Unexpected FX range: {start_date} to {end_date}")
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            food,
+            _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 100_00),
+            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 10_00, "USD"),
+            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 2), 10_00, "USD"),
+            _transaction(user_id, cad_account_id, food_id, date(2026, 5, 2), -50_00),
+            _transaction(user_id, usd_account_id, food_id, date(2026, 5, 2), -30_00, "USD"),
+            _transaction(user_id, usd_account_id, salary_id, date(2026, 4, 30), 50_00, "USD"),
+            _transaction(user_id, usd_account_id, food_id, date(2026, 4, 30), -20_00, "USD"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/income-expense-breakdown",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-02"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "expense": [[str(food_id), "Food", "expense", 11_000]],
+        "income": [[str(salary_id), "Salary", "income", 13_500]],
+        "expense_total": 11_000,
+        "income_total": 13_500,
+        "expense_increases": [[str(food_id), "Food", 11_000, 2_400, 358, 2]],
+        "expense_decreases": [],
+        "income_increases": [[str(salary_id), "Salary", 13_500, 6_000, 125, 3]],
+        "income_decreases": [],
+        "fx_status": {"state": "complete", "missing_pairs": []},
+    }
+
+
+async def test_income_expense_breakdown_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
+    """Unconverted foreign rows are skipped and reported in the card FX status."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("ABC", "Unsupported Test Currency", "A")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            food,
+            _transaction(user_id, cad_account_id, salary_id, date(2026, 6, 1), 100_000),
+            _transaction(user_id, abc_account_id, food_id, date(2026, 6, 2), -70_000, "ABC"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/income-expense-breakdown",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "expense": [],
+        "income": [[str(salary_id), "Salary", "income", 100_000]],
+        "expense_total": 0,
+        "income_total": 100_000,
+        "expense_increases": [],
+        "expense_decreases": [],
+        "income_increases": [[str(salary_id), "Salary", 100_000, 0, None, 1]],
+        "income_decreases": [],
+        "fx_status": {
+            "state": "incomplete",
+            "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        },
     }
 
 
@@ -311,6 +424,7 @@ async def test_income_expense_breakdown_omits_zero_net_current_categories(client
         "expense_decreases": [],
         "income_increases": [],
         "income_decreases": [],
+        "fx_status": {"state": "none", "missing_pairs": []},
     }
 
 
@@ -335,6 +449,7 @@ async def test_income_expense_breakdown_returns_empty_payload_without_accounts(c
         "expense_decreases": [],
         "income_increases": [],
         "income_decreases": [],
+        "fx_status": {"state": "none", "missing_pairs": []},
     }
 
 

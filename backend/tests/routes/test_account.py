@@ -1,13 +1,15 @@
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 
 from app.models.account import Account, AccountBalanceSnapshot
 from app.models.base import CategoryKind, InstitutionStatus
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.institution import Institution
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
@@ -16,6 +18,14 @@ from tests.routes.conftest import ACCOUNT_PAYLOAD, _create_account, _create_user
 # --- Helpers ---
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
+
+
+class _FixedClock:
+    def __init__(self, instant):
+        self.instant = instant
+
+    def now(self, tz=None):
+        return self.instant.astimezone(tz) if tz else self.instant
 
 
 async def _seed_institution(logo_url: str | None = None):
@@ -128,9 +138,12 @@ async def test_list_accounts_returns_overview_shape(client):
     ):
         assert field not in row
     # Overview fields are present
-    for field in ("id", "owner_id", "group_id", "account_kind", "account_type", "name",
-                  "tax_advantaged_plan_id", "currency", "institution", "current_balance",
-                  "credit_limit", "is_hidden", "closed_at"):
+    for field in (
+        "id", "owner_id", "group_id", "account_kind", "account_type", "name",
+        "tax_advantaged_plan_id", "currency", "institution", "current_balance",
+        "base_currency_current_balance", "current_balance_fx_status", "credit_limit",
+        "is_hidden", "closed_at",
+    ):
         assert field in row, f"missing overview field: {field}"
 
 
@@ -176,6 +189,98 @@ async def test_list_accounts_current_balance_uses_latest_snapshot(client):
 
     assert resp.status_code == 200
     assert resp.json()[0]["current_balance"] == 98765
+
+
+async def test_list_accounts_converts_current_balance_to_user_base_currency(client, monkeypatch):
+    """List rows expose a converted current balance for overview stats."""
+    from datetime import UTC
+
+    from app.routes import account as account_routes
+    from app.services.fx import FrankfurterProvider
+
+    calls = []
+
+    async def fake_get_rate(self, base, quote, rate_date):
+        calls.append((base, quote, rate_date))
+        return Decimal("1.5")
+
+    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    monkeypatch.setattr(FrankfurterProvider, "get_rate", fake_get_rate)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+
+    cad_account = (await _create_account(client, headers, name="CAD Cash")).json()
+    usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
+
+    async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id == UUID(cad_account["id"]))
+            .values(balance=100_00),
+        )
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id == UUID(usd_account["id"]))
+            .values(balance=200_00),
+        )
+        await session.commit()
+
+    resp = await client.get("/accounts", headers=headers)
+
+    assert resp.status_code == 200
+    rows = {row["name"]: row for row in resp.json()}
+    assert rows["CAD Cash"]["current_balance"] == 100_00
+    assert rows["CAD Cash"]["base_currency_current_balance"] == 100_00
+    assert rows["CAD Cash"]["current_balance_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert rows["USD Cash"]["current_balance"] == 200_00
+    assert rows["USD Cash"]["base_currency_current_balance"] == 300_00
+    assert rows["USD Cash"]["current_balance_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert calls == [("USD", "CAD", date(2026, 3, 20))]
+
+
+async def test_list_accounts_reports_current_balance_fx_failure(client, monkeypatch):
+    """Rows with unconverted foreign balances report the missing pair."""
+    from datetime import UTC
+
+    from app.routes import account as account_routes
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rate(self, base, quote, rate_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    monkeypatch.setattr(FrankfurterProvider, "get_rate", fake_get_rate)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    account = (await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()
+
+    async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id == UUID(account["id"]))
+            .values(balance=200_00),
+        )
+        await session.commit()
+
+    resp = await client.get("/accounts", headers=headers)
+
+    assert resp.status_code == 200
+    row = resp.json()[0]
+    assert row["current_balance"] == 200_00
+    assert row["base_currency_current_balance"] == 0
+    assert row["current_balance_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
 
 
 async def test_get_account_returns_current_balance(client):

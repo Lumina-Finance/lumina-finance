@@ -23,6 +23,7 @@ export function getTopBudgets(
         period_end: utilization.period_end,
         overall_limit: utilization.overall_limit,
         total_spent: utilization.total_spent,
+        fx_status: utilization.fx_status,
         usageRatio,
         usagePct,
       }

@@ -1,6 +1,7 @@
 """Route tests for insights period-glance endpoint."""
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.models.account import AccountBalanceSnapshot
@@ -93,17 +94,33 @@ async def test_period_glance_returns_compact_period_summary(client):
     assert data == {
         "income": 500_000,
         "expenses": 180_000,
+        "income_expense_fx_status": {"state": "none", "missing_pairs": []},
         "net_worth_change": 320_000,
+        "net_worth_change_fx_status": {"state": "none", "missing_pairs": []},
         "top_category_name": "Groceries",
         "top_category_share_pct": 67,
+        "top_category_fx_status": {"state": "none", "missing_pairs": []},
         "biggest_change_name": "Groceries",
         "biggest_change_amount": 80_000,
         "biggest_change_pct": 200,
+        "biggest_change_fx_status": {"state": "none", "missing_pairs": []},
     }
 
 
-async def test_period_glance_excludes_non_base_currency_and_signs_liability_balances(client):
-    """Only base-currency accounts count, and liabilities reduce net worth."""
+async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liability_balances(client, monkeypatch):
+    """Income, expenses, and net-worth movement include converted foreign account values."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {
+            date(2026, 5, 1): Decimal("1.5"),
+            date(2026, 5, 2): Decimal("1.5"),
+            date(2026, 5, 3): Decimal("1.5"),
+            date(2026, 5, 7): Decimal("1.5"),
+        }
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -150,14 +167,199 @@ async def test_period_glance_excludes_non_base_currency_and_signs_liability_bala
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["income"] == 100_000
-    assert data["expenses"] == 20_000
-    assert data["net_worth_change"] == 50_000
+    assert data["income"] == 1_450_000
+    assert data["expenses"] == 1_070_000
+    assert data["income_expense_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["net_worth_change"] == 6_050_000
+    assert data["net_worth_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["top_category_name"] == "Food"
     assert data["top_category_share_pct"] == 100
+    assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert data["biggest_change_name"] == "Food"
-    assert data["biggest_change_amount"] == 20_000
+    assert data["biggest_change_amount"] == 1_070_000
+    assert data["biggest_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert "biggest_change_pct" not in data
+
+
+async def test_period_glance_income_expenses_report_incomplete_fx(client, monkeypatch):
+    """Income and expenses skip unconverted foreign rows and report missing pairs."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            food,
+            _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 2), 100_000),
+            _transaction(user_id, abc_account_id, food_id, date(2026, 5, 3), -70_000, "ABC"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-07"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income"] == 100_000
+    assert data["expenses"] == 0
+    assert data["income_expense_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
+    assert data["net_worth_change_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["top_category_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
+    assert data["biggest_change_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
+
+
+async def test_period_glance_top_category_uses_converted_expense_totals(client, monkeypatch):
+    """Top Category ranking uses converted expense-side totals."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 5, 3): Decimal("1.5")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_usd_currency()
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+    travel_id, travel = _category(user_id, "Travel", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            food,
+            travel,
+            _transaction(user_id, cad_account_id, food_id, date(2026, 5, 3), -100_000),
+            _transaction(user_id, usd_account_id, travel_id, date(2026, 5, 3), -90_000, "USD"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-07"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["top_category_name"] == "Travel"
+    assert data["top_category_share_pct"] == 57
+    assert data["top_category_fx_status"] == {"state": "complete", "missing_pairs": []}
+
+
+async def test_period_glance_biggest_change_reports_incomplete_fx(client, monkeypatch):
+    """Biggest-change status reports missing pairs independently from current-period totals."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            food,
+            _transaction(user_id, abc_account_id, food_id, date(2026, 4, 29), -70_000, "ABC"),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-07"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income_expense_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["net_worth_change_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["biggest_change_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
+
+
+async def test_period_glance_net_worth_change_reports_incomplete_fx(client, monkeypatch):
+    """Net-worth movement skips foreign accounts that cannot be converted."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    abc_account_id = UUID((await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()["id"])
+
+    async with TestSession() as session:
+        session.add_all([
+            _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
+            _snapshot(cad_account_id, date(2026, 5, 7), 150_000),
+            _snapshot(abc_account_id, date(2026, 5, 1), 500_000),
+            _snapshot(abc_account_id, date(2026, 5, 7), 900_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-07"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income_expense_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["net_worth_change"] == 50_000
+    assert data["net_worth_change_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
 
 
 async def test_period_glance_handles_one_day_range_no_income_and_flat_category_change(client):
@@ -302,18 +504,26 @@ async def test_period_glance_counts_net_negative_income_categories_as_expenses(c
     assert "biggest_change_pct" not in data
 
 
-async def test_period_glance_excludes_resolved_income_loss(client):
-    """An income-kind category moving from loss to zero is not a current-period change driver."""
+async def test_period_glance_excludes_converted_resolved_income_loss(client, monkeypatch):
+    """A converted income-kind loss moving to zero is not a current-period change driver."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 1, 4): Decimal("1.5")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
-    account_id = UUID((await _create_account(client, headers, name="Investment Cash")).json()["id"])
+    await _seed_usd_currency()
+    account_id = UUID((await _create_account(client, headers, name="Investment Cash", currency="USD")).json()["id"])
     capital_gains_id, capital_gains = _category(user_id, "Capital Gains", CategoryKind.INCOME)
 
     async with TestSession() as session:
         session.add_all([
             capital_gains,
-            _transaction(user_id, account_id, capital_gains_id, date(2026, 1, 4), -466_541),
+            _transaction(user_id, account_id, capital_gains_id, date(2026, 1, 4), -466_541, "USD"),
         ])
         await session.commit()
 
@@ -327,6 +537,7 @@ async def test_period_glance_excludes_resolved_income_loss(client):
     data = resp.json()
     assert data["income"] == 0
     assert data["expenses"] == 0
+    assert data["biggest_change_fx_status"] == {"state": "complete", "missing_pairs": []}
     assert "biggest_change_name" not in data
     assert "biggest_change_amount" not in data
     assert "biggest_change_pct" not in data

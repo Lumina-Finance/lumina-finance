@@ -16,16 +16,31 @@ export interface MonthlyIncomeExpense {
 export interface CreditWidgetResponse {
   credit_limit_total: number;
   credit_used: number;
+  fx_status: FxStatus;
+}
+
+export type FxState = 'none' | 'complete' | 'incomplete' | 'unavailable';
+
+export interface FxRateIssue {
+  base: string;
+  quote: string;
+}
+
+export interface FxStatus {
+  state: FxState;
+  missing_pairs: FxRateIssue[];
 }
 
 export interface NetWorthWidgetResponse {
   current_net_worth: number;
   net_worth_history: number[];
   net_worth_window_days: number;
+  fx_status: FxStatus;
 }
 
 export interface SavingsRateWidgetResponse {
   savings_rate_history: MonthlyIncomeExpense[];
+  fx_status: FxStatus;
 }
 
 export interface RecentActivityWidgetResponse {
@@ -51,6 +66,7 @@ export interface SpendingBreakdownResponse {
   income: CategoryBreakdownEntry[];
   expense_total: number;
   income_total: number;
+  fx_status: FxStatus;
 }
 
 export interface SpendingComparisonResponse {
@@ -62,6 +78,7 @@ export interface SpendingComparisonResponse {
   // period's last day). The frontend zips by index against slot_labels.
   current: number[];
   previous: number[];
+  fx_status: FxStatus;
 }
 
 // ── Hooks ──

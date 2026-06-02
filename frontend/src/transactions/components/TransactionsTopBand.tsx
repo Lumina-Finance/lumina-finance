@@ -25,7 +25,7 @@ function TopBandDivider({ className = '' }: { className?: string }) {
 export default function TransactionsTopBand({
   overview,
   displayCurrency,
-  filterListLoading,
+  loading,
   rangeLabel,
   chartAnimationKey,
   prefersReducedMotion,
@@ -35,7 +35,7 @@ export default function TransactionsTopBand({
 }: {
   overview: TransactionsOverview | undefined
   displayCurrency: string
-  filterListLoading: boolean
+  loading: boolean
   rangeLabel: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
@@ -47,7 +47,9 @@ export default function TransactionsTopBand({
   const hasOverviewData = overview?.total_inflow !== null && overview?.total_inflow !== undefined
   const inflow = hasOverviewData ? overview!.total_inflow! : PLACEHOLDER_FLOW.total_inflow
   const outflow = hasOverviewData ? overview!.total_outflow! : PLACEHOLDER_FLOW.total_outflow
-  const outliers = hasOverviewData ? (overview!.outliers ?? []) : PLACEHOLDER_OUTLIERS
+  const outliers = hasOverviewData
+    ? (overview!.outliers ?? [])
+    : PLACEHOLDER_OUTLIERS.map((outlier) => ({ ...outlier, currency: displayCurrency }))
   const categorySpend = hasOverviewData
     ? (overview!.top_categories ?? []).map((category) => ({
         name: category.category_name,
@@ -77,14 +79,15 @@ export default function TransactionsTopBand({
   return (
     <section className="relative" data-tooltip-bounds>
       <AnimatePresence>
-        {filterListLoading && (
+        {loading && (
           <TransactionFilterLoadingOverlay
             placement="center"
             reducedMotion={prefersReducedMotion}
+            label="Loading transaction summary"
           />
         )}
       </AnimatePresence>
-      {!filterListLoading && !hasOverviewData && (
+      {!loading && !hasOverviewData && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md"
           style={{
@@ -112,12 +115,13 @@ export default function TransactionsTopBand({
           <NetFlowSummary
             inflow={inflow}
             outflow={outflow}
+            fxStatus={overview?.daily_cash_flow_fx_status}
             displayCurrency={displayCurrency}
             className="min-[730px]:col-span-2 min-[1750px]:col-span-1 min-[1750px]:pr-6"
           />
           <MostExpensiveTransactionsPanel
             outliers={outliers}
-            displayCurrency={displayCurrency}
+            fxStatus={overview?.outliers_fx_status}
             prefersReducedMotion={prefersReducedMotion}
             openingOutlierId={openingOutlierId}
             outlierOpenError={outlierOpenError}
@@ -126,6 +130,7 @@ export default function TransactionsTopBand({
           />
           <TopCategoriesChart
             categorySpend={categorySpend}
+            fxStatus={overview?.top_categories_fx_status}
             displayCurrency={displayCurrency}
             chartAnimationKey={chartAnimationKey}
             prefersReducedMotion={prefersReducedMotion}
@@ -144,6 +149,7 @@ export default function TransactionsTopBand({
 
       <DailyCashFlowChart
         rawDailyFlow={overview?.daily_cash_flow ?? []}
+        fxStatus={overview?.daily_cash_flow_fx_status}
         hasOverviewData={hasOverviewData}
         displayCurrency={displayCurrency}
         chartAnimationKey={chartAnimationKey}

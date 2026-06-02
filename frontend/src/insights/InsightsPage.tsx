@@ -98,12 +98,12 @@ export default function InsightsPage() {
     [queries.savingsRateTrend.data],
   )
   const merchantDistributionMerchants = useMemo(
-    () => getMerchantDistributionMerchants(queries.merchantDistribution.data),
-    [queries.merchantDistribution.data],
+    () => getMerchantDistributionMerchants(queries.merchants.data),
+    [queries.merchants.data],
   )
   const rankedMerchants = useMemo(
-    () => getMerchantRankingRows(queries.merchantRanking.data),
-    [queries.merchantRanking.data],
+    () => getMerchantRankingRows(queries.merchants.data),
+    [queries.merchants.data],
   )
 
   return (
@@ -135,6 +135,7 @@ export default function InsightsPage() {
             supportItems={periodGlanceData.supportItems}
             income={periodGlanceData.income}
             expenses={periodGlanceData.expenses}
+            incomeExpenseFxStatus={queries.periodGlance.data?.income_expense_fx_status}
             displayCurrency={displayCurrency}
             loading={queries.periodGlance.isFetching}
             transitionKey={range.cardTransitionKey}
@@ -150,6 +151,7 @@ export default function InsightsPage() {
             expenseInflows={fundFlowData.expenseInflows}
             incomeSourceCount={fundFlowData.incomeSourceCount}
             expenseCategoryCount={fundFlowData.expenseCategoryCount}
+            fxStatus={queries.fundFlow.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.fundFlow.isFetching}
             transitionKey={range.cardTransitionKey}
@@ -163,6 +165,7 @@ export default function InsightsPage() {
             entries={selectedBreakdown}
             total={selectedBreakdownTotal}
             trendSections={selectedCategoryTrendSections}
+            fxStatus={queries.incomeExpenseBreakdown.data?.fx_status}
             displayCurrency={displayCurrency}
             animationKey={`${breakdownMode}-${range.cardTransitionKey}`}
             loading={queries.incomeExpenseBreakdown.isFetching}
@@ -176,6 +179,7 @@ export default function InsightsPage() {
             onModeToggle={() => setNetWorthMode((mode) => (mode === 'overview' ? 'composition' : 'overview'))}
             groups={netWorthCardData.groups}
             series={netWorthCardData.series}
+            fxStatus={queries.netWorth.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.netWorth.isFetching}
             transitionKey={range.cardTransitionKey}
@@ -186,6 +190,7 @@ export default function InsightsPage() {
           <CashFlowCard
             granularity={cashFlowBars.granularity}
             buckets={cashFlowBars.buckets}
+            fxStatus={queries.cashFlow.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.cashFlow.isFetching}
             transitionKey={range.cardTransitionKey}
@@ -195,6 +200,7 @@ export default function InsightsPage() {
         <div ref={savingsRateCardRef}>
           <SavingsRateTrendCard
             series={savingsRateHistory}
+            fxStatus={queries.savingsRateTrend.data?.fx_status}
             displayCurrency={displayCurrency}
             capRates={capSavingsRateChart}
             onCapRatesToggle={() => setCapSavingsRateChart((current) => !current)}
@@ -207,8 +213,9 @@ export default function InsightsPage() {
           <div ref={merchantDistributionCardRef} className="min-w-0">
             <MerchantDistributionCard
               merchants={merchantDistributionMerchants}
+              fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
-              loading={queries.merchantDistribution.isFetching}
+              loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}
             />
           </div>
@@ -216,8 +223,9 @@ export default function InsightsPage() {
           <div ref={merchantRankingCardRef} className="min-w-0">
             <MerchantRankingCard
               merchants={rankedMerchants}
+              fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
-              loading={queries.merchantRanking.isFetching}
+              loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}
             />
           </div>

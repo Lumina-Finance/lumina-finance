@@ -15,8 +15,11 @@ import {
   type SankeyLinkProps,
   type SankeyNodeProps,
 } from 'recharts'
+import type { FxStatus } from '@/api/dashboard'
+import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
+import { FxStatusBadge } from './FxStatusBadge'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -71,6 +74,7 @@ type FundFlowSnapshot = {
   expenseInflows: SignAdjustedFlowEntry[]
   incomeSourceCount: number
   expenseCategoryCount: number
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   emptyLabel: string
   chartHeight: number
@@ -84,6 +88,7 @@ type FundFlowCardProps = {
   expenseInflows: SignAdjustedFlowEntry[]
   incomeSourceCount: number
   expenseCategoryCount: number
+  fxStatus: FxStatus | undefined
   displayCurrency: string
   loading?: boolean
   transitionKey: string
@@ -335,6 +340,7 @@ export function FundFlowCard({
   expenseInflows,
   incomeSourceCount,
   expenseCategoryCount,
+  fxStatus,
   displayCurrency,
   loading = false,
   transitionKey,
@@ -351,6 +357,7 @@ export function FundFlowCard({
     expenseInflows,
     incomeSourceCount,
     expenseCategoryCount,
+    fxStatus,
     displayCurrency,
     emptyLabel: loading ? 'Loading fund flow...' : 'No income or expenses in this range.',
     chartHeight: getFundFlowChartHeight(incomeSourceCount, expenseCategoryCount),
@@ -359,6 +366,7 @@ export function FundFlowCard({
     expenseCategories,
     expenseCategoryCount,
     expenseInflows,
+    fxStatus,
     flowData,
     incomeOutflows,
     incomeSourceCount,
@@ -428,7 +436,21 @@ export function FundFlowCard({
         setExpenseListOpen(false)
       }}
     >
-      <SectionHeader icon={Network} label="Fund Flow" />
+      <SectionHeader
+        icon={Network}
+        label={(
+          <span className="inline-flex items-center gap-2">
+            Fund Flow
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Fund Flow FX status"
+                status={displaySnapshot.fxStatus}
+                getMessage={getFundFlowFxStatusMessage}
+              />
+            )}
+          </span>
+        )}
+      />
       <div className="mb-3 grid items-start gap-3 min-[720px]:grid-cols-2">
         <FlowCategoryList
           title="Income Sources"

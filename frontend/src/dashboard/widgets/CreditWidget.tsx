@@ -1,9 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CreditCard, Repeat } from 'lucide-react'
 import { useDashboardCredit } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import IconTooltip from '@/components/IconTooltip'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getCreditFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 
 function getCreditTier(utilization: number) {
   if (utilization <= 30) return 'positive'
@@ -15,11 +20,29 @@ type CreditWidgetProps = {
   displayCurrency: string
 }
 
+type CreditMode = 'used' | 'available'
+
 export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
-  const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
-  const [creditMode, setCreditMode] = useState<'used' | 'available'>('used')
+  const { data: incomingDashboardCredit, isFetching: dashboardCreditLoading } = useDashboardCredit()
+  const [creditMode, setCreditMode] = useState<CreditMode>('used')
+  const loadingSnapshot = useMemo(
+    () => ({ dashboardCredit: incomingDashboardCredit }),
+    [incomingDashboardCredit],
+  )
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useLoadingSnapshot({
+    snapshot: loadingSnapshot,
+    loading: dashboardCreditLoading,
+    transitionKey: 'credit',
+  })
+  const dashboardCredit = displaySnapshot.dashboardCredit
   const creditLimit = dashboardCredit?.credit_limit_total ?? 0
   const creditUsed = dashboardCredit?.credit_used ?? 0
+  const fxStatus = dashboardCredit?.fx_status
   const utilization = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0
   const hasCredit = creditLimit > 0
 
@@ -28,7 +51,6 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const remainingPct = creditAvailable > 0 ? 100 - utilization : 0
   const displayPct = creditMode === 'used' ? utilization : remainingPct
   const displayAmount = creditMode === 'used' ? creditUsed : creditRemaining
-  const creditLoadingText = formatDashboardMoney(88888800, displayCurrency, 'credit')
 
   // Color tier always derives from utilization so the risk signal stays
   // consistent when toggling between used and remaining credit.
@@ -47,8 +69,25 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
         <div className="p-2 rounded-xl" style={{ background: tierSoft }}>
           <CreditCard size={16} style={{ color: tierColor }} aria-hidden />
         </div>
-        <span className="app-label">
-          Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} reserveText="Remaining" />
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <span className="app-label">
+            Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} />
+          </span>
+          {fxStatus && (
+            <IconTooltip
+              label="Credit FX status"
+              icon="fx"
+              fxTone={getFxStatusTone(fxStatus)}
+              placement="top"
+            >
+              <span className="block">{getCreditFxStatusMessage(fxStatus)}</span>
+              {fxStatus.missing_pairs.length > 0 && (
+                <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+                </span>
+              )}
+            </IconTooltip>
+          )}
         </span>
         {hasCredit && (
           <button
@@ -63,63 +102,58 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
         )}
       </div>
 
-      {dashboardCreditLoading || hasCredit ? (
-        <div className="flex flex-1 min-h-0 items-center justify-center gap-4">
-          <div className="relative shrink-0 aspect-square h-full">
-            <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90">
-              <circle
-                cx={size / 2} cy={size / 2} r={radius}
-                fill="none"
-                stroke="var(--app-border)"
-                strokeWidth={strokeWidth}
-              />
-              <circle
-                cx={size / 2} cy={size / 2} r={radius}
-                fill="none"
-                stroke={tierColor}
-                strokeWidth={strokeWidth}
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={circumference - filled}
-                style={{ transition: 'stroke-dashoffset 600ms cubic-bezier(0.22, 1, 0.36, 1)' }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="font-financial font-medium tracking-tight text-2xl max-[1000px]:text-[1.35rem]">
-                <AppScrambledNumber
-                  text={`${displayPct}%`}
-                  loading={dashboardCreditLoading}
-                  loadingText="00%"
+      <DashboardWidgetLoadingBody
+        contentConcealed={contentConcealed}
+        loadingVisible={loadingVisible}
+        shouldReduceMotion={shouldReduceMotion}
+        label="Loading credit"
+        className="flex-1"
+      >
+        {hasCredit ? (
+          <div className="flex h-full min-h-0 items-center justify-center gap-4">
+            <div className="relative aspect-square h-full shrink-0">
+              <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90">
+                <circle
+                  cx={size / 2} cy={size / 2} r={radius}
+                  fill="none"
+                  stroke="var(--app-border)"
+                  strokeWidth={strokeWidth}
                 />
-              </span>
+                <circle
+                  cx={size / 2} cy={size / 2} r={radius}
+                  fill="none"
+                  stroke={tierColor}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={circumference - filled}
+                  style={{ transition: 'stroke-dashoffset 600ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="font-financial text-2xl font-medium tracking-tight max-[1000px]:text-[1.35rem]">
+                  <AppScrambledNumber text={`${displayPct}%`} />
+                </span>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
+                <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit')} />
+              </p>
+              <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
+                of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit')} />
+              </p>
             </div>
           </div>
-          <div className="min-w-0">
-            <p className="font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]">
-              <AppScrambledNumber
-                text={formatDashboardMoney(displayAmount, displayCurrency, 'credit')}
-                loading={dashboardCreditLoading}
-                loadingText={creditLoadingText}
-              />
-            </p>
-            <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
-              of{' '}
-              <AppScrambledNumber
-                text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit')}
-                loading={dashboardCreditLoading}
-                loadingText={creditLoadingText}
-              />
-            </p>
-          </div>
-        </div>
-      ) : (
-        <p
-          className="my-auto text-center text-sm italic max-[1000px]:text-[0.7875rem]"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          No credit accounts
-        </p>
-      )}
+        ) : (
+          <p
+            className="flex h-full items-center justify-center text-center text-sm italic max-[1000px]:text-[0.7875rem]"
+            style={{ color: 'var(--app-text-subtle)' }}
+          >
+            No credit accounts
+          </p>
+        )}
+      </DashboardWidgetLoadingBody>
     </div>
   )
 }
