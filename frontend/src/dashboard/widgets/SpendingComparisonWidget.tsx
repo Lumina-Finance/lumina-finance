@@ -18,6 +18,7 @@ import {
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import IconTooltip from '@/components/IconTooltip'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
@@ -25,6 +26,7 @@ import {
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import {
   CURRENT_LABEL_BY_RANGE,
@@ -172,15 +174,33 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   const spendingComparisonChartRef = useRef<HTMLDivElement>(null)
   const spendingComparisonTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SpendingComparisonSeriesPoint>>(null)
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
-  const { data: spendingComparison, isLoading: spendingComparisonLoading } = useSpendingComparison(spendingRange)
+  const { data: incomingSpendingComparison, isFetching: spendingComparisonLoading } = useSpendingComparison(spendingRange)
+  const loadingSnapshot = useMemo(
+    () => ({
+      spendingComparison: incomingSpendingComparison,
+      spendingRange,
+    }),
+    [incomingSpendingComparison, spendingRange],
+  )
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useLoadingSnapshot({
+    snapshot: loadingSnapshot,
+    loading: spendingComparisonLoading,
+    transitionKey: spendingRange,
+  })
+  const { spendingComparison, spendingRange: displaySpendingRange } = displaySnapshot
   const fxStatus = spendingComparison?.fx_status
   const spendingChartData = useMemo(
     () => getSpendingComparisonSeries(spendingComparison),
     [spendingComparison],
   )
   const spendingXAxisTicks = useMemo(
-    () => getSpendingComparisonXAxisTicks(spendingRange, spendingChartData),
-    [spendingRange, spendingChartData],
+    () => getSpendingComparisonXAxisTicks(displaySpendingRange, spendingChartData),
+    [displaySpendingRange, spendingChartData],
   )
   const firstSpendingXAxisTick = spendingXAxisTicks[0]
   const lastSpendingXAxisTick = spendingXAxisTicks[spendingXAxisTicks.length - 1]
@@ -205,7 +225,6 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
     spendingDeltaPct == null
       ? '+00.0%'
       : `${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`
-  const amountLoadingText = formatCurrency(888888, displayCurrency)
   const showSpendingComparisonTooltip = (
     state: SpendingComparisonTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
@@ -264,161 +283,154 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
           sheetTitle="Spending range"
         />
       </div>
-      <div className="flex items-baseline gap-2">
-        <p className="font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber
-            text={formatCurrency(spentToDate, displayCurrency)}
-            loading={spendingComparisonLoading}
-            loadingText={amountLoadingText}
-          />
-        </p>
-        {(spendingComparisonLoading || spendingDeltaPct != null) && (
-          <div
-            className="flex items-center text-sm font-medium max-[1000px]:text-[0.7875rem]"
-            style={{
-              color: spendingComparisonLoading || spendingDeltaPct == null
-                ? 'var(--app-text-muted)'
-                : spendingDeltaPct <= 0
-                  ? 'var(--app-positive)'
-                  : 'var(--app-negative)',
-            }}
-          >
-            {!spendingComparisonLoading && spendingDeltaPct != null && (
-              spendingDeltaPct <= 0 ? (
+      <DashboardWidgetLoadingBody
+        contentConcealed={contentConcealed}
+        loadingVisible={loadingVisible}
+        shouldReduceMotion={shouldReduceMotion}
+        label="Loading spending comparison"
+        className="flex-1"
+        contentClassName="flex h-full min-h-0 flex-col"
+      >
+        <div className="flex items-baseline gap-2">
+          <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
+            <AppScrambledNumber text={formatCurrency(spentToDate, displayCurrency)} />
+          </p>
+          {spendingDeltaPct != null && (
+            <div
+              className="flex items-center text-sm font-medium max-[1000px]:text-[0.7875rem]"
+              style={{ color: spendingDeltaPct <= 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
+            >
+              {spendingDeltaPct <= 0 ? (
                 <ArrowDownRight size={14} aria-hidden />
               ) : (
                 <ArrowUpRight size={14} aria-hidden />
-              )
-            )}
-            <AppScrambledNumber
-              text={spendingDeltaText}
-              loading={spendingComparisonLoading}
-              loadingText="+00.0%"
-            />
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-4 mt-2 mb-2">
-        <div className="flex items-center gap-1.5">
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{
-              background: 'var(--app-accent)',
-              opacity: currentHasData ? 1 : 0.4,
-            }}
-          />
-          <span
-            className="text-xs max-[1000px]:text-[0.675rem]"
-            style={{
-              color: 'var(--app-text-muted)',
-              fontStyle: currentHasData ? 'normal' : 'italic',
-            }}
-          >
-            {currentHasData
-              ? CURRENT_LABEL_BY_RANGE[spendingRange]
-              : `No data for ${CURRENT_LABEL_BY_RANGE[spendingRange].toLowerCase()}`}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{
-              background: 'var(--app-text-muted)',
-              opacity: previousHasData ? 1 : 0.4,
-            }}
-          />
-          <span
-            className="text-xs max-[1000px]:text-[0.675rem]"
-            style={{
-              color: 'var(--app-text-muted)',
-              fontStyle: previousHasData ? 'normal' : 'italic',
-            }}
-          >
-            {previousHasData
-              ? PREVIOUS_LABEL_BY_RANGE[spendingRange]
-              : `No data for ${PREVIOUS_LABEL_BY_RANGE[spendingRange].toLowerCase()}`}
-          </span>
-        </div>
-      </div>
-      <div
-        ref={spendingComparisonChartRef}
-        className="relative flex-1 min-h-0"
-        onMouseLeave={hideSpendingComparisonTooltip}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={spendingChartData}
-            margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
-            onMouseMove={(state, event) => showSpendingComparisonTooltip(state, event)}
-            onMouseLeave={hideSpendingComparisonTooltip}
-          >
-            <defs>
-              <linearGradient id="spendCurrentFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--app-accent)" stopOpacity={0.28} />
-                <stop offset="100%" stopColor="var(--app-accent)" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="spendPreviousFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--app-text-muted)" stopOpacity={0.15} />
-                <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis
-              xAxisId="plot"
-              dataKey="label"
-              hide
-            />
-            <XAxis
-              xAxisId="labels"
-              dataKey="label"
-              axisLine={false}
-              tickLine={false}
-              interval={0}
-              ticks={spendingXAxisTicks}
-              tick={(props) => (
-                <SpendingComparisonXAxisTick
-                  {...props}
-                  firstLabel={firstSpendingXAxisTick}
-                  lastLabel={lastSpendingXAxisTick}
-                />
               )}
-              tickMargin={4}
-            />
-            <YAxis hide />
-            <Area
-              xAxisId="plot"
-              type="monotone"
-              dataKey="previous"
-              stroke="var(--app-text-muted)"
-              strokeWidth={1.5}
-              strokeDasharray="4 3"
-              fill="url(#spendPreviousFill)"
-              connectNulls={false}
-            />
-            <Area
-              xAxisId="plot"
-              type="monotone"
-              dataKey="current"
-              stroke="var(--app-accent)"
-              strokeWidth={2.5}
-              fill="url(#spendCurrentFill)"
-              connectNulls={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-        <DeferredChartTooltipOverlay
-          ref={spendingComparisonTooltipRef}
-          chartRef={spendingComparisonChartRef}
-          className="min-w-48"
-          getKey={getSpendingComparisonTooltipKey}
-          renderContent={(point) => (
-            <SpendingComparisonTooltipContent
-              point={point}
-              displayCurrency={displayCurrency}
-              spendingRange={spendingRange}
-            />
+              <AppScrambledNumber text={spendingDeltaText} />
+            </div>
           )}
-        />
-      </div>
+        </div>
+        <div className="mb-2 mt-2 flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{
+                background: 'var(--app-accent)',
+                opacity: currentHasData ? 1 : 0.4,
+              }}
+            />
+            <span
+              className="text-xs max-[1000px]:text-[0.675rem]"
+              style={{
+                color: 'var(--app-text-muted)',
+                fontStyle: currentHasData ? 'normal' : 'italic',
+              }}
+            >
+              {currentHasData
+                ? CURRENT_LABEL_BY_RANGE[displaySpendingRange]
+                : `No data for ${CURRENT_LABEL_BY_RANGE[displaySpendingRange].toLowerCase()}`}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{
+                background: 'var(--app-text-muted)',
+                opacity: previousHasData ? 1 : 0.4,
+              }}
+            />
+            <span
+              className="text-xs max-[1000px]:text-[0.675rem]"
+              style={{
+                color: 'var(--app-text-muted)',
+                fontStyle: previousHasData ? 'normal' : 'italic',
+              }}
+            >
+              {previousHasData
+                ? PREVIOUS_LABEL_BY_RANGE[displaySpendingRange]
+                : `No data for ${PREVIOUS_LABEL_BY_RANGE[displaySpendingRange].toLowerCase()}`}
+            </span>
+          </div>
+        </div>
+        <div
+          ref={spendingComparisonChartRef}
+          className="relative min-h-0 flex-1"
+          onMouseLeave={hideSpendingComparisonTooltip}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart
+              data={spendingChartData}
+              margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+              onMouseMove={(state, event) => showSpendingComparisonTooltip(state, event)}
+              onMouseLeave={hideSpendingComparisonTooltip}
+            >
+              <defs>
+                <linearGradient id="spendCurrentFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--app-accent)" stopOpacity={0.28} />
+                  <stop offset="100%" stopColor="var(--app-accent)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="spendPreviousFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--app-text-muted)" stopOpacity={0.15} />
+                  <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                xAxisId="plot"
+                dataKey="label"
+                hide
+              />
+              <XAxis
+                xAxisId="labels"
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                interval={0}
+                ticks={spendingXAxisTicks}
+                tick={(props) => (
+                  <SpendingComparisonXAxisTick
+                    {...props}
+                    firstLabel={firstSpendingXAxisTick}
+                    lastLabel={lastSpendingXAxisTick}
+                  />
+                )}
+                tickMargin={4}
+              />
+              <YAxis hide />
+              <Area
+                xAxisId="plot"
+                type="monotone"
+                dataKey="previous"
+                stroke="var(--app-text-muted)"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                fill="url(#spendPreviousFill)"
+                connectNulls={false}
+              />
+              <Area
+                xAxisId="plot"
+                type="monotone"
+                dataKey="current"
+                stroke="var(--app-accent)"
+                strokeWidth={2.5}
+                fill="url(#spendCurrentFill)"
+                connectNulls={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          <DeferredChartTooltipOverlay
+            ref={spendingComparisonTooltipRef}
+            chartRef={spendingComparisonChartRef}
+            className="min-w-48"
+            getKey={getSpendingComparisonTooltipKey}
+            renderContent={(point) => (
+              <SpendingComparisonTooltipContent
+                point={point}
+                displayCurrency={displayCurrency}
+                spendingRange={displaySpendingRange}
+              />
+            )}
+          />
+        </div>
+      </DashboardWidgetLoadingBody>
     </div>
   )
 }

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
 import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
 import { getTopBudgetsFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -44,7 +46,22 @@ function getBudgetAttentionState(usagePct: number) {
 }
 
 export function TopBudgetsWidget() {
-  const { data: latestBudgetUtilizations, isLoading: loading } = useLatestBudgetUtilizations()
+  const { data: incomingLatestBudgetUtilizations, isFetching: loading } = useLatestBudgetUtilizations()
+  const loadingSnapshot = useMemo(
+    () => ({ latestBudgetUtilizations: incomingLatestBudgetUtilizations }),
+    [incomingLatestBudgetUtilizations],
+  )
+  const {
+    displaySnapshot,
+    contentConcealed,
+    loadingVisible,
+    shouldReduceMotion,
+  } = useLoadingSnapshot({
+    snapshot: loadingSnapshot,
+    loading,
+    transitionKey: 'top-budgets',
+  })
+  const latestBudgetUtilizations = displaySnapshot.latestBudgetUtilizations
   const budgets = useMemo(
     () => getTopBudgets(latestBudgetUtilizations),
     [latestBudgetUtilizations],
@@ -69,84 +86,89 @@ export function TopBudgetsWidget() {
         />
       </div>
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="app-spinner" />
-        </div>
-      ) : budgets.length === 0 ? (
-        <div
-          className="flex-1 flex items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          No budgets
-        </div>
-      ) : (
-        <>
-          <div className="flex-1 min-h-0">
-            {budgets.map((budget, index) => {
-              const attention = getBudgetAttentionState(budget.usagePct)
-              const barPct = Math.min(Math.max(budget.usagePct, 0), 100)
-              return (
-                <Link
-                  key={budget.budget_id}
-                  to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
-                  className="block px-1 py-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
-                  style={{
-                    borderBottom: index < budgets.length - 1 ? '1px solid var(--app-border)' : undefined,
-                  }}
-                  aria-label={`Open ${budget.name} budget`}
-                >
-                  <div className="flex items-baseline justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
-                      <p
-                        className="mt-0.5 text-base max-[1000px]:text-[0.9rem]"
-                        style={{ color: 'var(--app-text-muted)' }}
-                      >
-                        {formatCurrency(budget.total_spent, budget.currency)}
-                        {' / '}
-                        {formatCurrency(budget.overall_limit, budget.currency)}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-base font-semibold leading-none max-[1000px]:text-[0.9rem]" style={{ color: attention.textColor }}>
-                        {budget.usagePct}%
-                      </p>
-                      <p className="mt-1 text-xs font-medium max-[1000px]:text-[0.675rem]" style={{ color: attention.textColor }}>
-                        {attention.label}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-center gap-3">
-                    <div
-                      className="h-1.5 flex-1 overflow-hidden rounded-full"
-                      style={{ background: 'var(--app-border)' }}
-                      aria-hidden
-                    >
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${barPct}%`,
-                          background: attention.indicatorColor,
-                        }}
-                      />
-                    </div>
-                    <span className="shrink-0 text-sm max-[1000px]:text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                      Ends {formatDashboardShortDate(budget.period_end)}
-                    </span>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-          <Link
-            to="/budgets"
-            className="app-secondary-button mt-3 h-9 text-xs max-[1000px]:text-[0.675rem]"
+      <DashboardWidgetLoadingBody
+        contentConcealed={contentConcealed}
+        loadingVisible={loadingVisible}
+        shouldReduceMotion={shouldReduceMotion}
+        label="Loading top budgets"
+        className="flex-1"
+        contentClassName="flex h-full min-h-0 flex-col"
+      >
+        {budgets.length === 0 ? (
+          <div
+            className="flex flex-1 items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
+            style={{ color: 'var(--app-text-subtle)' }}
           >
-            View all budgets
-          </Link>
-        </>
-      )}
+            No budgets
+          </div>
+        ) : (
+          <>
+            <div className="min-h-0 flex-1">
+              {budgets.map((budget, index) => {
+                const attention = getBudgetAttentionState(budget.usagePct)
+                const barPct = Math.min(Math.max(budget.usagePct, 0), 100)
+                return (
+                  <Link
+                    key={budget.budget_id}
+                    to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
+                    className="block px-1 py-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+                    style={{
+                      borderBottom: index < budgets.length - 1 ? '1px solid var(--app-border)' : undefined,
+                    }}
+                    aria-label={`Open ${budget.name} budget`}
+                  >
+                    <div className="flex items-baseline justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
+                        <p
+                          className="mt-0.5 text-base max-[1000px]:text-[0.9rem]"
+                          style={{ color: 'var(--app-text-muted)' }}
+                        >
+                          {formatCurrency(budget.total_spent, budget.currency)}
+                          {' / '}
+                          {formatCurrency(budget.overall_limit, budget.currency)}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-base font-semibold leading-none max-[1000px]:text-[0.9rem]" style={{ color: attention.textColor }}>
+                          {budget.usagePct}%
+                        </p>
+                        <p className="mt-1 text-xs font-medium max-[1000px]:text-[0.675rem]" style={{ color: attention.textColor }}>
+                          {attention.label}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-3">
+                      <div
+                        className="h-1.5 flex-1 overflow-hidden rounded-full"
+                        style={{ background: 'var(--app-border)' }}
+                        aria-hidden
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${barPct}%`,
+                            background: attention.indicatorColor,
+                          }}
+                        />
+                      </div>
+                      <span className="shrink-0 text-sm max-[1000px]:text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                        Ends {formatDashboardShortDate(budget.period_end)}
+                      </span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+            <Link
+              to="/budgets"
+              className="app-secondary-button mt-3 h-9 text-xs max-[1000px]:text-[0.675rem]"
+            >
+              View all budgets
+            </Link>
+          </>
+        )}
+      </DashboardWidgetLoadingBody>
     </div>
   )
 }
