@@ -25,7 +25,7 @@ function TopBandDivider({ className = '' }: { className?: string }) {
 export default function TransactionsTopBand({
   overview,
   displayCurrency,
-  filterListLoading,
+  loading,
   rangeLabel,
   chartAnimationKey,
   prefersReducedMotion,
@@ -35,7 +35,7 @@ export default function TransactionsTopBand({
 }: {
   overview: TransactionsOverview | undefined
   displayCurrency: string
-  filterListLoading: boolean
+  loading: boolean
   rangeLabel: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
@@ -79,14 +79,15 @@ export default function TransactionsTopBand({
   return (
     <section className="relative" data-tooltip-bounds>
       <AnimatePresence>
-        {filterListLoading && (
+        {loading && (
           <TransactionFilterLoadingOverlay
             placement="center"
             reducedMotion={prefersReducedMotion}
+            label="Loading transaction summary"
           />
         )}
       </AnimatePresence>
-      {!filterListLoading && !hasOverviewData && (
+      {!loading && !hasOverviewData && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md"
           style={{

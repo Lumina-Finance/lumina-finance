@@ -24,7 +24,6 @@ export default function TransactionListSection({
   currency,
   filters: controlledFilters,
   onFiltersChange,
-  isExternalFetching = false,
   onFilterLoadingChange,
   onSettledTransactionsChange,
   onCreateTransaction,
@@ -35,7 +34,6 @@ export default function TransactionListSection({
   currency: string
   filters?: TransactionListFilters
   onFiltersChange?: (filters: TransactionListFilters) => void
-  isExternalFetching?: boolean
   onFilterLoadingChange?: (loading: boolean) => void
   onSettledTransactionsChange?: (transactions: Transaction[]) => void
   onCreateTransaction: () => void
@@ -193,7 +191,7 @@ export default function TransactionListSection({
   // transitions read as intentional instead of flashing.
   useEffect(() => {
     if (!filterListLoading) return
-    if (!isFetching && !isExternalFetching && (txnPages !== undefined || error)) {
+    if (!isFetching && (txnPages !== undefined || error)) {
       const elapsed = Date.now() - filterLoadingStartedAtRef.current
       const remaining = Math.max(FILTER_LIST_LOADING_MIN_MS - elapsed, 0)
       if (filterLoadingTimeoutRef.current !== null) {
@@ -206,7 +204,7 @@ export default function TransactionListSection({
         filterLoadingTimeoutRef.current = null
       }, remaining)
     }
-  }, [error, filterListLoading, isExternalFetching, isFetching, setFilterLoading, txnPages])
+  }, [error, filterListLoading, isFetching, setFilterLoading, txnPages])
 
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,

@@ -140,7 +140,7 @@ export default function TransactionsPage() {
           <TransactionsTopBand
             overview={overview}
             displayCurrency={displayCurrency}
-            filterListLoading={filterListLoading}
+            loading={filterListLoading || isOverviewFetching}
             rangeLabel={rangeLabel}
             chartAnimationKey={chartAnimationKey}
             prefersReducedMotion={prefersReducedMotion}
@@ -164,7 +164,6 @@ export default function TransactionsPage() {
           currency={displayCurrency}
           filters={filters}
           onFiltersChange={setFilters}
-          isExternalFetching={isOverviewFetching}
           onFilterLoadingChange={setFilterListLoading}
           onSettledTransactionsChange={handleSettledTransactionsChange}
           onCreateTransaction={openCreateModal}
