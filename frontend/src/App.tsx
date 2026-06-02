@@ -47,6 +47,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
+  const [animateInitialPageMount] = useState(() => !hasShownLoadingScreen);
 
   // Enforce the first-session loading-screen minimum before revealing the app.
   useEffect(() => {
@@ -62,6 +63,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   const ready = !loading && minTimePassed;
+  const pageContentEntering = pageTransitionPhase === 'entering' || animateInitialPageMount;
 
   return (
     <>
@@ -81,8 +83,8 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
           >
             <motion.div
               initial={{
-                opacity: pageTransitionPhase === 'entering' ? 0 : 1,
-                y: pageTransitionPhase === 'entering' ? PAGE_TRANSITION_OFFSET_PX : 0,
+                opacity: pageContentEntering ? 0 : 1,
+                y: pageContentEntering ? PAGE_TRANSITION_OFFSET_PX : 0,
               }}
               animate={{
                 opacity: pageContentVisible ? 1 : 0,
