@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -7,6 +8,8 @@ import httpx
 
 from app.config import FRANKFURTER_BASE_URL
 from app.schemas.fx import FxIssueReason, FxRateIssue, FxStatus
+
+FRANKFURTER_DEBUG_DELAY_SECONDS = 15
 
 
 class FxRateError(RuntimeError):
@@ -66,6 +69,7 @@ class FrankfurterProvider:
         if self.client is not None:
             return await self._get_rate(self.client, normalized_base, normalized_quote, rate_date)
 
+        await asyncio.sleep(FRANKFURTER_DEBUG_DELAY_SECONDS)
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             return await self._get_rate(client, normalized_base, normalized_quote, rate_date)
 
@@ -86,6 +90,7 @@ class FrankfurterProvider:
         if self.client is not None:
             return await self._get_rates(self.client, normalized_base, normalized_quote, start_date, end_date)
 
+        await asyncio.sleep(FRANKFURTER_DEBUG_DELAY_SECONDS)
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             return await self._get_rates(client, normalized_base, normalized_quote, start_date, end_date)
 
