@@ -6,8 +6,6 @@ import AccountRow from '@/accounts/components/AccountRow'
 import type { AccountAccent } from '@/accounts/types/accounts'
 
 const ACCOUNT_ROW_EASE = [0.25, 0.1, 0.25, 1] as const
-const ACCOUNT_ROW_ENTER_OFFSET_PX = 10
-const ACCOUNT_ROW_STAGGER_SECONDS = 0.045
 
 export default function AccountListSection({
   title,
@@ -91,16 +89,15 @@ export default function AccountListSection({
             </motion.p>
           )}
         </AnimatePresence>
-        {!loading && accounts.map((account, index) => (
+        {!loading && accounts.map((account) => (
           <motion.div
             key={account.id}
             className="overflow-hidden"
-            initial={prefersReducedMotion ? false : { opacity: 0, y: ACCOUNT_ROW_ENTER_OFFSET_PX, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
             transition={{
               duration: prefersReducedMotion ? 0 : 0.22,
               ease: ACCOUNT_ROW_EASE,
-              delay: prefersReducedMotion ? 0 : index * ACCOUNT_ROW_STAGGER_SECONDS,
             }}
           >
             <AccountRow
