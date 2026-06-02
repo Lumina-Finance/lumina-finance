@@ -1,14 +1,15 @@
 import type { SyntheticEvent } from 'react'
 import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getBudgetUtilizationFxStatusMessage } from '@/budgets/utils/fxTooltipMessages'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 
 export default function BudgetFxStatusTooltip({
   fxStatus,
   label,
   placement = 'top',
   stopPropagation = false,
-  getMessage = getFxStatusMessage,
+  getMessage = getBudgetUtilizationFxStatusMessage,
 }: {
   fxStatus: FxStatus | undefined
   label: string

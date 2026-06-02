@@ -30,6 +30,7 @@ import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_MS, MODAL_
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { formatCalendarDate, parseYmd } from '@/budgets/utils/date'
 import { attentionState } from '@/budgets/utils/budgetStatus'
+import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/budgets/utils/fxTooltipMessages'
 import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
 
 function utilizationPercent(spent: number, limit: number) {
@@ -525,6 +526,7 @@ export default function BudgetDetailsModal({
                     <BudgetFxStatusTooltip
                       fxStatus={utilizationHistoryFxStatus}
                       label="Historical utilization FX status"
+                      getMessage={getHistoricalBudgetUtilizationFxStatusMessage}
                     />
                   </div>
                   <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
