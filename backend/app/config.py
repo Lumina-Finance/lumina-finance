@@ -61,9 +61,9 @@ DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT
 
 # --- FX ---
 
-FRANKFURTER_BASE_URL = os.getenv("FRANKFURTER_BASE_URL", "https://api.frankfurter.dev").strip().rstrip("/")
-if not FRANKFURTER_BASE_URL:
-    raise RuntimeError("FRANKFURTER_BASE_URL cannot be blank")
+FRANKFURTER_URL = os.getenv("FRANKFURTER_URL", "https://api.frankfurter.dev/v2").strip().rstrip("/")
+if not FRANKFURTER_URL:
+    raise RuntimeError("FRANKFURTER_URL cannot be blank")
 
 # --- JWT ---
 

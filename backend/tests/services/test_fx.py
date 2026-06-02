@@ -217,8 +217,8 @@ def test_convert_minor_units_handles_currency_exponents_and_rounding():
     assert convert_minor_units(123, rate=Decimal("0.0091"), base_exponent=0, quote_exponent=2) == 112
 
 
-async def test_frankfurter_provider_uses_configured_base_url_and_date():
-    """FrankfurterProvider calls the v2 single-pair endpoint."""
+async def test_frankfurter_provider_uses_configured_url_and_date():
+    """FrankfurterProvider calls the configured single-pair endpoint."""
     seen_url = None
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -227,7 +227,7 @@ async def test_frankfurter_provider_uses_configured_base_url_and_date():
         return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        rate = await FrankfurterProvider(base_url="https://fx.example.test/", client=client).get_rate(
+        rate = await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rate(
             "usd",
             "cad",
             date(2026, 5, 30),
@@ -241,8 +241,8 @@ async def test_frankfurter_provider_uses_configured_base_url_and_date():
     assert seen_url.params["date"] == "2026-05-30"
 
 
-async def test_frankfurter_provider_uses_configured_base_url_for_rate_range():
-    """FrankfurterProvider calls the v2 filtered time-series endpoint."""
+async def test_frankfurter_provider_uses_configured_url_for_rate_range():
+    """FrankfurterProvider calls the configured filtered time-series endpoint."""
     seen_url = None
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -257,7 +257,7 @@ async def test_frankfurter_provider_uses_configured_base_url_for_rate_range():
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        rates = await FrankfurterProvider(base_url="https://fx.example.test/", client=client).get_rates(
+        rates = await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rates(
             "usd",
             "cad",
             date(2026, 5, 29),

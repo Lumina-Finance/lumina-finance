@@ -5,8 +5,9 @@ from typing import Any, Protocol
 
 import httpx
 
-from app.config import FRANKFURTER_BASE_URL
+from app.config import FRANKFURTER_URL
 from app.schemas.fx import FxIssueReason, FxRateIssue, FxStatus
+
 
 class FxRateError(RuntimeError):
     """Base error for FX rate lookups."""
@@ -49,12 +50,12 @@ class FrankfurterProvider:
     def __init__(
         self,
         *,
-        base_url: str = FRANKFURTER_BASE_URL,
+        url: str = FRANKFURTER_URL,
         client: httpx.AsyncClient | None = None,
         timeout: float = 5.0,
     ):
         """Initialize the provider with an optional reusable HTTP client."""
-        self.base_url = base_url.rstrip("/")
+        self.url = url.rstrip("/")
         self.client = client
         self.timeout = timeout
 
@@ -75,7 +76,7 @@ class FrankfurterProvider:
         quote: str,
         rate_date: date,
     ) -> Decimal:
-        response = await _request_rate(client, self.base_url, base, quote, rate_date)
+        response = await _request_rate(client, self.url, base, quote, rate_date)
         return _parse_rate(response.json(), expected_base=base, expected_quote=quote)
 
     async def get_rates(self, base: str, quote: str, start_date: date, end_date: date) -> dict[date, Decimal]:
@@ -96,7 +97,7 @@ class FrankfurterProvider:
         start_date: date,
         end_date: date,
     ) -> dict[date, Decimal]:
-        response = await _request_rates(client, self.base_url, base, quote, start_date, end_date)
+        response = await _request_rates(client, self.url, base, quote, start_date, end_date)
         return _parse_rates(response.json(), expected_base=base, expected_quote=quote)
 
 
@@ -216,14 +217,14 @@ class FxConverter:
 
 async def _request_rate(
     client: httpx.AsyncClient,
-    base_url: str,
+    url: str,
     base: str,
     quote: str,
     rate_date: date,
 ) -> httpx.Response:
     try:
         response = await client.get(
-            f"{base_url}/v2/rate/{base}/{quote}",
+            f"{url}/rate/{base}/{quote}",
             params={"date": rate_date.isoformat()},
         )
     except httpx.RequestError as exc:
@@ -244,7 +245,7 @@ async def _request_rate(
 
 async def _request_rates(
     client: httpx.AsyncClient,
-    base_url: str,
+    url: str,
     base: str,
     quote: str,
     start_date: date,
@@ -252,7 +253,7 @@ async def _request_rates(
 ) -> httpx.Response:
     try:
         response = await client.get(
-            f"{base_url}/v2/rates",
+            f"{url}/rates",
             params={
                 "base": base,
                 "quotes": quote,
