@@ -2,6 +2,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetrics'
 import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
+import AccountsLoadingRegion from '@/accounts/components/AccountsLoadingRegion'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import {
   getCreditFxStatusMessage,
@@ -92,32 +93,38 @@ export default function AccountsMetricsBand({
               getMessage={getSavingsRateFxStatusMessage}
             />
           </div>
-          <p
-            className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
-            style={{ color: savingsRate.color }}
+          <AccountsLoadingRegion
+            loading={savingsRate.isLoading}
+            label="Loading savings rate metric"
+            className="rounded-lg"
           >
-            {savingsRateValue}
-          </p>
-          <div className="mt-2 space-y-1">
-            <div
-              className="h-1 overflow-hidden rounded-full"
-              style={{ background: 'var(--app-border)' }}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{
-                  background: savingsRate.color,
-                  width: `${Math.max(0, Math.min(savingsRate.value ?? 0, 100))}%`,
-                }}
-              />
-            </div>
             <p
-              className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
-              style={{ color: 'var(--app-text-subtle)' }}
+              className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
+              style={{ color: savingsRate.color }}
             >
-              {savingsRateCaption}
+              {savingsRateValue}
             </p>
-          </div>
+            <div className="mt-2 space-y-1">
+              <div
+                className="h-1 overflow-hidden rounded-full"
+                style={{ background: 'var(--app-border)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    background: savingsRate.color,
+                    width: `${Math.max(0, Math.min(savingsRate.value ?? 0, 100))}%`,
+                  }}
+                />
+              </div>
+              <p
+                className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                {savingsRateCaption}
+              </p>
+            </div>
+          </AccountsLoadingRegion>
         </div>
 
         <div className="order-1 col-span-2 min-w-0 border-b border-[var(--app-border)] pb-3 min-[730px]:order-2 min-[730px]:col-span-1 min-[730px]:border-x min-[730px]:border-b-0 min-[730px]:px-6 min-[730px]:pb-0">
@@ -129,32 +136,38 @@ export default function AccountsMetricsBand({
               getMessage={getCreditFxStatusMessage}
             />
           </div>
-          <p
-            className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
-            style={{ color: creditUsage.color }}
+          <AccountsLoadingRegion
+            loading={creditUsage.isLoading}
+            label="Loading credit usage metric"
+            className="rounded-lg"
           >
-            {creditUsageValue}
-          </p>
-          <div className="mt-2 space-y-1">
-            <div
-              className="h-1 overflow-hidden rounded-full"
-              style={{ background: 'var(--app-border)' }}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{
-                  background: creditUsage.color,
-                  width: `${creditUsage.hasCreditData ? Math.max(0, Math.min(creditUsage.utilization, 100)) : 0}%`,
-                }}
-              />
-            </div>
             <p
-              className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
-              style={{ color: 'var(--app-text-subtle)' }}
+              className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
+              style={{ color: creditUsage.color }}
             >
-              {creditUsageCaption}
+              {creditUsageValue}
             </p>
-          </div>
+            <div className="mt-2 space-y-1">
+              <div
+                className="h-1 overflow-hidden rounded-full"
+                style={{ background: 'var(--app-border)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    background: creditUsage.color,
+                    width: `${creditUsage.hasCreditData ? Math.max(0, Math.min(creditUsage.utilization, 100)) : 0}%`,
+                  }}
+                />
+              </div>
+              <p
+                className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                {creditUsageCaption}
+              </p>
+            </div>
+          </AccountsLoadingRegion>
         </div>
 
         <div className="relative order-3 min-w-0 border-l border-[var(--app-border)] pl-4 pt-3 min-[730px]:border-l-0 min-[730px]:pl-6 min-[730px]:pt-0">
@@ -174,32 +187,38 @@ export default function AccountsMetricsBand({
               {runway.style.label}
             </span>
           )}
-          <p
-            className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
-            style={{ color: runway.months === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
+          <AccountsLoadingRegion
+            loading={runway.isLoading}
+            label="Loading runway metric"
+            className="rounded-lg"
           >
-            {runway.label}
-          </p>
-          <div className="mt-2 space-y-1">
-            <div
-              className="h-1 overflow-hidden rounded-full"
-              style={{ background: 'var(--app-border)' }}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{
-                  background: 'linear-gradient(to right, var(--app-positive), var(--app-accent))',
-                  width: `${runway.progress}%`,
-                }}
-              />
-            </div>
             <p
-              className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
-              style={{ color: 'var(--app-text-subtle)' }}
+              className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
+              style={{ color: runway.months === null ? 'var(--app-text-subtle)' : 'var(--app-text)' }}
             >
-              {runway.caption}
+              {runway.label}
             </p>
-          </div>
+            <div className="mt-2 space-y-1">
+              <div
+                className="h-1 overflow-hidden rounded-full"
+                style={{ background: 'var(--app-border)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    background: 'linear-gradient(to right, var(--app-positive), var(--app-accent))',
+                    width: `${runway.progress}%`,
+                  }}
+                />
+              </div>
+              <p
+                className="font-financial text-[clamp(0.875rem,1vw,0.9375rem)]"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                {runway.caption}
+              </p>
+            </div>
+          </AccountsLoadingRegion>
         </div>
       </div>
     </section>

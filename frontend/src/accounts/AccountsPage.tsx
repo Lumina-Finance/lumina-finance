@@ -20,7 +20,7 @@ export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
-  const { data: accounts, isLoading, error } = useAccounts()
+  const { data: accounts, isFetching: accountsLoading, error } = useAccounts()
   const { data: taxAdvantagedPlans } = useTaxAdvantagedPlans()
 
   useFocusRefetch([
@@ -64,7 +64,7 @@ export default function AccountsPage() {
       <div className="space-y-4">
         <AccountSummaryStatement
           error={error}
-          isLoading={isLoading}
+          isLoading={accountsLoading}
           netWorth={accountSections.netWorth}
           totalAssets={accountSections.totalAssets}
           totalDebts={accountSections.totalDebts}
@@ -99,6 +99,7 @@ export default function AccountsPage() {
           emptyLabel="No asset accounts"
           displayCurrency={displayCurrency}
           taxAdvantagedPlanById={taxAdvantagedPlanById}
+          loading={accountsLoading}
         />
 
         <AccountListSection
@@ -110,6 +111,7 @@ export default function AccountsPage() {
           displayCurrency={displayCurrency}
           taxAdvantagedPlanById={taxAdvantagedPlanById}
           showCreditLimit
+          loading={accountsLoading}
         />
 
         <AccountListSection
@@ -120,6 +122,7 @@ export default function AccountsPage() {
           emptyLabel="No amortizing debt accounts"
           displayCurrency={displayCurrency}
           taxAdvantagedPlanById={taxAdvantagedPlanById}
+          loading={accountsLoading}
         />
 
         <HiddenAccountsSection

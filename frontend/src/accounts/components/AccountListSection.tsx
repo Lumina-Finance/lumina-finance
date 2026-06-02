@@ -3,6 +3,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { formatCurrency } from '@/utils/formatCurrency'
 import AccountRow from '@/accounts/components/AccountRow'
+import AccountsLoadingRegion from '@/accounts/components/AccountsLoadingRegion'
 import type { AccountAccent } from '@/accounts/types/accounts'
 
 const ACCOUNT_ROW_EASE = [0.25, 0.1, 0.25, 1] as const
@@ -16,6 +17,7 @@ export default function AccountListSection({
   displayCurrency,
   taxAdvantagedPlanById,
   showCreditLimit = false,
+  loading = false,
 }: {
   title: string
   accent: AccountAccent
@@ -25,6 +27,7 @@ export default function AccountListSection({
   displayCurrency: string
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
   showCreditLimit?: boolean
+  loading?: boolean
 }) {
   const prefersReducedMotion = useReducedMotion()
   const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
@@ -53,7 +56,12 @@ export default function AccountListSection({
         </span>
       </div>
 
-      <div className="relative min-h-[4.625rem]">
+      <AccountsLoadingRegion
+        loading={loading}
+        label={`Loading ${title.toLowerCase()} accounts`}
+        className="rounded-lg"
+        contentClassName="relative min-h-[4.625rem]"
+      >
         <AnimatePresence initial={false}>
           {accounts.length === 0 && (
             <motion.p
@@ -89,7 +97,7 @@ export default function AccountListSection({
             </motion.div>
           ))}
         </AnimatePresence>
-      </div>
+      </AccountsLoadingRegion>
     </section>
   )
 }

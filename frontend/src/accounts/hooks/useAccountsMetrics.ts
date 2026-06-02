@@ -36,6 +36,7 @@ export interface AccountsMetricsViewModel {
     label: string
     style: { bg: string; fg: string; label: string } | null
     fxStatus: FxStatus | undefined
+    isLoading: boolean
     progress: number
     caption: string
     months: number | null
@@ -46,9 +47,9 @@ export function useAccountsMetrics(
   rows: AccountsOverview[],
   displayCurrency: string,
 ): AccountsMetricsViewModel {
-  const { data: dashboardCredit, isLoading: dashboardCreditLoading } = useDashboardCredit()
-  const { data: dashboardSavingsRate, isLoading: dashboardSavingsRateLoading } = useDashboardSavingsRate()
-  const { data: runway } = useRunway()
+  const { data: dashboardCredit, isFetching: dashboardCreditLoading } = useDashboardCredit()
+  const { data: dashboardSavingsRate, isFetching: dashboardSavingsRateLoading } = useDashboardSavingsRate()
+  const { data: runway, isFetching: runwayLoading } = useRunway()
 
   const revolvingAccounts = rows.filter((account) => account.account_kind === 'revolving')
   const creditAccountsWithLimits = revolvingAccounts.filter((account) => account.credit_limit !== null)
@@ -126,6 +127,7 @@ export function useAccountsMetrics(
       label: formatCompactRunway(runwayMonths),
       style: runwayStyle,
       fxStatus: runway?.fx_status,
+      isLoading: runwayLoading,
       progress: runwayProgress,
       caption: runwayCaption,
       months: runwayMonths,
