@@ -37,7 +37,7 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 - [X] Insights tab for deeper reports and trends
 - [X] UI/UX polish across the main workflows
 - [X] Bug fixes and stability improvements
-- [ ] Multi-currency support
+- [X] Multi-currency support
 - [ ] Application security improvements and fixes
 - [ ] OIDC and WebAuthN support
 - [ ] SaaS development and testing
@@ -95,11 +95,17 @@ These pages are now also fully mobile and tablet optimized!
 
 ### Docker
 
-If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL` value.
+If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL` and `FRANKFURTER_URL` values.
 
 ### Bare Metal
 
 If you'd like to deploy this bare metal, please clone the repo. The frontend is built with vite and you can build it and serve the static files with things like Caddy or Nginx. The backend is built with FastAPI, so you can serve it as a plain ASGI application with uvicorn. All environment variables should be set at the repo's root level. **Note that you will be responsible for generating the required RSA256 private keys as the auto generation currently only works with the Docker deployment as part of the startup process, in additon to configuring the environment variables correctly.**
+
+### Frankfurter (Foreign Currency Exchange Rates)
+
+Lumina uses [Frankfurter](https://github.com/lineofflight/frankfurter) for FX rates. By default, it uses the hosted API at `https://api.frankfurter.dev/v2`.
+
+Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfurter's GitHub repository for details. After it's set up, set `FRANKFURTER_URL` to its versioned API URL, including the `/v2` path, for Lumina Finance to use your self hosted instance.
 
 ## Environment Variables
 
@@ -111,7 +117,7 @@ If you'd like to deploy this bare metal, please clone the repo. The frontend is 
 | `DB_NAME` | Yes | Database name | None | PostgreSQL database name |
 | `DB_USER` | Yes | Database user | None | PostgreSQL username |
 | `DB_PASSWORD` | Yes | Database password | None | PostgreSQL password |
-| `FRANKFURTER_BASE_URL` | No | URL origin | `https://api.frankfurter.dev` | Frankfurter-compatible FX rate API base URL. Set this to a self-hosted Frankfurter instance to keep FX lookups private |
+| `FRANKFURTER_URL` | No | URL including API version path | `https://api.frankfurter.dev/v2` | Frankfurter-compatible FX rate API URL; set this to a self-hosted Frankfurter instance to keep FX lookups private |
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
