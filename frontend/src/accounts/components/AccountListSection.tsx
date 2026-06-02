@@ -49,10 +49,14 @@ export default function AccountListSection({
           }}
         />
         <span
-          className="font-financial shrink-0 text-xl font-semibold"
+          className="font-financial flex min-h-7 min-w-24 shrink-0 items-center justify-end text-xl font-semibold"
           style={{ color: subtotalColor }}
         >
-          {formatCurrency(subtotal, displayCurrency)}
+          {loading ? (
+            <span className="app-spinner" aria-label={`Loading ${title.toLowerCase()} total`} />
+          ) : (
+            formatCurrency(subtotal, displayCurrency)
+          )}
         </span>
       </div>
 
