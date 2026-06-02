@@ -3,10 +3,11 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import { formatCurrency } from '@/utils/formatCurrency'
 import AccountRow from '@/accounts/components/AccountRow'
-import AccountsLoadingRegion from '@/accounts/components/AccountsLoadingRegion'
 import type { AccountAccent } from '@/accounts/types/accounts'
 
 const ACCOUNT_ROW_EASE = [0.25, 0.1, 0.25, 1] as const
+const ACCOUNT_ROW_ENTER_OFFSET_PX = 10
+const ACCOUNT_ROW_STAGGER_SECONDS = 0.045
 
 export default function AccountListSection({
   title,
@@ -60,14 +61,23 @@ export default function AccountListSection({
         </span>
       </div>
 
-      <AccountsLoadingRegion
-        loading={loading}
-        label={`Loading ${title.toLowerCase()} accounts`}
-        className="rounded-lg"
-        contentClassName="relative min-h-[4.625rem]"
-      >
+      <div className="relative min-h-[4.625rem] overflow-hidden rounded-lg">
         <AnimatePresence initial={false}>
-          {accounts.length === 0 && (
+          {loading && (
+            <motion.div
+              key="loading"
+              className="absolute inset-0 flex items-center justify-center"
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: ACCOUNT_ROW_EASE }}
+            >
+              <div className="app-spinner" aria-label={`Loading ${title.toLowerCase()} accounts`} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {!loading && accounts.length === 0 && (
             <motion.p
               key="empty"
               className="pointer-events-none absolute inset-x-0 top-0 flex overflow-hidden text-center text-sm italic"
@@ -81,27 +91,28 @@ export default function AccountListSection({
             </motion.p>
           )}
         </AnimatePresence>
-        <AnimatePresence initial={false}>
-          {accounts.map((account) => (
-            <motion.div
-              key={account.id}
-              className="overflow-hidden"
-              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: ACCOUNT_ROW_EASE }}
-            >
-              <AccountRow
-                account={account}
-                accent={accent}
-                showCreditLimit={showCreditLimit}
-                taxAdvantagedPlanById={taxAdvantagedPlanById}
-                displayCurrency={displayCurrency}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </AccountsLoadingRegion>
+        {!loading && accounts.map((account, index) => (
+          <motion.div
+            key={account.id}
+            className="overflow-hidden"
+            initial={prefersReducedMotion ? false : { opacity: 0, y: ACCOUNT_ROW_ENTER_OFFSET_PX, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            transition={{
+              duration: prefersReducedMotion ? 0 : 0.22,
+              ease: ACCOUNT_ROW_EASE,
+              delay: prefersReducedMotion ? 0 : index * ACCOUNT_ROW_STAGGER_SECONDS,
+            }}
+          >
+            <AccountRow
+              account={account}
+              accent={accent}
+              showCreditLimit={showCreditLimit}
+              taxAdvantagedPlanById={taxAdvantagedPlanById}
+              displayCurrency={displayCurrency}
+            />
+          </motion.div>
+        ))}
+      </div>
     </section>
   )
 }
