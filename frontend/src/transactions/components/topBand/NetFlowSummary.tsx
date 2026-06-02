@@ -61,8 +61,7 @@ export default function NetFlowSummary({
             label="Net flow FX status"
             icon="fx"
             fxTone={getFxStatusTone(fxStatus)}
-            placement="top"
-            widthClassName="w-64"
+            placement="bottom"
           >
             <span className="block">{getFxStatusMessage(fxStatus)}</span>
             {fxStatus.missing_pairs.length > 0 && (

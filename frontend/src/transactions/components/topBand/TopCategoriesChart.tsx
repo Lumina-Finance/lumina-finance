@@ -187,7 +187,6 @@ export default function TopCategoriesChart({
             icon="fx"
             fxTone={getFxStatusTone(fxStatus)}
             placement="bottom"
-            widthClassName="w-64"
           >
             <span className="block">{getFxStatusMessage(fxStatus)}</span>
             {fxStatus.missing_pairs.length > 0 && (

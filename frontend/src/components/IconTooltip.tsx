@@ -61,7 +61,7 @@ const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }>
     active: 'border-[var(--app-text-muted)] bg-[var(--app-text-muted)] text-white opacity-100',
   },
 }
-const TOOLTIP_WRAPPER_CLASS = 'pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 p-2 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100'
+const TOOLTIP_WRAPPER_CLASS = 'pointer-events-none absolute left-1/2 z-20 p-2 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100'
 const TOOLTIP_OPEN_CLASS = 'pointer-events-auto opacity-100'
 
 function joinClassNames(...classNames: Array<string | false | undefined>) {
@@ -72,20 +72,57 @@ function getAvailablePlacement({
   preferredPlacement,
   triggerRect,
   tooltipRect,
+  boundaryRect,
 }: {
   preferredPlacement: IconTooltipPlacement
   triggerRect: DOMRect
   tooltipRect: DOMRect
+  boundaryRect?: DOMRect
 }): IconTooltipPlacement {
   const viewportPadding = 8
-  const topWouldClip = triggerRect.top - tooltipRect.height < viewportPadding
-  const bottomWouldClip = triggerRect.bottom + tooltipRect.height > window.innerHeight - viewportPadding
+  const boundaryTop = Math.max(viewportPadding, boundaryRect ? boundaryRect.top + viewportPadding : viewportPadding)
+  const boundaryBottom = Math.min(
+    window.innerHeight - viewportPadding,
+    boundaryRect ? boundaryRect.bottom - viewportPadding : window.innerHeight - viewportPadding,
+  )
+  const topWouldClip = triggerRect.top - tooltipRect.height < boundaryTop
+  const bottomWouldClip = triggerRect.bottom + tooltipRect.height > boundaryBottom
 
   if (preferredPlacement === 'top') {
     return topWouldClip && !bottomWouldClip ? 'bottom' : 'top'
   }
 
   return bottomWouldClip && !topWouldClip ? 'top' : 'bottom'
+}
+
+function getHorizontalOffset({
+  triggerRect,
+  tooltipRect,
+  boundaryRect,
+}: {
+  triggerRect: DOMRect
+  tooltipRect: DOMRect
+  boundaryRect?: DOMRect
+}): number {
+  const viewportPadding = 8
+  const pageContentRect = document.getElementById('app-page-content')?.getBoundingClientRect()
+  const boundaryLeft = Math.max(
+    viewportPadding,
+    pageContentRect ? pageContentRect.left + viewportPadding : viewportPadding,
+    boundaryRect ? boundaryRect.left + viewportPadding : viewportPadding,
+  )
+  const boundaryRight = Math.min(
+    window.innerWidth - viewportPadding,
+    pageContentRect ? pageContentRect.right - viewportPadding : window.innerWidth - viewportPadding,
+    boundaryRect ? boundaryRect.right - viewportPadding : window.innerWidth - viewportPadding,
+  )
+  const triggerCenter = triggerRect.left + triggerRect.width / 2
+  const tooltipLeft = triggerCenter - tooltipRect.width / 2
+  const tooltipRight = triggerCenter + tooltipRect.width / 2
+
+  if (tooltipLeft < boundaryLeft) return boundaryLeft - tooltipLeft
+  if (tooltipRight > boundaryRight) return boundaryRight - tooltipRight
+  return 0
 }
 
 export default function IconTooltip({
@@ -105,6 +142,7 @@ export default function IconTooltip({
   const Icon = isFxIcon ? DefaultIcon : IconOverride ?? DefaultIcon
   const [isOpen, setIsOpen] = useState(false)
   const [actualPlacement, setActualPlacement] = useState<IconTooltipPlacement>(placement)
+  const [horizontalOffset, setHorizontalOffset] = useState(0)
   const rootRef = useRef<HTMLSpanElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const tooltipRef = useRef<HTMLSpanElement>(null)
@@ -114,11 +152,17 @@ export default function IconTooltip({
     const tooltipRect = tooltipRef.current?.getBoundingClientRect()
     if (!triggerRect || !tooltipRect) return
 
+    const boundaryRect = triggerRef.current
+      ?.closest('[data-tooltip-bounds]')
+      ?.getBoundingClientRect()
+
     setActualPlacement(getAvailablePlacement({
       preferredPlacement: placement,
       triggerRect,
       tooltipRect,
+      boundaryRect,
     }))
+    setHorizontalOffset(getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect }))
   }, [placement])
 
   useEffect(() => {
@@ -175,9 +219,10 @@ export default function IconTooltip({
       <span
         ref={tooltipRef}
         className={tooltipWrapperClassName}
+        style={{ transform: `translateX(calc(-50% + ${horizontalOffset}px))` }}
       >
         <span
-          className={`app-tooltip-panel block rounded-md px-2.5 py-1.5 text-sm font-medium shadow-sm ${widthClassName}`}
+          className={`app-tooltip-panel block rounded-md px-2.5 py-1.5 text-left text-sm font-medium shadow-sm ${widthClassName}`}
           style={{ border: '1px solid var(--app-border-strong)' }}
         >
           {children}

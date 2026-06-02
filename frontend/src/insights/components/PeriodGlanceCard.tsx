@@ -152,7 +152,7 @@ export function PeriodGlanceCard({
     <section className="app-card">
       <SectionHeader icon={Sparkles} label="This Period at a Glance" />
 
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
             <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1400px]:flex min-[1400px]:min-h-52 min-[1400px]:flex-col min-[1400px]:items-stretch min-[1400px]:justify-between">

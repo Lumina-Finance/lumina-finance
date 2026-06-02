@@ -18,7 +18,6 @@ function FxStatusTooltip({
       icon="fx"
       fxTone={getFxStatusTone(fxStatus)}
       placement="top"
-      widthClassName="w-64"
     >
       <span className="block">{getFxStatusMessage(fxStatus)}</span>
       {fxStatus.missing_pairs.length > 0 && (

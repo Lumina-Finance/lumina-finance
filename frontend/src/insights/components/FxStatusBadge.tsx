@@ -14,7 +14,6 @@ export function FxStatusBadge({ label, status }: FxStatusBadgeProps) {
       icon="fx"
       fxTone={getFxStatusTone(status)}
       placement="top"
-      widthClassName="w-64"
     >
       <span className="block">{getFxStatusMessage(status)}</span>
       {status.missing_pairs.length > 0 && (
