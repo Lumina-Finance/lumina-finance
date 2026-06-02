@@ -7,7 +7,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Wallet } from 'lucide-react'
-import { useDashboardNetWorth, type FxStatus } from '@/api/dashboard'
+import { useDashboardNetWorth } from '@/api/dashboard'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
@@ -22,6 +22,7 @@ import {
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getNetWorthFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
 import type { NetWorthSeriesPoint } from '@/dashboard/types/dashboard'
 
@@ -48,19 +49,6 @@ type NetWorthTooltipState = {
 function formatNetWorthChange(amount: number, currency: string) {
   if (amount === 0) return formatDashboardMoney(0, currency, 'netWorth')
   return `${amount > 0 ? '+' : '-'}${formatDashboardMoney(Math.abs(amount), currency, 'netWorth')}`
-}
-
-function getNetWorthFxStatusMessage(fxStatus: FxStatus) {
-  switch (fxStatus.state) {
-    case 'none':
-      return 'All account balances were already in your base currency'
-    case 'complete':
-      return 'Foreign currency account balances were converted into your base currency'
-    case 'incomplete':
-      return 'Some foreign currency accounts could not be converted. Net worth is incomplete and only includes accounts with available conversion rates'
-    case 'unavailable':
-      return 'Foreign currency accounts could not be converted. Net worth is incomplete and only includes base currency accounts'
-  }
 }
 
 function getNetWorthXAxisTicks(data: NetWorthSeriesPoint[]) {

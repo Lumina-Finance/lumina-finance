@@ -12,7 +12,6 @@ import {
   BarChart3,
 } from 'lucide-react'
 import {
-  type FxStatus,
   type SpendingRange,
   useSpendingComparison,
 } from '@/api/dashboard'
@@ -35,6 +34,7 @@ import {
 } from '@/dashboard/constants/ranges'
 import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getSpendingComparisonFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getSpendingComparisonSeries } from '@/dashboard/utils/getSpendingComparisonSeries'
 
 type SpendingComparisonWidgetProps = {
@@ -129,19 +129,6 @@ function getSpendingComparisonTooltipPoint(
   return state.activeLabel === undefined
     ? undefined
     : pointsByLabel.get(String(state.activeLabel))
-}
-
-function getSpendingComparisonFxStatusMessage(fxStatus: FxStatus) {
-  switch (fxStatus.state) {
-    case 'none':
-      return 'Spending in this comparison was already in your base currency'
-    case 'complete':
-      return 'Foreign currency spending was converted into your base currency'
-    case 'incomplete':
-      return 'Some foreign currency spending could not be converted. Spending comparison is incomplete and only includes spending with available conversion rates'
-    case 'unavailable':
-      return 'Foreign currency spending could not be converted. Spending comparison is incomplete and only includes base currency spending'
-  }
 }
 
 function SpendingComparisonTooltipContent({

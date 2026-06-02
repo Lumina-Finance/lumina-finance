@@ -15,7 +15,6 @@ import {
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import {
   type CategoryBreakdownEntry,
-  type FxStatus,
   type SpendingRange,
   useSpendingBreakdown,
 } from '@/api/dashboard'
@@ -32,6 +31,7 @@ import {
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getBreakdownFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
@@ -63,22 +63,6 @@ function getBreakdownCategoryColorId(
 
 function getEntryTotal(entries: CategoryBreakdownEntry[]) {
   return entries.reduce((sum, entry) => sum + entry.amount, 0)
-}
-
-function getBreakdownFxStatusMessage(fxStatus: FxStatus, mode: BreakdownMode) {
-  const metricLabel = mode === 'spending' ? 'Spending breakdown' : 'Income breakdown'
-  const activityLabel = mode === 'spending' ? 'spending' : 'income'
-
-  switch (fxStatus.state) {
-    case 'none':
-      return `${metricLabel} activity was already in your base currency`
-    case 'complete':
-      return `Foreign currency ${activityLabel} activity was converted into your base currency`
-    case 'incomplete':
-      return `Some foreign currency ${activityLabel} activity could not be converted. ${metricLabel} is incomplete and only includes activity with available conversion rates`
-    case 'unavailable':
-      return `Foreign currency ${activityLabel} activity could not be converted. ${metricLabel} is incomplete and only includes base currency activity`
-  }
 }
 
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {

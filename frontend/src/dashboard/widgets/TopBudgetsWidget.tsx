@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { PieChart as PieChartIcon } from 'lucide-react'
-import type { FxStatus } from '@/api/dashboard'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
 import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
+import { getTopBudgetsFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
 
@@ -40,19 +40,6 @@ function getBudgetAttentionState(usagePct: number) {
     label: 'On track',
     textColor: 'var(--app-positive)',
     indicatorColor: 'var(--app-positive)',
-  }
-}
-
-function getTopBudgetsFxStatusMessage(fxStatus: FxStatus) {
-  switch (fxStatus.state) {
-    case 'none':
-      return 'Budget activity was already in each budget\'s currency'
-    case 'complete':
-      return 'Foreign currency budget activity was converted into each budget\'s currency'
-    case 'incomplete':
-      return 'Some foreign currency budget activity could not be converted. Top budgets are incomplete and only include activity with available conversion rates'
-    case 'unavailable':
-      return 'Foreign currency budget activity could not be converted. Top budgets are incomplete and only include activity already in each budget\'s currency'
   }
 }
 

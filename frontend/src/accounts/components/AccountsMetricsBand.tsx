@@ -1,14 +1,22 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetrics'
+import type { FxStatus } from '@/api/dashboard'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import {
+  getCreditFxStatusMessage,
+  getRunwayFxStatusMessage,
+  getSavingsRateFxStatusMessage,
+} from '@/dashboard/utils/fxTooltipMessages'
 
 function FxStatusTooltip({
   label,
   fxStatus,
+  getMessage,
 }: {
   label: string
   fxStatus: AccountsMetricsViewModel['creditUsage']['fxStatus']
+  getMessage: (fxStatus: FxStatus) => string
 }) {
   if (!fxStatus) return null
 
@@ -19,7 +27,7 @@ function FxStatusTooltip({
       fxTone={getFxStatusTone(fxStatus)}
       placement="top"
     >
-      <span className="block">{getFxStatusMessage(fxStatus)}</span>
+      <span className="block">{getMessage(fxStatus)}</span>
       {fxStatus.missing_pairs.length > 0 && (
         <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
           Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
@@ -78,7 +86,11 @@ export default function AccountsMetricsBand({
         <div className="order-2 min-w-0 pr-4 pt-3 min-[730px]:order-1 min-[730px]:pr-6 min-[730px]:pt-0">
           <div className="mb-1 flex items-center gap-2">
             <p className="app-label">Savings Rate</p>
-            <FxStatusTooltip label="Savings rate FX status" fxStatus={savingsRate.fxStatus} />
+            <FxStatusTooltip
+              label="Savings rate FX status"
+              fxStatus={savingsRate.fxStatus}
+              getMessage={getSavingsRateFxStatusMessage}
+            />
           </div>
           <p
             className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
@@ -111,7 +123,11 @@ export default function AccountsMetricsBand({
         <div className="order-1 col-span-2 min-w-0 border-b border-[var(--app-border)] pb-3 min-[730px]:order-2 min-[730px]:col-span-1 min-[730px]:border-x min-[730px]:border-b-0 min-[730px]:px-6 min-[730px]:pb-0">
           <div className="mb-1 flex items-center gap-2">
             <p className="app-label">Credit Usage</p>
-            <FxStatusTooltip label="Credit FX status" fxStatus={creditUsage.fxStatus} />
+            <FxStatusTooltip
+              label="Credit FX status"
+              fxStatus={creditUsage.fxStatus}
+              getMessage={getCreditFxStatusMessage}
+            />
           </div>
           <p
             className="font-financial text-[clamp(1rem,1.7vw,1.5rem)] font-semibold"
@@ -144,7 +160,11 @@ export default function AccountsMetricsBand({
         <div className="relative order-3 min-w-0 border-l border-[var(--app-border)] pl-4 pt-3 min-[730px]:border-l-0 min-[730px]:pl-6 min-[730px]:pt-0">
           <div className="mb-1 flex items-center gap-2 pr-20">
             <p className="app-label">Runway</p>
-            <FxStatusTooltip label="Runway FX status" fxStatus={runway.fxStatus} />
+            <FxStatusTooltip
+              label="Runway FX status"
+              fxStatus={runway.fxStatus}
+              getMessage={getRunwayFxStatusMessage}
+            />
           </div>
           {runway.style && (
             <span

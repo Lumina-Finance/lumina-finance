@@ -9,7 +9,7 @@ import {
   YAxis,
 } from 'recharts'
 import { ArrowUpToLine, Repeat } from 'lucide-react'
-import { useDashboardSavingsRate, type FxStatus } from '@/api/dashboard'
+import { useDashboardSavingsRate } from '@/api/dashboard'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
@@ -20,6 +20,7 @@ import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBou
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import type { SavingsRateSeriesPoint } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getSavingsRateFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getSavingsRateSeries } from '@/dashboard/utils/getSavingsRateSeries'
 
 type SavingsRateChartPoint = SavingsRateSeriesPoint & {
@@ -111,19 +112,6 @@ function getSavingsRateGuideMaxWidth(chartWidth: number, pointCount: number) {
     1,
     (chartWidth - savingsRateChartMargin.left - savingsRateChartMargin.right) / pointCount,
   )
-}
-
-function getSavingsRateFxStatusMessage(fxStatus: FxStatus) {
-  switch (fxStatus.state) {
-    case 'none':
-      return 'Income and expense activity was already in your base currency'
-    case 'complete':
-      return 'Foreign currency income and expenses were converted into your base currency'
-    case 'incomplete':
-      return 'Some foreign currency income or expense activity could not be converted. Savings rate is incomplete and only includes activity with available conversion rates'
-    case 'unavailable':
-      return 'Foreign currency income and expense activity could not be converted. Savings rate is incomplete and only includes base currency activity'
-  }
 }
 
 export function SavingsRateWidget() {

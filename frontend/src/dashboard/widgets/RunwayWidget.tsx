@@ -8,7 +8,6 @@ import {
 import { Link } from 'react-router-dom'
 import { CircleHelp, LifeBuoy } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
-import type { FxStatus } from '@/api/dashboard'
 import { useRunway, useRunwayAccounts } from '@/api/user'
 import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -21,6 +20,7 @@ import {
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getRunwayFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
 
 type RunwayWidgetProps = {
@@ -49,19 +49,6 @@ function getRunwaySegmentAtX(runwaySegments: RunwaySegment[], xPct: number) {
   }
 
   return runwaySegments[runwaySegments.length - 1]
-}
-
-function getRunwayFxStatusMessage(fxStatus: FxStatus) {
-  switch (fxStatus.state) {
-    case 'none':
-      return 'Selected runway accounts and expense history were already in your base currency'
-    case 'complete':
-      return 'Foreign currency runway accounts and expense history were converted into your base currency'
-    case 'incomplete':
-      return 'Some foreign currency runway accounts or expense history could not be converted. Runway is incomplete and only includes values with available conversion rates'
-    case 'unavailable':
-      return 'Foreign currency runway accounts and expense history could not be converted. Runway is incomplete and only includes base currency values'
-  }
 }
 
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
