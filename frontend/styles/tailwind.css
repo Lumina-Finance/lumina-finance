@@ -131,6 +131,18 @@
 }
 
 @layer components {
+  .app-desktop-nav {
+    top: 1.25rem;
+    height: calc(100vh - 2.5rem);
+  }
+
+  @supports (height: 100dvh) {
+    .app-desktop-nav {
+      top: calc(env(safe-area-inset-top) + 1.25rem);
+      height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2.5rem);
+    }
+  }
+
   .app-nav-link {
     @apply relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5
            font-medium no-underline transition-all duration-200;
