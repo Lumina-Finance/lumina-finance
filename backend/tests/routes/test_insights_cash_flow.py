@@ -96,6 +96,35 @@ async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(c
     }
 
 
+async def test_cash_flow_uses_daily_buckets_through_31_day_ranges(client):
+    """Ranges up to 31 days stay daily."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Daily Cash")).json()["id"])
+    salary_id, salary = _category(user_id, "Daily Salary", CategoryKind.INCOME)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            _transaction(user_id, account_id, salary_id, date(2026, 6, 1), 100_000),
+            _transaction(user_id, account_id, salary_id, date(2026, 7, 1), 50_000),
+        ])
+        await session.commit()
+
+    response = await client.get(
+        "/insights/cash-flow",
+        params={"from_date": "2026-06-01", "to_date": "2026-07-01"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    points = response.json()["points"]
+    assert len(points) == 31
+    assert points[0] == ["2026-06-01", "2026-06-01", 100_000, 0]
+    assert points[-1] == ["2026-07-01", "2026-07-01", 50_000, 0]
+
+
 async def test_cash_flow_converts_foreign_entries_by_transaction_date(client, monkeypatch):
     """Foreign entries are converted daily before cash-flow buckets are built."""
     from app.services.fx import FrankfurterProvider
@@ -202,7 +231,7 @@ async def test_cash_flow_reports_incomplete_fx_with_missing_pairs(client, monkey
 
 
 async def test_cash_flow_uses_weekly_buckets_for_mid_length_ranges(client):
-    """Ranges over 31 and up to 90 days are grouped into partial weekly buckets."""
+    """Ranges over 31 days are grouped into partial weekly buckets."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -239,8 +268,39 @@ async def test_cash_flow_uses_weekly_buckets_for_mid_length_ranges(client):
     assert response.json()["fx_status"] == {"state": "none", "missing_pairs": []}
 
 
+async def test_cash_flow_uses_weekly_buckets_through_183_day_ranges(client):
+    """Ranges up to 183 days stay weekly."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Half Year Cash")).json()["id"])
+    salary_id, salary = _category(user_id, "Half Year Pay", CategoryKind.INCOME)
+    groceries_id, groceries = _category(user_id, "Half Year Groceries", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            salary,
+            groceries,
+            _transaction(user_id, account_id, salary_id, date(2026, 1, 1), 100_000),
+            _transaction(user_id, account_id, groceries_id, date(2026, 7, 2), -20_000),
+        ])
+        await session.commit()
+
+    response = await client.get(
+        "/insights/cash-flow",
+        params={"from_date": "2026-01-01", "to_date": "2026-07-02"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    points = response.json()["points"]
+    assert len(points) == 27
+    assert points[0] == ["2026-01-01", "2026-01-04", 100_000, 0]
+    assert points[-1] == ["2026-06-29", "2026-07-02", 0, 20_000]
+
+
 async def test_cash_flow_uses_monthly_buckets_for_long_ranges(client):
-    """Ranges over 90 days are grouped into partial monthly buckets."""
+    """Ranges over 183 days are grouped into partial monthly buckets."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -260,7 +320,7 @@ async def test_cash_flow_uses_monthly_buckets_for_long_ranges(client):
 
     response = await client.get(
         "/insights/cash-flow",
-        params={"from_date": "2026-01-15", "to_date": "2026-05-20"},
+        params={"from_date": "2026-01-15", "to_date": "2026-08-01"},
         headers=headers,
     )
 
@@ -270,7 +330,10 @@ async def test_cash_flow_uses_monthly_buckets_for_long_ranges(client):
         ["2026-02-01", "2026-02-28", 0, 40_000],
         ["2026-03-01", "2026-03-31", 0, 0],
         ["2026-04-01", "2026-04-30", 0, 0],
-        ["2026-05-01", "2026-05-20", 80_000, 0],
+        ["2026-05-01", "2026-05-31", 80_000, 0],
+        ["2026-06-01", "2026-06-30", 0, 0],
+        ["2026-07-01", "2026-07-31", 0, 0],
+        ["2026-08-01", "2026-08-01", 0, 0],
     ]
     assert response.json()["fx_status"] == {"state": "none", "missing_pairs": []}
 

@@ -20,13 +20,15 @@ from app.services.fx import FxConverter
 CashFlowGranularity = Literal["day", "week", "month"]
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
+_MONTHLY_RANGE_DAY_COUNT = 31
+_HALF_YEAR_DAY_COUNT = 183
 
 
 def _get_granularity(from_date: date, to_date: date) -> CashFlowGranularity:
     day_count = (to_date - from_date).days + 1
-    if day_count <= 31:
+    if day_count <= _MONTHLY_RANGE_DAY_COUNT:
         return "day"
-    if day_count <= 90:
+    if day_count <= _HALF_YEAR_DAY_COUNT:
         return "week"
     return "month"
 
