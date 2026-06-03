@@ -86,6 +86,8 @@ const latestSavingsRateCalculation = 'Savings rate for the latest available mont
 const averageSavingsRateCalculation = 'Average savings rate across completed months only. The current month is excluded'
 const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'
 const worstSavingsRateCalculation = 'Lowest savings rate across completed months. The current month is excluded'
+const savingsRateStatLabelClass = 'app-label inline-flex items-center gap-2 text-sm leading-5'
+const savingsRateStatCaptionClass = 'truncate text-right text-xs leading-4 min-[750px]:mt-2 min-[750px]:text-left'
 
 function getSavingsRateTooltipKey(point: SavingsRateHistoryPoint) {
   return point.monthKey
@@ -347,7 +349,7 @@ export function SavingsRateTrendCard({
               </div>
               <div className="grid min-w-0 gap-2 min-[750px]:grid-cols-3 min-[750px]:gap-4">
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
-                  <p className="app-label app-label-compact inline-flex items-center gap-2">
+                  <p className={savingsRateStatLabelClass}>
                     Average
                     <IconTooltip
                       label="Average savings rate calculation"
@@ -363,13 +365,13 @@ export function SavingsRateTrendCard({
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(averageRate)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      Completed months
+                    <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
+                      Across completed months
                     </p>
                   </div>
                 </div>
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
-                  <p className="app-label app-label-compact inline-flex items-center gap-2">
+                  <p className={savingsRateStatLabelClass}>
                     Best
                     <IconTooltip
                       label="Best savings rate calculation"
@@ -385,13 +387,13 @@ export function SavingsRateTrendCard({
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(bestPoint?.rate ?? null)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
                       {bestPoint?.fullLabel ?? 'N/A'}
                     </p>
                   </div>
                 </div>
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
-                  <p className="app-label app-label-compact inline-flex items-center gap-2">
+                  <p className={savingsRateStatLabelClass}>
                     Worst
                     <IconTooltip
                       label="Worst savings rate calculation"
@@ -407,7 +409,7 @@ export function SavingsRateTrendCard({
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(worstPoint?.rate ?? null)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
                       {worstPoint?.fullLabel ?? 'N/A'}
                     </p>
                   </div>
