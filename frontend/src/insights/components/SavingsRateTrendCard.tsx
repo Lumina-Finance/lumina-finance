@@ -82,8 +82,8 @@ type SavingsRateTooltipState = {
 
 const savingsRateChartMargin = { top: 8, right: 8, bottom: 0, left: 4 } as const
 const savingsRateCalculation = 'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
-const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial'
-const averageSavingsRateCalculation = 'Average savings rate across completed months only. The current month is excluded'
+const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
+const averageSavingsRateCalculation = 'Average savings rate across completed months with income. The current month and no-income months are excluded'
 const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'
 const worstSavingsRateCalculation = 'Lowest savings rate across completed months. The current month is excluded'
 const savingsRateStatLabelClass = 'app-label inline-flex items-center gap-2 text-sm leading-5'
@@ -118,12 +118,24 @@ function getSavingsTierColor(tier: ReturnType<typeof getSavingsTier>) {
 }
 
 function formatSavingsRateValue(rate: number | null) {
-  return rate === null ? 'N/A' : `${rate}%`
+  if (rate === null) return 'N/A'
+  if (!Number.isFinite(rate)) return rate < 0 ? '−∞%' : '∞%'
+  return `${rate}%`
 }
 
 function clampSavingsRate(rate: number | null) {
   if (rate === null) return null
   return Math.max(-100, Math.min(100, rate))
+}
+
+function getSavingsRateChartRate(rate: number | null, capRates: boolean) {
+  if (rate === null) return null
+  if (!Number.isFinite(rate)) return rate < 0 ? -100 : 100
+  return capRates ? clampSavingsRate(rate) : rate
+}
+
+function hasFiniteSavingsRate(point: SavingsRateHistoryPoint): point is SavingsRateHistoryPoint & { rate: number } {
+  return point.rate !== null && Number.isFinite(point.rate)
 }
 
 function SavingsRateHistoryTooltipContent({
@@ -215,8 +227,9 @@ export function SavingsRateTrendCard({
   const tickLabels = new Map(displaySnapshot.series.map((point) => [point.monthKey, point.tickLabel]))
   const ratedPoints = displaySnapshot.series.filter((point) => point.rate !== null)
   const completedRatedPoints = ratedPoints.filter((point) => !point.isCurrent)
-  const averageRate = completedRatedPoints.length > 0
-    ? Math.round(completedRatedPoints.reduce((sum, point) => sum + (point.rate ?? 0), 0) / completedRatedPoints.length)
+  const completedAveragePoints = completedRatedPoints.filter(hasFiniteSavingsRate)
+  const averageRate = completedAveragePoints.length > 0
+    ? Math.round(completedAveragePoints.reduce((sum, point) => sum + point.rate, 0) / completedAveragePoints.length)
     : null
   const latestPoint = displaySnapshot.series.at(-1)
   const bestPoint = completedRatedPoints.reduce<SavingsRateHistoryPoint | null>(
@@ -229,12 +242,12 @@ export function SavingsRateTrendCard({
   )
   const chartSeries = displaySnapshot.series.map((point) => ({
     ...point,
-    chartRate: displaySnapshot.capRates ? clampSavingsRate(point.rate) : point.rate,
+    chartRate: getSavingsRateChartRate(point.rate, displaySnapshot.capRates),
   }))
   const chartRates = chartSeries
     .map((point) => point.chartRate)
     .filter((rate): rate is number => rate !== null)
-  const averageChartRate = displaySnapshot.capRates ? clampSavingsRate(averageRate) : averageRate
+  const averageChartRate = getSavingsRateChartRate(averageRate, displaySnapshot.capRates)
   const highestRate = chartRates.length > 0 ? Math.max(...chartRates) : 100
   const lowestRate = chartRates.length > 0 ? Math.min(...chartRates) : -100
   const hasPositiveRate = chartRates.some((rate) => rate > 0)
@@ -357,7 +370,7 @@ export function SavingsRateTrendCard({
                       {formatSavingsRateValue(averageRate)}
                     </p>
                     <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
-                      Across completed months
+                      Completed months with income
                     </p>
                   </div>
                 </div>
