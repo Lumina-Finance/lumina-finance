@@ -59,6 +59,10 @@ function hasSavingsRateActivity(point: Pick<SavingsRateSeriesPoint, 'income' | '
   return point.income !== 0 || point.expenses !== 0
 }
 
+function shouldShowSavingsRatePoint(point: SavingsRateSeriesPoint) {
+  return point.isCurrent || hasSavingsRateActivity(point)
+}
+
 function getSavingsRateTooltipKey(point: SavingsRateChartPoint) {
   return point.fullLabel
 }
@@ -83,12 +87,13 @@ function getSavingsRateDisplay(point: SavingsRateChartPoint) {
 
 function SavingsRateTooltipContent({ point }: { point: SavingsRateChartPoint }) {
   const display = getSavingsRateDisplay(point)
-  if (!display) return null
 
   return (
     <>
       <div className="app-chart-tooltip-default-title">{point.fullLabel}</div>
-      <div className="app-chart-tooltip-default-value">Savings Rate: {display}</div>
+      <div className="app-chart-tooltip-default-value">
+        Savings Rate: {display ?? 'N/A'}
+      </div>
     </>
   )
 }
@@ -143,7 +148,7 @@ export function SavingsRateWidget() {
   )
   const chartData = useMemo(
     () => savingsData
-      .filter(hasSavingsRateActivity)
+      .filter(shouldShowSavingsRatePoint)
       .map((point) => ({
         ...point,
         chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
@@ -157,7 +162,7 @@ export function SavingsRateWidget() {
     const point = getSavingsRateTooltipPoint(state, chartData)
     const pointer = getSavingsRateTooltipPointer(state, event)
 
-    if (!point || getSavingsRateDisplay(point) === null) {
+    if (!point) {
       savingsRateTooltipRef.current?.show(null, pointer)
       return
     }
