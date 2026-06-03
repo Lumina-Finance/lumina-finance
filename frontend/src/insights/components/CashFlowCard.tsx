@@ -272,7 +272,7 @@ export function CashFlowCard({
                     />
                     <YAxis
                       width={yAxisWidth}
-                      axisLine={false}
+                      axisLine={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
                       tickLine={false}
                       domain={[
                         (dataMin: number) => Math.min(dataMin, 0),
