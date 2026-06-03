@@ -364,18 +364,16 @@ export default function BudgetDetailsModal({
                   <h2 className="pr-11 text-2xl font-semibold min-[1050px]:pr-0">
                     <MarqueeText active>{baseBudget.name}</MarqueeText>
                   </h2>
-                  <div className="mt-2 flex min-w-0 items-center justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                      {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
-                    </p>
-                    <span
-                      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
-                      style={{ background: attention.background, color: attention.textColor }}
-                    >
-                      <AttentionIcon label={attention.label} />
-                      {attention.label}
-                    </span>
-                  </div>
+                  <span
+                    className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
+                    style={{ background: attention.background, color: attention.textColor }}
+                  >
+                    <AttentionIcon label={attention.label} />
+                    {attention.label}
+                  </span>
+                  <p className="mt-2 min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                    {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
+                  </p>
                 </div>
                 <button type="button" className="app-icon-button absolute right-0 top-0 shrink-0 min-[1050px]:hidden" aria-label="Close budget details" onClick={onClose}>
                   <X size={20} aria-hidden />
