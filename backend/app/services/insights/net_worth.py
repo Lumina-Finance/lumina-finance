@@ -19,6 +19,9 @@ from app.services.fx import FxConverter
 
 NetWorthGranularity = Literal["day", "week", "month"]
 
+_MONTHLY_RANGE_DAY_COUNT = 31
+_HALF_YEAR_DAY_COUNT = 183
+
 
 @dataclass(frozen=True)
 class NetWorthGroup:
@@ -42,11 +45,11 @@ GROUP_INDEX_BY_ID = {group.id: index for index, group in enumerate(NET_WORTH_GRO
 
 
 def _get_granularity(from_date: date, to_date: date) -> NetWorthGranularity:
-    """Match the account-detail balance chart frequency."""
+    """Return the Insights net worth chart bucket cadence."""
     day_count = (to_date - from_date).days + 1
-    if day_count <= 30:
+    if day_count <= _MONTHLY_RANGE_DAY_COUNT:
         return "day"
-    if day_count <= 90:
+    if day_count <= _HALF_YEAR_DAY_COUNT:
         return "week"
     return "month"
 
