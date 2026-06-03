@@ -4,6 +4,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from sqlalchemy import update
+
 from app.models.account import AccountBalanceSnapshot
 from app.models.base import CategoryKind
 from app.models.category import Category
@@ -43,6 +45,23 @@ async def _seed_usd_currency():
         await session.commit()
 
 
+async def _create_category_api(client, headers, **overrides):
+    payload = {"name": "Test Salary", "kind": "income", **overrides}
+    return await client.post("/categories", json=payload, headers=headers)
+
+
+async def _create_transaction_api(client, headers, account_id, category_id, **overrides):
+    payload = {
+        "account_id": account_id,
+        "category_id": category_id,
+        "dt": "2026-06-01",
+        "amount": 100_000,
+        "currency": "CAD",
+        **overrides,
+    }
+    return await client.post("/transactions", json=payload, headers=headers)
+
+
 async def test_period_glance_returns_compact_period_summary(client):
     """Period glance aggregates visible base-currency activity only."""
     signup_resp = await _create_user(client)
@@ -76,6 +95,7 @@ async def test_period_glance_returns_compact_period_summary(client):
             _transaction(user_id, visible_account_id, dining_id, date(2026, 3, 5), -100_000),
             _transaction(user_id, hidden_account_id, salary_id, date(2026, 3, 12), 700_000),
             _transaction(user_id, hidden_account_id, groceries_id, date(2026, 3, 13), -300_000),
+            _snapshot(visible_account_id, date(2026, 3, 9), 1_000_000),
             _snapshot(visible_account_id, date(2026, 3, 10), 1_000_000),
             _snapshot(visible_account_id, date(2026, 3, 16), 1_320_000),
             _snapshot(hidden_account_id, date(2026, 3, 10), 5_000_000),
@@ -113,6 +133,7 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
 
     async def fake_get_rates(self, base, quote, start_date, end_date):
         return {
+            date(2026, 4, 30): Decimal("1.5"),
             date(2026, 5, 1): Decimal("1.5"),
             date(2026, 5, 2): Decimal("1.5"),
             date(2026, 5, 3): Decimal("1.5"),
@@ -150,10 +171,13 @@ async def test_period_glance_converts_foreign_income_and_expenses_and_signs_liab
             _transaction(user_id, cash_account_id, food_id, date(2026, 5, 3), -20_000),
             _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 2), 900_000, "USD"),
             _transaction(user_id, usd_account_id, food_id, date(2026, 5, 3), -700_000, "USD"),
+            _snapshot(cash_account_id, date(2026, 4, 30), 100_000),
             _snapshot(cash_account_id, date(2026, 5, 1), 100_000),
             _snapshot(cash_account_id, date(2026, 5, 7), 200_000),
-            _snapshot(card_account_id, date(2026, 5, 1), 40_000),
-            _snapshot(card_account_id, date(2026, 5, 7), 90_000),
+            _snapshot(card_account_id, date(2026, 4, 30), -40_000),
+            _snapshot(card_account_id, date(2026, 5, 1), -40_000),
+            _snapshot(card_account_id, date(2026, 5, 7), -90_000),
+            _snapshot(usd_account_id, date(2026, 4, 30), 5_000_000),
             _snapshot(usd_account_id, date(2026, 5, 1), 5_000_000),
             _snapshot(usd_account_id, date(2026, 5, 7), 9_000_000),
         ])
@@ -319,6 +343,85 @@ async def test_period_glance_biggest_change_reports_incomplete_fx(client, monkey
     }
 
 
+async def test_period_glance_net_worth_change_includes_first_day_balance_activity(client):
+    """Selected-period balance movement starts from the day before from_date."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    transfer_id, transfer = _category(user_id, "Balance Adjustment", CategoryKind.TRANSFER)
+
+    async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id == account_id)
+            .values(dt=date(2026, 5, 31), balance=0),
+        )
+        session.add_all([
+            transfer,
+            _transaction(user_id, account_id, transfer_id, date(2026, 6, 1), 100_000),
+            _snapshot(account_id, date(2026, 6, 1), 100_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["income"] == 0
+    assert data["expenses"] == 0
+    assert data["net_worth_change"] == 100_000
+
+
+async def test_insights_range_includes_api_created_first_day_transaction(client):
+    """A first-day API transaction is aggregated after snapshot recomputation."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers, name="June Cash")).json()["id"]
+    category_id = (await _create_category_api(client, headers, name="June Salary", kind="income")).json()["id"]
+
+    create_resp = await _create_transaction_api(
+        client,
+        headers,
+        account_id,
+        category_id,
+        dt="2026-06-01",
+        amount=100_000,
+    )
+    snapshots_resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
+    period_glance_resp = await client.get(
+        "/insights/period-glance",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+    net_worth_resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert create_resp.status_code == 201
+    assert snapshots_resp.status_code == 200
+    assert {"account_id": account_id, "dt": "2026-06-01", "balance": 100_000} in snapshots_resp.json()
+
+    assert period_glance_resp.status_code == 200
+    period_glance = period_glance_resp.json()
+    assert period_glance["income"] == 100_000
+    assert period_glance["expenses"] == 0
+    assert period_glance["net_worth_change"] == 100_000
+
+    assert net_worth_resp.status_code == 200
+    net_worth = net_worth_resp.json()
+    assert net_worth["groups"] == [["cash", "Cash", "asset"]]
+    assert net_worth["baseline"] == [0]
+    assert net_worth["points"][0] == ["2026-06-01", "2026-06-01", [100_000]]
+    assert net_worth["points"][-1] == ["2026-06-30", "2026-06-30", [100_000]]
+
+
 async def test_period_glance_net_worth_change_reports_incomplete_fx(client, monkeypatch):
     """Net-worth movement skips foreign accounts that cannot be converted."""
     from app.services.fx import FrankfurterProvider, FxRateNotFoundError
@@ -339,8 +442,10 @@ async def test_period_glance_net_worth_change_reports_incomplete_fx(client, monk
 
     async with TestSession() as session:
         session.add_all([
+            _snapshot(cad_account_id, date(2026, 4, 30), 100_000),
             _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
             _snapshot(cad_account_id, date(2026, 5, 7), 150_000),
+            _snapshot(abc_account_id, date(2026, 4, 30), 500_000),
             _snapshot(abc_account_id, date(2026, 5, 1), 500_000),
             _snapshot(abc_account_id, date(2026, 5, 7), 900_000),
         ])

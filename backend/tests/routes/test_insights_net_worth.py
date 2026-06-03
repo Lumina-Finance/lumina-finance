@@ -4,6 +4,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import update
+
 from app.models.account import AccountBalanceSnapshot
 from app.models.currency import Currency
 from tests.conftest import TestSession
@@ -78,6 +80,7 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
         ["cash", "Cash", "asset"],
         ["revolving_debt", "Revolving Debt", "debt"],
     ]
+    assert data["baseline"] == [120_000, -50_000]
     assert data["points"] == [
         ["2026-05-01", "2026-05-01", [120_000, -50_000]],
         ["2026-05-02", "2026-05-02", [150_000, -50_000]],
@@ -125,6 +128,7 @@ async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
             ["cash", "Cash", "asset"],
             ["investments", "Investments", "asset"],
         ],
+        "baseline": [0, 0],
         "points": [["2026-05-01", "2026-05-01", [25_000, 175_000]]],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
@@ -138,10 +142,11 @@ async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, 
         assert (base, quote, start_date, end_date) == (
             "USD",
             "CAD",
-            date(2026, 5, 1),
+            date(2026, 4, 30),
             date(2026, 5, 3),
         )
         return {
+            date(2026, 4, 30): Decimal("1.5"),
             date(2026, 5, 1): Decimal("1.5"),
             date(2026, 5, 2): Decimal("2"),
             date(2026, 5, 3): Decimal("2.5"),
@@ -187,6 +192,7 @@ async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, 
             ["cash", "Cash", "asset"],
             ["revolving_debt", "Revolving Debt", "debt"],
         ],
+        "baseline": [115_000, -6_000],
         "points": [
             ["2026-05-01", "2026-05-01", [115_000, -6_000]],
             ["2026-05-02", "2026-05-02", [140_000, -8_000]],
@@ -228,12 +234,44 @@ async def test_net_worth_reports_incomplete_fx_with_missing_pairs(client, monkey
     assert resp.status_code == 200
     assert resp.json() == {
         "groups": [["cash", "Cash", "asset"]],
+        "baseline": [0],
         "points": [["2026-05-01", "2026-05-01", [100_000]]],
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
         },
     }
+
+
+async def test_net_worth_returns_previous_day_baseline_for_first_day_activity(client):
+    """Net worth deltas can include balance movement from the first selected day."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="June Cash")).json()["id"])
+
+    async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id == account_id)
+            .values(dt=date(2026, 5, 31), balance=0),
+        )
+        session.add_all([
+            _snapshot(account_id, date(2026, 6, 1), 100_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["groups"] == [["cash", "Cash", "asset"]]
+    assert data["baseline"] == [0]
+    assert data["points"][0] == ["2026-06-01", "2026-06-01", [100_000]]
+    assert data["points"][-1] == ["2026-06-30", "2026-06-30", [100_000]]
 
 
 async def test_net_worth_uses_weekly_buckets_for_mid_length_ranges(client):
@@ -312,7 +350,7 @@ async def test_net_worth_omits_zero_only_groups(client):
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"groups": [], "points": [], "fx_status": {"state": "none", "missing_pairs": []}}
+    assert resp.json() == {"groups": [], "baseline": [], "points": [], "fx_status": {"state": "none", "missing_pairs": []}}
 
 
 async def test_net_worth_rejects_invalid_date_range(client):
