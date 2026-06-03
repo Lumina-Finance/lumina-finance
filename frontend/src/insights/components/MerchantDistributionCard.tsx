@@ -414,10 +414,6 @@ export function MerchantDistributionCard({
           concealed={contentConcealed}
           shouldReduceMotion={shouldReduceMotion}
         >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover</span>
-            <MerchantDistributionLegend className="hidden min-[750px]:flex" />
-          </div>
           {displaySnapshot.merchants.length > 0 ? (
             <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />
           ) : (
@@ -425,7 +421,10 @@ export function MerchantDistributionCard({
               {displaySnapshot.emptyLabel}
             </div>
           )}
-          <MerchantDistributionLegend className="mt-3 justify-center text-xs min-[750px]:hidden" />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover</span>
+            <MerchantDistributionLegend />
+          </div>
         </InsightLoadingContent>
 
         <InsightLoadingOverlay
