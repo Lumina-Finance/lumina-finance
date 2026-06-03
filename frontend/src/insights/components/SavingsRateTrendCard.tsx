@@ -82,7 +82,7 @@ type SavingsRateTooltipState = {
 
 const savingsRateChartMargin = { top: 8, right: 8, bottom: 0, left: 4 } as const
 const savingsRateCalculation = 'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
-const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial'
+const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
 const averageSavingsRateCalculation = 'Average savings rate across completed months only. The current month is excluded'
 const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'
 const worstSavingsRateCalculation = 'Lowest savings rate across completed months. The current month is excluded'
@@ -118,12 +118,20 @@ function getSavingsTierColor(tier: ReturnType<typeof getSavingsTier>) {
 }
 
 function formatSavingsRateValue(rate: number | null) {
-  return rate === null ? 'N/A' : `${rate}%`
+  if (rate === null) return 'N/A'
+  if (!Number.isFinite(rate)) return rate < 0 ? '−∞%' : '∞%'
+  return `${rate}%`
 }
 
 function clampSavingsRate(rate: number | null) {
   if (rate === null) return null
   return Math.max(-100, Math.min(100, rate))
+}
+
+function getSavingsRateChartRate(rate: number | null, capRates: boolean) {
+  if (rate === null) return null
+  if (!Number.isFinite(rate)) return rate < 0 ? -100 : 100
+  return capRates ? clampSavingsRate(rate) : rate
 }
 
 function SavingsRateHistoryTooltipContent({
@@ -229,12 +237,12 @@ export function SavingsRateTrendCard({
   )
   const chartSeries = displaySnapshot.series.map((point) => ({
     ...point,
-    chartRate: displaySnapshot.capRates ? clampSavingsRate(point.rate) : point.rate,
+    chartRate: getSavingsRateChartRate(point.rate, displaySnapshot.capRates),
   }))
   const chartRates = chartSeries
     .map((point) => point.chartRate)
     .filter((rate): rate is number => rate !== null)
-  const averageChartRate = displaySnapshot.capRates ? clampSavingsRate(averageRate) : averageRate
+  const averageChartRate = getSavingsRateChartRate(averageRate, displaySnapshot.capRates)
   const highestRate = chartRates.length > 0 ? Math.max(...chartRates) : 100
   const lowestRate = chartRates.length > 0 ? Math.min(...chartRates) : -100
   const hasPositiveRate = chartRates.some((rate) => rate > 0)

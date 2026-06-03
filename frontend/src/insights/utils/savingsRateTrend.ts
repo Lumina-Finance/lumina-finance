@@ -13,7 +13,7 @@ export function getSavingsRateHistory(
     const rate = income > 0
       ? getSavingsRate(income, expenses)
       : expenses > 0
-        ? -100
+        ? Number.NEGATIVE_INFINITY
         : null
     const monthLabel = getMonthLabel(month)
 
