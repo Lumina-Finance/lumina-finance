@@ -60,6 +60,8 @@ const titleCharVariants = {
   enter: { y: 0, opacity: 1, filter: 'blur(0px)' },
   exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
 } as const
+// Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
+const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
 
 function getDailyCashFlowSeries(
   raw: DailyCashFlow[],
@@ -235,7 +237,7 @@ export default function DailyCashFlowChart({
     () => new Map(dailyFlow.map((point) => [point.date, point])),
     [dailyFlow],
   )
-  const chartAnimationDuration = prefersReducedMotion ? 0 : 550
+  const chartAnimationDuration = prefersReducedMotion ? 0 : 1000
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
   const showDailyCashFlowTooltip = (
     state: DailyCashFlowTooltipState,
@@ -333,6 +335,7 @@ export default function DailyCashFlowChart({
                 strokeWidth={1.5}
                 isAnimationActive={!prefersReducedMotion}
                 animationDuration={chartAnimationDuration}
+                animationEasing={chartAnimationEasing}
               />
             ) : (
               <>
@@ -344,6 +347,7 @@ export default function DailyCashFlowChart({
                   strokeWidth={1.5}
                   isAnimationActive={!prefersReducedMotion}
                   animationDuration={chartAnimationDuration}
+                  animationEasing={chartAnimationEasing}
                 />
                 <Area
                   type="monotone"
@@ -353,6 +357,7 @@ export default function DailyCashFlowChart({
                   strokeWidth={1.5}
                   isAnimationActive={!prefersReducedMotion}
                   animationDuration={chartAnimationDuration}
+                  animationEasing={chartAnimationEasing}
                 />
               </>
             )}
