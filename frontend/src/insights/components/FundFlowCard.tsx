@@ -496,7 +496,7 @@ export function FundFlowCard({
               size={14}
               strokeWidth={2.25}
             >
-              Refunds and reversals are applied first. Money in flows to Income; money out flows through Expenses. Transfers are excluded
+              Refunds and reversals are applied first. Money in flows to Income. Money out flows through Expenses. Transfers are excluded
             </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
@@ -515,7 +515,7 @@ export function FundFlowCard({
           flippedEntries={displaySnapshot.expenseInflows}
           flippedLabel="Expense Inflow"
           normalLabel="Income Source"
-          calculation="Categories where money came in after refunds and reversals. +x means expense categories that became inflows"
+          calculation="Refunds reduce spending first before flipping into an income source. +x means categories that flipped"
           displayCurrency={displaySnapshot.displayCurrency}
           open={incomeListOpen}
           onToggle={() => setIncomeListOpen((current) => !current)}
@@ -526,7 +526,7 @@ export function FundFlowCard({
           flippedEntries={displaySnapshot.incomeOutflows}
           flippedLabel="Income Outflow"
           normalLabel="Expense Category"
-          calculation="Categories where money went out after refunds and reversals. +x means income categories that became outflows"
+          calculation="Reversals reduce income first before flipping into an expense category. +x means categories that flipped"
           displayCurrency={displaySnapshot.displayCurrency}
           open={expenseListOpen}
           onToggle={() => setExpenseListOpen((current) => !current)}

@@ -223,7 +223,7 @@ export function PeriodGlanceCard({
                     Expenses
                     <MetricCalculationTooltip
                       label="Expenses"
-                      calculation="Total money out for this range after refunds and reversals are netted. Shown as a positive amount; transfers are excluded"
+                      calculation="Total money out for this range after refunds and reversals are netted. Shown as a positive amount. Transfers are excluded"
                     />
                   </p>
                   <p className="mt-1 font-financial text-lg">{formatCurrency(displaySnapshot.expenses, displaySnapshot.displayCurrency)}</p>

@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -133,6 +134,25 @@ function getCrossoverKind(entry: BreakdownEntry, mode: BreakdownMode) {
   if (mode === 'expense' && entry.categoryKind === 'income') return 'income-loss'
   if (mode === 'income' && entry.categoryKind === 'expense') return 'expense-refund'
   return null
+}
+
+function getBreakdownCalculation(mode: BreakdownMode) {
+  return mode === 'expense'
+    ? 'Spending by category for this range. Refunds reduce spending first before flipping into income. Transfers are excluded'
+    : 'Income by category for this range. Reversals reduce income first before flipping into spending. Transfers are excluded'
+}
+
+function getTrendSectionCalculation(sectionId: CategoryTrendSection['id']) {
+  return sectionId === 'increases'
+    ? 'Compared with the previous matching period, sorted by biggest increase'
+    : 'Compared with the previous matching period, sorted by biggest decrease'
+}
+
+function getBreakdownTooltipDetail(entry: BreakdownEntry, mode: BreakdownMode, pct: number) {
+  const crossoverKind = getCrossoverKind(entry, mode)
+  if (crossoverKind === 'income-loss') return `${pct}% of spending. Reversals exceeded income, so this category flipped into spending`
+  if (crossoverKind === 'expense-refund') return `${pct}% of income. Refunds exceeded spending, so this category flipped into income`
+  return `${pct}% of ${mode === 'expense' ? 'spending' : 'income'}`
 }
 
 function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
@@ -260,6 +280,15 @@ export function IncomeExpenseBreakdownCard({
               <AppSlotMachineText text={displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} />
               <span className="ml-[0.25em]">Breakdown</span>
             </span>
+            <IconTooltip
+              label={`${displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} breakdown calculation`}
+              placement="top"
+              widthClassName="w-72"
+              size={14}
+              strokeWidth={2.25}
+            >
+              {getBreakdownCalculation(displaySnapshot.mode)}
+            </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Income and expense breakdown FX status"
@@ -279,7 +308,7 @@ export function IncomeExpenseBreakdownCard({
           </InsightActionButton>
         )}
       />
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-visible" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
             <div className="flex min-h-[620px] flex-col">
@@ -343,6 +372,13 @@ export function IncomeExpenseBreakdownCard({
                       <div className="app-chart-tooltip-default-value">
                         {formatCurrency(hoveredBreakdownEntry.amount, displaySnapshot.displayCurrency)}
                       </div>
+                      <div className="mt-1 text-xs leading-5 text-[var(--app-text-muted)]">
+                        {getBreakdownTooltipDetail(
+                          hoveredBreakdownEntry,
+                          displaySnapshot.mode,
+                          getPct(hoveredBreakdownEntry.amount, sliceTotal),
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -394,8 +430,17 @@ export function IncomeExpenseBreakdownCard({
                     key={section.id}
                     className="flex min-h-0 flex-col"
                   >
-                    <p className="app-label mb-2">
+                    <p className="app-label mb-2 inline-flex items-center gap-2">
                       {section.label}
+                      <IconTooltip
+                        label={`${section.label} calculation`}
+                        placement="top"
+                        widthClassName="w-72"
+                        size={14}
+                        strokeWidth={2.25}
+                      >
+                        {getTrendSectionCalculation(section.id)}
+                      </IconTooltip>
                     </p>
                     <div className="min-h-0 flex-1 overflow-hidden">
                       <AnimatePresence initial={false} mode="wait">
