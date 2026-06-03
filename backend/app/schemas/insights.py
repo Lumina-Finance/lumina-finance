@@ -67,6 +67,7 @@ class InsightsNetWorthResponse(BaseModel):
     """Payload for the insights net-worth card."""
 
     groups: list[tuple[str, str, NetWorthGroupKind]]
+    baseline: list[int] = Field(default_factory=list)
     points: list[tuple[date, date, list[int]]]
     fx_status: FxStatus = Field(default_factory=FxStatus)
 

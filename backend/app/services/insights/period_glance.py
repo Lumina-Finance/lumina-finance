@@ -1,13 +1,13 @@
 """Period glance service for the insights page."""
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountBalanceSnapshot
-from app.models.base import AccountKind, CategoryKind
+from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
@@ -297,12 +297,13 @@ async def _query_net_worth_change(
     from_date: date,
     to_date: date,
 ) -> tuple[int, FxStatus]:
-    """Return converted net-worth movement between the two valuation dates."""
+    """Return converted net-worth movement over the inclusive selected period."""
     if not accounts:
         return 0, FxStatus()
 
     account_ids = [account.id for account in accounts]
-    start_balances = await _balances_at(db, account_ids, from_date)
+    baseline_date = from_date - timedelta(days=1)
+    start_balances = await _balances_at(db, account_ids, baseline_date)
     end_balances = await _balances_at(db, account_ids, to_date)
     converter = FxConverter(
         currency_exponents=await _get_currency_exponents(
@@ -318,21 +319,20 @@ async def _query_net_worth_change(
             base_currency=base_currency,
             start_balances=start_balances,
             end_balances=end_balances,
-            from_date=from_date,
+            baseline_date=baseline_date,
             to_date=to_date,
         ),
     )
 
     net_worth_change = 0
     for account in accounts:
-        sign = 1 if account.account_kind == AccountKind.ASSET else -1
-        start_amount = start_balances.get(account.id, 0) * sign
-        end_amount = end_balances.get(account.id, 0) * sign
+        start_amount = start_balances.get(account.id, 0)
+        end_amount = end_balances.get(account.id, 0)
         converted_start = await converter.convert_minor_units(
             start_amount,
             base=account.currency,
             quote=base_currency,
-            rate_date=from_date,
+            rate_date=baseline_date,
         )
         converted_end = await converter.convert_minor_units(
             end_amount,
@@ -369,17 +369,16 @@ def _net_worth_change_rate_dates(
     base_currency: str,
     start_balances: dict[uuid.UUID, int],
     end_balances: dict[uuid.UUID, int],
-    from_date: date,
+    baseline_date: date,
     to_date: date,
 ) -> dict[str, set[date]]:
     dates_by_currency: dict[str, set[date]] = {}
     for account in accounts:
         if account.currency == base_currency:
             continue
-        sign = 1 if account.account_kind == AccountKind.ASSET else -1
-        if start_balances.get(account.id, 0) * sign != 0:
-            dates_by_currency.setdefault(account.currency, set()).add(from_date)
-        if end_balances.get(account.id, 0) * sign != 0:
+        if start_balances.get(account.id, 0) != 0:
+            dates_by_currency.setdefault(account.currency, set()).add(baseline_date)
+        if end_balances.get(account.id, 0) != 0:
             dates_by_currency.setdefault(account.currency, set()).add(to_date)
     return dates_by_currency
 
