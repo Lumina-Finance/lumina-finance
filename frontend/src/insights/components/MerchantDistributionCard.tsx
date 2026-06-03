@@ -340,7 +340,7 @@ function MerchantMarketMap({
             </div>
             {hoveredTile.merchant.changeAmount === null ? (
               <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Change not shown because this group changes by period.
+                Change not shown because this group changes by period
               </p>
             ) : (
               <div className="mt-1 flex justify-between gap-4">
@@ -371,7 +371,7 @@ export function MerchantDistributionCard({
     merchants,
     fxStatus,
     currency,
-    emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range.',
+    emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range',
   }), [currency, fxStatus, loading, merchants])
   const {
     displaySnapshot,
@@ -403,7 +403,7 @@ export function MerchantDistributionCard({
               placement="bottom"
               widthClassName="w-64"
             >
-              Shows merchant spending after refunds. Income losses are not included.
+              Shows merchant spending after refunds. Income losses are not included
             </IconTooltip>
           </span>
         )}
@@ -415,7 +415,7 @@ export function MerchantDistributionCard({
           shouldReduceMotion={shouldReduceMotion}
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover.</span>
+            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover</span>
             <MerchantDistributionLegend className="hidden min-[750px]:flex" />
           </div>
           {displaySnapshot.merchants.length > 0 ? (

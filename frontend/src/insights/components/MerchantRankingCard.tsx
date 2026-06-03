@@ -59,7 +59,7 @@ export function MerchantRankingCard({
     merchants,
     fxStatus,
     currency,
-    emptyLabel: loading ? 'Loading merchant ranking...' : 'No merchant spending in this range.',
+    emptyLabel: loading ? 'Loading merchant ranking...' : 'No merchant spending in this range',
   }), [currency, fxStatus, loading, merchants])
   const {
     displaySnapshot,
@@ -91,7 +91,7 @@ export function MerchantRankingCard({
               placement="bottom"
               widthClassName="w-64"
             >
-              Ranks merchants by spending after refunds. Income losses are not included.
+              Ranks merchants by spending after refunds. Income losses are not included
             </IconTooltip>
           </span>
         )}
