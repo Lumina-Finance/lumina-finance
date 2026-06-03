@@ -707,6 +707,8 @@
     border: 1px solid var(--app-border-strong) !important;
     border-radius: 8px !important;
     box-shadow: var(--app-shadow-soft) !important;
+    max-width: var(--app-cursor-tooltip-max-width, calc(100vw - 16px)) !important;
+    overflow-wrap: anywhere !important;
     padding: 6px 10px !important;
     font-size: 13px !important;
   }

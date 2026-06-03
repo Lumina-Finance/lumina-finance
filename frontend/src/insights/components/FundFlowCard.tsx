@@ -16,6 +16,7 @@ import {
   type SankeyNodeProps,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -544,13 +545,11 @@ export function FundFlowCard({
                 {displaySnapshot.emptyLabel}
               </div>
             )}
-            <div
+            <CursorTooltipPortal
               ref={flowTooltipRef}
-              className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20"
               onTransitionEnd={handleFlowTooltipTransitionEnd}
               style={{
                 opacity: flowTooltipVisible ? 1 : 0,
-                transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
                 transform: 'translate3d(var(--flow-tooltip-x, 0px), var(--flow-tooltip-y, 0px), 0)',
               }}
             >
@@ -560,7 +559,7 @@ export function FundFlowCard({
                   displayCurrency={displaySnapshot.displayCurrency}
                 />
               )}
-            </div>
+            </CursorTooltipPortal>
           </div>
         </InsightLoadingContent>
         <InsightLoadingOverlay

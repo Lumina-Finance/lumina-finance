@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { Store } from 'lucide-react'
 import type { FxStatus } from '@/api/dashboard'
+import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -318,13 +319,11 @@ function MerchantMarketMap({
           })}
         </div>
       </div>
-      <div
+      <CursorTooltipPortal
         ref={tooltipRef}
-        className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20"
         onTransitionEnd={handleMerchantTooltipTransitionEnd}
         style={{
           opacity: tooltipVisible ? 1 : 0,
-          transition: 'opacity 150ms ease-out',
           transform: 'translate3d(var(--merchant-tooltip-x, 0px), var(--merchant-tooltip-y, 0px), 0)',
           width: tooltipWidth,
         }}
@@ -351,7 +350,7 @@ function MerchantMarketMap({
             )}
           </>
         )}
-      </div>
+      </CursorTooltipPortal>
     </div>
   )
 }

@@ -21,6 +21,7 @@ import {
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
@@ -277,13 +278,12 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                   </ResponsiveContainer>
                 </motion.div>
               </AnimatePresence>
-              <div
+              <CursorTooltipPortal
                 ref={breakdownTooltipRef}
-                className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 min-w-40"
+                className="min-w-40"
                 onTransitionEnd={handleBreakdownTooltipTransitionEnd}
                 style={{
                   opacity: breakdownTooltipVisible ? 1 : 0,
-                  transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
                   transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
                 }}
               >
@@ -300,7 +300,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                     </div>
                   </>
                 )}
-              </div>
+              </CursorTooltipPortal>
             </div>
             <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2">
               {breakdownEntries.map((entry) => (

@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { CircleHelp, LifeBuoy } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
 import { useRunway, useRunwayAccounts } from '@/api/user'
+import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -231,13 +232,12 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
           </p>
         )}
       </DashboardWidgetLoadingBody>
-      <div
+      <CursorTooltipPortal
         ref={runwayTooltipRef}
-        className="app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 z-20 w-[11rem]"
+        className="w-[11rem]"
         onTransitionEnd={handleRunwayTooltipTransitionEnd}
         style={{
           opacity: runwayTooltipVisible ? 1 : 0,
-          transition: 'opacity 150ms ease-out',
           transform: 'translate3d(var(--runway-tooltip-x, 0px), var(--runway-tooltip-y, 0px), 0)',
         }}
       >
@@ -251,7 +251,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
             </div>
           </>
         )}
-      </div>
+      </CursorTooltipPortal>
     </div>
   )
 }

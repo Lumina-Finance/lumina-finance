@@ -13,6 +13,7 @@ import {
   type RefObject,
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
+import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { getCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 type TooltipKey = string | number
@@ -73,7 +74,7 @@ function DeferredChartTooltipOverlayInner<T>({
     const tooltip = tooltipRef.current
     if (!chart || !rect || !tooltip) return
 
-    const { x: tooltipX, y: tooltipY } = getCursorTooltipPosition({
+    const { x: tooltipX, y: tooltipY, maxWidth } = getCursorTooltipPosition({
       origin: chart,
       tooltip,
       clientX: pointer.clientX,
@@ -88,6 +89,7 @@ function DeferredChartTooltipOverlayInner<T>({
 
     tooltip.style.setProperty('--chart-tooltip-x', `${tooltipX}px`)
     tooltip.style.setProperty('--chart-tooltip-y', `${tooltipY}px`)
+    tooltip.style.setProperty('--app-cursor-tooltip-max-width', `${maxWidth}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-x', `${guideX}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-width', `${resolvedGuideWidth}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-offset', `${resolvedGuideWidth / -2}px`)
@@ -172,37 +174,42 @@ function DeferredChartTooltipOverlayInner<T>({
 
   useEffect(() => clearPending, [clearPending])
 
+  const tooltip = (
+    <CursorTooltipPortal
+      ref={tooltipRef}
+      className={className}
+      onTransitionEnd={handleTransitionEnd}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: 'translate3d(var(--chart-tooltip-x, 0px), var(--chart-tooltip-y, 0px), 0)',
+      }}
+    >
+      {item && renderContent(item)}
+    </CursorTooltipPortal>
+  )
+
   return (
-    <div className="pointer-events-none absolute inset-0 z-20">
-      {showGuide && (
-        <div
-          ref={guideRef}
-          className="absolute top-0 h-full"
-          style={{
-            background: guideVariant === 'bar' ? 'var(--app-border)' : 'var(--app-border-strong)',
-            borderRadius: guideVariant === 'bar' ? 4 : undefined,
-            opacity: visible && item ? (guideVariant === 'bar' ? 0.4 : 1) : 0,
-            transform: guideVariant === 'bar'
-              ? 'translate3d(calc(var(--chart-tooltip-guide-x, 0px) + var(--chart-tooltip-guide-offset, -14px)), 0, 0)'
-              : 'translate3d(var(--chart-tooltip-guide-x, 0px), 0, 0)',
-            transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
-            width: guideVariant === 'bar' ? 'var(--chart-tooltip-guide-width, 28px)' : 1,
-          }}
-        />
-      )}
-      <div
-        ref={tooltipRef}
-        className={`app-chart-tooltip-default-content pointer-events-none absolute left-0 top-0 ${className}`}
-        onTransitionEnd={handleTransitionEnd}
-        style={{
-          opacity: visible ? 1 : 0,
-          transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
-          transform: 'translate3d(var(--chart-tooltip-x, 0px), var(--chart-tooltip-y, 0px), 0)',
-        }}
-      >
-        {item && renderContent(item)}
+    <>
+      <div className="pointer-events-none absolute inset-0 z-20">
+        {showGuide && (
+          <div
+            ref={guideRef}
+            className="absolute top-0 h-full"
+            style={{
+              background: guideVariant === 'bar' ? 'var(--app-border)' : 'var(--app-border-strong)',
+              borderRadius: guideVariant === 'bar' ? 4 : undefined,
+              opacity: visible && item ? (guideVariant === 'bar' ? 0.4 : 1) : 0,
+              transform: guideVariant === 'bar'
+                ? 'translate3d(calc(var(--chart-tooltip-guide-x, 0px) + var(--chart-tooltip-guide-offset, -14px)), 0, 0)'
+                : 'translate3d(var(--chart-tooltip-guide-x, 0px), 0, 0)',
+              transition: 'opacity 150ms ease-out, transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
+              width: guideVariant === 'bar' ? 'var(--chart-tooltip-guide-width, 28px)' : 1,
+            }}
+          />
+        )}
       </div>
-    </div>
+      {tooltip}
+    </>
   )
 }
 
