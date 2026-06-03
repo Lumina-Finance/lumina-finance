@@ -16,6 +16,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { getInsightsNetWorthFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -111,6 +112,18 @@ function getNetWorthTooltipKey(point: NetWorthDeltaPoint) {
   return point.dateMs
 }
 
+function getNetWorthCalculation(mode: NetWorthViewMode) {
+  return mode === 'overview'
+    ? 'Net worth is assets minus debt. Change compares with net worth from the day before this range'
+    : 'Balances are grouped by account type at each chart date'
+}
+
+function getNetWorthTooltipDetail(mode: NetWorthViewMode) {
+  return mode === 'overview'
+    ? 'Changes compare with net worth from the day before this range'
+    : 'Values use latest balances on this chart date'
+}
+
 function getNetWorthTooltipPointer(
   state: NetWorthTooltipState,
   event: ReactMouseEvent<SVGGraphicsElement>,
@@ -172,6 +185,9 @@ function NetWorthChartTooltipContent({
   return (
     <>
       <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--app-text-muted)]">
+        {getNetWorthTooltipDetail(mode)}
+      </p>
       <div className="mt-1 flex justify-between gap-4">
         <span className="app-chart-tooltip-default-value">Net Worth</span>
         <span className="app-chart-tooltip-default-value font-financial">
@@ -306,6 +322,15 @@ export function NetWorthCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Net Worth
+            <IconTooltip
+              label="Net Worth calculation"
+              placement="top"
+              widthClassName="w-72"
+              size={14}
+              strokeWidth={2.25}
+            >
+              {getNetWorthCalculation(displaySnapshot.mode)}
+            </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Net Worth FX status"
@@ -325,12 +350,23 @@ export function NetWorthCard({
           </InsightActionButton>
         )}
       />
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-visible" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[360px] flex-col">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="app-label app-label-compact">Ending Net Worth</p>
+            <p className="app-label app-label-compact inline-flex items-center gap-2">
+              Ending Net Worth
+              <IconTooltip
+                label="Ending Net Worth calculation"
+                placement="top"
+                widthClassName="w-72"
+                size={14}
+                strokeWidth={2.25}
+              >
+                Latest chart value. Change compares with net worth from the day before this range
+              </IconTooltip>
+            </p>
             <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
               <p className="font-financial text-3xl leading-none tracking-tight">
                 {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
