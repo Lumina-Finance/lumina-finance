@@ -10,6 +10,7 @@ import {
   Bar,
   ComposedChart,
   Line,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   XAxis,
@@ -105,7 +106,8 @@ const netWorthLegendItemVariants = {
   exit: { opacity: 0, x: 10 },
 } as const
 
-const netWorthChartMargin = { top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin } as const
+const netWorthChartMargin = { top: 18, right: 0, bottom: 0, left: netWorthChartLeftMargin } as const
+const netWorthXAxisPadding = { left: 28, right: 28 } as const
 const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
 
 function getNetWorthTooltipKey(point: NetWorthDeltaPoint) {
@@ -124,6 +126,15 @@ function getNetWorthTooltipDetail(mode: NetWorthViewMode) {
     : 'Values use latest balances on this chart date'
 }
 
+function getNetWorthFirstBarLabelY(point: NetWorthDeltaPoint, items: NetWorthChartItem[]) {
+  const positiveStack = items.reduce((sum, _item, index) => {
+    const value = Number(point[getChartKey(index)] ?? 0)
+    return value > 0 ? sum + value : sum
+  }, 0)
+
+  return positiveStack > 0 ? positiveStack : 0
+}
+
 function getNetWorthTooltipPointer(
   state: NetWorthTooltipState,
   event: ReactMouseEvent<SVGGraphicsElement>,
@@ -139,25 +150,20 @@ function NetWorthXAxisTick({
   x = 0,
   y = 0,
   payload,
-  axisStartMs,
-  axisEndMs,
   dateLabelsByMs,
 }: AxisTickProps & {
-  axisStartMs: number
-  axisEndMs: number
   dateLabelsByMs: Map<number, string>
 }) {
   const value = Number(payload?.value)
   const tickX = Number(x)
   const tickY = Number(y)
-  const textAnchor = value === axisStartMs ? 'start' : value === axisEndMs ? 'end' : 'middle'
 
   return (
     <text
       x={tickX}
       y={tickY}
       dy={12}
-      textAnchor={textAnchor}
+      textAnchor="middle"
       fill="var(--app-text-subtle)"
       fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
     >
@@ -287,6 +293,10 @@ export function NetWorthCard({
     deltaSeries[0]?.startTotal ?? 0,
     displaySnapshot.displayCurrency,
   )
+  const startNetWorthLabelPoint = displaySnapshot.mode === 'overview' ? deltaSeries[0] : undefined
+  const startNetWorthLabelY = startNetWorthLabelPoint
+    ? getNetWorthFirstBarLabelY(startNetWorthLabelPoint, chartItems)
+    : 0
   const legendItems = useMemo(
     () => getNetWorthLegendItems(displaySnapshot.mode, chartItems),
     [chartItems, displaySnapshot.mode],
@@ -404,6 +414,7 @@ export function NetWorthCard({
                   type="number"
                   scale="time"
                   domain={[dateAxisStartMs, dateAxisEndMs]}
+                  padding={netWorthXAxisPadding}
                   ticks={dateAxisTicks}
                   axisLine={false}
                   tickLine={false}
@@ -411,8 +422,6 @@ export function NetWorthCard({
                   tick={(props) => (
                     <NetWorthXAxisTick
                       {...props}
-                      axisStartMs={dateAxisStartMs}
-                      axisEndMs={dateAxisEndMs}
                       dateLabelsByMs={dateLabelsByMs}
                     />
                   )}
@@ -426,16 +435,25 @@ export function NetWorthCard({
                   y={0}
                   stroke="var(--app-border-strong)"
                   strokeWidth={1}
-                  label={displaySnapshot.mode === 'overview'
-                    ? {
-                        value: startNetWorthAxisLabel,
-                        position: 'insideTopLeft',
-                        fill: 'var(--app-text-subtle)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }
-                    : undefined}
                 />
+                {startNetWorthLabelPoint && (
+                  <ReferenceDot
+                    x={startNetWorthLabelPoint.dateMs}
+                    y={startNetWorthLabelY}
+                    r={0}
+                    fill="transparent"
+                    stroke="transparent"
+                    ifOverflow="visible"
+                    label={{
+                      value: startNetWorthAxisLabel,
+                      position: 'top',
+                      offset: 4,
+                      fill: 'var(--app-text-subtle)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
                 {displaySnapshot.mode === 'composition' ? (
                   chartItems.map((item, index) => (
                     <Area
