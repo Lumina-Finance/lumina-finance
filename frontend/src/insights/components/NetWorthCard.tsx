@@ -67,6 +67,7 @@ type NetWorthCardProps = {
   mode: NetWorthViewMode
   onModeToggle: () => void
   groups: NetWorthGroup[]
+  baseline: number[]
   series: NetWorthPoint[]
   fxStatus: FxStatus | undefined
   displayCurrency: string
@@ -77,6 +78,7 @@ type NetWorthCardProps = {
 type NetWorthSnapshot = {
   mode: NetWorthViewMode
   groups: NetWorthGroup[]
+  baseline: number[]
   series: NetWorthPoint[]
   fxStatus: FxStatus | undefined
   displayCurrency: string
@@ -213,6 +215,7 @@ export function NetWorthCard({
   mode,
   onModeToggle,
   groups,
+  baseline,
   series,
   fxStatus,
   displayCurrency,
@@ -224,11 +227,12 @@ export function NetWorthCard({
   const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
     mode,
     groups,
+    baseline,
     series,
     fxStatus,
     displayCurrency,
     emptyLabel: loading ? 'Loading net worth history...' : 'No net worth history in this range.',
-  }), [displayCurrency, fxStatus, groups, loading, mode, series])
+  }), [baseline, displayCurrency, fxStatus, groups, loading, mode, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -245,8 +249,8 @@ export function NetWorthCard({
     [displaySnapshot.groups, displaySnapshot.mode],
   )
   const deltaSeries = useMemo(
-    () => getNetWorthChartData(displaySnapshot.series, chartItems, displaySnapshot.mode),
-    [chartItems, displaySnapshot.mode, displaySnapshot.series],
+    () => getNetWorthChartData(displaySnapshot.series, chartItems, displaySnapshot.mode, displaySnapshot.baseline),
+    [chartItems, displaySnapshot.baseline, displaySnapshot.mode, displaySnapshot.series],
   )
   const hasChartData = displaySnapshot.groups.length > 0 && deltaSeries.length > 0
   const dateAxisStartMs = deltaSeries[0]?.dateMs ?? 0
