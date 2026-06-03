@@ -3,6 +3,7 @@ import {
   useRef,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
+import { Repeat } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -29,7 +30,10 @@ type DailyCashFlowPoint = {
   date: string
   inflow: number
   outflow: number
+  net: number
 }
+
+export type DailyCashFlowChartMode = 'net' | 'gross'
 
 type DailyCashFlowTooltipState = {
   activeLabel?: string | number
@@ -52,7 +56,7 @@ function getDailyCashFlowSeries(
   const first = parseYmdLocal(raw[0].date)
   const last = parseYmdLocal(raw[raw.length - 1].date)
   const cursor = new Date(first.getFullYear(), first.getMonth(), 1)
-  const result: { date: string; inflow: number; outflow: number }[] = []
+  const result: DailyCashFlowPoint[] = []
 
   while (cursor <= last) {
     const iso = [
@@ -65,6 +69,7 @@ function getDailyCashFlowSeries(
       date: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       inflow: entry?.inflow ?? 0,
       outflow: entry?.outflow ?? 0,
+      net: (entry?.inflow ?? 0) + (entry?.outflow ?? 0),
     })
     cursor.setDate(cursor.getDate() + 1)
   }
@@ -106,13 +111,23 @@ function getDailyCashFlowTooltipPoint(
 function DailyCashFlowTooltipContent({
   point,
   displayCurrency,
+  mode,
 }: {
   point: DailyCashFlowPoint
   displayCurrency: string
+  mode: DailyCashFlowChartMode
 }) {
   return (
     <>
       <p className="app-chart-tooltip-default-title">{point.date}</p>
+      {mode === 'net' && (
+        <div className="mt-1 flex justify-between gap-4">
+          <span className="app-chart-tooltip-default-value">Net</span>
+          <span className="app-chart-tooltip-default-value font-financial">
+            {formatCurrency(point.net, displayCurrency)}
+          </span>
+        </div>
+      )}
       <div className="mt-1 flex justify-between gap-4">
         <span className="app-chart-tooltip-default-value">Inflow</span>
         <span className="app-chart-tooltip-default-value font-financial">
@@ -136,6 +151,8 @@ export default function DailyCashFlowChart({
   displayCurrency,
   chartAnimationKey,
   prefersReducedMotion,
+  mode,
+  onModeToggle,
 }: {
   rawDailyFlow: DailyCashFlow[]
   fxStatus: FxStatus | undefined
@@ -143,6 +160,8 @@ export default function DailyCashFlowChart({
   displayCurrency: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
+  mode: DailyCashFlowChartMode
+  onModeToggle: () => void
 }) {
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
   const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
@@ -155,6 +174,8 @@ export default function DailyCashFlowChart({
     [dailyFlow],
   )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
+  const title = mode === 'net' ? 'Daily Net Cash Flow' : 'Daily Cash Flow'
+  const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
   const showDailyCashFlowTooltip = (
     state: DailyCashFlowTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
@@ -173,24 +194,35 @@ export default function DailyCashFlowChart({
 
   return (
     <>
-      <p className="app-label mb-3 inline-flex items-center gap-2">
-        Daily Cash Flow
-        {fxStatus && (
-          <IconTooltip
-            label="Daily cash flow FX status"
-            icon="fx"
-            fxTone={getFxStatusTone(fxStatus)}
-            placement="top"
-          >
-            <span className="block">{getCashFlowFxStatusMessage(fxStatus)}</span>
-            {fxStatus.missing_pairs.length > 0 && (
-              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-              </span>
-            )}
-          </IconTooltip>
-        )}
-      </p>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="app-label inline-flex items-center gap-2">
+          {title}
+          {fxStatus && (
+            <IconTooltip
+              label="Daily cash flow FX status"
+              icon="fx"
+              fxTone={getFxStatusTone(fxStatus)}
+              placement="top"
+            >
+              <span className="block">{getCashFlowFxStatusMessage(fxStatus)}</span>
+              {fxStatus.missing_pairs.length > 0 && (
+                <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
+                </span>
+              )}
+            </IconTooltip>
+          )}
+        </p>
+        <button
+          type="button"
+          title={toggleLabel}
+          aria-label={toggleLabel}
+          onClick={onModeToggle}
+          className="app-icon-button h-8 w-8 shrink-0"
+        >
+          <Repeat size={12} />
+        </button>
+      </div>
       <div
         ref={dailyFlowChartRef}
         className="relative h-[11.75rem]"
@@ -198,13 +230,17 @@ export default function DailyCashFlowChart({
       >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
-            key={`daily-flow-${chartAnimationKey}`}
+            key={`daily-flow-${mode}-${chartAnimationKey}`}
             data={dailyFlow}
             margin={{ top: 4, right: 12, bottom: 0, left: 12 }}
             onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
             onMouseLeave={hideDailyCashFlowTooltip}
           >
             <defs>
+              <linearGradient id="netFlowGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--app-text-muted)" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0.02} />
+              </linearGradient>
               <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--app-positive)" stopOpacity={0.25} />
                 <stop offset="100%" stopColor="var(--app-positive)" stopOpacity={0.02} />
@@ -223,24 +259,38 @@ export default function DailyCashFlowChart({
             />
             <YAxis hide />
             <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
-            <Area
-              type="monotone"
-              dataKey="inflow"
-              stroke="var(--app-positive)"
-              fill="url(#inflowGrad)"
-              strokeWidth={1.5}
-              isAnimationActive={!prefersReducedMotion}
-              animationDuration={chartAnimationDuration}
-            />
-            <Area
-              type="monotone"
-              dataKey="outflow"
-              stroke="var(--app-negative)"
-              fill="url(#outflowGrad)"
-              strokeWidth={1.5}
-              isAnimationActive={!prefersReducedMotion}
-              animationDuration={chartAnimationDuration}
-            />
+            {mode === 'net' ? (
+              <Area
+                type="monotone"
+                dataKey="net"
+                stroke="var(--app-text-muted)"
+                fill="url(#netFlowGrad)"
+                strokeWidth={1.5}
+                isAnimationActive={!prefersReducedMotion}
+                animationDuration={chartAnimationDuration}
+              />
+            ) : (
+              <>
+                <Area
+                  type="monotone"
+                  dataKey="inflow"
+                  stroke="var(--app-positive)"
+                  fill="url(#inflowGrad)"
+                  strokeWidth={1.5}
+                  isAnimationActive={!prefersReducedMotion}
+                  animationDuration={chartAnimationDuration}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="outflow"
+                  stroke="var(--app-negative)"
+                  fill="url(#outflowGrad)"
+                  strokeWidth={1.5}
+                  isAnimationActive={!prefersReducedMotion}
+                  animationDuration={chartAnimationDuration}
+                />
+              </>
+            )}
           </AreaChart>
         </ResponsiveContainer>
         <DeferredChartTooltipOverlay
@@ -252,6 +302,7 @@ export default function DailyCashFlowChart({
             <DailyCashFlowTooltipContent
               point={point}
               displayCurrency={displayCurrency}
+              mode={mode}
             />
           )}
         />
