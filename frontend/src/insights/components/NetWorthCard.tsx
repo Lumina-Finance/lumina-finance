@@ -374,7 +374,7 @@ export function NetWorthCard({
                 size={14}
                 strokeWidth={2.25}
               >
-                Latest chart value. Change compares with net worth from the day before this range
+                Ending net worth value as of the last date in the chosen time period
               </IconTooltip>
             </p>
             <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
