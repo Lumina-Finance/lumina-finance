@@ -79,13 +79,6 @@ export function MerchantRankingCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Merchant Ranking
-            {displaySnapshot.fxStatus && (
-              <FxStatusBadge
-                label="Merchant Ranking FX status"
-                status={displaySnapshot.fxStatus}
-                getMessage={getMerchantSpendingFxStatusMessage}
-              />
-            )}
             <IconTooltip
               label="How merchant ranking is calculated"
               placement="bottom"
@@ -93,6 +86,13 @@ export function MerchantRankingCard({
             >
               Ranks merchants by spending after refunds. Income losses are not included
             </IconTooltip>
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Merchant Ranking FX status"
+                status={displaySnapshot.fxStatus}
+                getMessage={getMerchantSpendingFxStatusMessage}
+              />
+            )}
           </span>
         )}
       />

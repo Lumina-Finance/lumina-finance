@@ -391,13 +391,6 @@ export function MerchantDistributionCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Spending Distribution by Merchant
-            {displaySnapshot.fxStatus && (
-              <FxStatusBadge
-                label="Merchant Distribution FX status"
-                status={displaySnapshot.fxStatus}
-                getMessage={getMerchantSpendingFxStatusMessage}
-              />
-            )}
             <IconTooltip
               label="How merchant distribution is calculated"
               placement="bottom"
@@ -405,6 +398,13 @@ export function MerchantDistributionCard({
             >
               Shows merchant spending after refunds. Income losses are not included
             </IconTooltip>
+            {displaySnapshot.fxStatus && (
+              <FxStatusBadge
+                label="Merchant Distribution FX status"
+                status={displaySnapshot.fxStatus}
+                getMessage={getMerchantSpendingFxStatusMessage}
+              />
+            )}
           </span>
         )}
       />
