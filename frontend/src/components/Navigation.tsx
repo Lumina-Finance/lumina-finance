@@ -228,7 +228,7 @@ function DesktopNavigation({
   return (
     <nav
       aria-label="Primary"
-      className="fixed left-5 top-5 z-30 hidden h-[calc(100vh-2.5rem)] w-60 flex-col rounded-2xl px-4 py-7 min-[1050px]:flex"
+      className="app-desktop-nav fixed left-5 z-30 hidden w-60 flex-col rounded-2xl px-4 py-7 min-[1050px]:flex"
       style={{
         background: 'var(--app-nav-bg)',
         border: '1px solid var(--app-border)',
