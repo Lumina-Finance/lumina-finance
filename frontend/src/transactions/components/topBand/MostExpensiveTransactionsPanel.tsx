@@ -65,14 +65,12 @@ export default function MostExpensiveTransactionsPanel({
       <div className="mt-2 flex flex-col gap-2.5">
         <AnimatePresence initial={false} mode="popLayout">
           {outliers.length === 0 ? (
-            <motion.div
+            <motion.p
               key="empty-outliers"
               layout
-              className="flex items-center justify-center rounded-md border px-2.5 py-2 text-sm italic"
+              className="flex items-center justify-center text-center text-sm italic"
               style={{
                 minHeight: emptyOutliersHeight,
-                background: 'var(--app-surface-soft)',
-                borderColor: 'var(--app-border)',
                 color: 'var(--app-text-subtle)',
               }}
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
@@ -80,8 +78,8 @@ export default function MostExpensiveTransactionsPanel({
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={contentTransition}
             >
-              No expensive transactions
-            </motion.div>
+              No qualifying transactions found
+            </motion.p>
           ) : outliers.map((transaction) => {
               const loading = openingOutlierId === transaction.id
               const label = transaction.merchant_name ?? transaction.notes ?? 'Unknown'
