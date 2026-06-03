@@ -4,6 +4,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { Repeat } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   Area,
   AreaChart,
@@ -45,6 +46,20 @@ type DailyCashFlowTooltipState = {
     payload?: DailyCashFlowPoint
   }>
 }
+
+const titleWordTransition = { duration: 0.34, ease: [0.16, 1, 0.3, 1] } as const
+const titleWidthTransition = { duration: 0.3, ease: [0.16, 1, 0.3, 1] } as const
+const titleExitWidthTransition = { delay: 0.34, duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
+const titleWordVariants = {
+  initial: { transition: { staggerChildren: 0.018 } },
+  enter: { transition: { staggerChildren: 0.018 } },
+  exit: { transition: { staggerChildren: 0.014, staggerDirection: -1 } },
+} as const
+const titleCharVariants = {
+  initial: { y: '0.7em', opacity: 0, filter: 'blur(2px)' },
+  enter: { y: 0, opacity: 1, filter: 'blur(0px)' },
+  exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
+} as const
 
 function getDailyCashFlowSeries(
   raw: DailyCashFlow[],
@@ -144,6 +159,53 @@ function DailyCashFlowTooltipContent({
   )
 }
 
+function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
+  const shouldReduceMotion = useReducedMotion()
+
+  return (
+    <AnimatePresence initial={false}>
+      {visible && (
+        <motion.span
+          key="net-title-word"
+          className="inline-block overflow-hidden align-bottom"
+          initial={shouldReduceMotion ? false : { width: 0 }}
+          animate={{
+            width: 'auto',
+            transition: shouldReduceMotion ? { duration: 0 } : titleWidthTransition,
+          }}
+          exit={{
+            width: 0,
+            transition: shouldReduceMotion ? { duration: 0 } : titleExitWidthTransition,
+          }}
+          style={{ whiteSpace: 'nowrap' }}
+        >
+          <motion.span
+            className="flex pl-[0.25em]"
+            aria-hidden
+            initial={shouldReduceMotion ? false : 'initial'}
+            animate="enter"
+            exit={shouldReduceMotion ? undefined : 'exit'}
+            variants={titleWordVariants}
+            transition={shouldReduceMotion ? { duration: 0 } : titleWordTransition}
+          >
+            {'Net'.split('').map((char, index) => (
+              <motion.span
+                key={`${char}-${index}`}
+                className="inline-block"
+                variants={titleCharVariants}
+                transition={shouldReduceMotion ? { duration: 0 } : titleWordTransition}
+              >
+                {char}
+              </motion.span>
+            ))}
+          </motion.span>
+          <span className="sr-only">Net</span>
+        </motion.span>
+      )}
+    </AnimatePresence>
+  )
+}
+
 export default function DailyCashFlowChart({
   rawDailyFlow,
   fxStatus,
@@ -174,7 +236,6 @@ export default function DailyCashFlowChart({
     [dailyFlow],
   )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
-  const title = mode === 'net' ? 'Daily Net Cash Flow' : 'Daily Cash Flow'
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
   const showDailyCashFlowTooltip = (
     state: DailyCashFlowTooltipState,
@@ -196,7 +257,11 @@ export default function DailyCashFlowChart({
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="app-label inline-flex items-center gap-2">
-          {title}
+          <span className="inline-flex items-baseline whitespace-nowrap">
+            <span>Daily</span>
+            <DailyCashFlowTitleWord visible={mode === 'net'} />
+            <span className="ml-[0.25em]">Cash Flow</span>
+          </span>
           {fxStatus && (
             <IconTooltip
               label="Daily cash flow FX status"
