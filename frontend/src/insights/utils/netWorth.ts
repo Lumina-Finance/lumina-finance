@@ -17,8 +17,8 @@ export function getNetWorthCardData(
   response: InsightsNetWorthResponse | undefined,
   fromDate: string,
   toDate: string,
-): { groups: NetWorthGroup[]; series: NetWorthPoint[] } {
-  if (!response) return { groups: [], series: [] }
+): { groups: NetWorthGroup[]; baseline: number[]; series: NetWorthPoint[] } {
+  if (!response) return { groups: [], baseline: [], series: [] }
 
   const groups = response.groups ?? []
   const points = response.points ?? []
@@ -26,6 +26,7 @@ export function getNetWorthCardData(
   const granularity = getNetWorthGranularity(dayCount)
   return {
     groups: groups.map(([id, name, kind]) => ({ id, name, kind })),
+    baseline: response.baseline ?? [],
     series: points.map(([labelDate, valueDate, values]) => {
       const label = parseYmd(labelDate)
       const tooltip = parseYmd(valueDate)

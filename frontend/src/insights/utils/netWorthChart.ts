@@ -131,17 +131,24 @@ export function getNetWorthChartData(
   series: NetWorthPoint[],
   items: NetWorthChartItem[],
   mode: NetWorthViewMode,
+  baselineValues: number[] = [],
 ): NetWorthDeltaPoint[] {
   const start = series[0]
   if (!start) return []
-  const startValues = items.map((item) => item.getValue(start))
+  const effectiveBaselineValues = baselineValues.length > 0 ? baselineValues : start.values
+  const baselinePoint: NetWorthPoint = {
+    ...start,
+    total: effectiveBaselineValues.reduce((sum, value) => sum + value, 0),
+    values: effectiveBaselineValues,
+  }
+  const startValues = items.map((item) => item.getValue(baselinePoint))
 
   return series.map((point) => {
     const deltaPoint: NetWorthDeltaPoint = {
       ...point,
       dateMs: dateStringToUtcMs(point.date),
-      startTotal: start.total,
-      totalChange: point.total - start.total,
+      startTotal: baselinePoint.total,
+      totalChange: point.total - baselinePoint.total,
     }
 
     items.forEach((item, index) => {

@@ -1,5 +1,6 @@
 """Net worth service for the insights page."""
 
+import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Literal
@@ -106,18 +107,18 @@ async def _query_net_worth_points(
     base_currency: str,
     from_date: date,
     to_date: date,
-) -> tuple[list[tuple[date, date, list[int]]], FxStatus]:
+) -> tuple[list[int], list[tuple[date, date, list[int]]], FxStatus]:
     """Return signed grouped balances converted to base currency for each chart bucket."""
     buckets = _build_buckets(from_date, to_date)
     if not accounts or not buckets:
-        return [], FxStatus()
+        return [], [], FxStatus()
 
     account_ids = [account.id for account in accounts]
-    account_by_id = {account.id: account for account in accounts}
     group_index_by_account_id = {
         account.id: GROUP_INDEX_BY_ID[_group_id_for_account(account)]
         for account in accounts
     }
+    baseline_date = from_date - timedelta(days=1)
     converter = FxConverter(
         currency_exponents=await _get_currency_exponents(
             db,
@@ -129,6 +130,16 @@ async def _query_net_worth_points(
         accounts=accounts,
         buckets=buckets,
         base_currency=base_currency,
+        baseline_date=baseline_date,
+    )
+    baseline_balances = await _balances_at(db, account_ids, baseline_date)
+    baseline_values = await _grouped_values_from_balances(
+        accounts,
+        group_index_by_account_id,
+        baseline_balances,
+        base_currency=base_currency,
+        rate_date=baseline_date,
+        converter=converter,
     )
     first_bucket_start = buckets[0][0]
     anchor_result = await db.execute(
@@ -167,23 +178,63 @@ async def _query_net_worth_points(
             running[snapshot.account_id] = int(snapshot.balance)
             snapshot_index += 1
 
-        values = [0] * len(NET_WORTH_GROUPS)
-        for account_id in account_ids:
-            account = account_by_id[account_id]
-            converted_balance = await converter.convert_minor_units(
-                running[account_id],
-                base=account.currency,
-                quote=base_currency,
-                rate_date=value_date,
-            )
-            if converted_balance is None:
-                continue
-
-            group_index = group_index_by_account_id[account_id]
-            values[group_index] += converted_balance
+        values = await _grouped_values_from_balances(
+            accounts,
+            group_index_by_account_id,
+            running,
+            base_currency=base_currency,
+            rate_date=value_date,
+            converter=converter,
+        )
         points.append((label_date, value_date, values))
 
-    return points, converter.get_status()
+    return baseline_values, points, converter.get_status()
+
+
+async def _balances_at(
+    db: AsyncSession,
+    account_ids: list[uuid.UUID],
+    target_date: date,
+) -> dict[uuid.UUID, int]:
+    """Return latest balances on or before target_date keyed by account id."""
+    if not account_ids:
+        return {}
+
+    result = await db.execute(
+        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
+        .where(
+            AccountBalanceSnapshot.account_id.in_(account_ids),
+            AccountBalanceSnapshot.dt <= target_date,
+        )
+        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
+        .distinct(AccountBalanceSnapshot.account_id),
+    )
+    return {row.account_id: int(row.balance) for row in result}
+
+
+async def _grouped_values_from_balances(
+    accounts: list[Account],
+    group_index_by_account_id: dict[uuid.UUID, int],
+    balances: dict[uuid.UUID, int],
+    *,
+    base_currency: str,
+    rate_date: date,
+    converter: FxConverter,
+) -> list[int]:
+    values = [0] * len(NET_WORTH_GROUPS)
+    for account in accounts:
+        converted_balance = await converter.convert_minor_units(
+            int(balances.get(account.id, 0)),
+            base=account.currency,
+            quote=base_currency,
+            rate_date=rate_date,
+        )
+        if converted_balance is None:
+            continue
+
+        group_index = group_index_by_account_id[account.id]
+        values[group_index] += converted_balance
+    return values
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
@@ -199,11 +250,12 @@ async def _prefetch_net_worth_rates(
     accounts: list[Account],
     buckets: list[tuple[date, date]],
     base_currency: str,
+    baseline_date: date,
 ) -> None:
     if not buckets:
         return
 
-    start_date = min(value_date for _label_date, value_date in buckets)
+    start_date = min(baseline_date, *(value_date for _label_date, value_date in buckets))
     end_date = max(value_date for _label_date, value_date in buckets)
     for currency in sorted({account.currency for account in accounts if account.currency != base_currency}):
         await converter.prefetch_rates(
@@ -225,11 +277,11 @@ async def get_net_worth(
     if not accounts:
         return InsightsNetWorthResponse(groups=[], points=[])
 
-    points, fx_status = await _query_net_worth_points(db, accounts, user.base_currency, from_date, to_date)
+    baseline, points, fx_status = await _query_net_worth_points(db, accounts, user.base_currency, from_date, to_date)
     active_group_indexes = [
         index
         for index in range(len(NET_WORTH_GROUPS))
-        if any(point_values[index] != 0 for _label_date, _value_date, point_values in points)
+        if baseline[index] != 0 or any(point_values[index] != 0 for _label_date, _value_date, point_values in points)
     ]
     if not active_group_indexes:
         return InsightsNetWorthResponse(groups=[], points=[], fx_status=fx_status)
@@ -239,6 +291,7 @@ async def get_net_worth(
             (NET_WORTH_GROUPS[index].id, NET_WORTH_GROUPS[index].name, NET_WORTH_GROUPS[index].kind)
             for index in active_group_indexes
         ],
+        baseline=[baseline[index] for index in active_group_indexes],
         points=[
             (
                 label_date,

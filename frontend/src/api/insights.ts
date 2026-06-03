@@ -59,6 +59,7 @@ export type InsightsNetWorthPoint = [string, string, number[]];
 
 export interface InsightsNetWorthResponse {
   groups: InsightsNetWorthGroup[];
+  baseline: number[];
   points: InsightsNetWorthPoint[];
   fx_status: FxStatus;
 }
