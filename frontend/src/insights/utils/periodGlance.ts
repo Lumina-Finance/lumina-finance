@@ -20,6 +20,7 @@ type InsightSignal = {
   label: string
   value: string
   detail: string
+  calculation?: string
   tone: PeriodGlancePrimaryMetric['tone']
   fxStatus?: PeriodGlanceSupportItem['fxStatus']
   getFxStatusMessage?: PeriodGlanceSupportItem['getFxStatusMessage']
@@ -30,6 +31,7 @@ type PeriodBrief = {
     label: string
     value: number
     detail: string
+    calculation?: string
     tone: PeriodGlancePrimaryMetric['tone']
     signed?: boolean
     fxStatus?: PeriodGlanceSupportItem['fxStatus']
@@ -39,6 +41,7 @@ type PeriodBrief = {
     label: string
     value: string
     detail: string
+    calculation?: string
     fxStatus?: PeriodGlanceSupportItem['fxStatus']
     getFxStatusMessage?: PeriodGlanceSupportItem['getFxStatusMessage']
   }>
@@ -75,12 +78,14 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: netSavings >= 0
           ? 'Recorded income exceeds recorded expenses in the selected range, excluding transfers'
           : 'Recorded expenses exceed recorded income in the selected range, excluding transfers',
+        calculation: 'Income - expenses for this range. Transfers are excluded',
         tone: netSavings >= 0 ? 'positive' : 'negative',
       },
       {
         label: 'Net Worth Changed By',
         value: data.net_worth_change,
         detail: 'Across all accounts',
+        calculation: 'End-of-range account balances minus balances from the day before the range',
         tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
         signed: true,
         fxStatus: data.net_worth_change_fx_status,
@@ -94,6 +99,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: data.biggest_change_name && data.biggest_change_amount !== undefined
           ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency)
           : 'No comparable category movement in this range',
+        calculation: 'Category with the largest dollar change from the previous matching period',
         fxStatus: data.biggest_change_fx_status,
         getFxStatusMessage: getBiggestChangeFxStatusMessage,
       },
@@ -103,6 +109,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: data.top_category_share_pct === undefined
           ? 'No recorded expenses in this range'
           : `${data.top_category_share_pct}% of recorded expenses`,
+        calculation: 'Top spending category divided by total spending for this range',
         fxStatus: data.top_category_fx_status,
         getFxStatusMessage: getPeriodTopCategoryFxStatusMessage,
       },
@@ -112,6 +119,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         detail: savingsRate === null
           ? 'No recorded income in the selected range'
           : 'Income kept after expenses, excluding transfers',
+        calculation: '(Income - expenses) / income for this range. Transfers are excluded',
         fxStatus: data.income_expense_fx_status,
         getFxStatusMessage: getPeriodSavingsRateFxStatusMessage,
       },
@@ -170,6 +178,7 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
     label: secondaryMetric.label,
     value: formatBriefMetricValue(secondaryMetric, displayCurrency),
     detail: secondaryMetric.detail,
+    calculation: secondaryMetric.calculation,
     tone: secondaryMetric.tone,
     fxStatus: secondaryMetric.fxStatus,
     getFxStatusMessage: secondaryMetric.getFxStatusMessage,
@@ -181,6 +190,7 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
       label: signal.label,
       value: signal.value,
       detail: signal.detail,
+      calculation: signal.calculation,
       tone: 'neutral' as const,
       fxStatus: signal.fxStatus,
       getFxStatusMessage: signal.getFxStatusMessage,
@@ -203,6 +213,7 @@ export function getPeriodGlanceCardData(
       label: primaryMetric.label,
       value: formatBriefMetricValue(primaryMetric, displayCurrency),
       detail: primaryMetric.detail,
+      calculation: primaryMetric.calculation,
       tone: primaryMetric.tone,
     },
     supportItems: getSupportItems(secondaryMetric, brief.signals, displayCurrency),

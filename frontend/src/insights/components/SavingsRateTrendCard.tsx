@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { getSavingsRateTrendFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
@@ -80,6 +81,13 @@ type SavingsRateTooltipState = {
 }
 
 const savingsRateChartMargin = { top: 8, right: 8, bottom: 0, left: 4 } as const
+const savingsRateCalculation = 'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
+const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial'
+const averageSavingsRateCalculation = 'Average savings rate across completed months only. The current month is excluded'
+const bestSavingsRateCalculation = 'Highest savings rate across completed months. The current month is excluded'
+const worstSavingsRateCalculation = 'Lowest savings rate across completed months. The current month is excluded'
+const savingsRateStatLabelClass = 'app-label inline-flex items-center gap-2 text-sm leading-5'
+const savingsRateStatCaptionClass = 'truncate text-right text-xs leading-4 min-[750px]:mt-2 min-[750px]:text-left'
 
 function getSavingsRateTooltipKey(point: SavingsRateHistoryPoint) {
   return point.monthKey
@@ -275,6 +283,15 @@ export function SavingsRateTrendCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Savings Rate Trend
+            <IconTooltip
+              label="Savings Rate Trend calculation"
+              placement="top"
+              widthClassName="w-72"
+              size={14}
+              strokeWidth={2.25}
+            >
+              {savingsRateCalculation}
+            </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Savings Rate Trend FX status"
@@ -297,12 +314,23 @@ export function SavingsRateTrendCard({
           </InsightActionButton>
         )}
       />
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-visible" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex flex-col min-[750px]:h-[430px]">
             <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[750px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] min-[750px]:items-center min-[750px]:gap-6">
               <div className="min-w-0">
-                <p className="app-label">Latest Savings Rate</p>
+                <p className="app-label inline-flex items-center gap-2">
+                  Latest Savings Rate
+                  <IconTooltip
+                    label="Latest Savings Rate calculation"
+                    placement="top"
+                    widthClassName="w-72"
+                    size={14}
+                    strokeWidth={2.25}
+                  >
+                    {latestSavingsRateCalculation}
+                  </IconTooltip>
+                </p>
                 <p className="mt-1 font-financial text-4xl leading-none tracking-tight">
                   {formatSavingsRateValue(latestPoint?.rate ?? null)}
                 </p>
@@ -312,34 +340,67 @@ export function SavingsRateTrendCard({
               </div>
               <div className="grid min-w-0 gap-2 min-[750px]:grid-cols-3 min-[750px]:gap-4">
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
-                  <p className="app-label app-label-compact">Average</p>
+                  <p className={savingsRateStatLabelClass}>
+                    Average
+                    <IconTooltip
+                      label="Average savings rate calculation"
+                      placement="top"
+                      widthClassName="w-72"
+                      size={14}
+                      strokeWidth={2.25}
+                    >
+                      {averageSavingsRateCalculation}
+                    </IconTooltip>
+                  </p>
                   <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(averageRate)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      Completed months
+                    <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
+                      Across completed months
                     </p>
                   </div>
                 </div>
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
-                  <p className="app-label app-label-compact">Best</p>
+                  <p className={savingsRateStatLabelClass}>
+                    Best
+                    <IconTooltip
+                      label="Best savings rate calculation"
+                      placement="top"
+                      widthClassName="w-72"
+                      size={14}
+                      strokeWidth={2.25}
+                    >
+                      {bestSavingsRateCalculation}
+                    </IconTooltip>
+                  </p>
                   <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(bestPoint?.rate ?? null)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
                       {bestPoint?.fullLabel ?? 'N/A'}
                     </p>
                   </div>
                 </div>
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
-                  <p className="app-label app-label-compact">Worst</p>
+                  <p className={savingsRateStatLabelClass}>
+                    Worst
+                    <IconTooltip
+                      label="Worst savings rate calculation"
+                      placement="top"
+                      widthClassName="w-72"
+                      size={14}
+                      strokeWidth={2.25}
+                    >
+                      {worstSavingsRateCalculation}
+                    </IconTooltip>
+                  </p>
                   <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
                       {formatSavingsRateValue(worstPoint?.rate ?? null)}
                     </p>
-                    <p className="truncate text-right text-xs min-[750px]:mt-2 min-[750px]:text-left min-[750px]:text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    <p className={savingsRateStatCaptionClass} style={{ color: 'var(--app-text-muted)' }}>
                       {worstPoint?.fullLabel ?? 'N/A'}
                     </p>
                   </div>
@@ -450,7 +511,7 @@ export function SavingsRateTrendCard({
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
           <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            <span>Latest 12 months, up to available data.</span>
+            <span>Latest 12 months, up to available data</span>
             {' '}
             <AnimatePresence initial={false}>
               {displaySnapshot.capRates && (
@@ -461,7 +522,7 @@ export function SavingsRateTrendCard({
                   exit={shouldReduceMotion ? undefined : { opacity: 0, y: -4 }}
                   transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  Chart scale is capped at 100%.
+                  Chart scale is capped at 100%
                 </motion.span>
               )}
             </AnimatePresence>

@@ -16,6 +16,7 @@ import {
   type SankeyNodeProps,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
 import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
@@ -205,11 +206,13 @@ function SankeyFlowTooltipContent({
   displayCurrency: string
 }) {
   return (
-    <div className="flex min-w-36 justify-between gap-4">
-      <span className="app-chart-tooltip-default-title">{tooltip.name}</span>
-      <span className="app-chart-tooltip-default-value font-financial">
-        {formatCurrency(tooltip.amount, displayCurrency)}
-      </span>
+    <div className="min-w-44 max-w-64">
+      <div className="flex justify-between gap-4">
+        <span className="app-chart-tooltip-default-title">{tooltip.name}</span>
+        <span className="app-chart-tooltip-default-value font-financial">
+          {formatCurrency(tooltip.amount, displayCurrency)}
+        </span>
+      </div>
     </div>
   )
 }
@@ -240,6 +243,7 @@ function FlowCategoryList({
   flippedEntries,
   flippedLabel,
   normalLabel,
+  calculation,
   displayCurrency,
   open,
   onToggle,
@@ -249,6 +253,7 @@ function FlowCategoryList({
   flippedEntries: SignAdjustedFlowEntry[]
   flippedLabel: string
   normalLabel: string
+  calculation: string
   displayCurrency: string
   open: boolean
   onToggle: () => void
@@ -266,18 +271,34 @@ function FlowCategoryList({
 
   return (
     <div
-      className="w-full self-start overflow-hidden rounded-xl border border-[var(--app-border)]"
+      className="w-full self-start overflow-visible rounded-xl border border-[var(--app-border)]"
       onClick={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        className="flex min-h-14 w-full items-center justify-between gap-4 px-3 py-2 text-left transition-colors duration-150 hover:bg-[var(--app-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={onToggle}
-      >
-        <span className="min-w-0">
-          <span className="app-label block">{title}</span>
+      <div className="relative flex min-h-14 w-full items-center justify-between gap-4 px-3 py-2">
+        <button
+          type="button"
+          className="absolute inset-0 rounded-xl text-left transition-colors duration-150 hover:bg-[var(--app-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={onToggle}
+        >
+          <span className="sr-only">Toggle {title}</span>
+        </button>
+        <span className="pointer-events-none relative z-10 min-w-0">
+          <span className="app-label inline-flex items-center gap-2">
+            {title}
+            <span className="pointer-events-auto">
+              <IconTooltip
+                label={`${title} calculation`}
+                placement="top"
+                widthClassName="w-72"
+                size={14}
+                strokeWidth={2.25}
+              >
+                {calculation}
+              </IconTooltip>
+            </span>
+          </span>
           <span className="mt-1 block font-financial text-xl leading-none">
             {displayCount}
           </span>
@@ -285,10 +306,10 @@ function FlowCategoryList({
         <ChevronDown
           size={14}
           aria-hidden
-          className={joinClassNames('shrink-0 transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')}
+          className={joinClassNames('pointer-events-none relative z-10 shrink-0 transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')}
           style={{ color: 'var(--app-accent)' }}
         />
-      </button>
+      </div>
 
       <AnimatePresence>
         {open && (
@@ -415,7 +436,9 @@ export function FundFlowCard({
     }
 
     setHoveredFlowTooltip((current) => (
-      current?.name === tooltip.name && current.amount === tooltip.amount ? current : tooltip
+      current?.name === tooltip.name && current.amount === tooltip.amount
+        ? current
+        : tooltip
     ))
     setFlowTooltipVisible(true)
     requestAnimationFrame(() => updateFlowTooltipPosition(event.clientX, event.clientY))
@@ -441,6 +464,15 @@ export function FundFlowCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Fund Flow
+            <IconTooltip
+              label="Fund Flow calculation"
+              placement="top"
+              widthClassName="w-72"
+              size={14}
+              strokeWidth={2.25}
+            >
+              Refunds and reversals are applied first. Money in flows to Income. Money out flows through Expenses. Transfers are excluded
+            </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Fund Flow FX status"
@@ -458,6 +490,7 @@ export function FundFlowCard({
           flippedEntries={displaySnapshot.expenseInflows}
           flippedLabel="Expense Inflow"
           normalLabel="Income Source"
+          calculation="Refunds reduce spending first before flipping into an income source. +x means categories that flipped"
           displayCurrency={displaySnapshot.displayCurrency}
           open={incomeListOpen}
           onToggle={() => setIncomeListOpen((current) => !current)}
@@ -468,6 +501,7 @@ export function FundFlowCard({
           flippedEntries={displaySnapshot.incomeOutflows}
           flippedLabel="Income Outflow"
           normalLabel="Expense Category"
+          calculation="Reversals reduce income first before flipping into an expense category. +x means categories that flipped"
           displayCurrency={displaySnapshot.displayCurrency}
           open={expenseListOpen}
           onToggle={() => setExpenseListOpen((current) => !current)}

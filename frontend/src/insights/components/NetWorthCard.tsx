@@ -10,12 +10,14 @@ import {
   Bar,
   ComposedChart,
   Line,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { getInsightsNetWorthFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -104,11 +106,27 @@ const netWorthLegendItemVariants = {
   exit: { opacity: 0, x: 10 },
 } as const
 
-const netWorthChartMargin = { top: 4, right: 0, bottom: 0, left: netWorthChartLeftMargin } as const
+const netWorthChartMargin = { top: 18, right: 0, bottom: 0, left: netWorthChartLeftMargin } as const
+const netWorthXAxisPadding = { left: 28, right: 28 } as const
 const netWorthLegendItemTransition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
 
 function getNetWorthTooltipKey(point: NetWorthDeltaPoint) {
   return point.dateMs
+}
+
+function getNetWorthCalculation(mode: NetWorthViewMode) {
+  return mode === 'overview'
+    ? 'Net worth is assets minus debt. Change compares with net worth from the day before this range'
+    : 'Balances are grouped by account type at each chart date'
+}
+
+function getNetWorthFirstBarLabelY(point: NetWorthDeltaPoint, items: NetWorthChartItem[]) {
+  const positiveStack = items.reduce((sum, _item, index) => {
+    const value = Number(point[getChartKey(index)] ?? 0)
+    return value > 0 ? sum + value : sum
+  }, 0)
+
+  return positiveStack > 0 ? positiveStack : 0
 }
 
 function getNetWorthTooltipPointer(
@@ -126,25 +144,20 @@ function NetWorthXAxisTick({
   x = 0,
   y = 0,
   payload,
-  axisStartMs,
-  axisEndMs,
   dateLabelsByMs,
 }: AxisTickProps & {
-  axisStartMs: number
-  axisEndMs: number
   dateLabelsByMs: Map<number, string>
 }) {
   const value = Number(payload?.value)
   const tickX = Number(x)
   const tickY = Number(y)
-  const textAnchor = value === axisStartMs ? 'start' : value === axisEndMs ? 'end' : 'middle'
 
   return (
     <text
       x={tickX}
       y={tickY}
       dy={12}
-      textAnchor={textAnchor}
+      textAnchor="middle"
       fill="var(--app-text-subtle)"
       fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
     >
@@ -271,6 +284,10 @@ export function NetWorthCard({
     deltaSeries[0]?.startTotal ?? 0,
     displaySnapshot.displayCurrency,
   )
+  const startNetWorthLabelPoint = displaySnapshot.mode === 'overview' ? deltaSeries[0] : undefined
+  const startNetWorthLabelY = startNetWorthLabelPoint
+    ? getNetWorthFirstBarLabelY(startNetWorthLabelPoint, chartItems)
+    : 0
   const legendItems = useMemo(
     () => getNetWorthLegendItems(displaySnapshot.mode, chartItems),
     [chartItems, displaySnapshot.mode],
@@ -306,6 +323,15 @@ export function NetWorthCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Net Worth
+            <IconTooltip
+              label="Net Worth calculation"
+              placement="top"
+              widthClassName="w-72"
+              size={14}
+              strokeWidth={2.25}
+            >
+              {getNetWorthCalculation(displaySnapshot.mode)}
+            </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Net Worth FX status"
@@ -325,17 +351,28 @@ export function NetWorthCard({
           </InsightActionButton>
         )}
       />
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-visible" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[360px] flex-col">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="app-label app-label-compact">Ending Net Worth</p>
-            <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+            <p className="app-label app-label-compact inline-flex items-center gap-2">
+              Ending Net Worth
+              <IconTooltip
+                label="Ending Net Worth calculation"
+                placement="top"
+                widthClassName="w-72"
+                size={14}
+                strokeWidth={2.25}
+              >
+                Ending net worth value as of the last date in the chosen time period
+              </IconTooltip>
+            </p>
+            <div className="mt-1 flex flex-wrap items-end gap-x-2 gap-y-1">
               <p className="font-financial text-3xl leading-none tracking-tight">
                 {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
               </p>
-              <div className="flex items-center gap-1.5 pb-0.5 text-sm font-medium" style={{ color: netWorthTrendColor }}>
+              <div className="flex items-center gap-1.5 text-sm font-medium leading-none" style={{ color: netWorthTrendColor }}>
                 <NetWorthTrendIcon size={14} aria-hidden />
                 <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
                 <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
@@ -368,6 +405,7 @@ export function NetWorthCard({
                   type="number"
                   scale="time"
                   domain={[dateAxisStartMs, dateAxisEndMs]}
+                  padding={netWorthXAxisPadding}
                   ticks={dateAxisTicks}
                   axisLine={false}
                   tickLine={false}
@@ -375,8 +413,6 @@ export function NetWorthCard({
                   tick={(props) => (
                     <NetWorthXAxisTick
                       {...props}
-                      axisStartMs={dateAxisStartMs}
-                      axisEndMs={dateAxisEndMs}
                       dateLabelsByMs={dateLabelsByMs}
                     />
                   )}
@@ -390,16 +426,25 @@ export function NetWorthCard({
                   y={0}
                   stroke="var(--app-border-strong)"
                   strokeWidth={1}
-                  label={displaySnapshot.mode === 'overview'
-                    ? {
-                        value: startNetWorthAxisLabel,
-                        position: 'insideTopLeft',
-                        fill: 'var(--app-text-subtle)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }
-                    : undefined}
                 />
+                {startNetWorthLabelPoint && (
+                  <ReferenceDot
+                    x={startNetWorthLabelPoint.dateMs}
+                    y={startNetWorthLabelY}
+                    r={0}
+                    fill="transparent"
+                    stroke="transparent"
+                    ifOverflow="visible"
+                    label={{
+                      value: startNetWorthAxisLabel,
+                      position: 'top',
+                      offset: 4,
+                      fill: 'var(--app-text-subtle)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
                 {displaySnapshot.mode === 'composition' ? (
                   chartItems.map((item, index) => (
                     <Area

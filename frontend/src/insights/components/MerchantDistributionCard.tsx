@@ -338,17 +338,13 @@ function MerchantMarketMap({
                 {formatCurrency(hoveredTile.merchant.totalAmount, currency)}
               </span>
             </div>
-            {hoveredTile.merchant.changeAmount === null ? (
-              <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Change not shown because this group changes by period.
-              </p>
-            ) : (
+            {hoveredTile.merchant.changeAmount !== null && (
               <div className="mt-1 flex justify-between gap-4">
                 <span className="app-chart-tooltip-default-value">Change</span>
                 <span className="app-chart-tooltip-default-value font-financial">
                   {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
                   {hoveredTile.merchant.changePct === null
-                    ? ' (no prior spend)'
+                    ? ''
                     : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
                 </span>
               </div>
@@ -371,7 +367,7 @@ export function MerchantDistributionCard({
     merchants,
     fxStatus,
     currency,
-    emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range.',
+    emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range',
   }), [currency, fxStatus, loading, merchants])
   const {
     displaySnapshot,
@@ -391,6 +387,13 @@ export function MerchantDistributionCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Spending Distribution by Merchant
+            <IconTooltip
+              label="How merchant distribution is calculated"
+              placement="bottom"
+              widthClassName="w-64"
+            >
+              Shows merchant spending after refunds. Income losses are not included
+            </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Merchant Distribution FX status"
@@ -398,13 +401,6 @@ export function MerchantDistributionCard({
                 getMessage={getMerchantSpendingFxStatusMessage}
               />
             )}
-            <IconTooltip
-              label="How merchant distribution is calculated"
-              placement="bottom"
-              widthClassName="w-64"
-            >
-              Shows merchant spending after refunds. Income losses are not included.
-            </IconTooltip>
           </span>
         )}
       />
@@ -414,10 +410,6 @@ export function MerchantDistributionCard({
           concealed={contentConcealed}
           shouldReduceMotion={shouldReduceMotion}
         >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover.</span>
-            <MerchantDistributionLegend className="hidden min-[750px]:flex" />
-          </div>
           {displaySnapshot.merchants.length > 0 ? (
             <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />
           ) : (
@@ -425,7 +417,10 @@ export function MerchantDistributionCard({
               {displaySnapshot.emptyLabel}
             </div>
           )}
-          <MerchantDistributionLegend className="mt-3 justify-center text-xs min-[750px]:hidden" />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover</span>
+            <MerchantDistributionLegend />
+          </div>
         </InsightLoadingContent>
 
         <InsightLoadingOverlay

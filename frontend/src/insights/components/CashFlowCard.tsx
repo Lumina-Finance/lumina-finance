@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { getInsightsCashFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -65,6 +66,8 @@ type CashFlowTooltipState = {
 }
 
 const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
+const cashFlowCalculation = 'Bars group money moving in and out by period. Net equals inflow minus outflow. Transfers are included. Balance adjustments are excluded'
+const netCashFlowCalculation = 'The cumulative net cash flow at the end of the chosen time range'
 
 function getCashFlowTooltipKey(bucket: CashFlowBarBucket) {
   return bucket.rangeLabel
@@ -191,6 +194,15 @@ export function CashFlowCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Cash Flow
+            <IconTooltip
+              label="Cash Flow calculation"
+              placement="top"
+              widthClassName="w-72"
+              size={14}
+              strokeWidth={2.25}
+            >
+              {cashFlowCalculation}
+            </IconTooltip>
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Cash Flow FX status"
@@ -201,11 +213,22 @@ export function CashFlowCard({
           </span>
         )}
       />
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-visible" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[390px] flex-col">
             <div className="mb-3">
-              <p className="app-label app-label-compact">Net Cash Flow</p>
+              <p className="app-label app-label-compact inline-flex items-center gap-2">
+                Net Cash Flow
+                <IconTooltip
+                  label="Net Cash Flow calculation"
+                  placement="top"
+                  widthClassName="w-72"
+                  size={14}
+                  strokeWidth={2.25}
+                >
+                  {netCashFlowCalculation}
+                </IconTooltip>
+              </p>
               <p
                 className="mt-1 font-financial text-3xl leading-none tracking-tight"
                 style={{ color: totalNet >= 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
@@ -245,7 +268,7 @@ export function CashFlowCard({
                     />
                     <YAxis
                       width={yAxisWidth}
-                      axisLine={false}
+                      axisLine={{ stroke: 'var(--app-border-strong)', strokeWidth: 1 }}
                       tickLine={false}
                       domain={[
                         (dataMin: number) => Math.min(dataMin, 0),
@@ -283,7 +306,7 @@ export function CashFlowCard({
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
               <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                {label} net cash flow, including transfers. Hover a bar for inflow, outflow, and net.
+                {label} net cash flow. Hover a bar for inflow, outflow, and net
               </p>
               <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
                 <span className="flex items-center gap-1.5">
