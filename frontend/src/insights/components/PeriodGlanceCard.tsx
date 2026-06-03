@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { FxStatus } from '@/api/dashboard'
+import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { getPeriodIncomeExpenseFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from './FxStatusBadge'
@@ -20,6 +21,7 @@ export type PeriodGlancePrimaryMetric = {
   label: string
   value: string
   detail: string
+  calculation?: string
   tone: PeriodGlanceTone
 }
 
@@ -27,6 +29,7 @@ export type PeriodGlanceSupportItem = {
   label: string
   value: string
   detail: string
+  calculation?: string
   tone: PeriodGlanceTone
   fxStatus?: FxStatus
   getFxStatusMessage?: (fxStatus: FxStatus) => string
@@ -56,6 +59,22 @@ function metricToneClass(tone: PeriodGlanceTone) {
   if (tone === 'positive') return 'text-[var(--app-positive)]'
   if (tone === 'negative') return 'text-[var(--app-negative)]'
   return ''
+}
+
+function MetricCalculationTooltip({ label, calculation }: { label: string, calculation?: string }) {
+  if (!calculation) return null
+
+  return (
+    <IconTooltip
+      label={`${label} calculation`}
+      placement="top"
+      widthClassName="w-72"
+      size={14}
+      strokeWidth={2.25}
+    >
+      {calculation}
+    </IconTooltip>
+  )
 }
 
 function useFittedPrimaryAmount(value: string) {
@@ -161,6 +180,10 @@ export function PeriodGlanceCard({
               <div className="min-w-0 [container-type:inline-size]">
                 <p className="app-label inline-flex items-center gap-2">
                   {displaySnapshot.primaryMetric.label}
+                  <MetricCalculationTooltip
+                    label={displaySnapshot.primaryMetric.label}
+                    calculation={displaySnapshot.primaryMetric.calculation}
+                  />
                   {displaySnapshot.incomeExpenseFxStatus && (
                     <FxStatusBadge
                       label="Income and expense FX status"
@@ -186,11 +209,23 @@ export function PeriodGlanceCard({
 
               <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1400px]:mt-5 min-[1400px]:grid-cols-2 min-[1400px]:border-l-0 min-[1400px]:border-t min-[1400px]:pl-0 min-[1400px]:pt-3">
                 <div>
-                  <p className="app-label app-label-compact">Income</p>
+                  <p className="app-label app-label-compact inline-flex items-center gap-2">
+                    Income
+                    <MetricCalculationTooltip
+                      label="Income"
+                      calculation="Total money in for this range after refunds and reversals are netted. Transfers are excluded"
+                    />
+                  </p>
                   <p className="mt-1 font-financial text-lg">{formatCurrency(displaySnapshot.income, displaySnapshot.displayCurrency)}</p>
                 </div>
                 <div>
-                  <p className="app-label app-label-compact">Expenses</p>
+                  <p className="app-label app-label-compact inline-flex items-center gap-2">
+                    Expenses
+                    <MetricCalculationTooltip
+                      label="Expenses"
+                      calculation="Total money out for this range after refunds and reversals are netted. Shown as a positive amount; transfers are excluded"
+                    />
+                  </p>
                   <p className="mt-1 font-financial text-lg">{formatCurrency(displaySnapshot.expenses, displaySnapshot.displayCurrency)}</p>
                 </div>
               </div>
@@ -214,6 +249,10 @@ export function PeriodGlanceCard({
                   <div className="flex min-h-28 flex-col items-center justify-center text-center">
                     <p className="app-label inline-flex items-center justify-center gap-2">
                       {item.label}
+                      <MetricCalculationTooltip
+                        label={item.label}
+                        calculation={item.calculation}
+                      />
                       {item.fxStatus && (
                         <FxStatusBadge
                           label={`${item.label} FX status`}
