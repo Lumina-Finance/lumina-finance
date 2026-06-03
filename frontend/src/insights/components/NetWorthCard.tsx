@@ -120,12 +120,6 @@ function getNetWorthCalculation(mode: NetWorthViewMode) {
     : 'Balances are grouped by account type at each chart date'
 }
 
-function getNetWorthTooltipDetail(mode: NetWorthViewMode) {
-  return mode === 'overview'
-    ? 'Changes compare with net worth from the day before this range'
-    : 'Values use latest balances on this chart date'
-}
-
 function getNetWorthFirstBarLabelY(point: NetWorthDeltaPoint, items: NetWorthChartItem[]) {
   const positiveStack = items.reduce((sum, _item, index) => {
     const value = Number(point[getChartKey(index)] ?? 0)
@@ -191,9 +185,6 @@ function NetWorthChartTooltipContent({
   return (
     <>
       <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--app-text-muted)]">
-        {getNetWorthTooltipDetail(mode)}
-      </p>
       <div className="mt-1 flex justify-between gap-4">
         <span className="app-chart-tooltip-default-value">Net Worth</span>
         <span className="app-chart-tooltip-default-value font-financial">

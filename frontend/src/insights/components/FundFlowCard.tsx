@@ -63,7 +63,6 @@ type FlowTooltipItem = {
 type SankeyFlowTooltipData = {
   name: string
   amount: number
-  detail: string
 }
 
 type SignAdjustedFlowEntry = [string, number]
@@ -154,28 +153,7 @@ function getSankeyFlowTooltipData(
       payload,
     }),
     amount: numericAmount,
-    detail: getFlowTooltipDetail(payload, type),
   }
-}
-
-function getFlowTooltipDetail(payload: FlowTooltipPayload | undefined, type: SankeyElementType) {
-  const nestedPayload = payload?.payload
-  const source = payload?.source ?? nestedPayload?.source
-  const target = payload?.target ?? nestedPayload?.target
-
-  if (type === 'node') {
-    if (payload?.kind === 'income') return 'Net money in for this category'
-    if (payload?.kind === 'expense') return 'Net money out for this category'
-    if (payload?.kind === 'retained') return 'Income - expenses for this range'
-    if (payload?.name === 'Income') return 'Total money in for this range'
-    if (payload?.name === 'Expenses') return 'Total money out for this range'
-  }
-
-  if (source?.kind !== 'summary' && target?.name === 'Income') return 'Net money in for this category'
-  if (source?.name === 'Income' && target?.name === 'Retained') return 'Income - expenses for this range'
-  if (source?.name === 'Income' && target?.name === 'Expenses') return 'Income used to cover expenses'
-  if (source?.name === 'Expenses' && target?.kind === 'expense') return 'Net money out for this category'
-  return 'Flow amount for this range'
 }
 
 function FlowNodeShape({ x, y, width, height, payload }: SankeyNodeProps) {
@@ -234,9 +212,6 @@ function SankeyFlowTooltipContent({
         <span className="app-chart-tooltip-default-value font-financial">
           {formatCurrency(tooltip.amount, displayCurrency)}
         </span>
-      </div>
-      <div className="mt-1 text-xs leading-5 text-[var(--app-text-muted)]">
-        {tooltip.detail}
       </div>
     </div>
   )
@@ -461,7 +436,7 @@ export function FundFlowCard({
     }
 
     setHoveredFlowTooltip((current) => (
-      current?.name === tooltip.name && current.amount === tooltip.amount && current.detail === tooltip.detail
+      current?.name === tooltip.name && current.amount === tooltip.amount
         ? current
         : tooltip
     ))

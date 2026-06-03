@@ -338,17 +338,13 @@ function MerchantMarketMap({
                 {formatCurrency(hoveredTile.merchant.totalAmount, currency)}
               </span>
             </div>
-            {hoveredTile.merchant.changeAmount === null ? (
-              <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Change not shown because this group changes by period
-              </p>
-            ) : (
+            {hoveredTile.merchant.changeAmount !== null && (
               <div className="mt-1 flex justify-between gap-4">
                 <span className="app-chart-tooltip-default-value">Change</span>
                 <span className="app-chart-tooltip-default-value font-financial">
                   {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
                   {hoveredTile.merchant.changePct === null
-                    ? ' (no prior spend)'
+                    ? ''
                     : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
                 </span>
               </div>

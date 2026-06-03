@@ -148,13 +148,6 @@ function getTrendSectionCalculation(sectionId: CategoryTrendSection['id']) {
     : 'Compared with the previous matching period, sorted by biggest decrease'
 }
 
-function getBreakdownTooltipDetail(entry: BreakdownEntry, mode: BreakdownMode, pct: number) {
-  const crossoverKind = getCrossoverKind(entry, mode)
-  if (crossoverKind === 'income-loss') return `${pct}% of spending. Reversals exceeded income, so this category flipped into spending`
-  if (crossoverKind === 'expense-refund') return `${pct}% of income. Refunds exceeded spending, so this category flipped into income`
-  return `${pct}% of ${mode === 'expense' ? 'spending' : 'income'}`
-}
-
 function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
   const kind = getCrossoverKind(entry, mode)
   return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
@@ -371,13 +364,6 @@ export function IncomeExpenseBreakdownCard({
                       </div>
                       <div className="app-chart-tooltip-default-value">
                         {formatCurrency(hoveredBreakdownEntry.amount, displaySnapshot.displayCurrency)}
-                      </div>
-                      <div className="mt-1 text-xs leading-5 text-[var(--app-text-muted)]">
-                        {getBreakdownTooltipDetail(
-                          hoveredBreakdownEntry,
-                          displaySnapshot.mode,
-                          getPct(hoveredBreakdownEntry.amount, sliceTotal),
-                        )}
                       </div>
                     </>
                   )}

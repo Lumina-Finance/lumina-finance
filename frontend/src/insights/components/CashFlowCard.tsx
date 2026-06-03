@@ -68,7 +68,6 @@ type CashFlowTooltipState = {
 const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
 const cashFlowCalculation = 'Bars group money moving in and out by period. Net equals inflow minus outflow. Transfers are included. Balance adjustments are excluded'
 const netCashFlowCalculation = 'The cumulative net cash flow at the end of the chosen time range'
-const cashFlowBucketCalculation = 'Net equals inflow minus outflow for this bar'
 
 function getCashFlowTooltipKey(bucket: CashFlowBarBucket) {
   return bucket.rangeLabel
@@ -116,9 +115,6 @@ function CashFlowBarTooltipContent({
   return (
     <>
       <p className="app-chart-tooltip-default-title">{bucket.rangeLabel}</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--app-text-muted)]">
-        {cashFlowBucketCalculation}
-      </p>
       <div className="mt-1 flex justify-between gap-4">
         <span className="app-chart-tooltip-default-value">Net</span>
         <span className="font-financial" style={{ color: getSignedAmountColor(bucket.net) }}>

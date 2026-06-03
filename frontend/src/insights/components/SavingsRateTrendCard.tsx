@@ -121,12 +121,6 @@ function formatSavingsRateValue(rate: number | null) {
   return rate === null ? 'N/A' : `${rate}%`
 }
 
-function getSavingsRateTooltipDetail(point: SavingsRateHistoryPoint) {
-  if (point.income > 0) return 'Savings rate is income minus expenses, divided by income for this month'
-  if (point.expenses > 0) return 'No income was recorded, so spending-only months are shown as -100%'
-  return 'No income or expenses were recorded for this month'
-}
-
 function clampSavingsRate(rate: number | null) {
   if (rate === null) return null
   return Math.max(-100, Math.min(100, rate))
@@ -142,9 +136,6 @@ function SavingsRateHistoryTooltipContent({
   return (
     <>
       <p className="app-chart-tooltip-default-title">{point.fullLabel}</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--app-text-muted)]">
-        {getSavingsRateTooltipDetail(point)}
-      </p>
       <div className="mt-1 flex justify-between gap-4">
         <span className="app-chart-tooltip-default-value">Savings Rate</span>
         <span className="app-chart-tooltip-default-value font-financial">
