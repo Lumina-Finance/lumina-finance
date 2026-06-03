@@ -244,7 +244,7 @@ async def test_net_worth_reports_incomplete_fx_with_missing_pairs(client, monkey
 
 
 async def test_net_worth_returns_previous_day_baseline_for_first_day_activity(client):
-    """Net worth deltas can include balance movement from the first selected day."""
+    """Monthly ranges use daily buckets and include first-day balance movement."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     account_id = UUID((await _create_account(client, headers, name="June Cash")).json()["id"])
@@ -262,7 +262,7 @@ async def test_net_worth_returns_previous_day_baseline_for_first_day_activity(cl
 
     resp = await client.get(
         "/insights/net-worth",
-        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        params={"from_date": "2026-06-01", "to_date": "2026-07-01"},
         headers=headers,
     )
 
@@ -271,11 +271,11 @@ async def test_net_worth_returns_previous_day_baseline_for_first_day_activity(cl
     assert data["groups"] == [["cash", "Cash", "asset"]]
     assert data["baseline"] == [0]
     assert data["points"][0] == ["2026-06-01", "2026-06-01", [100_000]]
-    assert data["points"][-1] == ["2026-06-30", "2026-06-30", [100_000]]
+    assert data["points"][-1] == ["2026-07-01", "2026-07-01", [100_000]]
 
 
 async def test_net_worth_uses_weekly_buckets_for_mid_length_ranges(client):
-    """Ranges over 30 and up to 90 days use Monday-labeled weekly buckets."""
+    """Ranges over 31 days use Monday-labeled weekly buckets."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     account_id = UUID((await _create_account(client, headers, name="Weekly Cash")).json()["id"])
@@ -307,15 +307,47 @@ async def test_net_worth_uses_weekly_buckets_for_mid_length_ranges(client):
     ]
 
 
+async def test_net_worth_uses_weekly_buckets_through_183_day_ranges(client):
+    """Ranges up to 183 days stay weekly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Half Year Cash")).json()["id"])
+
+    async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id == account_id)
+            .values(dt=date(2025, 12, 31), balance=1_000),
+        )
+        session.add(_snapshot(account_id, date(2026, 7, 2), 2_000))
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-01-01", "to_date": "2026-07-02"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    points = resp.json()["points"]
+    assert len(points) == 27
+    assert points[0] == ["2025-12-29", "2026-01-04", [1_000]]
+    assert points[-1] == ["2026-06-29", "2026-07-02", [2_000]]
+
+
 async def test_net_worth_uses_monthly_buckets_for_long_ranges(client):
-    """Ranges over 90 days use month-start labels and month-end values."""
+    """Ranges over 183 days use month-start labels and month-end values."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     account_id = UUID((await _create_account(client, headers, name="Long Cash")).json()["id"])
 
     async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id == account_id)
+            .values(dt=date(2025, 12, 31), balance=1_000),
+        )
         session.add_all([
-            _snapshot(account_id, date(2025, 12, 31), 1_000),
             _snapshot(account_id, date(2026, 2, 10), 2_000),
             _snapshot(account_id, date(2026, 5, 20), 3_000),
         ])
@@ -323,7 +355,7 @@ async def test_net_worth_uses_monthly_buckets_for_long_ranges(client):
 
     resp = await client.get(
         "/insights/net-worth",
-        params={"from_date": "2026-01-15", "to_date": "2026-05-20"},
+        params={"from_date": "2026-01-15", "to_date": "2026-08-01"},
         headers=headers,
     )
 
@@ -333,7 +365,10 @@ async def test_net_worth_uses_monthly_buckets_for_long_ranges(client):
         ["2026-02-01", "2026-02-28", [2_000]],
         ["2026-03-01", "2026-03-31", [2_000]],
         ["2026-04-01", "2026-04-30", [2_000]],
-        ["2026-05-01", "2026-05-20", [3_000]],
+        ["2026-05-01", "2026-05-31", [3_000]],
+        ["2026-06-01", "2026-06-30", [3_000]],
+        ["2026-07-01", "2026-07-31", [3_000]],
+        ["2026-08-01", "2026-08-01", [3_000]],
     ]
 
 
