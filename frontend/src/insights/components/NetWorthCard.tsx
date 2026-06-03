@@ -377,11 +377,11 @@ export function NetWorthCard({
                 Ending net worth value as of the last date in the chosen time period
               </IconTooltip>
             </p>
-            <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+            <div className="mt-1 flex flex-wrap items-end gap-x-2 gap-y-1">
               <p className="font-financial text-3xl leading-none tracking-tight">
                 {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
               </p>
-              <div className="flex items-center gap-1.5 pb-0.5 text-sm font-medium" style={{ color: netWorthTrendColor }}>
+              <div className="flex items-center gap-1.5 text-sm font-medium leading-none" style={{ color: netWorthTrendColor }}>
                 <NetWorthTrendIcon size={14} aria-hidden />
                 <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
                 <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
