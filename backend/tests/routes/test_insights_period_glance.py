@@ -63,7 +63,7 @@ async def _create_transaction_api(client, headers, account_id, category_id, **ov
 
 
 async def test_period_glance_returns_compact_period_summary(client):
-    """Period glance aggregates visible base-currency activity only."""
+    """Period glance aggregates readable base-currency activity, including archived accounts."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -112,17 +112,17 @@ async def test_period_glance_returns_compact_period_summary(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data == {
-        "income": 500_000,
-        "expenses": 180_000,
+        "income": 1_200_000,
+        "expenses": 480_000,
         "income_expense_fx_status": {"state": "none", "missing_pairs": []},
-        "net_worth_change": 320_000,
+        "net_worth_change": 6_320_000,
         "net_worth_change_fx_status": {"state": "none", "missing_pairs": []},
         "top_category_name": "Groceries",
-        "top_category_share_pct": 67,
+        "top_category_share_pct": 88,
         "top_category_fx_status": {"state": "none", "missing_pairs": []},
         "biggest_change_name": "Groceries",
-        "biggest_change_amount": 80_000,
-        "biggest_change_pct": 200,
+        "biggest_change_amount": 380_000,
+        "biggest_change_pct": 950,
         "biggest_change_fx_status": {"state": "none", "missing_pairs": []},
     }
 

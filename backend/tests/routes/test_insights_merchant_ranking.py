@@ -108,6 +108,7 @@ async def test_merchant_ranking_returns_ranked_rows_with_counts_and_changes(clie
     assert resp.status_code == 200
     assert resp.json() == {
         "merchants": [
+            [str(merchant_ids["Archived Merchant"]), "Archived Merchant", 999_999, 1, None],
             [str(merchant_ids["Alpha Market"]), "Alpha Market", 100_000, 2, 100],
             [str(merchant_ids["Beta Grocer"]), "Beta Grocer", 90_000, 1, -10],
             [str(merchant_ids["Cafe Delta"]), "Cafe Delta", 80_000, 1, None],

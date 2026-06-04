@@ -115,6 +115,7 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
     assert resp.status_code == 200
     assert resp.json() == {
         "merchants": [
+            [str(merchant_ids["Archived Merchant"]), "Archived Merchant", 999_999, None, 999_999],
             [str(merchant_ids["Alpha Market"]), "Alpha Market", 100_000, 100, 50_000],
             [str(merchant_ids["Beta Grocer"]), "Beta Grocer", 90_000, -10, -10_000],
             [str(merchant_ids["Cafe Delta"]), "Cafe Delta", 80_000, None, 80_000],
@@ -122,8 +123,7 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             [str(merchant_ids["Fitness Foxtrot"]), "Fitness Foxtrot", 60_000, None, 60_000],
             [str(merchant_ids["Gas Gamma"]), "Gas Gamma", 50_000, None, 50_000],
             [str(merchant_ids["Hotel Indigo"]), "Hotel Indigo", 40_000, None, 40_000],
-            [str(merchant_ids["Market Juliet"]), "Market Juliet", 30_000, None, 30_000],
-            ["other-merchants", "Other", 30_000, None, None],
+            ["other-merchants", "Other", 60_000, None, None],
         ],
     }
 

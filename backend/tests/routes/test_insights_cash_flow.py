@@ -48,7 +48,7 @@ async def _get_category_id(client, headers, name: str) -> UUID:
 
 
 async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(client):
-    """Daily buckets include transfers by sign and exclude archived and adjustment rows."""
+    """Daily buckets include transfers and archived account rows, excluding adjustment rows."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -84,7 +84,7 @@ async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(c
     assert response.status_code == 200
     assert response.json() == {
         "points": [
-            ["2026-05-01", "2026-05-01", 100_000, 0],
+            ["2026-05-01", "2026-05-01", 900_000, 0],
             ["2026-05-02", "2026-05-02", 0, 25_000],
             ["2026-05-03", "2026-05-03", 10_000, 0],
             ["2026-05-04", "2026-05-04", 0, 7_000],

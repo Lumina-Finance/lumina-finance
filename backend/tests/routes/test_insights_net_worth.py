@@ -36,7 +36,7 @@ async def _create_plan(client, headers, **overrides):
 
 
 async def test_net_worth_returns_compact_daily_signed_group_series(client):
-    """Daily buckets group balances, preserve debt signs, and exclude archived accounts."""
+    """Daily buckets group balances, preserve debt signs, and include archived accounts."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -83,8 +83,8 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
     assert data["baseline"] == [120_000, -50_000]
     assert data["points"] == [
         ["2026-05-01", "2026-05-01", [120_000, -50_000]],
-        ["2026-05-02", "2026-05-02", [150_000, -50_000]],
-        ["2026-05-03", "2026-05-03", [150_000, -80_000]],
+        ["2026-05-02", "2026-05-02", [9_150_000, -50_000]],
+        ["2026-05-03", "2026-05-03", [9_150_000, -80_000]],
     ]
     assert data["fx_status"] == {"state": "none", "missing_pairs": []}
 

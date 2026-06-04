@@ -114,7 +114,7 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
     assert resp.status_code == 200
     assert resp.json() == {
         "expense": [
-            [str(housing_id), "Housing", "expense", 180_000],
+            [str(housing_id), "Housing", "expense", 880_000],
             [str(groceries_id), "Groceries", "expense", 90_000],
             [str(dining_id), "Dining", "expense", 80_000],
             [str(shopping_id), "Shopping", "expense", 70_000],
@@ -125,25 +125,24 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
             [str(pets_id), "Pets", "expense", 20_000],
         ],
         "income": [
-            [str(salary_id), "Salary", "income", 500_000],
+            [str(salary_id), "Salary", "income", 1_200_000],
             [str(freelance_id), "Freelance", "income", 100_000],
             [str(bonus_id), "Bonus", "income", 80_000],
         ],
-        "expense_total": 620_000,
-        "income_total": 680_000,
+        "expense_total": 1_320_000,
+        "income_total": 1_380_000,
         "expense_increases": [
+            [str(housing_id), "Housing", 880_000, 200_000, 340, 2],
             [str(shopping_id), "Shopping", 70_000, 0, None, 1],
             [str(groceries_id), "Groceries", 90_000, 30_000, 200, 1],
-            [str(coffee_id), "Coffee", 30_000, 0, None, 1],
         ],
         "expense_decreases": [
             [str(old_utilities_id), "Old Utilities", 0, 55_000, -100, 0],
             [str(dining_id), "Dining", 80_000, 120_000, -33, 1],
-            [str(housing_id), "Housing", 180_000, 200_000, -10, 1],
         ],
         "income_increases": [
+            [str(salary_id), "Salary", 1_200_000, 450_000, 167, 2],
             [str(bonus_id), "Bonus", 80_000, 0, None, 1],
-            [str(salary_id), "Salary", 500_000, 450_000, 11, 1],
         ],
         "income_decreases": [
             [str(freelance_id), "Freelance", 100_000, 120_000, -17, 1],

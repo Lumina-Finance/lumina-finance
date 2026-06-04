@@ -88,7 +88,7 @@ async def test_savings_rate_trend_returns_latest_available_monthly_totals(client
             ["2026-02-01", 500_000, 200_000],
             ["2026-03-01", 0, 100_000],
             ["2026-04-01", 0, 0],
-            ["2026-05-01", 600_000, 300_000],
+            ["2026-05-01", 1_300_000, 1_000_000],
         ],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
@@ -328,8 +328,8 @@ async def test_savings_rate_trend_routes_flipped_categories_by_monthly_net(clien
     }
 
 
-async def test_savings_rate_trend_returns_empty_payload_without_visible_accounts(client, monkeypatch):
-    """Users without visible accounts receive an empty payload."""
+async def test_savings_rate_trend_includes_archived_only_activity(client, monkeypatch):
+    """Archived-only account activity is still included in monthly totals."""
     from app.routes import insights as insights_routes
 
     monkeypatch.setattr(insights_routes, "datetime", _FixedClock(datetime(2026, 5, 19, 16, 0, tzinfo=UTC)))
@@ -351,7 +351,7 @@ async def test_savings_rate_trend_returns_empty_payload_without_visible_accounts
 
     assert resp.status_code == 200
     assert resp.json() == {
-        "points": [],
+        "points": [["2026-05-01", 600_000, 0]],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
 

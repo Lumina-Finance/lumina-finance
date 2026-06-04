@@ -38,7 +38,7 @@ async def _seed_currency(currency_id: str, name: str, symbol: str, minor_unit_ex
 
 
 async def test_fund_flow_returns_all_base_currency_entries(client):
-    """The flow endpoint returns all visible base-currency entries and counts."""
+    """The flow endpoint returns all readable base-currency entries and counts."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -106,7 +106,7 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
     assert resp.status_code == 200
     assert resp.json() == {
         "income_sources": [
-            ["Salary", 500_000],
+            ["Salary", 1_200_000],
             ["Freelance", 100_000],
             ["Bonus", 80_000],
             ["Interest", 70_000],
@@ -114,7 +114,7 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
             ["Gift", 50_000],
         ],
         "expense_categories": [
-            ["Housing", 180_000],
+            ["Housing", 880_000],
             ["Groceries", 90_000],
             ["Dining", 80_000],
             ["Shopping", 70_000],
