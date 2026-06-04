@@ -51,6 +51,14 @@ def _runway_thresholds_from_user(user: User) -> RunwayThresholds:
     )
 
 
+async def _accessible_non_archived_accounts(db: AsyncSession, user: User):
+    return [
+        account
+        for account in await get_accessible_accounts(db, user, include_archived=True)
+        if not account.is_archived
+    ]
+
+
 async def _active_runway_account_ids(db: AsyncSession, user: User) -> list[uuid.UUID]:
     accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
     stored = await db.execute(
@@ -213,7 +221,7 @@ async def get_runway(
     Expense refunds reduce expenses, while income and transfer-category
     transactions are excluded.
     """
-    accounts = await get_accessible_accounts(db, user)
+    accounts = await _accessible_non_archived_accounts(db, user)
     account_by_id = {account.id: account for account in accounts}
     accessible_ids = set(account_by_id)
     stored = await db.execute(
