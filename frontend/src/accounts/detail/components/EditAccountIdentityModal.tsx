@@ -248,6 +248,13 @@ export default function EditAccountIdentityModal({
     )
   }
 
+  const handleStartDeleteAccount = () => {
+    setField('is_archived', account.is_archived)
+    setConfirmingArchiveInstead(false)
+    setDeleteError(null)
+    setDeleteStage('confirm')
+  }
+
   const handleDeleteAccount = async () => {
     if (deleteNameInput !== account.name || isBusy) return
     setDeleteError(null)
@@ -716,7 +723,7 @@ export default function EditAccountIdentityModal({
                     <button
                       type="button"
                       className="app-danger-button h-10 w-10 shrink-0 px-0"
-                      onClick={() => setDeleteStage('confirm')}
+                      onClick={handleStartDeleteAccount}
                       disabled={isBusy || deleteStage !== 'idle'}
                       aria-label="Delete account"
                       title="Delete account"
