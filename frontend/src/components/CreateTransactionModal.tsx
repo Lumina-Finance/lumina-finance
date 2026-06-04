@@ -1424,7 +1424,7 @@ export default function CreateTransactionModal({
                             <div className="mb-1.5 flex items-center gap-2">
                               <label className="app-label block text-[0.9375rem] leading-5">Currency</label>
                               <IconTooltip label="Transaction currency limitation">
-                                Locked to the selected account currency. FX currency transactions will be supported soon
+                                Locked to the selected account's currency
                               </IconTooltip>
                             </div>
                             <Dropdown
