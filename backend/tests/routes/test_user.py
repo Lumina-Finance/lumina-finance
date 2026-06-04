@@ -579,6 +579,7 @@ async def test_archived_runway_selection_is_inactive_but_restorable(client, monk
     assert archived_runway_resp.status_code == 200
     archived_runway = archived_runway_resp.json()
     assert archived_runway["liquid_balance"] == 120_000
+    assert archived_runway["account_balances"] == [{"account_id": visible_account_id, "balance": 120_000}]
     assert archived_runway["months_covered"] == 1
     assert archived_runway["avg_monthly_expense"] == 12_000
 
@@ -593,7 +594,11 @@ async def test_archived_runway_selection_is_inactive_but_restorable(client, monk
     assert restored_settings_resp.status_code == 200
     assert set(restored_settings_resp.json()["account_ids"]) == {visible_account_id, archived_account_id}
     restored_runway = restored_runway_resp.json()
-    assert restored_runway["liquid_balance"] == 168_000
+    assert restored_runway["liquid_balance"] == 120_000
+    assert sorted(restored_runway["account_balances"], key=lambda item: item["account_id"]) == sorted([
+        {"account_id": visible_account_id, "balance": 120_000},
+        {"account_id": archived_account_id, "balance": 0},
+    ], key=lambda item: item["account_id"])
     assert restored_runway["months_covered"] == 1
     assert restored_runway["avg_monthly_expense"] == 36_000
 
