@@ -83,6 +83,36 @@ def _created_at_in_tz(account_data: dict, tz: str) -> date:
     return datetime.fromisoformat(account_data["created_at"]).astimezone(ZoneInfo(tz)).date()
 
 
+def _clock_on_account_day(account_data: dict, tz: str) -> _FixedClock:
+    dt = _created_at_in_tz(account_data, tz)
+    return _FixedClock(datetime(dt.year, dt.month, dt.day, 16, 0, tzinfo=ZoneInfo(tz)))
+
+
+async def _archive_adjustment_rows(account_id: str):
+    async with TestSession() as session:
+        return (await session.execute(
+            select(Transaction, Category)
+            .join(Category, Category.id == Transaction.category_id)
+            .where(
+                Transaction.account_id == UUID(account_id),
+                Transaction.notes == "Account archived",
+            )
+            .order_by(Transaction.created_at),
+        )).all()
+
+
+async def _latest_snapshot_balance(account_id: str) -> int:
+    async with TestSession() as session:
+        balance = await session.scalar(
+            select(AccountBalanceSnapshot.balance)
+            .where(AccountBalanceSnapshot.account_id == UUID(account_id))
+            .order_by(AccountBalanceSnapshot.dt.desc())
+            .limit(1),
+        )
+        assert balance is not None
+        return balance
+
+
 # --- GET /accounts ---
 
 
@@ -882,6 +912,100 @@ async def test_patch_account_updates_is_archived(client):
 
     assert resp.status_code == 200
     assert resp.json()["is_archived"] is True
+
+
+async def test_patch_account_archiving_non_zero_balance_creates_balance_adjustment(client, monkeypatch):
+    """Archiving a non-zero account records a balance adjustment to zero it out."""
+    from app.routes import account as account_routes
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, starting_balance=12_500)
+    account_data = create_resp.json()
+    account_id = account_data["id"]
+    archive_dt = _created_at_in_tz(account_data, "America/Toronto")
+    monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_archived"] is True
+    assert data["current_balance"] == 0
+    assert await _latest_snapshot_balance(account_id) == 0
+
+    rows = await _archive_adjustment_rows(account_id)
+    assert len(rows) == 1
+    txn, category = rows[0]
+    assert txn.amount == -12_500
+    assert txn.currency == "CAD"
+    assert txn.dt == archive_dt
+    assert category.name == "Balance Adjustment"
+    assert category.kind == CategoryKind.TRANSFER
+
+
+async def test_patch_account_archiving_zero_balance_skips_balance_adjustment(client, monkeypatch):
+    """Archiving an already-zero account does not create a balance adjustment."""
+    from app.routes import account as account_routes
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers)
+    account_data = create_resp.json()
+    account_id = account_data["id"]
+    monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["is_archived"] is True
+    assert resp.json()["current_balance"] == 0
+    assert await _archive_adjustment_rows(account_id) == []
+
+
+async def test_patch_account_archiving_is_idempotent(client, monkeypatch):
+    """Archiving an already-archived account does not create another adjustment."""
+    from app.routes import account as account_routes
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, starting_balance=25_000)
+    account_data = create_resp.json()
+    account_id = account_data["id"]
+    monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
+
+    first = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    second = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["current_balance"] == 0
+    rows = await _archive_adjustment_rows(account_id)
+    assert len(rows) == 1
+    assert rows[0][0].amount == -25_000
+
+
+async def test_patch_account_unarchiving_keeps_zeroed_balance(client, monkeypatch):
+    """Unarchiving does not reverse the archive balance adjustment."""
+    from app.routes import account as account_routes
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, starting_balance=42_000)
+    account_data = create_resp.json()
+    account_id = account_data["id"]
+    monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
+
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    unarchive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": False}, headers=headers)
+
+    assert archive_resp.status_code == 200
+    assert unarchive_resp.status_code == 200
+    assert unarchive_resp.json()["is_archived"] is False
+    assert unarchive_resp.json()["current_balance"] == 0
+    rows = await _archive_adjustment_rows(account_id)
+    assert len(rows) == 1
+    assert rows[0][0].amount == -42_000
 
 
 async def test_patch_account_sets_closed_at(client):
