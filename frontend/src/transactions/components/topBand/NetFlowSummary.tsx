@@ -7,6 +7,8 @@ import { getCashFlowFxStatusMessage } from '@/transactions/utils/fxTooltipMessag
 import { formatCurrency } from '@/utils/formatCurrency'
 
 const MAX_NET_FLOW_FONT_SIZE = 60
+const netFlowCalculation =
+  'Money in minus money out for this period. Transfers count except Balance Adjustment.'
 
 export default function NetFlowSummary({
   inflow,
@@ -56,7 +58,17 @@ export default function NetFlowSummary({
   return (
     <div ref={containerRef} className={`relative min-w-0 ${className}`}>
       <div className="mb-1.5 flex items-center gap-2">
-        <p className="app-label">Net Flow</p>
+        <p className="app-label inline-flex items-center gap-2">
+          Net Flow
+          <IconTooltip
+            label="How net flow is calculated"
+            level="info"
+            placement="bottom"
+            widthClassName="w-72"
+          >
+            {netFlowCalculation}
+          </IconTooltip>
+        </p>
         {fxStatus && (
           <IconTooltip
             label="Net flow FX status"

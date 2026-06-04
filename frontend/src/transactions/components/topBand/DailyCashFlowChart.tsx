@@ -60,6 +60,10 @@ const titleCharVariants = {
   enter: { y: 0, opacity: 1, filter: 'blur(0px)' },
   exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
 } as const
+const dailyNetCashFlowCalculation =
+  'Each day\'s money in minus money out. Transfers count except Balance Adjustment.'
+const dailyCashFlowCalculation =
+  'Each day\'s money in and money out. Transfers count except Balance Adjustment.'
 // Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
 
@@ -239,6 +243,12 @@ export default function DailyCashFlowChart({
   )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 1000
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
+  const calculationTooltipLabel = mode === 'net'
+    ? 'How daily net cash flow is calculated'
+    : 'How daily cash flow is calculated'
+  const calculationTooltipMessage = mode === 'net'
+    ? dailyNetCashFlowCalculation
+    : dailyCashFlowCalculation
   const showDailyCashFlowTooltip = (
     state: DailyCashFlowTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
@@ -264,6 +274,14 @@ export default function DailyCashFlowChart({
             <DailyCashFlowTitleWord visible={mode === 'net'} />
             <span className="ml-[0.25em]">Cash Flow</span>
           </span>
+          <IconTooltip
+            label={calculationTooltipLabel}
+            level="info"
+            placement="top"
+            widthClassName="w-72"
+          >
+            {calculationTooltipMessage}
+          </IconTooltip>
           {fxStatus && (
             <IconTooltip
               label="Daily cash flow FX status"
