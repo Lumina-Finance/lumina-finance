@@ -76,7 +76,7 @@ export default function SettingsPage() {
   const selectableAccounts = useMemo(
     () =>
       (accounts ?? []).filter(
-        (a) => a.closed_at === null && !a.is_hidden && a.account_kind === 'asset',
+        (a) => a.closed_at === null && !a.is_archived && a.account_kind === 'asset',
       ),
     [accounts],
   )

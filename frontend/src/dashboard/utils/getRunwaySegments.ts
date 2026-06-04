@@ -9,7 +9,7 @@ function getRunwayAccountColorSeed(accountName: string) {
 
 /**
  * Converts selected positive-balance runway accounts into proportional bar segments.
- * Hidden accounts and unavailable runway states produce no segments.
+ * Archived accounts and unavailable runway states produce no segments.
  */
 export function getRunwaySegments(
   accounts: AccountsOverview[] | undefined,
@@ -25,14 +25,14 @@ export function getRunwaySegments(
       accountBalance.balance,
     ]),
   )
-  // Only selected visible accounts with positive balances contribute to the
-  // bar; hidden accounts and liabilities are excluded before this helper.
+  // Only selected active accounts with positive balances contribute to the
+  // bar; archived accounts and liabilities are excluded before this helper.
   const rows = (accounts ?? [])
     .map((account) => ({
       account,
       balance: balanceByAccountId.get(account.id) ?? 0,
     }))
-    .filter(({ account, balance }) => ids.has(account.id) && !account.is_hidden && balance > 0)
+    .filter(({ account, balance }) => ids.has(account.id) && !account.is_archived && balance > 0)
     .sort((a, b) => b.balance - a.balance)
   const total = rows.reduce((sum, row) => sum + row.balance, 0)
   if (total === 0) return []

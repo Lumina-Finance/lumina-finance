@@ -4,7 +4,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
 import AccountRow from '@/accounts/components/AccountRow'
 
-export default function HiddenAccountsSection({
+export default function ArchivedAccountsSection({
   accounts,
   taxAdvantagedPlanById,
   displayCurrency,
@@ -30,7 +30,7 @@ export default function HiddenAccountsSection({
         onClick={() => setExpanded((value) => !value)}
       >
         <EyeOff size={16} aria-hidden />
-        <span className="font-medium">Hidden accounts</span>
+        <span className="font-medium">Archived accounts</span>
         <span
           className="rounded-full px-2 py-0.5 text-xs font-semibold"
           style={{ background: 'var(--app-accent-soft)' }}
@@ -54,7 +54,7 @@ export default function HiddenAccountsSection({
               showCreditLimit={account.account_kind === 'revolving'}
               taxAdvantagedPlanById={taxAdvantagedPlanById}
               displayCurrency={displayCurrency}
-              isHidden
+              isArchived
             />
           ))}
         </div>

@@ -56,20 +56,20 @@ export default function AccountRow({
   showCreditLimit,
   taxAdvantagedPlanById,
   displayCurrency,
-  isHidden = false,
+  isArchived = false,
 }: {
   account: AccountsOverview
   accent: AccountAccent
   showCreditLimit: boolean
   taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
   displayCurrency: string
-  isHidden?: boolean
+  isArchived?: boolean
 }) {
-  const barColor = isHidden
+  const barColor = isArchived
     ? 'var(--app-text-muted)'
     : accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
   const balanceColor =
-    isHidden
+    isArchived
       ? 'var(--app-text-muted)'
       : accent === 'positive'
         ? account.current_balance > 0
@@ -94,9 +94,9 @@ export default function AccountRow({
     <Link
       to={`/accounts/${account.id}`}
       className={`flex min-w-0 items-stretch overflow-hidden rounded-xl transition-colors duration-150 hover:bg-[var(--app-accent-soft)] ${
-        isHidden ? 'my-1 border border-dashed opacity-75 hover:opacity-100' : ''
+        isArchived ? 'my-1 border border-dashed opacity-75 hover:opacity-100' : ''
       }`}
-      style={isHidden ? { borderColor: 'var(--app-border)' } : undefined}
+      style={isArchived ? { borderColor: 'var(--app-border)' } : undefined}
     >
       <div
         className="my-3 w-0.5 rounded-full"
@@ -121,7 +121,7 @@ export default function AccountRow({
             )}
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-2">
-            {isHidden && (
+            {isArchived && (
               <EyeOff
                 size={13}
                 className="shrink-0"

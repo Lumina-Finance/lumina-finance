@@ -279,7 +279,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         if (amount === null) return null;
         return isLiability ? -amount : amount;
       })(),
-      is_hidden: false,
+      is_archived: false,
     };
 
     mutation.mutate(payload, {

@@ -60,7 +60,7 @@ interface AccountIdentityForm {
   institution_id: string
   tax_advantaged_plan_id: string
   credit_limit: string
-  is_hidden: boolean
+  is_archived: boolean
 }
 
 type DeleteAccountStage = 'idle' | 'confirm' | 'type-name'
@@ -96,7 +96,7 @@ export default function EditAccountIdentityModal({
     institution_id: account.institution?.id ?? '',
     tax_advantaged_plan_id: account.tax_advantaged_plan_id ?? '',
     credit_limit: fromMinorUnits(account.credit_limit, currencies, account.currency),
-    is_hidden: account.is_hidden,
+    is_archived: account.is_archived,
   })
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -174,7 +174,7 @@ export default function EditAccountIdentityModal({
         payload: {
           name: form.name.trim(),
           institution_id: form.institution_id || null,
-          is_hidden: form.is_hidden,
+          is_archived: form.is_archived,
           ...(isRevolving
             ? { credit_limit: toMinorUnits(form.credit_limit, currencies, account.currency) }
             : {}),
@@ -192,17 +192,17 @@ export default function EditAccountIdentityModal({
     }
   }
 
-  const handleHideAccount = () => {
+  const handleArchiveAccount = () => {
     setDeleteError(null)
     updateAccount.mutate(
       {
         accountId: account.id,
-        payload: { is_hidden: true },
+        payload: { is_archived: true },
       },
       {
         onSuccess: onClose,
         onError: (error) => {
-          setDeleteError(error instanceof Error ? error.message : 'Failed to hide account.')
+          setDeleteError(error instanceof Error ? error.message : 'Failed to archive account.')
         },
       },
     )
@@ -437,11 +437,11 @@ export default function EditAccountIdentityModal({
 
                         <div className="min-w-0 space-y-3">
                           <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
-                            Visibility
+                            Archive
                           </p>
 
                           <label
-                            htmlFor="edit-account-hidden"
+                            htmlFor="edit-account-archived"
                             className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
                             style={{
                               background: 'var(--app-input-bg)',
@@ -451,29 +451,29 @@ export default function EditAccountIdentityModal({
                             <span className="min-w-0">
                               <span className="flex items-center gap-2 font-medium">
                                 <EyeOff size={16} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                                Hide account
+                                Archive account
                               </span>
                               <span className="mt-0.5 block text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                                Exclude this account from overview totals and primary lists.
+                                Move this account out of active lists while keeping its history.
                               </span>
                             </span>
                             <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors">
                               <input
-                                id="edit-account-hidden"
+                                id="edit-account-archived"
                                 type="checkbox"
                                 role="switch"
-                                checked={form.is_hidden}
-                                onChange={(event) => setField('is_hidden', event.target.checked)}
+                                checked={form.is_archived}
+                                onChange={(event) => setField('is_archived', event.target.checked)}
                                 className="peer sr-only"
                               />
                               <span
                                 className="absolute inset-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2"
-                                style={{ background: form.is_hidden ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
+                                style={{ background: form.is_archived ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
                                 aria-hidden
                               />
                               <span
                                 className="relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
-                                style={{ transform: form.is_hidden ? 'translateX(1.25rem)' : 'translateX(0)' }}
+                                style={{ transform: form.is_archived ? 'translateX(1.25rem)' : 'translateX(0)' }}
                                 aria-hidden
                               />
                             </span>
@@ -526,7 +526,7 @@ export default function EditAccountIdentityModal({
                                     Delete {account.name}?
                                   </p>
                                   <p className="mt-1 text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
-                                    Permanent deletion removes its transactions, budgets, and balance history. Hide it instead
+                                    Permanent deletion removes its transactions, budgets, and balance history. Archive it instead
                                     if you only want it out of view.
                                   </p>
 
@@ -545,12 +545,12 @@ export default function EditAccountIdentityModal({
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.16, ease: EASE }}
                                       >
-                                        {!account.is_hidden ? (
+                                        {!account.is_archived ? (
                                           <button
                                             type="button"
                                             className="inline-flex items-center gap-2 text-sm font-medium"
                                             style={{ color: 'var(--app-text-muted)' }}
-                                            onClick={handleHideAccount}
+                                            onClick={handleArchiveAccount}
                                             disabled={isBusy}
                                           >
                                             {updateAccount.isPending ? (
@@ -558,7 +558,7 @@ export default function EditAccountIdentityModal({
                                             ) : (
                                               <>
                                                 <EyeOff size={15} aria-hidden />
-                                                Hide instead
+                                                Archive instead
                                               </>
                                             )}
                                           </button>
