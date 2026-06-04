@@ -69,14 +69,15 @@ const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-o
 
 function getDailyCashFlowSeries(
   raw: DailyCashFlow[],
+  fromDate: string,
+  toDate: string,
 ): DailyCashFlowPoint[] {
-  if (raw.length === 0) return []
+  if (fromDate > toDate) return []
 
   // The API only returns days with activity; pad missing days so the line chart has a continuous axis.
   const byDate = new Map(raw.map((day) => [day.date, day]))
-  const first = parseYmdLocal(raw[0].date)
-  const last = parseYmdLocal(raw[raw.length - 1].date)
-  const cursor = new Date(first.getFullYear(), first.getMonth(), 1)
+  const cursor = parseYmdLocal(fromDate)
+  const last = parseYmdLocal(toDate)
   const result: DailyCashFlowPoint[] = []
 
   while (cursor <= last) {
@@ -214,6 +215,8 @@ function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
 
 export default function DailyCashFlowChart({
   rawDailyFlow,
+  fromDate,
+  toDate,
   fxStatus,
   showPlaceholderData,
   displayCurrency,
@@ -223,6 +226,8 @@ export default function DailyCashFlowChart({
   onModeToggle,
 }: {
   rawDailyFlow: DailyCashFlow[]
+  fromDate: string
+  toDate: string
   fxStatus: FxStatus | undefined
   showPlaceholderData: boolean
   displayCurrency: string
@@ -234,8 +239,12 @@ export default function DailyCashFlowChart({
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
   const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
   const dailyFlow = useMemo(
-    () => (showPlaceholderData ? PLACEHOLDER_DAILY_FLOW : getDailyCashFlowSeries(rawDailyFlow)),
-    [showPlaceholderData, rawDailyFlow],
+    () => (
+      showPlaceholderData
+        ? PLACEHOLDER_DAILY_FLOW
+        : getDailyCashFlowSeries(rawDailyFlow, fromDate, toDate)
+    ),
+    [fromDate, rawDailyFlow, showPlaceholderData, toDate],
   )
   const dailyFlowPointsByDate = useMemo(
     () => new Map(dailyFlow.map((point) => [point.date, point])),

@@ -142,6 +142,8 @@ export default function TransactionsPage() {
             displayCurrency={displayCurrency}
             loading={filterListLoading || isOverviewFetching}
             rangeLabel={rangeLabel}
+            fromDate={overviewFromDate}
+            toDate={overviewToDate}
             chartAnimationKey={chartAnimationKey}
             prefersReducedMotion={prefersReducedMotion}
             openingOutlierId={openingOutlierId}

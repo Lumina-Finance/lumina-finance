@@ -29,6 +29,8 @@ export default function TransactionsTopBand({
   displayCurrency,
   loading,
   rangeLabel,
+  fromDate,
+  toDate,
   chartAnimationKey,
   prefersReducedMotion,
   openingOutlierId,
@@ -39,6 +41,8 @@ export default function TransactionsTopBand({
   displayCurrency: string
   loading: boolean
   rangeLabel: string
+  fromDate: string
+  toDate: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
   openingOutlierId: string | null
@@ -168,6 +172,8 @@ export default function TransactionsTopBand({
 
       <DailyCashFlowChart
         rawDailyFlow={overviewDailyCashFlow}
+        fromDate={fromDate}
+        toDate={toDate}
         fxStatus={overview?.daily_cash_flow_fx_status}
         showPlaceholderData={!hasOverviewData}
         displayCurrency={displayCurrency}
