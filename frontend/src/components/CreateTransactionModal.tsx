@@ -42,6 +42,7 @@ const TAG_DROPDOWN_PAGE_SIZE = 10
 const TAG_SEARCH_LOADING_TEXT_MIN_MS = 300
 const TAG_SEARCH_DEBOUNCE_MS = 300
 const TAG_FETCHING_MORE_TEXT_MIN_MS = 800
+const SEGMENTED_OPTION_GAP_REM = 0.35
 
 type Kind = 'expense' | 'income' | 'transfer'
 
@@ -220,18 +221,22 @@ function SlidingPillSelector<T extends string>({
 }) {
   const shouldReduceMotion = useReducedMotion()
   const activeIndex = Math.max(options.findIndex((option) => option.value === value), 0)
+  const optionGap = options.length > 1 ? SEGMENTED_OPTION_GAP_REM : 0
+  const indicatorWidth = `calc((100% - 0.5rem - ${(options.length - 1) * optionGap}rem) / ${options.length})`
+  const indicatorX = `calc(${activeIndex * 100}% + ${activeIndex * optionGap}rem)`
 
   return (
     <div
       className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
       role="tablist"
       aria-label={ariaLabel}
+      style={{ gap: `${optionGap}rem` }}
     >
       <motion.span
         className="app-create-transaction-pill-selector-indicator"
         aria-hidden
-        style={{ width: `calc((100% - 0.5rem) / ${options.length})` }}
-        animate={{ x: `${activeIndex * 100}%` }}
+        style={{ width: indicatorWidth }}
+        animate={{ x: indicatorX }}
         transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
       />
       {options.map((option) => {
