@@ -363,6 +363,7 @@ async def test_get_runway_settings_returns_defaults(client):
     assert resp.status_code == 200
     assert resp.json() == {
         "account_ids": [],
+        "archived_account_ids": [],
         "thresholds": {"risky_below_months": 1, "healthy_at_months": 3},
     }
 
@@ -379,11 +380,15 @@ async def test_put_runway_settings_persists_accounts_and_thresholds(client):
     }
     put_resp = await client.put("/me/runway-settings", json=payload, headers=headers)
     get_resp = await client.get("/me/runway-settings", headers=headers)
+    expected = {
+        **payload,
+        "archived_account_ids": [],
+    }
 
     assert put_resp.status_code == 200
-    assert put_resp.json() == payload
+    assert put_resp.json() == expected
     assert get_resp.status_code == 200
-    assert get_resp.json() == payload
+    assert get_resp.json() == expected
 
 
 async def test_put_runway_settings_isolates_thresholds_across_users(client):
@@ -459,6 +464,7 @@ async def test_put_runway_settings_rejects_invalid_account_without_changing_thre
     assert get_resp.status_code == 200
     assert get_resp.json() == {
         "account_ids": [],
+        "archived_account_ids": [],
         "thresholds": {"risky_below_months": 2, "healthy_at_months": 6},
     }
 
@@ -576,6 +582,7 @@ async def test_archived_runway_selection_is_inactive_but_restorable(client, monk
     assert archived_list_resp.json() == [visible_account_id]
     assert archived_settings_resp.status_code == 200
     assert archived_settings_resp.json()["account_ids"] == [visible_account_id]
+    assert archived_settings_resp.json()["archived_account_ids"] == [archived_account_id]
     assert archived_runway_resp.status_code == 200
     archived_runway = archived_runway_resp.json()
     assert archived_runway["liquid_balance"] == 120_000
@@ -593,6 +600,7 @@ async def test_archived_runway_selection_is_inactive_but_restorable(client, monk
     assert set(restored_list_resp.json()) == {visible_account_id, archived_account_id}
     assert restored_settings_resp.status_code == 200
     assert set(restored_settings_resp.json()["account_ids"]) == {visible_account_id, archived_account_id}
+    assert restored_settings_resp.json()["archived_account_ids"] == []
     restored_runway = restored_runway_resp.json()
     assert restored_runway["liquid_balance"] == 120_000
     assert sorted(restored_runway["account_balances"], key=lambda item: item["account_id"]) == sorted([

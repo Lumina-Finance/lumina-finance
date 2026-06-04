@@ -85,6 +85,7 @@ class RunwaySettings(BaseModel):
     """Persisted runway settings."""
 
     account_ids: list[uuid.UUID]
+    archived_account_ids: list[uuid.UUID] = Field(default_factory=list)
     thresholds: RunwayThresholds
 
 
