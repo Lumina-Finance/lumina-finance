@@ -101,9 +101,9 @@ def _date_sort_order(sort_order: str, tag_names):
     )
 
 
-def _accessible_account_ids(user_id: uuid.UUID, *, include_archived: bool = False):
-    """Scalar subquery returning readable account IDs, archived excluded by default."""
-    query = (
+def _accessible_account_ids(user_id: uuid.UUID):
+    """Scalar subquery returning readable account IDs."""
+    return (
         select(Account.id)
         .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
         .outerjoin(
@@ -115,10 +115,7 @@ def _accessible_account_ids(user_id: uuid.UUID, *, include_archived: bool = Fals
             | ((GroupMember.user_id == user_id) & (GroupMember.is_admin.is_(True)))
             | (AccountPermission.user_id == user_id),
         )
-    )
-    if not include_archived:
-        query = query.where(Account.is_archived.is_(False))
-    return query.scalar_subquery()
+    ).scalar_subquery()
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
@@ -404,7 +401,7 @@ async def get_transactions_overview(
     if from_date is not None and to_date is not None and from_date > to_date:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
 
-    accessible = _accessible_account_ids(user.id, include_archived=account_id is not None)
+    accessible = _accessible_account_ids(user.id)
 
     # Base filter shared by all aggregation queries
     base = select(Transaction).where(Transaction.account_id.in_(accessible))
@@ -557,7 +554,7 @@ async def list_transactions(
 
     sort_column = _SORT_FIELDS[sort_by]
 
-    accessible = _accessible_account_ids(user.id, include_archived=account_id is not None)
+    accessible = _accessible_account_ids(user.id)
     query = select(Transaction).where(Transaction.account_id.in_(accessible))
 
     # Apply exact-match filters
