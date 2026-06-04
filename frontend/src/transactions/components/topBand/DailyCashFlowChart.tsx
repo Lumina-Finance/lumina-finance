@@ -211,7 +211,7 @@ function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
 export default function DailyCashFlowChart({
   rawDailyFlow,
   fxStatus,
-  hasOverviewData,
+  showPlaceholderData,
   displayCurrency,
   chartAnimationKey,
   prefersReducedMotion,
@@ -220,7 +220,7 @@ export default function DailyCashFlowChart({
 }: {
   rawDailyFlow: DailyCashFlow[]
   fxStatus: FxStatus | undefined
-  hasOverviewData: boolean
+  showPlaceholderData: boolean
   displayCurrency: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
@@ -230,8 +230,8 @@ export default function DailyCashFlowChart({
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
   const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
   const dailyFlow = useMemo(
-    () => (hasOverviewData ? getDailyCashFlowSeries(rawDailyFlow) : PLACEHOLDER_DAILY_FLOW),
-    [hasOverviewData, rawDailyFlow],
+    () => (showPlaceholderData ? PLACEHOLDER_DAILY_FLOW : getDailyCashFlowSeries(rawDailyFlow)),
+    [showPlaceholderData, rawDailyFlow],
   )
   const dailyFlowPointsByDate = useMemo(
     () => new Map(dailyFlow.map((point) => [point.date, point])),
