@@ -724,6 +724,9 @@ async def update_transaction(
 ):
     """Update a transaction. Requires write access on the target account."""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
+    if current_account.is_archived:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
@@ -761,8 +764,6 @@ async def update_transaction(
                 detail="fx_rate is required when transaction currency differs from account currency",
             )
     else:
-        # Staying on the same account — look up its group_id
-        current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
         account_group_id = current_account.group_id
 
     if "category_id" in changed_fields:
@@ -815,6 +816,9 @@ async def delete_transaction(
 ):
     """Delete a transaction. Requires write access on the parent account."""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
+    if account.is_archived:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
 
     # Capture pre-delete values for snapshot recomputation
     account_id = txn.account_id
