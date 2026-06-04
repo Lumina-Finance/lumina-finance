@@ -531,9 +531,9 @@ export default function EditAccountIdentityModal({
                             {isArchiving && (
                               <motion.div
                                 className="overflow-hidden"
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
+                                initial={{ height: 0, marginTop: 0, opacity: 0 }}
+                                animate={{ height: 'auto', marginTop: 12, opacity: 1 }}
+                                exit={{ height: 0, marginTop: 0, opacity: 0 }}
                                 transition={{ duration: 0.18, ease: EASE }}
                               >
                                 <ArchiveBalanceWarning balance={account.current_balance} currency={account.currency} />
@@ -562,9 +562,9 @@ export default function EditAccountIdentityModal({
                         {deleteStage !== 'idle' && (
                           <motion.div
                             className="overflow-hidden"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
+                            initial={{ height: 0, marginTop: 0, opacity: 0 }}
+                            animate={{ height: 'auto', marginTop: 20, opacity: 1 }}
+                            exit={{ height: 0, marginTop: 0, opacity: 0 }}
                             transition={{ duration: 0.2, ease: EASE }}
                           >
                             <motion.div
