@@ -1,6 +1,8 @@
 import {
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { Repeat } from 'lucide-react'
@@ -64,9 +66,11 @@ const dailyNetCashFlowCalculation =
   'Each day\'s money in minus money out. Transfers count except Balance Adjustment.'
 const dailyCashFlowCalculation =
   'Each day\'s money in and money out. Transfers count except Balance Adjustment.'
-const dailyCashFlowXAxisTickCount = 10
+const dailyCashFlowMaxXAxisTickCount = 10
+const dailyCashFlowXAxisTickSpacing = 64
 const dailyCashFlowChartMargin = { top: 4, right: 12, bottom: 0, left: 12 } as const
 const dailyCashFlowXAxisPadding = { left: 20, right: 20 } as const
+const dailyCashFlowXAxisCandidateSteps = [1, 2, 3, 4, 5, 7, 10, 14, 15, 21, 30] as const
 // Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
 
@@ -102,13 +106,83 @@ function getDailyCashFlowSeries(
   return result
 }
 
-function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[]) {
-  const tickCount = Math.min(dailyCashFlowXAxisTickCount, data.length)
-  if (tickCount <= 1) return data.map((point) => point.date)
+function getDailyCashFlowXAxisTickCount(chartWidth: number | undefined) {
+  if (chartWidth === undefined) return dailyCashFlowMaxXAxisTickCount
 
-  const lastIndex = data.length - 1
-  return Array.from({ length: tickCount }, (_, index) => (
-    data[Math.round((lastIndex * index) / (tickCount - 1))].date
+  const usableWidth = Math.max(
+    chartWidth
+      - dailyCashFlowChartMargin.left
+      - dailyCashFlowChartMargin.right
+      - dailyCashFlowXAxisPadding.left
+      - dailyCashFlowXAxisPadding.right,
+    0,
+  )
+
+  return Math.max(
+    2,
+    Math.min(
+      dailyCashFlowMaxXAxisTickCount,
+      Math.floor(usableWidth / dailyCashFlowXAxisTickSpacing) + 1,
+    ),
+  )
+}
+
+function getDailyCashFlowXAxisTickIndexesForStep(dataLength: number, step: number) {
+  const lastIndex = dataLength - 1
+  const indexes: number[] = []
+
+  for (let index = 0; index < lastIndex; index += step) {
+    indexes.push(index)
+  }
+
+  const finalGap = lastIndex - indexes[indexes.length - 1]
+  if (finalGap === 0) return indexes
+
+  if (indexes.length > 1 && finalGap < step / 2) {
+    indexes[indexes.length - 1] = lastIndex
+    return indexes
+  }
+
+  return [...indexes, lastIndex]
+}
+
+function getDailyCashFlowXAxisTickIndexes(dataLength: number, maxTickCount: number) {
+  const cappedTickCount = Math.min(maxTickCount, dataLength)
+  if (cappedTickCount === 0) return []
+  if (cappedTickCount === 1) return [0]
+
+  const lastIndex = dataLength - 1
+  const minimumStep = Math.max(1, Math.ceil(lastIndex / (cappedTickCount - 1)))
+  const candidateSteps = dailyCashFlowXAxisCandidateSteps.some((step) => step === minimumStep)
+    ? dailyCashFlowXAxisCandidateSteps
+    : [...dailyCashFlowXAxisCandidateSteps, minimumStep].sort((a, b) => a - b)
+
+  let bestIndexes = [0, lastIndex]
+  let bestScore = Number.POSITIVE_INFINITY
+
+  for (const step of candidateSteps) {
+    if (step < minimumStep) continue
+
+    const indexes = getDailyCashFlowXAxisTickIndexesForStep(dataLength, step)
+    if (indexes.length > cappedTickCount) continue
+
+    const gaps = indexes.slice(1).map((index, gapIndex) => index - indexes[gapIndex])
+    const gapSpread = Math.max(...gaps) - Math.min(...gaps)
+    const unusedTickPenalty = (cappedTickCount - indexes.length) * 0.2
+    const score = gapSpread / step + unusedTickPenalty
+
+    if (score < bestScore) {
+      bestIndexes = indexes
+      bestScore = score
+    }
+  }
+
+  return bestIndexes
+}
+
+function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[], maxTickCount: number) {
+  return getDailyCashFlowXAxisTickIndexes(data.length, maxTickCount).map((index) => (
+    data[index].date
   ))
 }
 
@@ -251,6 +325,7 @@ export default function DailyCashFlowChart({
 }) {
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
   const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
+  const [dailyFlowChartWidth, setDailyFlowChartWidth] = useState<number>()
   const dailyFlow = useMemo(
     () => (
       showPlaceholderData
@@ -263,9 +338,10 @@ export default function DailyCashFlowChart({
     () => new Map(dailyFlow.map((point) => [point.date, point])),
     [dailyFlow],
   )
+  const dailyFlowXAxisTickCount = getDailyCashFlowXAxisTickCount(dailyFlowChartWidth)
   const dailyFlowXAxisTicks = useMemo(
-    () => getDailyCashFlowXAxisTicks(dailyFlow),
-    [dailyFlow],
+    () => getDailyCashFlowXAxisTicks(dailyFlow, dailyFlowXAxisTickCount),
+    [dailyFlow, dailyFlowXAxisTickCount],
   )
   const dailyFlowBaselineSegment = useMemo(() => {
     if (dailyFlow.length === 0) return undefined
@@ -283,6 +359,29 @@ export default function DailyCashFlowChart({
   const calculationTooltipMessage = mode === 'net'
     ? dailyNetCashFlowCalculation
     : dailyCashFlowCalculation
+
+  useLayoutEffect(() => {
+    const element = dailyFlowChartRef.current
+    if (!element) return undefined
+
+    const updateChartWidth = (width: number) => {
+      const nextWidth = Math.max(Math.round(width), 0)
+      setDailyFlowChartWidth((currentWidth) => (
+        currentWidth === nextWidth ? currentWidth : nextWidth
+      ))
+    }
+
+    updateChartWidth(element.getBoundingClientRect().width)
+
+    if (typeof ResizeObserver === 'undefined') return undefined
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      updateChartWidth(entry.contentRect.width)
+    })
+    resizeObserver.observe(element)
+    return () => resizeObserver.disconnect()
+  }, [])
+
   const showDailyCashFlowTooltip = (
     state: DailyCashFlowTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
