@@ -60,7 +60,7 @@ async def _accessible_non_archived_accounts(db: AsyncSession, user: User):
 
 
 async def _active_runway_account_ids(db: AsyncSession, user: User) -> list[uuid.UUID]:
-    accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
+    accessible_ids = {a.id for a in await _accessible_non_archived_accounts(db, user)}
     stored = await db.execute(
         select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
     )
