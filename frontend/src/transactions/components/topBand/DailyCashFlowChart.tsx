@@ -47,16 +47,6 @@ type DailyCashFlowTooltipState = {
   }>
 }
 
-type DailyCashFlowXAxisTickProps = {
-  x?: string | number
-  y?: string | number
-  payload?: {
-    value?: string | number
-  }
-  firstLabel?: string
-  lastLabel?: string
-}
-
 const titleWordTransition = { duration: 0.34, ease: [0.16, 1, 0.3, 1] } as const
 const titleWidthTransition = { duration: 0.3, ease: [0.16, 1, 0.3, 1] } as const
 const titleExitWidthTransition = { delay: 0.34, duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
@@ -75,6 +65,7 @@ const dailyNetCashFlowCalculation =
 const dailyCashFlowCalculation =
   'Each day\'s money in and money out. Transfers count except Balance Adjustment.'
 const dailyCashFlowXAxisTickCount = 10
+const dailyCashFlowChartMargin = { top: 4, right: 12, bottom: 0, left: 12 } as const
 const dailyCashFlowXAxisPadding = { left: 20, right: 20 } as const
 // Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
@@ -188,30 +179,6 @@ function DailyCashFlowTooltipContent({
   )
 }
 
-function DailyCashFlowXAxisTick({
-  x = 0,
-  y = 0,
-  payload,
-  firstLabel,
-  lastLabel,
-}: DailyCashFlowXAxisTickProps) {
-  const value = String(payload?.value ?? '')
-  const textAnchor = value === firstLabel ? 'start' : value === lastLabel ? 'end' : 'middle'
-
-  return (
-    <text
-      x={Number(x)}
-      y={Number(y)}
-      dy={12}
-      textAnchor={textAnchor}
-      fill="var(--app-text-subtle)"
-      fontSize={11}
-    >
-      {value}
-    </text>
-  )
-}
-
 function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
   const shouldReduceMotion = useReducedMotion()
 
@@ -300,8 +267,14 @@ export default function DailyCashFlowChart({
     () => getDailyCashFlowXAxisTicks(dailyFlow),
     [dailyFlow],
   )
-  const firstDailyFlowXAxisTick = dailyFlowXAxisTicks[0]
-  const lastDailyFlowXAxisTick = dailyFlowXAxisTicks[dailyFlowXAxisTicks.length - 1]
+  const dailyFlowBaselineSegment = useMemo(() => {
+    if (dailyFlow.length === 0) return undefined
+
+    return [
+      { x: dailyFlow[0].date, y: 0 },
+      { x: dailyFlow[dailyFlow.length - 1].date, y: 0 },
+    ] as const
+  }, [dailyFlow])
   const chartAnimationDuration = prefersReducedMotion ? 0 : 1000
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
   const calculationTooltipLabel = mode === 'net'
@@ -378,7 +351,7 @@ export default function DailyCashFlowChart({
           <AreaChart
             key={`daily-flow-${mode}-${chartAnimationKey}`}
             data={dailyFlow}
-            margin={{ top: 4, right: 12, bottom: 0, left: 12 }}
+            margin={dailyCashFlowChartMargin}
             onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
             onMouseLeave={hideDailyCashFlowTooltip}
           >
@@ -398,21 +371,21 @@ export default function DailyCashFlowChart({
             </defs>
             <XAxis
               dataKey="date"
+              tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
               axisLine={false}
               tickLine={false}
               padding={dailyCashFlowXAxisPadding}
               interval={0}
               ticks={dailyFlowXAxisTicks}
-              tick={(props) => (
-                <DailyCashFlowXAxisTick
-                  {...props}
-                  firstLabel={firstDailyFlowXAxisTick}
-                  lastLabel={lastDailyFlowXAxisTick}
-                />
-              )}
             />
             <YAxis hide />
-            <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
+            {dailyFlowBaselineSegment && (
+              <ReferenceLine
+                segment={dailyFlowBaselineSegment}
+                stroke="var(--app-border-strong)"
+                strokeWidth={1}
+              />
+            )}
             {mode === 'net' ? (
               <Area
                 type="monotone"
