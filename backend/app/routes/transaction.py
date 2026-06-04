@@ -46,6 +46,8 @@ from app.services.transaction_responses import (
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
+_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
+
 # Sortable fields mapped to their SQLAlchemy column objects
 _SORT_FIELDS: dict[str, MappedColumn] = {
     "dt": Transaction.dt,
@@ -431,7 +433,17 @@ async def get_transactions_overview(
             sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
             sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
         )
+        .join(Category, Transaction.category_id == Category.id)
         .where(base_where)
+        .where(
+            sa.or_(
+                Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]),
+                (
+                    (Category.kind == CategoryKind.TRANSFER)
+                    & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)
+                ),
+            ),
+        )
         .group_by(Transaction.dt, Transaction.account_id)
     )
     flow_rows = (await db.execute(flow_query)).all()

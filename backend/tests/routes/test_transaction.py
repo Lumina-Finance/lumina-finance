@@ -688,6 +688,30 @@ async def test_transactions_overview_excludes_hidden_accounts_unscoped(client):
     assert data["net_flow_fx_status"] == {"state": "none", "missing_pairs": []}
 
 
+async def test_transactions_overview_net_flow_excludes_balance_adjustments(client):
+    """Balance Adjustment is a reconciliation row, not net cash flow."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    balance_adjustment_id = await _get_system_category_id(client, headers, "Balance Adjustment")
+    transfer_id = (await _create_category(client, headers, name="Account Move", kind="transfer")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, category_id, amount=10_000)
+    await _create_transaction(client, headers, account_id, category_id, amount=-4_000)
+    await _create_transaction(client, headers, account_id, transfer_id, amount=2_500)
+    await _create_transaction(client, headers, account_id, transfer_id, amount=-1_500)
+    await _create_transaction(client, headers, account_id, balance_adjustment_id, amount=99_999)
+    await _create_transaction(client, headers, account_id, balance_adjustment_id, amount=-88_888)
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_inflow"] == 12_500
+    assert data["total_outflow"] == -5_500
+    assert data["daily_cash_flow"] == [
+        {"date": "2026-03-15", "inflow": 12_500, "outflow": -5_500},
+    ]
+
+
 async def test_transactions_overview_net_flow_converts_foreign_accounts(client, monkeypatch):
     """Net flow totals are converted by transaction date into the user's base currency."""
     from app.services.fx import FrankfurterProvider
