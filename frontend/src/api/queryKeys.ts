@@ -74,12 +74,19 @@ export const dashboardKeys = {
 };
 
 export const insightsKeys = {
+  periodGlanceAll: ['insights-period-glance'] as const,
   periodGlance: (fromDate: string, toDate: string) => ['insights-period-glance', fromDate, toDate] as const,
+  fundFlowAll: ['insights-fund-flow'] as const,
   fundFlow: (fromDate: string, toDate: string) => ['insights-fund-flow', fromDate, toDate] as const,
+  incomeExpenseBreakdownAll: ['insights-income-expense-breakdown'] as const,
   incomeExpenseBreakdown: (fromDate: string, toDate: string) => ['insights-income-expense-breakdown', fromDate, toDate] as const,
+  cashFlowAll: ['insights-cash-flow'] as const,
   cashFlow: (fromDate: string, toDate: string) => ['insights-cash-flow', fromDate, toDate] as const,
+  netWorthAll: ['insights-net-worth'] as const,
   netWorth: (fromDate: string, toDate: string) => ['insights-net-worth', fromDate, toDate] as const,
+  savingsRateTrendAll: ['insights-savings-rate-trend'] as const,
   savingsRateTrend: () => ['insights-savings-rate-trend'] as const,
+  merchantsAll: ['insights-merchants'] as const,
   merchants: (fromDate: string, toDate: string) => ['insights-merchants', fromDate, toDate] as const,
 };
 

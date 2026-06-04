@@ -323,6 +323,30 @@ async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(c
     assert resp.json()["lifetime_withdrawals"] == 15_000
 
 
+async def test_plan_detail_includes_archived_linked_account_activity(client):
+    """Archived linked accounts still count historical transfer activity."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    plan_id = (await _create_plan(client, headers)).json()["id"]
+    account_id = (await _create_account(client, headers, name="Archived TFSA", tax_advantaged_plan_id=plan_id)).json()["id"]
+    transfer_id = await _get_system_category_id("Transfer")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(account_id, transfer_id, user_id, 40_000, date(current_year, 2, 1))
+    await _seed_transaction(account_id, transfer_id, user_id, -5_000, date(current_year, 3, 1))
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_contributions"] == 40_000
+    assert resp.json()["ytd_withdrawals"] == 5_000
+    assert resp.json()["lifetime_contributions"] == 40_000
+    assert resp.json()["lifetime_withdrawals"] == 5_000
+
+
 async def test_plan_metrics_only_count_transfer_category(client):
     """Only the seeded Transfer category counts as TAC activity."""
     signup_resp = await _create_user(client)

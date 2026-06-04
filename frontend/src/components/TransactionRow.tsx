@@ -12,6 +12,7 @@ interface TransactionRowProps {
   accountInstitution?: Institution | null
   category: Category | undefined
   currency: string
+  readOnlyReason?: string
   transaction: Transaction
   onOpen: (transaction: Transaction) => void
 }
@@ -65,6 +66,17 @@ function AccountLogo({
   )
 }
 
+function ReadOnlyReasonPill({ reason }: { reason: string }) {
+  return (
+    <span
+      className="inline-flex w-fit max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
+      style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}
+    >
+      <span className="min-w-0 truncate">{reason}</span>
+    </span>
+  )
+}
+
 function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   return (
     <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 flex w-52 -translate-x-1/2 flex-col items-start gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
@@ -102,6 +114,7 @@ export default function TransactionRow({
   accountInstitution,
   category,
   currency,
+  readOnlyReason,
   transaction,
   onOpen,
 }: TransactionRowProps) {
@@ -116,15 +129,22 @@ export default function TransactionRow({
   const hasVisibleTags = visibleTags.length > 0
   const hasSupplementalMeta = hasNotes || hasVisibleTags
   const hasAccountMeta = !!accountName || !!accountInstitution
+  const readOnly = Boolean(readOnlyReason)
   const formattedAmount = `${transaction.amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount), currency)}`
   const transactionAmountColor = amountColor(category, transaction.amount)
 
   return (
     <button
       type="button"
-      onClick={() => onOpen(transaction)}
-      className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none"
-      style={{ borderBottom: '1px solid var(--app-border)' }}
+      onClick={() => {
+        if (!readOnly) onOpen(transaction)
+      }}
+      disabled={readOnly}
+      className={`block w-full px-3 py-2.5 text-left transition-colors duration-100 focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none ${readOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-surface-soft)]'}`}
+      style={{
+        borderBottom: '1px solid var(--app-border)',
+        opacity: readOnly ? 0.68 : 1,
+      }}
     >
       <span className="hidden min-[1300px]:grid min-[1300px]:grid-cols-[2.5rem_14rem_13rem_minmax(2.75rem,1fr)_max-content_minmax(8rem,1fr)] min-[1300px]:items-center min-[1300px]:gap-3">
         <span className="text-2xl leading-none" aria-hidden>
@@ -144,11 +164,14 @@ export default function TransactionRow({
         <span className="flex min-w-0 items-center self-stretch">
           {hasAccountMeta ? (
             <span
-              className="inline-flex max-w-full items-center gap-2 text-sm font-medium leading-none"
+              className="flex min-w-0 max-w-full flex-col gap-1 text-sm font-medium leading-none"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              <AccountLogo accountName={accountName} institution={accountInstitution} />
-              {accountName && <span className="truncate">{accountName}</span>}
+              <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+                <AccountLogo accountName={accountName} institution={accountInstitution} />
+                {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+              </span>
+              {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
             </span>
           ) : (
             <span aria-hidden>&nbsp;</span>
@@ -238,20 +261,23 @@ export default function TransactionRow({
 
         {(hasAccountMeta || hasSupplementalMeta) && (
           <span
-            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-center gap-2 text-sm leading-5"
+            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-start gap-2 text-sm leading-5"
             style={{ color: 'var(--app-text-muted)' }}
           >
             {hasAccountMeta ? (
-              <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
-                <AccountLogo accountName={accountName} institution={accountInstitution} />
-                {accountName && <span className="truncate">{accountName}</span>}
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <AccountLogo accountName={accountName} institution={accountInstitution} />
+                  {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                </span>
+                {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
               </span>
             ) : (
               <span className="min-w-0 flex-1" aria-hidden />
             )}
 
             {hasSupplementalMeta && (
-              <span className="inline-flex shrink-0 items-center gap-2">
+              <span className="inline-flex shrink-0 items-center gap-2 pt-0.5">
                 {hasNotes && (
                   <span className="inline-flex" aria-label="Has note">
                     <StickyNote size={14} strokeWidth={2} aria-hidden />
@@ -298,9 +324,12 @@ export default function TransactionRow({
           {hasAccountMeta && (
             <>
               <span aria-hidden>·</span>
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <AccountLogo accountName={accountName} institution={accountInstitution} />
-                {accountName && <span className="truncate">{accountName}</span>}
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <AccountLogo accountName={accountName} institution={accountInstitution} />
+                  {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                </span>
+                {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
               </span>
             </>
           )}

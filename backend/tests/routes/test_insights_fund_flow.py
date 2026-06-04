@@ -38,13 +38,13 @@ async def _seed_currency(currency_id: str, name: str, symbol: str, minor_unit_ex
 
 
 async def test_fund_flow_returns_all_base_currency_entries(client):
-    """The flow endpoint returns all visible base-currency entries and counts."""
+    """The flow endpoint returns all readable base-currency entries and counts."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
 
     visible_account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
 
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     freelance_id, freelance = _category(user_id, "Freelance", CategoryKind.INCOME)
@@ -92,8 +92,8 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
             _transaction(user_id, visible_account_id, medical_id, date(2026, 3, 16), -40_000),
             _transaction(user_id, visible_account_id, transfer_id, date(2026, 3, 15), 999_999),
             _transaction(user_id, visible_account_id, salary_id, date(2026, 2, 28), 300_000),
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 3, 11), 700_000),
-            _transaction(user_id, hidden_account_id, housing_id, date(2026, 3, 11), -700_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 11), 700_000),
+            _transaction(user_id, archived_account_id, housing_id, date(2026, 3, 11), -700_000),
         ])
         await session.commit()
 
@@ -106,7 +106,7 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
     assert resp.status_code == 200
     assert resp.json() == {
         "income_sources": [
-            ["Salary", 500_000],
+            ["Salary", 1_200_000],
             ["Freelance", 100_000],
             ["Bonus", 80_000],
             ["Interest", 70_000],
@@ -114,7 +114,7 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
             ["Gift", 50_000],
         ],
         "expense_categories": [
-            ["Housing", 180_000],
+            ["Housing", 880_000],
             ["Groceries", 90_000],
             ["Dining", 80_000],
             ["Shopping", 70_000],

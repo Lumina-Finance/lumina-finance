@@ -63,15 +63,15 @@ async def _create_transaction_api(client, headers, account_id, category_id, **ov
 
 
 async def test_period_glance_returns_compact_period_summary(client):
-    """Period glance aggregates visible base-currency activity only."""
+    """Period glance aggregates readable base-currency activity, including archived accounts."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
 
     visible_account = (await _create_account(client, headers, name="Visible Cash")).json()
-    hidden_account = (await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()
+    archived_account = (await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()
     visible_account_id = UUID(visible_account["id"])
-    hidden_account_id = UUID(hidden_account["id"])
+    archived_account_id = UUID(archived_account["id"])
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
     dining_id, dining = _category(user_id, "Dining", CategoryKind.EXPENSE)
@@ -93,13 +93,13 @@ async def test_period_glance_returns_compact_period_summary(client):
             _transaction(user_id, visible_account_id, balance_adjustment_id, date(2026, 3, 15), 999_999),
             _transaction(user_id, visible_account_id, groceries_id, date(2026, 3, 4), -40_000),
             _transaction(user_id, visible_account_id, dining_id, date(2026, 3, 5), -100_000),
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 3, 12), 700_000),
-            _transaction(user_id, hidden_account_id, groceries_id, date(2026, 3, 13), -300_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 12), 700_000),
+            _transaction(user_id, archived_account_id, groceries_id, date(2026, 3, 13), -300_000),
             _snapshot(visible_account_id, date(2026, 3, 9), 1_000_000),
             _snapshot(visible_account_id, date(2026, 3, 10), 1_000_000),
             _snapshot(visible_account_id, date(2026, 3, 16), 1_320_000),
-            _snapshot(hidden_account_id, date(2026, 3, 10), 5_000_000),
-            _snapshot(hidden_account_id, date(2026, 3, 16), 6_000_000),
+            _snapshot(archived_account_id, date(2026, 3, 10), 5_000_000),
+            _snapshot(archived_account_id, date(2026, 3, 16), 6_000_000),
         ])
         await session.commit()
 
@@ -112,17 +112,17 @@ async def test_period_glance_returns_compact_period_summary(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data == {
-        "income": 500_000,
-        "expenses": 180_000,
+        "income": 1_200_000,
+        "expenses": 480_000,
         "income_expense_fx_status": {"state": "none", "missing_pairs": []},
-        "net_worth_change": 320_000,
+        "net_worth_change": 6_320_000,
         "net_worth_change_fx_status": {"state": "none", "missing_pairs": []},
         "top_category_name": "Groceries",
-        "top_category_share_pct": 67,
+        "top_category_share_pct": 88,
         "top_category_fx_status": {"state": "none", "missing_pairs": []},
         "biggest_change_name": "Groceries",
-        "biggest_change_amount": 80_000,
-        "biggest_change_pct": 200,
+        "biggest_change_amount": 380_000,
+        "biggest_change_pct": 950,
         "biggest_change_fx_status": {"state": "none", "missing_pairs": []},
     }
 

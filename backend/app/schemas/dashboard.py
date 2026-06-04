@@ -86,7 +86,7 @@ class MonthlyIncomeExpense(BaseModel):
 class CreditWidgetResponse(BaseModel):
     """Credit usage totals for the dashboard credit widget.
 
-    - `credit_limit_total` sums `credit_limit` across readable non-hidden
+    - `credit_limit_total` sums `credit_limit` across readable non-archived
       revolving-credit accounts converted to the user's base currency when needed.
     - `credit_used` flips negative account balances into positive usage and
       treats positive stored-credit balances as zero used.
@@ -103,7 +103,7 @@ class NetWorthWidgetResponse(BaseModel):
     """Net worth totals and trend for the dashboard net worth widget.
 
     - `current_net_worth` is the sum of latest signed balances across every readable
-      non-hidden account converted to the user's base currency when needed.
+      non-archived account converted to the user's base currency when needed.
     - `net_worth_history` is a day-by-day series of net worth over the last
       `net_worth_window_days` days (length = `net_worth_window_days`, index 0 =
       earliest day, final index = today). Forward-filled from

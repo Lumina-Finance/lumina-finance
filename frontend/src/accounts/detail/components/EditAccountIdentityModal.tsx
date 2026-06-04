@@ -21,6 +21,7 @@ import {
   sanitizeMoneyInput,
   toMinorUnits,
 } from '@/accounts/detail/utils/moneyInput'
+import { formatCurrency } from '@/utils/formatCurrency'
 
 function FieldLabelRow({
   label,
@@ -60,7 +61,7 @@ interface AccountIdentityForm {
   institution_id: string
   tax_advantaged_plan_id: string
   credit_limit: string
-  is_hidden: boolean
+  is_archived: boolean
 }
 
 type DeleteAccountStage = 'idle' | 'confirm' | 'type-name'
@@ -71,6 +72,44 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
+}
+
+function ArchiveBalanceWarning({
+  balance,
+  currency,
+}: {
+  balance: number
+  currency: string
+}) {
+  const adjustmentAmount = -balance
+  const hasBalance = balance !== 0
+
+  return (
+    <div
+      className="rounded-lg px-3 py-2.5"
+      style={{
+        background: 'var(--app-warning-soft)',
+        border: '1px solid var(--app-border)',
+      }}
+    >
+      <div className="flex gap-2.5">
+        <div
+          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+          style={{ background: 'var(--app-bg)', color: 'var(--app-warning)' }}
+        >
+          <AlertTriangle size={13} aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold leading-5">Balance will be set to zero</p>
+          <p className="mt-0.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+            {hasBalance
+              ? `${formatCurrency(adjustmentAmount, currency)} will be recorded as a Balance Adjustment with note "Account archived". Unarchiving will not restore the previous balance.`
+              : 'This account already has a zero balance, so no balance adjustment will be recorded.'}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function EditAccountIdentityModal({
@@ -96,7 +135,7 @@ export default function EditAccountIdentityModal({
     institution_id: account.institution?.id ?? '',
     tax_advantaged_plan_id: account.tax_advantaged_plan_id ?? '',
     credit_limit: fromMinorUnits(account.credit_limit, currencies, account.currency),
-    is_hidden: account.is_hidden,
+    is_archived: account.is_archived,
   })
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -109,7 +148,7 @@ export default function EditAccountIdentityModal({
   const [institutionModalKey, setInstitutionModalKey] = useState(0)
 
   const isRevolving = account.account_kind === 'revolving'
-  const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
+  const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
   const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
 
   const institutionOptions = useMemo(
@@ -174,7 +213,7 @@ export default function EditAccountIdentityModal({
         payload: {
           name: form.name.trim(),
           institution_id: form.institution_id || null,
-          is_hidden: form.is_hidden,
+          is_archived: form.is_archived,
           ...(isRevolving
             ? { credit_limit: toMinorUnits(form.credit_limit, currencies, account.currency) }
             : {}),
@@ -192,20 +231,26 @@ export default function EditAccountIdentityModal({
     }
   }
 
-  const handleHideAccount = () => {
+  const handleStartDeleteAccount = () => {
+    setField('is_archived', account.is_archived)
     setDeleteError(null)
-    updateAccount.mutate(
-      {
-        accountId: account.id,
-        payload: { is_hidden: true },
-      },
-      {
-        onSuccess: onClose,
-        onError: (error) => {
-          setDeleteError(error instanceof Error ? error.message : 'Failed to hide account.')
-        },
-      },
-    )
+    setDeleteStage('confirm')
+  }
+
+  const handleArchiveInstead = () => {
+    setDeleteError(null)
+    setDeleteNameInput('')
+    setDeleteStage('idle')
+    setField('is_archived', true)
+  }
+
+  const handleArchiveToggle = (checked: boolean) => {
+    if (deleteStage !== 'idle') {
+      setDeleteError(null)
+      setDeleteNameInput('')
+      setDeleteStage('idle')
+    }
+    setField('is_archived', checked)
   }
 
   const handleDeleteAccount = async () => {
@@ -228,6 +273,7 @@ export default function EditAccountIdentityModal({
   const canDelete = deleteNameInput === account.name
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
+  const isArchiving = !account.is_archived && form.is_archived
 
   const requestClose = () => {
     if (isBusy) return
@@ -437,11 +483,11 @@ export default function EditAccountIdentityModal({
 
                         <div className="min-w-0 space-y-3">
                           <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
-                            Visibility
+                            Archive
                           </p>
 
                           <label
-                            htmlFor="edit-account-hidden"
+                            htmlFor="edit-account-archived"
                             className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
                             style={{
                               background: 'var(--app-input-bg)',
@@ -451,33 +497,49 @@ export default function EditAccountIdentityModal({
                             <span className="min-w-0">
                               <span className="flex items-center gap-2 font-medium">
                                 <EyeOff size={16} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                                Hide account
+                                Archive account
                               </span>
                               <span className="mt-0.5 block text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                                Exclude this account from overview totals and primary lists.
+                                Move this account out of active lists while keeping its history.
                               </span>
                             </span>
                             <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors">
                               <input
-                                id="edit-account-hidden"
+                                id="edit-account-archived"
                                 type="checkbox"
                                 role="switch"
-                                checked={form.is_hidden}
-                                onChange={(event) => setField('is_hidden', event.target.checked)}
+                                checked={form.is_archived}
+                                onChange={(event) => {
+                                  handleArchiveToggle(event.target.checked)
+                                }}
                                 className="peer sr-only"
                               />
                               <span
                                 className="absolute inset-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2"
-                                style={{ background: form.is_hidden ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
+                                style={{ background: form.is_archived ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
                                 aria-hidden
                               />
                               <span
                                 className="relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
-                                style={{ transform: form.is_hidden ? 'translateX(1.25rem)' : 'translateX(0)' }}
+                                style={{ transform: form.is_archived ? 'translateX(1.25rem)' : 'translateX(0)' }}
                                 aria-hidden
                               />
                             </span>
                           </label>
+
+                          <AnimatePresence initial={false}>
+                            {isArchiving && (
+                              <motion.div
+                                className="overflow-hidden"
+                                initial={{ height: 0, marginTop: 0, opacity: 0 }}
+                                animate={{ height: 'auto', marginTop: 12, opacity: 1 }}
+                                exit={{ height: 0, marginTop: 0, opacity: 0 }}
+                                transition={{ duration: 0.18, ease: EASE }}
+                              >
+                                <ArchiveBalanceWarning balance={account.current_balance} currency={account.currency} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       </section>
 
@@ -500,129 +562,128 @@ export default function EditAccountIdentityModal({
                         {deleteStage !== 'idle' && (
                           <motion.div
                             className="overflow-hidden"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
+                            initial={{ height: 0, marginTop: 0, opacity: 0 }}
+                            animate={{ height: 'auto', marginTop: 20, opacity: 1 }}
+                            exit={{ height: 0, marginTop: 0, opacity: 0 }}
                             transition={{ duration: 0.2, ease: EASE }}
                           >
                             <motion.div
                               layout
-                              className="rounded-xl p-4"
+                              className="rounded-lg px-3 py-2.5"
                               style={{
                                 background: 'var(--app-negative-soft)',
-                                border: '1px solid var(--app-negative-border)',
+                                border: '1px solid var(--app-border)',
                               }}
                               transition={{ duration: 0.22, ease: EASE }}
                             >
-                              <div className="flex gap-3">
+                              <div className="flex gap-2.5">
                                 <div
-                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
                                   style={{ background: 'var(--app-bg)', color: 'var(--app-negative)' }}
                                 >
-                                  <AlertTriangle size={16} aria-hidden />
+                                  <AlertTriangle size={13} aria-hidden />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="app-label break-words font-semibold">
+                                  <p className="break-words text-sm font-semibold leading-5">
                                     Delete {account.name}?
                                   </p>
-                                  <p className="mt-1 text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
-                                    Permanent deletion removes its transactions, budgets, and balance history. Hide it instead
+                                  <p className="mt-0.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+                                    Permanent deletion removes its transactions, budgets, and balance history. Archive it instead
                                     if you only want it out of view.
                                   </p>
 
-                                  <div
-                                    className="mt-4 overflow-hidden"
-                                    style={{
-                                      maxHeight: deleteStage === 'type-name' ? '18rem' : '7rem',
-                                      transition: 'max-height 320ms cubic-bezier(0.25, 0.1, 0.25, 1)',
-                                    }}
-                                  >
-                                    {deleteStage === 'confirm' ? (
-                                      <motion.div
-                                        key="confirm"
-                                        className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-                                        initial={false}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.16, ease: EASE }}
-                                      >
-                                        {!account.is_hidden ? (
-                                          <button
-                                            type="button"
-                                            className="inline-flex items-center gap-2 text-sm font-medium"
-                                            style={{ color: 'var(--app-text-muted)' }}
-                                            onClick={handleHideAccount}
-                                            disabled={isBusy}
-                                          >
-                                            {updateAccount.isPending ? (
-                                              <span className="app-spinner" />
-                                            ) : (
-                                              <>
+                                  <div className="mt-3 overflow-hidden">
+                                    <AnimatePresence initial={false} mode="wait">
+                                      {deleteStage === 'confirm' ? (
+                                        <motion.div
+                                          key="confirm"
+                                          className="overflow-hidden"
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.18, ease: EASE }}
+                                        >
+                                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            {!account.is_archived ? (
+                                              <button
+                                                type="button"
+                                                className="inline-flex items-center gap-2 text-sm font-medium"
+                                                style={{ color: 'var(--app-text-muted)' }}
+                                                onClick={handleArchiveInstead}
+                                                disabled={isBusy}
+                                              >
                                                 <EyeOff size={15} aria-hidden />
-                                                Hide instead
-                                              </>
+                                                Archive instead
+                                              </button>
+                                            ) : (
+                                              <span aria-hidden />
                                             )}
-                                          </button>
-                                        ) : (
-                                          <span aria-hidden />
-                                        )}
-                                        <button
-                                          type="button"
-                                          className="app-danger-button justify-center sm:ml-auto"
-                                          onClick={() => setDeleteStage('type-name')}
-                                          disabled={isBusy}
+                                            <button
+                                              type="button"
+                                              className="app-danger-button justify-center sm:ml-auto"
+                                              onClick={() => {
+                                                setDeleteStage('type-name')
+                                              }}
+                                              disabled={isBusy}
+                                            >
+                                              Continue
+                                            </button>
+                                          </div>
+                                        </motion.div>
+                                      ) : (
+                                        <motion.div
+                                          key="type-name"
+                                          className="overflow-hidden"
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.18, ease: EASE }}
                                         >
-                                          Continue
-                                        </button>
-                                      </motion.div>
-                                    ) : (
-                                      <motion.div
-                                        key="type-name"
-                                        initial={{ opacity: 0, y: 6 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.18, ease: EASE }}
-                                      >
-                                        <label
-                                          htmlFor="delete-account-name"
-                                          className="mb-1.5 block break-words text-[0.9375rem]"
-                                          style={{ color: 'var(--app-text-muted)' }}
-                                        >
-                                          Type <strong className="font-semibold">"{account.name}"</strong> to delete.
-                                        </label>
-                                        <input
-                                          id="delete-account-name"
-                                          className="app-input"
-                                          value={deleteNameInput}
-                                          onChange={(event) => {
-                                            setDeleteNameInput(event.target.value)
-                                            setDeleteError(null)
-                                          }}
-                                          onKeyDown={(event) => {
-                                            if (event.key !== 'Enter') return
-                                            event.preventDefault()
-                                            handleDeleteAccount()
-                                          }}
-                                          disabled={isBusy}
-                                          autoComplete="off"
-                                        />
+                                          <div>
+                                            <label
+                                              htmlFor="delete-account-name"
+                                              className="mb-1.5 block break-words text-sm leading-5"
+                                              style={{ color: 'var(--app-text-muted)' }}
+                                            >
+                                              Type <strong className="font-semibold">"{account.name}"</strong> to delete.
+                                            </label>
+                                            <input
+                                              id="delete-account-name"
+                                              className="app-input"
+                                              value={deleteNameInput}
+                                              onChange={(event) => {
+                                                setDeleteNameInput(event.target.value)
+                                                setDeleteError(null)
+                                              }}
+                                              onKeyDown={(event) => {
+                                                if (event.key !== 'Enter') return
+                                                event.preventDefault()
+                                                handleDeleteAccount()
+                                              }}
+                                              disabled={isBusy}
+                                              autoComplete="off"
+                                            />
 
-                                        {deleteError && (
-                                          <p className="mt-3 text-[0.9375rem] font-medium" style={{ color: 'var(--app-negative)' }}>
-                                            {deleteError}
-                                          </p>
-                                        )}
+                                            {deleteError && (
+                                              <p className="mt-3 text-[0.9375rem] font-medium" style={{ color: 'var(--app-negative)' }}>
+                                                {deleteError}
+                                              </p>
+                                            )}
 
-                                        <div className="mt-4 flex justify-end">
-                                          <button
-                                            type="button"
-                                            className={`app-danger-button ${deleteLoading ? 'app-primary-button-loading' : ''}`}
-                                            onClick={handleDeleteAccount}
-                                            disabled={!canDelete || isBusy}
-                                          >
-                                            {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
-                                          </button>
-                                        </div>
-                                      </motion.div>
-                                    )}
+                                            <div className="mt-4 flex justify-end">
+                                              <button
+                                                type="button"
+                                                className={`app-danger-button w-full justify-center min-[1050px]:w-auto ${deleteLoading ? 'app-primary-button-loading' : ''}`}
+                                                onClick={handleDeleteAccount}
+                                                disabled={!canDelete || isBusy}
+                                              >
+                                                {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
                                   </div>
                                 </div>
                               </div>
@@ -640,7 +701,7 @@ export default function EditAccountIdentityModal({
                     <button
                       type="button"
                       className="app-danger-button h-10 w-10 shrink-0 px-0"
-                      onClick={() => setDeleteStage('confirm')}
+                      onClick={handleStartDeleteAccount}
                       disabled={isBusy || deleteStage !== 'idle'}
                       aria-label="Delete account"
                       title="Delete account"

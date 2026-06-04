@@ -356,6 +356,27 @@ async def test_import_transactions_rejects_invalid_raw_amount(client):
     assert resp.json()["detail"] == "Invalid amount: $12.34"
 
 
+async def test_import_transactions_rejects_archived_account_mapping(client):
+    """Import cannot add new rows to an archived account."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [{
+            "account_source": "Main Chequing",
+            "category_source": "Groceries",
+            "dt": "2026-04-11",
+            "amount": "-10.00",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
+
+
 # --- POST /transactions ---
 
 
@@ -633,31 +654,37 @@ async def test_list_transactions_returns_user_transactions(client):
     assert amounts == {-1000, -2000}
 
 
-async def test_list_transactions_excludes_hidden_accounts_unscoped(client):
-    """Default transaction list excludes hidden-account rows."""
+async def test_list_transactions_includes_archived_accounts_unscoped(client):
+    """Default transaction list includes archived-account history."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived")).json()["id"]
 
     await _create_transaction(client, headers, account_id, category_id, amount=-1000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-9000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-9000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=9000)
+    archive_resp = await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
 
     resp = await client.get("/transactions", headers=headers)
 
     assert resp.status_code == 200
-    assert [txn["amount"] for txn in resp.json()] == [-1000]
+    assert {txn["amount"] for txn in resp.json()} == {-1000, -9000, 9000}
 
 
-async def test_list_transactions_explicit_hidden_account_is_allowed(client):
-    """Directly filtering by a hidden account still exposes its transactions."""
+async def test_list_transactions_explicit_archived_account_is_allowed(client):
+    """Directly filtering by an archived account still exposes its transactions."""
     headers, _, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived")).json()["id"]
 
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-9000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-9000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=9000)
+    archive_resp = await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
 
-    resp = await client.get(f"/transactions?account_id={hidden_account_id}", headers=headers)
+    resp = await client.get(f"/transactions?account_id={archived_account_id}", headers=headers)
 
     assert resp.status_code == 200
-    assert [txn["amount"] for txn in resp.json()] == [-9000]
+    assert {txn["amount"] for txn in resp.json()} == {-9000, 9000}
 
 
 async def test_list_transactions_without_auth_returns_401(client):
@@ -669,22 +696,24 @@ async def test_list_transactions_without_auth_returns_401(client):
 # --- GET /transactions/overview ---
 
 
-async def test_transactions_overview_excludes_hidden_accounts_unscoped(client):
-    """Default transaction overview excludes hidden-account activity."""
+async def test_transactions_overview_includes_archived_accounts_unscoped(client):
+    """Default transaction overview includes archived-account activity."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived")).json()["id"]
 
     await _create_transaction(client, headers, account_id, category_id, amount=10_000)
     await _create_transaction(client, headers, account_id, category_id, amount=-4_000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=90_000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-30_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=90_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-30_000)
+    archive_resp = await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
 
     resp = await client.get("/transactions/overview", headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total_inflow"] == 10_000
-    assert data["total_outflow"] == -4_000
+    assert data["total_inflow"] == 100_000
+    assert data["total_outflow"] == -34_000
     assert data["net_flow_fx_status"] == {"state": "none", "missing_pairs": []}
 
 
@@ -953,15 +982,17 @@ async def test_transactions_overview_daily_cash_flow_reports_incomplete_fx(clien
     }
 
 
-async def test_transactions_overview_explicit_hidden_account_is_allowed(client):
-    """Explicit account_id keeps hidden account detail inspectable."""
+async def test_transactions_overview_explicit_archived_account_is_allowed(client):
+    """Explicit account_id keeps archived account detail inspectable."""
     headers, _, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived")).json()["id"]
 
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=90_000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-30_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=90_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-30_000)
+    archive_resp = await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
 
-    resp = await client.get(f"/transactions/overview?account_id={hidden_account_id}", headers=headers)
+    resp = await client.get(f"/transactions/overview?account_id={archived_account_id}", headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -2072,7 +2103,71 @@ async def test_delete_transaction_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
-# --- Transactions on closed accounts ---
+# --- Transactions on archived and closed accounts ---
+
+
+async def test_create_transaction_on_archived_account_returns_422(client):
+    """Creating a transaction on an archived account is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    resp = await _create_transaction(client, headers, account_id, category_id)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
+
+
+async def test_move_transaction_to_archived_account_returns_422(client):
+    """Moving a transaction to an archived account is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    archived_account_id = (await _create_account(client, headers, name="Archived Savings")).json()["id"]
+    archive_resp = await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    create_resp = await _create_transaction(client, headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"account_id": archived_account_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
+
+
+async def test_patch_transaction_on_archived_account_returns_422(client):
+    """Editing existing history on an archived account is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(client, headers, account_id, category_id, notes="before archive")
+    txn_id = create_resp.json()["id"]
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"notes": "after archive"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
+
+
+async def test_delete_transaction_on_archived_account_returns_422(client):
+    """Deleting existing history on an archived account is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(client, headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    resp = await client.delete(f"/transactions/{txn_id}", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
 
 
 async def test_create_transaction_on_closed_account_returns_422(client):

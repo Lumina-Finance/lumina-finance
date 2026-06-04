@@ -73,6 +73,7 @@ export default function TransactionDateGroupList({
               {transactions.map((transaction) => {
                 const category = categoryMap.get(transaction.category_id)
                 const rowAccount = fixedAccount ?? accountMap.get(transaction.account_id)
+                const readOnlyReason = rowAccount?.is_archived ? 'Archived · Read-only' : undefined
                 return (
                   <TransactionRow
                     key={transaction.id}
@@ -80,6 +81,7 @@ export default function TransactionDateGroupList({
                     accountName={rowAccount?.name}
                     category={category}
                     currency={fixedAccount?.currency ?? currency}
+                    readOnlyReason={readOnlyReason}
                     transaction={transaction}
                     onOpen={onEditTransaction}
                   />

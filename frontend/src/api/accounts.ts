@@ -4,7 +4,9 @@ import { authenticatedFetch } from '@/api/client';
 import type { FxStatus } from '@/api/dashboard';
 import {
   accountKeys,
+  budgetKeys,
   dashboardKeys,
+  insightsKeys,
   taxAdvantagedPlanKeys,
   transactionKeys,
   transactionOverviewKeys,
@@ -54,7 +56,7 @@ export interface AccountsOverview {
   base_currency_current_balance: number | null;
   current_balance_fx_status: FxStatus;
   credit_limit: number | null;
-  is_hidden: boolean;
+  is_archived: boolean;
   closed_at: string | null;
 }
 
@@ -97,7 +99,7 @@ export interface CreateAccountPayload {
   currency: string;
   credit_limit: number | null;
   starting_balance: number | null;
-  is_hidden: boolean;
+  is_archived: boolean;
 }
 
 export interface UpdateAccountPayload {
@@ -105,7 +107,7 @@ export interface UpdateAccountPayload {
   name?: string;
   institution_id?: string | null;
   credit_limit?: number | null;
-  is_hidden?: boolean;
+  is_archived?: boolean;
   closed_at?: string | null;
 }
 
@@ -155,12 +157,12 @@ function getCachedTaxAdvantagedPlanId(
   return accounts?.find((account) => account.id === accountId)?.tax_advantaged_plan_id;
 }
 
-function getCachedIsHidden(queryClient: QueryClient, accountId: string): boolean | undefined {
+function getCachedIsArchived(queryClient: QueryClient, accountId: string): boolean | undefined {
   const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
-  if (detail) return detail.is_hidden;
+  if (detail) return detail.is_archived;
 
   const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
-  return accounts?.find((account) => account.id === accountId)?.is_hidden;
+  return accounts?.find((account) => account.id === accountId)?.is_archived;
 }
 
 function getCachedCreditLimit(queryClient: QueryClient, accountId: string): number | null | undefined {
@@ -198,25 +200,35 @@ export function useUpdateAccount() {
     mutationFn: updateAccount,
     onSuccess: (account, variables) => {
       const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, account.id);
-      const previousIsHidden = getCachedIsHidden(queryClient, account.id);
+      const previousIsArchived = getCachedIsArchived(queryClient, account.id);
       const previousCreditLimit = getCachedCreditLimit(queryClient, account.id);
 
       queryClient.setQueryData(accountKeys.detail(account.id), account);
       updateCachedAccountList(queryClient, account);
 
-      if ('is_hidden' in variables.payload && previousIsHidden !== account.is_hidden) {
+      if ('is_archived' in variables.payload && previousIsArchived !== account.is_archived) {
         queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
+        queryClient.invalidateQueries({ queryKey: accountKeys.accountScope(account.id), exact: false });
         queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
         queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
+        queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.periodGlanceAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.fundFlowAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.incomeExpenseBreakdownAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.cashFlowAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.netWorthAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.savingsRateTrendAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.merchantsAll, exact: false });
         queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
         queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings(), exact: true });
         queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
+        invalidateTaxAdvantagedPlanCaches(queryClient, [account.tax_advantaged_plan_id]);
       }
 
       if (

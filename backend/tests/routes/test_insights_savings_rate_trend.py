@@ -57,7 +57,7 @@ async def test_savings_rate_trend_returns_latest_available_monthly_totals(client
     headers = _get_auth_header(signup_resp)
 
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
     transfer_id, transfer = _category(user_id, "Transfer", CategoryKind.TRANSFER)
@@ -75,8 +75,8 @@ async def test_savings_rate_trend_returns_latest_available_monthly_totals(client
             _transaction(user_id, account_id, groceries_id, date(2026, 5, 2), -300_000),
             _transaction(user_id, account_id, salary_id, date(2026, 6, 1), 999_999),
             _transaction(user_id, account_id, groceries_id, date(2026, 6, 2), -999_999),
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 5, 1), 700_000),
-            _transaction(user_id, hidden_account_id, groceries_id, date(2026, 5, 2), -700_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 5, 1), 700_000),
+            _transaction(user_id, archived_account_id, groceries_id, date(2026, 5, 2), -700_000),
         ])
         await session.commit()
 
@@ -88,7 +88,7 @@ async def test_savings_rate_trend_returns_latest_available_monthly_totals(client
             ["2026-02-01", 500_000, 200_000],
             ["2026-03-01", 0, 100_000],
             ["2026-04-01", 0, 0],
-            ["2026-05-01", 600_000, 300_000],
+            ["2026-05-01", 1_300_000, 1_000_000],
         ],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
@@ -328,8 +328,8 @@ async def test_savings_rate_trend_routes_flipped_categories_by_monthly_net(clien
     }
 
 
-async def test_savings_rate_trend_returns_empty_payload_without_visible_accounts(client, monkeypatch):
-    """Users without visible accounts receive an empty payload."""
+async def test_savings_rate_trend_includes_archived_only_activity(client, monkeypatch):
+    """Archived-only account activity is still included in monthly totals."""
     from app.routes import insights as insights_routes
 
     monkeypatch.setattr(insights_routes, "datetime", _FixedClock(datetime(2026, 5, 19, 16, 0, tzinfo=UTC)))
@@ -337,13 +337,13 @@ async def test_savings_rate_trend_returns_empty_payload_without_visible_accounts
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
 
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
 
     async with TestSession() as session:
         session.add_all([
             salary,
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 5, 1), 600_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 5, 1), 600_000),
         ])
         await session.commit()
 
@@ -351,7 +351,7 @@ async def test_savings_rate_trend_returns_empty_payload_without_visible_accounts
 
     assert resp.status_code == 200
     assert resp.json() == {
-        "points": [],
+        "points": [["2026-05-01", 600_000, 0]],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
 

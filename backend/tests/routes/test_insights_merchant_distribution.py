@@ -51,7 +51,7 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
     headers = _get_auth_header(signup_resp)
 
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
     expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
     income_id, income = _category(user_id, "Salary", CategoryKind.INCOME)
     transfer_id, transfer = _category(user_id, "Transfer", CategoryKind.TRANSFER)
@@ -71,7 +71,7 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             "Refund Only",
             "Income Merchant",
             "Transfer Merchant",
-            "Hidden Merchant",
+            "Archived Merchant",
         ]
     ]
     merchant_ids = {merchant.name: merchant_id for merchant_id, merchant in merchant_rows}
@@ -97,7 +97,7 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             _transaction(user_id, account_id, income_id, date(2026, 4, 10), -999_999, merchant_ids["Income Merchant"]),
             _transaction(user_id, account_id, transfer_id, date(2026, 4, 10), -999_999, merchant_ids["Transfer Merchant"]),
             _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -999_999, None),
-            _transaction(user_id, hidden_account_id, expense_id, date(2026, 4, 10), -999_999, merchant_ids["Hidden Merchant"]),
+            _transaction(user_id, archived_account_id, expense_id, date(2026, 4, 10), -999_999, merchant_ids["Archived Merchant"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -50_000, merchant_ids["Alpha Market"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -100_000, merchant_ids["Beta Grocer"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -90_000, merchant_ids["Diner Echo"]),
@@ -115,6 +115,7 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
     assert resp.status_code == 200
     assert resp.json() == {
         "merchants": [
+            [str(merchant_ids["Archived Merchant"]), "Archived Merchant", 999_999, None, 999_999],
             [str(merchant_ids["Alpha Market"]), "Alpha Market", 100_000, 100, 50_000],
             [str(merchant_ids["Beta Grocer"]), "Beta Grocer", 90_000, -10, -10_000],
             [str(merchant_ids["Cafe Delta"]), "Cafe Delta", 80_000, None, 80_000],
@@ -122,8 +123,7 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             [str(merchant_ids["Fitness Foxtrot"]), "Fitness Foxtrot", 60_000, None, 60_000],
             [str(merchant_ids["Gas Gamma"]), "Gas Gamma", 50_000, None, 50_000],
             [str(merchant_ids["Hotel Indigo"]), "Hotel Indigo", 40_000, None, 40_000],
-            [str(merchant_ids["Market Juliet"]), "Market Juliet", 30_000, None, 30_000],
-            ["other-merchants", "Other", 30_000, None, None],
+            ["other-merchants", "Other", 60_000, None, None],
         ],
     }
 

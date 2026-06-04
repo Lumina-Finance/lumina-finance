@@ -6,7 +6,7 @@ a reference time ``now`` and derive any further date boundaries internally,
 so callers don't have to plumb window-start/window-end timestamps through.
 
 Scoping rules mirror the default aggregate/list endpoints:
-- accessible accounts = non-hidden personal + group admin + explicit per-account permission
+- accessible accounts = readable personal + group admin + explicit per-account permission
 - accessible budgets  = same pattern against base budgets
 so the dashboard never surfaces data the user couldn't read elsewhere.
 
@@ -94,9 +94,9 @@ def _cumsum(values: list[int]) -> list[int]:
 # ---------------------------------------------------------------------------
 
 async def get_accessible_accounts(
-    db: AsyncSession, user: User, *, include_hidden: bool = False,
+    db: AsyncSession, user: User, *, include_archived: bool = True,
 ) -> list[Account]:
-    """Return accounts the user can read, excluding hidden accounts by default."""
+    """Return accounts the user can read, including archived accounts by default."""
     query = (
         select(Account)
         .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
@@ -110,8 +110,8 @@ async def get_accessible_accounts(
             | (AccountPermission.user_id == user.id),
         )
     )
-    if not include_hidden:
-        query = query.where(Account.is_hidden.is_(False))
+    if not include_archived:
+        query = query.where(Account.is_archived.is_(False))
 
     result = await db.execute(
         query,

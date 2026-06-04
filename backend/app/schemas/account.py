@@ -27,7 +27,7 @@ class AccountsOverview(BaseModel):
     base_currency_current_balance: int | None = None
     current_balance_fx_status: FxStatus = Field(default_factory=FxStatus)
     credit_limit: int | None
-    is_hidden: bool
+    is_archived: bool
     closed_at: datetime | None
 
     model_config = {"from_attributes": True}
@@ -49,7 +49,7 @@ class AccountResponse(BaseModel):
     base_currency_current_balance: int | None = None
     current_balance_fx_status: FxStatus = Field(default_factory=FxStatus)
     credit_limit: int | None
-    is_hidden: bool
+    is_archived: bool
     closed_at: datetime | None
     created_at: datetime
 
@@ -67,7 +67,7 @@ class CreateAccountRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     credit_limit: int | None = None  # Only valid on liability accounts
     starting_balance: int | None = None  # Signed initial balance adjustment in minor units
-    is_hidden: bool = False
+    is_archived: bool = False
     group_id: uuid.UUID | None = None
 
 
@@ -78,7 +78,7 @@ class UpdateAccountRequest(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     credit_limit: int | None = None  # Only valid on liability accounts
-    is_hidden: bool | None = None
+    is_archived: bool | None = None
     closed_at: datetime | None = None
 
 

@@ -77,17 +77,21 @@ export function useTransactionImportWorkflow() {
   const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
   const importTransactions = useImportTransactions()
+  const selectableAccounts = useMemo(
+    () => accounts.filter((account) => !account.is_archived),
+    [accounts],
+  )
 
   const accountOptions = useMemo<DropdownOption[]>(
     () => [
       { value: CREATE_ACCOUNT_VALUE, label: 'Create New Account', group: 'Import Action' },
-      ...accounts.map((account) => ({
+      ...selectableAccounts.map((account) => ({
         value: account.id,
         label: account.name,
         group: ACCOUNT_KIND_LABELS[account.account_kind],
       })),
     ],
-    [accounts],
+    [selectableAccounts],
   )
 
   const currencyOptions = useMemo<DropdownOption[]>(
@@ -131,8 +135,8 @@ export function useTransactionImportWorkflow() {
   )
 
   const accountById = useMemo(
-    () => new Map(accounts.map((account) => [account.id, account])),
-    [accounts],
+    () => new Map(selectableAccounts.map((account) => [account.id, account])),
+    [selectableAccounts],
   )
 
   const categoryById = useMemo(
@@ -204,10 +208,10 @@ export function useTransactionImportWorkflow() {
   const resolvedAccountMappings = useMemo(
     () => (
       canInferAccountMappings
-        ? inferAccountMappings(accountMappingSources, accountMappings, accounts)
+        ? inferAccountMappings(accountMappingSources, accountMappings, selectableAccounts)
         : accountMappings
     ),
-    [accountMappingSources, accountMappings, accounts, canInferAccountMappings],
+    [accountMappingSources, accountMappings, canInferAccountMappings, selectableAccounts],
   )
 
   const autoFilledAccountSources = useMemo(

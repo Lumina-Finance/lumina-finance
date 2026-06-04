@@ -68,6 +68,10 @@ export default function SettingsPage() {
   // tile, keep a local override until Save or Discard resolves it.
   const [runwayDraft, setRunwayDraft] = useState<Set<string> | null>(null)
   const runwayServerSet = useMemo(() => new Set(runwaySettings?.accountIds ?? []), [runwaySettings?.accountIds])
+  const archivedRunwayServerSet = useMemo(
+    () => new Set(runwaySettings?.archivedAccountIds ?? []),
+    [runwaySettings?.archivedAccountIds],
+  )
   const runwaySelection = runwayDraft ?? runwayServerSet
   // Only open asset accounts are eligible. Credit products (credit cards,
   // lines of credit, HELOCs) are borrowed headroom — treating them as runway
@@ -76,9 +80,13 @@ export default function SettingsPage() {
   const selectableAccounts = useMemo(
     () =>
       (accounts ?? []).filter(
-        (a) => a.closed_at === null && !a.is_hidden && a.account_kind === 'asset',
+        (a) => a.closed_at === null && !a.is_archived && a.account_kind === 'asset',
       ),
     [accounts],
+  )
+  const archivedRunwayAccounts = useMemo(
+    () => (accounts ?? []).filter((account) => archivedRunwayServerSet.has(account.id)),
+    [accounts, archivedRunwayServerSet],
   )
   const toggleRunwayAccount = (id: string) => {
     setRunwayDraft((prev) => {
@@ -516,6 +524,7 @@ export default function SettingsPage() {
           <RunwaySection
             loading={accountsLoading || runwaySettingsLoading}
             accounts={selectableAccounts}
+            archivedAccounts={archivedRunwayAccounts}
             selection={runwaySelection}
             onToggle={toggleRunwayAccount}
             thresholds={runwayThresholdValues}

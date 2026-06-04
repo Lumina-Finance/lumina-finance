@@ -551,6 +551,8 @@ export default function TaxAdvantagedCategoryModal({
   }
 
   const handleToggleAccount = (account: AccountsOverview) => {
+    if (account.is_archived) return
+
     const isLinked = account.tax_advantaged_plan_id === plan.id
     showAutosaveNotice({ status: 'saving', message: 'Saving account link...' })
     updateAccount.mutate(
@@ -1221,7 +1223,7 @@ export default function TaxAdvantagedCategoryModal({
                   <div className="space-y-4">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                       <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
-                        Choose eligible {plan.currency} accounts for this category.
+                        Choose eligible {plan.currency} accounts for this category. Archived accounts stay visible for history but cannot be linked or unlinked until unarchived.
                       </p>
                       <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                         {bindableAccounts.filter((account) => account.tax_advantaged_plan_id === plan.id).length} of {bindableAccounts.length} linked
@@ -1247,20 +1249,26 @@ export default function TaxAdvantagedCategoryModal({
                           const linked = account.tax_advantaged_plan_id === plan.id
                           const linkedElsewhere = account.tax_advantaged_plan_id !== null && !linked
                           const pending = updateAccount.isPending && updateAccount.variables?.accountId === account.id
+                          const disabled = account.is_archived || linkedElsewhere || pending
+                          const statusParts = [
+                            account.institution?.name ?? 'Cash',
+                            account.is_archived ? 'Archived' : null,
+                            linkedElsewhere ? 'Linked elsewhere' : null,
+                          ].filter((part): part is string => part !== null)
                           return (
                             <label
                               key={account.id}
-                              className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-sm transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                              className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-sm transition-colors duration-150 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-accent-soft)]'}`}
                               style={{
                                 borderTop: index === 0 ? 'none' : '1px solid var(--app-border)',
-                                opacity: linkedElsewhere ? 0.55 : 1,
+                                opacity: account.is_archived || linkedElsewhere ? 0.55 : 1,
                               }}
                             >
                               <input
                                 type="checkbox"
                                 checked={linked}
                                 onChange={() => handleToggleAccount(account)}
-                                disabled={linkedElsewhere || pending}
+                                disabled={disabled}
                                 aria-label={`${linked ? 'Unlink' : 'Link'} ${account.name}`}
                                 className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
                                 style={{ accentColor: 'var(--app-accent)' }}
@@ -1268,8 +1276,7 @@ export default function TaxAdvantagedCategoryModal({
                               <span className="min-w-0">
                                 <span className="block truncate font-medium">{account.name}</span>
                                 <span className="block truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                                  {account.institution?.name ?? 'Cash'}
-                                  {linkedElsewhere ? ' · Linked elsewhere' : ''}
+                                  {statusParts.join(' · ')}
                                 </span>
                               </span>
                               <span className="font-financial text-sm">

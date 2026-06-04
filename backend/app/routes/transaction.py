@@ -101,9 +101,9 @@ def _date_sort_order(sort_order: str, tag_names):
     )
 
 
-def _accessible_account_ids(user_id: uuid.UUID, *, include_hidden: bool = False):
-    """Scalar subquery returning readable account IDs, hidden excluded by default."""
-    query = (
+def _accessible_account_ids(user_id: uuid.UUID):
+    """Scalar subquery returning readable account IDs."""
+    return (
         select(Account.id)
         .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
         .outerjoin(
@@ -115,10 +115,7 @@ def _accessible_account_ids(user_id: uuid.UUID, *, include_hidden: bool = False)
             | ((GroupMember.user_id == user_id) & (GroupMember.is_admin.is_(True)))
             | (AccountPermission.user_id == user_id),
         )
-    )
-    if not include_hidden:
-        query = query.where(Account.is_hidden.is_(False))
-    return query.scalar_subquery()
+    ).scalar_subquery()
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
@@ -404,7 +401,7 @@ async def get_transactions_overview(
     if from_date is not None and to_date is not None and from_date > to_date:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
 
-    accessible = _accessible_account_ids(user.id, include_hidden=account_id is not None)
+    accessible = _accessible_account_ids(user.id)
 
     # Base filter shared by all aggregation queries
     base = select(Transaction).where(Transaction.account_id.in_(accessible))
@@ -557,7 +554,7 @@ async def list_transactions(
 
     sort_column = _SORT_FIELDS[sort_by]
 
-    accessible = _accessible_account_ids(user.id, include_hidden=account_id is not None)
+    accessible = _accessible_account_ids(user.id)
     query = select(Transaction).where(Transaction.account_id.in_(accessible))
 
     # Apply exact-match filters
@@ -658,8 +655,14 @@ async def create_transaction(
 ):
     """Create a new transaction. Requires write access on the target account."""
     account = await check_account_access(
-        db, data.account_id, user.id, PermissionLevel.WRITE, require_open=True,
+        db,
+        data.account_id,
+        user.id,
+        PermissionLevel.WRITE,
+        require_open=True,
     )
+    if account.is_archived:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
 
     currency_lookup = await db.execute(select(Currency).where(Currency.id == data.currency))
     if not currency_lookup.scalar_one_or_none():
@@ -721,6 +724,9 @@ async def update_transaction(
 ):
     """Update a transaction. Requires write access on the target account."""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
+    if current_account.is_archived:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
@@ -741,10 +747,16 @@ async def update_transaction(
     # Resolve the account's group_id for category/merchant validation
     account_group_id = None
     if "account_id" in changed_fields:
-        # Moving to a new account — check write access and reject closed targets
+        # Moving to a new account requires a writable target that accepts new history.
         new_account = await check_account_access(
-            db, changed_fields["account_id"], user.id, PermissionLevel.WRITE, require_open=True,
+            db,
+            changed_fields["account_id"],
+            user.id,
+            PermissionLevel.WRITE,
+            require_open=True,
         )
+        if new_account.is_archived:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
         account_group_id = new_account.group_id
         if txn.currency != new_account.currency and txn.fx_rate is None and "fx_rate" not in changed_fields:
             raise HTTPException(
@@ -752,8 +764,6 @@ async def update_transaction(
                 detail="fx_rate is required when transaction currency differs from account currency",
             )
     else:
-        # Staying on the same account — look up its group_id
-        current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
         account_group_id = current_account.group_id
 
     if "category_id" in changed_fields:
@@ -806,6 +816,9 @@ async def delete_transaction(
 ):
     """Delete a transaction. Requires write access on the parent account."""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
+    if account.is_archived:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
 
     # Capture pre-delete values for snapshot recomputation
     account_id = txn.account_id

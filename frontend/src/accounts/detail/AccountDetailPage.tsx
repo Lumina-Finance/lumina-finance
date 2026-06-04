@@ -36,12 +36,16 @@ export default function AccountDetailPage() {
   } = useTaxAdvantagedPlan(linkedTaxAdvantagedPlanId)
 
   const openCreateTransaction = () => {
+    if (visibleAccount?.is_archived) return
+
     setEditingTransaction(null)
     setTxnModalKey((key) => key + 1)
     setShowTxnModal(true)
   }
 
   const openEditTransaction = (transaction: Transaction) => {
+    if (visibleAccount?.is_archived) return
+
     setEditingTransaction(transaction)
     setTxnModalKey((key) => key + 1)
     setShowTxnModal(true)
@@ -134,6 +138,7 @@ export default function AccountDetailPage() {
                 name: visibleAccount.name,
                 currency: visibleAccount.currency,
                 institution: visibleAccount.institution,
+                is_archived: visibleAccount.is_archived,
               }}
               currency={visibleAccount.currency}
               onCreateTransaction={openCreateTransaction}

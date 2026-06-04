@@ -148,6 +148,8 @@ export default function TransactionListSection({
     () => groupTransactionsByDate(displayedTransactions),
     [displayedTransactions],
   )
+  const createDisabled = Boolean(fixedAccount?.is_archived)
+  const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
 
   // Filter changes can schedule delayed loading cleanup; clear that timer if
   // the list unmounts mid-transition.
@@ -236,6 +238,8 @@ export default function TransactionListSection({
         }}
         onDateRangeClose={commitDateRange}
         onCreateTransaction={onCreateTransaction}
+        createDisabled={createDisabled}
+        createDisabledReason={createDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
       />
 

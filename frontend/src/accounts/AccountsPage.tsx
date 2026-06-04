@@ -9,7 +9,7 @@ import AccountFilters from '@/accounts/components/AccountFilters'
 import AccountListSection from '@/accounts/components/AccountListSection'
 import AccountSummaryStatement from '@/accounts/components/AccountSummaryStatement'
 import AccountsMetricsBand from '@/accounts/components/AccountsMetricsBand'
-import HiddenAccountsSection from '@/accounts/components/HiddenAccountsSection'
+import ArchivedAccountsSection from '@/accounts/components/ArchivedAccountsSection'
 import TaxAdvantagedLimitsSection from '@/accounts/components/TaxAdvantagedLimitsSection'
 import { useAccountFilters } from '@/accounts/hooks/useAccountFilters'
 import { useAccountSections } from '@/accounts/hooks/useAccountSections'
@@ -31,8 +31,8 @@ export default function AccountsPage() {
   ])
 
   const allRows = useMemo(() => accounts ?? [], [accounts])
-  const rows = useMemo(() => allRows.filter((account) => !account.is_hidden), [allRows])
-  const hiddenRows = useMemo(() => allRows.filter((account) => account.is_hidden), [allRows])
+  const rows = useMemo(() => allRows.filter((account) => !account.is_archived), [allRows])
+  const archivedRows = useMemo(() => allRows.filter((account) => account.is_archived), [allRows])
   const displayCurrency = user!.base_currency
 
   const {
@@ -57,7 +57,7 @@ export default function AccountsPage() {
       <header className="app-page-header">
         <h1 className="app-page-title">My Accounts</h1>
         <p className="app-page-description">
-          Review balances, account groups, contribution limits, and hidden accounts in one place.
+          Review balances, account groups, contribution limits, and archived accounts in one place.
         </p>
       </header>
 
@@ -125,8 +125,8 @@ export default function AccountsPage() {
           loading={accountsLoading}
         />
 
-        <HiddenAccountsSection
-          accounts={hiddenRows}
+        <ArchivedAccountsSection
+          accounts={archivedRows}
           taxAdvantagedPlanById={taxAdvantagedPlanById}
           displayCurrency={displayCurrency}
         />

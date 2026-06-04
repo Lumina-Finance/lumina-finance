@@ -54,20 +54,28 @@ export default function TransactionsPage() {
   }
 
   const openEditModal = (transaction: Transaction) => {
+    const account = accounts?.find((item) => item.id === transaction.account_id)
+    if (account?.is_archived) return
+
     setEditingTransaction(transaction)
     setCreateModalKey((key) => key + 1)
     setShowCreateModal(true)
   }
 
   const openOutlierTransaction = async (transactionId: string) => {
+    setOutlierOpenError(null)
     // Outliers may not be in the currently loaded list page, so fall back to a detail fetch.
     const loadedTransaction = latestTransactionsRef.current.find((transaction) => transaction.id === transactionId)
     if (loadedTransaction) {
+      const account = accounts?.find((item) => item.id === loadedTransaction.account_id)
+      if (account?.is_archived) {
+        setOutlierOpenError('Archived account transactions are read-only')
+        return
+      }
       openEditModal(loadedTransaction)
       return
     }
 
-    setOutlierOpenError(null)
     setOpeningOutlierId(transactionId)
     try {
       const transaction = await queryClient.fetchQuery({
@@ -75,6 +83,11 @@ export default function TransactionsPage() {
         queryFn: () => fetchTransaction(transactionId),
         staleTime: 10 * 60 * 1000,
       })
+      const account = accounts?.find((item) => item.id === transaction.account_id)
+      if (account?.is_archived) {
+        setOutlierOpenError('Archived account transactions are read-only')
+        return
+      }
       openEditModal(transaction)
     } catch {
       setOutlierOpenError('Unable to open transaction')
@@ -121,6 +134,7 @@ export default function TransactionsPage() {
       name: account.name,
       currency: account.currency,
       institution: account.institution,
+      is_archived: account.is_archived,
     })),
     [accounts],
   )

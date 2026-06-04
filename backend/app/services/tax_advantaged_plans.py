@@ -21,6 +21,9 @@ async def attach_tax_advantaged_plan_metrics(
 ) -> None:
     """Attach current-year limits and transfer tallies to plan rows.
 
+    Archived linked accounts are included because contribution and withdrawal
+    room is historical tax data, not active account availability.
+
     Args:
         db: Active database session.
         plans: Plan rows to enrich in place.
@@ -87,6 +90,7 @@ async def attach_tax_advantaged_plan_metrics(
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Account.tax_advantaged_plan_id.in_(plan_ids),
+            # Archived accounts remain linked to their plan history.
             Category.kind == CategoryKind.TRANSFER,
             Category.name == _TAC_TRANSFER_CATEGORY_NAME,
         )

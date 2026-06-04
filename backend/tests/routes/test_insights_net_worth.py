@@ -36,7 +36,7 @@ async def _create_plan(client, headers, **overrides):
 
 
 async def test_net_worth_returns_compact_daily_signed_group_series(client):
-    """Daily buckets group balances, preserve debt signs, and exclude hidden accounts."""
+    """Daily buckets group balances, preserve debt signs, and include archived accounts."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -50,11 +50,11 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
         name="CAD Card",
         credit_limit=500_000,
     )).json()
-    hidden_account = (await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()
+    archived_account = (await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()
     cash_account_id = UUID(cash_account["id"])
     savings_account_id = UUID(savings_account["id"])
     card_account_id = UUID(card_account["id"])
-    hidden_account_id = UUID(hidden_account["id"])
+    archived_account_id = UUID(archived_account["id"])
 
     async with TestSession() as session:
         session.add_all([
@@ -64,7 +64,7 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
             _snapshot(savings_account_id, date(2026, 5, 2), 30_000),
             _snapshot(card_account_id, date(2026, 4, 30), -50_000),
             _snapshot(card_account_id, date(2026, 5, 3), -80_000),
-            _snapshot(hidden_account_id, date(2026, 5, 2), 9_000_000),
+            _snapshot(archived_account_id, date(2026, 5, 2), 9_000_000),
         ])
         await session.commit()
 
@@ -83,8 +83,8 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
     assert data["baseline"] == [120_000, -50_000]
     assert data["points"] == [
         ["2026-05-01", "2026-05-01", [120_000, -50_000]],
-        ["2026-05-02", "2026-05-02", [150_000, -50_000]],
-        ["2026-05-03", "2026-05-03", [150_000, -80_000]],
+        ["2026-05-02", "2026-05-02", [9_150_000, -50_000]],
+        ["2026-05-03", "2026-05-03", [9_150_000, -80_000]],
     ]
     assert data["fx_status"] == {"state": "none", "missing_pairs": []}
 

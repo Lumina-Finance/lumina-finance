@@ -135,7 +135,15 @@ async def _resolve_accounts(
             )
 
         if mapping.account_id is not None:
-            account = await check_account_access(db, mapping.account_id, user.id, PermissionLevel.WRITE, require_open=True)
+            account = await check_account_access(
+                db,
+                mapping.account_id,
+                user.id,
+                PermissionLevel.WRITE,
+                require_open=True,
+            )
+            if account.is_archived:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
             stats.accounts_reused += 1
         else:
             account = await _create_import_account(db, user, mapping.create)
@@ -164,7 +172,7 @@ async def _create_import_account(db: AsyncSession, user: User, create) -> Accoun
         institution_id=create.institution_id,
         currency=currency,
         credit_limit=None,
-        is_hidden=False,
+        is_archived=False,
     )
     db.add(account)
     await db.flush()

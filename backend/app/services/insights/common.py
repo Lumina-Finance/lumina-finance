@@ -18,6 +18,6 @@ def previous_period_bounds(from_date: date, to_date: date) -> tuple[date, date]:
 
 
 async def get_base_currency_accounts(db: AsyncSession, user: User) -> list[Account]:
-    """Return readable, non-hidden accounts in the user's base currency."""
+    """Return readable accounts in the user's base currency."""
     accounts = await get_accessible_accounts(db, user)
     return [account for account in accounts if account.currency == user.base_currency]

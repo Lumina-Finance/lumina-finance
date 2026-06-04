@@ -51,12 +51,37 @@ def _runway_thresholds_from_user(user: User) -> RunwayThresholds:
     )
 
 
-async def _active_runway_account_ids(db: AsyncSession, user: User) -> list[uuid.UUID]:
-    accessible_ids = {a.id for a in await get_accessible_accounts(db, user)}
+async def _accessible_non_archived_accounts(db: AsyncSession, user: User):
+    return [
+        account
+        for account in await get_accessible_accounts(db, user, include_archived=True)
+        if not account.is_archived
+    ]
+
+
+async def _runway_account_ids_by_archive_state(
+    db: AsyncSession,
+    user: User,
+) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
+    accessible_accounts = await get_accessible_accounts(db, user, include_archived=True)
+    active_ids = {account.id for account in accessible_accounts if not account.is_archived}
+    archived_ids = {account.id for account in accessible_accounts if account.is_archived}
     stored = await db.execute(
         select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
     )
-    return [aid for aid in stored.scalars().all() if aid in accessible_ids]
+    active: list[uuid.UUID] = []
+    archived: list[uuid.UUID] = []
+    for account_id in stored.scalars().all():
+        if account_id in active_ids:
+            active.append(account_id)
+        elif account_id in archived_ids:
+            archived.append(account_id)
+    return active, archived
+
+
+async def _active_runway_account_ids(db: AsyncSession, user: User) -> list[uuid.UUID]:
+    active, _archived = await _runway_account_ids_by_archive_state(db, user)
+    return active
 
 
 async def _replace_runway_account_ids(
@@ -66,11 +91,11 @@ async def _replace_runway_account_ids(
 ) -> list[uuid.UUID]:
     requested_ids = set(account_ids)
 
-    all_accessible = await get_accessible_accounts(db, user, include_hidden=True)
-    visible_ids = {a.id for a in all_accessible if not a.is_hidden}
-    hidden_ids = {a.id for a in all_accessible if a.is_hidden}
+    all_accessible = await get_accessible_accounts(db, user, include_archived=True)
+    active_ids = {a.id for a in all_accessible if not a.is_archived}
+    archived_ids = {a.id for a in all_accessible if a.is_archived}
 
-    invalid = requested_ids - visible_ids
+    invalid = requested_ids - active_ids
     if invalid:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -79,10 +104,10 @@ async def _replace_runway_account_ids(
 
     # Replace the full set in a single transaction — simpler than diffing and
     # the runway selection is expected to be small (a handful of accounts).
-    # Hidden selections are left untouched so hiding an account is reversible.
+    # Archived selections are left untouched so archiving an account is reversible.
     delete_query = delete(UserRunwayAccount).where(UserRunwayAccount.user_id == user.id)
-    if hidden_ids:
-        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(hidden_ids))
+    if archived_ids:
+        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(archived_ids))
     await db.execute(delete_query)
     for account_id in requested_ids:
         db.add(UserRunwayAccount(user_id=user.id, account_id=account_id))
@@ -144,10 +169,10 @@ async def list_runway_accounts(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return the account IDs the user has picked to feed the runway calculation.
+    """Return the account IDs currently feeding the runway calculation.
 
     Filters out any stored selections the user can no longer read or has
-    hidden, so the response only surfaces currently active IDs.
+    archived, so the response only surfaces currently active IDs.
     """
     return await _active_runway_account_ids(db, user)
 
@@ -162,8 +187,8 @@ async def replace_runway_accounts(
 
     Dedupes the submitted set. Rejects the whole request with 422 if any submitted
     account isn't readable by the user (personal, household admin, or explicit
-    permission) and currently visible. Stored hidden selections are preserved
-    so they become active again if the account is unhidden.
+    permission) and currently non-archived. Stored archived selections are
+    preserved so they become active again if the account is unarchived.
     """
     selected_ids = await _replace_runway_account_ids(db, user, data.account_ids)
     await db.commit()
@@ -177,8 +202,10 @@ async def get_runway_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Return the user's runway account selection and status thresholds."""
+    active_account_ids, archived_account_ids = await _runway_account_ids_by_archive_state(db, user)
     return RunwaySettings(
-        account_ids=await _active_runway_account_ids(db, user),
+        account_ids=active_account_ids,
+        archived_account_ids=archived_account_ids,
         thresholds=_runway_thresholds_from_user(user),
     )
 
@@ -190,13 +217,15 @@ async def replace_runway_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Replace the user's runway account selection and status thresholds."""
-    selected_ids = await _replace_runway_account_ids(db, user, data.account_ids)
+    await _replace_runway_account_ids(db, user, data.account_ids)
     user.runway_risky_below_months = data.thresholds.risky_below_months
     user.runway_healthy_at_months = data.thresholds.healthy_at_months
     await db.commit()
+    active_account_ids, archived_account_ids = await _runway_account_ids_by_archive_state(db, user)
 
     return RunwaySettings(
-        account_ids=selected_ids,
+        account_ids=active_account_ids,
+        archived_account_ids=archived_account_ids,
         thresholds=_runway_thresholds_from_user(user),
     )
 
@@ -213,7 +242,7 @@ async def get_runway(
     Expense refunds reduce expenses, while income and transfer-category
     transactions are excluded.
     """
-    accounts = await get_accessible_accounts(db, user)
+    accounts = await _accessible_non_archived_accounts(db, user)
     account_by_id = {account.id: account for account in accounts}
     accessible_ids = set(account_by_id)
     stored = await db.execute(
