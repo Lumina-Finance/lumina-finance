@@ -593,88 +593,97 @@ export default function EditAccountIdentityModal({
                                   </p>
 
                                   <div className="mt-3 overflow-hidden">
-                                    {deleteStage === 'confirm' ? (
-                                      <motion.div
-                                        key="confirm"
-                                        className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-                                        initial={false}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.16, ease: EASE }}
-                                      >
-                                        {!account.is_archived ? (
-                                          <button
-                                            type="button"
-                                            className="inline-flex items-center gap-2 text-sm font-medium"
-                                            style={{ color: 'var(--app-text-muted)' }}
-                                            onClick={handleArchiveInstead}
-                                            disabled={isBusy}
-                                          >
-                                            <EyeOff size={15} aria-hidden />
-                                            Archive instead
-                                          </button>
-                                        ) : (
-                                          <span aria-hidden />
-                                        )}
-                                        <button
-                                          type="button"
-                                          className="app-danger-button justify-center sm:ml-auto"
-                                          onClick={() => {
-                                            setDeleteStage('type-name')
-                                          }}
-                                          disabled={isBusy}
+                                    <AnimatePresence initial={false} mode="wait">
+                                      {deleteStage === 'confirm' ? (
+                                        <motion.div
+                                          key="confirm"
+                                          className="overflow-hidden"
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.18, ease: EASE }}
                                         >
-                                          Continue
-                                        </button>
-                                      </motion.div>
-                                    ) : (
-                                      <motion.div
-                                        key="type-name"
-                                        initial={{ opacity: 0, y: 6 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.18, ease: EASE }}
-                                      >
-                                        <label
-                                          htmlFor="delete-account-name"
-                                          className="mb-1.5 block break-words text-[0.9375rem]"
-                                          style={{ color: 'var(--app-text-muted)' }}
+                                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            {!account.is_archived ? (
+                                              <button
+                                                type="button"
+                                                className="inline-flex items-center gap-2 text-sm font-medium"
+                                                style={{ color: 'var(--app-text-muted)' }}
+                                                onClick={handleArchiveInstead}
+                                                disabled={isBusy}
+                                              >
+                                                <EyeOff size={15} aria-hidden />
+                                                Archive instead
+                                              </button>
+                                            ) : (
+                                              <span aria-hidden />
+                                            )}
+                                            <button
+                                              type="button"
+                                              className="app-danger-button justify-center sm:ml-auto"
+                                              onClick={() => {
+                                                setDeleteStage('type-name')
+                                              }}
+                                              disabled={isBusy}
+                                            >
+                                              Continue
+                                            </button>
+                                          </div>
+                                        </motion.div>
+                                      ) : (
+                                        <motion.div
+                                          key="type-name"
+                                          className="overflow-hidden"
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.18, ease: EASE }}
                                         >
-                                          Type <strong className="font-semibold">"{account.name}"</strong> to delete.
-                                        </label>
-                                        <input
-                                          id="delete-account-name"
-                                          className="app-input"
-                                          value={deleteNameInput}
-                                          onChange={(event) => {
-                                            setDeleteNameInput(event.target.value)
-                                            setDeleteError(null)
-                                          }}
-                                          onKeyDown={(event) => {
-                                            if (event.key !== 'Enter') return
-                                            event.preventDefault()
-                                            handleDeleteAccount()
-                                          }}
-                                          disabled={isBusy}
-                                          autoComplete="off"
-                                        />
+                                          <div>
+                                            <label
+                                              htmlFor="delete-account-name"
+                                              className="mb-1.5 block break-words text-[0.9375rem]"
+                                              style={{ color: 'var(--app-text-muted)' }}
+                                            >
+                                              Type <strong className="font-semibold">"{account.name}"</strong> to delete.
+                                            </label>
+                                            <input
+                                              id="delete-account-name"
+                                              className="app-input"
+                                              value={deleteNameInput}
+                                              onChange={(event) => {
+                                                setDeleteNameInput(event.target.value)
+                                                setDeleteError(null)
+                                              }}
+                                              onKeyDown={(event) => {
+                                                if (event.key !== 'Enter') return
+                                                event.preventDefault()
+                                                handleDeleteAccount()
+                                              }}
+                                              disabled={isBusy}
+                                              autoComplete="off"
+                                            />
 
-                                        {deleteError && (
-                                          <p className="mt-3 text-[0.9375rem] font-medium" style={{ color: 'var(--app-negative)' }}>
-                                            {deleteError}
-                                          </p>
-                                        )}
+                                            {deleteError && (
+                                              <p className="mt-3 text-[0.9375rem] font-medium" style={{ color: 'var(--app-negative)' }}>
+                                                {deleteError}
+                                              </p>
+                                            )}
 
-                                        <div className="mt-4 flex justify-end">
-                                          <button
-                                            type="button"
-                                            className={`app-danger-button ${deleteLoading ? 'app-primary-button-loading' : ''}`}
-                                            onClick={handleDeleteAccount}
-                                            disabled={!canDelete || isBusy}
-                                          >
-                                            {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
-                                          </button>
-                                        </div>
-                                      </motion.div>
-                                    )}
+                                            <div className="mt-4 flex justify-end">
+                                              <button
+                                                type="button"
+                                                className={`app-danger-button ${deleteLoading ? 'app-primary-button-loading' : ''}`}
+                                                onClick={handleDeleteAccount}
+                                                disabled={!canDelete || isBusy}
+                                              >
+                                                {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
                                   </div>
                                 </div>
                               </div>
