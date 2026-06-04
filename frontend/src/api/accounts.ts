@@ -4,7 +4,9 @@ import { authenticatedFetch } from '@/api/client';
 import type { FxStatus } from '@/api/dashboard';
 import {
   accountKeys,
+  budgetKeys,
   dashboardKeys,
+  insightsKeys,
   taxAdvantagedPlanKeys,
   transactionKeys,
   transactionOverviewKeys,
@@ -206,17 +208,27 @@ export function useUpdateAccount() {
 
       if ('is_archived' in variables.payload && previousIsArchived !== account.is_archived) {
         queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
+        queryClient.invalidateQueries({ queryKey: accountKeys.accountScope(account.id), exact: false });
         queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
         queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
+        queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
         queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.periodGlanceAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.fundFlowAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.incomeExpenseBreakdownAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.cashFlowAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.netWorthAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.savingsRateTrendAll, exact: false });
+        queryClient.invalidateQueries({ queryKey: insightsKeys.merchantsAll, exact: false });
         queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
         queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings(), exact: true });
         queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
+        invalidateTaxAdvantagedPlanCaches(queryClient, [account.tax_advantaged_plan_id]);
       }
 
       if (
