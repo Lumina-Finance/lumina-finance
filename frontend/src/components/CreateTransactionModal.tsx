@@ -314,14 +314,21 @@ export default function CreateTransactionModal({
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
+  const selectableAccounts = useMemo(
+    () => accounts.filter((account) => !account.is_archived),
+    [accounts],
+  )
 
   // Build the initial form from the existing transaction (edit) or sensible defaults (create).
   const initialForm = useMemo<TransactionForm>(() => {
     if (!transaction) {
+      const defaultAccount = defaultAccountId
+        ? selectableAccounts.find((account) => account.id === defaultAccountId)
+        : undefined
       return {
         ...INITIAL_FORM,
-        account_id: defaultAccountId ?? INITIAL_FORM.account_id,
-        currency: defaultCurrency ?? INITIAL_FORM.currency,
+        account_id: defaultAccount?.id ?? INITIAL_FORM.account_id,
+        currency: defaultAccount?.currency ?? defaultCurrency ?? INITIAL_FORM.currency,
         date: todayLocalString(),
       }
     }
@@ -340,7 +347,7 @@ export default function CreateTransactionModal({
       date: transaction.dt,
       tag_ids: transaction.tags?.map((tag) => tag.id) ?? transaction.tag_ids,
     }
-  }, [transaction, categories, currencies, defaultAccountId, defaultCurrency])
+  }, [transaction, categories, currencies, defaultAccountId, defaultCurrency, selectableAccounts])
 
   const [form, setForm] = useState(initialForm)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -677,9 +684,12 @@ export default function CreateTransactionModal({
   }, [categories])
 
   const accountOptions = useMemo(
-    () => accounts.map((a) => ({ value: a.id, label: a.name })),
-    [accounts],
+    () => selectableAccounts.map((account) => ({ value: account.id, label: account.name })),
+    [selectableAccounts],
   )
+  const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
+    ? { value: selectedAccount.id, label: selectedAccount.name }
+    : undefined
   const categoryOptions = useMemo(
     () => buildCategoryOptions(categories, form.kind),
     [categories, form.kind],
@@ -1222,6 +1232,7 @@ export default function CreateTransactionModal({
                           <FieldLabelRow label="Account" error={showError('account_id')} />
                           <Dropdown
                             options={accountOptions}
+                            selectedOption={selectedArchivedAccountOption}
                             value={form.account_id}
                             onChange={handleAccountChange}
                             className={`app-input ${showError('account_id') ? 'app-input-error' : ''}`}
