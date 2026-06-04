@@ -569,30 +569,30 @@ export default function EditAccountIdentityModal({
                           >
                             <motion.div
                               layout
-                              className="rounded-xl p-4"
+                              className="rounded-lg px-3 py-2.5"
                               style={{
                                 background: 'var(--app-negative-soft)',
-                                border: '1px solid var(--app-negative-border)',
+                                border: '1px solid var(--app-border)',
                               }}
                               transition={{ duration: 0.22, ease: EASE }}
                             >
-                              <div className="flex gap-3">
+                              <div className="flex gap-2.5">
                                 <div
-                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
                                   style={{ background: 'var(--app-bg)', color: 'var(--app-negative)' }}
                                 >
-                                  <AlertTriangle size={16} aria-hidden />
+                                  <AlertTriangle size={13} aria-hidden />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="app-label break-words font-semibold">
+                                  <p className="break-words text-sm font-semibold leading-5">
                                     Delete {account.name}?
                                   </p>
-                                  <p className="mt-1 text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
+                                  <p className="mt-0.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
                                     Permanent deletion removes its transactions, budgets, and balance history. Archive it instead
                                     if you only want it out of view.
                                   </p>
 
-                                  <div className="mt-4 overflow-hidden">
+                                  <div className="mt-3 overflow-hidden">
                                     {deleteStage === 'confirm' ? (
                                       <motion.div
                                         key="confirm"
