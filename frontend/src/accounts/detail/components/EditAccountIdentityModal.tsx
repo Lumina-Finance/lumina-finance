@@ -642,7 +642,7 @@ export default function EditAccountIdentityModal({
                                           <div>
                                             <label
                                               htmlFor="delete-account-name"
-                                              className="mb-1.5 block break-words text-[0.9375rem]"
+                                              className="mb-1.5 block break-words text-sm leading-5"
                                               style={{ color: 'var(--app-text-muted)' }}
                                             >
                                               Type <strong className="font-semibold">"{account.name}"</strong> to delete.
