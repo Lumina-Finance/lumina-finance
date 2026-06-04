@@ -69,9 +69,9 @@ async def test_period_glance_returns_compact_period_summary(client):
     headers = _get_auth_header(signup_resp)
 
     visible_account = (await _create_account(client, headers, name="Visible Cash")).json()
-    hidden_account = (await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()
+    archived_account = (await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()
     visible_account_id = UUID(visible_account["id"])
-    hidden_account_id = UUID(hidden_account["id"])
+    archived_account_id = UUID(archived_account["id"])
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
     dining_id, dining = _category(user_id, "Dining", CategoryKind.EXPENSE)
@@ -93,13 +93,13 @@ async def test_period_glance_returns_compact_period_summary(client):
             _transaction(user_id, visible_account_id, balance_adjustment_id, date(2026, 3, 15), 999_999),
             _transaction(user_id, visible_account_id, groceries_id, date(2026, 3, 4), -40_000),
             _transaction(user_id, visible_account_id, dining_id, date(2026, 3, 5), -100_000),
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 3, 12), 700_000),
-            _transaction(user_id, hidden_account_id, groceries_id, date(2026, 3, 13), -300_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 12), 700_000),
+            _transaction(user_id, archived_account_id, groceries_id, date(2026, 3, 13), -300_000),
             _snapshot(visible_account_id, date(2026, 3, 9), 1_000_000),
             _snapshot(visible_account_id, date(2026, 3, 10), 1_000_000),
             _snapshot(visible_account_id, date(2026, 3, 16), 1_320_000),
-            _snapshot(hidden_account_id, date(2026, 3, 10), 5_000_000),
-            _snapshot(hidden_account_id, date(2026, 3, 16), 6_000_000),
+            _snapshot(archived_account_id, date(2026, 3, 10), 5_000_000),
+            _snapshot(archived_account_id, date(2026, 3, 16), 6_000_000),
         ])
         await session.commit()
 

@@ -505,8 +505,8 @@ async def test_get_runway_includes_threshold_settings(client):
     assert resp.json()["thresholds"] == {"risky_below_months": 2, "healthy_at_months": 8}
 
 
-async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkeypatch):
-    """Hidden selected accounts are omitted from runway responses without deleting the stored pick."""
+async def test_archived_runway_selection_is_inactive_but_restorable(client, monkeypatch):
+    """Archived selected accounts are omitted from runway responses without deleting the stored pick."""
     from app.routes import user as user_routes
 
     class FixedDateTime(datetime):
@@ -521,9 +521,9 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
     visible_account = (await _create_account(client, headers, name="Visible Cash")).json()
-    hidden_account = (await _create_account(client, headers, name="Temporarily Hidden")).json()
+    archived_account = (await _create_account(client, headers, name="Temporarily Archived")).json()
     visible_account_id = visible_account["id"]
-    hidden_account_id = hidden_account["id"]
+    archived_account_id = archived_account["id"]
 
     async with TestSession() as session:
         category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
@@ -540,16 +540,16 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
             ),
             Transaction(
                 created_by_user_id=user_id,
-                account_id=UUID(hidden_account_id),
+                account_id=UUID(archived_account_id),
                 category_id=category.id,
                 dt=date(2026, 3, 2),
                 amount=-24_000,
                 currency="CAD",
             ),
             AccountBalanceSnapshot(account_id=UUID(visible_account_id), dt=date(2026, 4, 15), balance=120_000),
-            AccountBalanceSnapshot(account_id=UUID(hidden_account_id), dt=date(2026, 4, 15), balance=48_000),
+            AccountBalanceSnapshot(account_id=UUID(archived_account_id), dt=date(2026, 4, 15), balance=48_000),
         ])
-        for account, balance in [(visible_account, 120_000), (hidden_account, 48_000)]:
+        for account, balance in [(visible_account, 120_000), (archived_account, 48_000)]:
             await session.execute(
                 update(AccountBalanceSnapshot)
                 .where(
@@ -562,36 +562,36 @@ async def test_hidden_runway_selection_is_inactive_but_restorable(client, monkey
 
     await client.put(
         "/me/runway-accounts",
-        json={"account_ids": [visible_account_id, hidden_account_id]},
+        json={"account_ids": [visible_account_id, archived_account_id]},
         headers=headers,
     )
-    await client.patch(f"/accounts/{hidden_account_id}", json={"is_hidden": True}, headers=headers)
+    await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": True}, headers=headers)
     await client.put("/me/runway-accounts", json={"account_ids": [visible_account_id]}, headers=headers)
 
-    hidden_list_resp = await client.get("/me/runway-accounts", headers=headers)
-    hidden_settings_resp = await client.get("/me/runway-settings", headers=headers)
-    hidden_runway_resp = await client.get("/me/runway", headers=headers)
+    archived_list_resp = await client.get("/me/runway-accounts", headers=headers)
+    archived_settings_resp = await client.get("/me/runway-settings", headers=headers)
+    archived_runway_resp = await client.get("/me/runway", headers=headers)
 
-    assert hidden_list_resp.status_code == 200
-    assert hidden_list_resp.json() == [visible_account_id]
-    assert hidden_settings_resp.status_code == 200
-    assert hidden_settings_resp.json()["account_ids"] == [visible_account_id]
-    assert hidden_runway_resp.status_code == 200
-    hidden_runway = hidden_runway_resp.json()
-    assert hidden_runway["liquid_balance"] == 120_000
-    assert hidden_runway["months_covered"] == 1
-    assert hidden_runway["avg_monthly_expense"] == 12_000
+    assert archived_list_resp.status_code == 200
+    assert archived_list_resp.json() == [visible_account_id]
+    assert archived_settings_resp.status_code == 200
+    assert archived_settings_resp.json()["account_ids"] == [visible_account_id]
+    assert archived_runway_resp.status_code == 200
+    archived_runway = archived_runway_resp.json()
+    assert archived_runway["liquid_balance"] == 120_000
+    assert archived_runway["months_covered"] == 1
+    assert archived_runway["avg_monthly_expense"] == 12_000
 
-    await client.patch(f"/accounts/{hidden_account_id}", json={"is_hidden": False}, headers=headers)
+    await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": False}, headers=headers)
 
     restored_list_resp = await client.get("/me/runway-accounts", headers=headers)
     restored_settings_resp = await client.get("/me/runway-settings", headers=headers)
     restored_runway_resp = await client.get("/me/runway", headers=headers)
 
     assert restored_list_resp.status_code == 200
-    assert set(restored_list_resp.json()) == {visible_account_id, hidden_account_id}
+    assert set(restored_list_resp.json()) == {visible_account_id, archived_account_id}
     assert restored_settings_resp.status_code == 200
-    assert set(restored_settings_resp.json()["account_ids"]) == {visible_account_id, hidden_account_id}
+    assert set(restored_settings_resp.json()["account_ids"]) == {visible_account_id, archived_account_id}
     restored_runway = restored_runway_resp.json()
     assert restored_runway["liquid_balance"] == 168_000
     assert restored_runway["months_covered"] == 1

@@ -44,7 +44,7 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
     headers = _get_auth_header(signup_resp)
 
     visible_account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
 
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     freelance_id, freelance = _category(user_id, "Freelance", CategoryKind.INCOME)
@@ -92,8 +92,8 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
             _transaction(user_id, visible_account_id, medical_id, date(2026, 3, 16), -40_000),
             _transaction(user_id, visible_account_id, transfer_id, date(2026, 3, 15), 999_999),
             _transaction(user_id, visible_account_id, salary_id, date(2026, 2, 28), 300_000),
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 3, 11), 700_000),
-            _transaction(user_id, hidden_account_id, housing_id, date(2026, 3, 11), -700_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 11), 700_000),
+            _transaction(user_id, archived_account_id, housing_id, date(2026, 3, 11), -700_000),
         ])
         await session.commit()
 

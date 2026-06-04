@@ -57,7 +57,7 @@ async def test_savings_rate_trend_returns_latest_available_monthly_totals(client
     headers = _get_auth_header(signup_resp)
 
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
     transfer_id, transfer = _category(user_id, "Transfer", CategoryKind.TRANSFER)
@@ -75,8 +75,8 @@ async def test_savings_rate_trend_returns_latest_available_monthly_totals(client
             _transaction(user_id, account_id, groceries_id, date(2026, 5, 2), -300_000),
             _transaction(user_id, account_id, salary_id, date(2026, 6, 1), 999_999),
             _transaction(user_id, account_id, groceries_id, date(2026, 6, 2), -999_999),
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 5, 1), 700_000),
-            _transaction(user_id, hidden_account_id, groceries_id, date(2026, 5, 2), -700_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 5, 1), 700_000),
+            _transaction(user_id, archived_account_id, groceries_id, date(2026, 5, 2), -700_000),
         ])
         await session.commit()
 
@@ -337,13 +337,13 @@ async def test_savings_rate_trend_returns_empty_payload_without_visible_accounts
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
 
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
     salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
 
     async with TestSession() as session:
         session.add_all([
             salary,
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 5, 1), 600_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 5, 1), 600_000),
         ])
         await session.commit()
 

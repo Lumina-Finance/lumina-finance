@@ -883,8 +883,8 @@ async def test_dashboard_spending_comparison_reports_unavailable_fx(client, monk
     }
 
 
-async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(client, monkeypatch):
-    """Dashboard balance aggregates use visible accounts only."""
+async def test_dashboard_excludes_archived_accounts_from_net_worth_and_credit(client, monkeypatch):
+    """Dashboard balance aggregates use non-archived accounts only."""
     from app.routes import dashboard as dashboard_routes
 
     monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
@@ -892,7 +892,7 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     visible_asset = (await _create_account(client, headers, name="Visible Cash")).json()
-    hidden_asset = (await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()
+    archived_asset = (await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()
     visible_credit = (await _create_account(
         client, headers,
         account_kind="revolving",
@@ -900,27 +900,27 @@ async def test_dashboard_excludes_hidden_accounts_from_net_worth_and_credit(clie
         name="Visible Card",
         credit_limit=200_000,
     )).json()
-    hidden_credit = (await _create_account(
+    archived_credit = (await _create_account(
         client, headers,
         account_kind="revolving",
         account_type="credit_card",
-        name="Hidden Card",
+        name="Archived Card",
         credit_limit=900_000,
-        is_hidden=True,
+        is_archived=True,
     )).json()
 
     async with TestSession() as session:
         session.add_all([
             AccountBalanceSnapshot(account_id=UUID(visible_asset["id"]), dt=date(2026, 3, 20), balance=100_000),
-            AccountBalanceSnapshot(account_id=UUID(hidden_asset["id"]), dt=date(2026, 3, 20), balance=500_000),
+            AccountBalanceSnapshot(account_id=UUID(archived_asset["id"]), dt=date(2026, 3, 20), balance=500_000),
             AccountBalanceSnapshot(account_id=UUID(visible_credit["id"]), dt=date(2026, 3, 20), balance=-30_000),
-            AccountBalanceSnapshot(account_id=UUID(hidden_credit["id"]), dt=date(2026, 3, 20), balance=-70_000),
+            AccountBalanceSnapshot(account_id=UUID(archived_credit["id"]), dt=date(2026, 3, 20), balance=-70_000),
         ])
         for account, balance in [
             (visible_asset, 100_000),
-            (hidden_asset, 500_000),
+            (archived_asset, 500_000),
             (visible_credit, -30_000),
-            (hidden_credit, -70_000),
+            (archived_credit, -70_000),
         ]:
             await session.execute(
                 update(AccountBalanceSnapshot)
@@ -1310,8 +1310,8 @@ async def test_dashboard_credit_used_ignores_positive_card_balances(client, monk
     assert data["fx_status"] == {"state": "none", "missing_pairs": []}
 
 
-async def test_dashboard_spending_savings_and_activity_exclude_hidden_accounts(client, monkeypatch):
-    """Dashboard transaction aggregates and recent activity use visible accounts only."""
+async def test_dashboard_spending_savings_and_activity_exclude_archived_accounts(client, monkeypatch):
+    """Dashboard transaction aggregates and recent activity use non-archived accounts only."""
     from app.routes import dashboard as dashboard_routes
 
     monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
@@ -1319,7 +1319,7 @@ async def test_dashboard_spending_savings_and_activity_exclude_hidden_accounts(c
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     visible_account_id = (await _create_account(client, headers, name="Visible Cash")).json()["id"]
-    hidden_account_id = (await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"]
     income_id = (await _create_category(client, headers, name="Test Salary", kind="income")).json()["id"]
     expense_id = (await _create_category(client, headers, name="Test Groceries", kind="expense")).json()["id"]
     merchant_id = (await _create_merchant(client, headers, name="Visible Store")).json()["id"]
@@ -1328,8 +1328,8 @@ async def test_dashboard_spending_savings_and_activity_exclude_hidden_accounts(c
     visible_expense = await _create_transaction(
         client, headers, visible_account_id, expense_id, dt="2026-03-16", amount=-200_000, merchant_id=merchant_id,
     )
-    await _create_transaction(client, headers, hidden_account_id, income_id, dt="2026-03-17", amount=700_000)
-    await _create_transaction(client, headers, hidden_account_id, expense_id, dt="2026-03-18", amount=-300_000)
+    await _create_transaction(client, headers, archived_account_id, income_id, dt="2026-03-17", amount=700_000)
+    await _create_transaction(client, headers, archived_account_id, expense_id, dt="2026-03-18", amount=-300_000)
 
     recent_activity_resp = await client.get("/dashboard/recent-activity", headers=headers)
     savings_rate_resp = await client.get("/dashboard/savings-rate", headers=headers)

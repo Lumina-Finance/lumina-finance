@@ -50,14 +50,14 @@ async def test_created_at_auto_set(db, user, currency):
     assert a.created_at is not None
 
 
-async def test_is_hidden_defaults_to_false(db, user, currency):
-    """is_hidden should default to false."""
+async def test_is_archived_defaults_to_false(db, user, currency):
+    """is_archived should default to false."""
     a = Account(owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
     db.add(a)
     await db.flush()
 
     result = await db.get(Account, a.id)
-    assert result.is_hidden is False
+    assert result.is_archived is False
 
 
 async def test_nullable_fields_default_to_null(db, user, currency):

@@ -142,7 +142,7 @@ async def test_list_accounts_returns_overview_shape(client):
         "id", "owner_id", "group_id", "account_kind", "account_type", "name",
         "tax_advantaged_plan_id", "currency", "institution", "current_balance",
         "base_currency_current_balance", "current_balance_fx_status", "credit_limit",
-        "is_hidden", "closed_at",
+        "is_archived", "closed_at",
     ):
         assert field in row, f"missing overview field: {field}"
 
@@ -537,7 +537,7 @@ async def test_get_account_returns_account(client):
         "current_year_withdrawal_limit",
     ):
         assert field not in data
-    assert data["is_hidden"] is False
+    assert data["is_archived"] is False
     assert data["closed_at"] is None
     assert data["created_at"] is not None
 
@@ -599,7 +599,7 @@ async def test_create_account_returns_201(client):
     assert data["name"] == ACCOUNT_PAYLOAD["name"]
     assert data["account_type"] == ACCOUNT_PAYLOAD["account_type"]
     assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
-    assert data["is_hidden"] is False
+    assert data["is_archived"] is False
     assert data["id"] is not None
     assert data["created_at"] is not None
 
@@ -820,13 +820,13 @@ async def test_create_account_with_all_optional_fields(client):
     resp = await _create_account(
         client, headers,
         institution_id=str(inst.id),
-        is_hidden=True,
+        is_archived=True,
     )
 
     assert resp.status_code == 201
     data = resp.json()
     assert data["institution"]["id"] == str(inst.id)
-    assert data["is_hidden"] is True
+    assert data["is_archived"] is True
 
 
 async def test_create_account_owner_id_cannot_be_hijacked(client):
@@ -871,17 +871,17 @@ async def test_patch_account_updates_name(client):
     assert resp.json()["name"] == "Renamed"
 
 
-async def test_patch_account_updates_is_hidden(client):
-    """PATCH toggles is_hidden."""
+async def test_patch_account_updates_is_archived(client):
+    """PATCH toggles is_archived."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_account(client, headers)
     account_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/accounts/{account_id}", json={"is_hidden": True}, headers=headers)
+    resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["is_hidden"] is True
+    assert resp.json()["is_archived"] is True
 
 
 async def test_patch_account_sets_closed_at(client):
@@ -928,17 +928,17 @@ async def test_patch_account_explicit_null_name_returns_422(client):
     assert resp.json()["detail"] == "name cannot be null"
 
 
-async def test_patch_account_explicit_null_is_hidden_returns_422(client):
-    """Explicit null on is_hidden would violate NOT NULL — reject with 422."""
+async def test_patch_account_explicit_null_is_archived_returns_422(client):
+    """Explicit null on is_archived would violate NOT NULL — reject with 422."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_account(client, headers)
     account_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/accounts/{account_id}", json={"is_hidden": None}, headers=headers)
+    resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": None}, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "is_hidden cannot be null"
+    assert resp.json()["detail"] == "is_archived cannot be null"
 
 
 async def test_patch_account_explicit_null_closed_at_still_clears_field(client):

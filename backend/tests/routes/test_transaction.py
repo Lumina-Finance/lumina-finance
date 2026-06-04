@@ -633,13 +633,13 @@ async def test_list_transactions_returns_user_transactions(client):
     assert amounts == {-1000, -2000}
 
 
-async def test_list_transactions_excludes_hidden_accounts_unscoped(client):
-    """Default transaction list excludes hidden-account rows."""
+async def test_list_transactions_excludes_archived_accounts_unscoped(client):
+    """Default transaction list excludes archived-account rows."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived", is_archived=True)).json()["id"]
 
     await _create_transaction(client, headers, account_id, category_id, amount=-1000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-9000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-9000)
 
     resp = await client.get("/transactions", headers=headers)
 
@@ -647,14 +647,14 @@ async def test_list_transactions_excludes_hidden_accounts_unscoped(client):
     assert [txn["amount"] for txn in resp.json()] == [-1000]
 
 
-async def test_list_transactions_explicit_hidden_account_is_allowed(client):
-    """Directly filtering by a hidden account still exposes its transactions."""
+async def test_list_transactions_explicit_archived_account_is_allowed(client):
+    """Directly filtering by an archived account still exposes its transactions."""
     headers, _, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived", is_archived=True)).json()["id"]
 
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-9000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-9000)
 
-    resp = await client.get(f"/transactions?account_id={hidden_account_id}", headers=headers)
+    resp = await client.get(f"/transactions?account_id={archived_account_id}", headers=headers)
 
     assert resp.status_code == 200
     assert [txn["amount"] for txn in resp.json()] == [-9000]
@@ -669,15 +669,15 @@ async def test_list_transactions_without_auth_returns_401(client):
 # --- GET /transactions/overview ---
 
 
-async def test_transactions_overview_excludes_hidden_accounts_unscoped(client):
-    """Default transaction overview excludes hidden-account activity."""
+async def test_transactions_overview_excludes_archived_accounts_unscoped(client):
+    """Default transaction overview excludes archived-account activity."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived", is_archived=True)).json()["id"]
 
     await _create_transaction(client, headers, account_id, category_id, amount=10_000)
     await _create_transaction(client, headers, account_id, category_id, amount=-4_000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=90_000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-30_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=90_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-30_000)
 
     resp = await client.get("/transactions/overview", headers=headers)
 
@@ -953,15 +953,15 @@ async def test_transactions_overview_daily_cash_flow_reports_incomplete_fx(clien
     }
 
 
-async def test_transactions_overview_explicit_hidden_account_is_allowed(client):
-    """Explicit account_id keeps hidden account detail inspectable."""
+async def test_transactions_overview_explicit_archived_account_is_allowed(client):
+    """Explicit account_id keeps archived account detail inspectable."""
     headers, _, category_id = await _setup_user_with_deps(client)
-    hidden_account_id = (await _create_account(client, headers, name="Hidden", is_hidden=True)).json()["id"]
+    archived_account_id = (await _create_account(client, headers, name="Archived", is_archived=True)).json()["id"]
 
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=90_000)
-    await _create_transaction(client, headers, hidden_account_id, category_id, amount=-30_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=90_000)
+    await _create_transaction(client, headers, archived_account_id, category_id, amount=-30_000)
 
-    resp = await client.get(f"/transactions/overview?account_id={hidden_account_id}", headers=headers)
+    resp = await client.get(f"/transactions/overview?account_id={archived_account_id}", headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()

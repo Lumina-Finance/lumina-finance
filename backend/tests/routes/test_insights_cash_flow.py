@@ -48,13 +48,13 @@ async def _get_category_id(client, headers, name: str) -> UUID:
 
 
 async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(client):
-    """Daily buckets include transfers by sign and exclude hidden and adjustment rows."""
+    """Daily buckets include transfers by sign and exclude archived and adjustment rows."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
 
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
-    hidden_account_id = UUID((await _create_account(client, headers, name="Hidden Cash", is_hidden=True)).json()["id"])
+    archived_account_id = UUID((await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()["id"])
     salary_id, salary = _category(user_id, "Payroll", CategoryKind.INCOME)
     groceries_id, groceries = _category(user_id, "Groceries Test", CategoryKind.EXPENSE)
     transfer_id, transfer = _category(user_id, "Transfer Test", CategoryKind.TRANSFER)
@@ -71,7 +71,7 @@ async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(c
             _transaction(user_id, account_id, transfer_id, date(2026, 5, 4), -7_000),
             _transaction(user_id, account_id, balance_adjustment_id, date(2026, 5, 5), 999_999),
             _transaction(user_id, account_id, salary_id, date(2026, 4, 30), 50_000),
-            _transaction(user_id, hidden_account_id, salary_id, date(2026, 5, 1), 800_000),
+            _transaction(user_id, archived_account_id, salary_id, date(2026, 5, 1), 800_000),
         ])
         await session.commit()
 
