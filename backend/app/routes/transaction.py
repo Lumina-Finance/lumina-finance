@@ -1,6 +1,6 @@
 import uuid
-from datetime import date
-from typing import Annotated
+from datetime import date, timedelta
+from typing import Annotated, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -47,6 +47,9 @@ from app.services.transaction_responses import (
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
+OverviewCashFlowGranularity = Literal["day", "week", "month"]
+_MONTHLY_RANGE_DAY_COUNT = 31
+_HALF_YEAR_DAY_COUNT = 183
 
 # Sortable fields mapped to their SQLAlchemy column objects
 _SORT_FIELDS: dict[str, MappedColumn] = {
@@ -182,12 +185,79 @@ def _fork_overview_converter(converter: FxConverter) -> FxConverter:
     return fork
 
 
+def _get_overview_cash_flow_granularity(from_date: date, to_date: date) -> OverviewCashFlowGranularity:
+    day_count = (to_date - from_date).days + 1
+    if day_count <= _MONTHLY_RANGE_DAY_COUNT:
+        return "day"
+    if day_count <= _HALF_YEAR_DAY_COUNT:
+        return "week"
+    return "month"
+
+
+def _overview_cash_flow_bucket_key(
+    target: date,
+    granularity: OverviewCashFlowGranularity,
+) -> tuple[int, ...]:
+    if granularity == "day":
+        return (target.year, target.month, target.day)
+    if granularity == "week":
+        iso_year, iso_week, _weekday = target.isocalendar()
+        return (iso_year, iso_week)
+    return (target.year, target.month)
+
+
+def _build_overview_cash_flow_buckets(from_date: date, to_date: date) -> list[tuple[date, date]]:
+    granularity = _get_overview_cash_flow_granularity(from_date, to_date)
+    buckets: list[tuple[date, date]] = []
+    bucket_start = from_date
+    current_key = _overview_cash_flow_bucket_key(from_date, granularity)
+    cursor = from_date
+
+    while cursor <= to_date:
+        key = _overview_cash_flow_bucket_key(cursor, granularity)
+        if key != current_key:
+            buckets.append((bucket_start, cursor - timedelta(days=1)))
+            bucket_start = cursor
+            current_key = key
+        cursor += timedelta(days=1)
+
+    buckets.append((bucket_start, to_date))
+    return buckets
+
+
+def _bucket_overview_daily_cash_flow(
+    daily_totals: dict[date, tuple[int, int]],
+    *,
+    from_date: date,
+    to_date: date,
+) -> list[DailyCashFlow]:
+    daily_cash_flow: list[DailyCashFlow] = []
+    for bucket_start, bucket_end in _build_overview_cash_flow_buckets(from_date, to_date):
+        inflow = 0
+        outflow = 0
+        cursor = bucket_start
+        while cursor <= bucket_end:
+            day_inflow, day_outflow = daily_totals.get(cursor, (0, 0))
+            inflow += day_inflow
+            outflow += day_outflow
+            cursor += timedelta(days=1)
+        daily_cash_flow.append(DailyCashFlow(
+            date=bucket_start,
+            end_date=bucket_end,
+            inflow=inflow,
+            outflow=outflow,
+        ))
+    return daily_cash_flow
+
+
 async def _convert_overview_daily_cash_flow(
     *,
     flow_rows,
     account_by_id: dict[uuid.UUID, Account],
     converter: FxConverter,
     base_currency: str,
+    from_date: date | None,
+    to_date: date | None,
 ) -> tuple[list[DailyCashFlow], FxStatus]:
     daily_totals: dict[date, tuple[int, int]] = {}
     for row in flow_rows:
@@ -218,10 +288,16 @@ async def _convert_overview_daily_cash_flow(
             outflow + (converted_outflow or 0),
         )
 
-    daily_cash_flow = [
-        DailyCashFlow(date=flow_date, inflow=inflow, outflow=outflow)
-        for flow_date, (inflow, outflow) in sorted(daily_totals.items())
-    ]
+    if not daily_totals:
+        return [], converter.get_status()
+
+    period_start = from_date or min(daily_totals)
+    period_end = to_date or max(daily_totals)
+    daily_cash_flow = _bucket_overview_daily_cash_flow(
+        daily_totals,
+        from_date=period_start,
+        to_date=period_end,
+    )
     return daily_cash_flow, converter.get_status()
 
 
@@ -505,6 +581,8 @@ async def get_transactions_overview(
         account_by_id=account_by_id,
         converter=_fork_overview_converter(overview_converter),
         base_currency=user.base_currency,
+        from_date=from_date,
+        to_date=to_date,
     )
     total_inflow, total_outflow = _sum_overview_net_flow(daily_cash_flow)
     outliers, outliers_fx_status = await _convert_overview_outliers(

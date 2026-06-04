@@ -1,6 +1,8 @@
 import {
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { Repeat } from 'lucide-react'
@@ -28,13 +30,16 @@ import { parseYmdLocal } from '@/transactions/utils/date'
 import { getCashFlowFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
 type DailyCashFlowPoint = {
+  key: string
   date: string
+  rangeLabel: string
   inflow: number
   outflow: number
   net: number
 }
 
 export type DailyCashFlowChartMode = 'net' | 'gross'
+type DailyCashFlowGranularity = 'day' | 'week' | 'month'
 
 type DailyCashFlowTooltipState = {
   activeLabel?: string | number
@@ -60,47 +65,185 @@ const titleCharVariants = {
   enter: { y: 0, opacity: 1, filter: 'blur(0px)' },
   exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
 } as const
-const dailyNetCashFlowCalculation =
-  'Each day\'s money in minus money out. Transfers count except Balance Adjustment.'
-const dailyCashFlowCalculation =
-  'Each day\'s money in and money out. Transfers count except Balance Adjustment.'
+const dailyCashFlowRangeDayCount = 31
+const weeklyCashFlowRangeDayCount = 183
+const dailyCashFlowMaxXAxisTickCount = 10
+const dailyCashFlowXAxisTickSpacing = 64
+const dailyCashFlowChartMargin = { top: 4, right: 12, bottom: 0, left: 12 } as const
+const dailyCashFlowXAxisPadding = { left: 20, right: 20 } as const
+const dailyCashFlowXAxisCandidateSteps = [1, 2, 3, 4, 5, 7, 10, 14, 15, 21, 30] as const
 // Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
 
-function getDailyCashFlowSeries(
-  raw: DailyCashFlow[],
-  fromDate: string,
-  toDate: string,
-): DailyCashFlowPoint[] {
-  if (fromDate > toDate) return []
+function formatYmdLocal(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+}
 
-  // The API only returns days with activity; pad missing days so the line chart has a continuous axis.
-  const byDate = new Map(raw.map((day) => [day.date, day]))
-  const cursor = parseYmdLocal(fromDate)
-  const last = parseYmdLocal(toDate)
-  const result: DailyCashFlowPoint[] = []
+function getDailyCashFlowGranularity(fromDate: string, toDate: string): DailyCashFlowGranularity {
+  if (fromDate > toDate) return 'day'
 
-  while (cursor <= last) {
-    const iso = [
-      cursor.getFullYear(),
-      String(cursor.getMonth() + 1).padStart(2, '0'),
-      String(cursor.getDate()).padStart(2, '0'),
-    ].join('-')
-    const entry = byDate.get(iso)
-    result.push({
-      date: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      inflow: entry?.inflow ?? 0,
-      outflow: entry?.outflow ?? 0,
-      net: (entry?.inflow ?? 0) + (entry?.outflow ?? 0),
-    })
-    cursor.setDate(cursor.getDate() + 1)
+  const from = parseYmdLocal(fromDate)
+  const to = parseYmdLocal(toDate)
+  const dayCount = Math.max(
+    1,
+    Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
+  )
+
+  if (dayCount <= dailyCashFlowRangeDayCount) return 'day'
+  if (dayCount <= weeklyCashFlowRangeDayCount) return 'week'
+  return 'month'
+}
+
+function getDailyCashFlowCadenceTitle(granularity: DailyCashFlowGranularity) {
+  if (granularity === 'week') return 'Weekly'
+  if (granularity === 'month') return 'Monthly'
+  return 'Daily'
+}
+
+function getDailyCashFlowPeriodName(granularity: DailyCashFlowGranularity) {
+  if (granularity === 'week') return 'week'
+  if (granularity === 'month') return 'month'
+  return 'day'
+}
+
+function getDailyCashFlowCalculation(
+  granularity: DailyCashFlowGranularity,
+  mode: DailyCashFlowChartMode,
+) {
+  const period = getDailyCashFlowPeriodName(granularity)
+  return mode === 'net'
+    ? `Each ${period}'s money in minus money out. Transfers count except Balance Adjustment.`
+    : `Each ${period}'s money in and money out. Transfers count except Balance Adjustment.`
+}
+
+function formatCashFlowPointLabel(date: Date, granularity: DailyCashFlowGranularity) {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: granularity === 'month' ? undefined : 'numeric',
+  })
+}
+
+function formatCashFlowTooltipDate(date: Date) {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function formatCashFlowRangeLabel(start: Date, end: Date, granularity: DailyCashFlowGranularity) {
+  if (granularity === 'day' || formatYmdLocal(start) === formatYmdLocal(end)) {
+    return formatCashFlowTooltipDate(start)
   }
 
-  return result
+  return `${formatCashFlowTooltipDate(start)} - ${formatCashFlowTooltipDate(end)}`
+}
+
+function getDailyCashFlowSeries(
+  raw: DailyCashFlow[],
+  granularity: DailyCashFlowGranularity,
+): DailyCashFlowPoint[] {
+  return raw.map((entry) => {
+    const bucketStart = parseYmdLocal(entry.date)
+    const bucketEnd = parseYmdLocal(entry.end_date)
+
+    return {
+      key: entry.date,
+      date: formatCashFlowPointLabel(bucketStart, granularity),
+      rangeLabel: formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity),
+      inflow: entry.inflow,
+      outflow: entry.outflow,
+      net: entry.inflow + entry.outflow,
+    }
+  })
+}
+
+function getDailyCashFlowXAxisTickCount(chartWidth: number | undefined) {
+  if (chartWidth === undefined) return dailyCashFlowMaxXAxisTickCount
+
+  const usableWidth = Math.max(
+    chartWidth
+      - dailyCashFlowChartMargin.left
+      - dailyCashFlowChartMargin.right
+      - dailyCashFlowXAxisPadding.left
+      - dailyCashFlowXAxisPadding.right,
+    0,
+  )
+
+  return Math.max(
+    2,
+    Math.min(
+      dailyCashFlowMaxXAxisTickCount,
+      Math.floor(usableWidth / dailyCashFlowXAxisTickSpacing) + 1,
+    ),
+  )
+}
+
+function getDailyCashFlowXAxisTickIndexesForStep(dataLength: number, step: number) {
+  const lastIndex = dataLength - 1
+  const indexes: number[] = []
+
+  for (let index = 0; index < lastIndex; index += step) {
+    indexes.push(index)
+  }
+
+  const finalGap = lastIndex - indexes[indexes.length - 1]
+  if (finalGap === 0) return indexes
+
+  if (indexes.length > 1 && finalGap < step / 2) {
+    indexes[indexes.length - 1] = lastIndex
+    return indexes
+  }
+
+  return [...indexes, lastIndex]
+}
+
+function getDailyCashFlowXAxisTickIndexes(dataLength: number, maxTickCount: number) {
+  const cappedTickCount = Math.min(maxTickCount, dataLength)
+  if (cappedTickCount === 0) return []
+  if (cappedTickCount === 1) return [0]
+
+  const lastIndex = dataLength - 1
+  const minimumStep = Math.max(1, Math.ceil(lastIndex / (cappedTickCount - 1)))
+  const candidateSteps = dailyCashFlowXAxisCandidateSteps.some((step) => step === minimumStep)
+    ? dailyCashFlowXAxisCandidateSteps
+    : [...dailyCashFlowXAxisCandidateSteps, minimumStep].sort((a, b) => a - b)
+
+  let bestIndexes = [0, lastIndex]
+  let bestScore = Number.POSITIVE_INFINITY
+
+  for (const step of candidateSteps) {
+    if (step < minimumStep) continue
+
+    const indexes = getDailyCashFlowXAxisTickIndexesForStep(dataLength, step)
+    if (indexes.length > cappedTickCount) continue
+
+    const gaps = indexes.slice(1).map((index, gapIndex) => index - indexes[gapIndex])
+    const gapSpread = Math.max(...gaps) - Math.min(...gaps)
+    const unusedTickPenalty = (cappedTickCount - indexes.length) * 0.2
+    const score = gapSpread / step + unusedTickPenalty
+
+    if (score < bestScore) {
+      bestIndexes = indexes
+      bestScore = score
+    }
+  }
+
+  return bestIndexes
+}
+
+function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[], maxTickCount: number) {
+  return getDailyCashFlowXAxisTickIndexes(data.length, maxTickCount).map((index) => (
+    data[index].key
+  ))
 }
 
 function getDailyCashFlowTooltipKey(point: DailyCashFlowPoint) {
-  return point.date
+  return point.key
 }
 
 function getDailyCashFlowTooltipPointer(
@@ -117,7 +260,7 @@ function getDailyCashFlowTooltipPointer(
 function getDailyCashFlowTooltipPoint(
   state: DailyCashFlowTooltipState,
   data: DailyCashFlowPoint[],
-  pointsByDate: Map<string, DailyCashFlowPoint>,
+  pointsByKey: Map<string, DailyCashFlowPoint>,
 ) {
   const payloadPoint = state.activePayload?.[0]?.payload
   if (payloadPoint) return payloadPoint
@@ -127,7 +270,7 @@ function getDailyCashFlowTooltipPoint(
 
   return state.activeLabel === undefined
     ? undefined
-    : pointsByDate.get(String(state.activeLabel))
+    : pointsByKey.get(String(state.activeLabel))
 }
 
 function DailyCashFlowTooltipContent({
@@ -141,7 +284,7 @@ function DailyCashFlowTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.date}</p>
+      <p className="app-chart-tooltip-default-title">{point.rangeLabel}</p>
       {mode === 'net' && (
         <div className="mt-1 flex justify-between gap-4">
           <span className="app-chart-tooltip-default-value">Net</span>
@@ -238,31 +381,75 @@ export default function DailyCashFlowChart({
 }) {
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
   const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
+  const [dailyFlowChartWidth, setDailyFlowChartWidth] = useState<number>()
+  const dailyFlowGranularity = useMemo(
+    () => getDailyCashFlowGranularity(fromDate, toDate),
+    [fromDate, toDate],
+  )
   const dailyFlow = useMemo(
     () => (
       showPlaceholderData
-        ? PLACEHOLDER_DAILY_FLOW
-        : getDailyCashFlowSeries(rawDailyFlow, fromDate, toDate)
+        ? PLACEHOLDER_DAILY_FLOW.map((point) => ({ ...point, key: point.date, rangeLabel: point.date }))
+        : getDailyCashFlowSeries(rawDailyFlow, dailyFlowGranularity)
     ),
-    [fromDate, rawDailyFlow, showPlaceholderData, toDate],
+    [dailyFlowGranularity, rawDailyFlow, showPlaceholderData],
   )
-  const dailyFlowPointsByDate = useMemo(
-    () => new Map(dailyFlow.map((point) => [point.date, point])),
+  const dailyFlowPointsByKey = useMemo(
+    () => new Map(dailyFlow.map((point) => [point.key, point])),
     [dailyFlow],
   )
+  const dailyFlowLabelsByKey = useMemo(
+    () => new Map(dailyFlow.map((point) => [point.key, point.date])),
+    [dailyFlow],
+  )
+  const dailyFlowXAxisTickCount = getDailyCashFlowXAxisTickCount(dailyFlowChartWidth)
+  const dailyFlowXAxisTicks = useMemo(
+    () => getDailyCashFlowXAxisTicks(dailyFlow, dailyFlowXAxisTickCount),
+    [dailyFlow, dailyFlowXAxisTickCount],
+  )
+  const dailyFlowBaselineSegment = useMemo(() => {
+    if (dailyFlow.length === 0) return undefined
+
+    return [
+      { x: dailyFlow[0].key, y: 0 },
+      { x: dailyFlow[dailyFlow.length - 1].key, y: 0 },
+    ] as const
+  }, [dailyFlow])
   const chartAnimationDuration = prefersReducedMotion ? 0 : 1000
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
+  const cashFlowCadenceTitle = getDailyCashFlowCadenceTitle(dailyFlowGranularity)
   const calculationTooltipLabel = mode === 'net'
-    ? 'How daily net cash flow is calculated'
-    : 'How daily cash flow is calculated'
-  const calculationTooltipMessage = mode === 'net'
-    ? dailyNetCashFlowCalculation
-    : dailyCashFlowCalculation
+    ? `How ${cashFlowCadenceTitle.toLowerCase()} net cash flow is calculated`
+    : `How ${cashFlowCadenceTitle.toLowerCase()} cash flow is calculated`
+  const calculationTooltipMessage = getDailyCashFlowCalculation(dailyFlowGranularity, mode)
+
+  useLayoutEffect(() => {
+    const element = dailyFlowChartRef.current
+    if (!element) return undefined
+
+    const updateChartWidth = (width: number) => {
+      const nextWidth = Math.max(Math.round(width), 0)
+      setDailyFlowChartWidth((currentWidth) => (
+        currentWidth === nextWidth ? currentWidth : nextWidth
+      ))
+    }
+
+    updateChartWidth(element.getBoundingClientRect().width)
+
+    if (typeof ResizeObserver === 'undefined') return undefined
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      updateChartWidth(entry.contentRect.width)
+    })
+    resizeObserver.observe(element)
+    return () => resizeObserver.disconnect()
+  }, [])
+
   const showDailyCashFlowTooltip = (
     state: DailyCashFlowTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    const point = getDailyCashFlowTooltipPoint(state, dailyFlow, dailyFlowPointsByDate)
+    const point = getDailyCashFlowTooltipPoint(state, dailyFlow, dailyFlowPointsByKey)
     const pointer = getDailyCashFlowTooltipPointer(state, event)
 
     if (!point) {
@@ -279,7 +466,7 @@ export default function DailyCashFlowChart({
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="app-label inline-flex items-center gap-2">
           <span className="inline-flex items-baseline whitespace-nowrap">
-            <span>Daily</span>
+            <span>{cashFlowCadenceTitle}</span>
             <DailyCashFlowTitleWord visible={mode === 'net'} />
             <span className="ml-[0.25em]">Cash Flow</span>
           </span>
@@ -326,7 +513,7 @@ export default function DailyCashFlowChart({
           <AreaChart
             key={`daily-flow-${mode}-${chartAnimationKey}`}
             data={dailyFlow}
-            margin={{ top: 4, right: 12, bottom: 0, left: 12 }}
+            margin={dailyCashFlowChartMargin}
             onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
             onMouseLeave={hideDailyCashFlowTooltip}
           >
@@ -345,14 +532,23 @@ export default function DailyCashFlowChart({
               </linearGradient>
             </defs>
             <XAxis
-              dataKey="date"
+              dataKey="key"
               tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
+              tickFormatter={(value) => dailyFlowLabelsByKey.get(String(value)) ?? String(value)}
               axisLine={false}
               tickLine={false}
-              interval={Math.max(0, Math.ceil(dailyFlow.length / 10) - 1)}
+              padding={dailyCashFlowXAxisPadding}
+              interval={0}
+              ticks={dailyFlowXAxisTicks}
             />
             <YAxis hide />
-            <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
+            {dailyFlowBaselineSegment && (
+              <ReferenceLine
+                segment={dailyFlowBaselineSegment}
+                stroke="var(--app-border-strong)"
+                strokeWidth={1}
+              />
+            )}
             {mode === 'net' ? (
               <Area
                 type="monotone"

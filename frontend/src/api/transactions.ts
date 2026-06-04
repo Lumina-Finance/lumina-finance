@@ -58,6 +58,7 @@ export interface TopCategorySpend {
 
 export interface DailyCashFlow {
   date: string;
+  end_date: string;
   inflow: number;
   outflow: number;
 }
