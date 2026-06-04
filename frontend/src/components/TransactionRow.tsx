@@ -12,6 +12,7 @@ interface TransactionRowProps {
   accountInstitution?: Institution | null
   category: Category | undefined
   currency: string
+  readOnlyReason?: string
   transaction: Transaction
   onOpen: (transaction: Transaction) => void
 }
@@ -102,6 +103,7 @@ export default function TransactionRow({
   accountInstitution,
   category,
   currency,
+  readOnlyReason,
   transaction,
   onOpen,
 }: TransactionRowProps) {
@@ -116,15 +118,22 @@ export default function TransactionRow({
   const hasVisibleTags = visibleTags.length > 0
   const hasSupplementalMeta = hasNotes || hasVisibleTags
   const hasAccountMeta = !!accountName || !!accountInstitution
+  const readOnly = Boolean(readOnlyReason)
   const formattedAmount = `${transaction.amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount), currency)}`
   const transactionAmountColor = amountColor(category, transaction.amount)
 
   return (
     <button
       type="button"
-      onClick={() => onOpen(transaction)}
-      className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none"
-      style={{ borderBottom: '1px solid var(--app-border)' }}
+      onClick={() => {
+        if (!readOnly) onOpen(transaction)
+      }}
+      disabled={readOnly}
+      className={`block w-full px-3 py-2.5 text-left transition-colors duration-100 focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none ${readOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-surface-soft)]'}`}
+      style={{
+        borderBottom: '1px solid var(--app-border)',
+        opacity: readOnly ? 0.68 : 1,
+      }}
     >
       <span className="hidden min-[1300px]:grid min-[1300px]:grid-cols-[2.5rem_14rem_13rem_minmax(2.75rem,1fr)_max-content_minmax(8rem,1fr)] min-[1300px]:items-center min-[1300px]:gap-3">
         <span className="text-2xl leading-none" aria-hidden>
@@ -148,7 +157,12 @@ export default function TransactionRow({
               style={{ color: 'var(--app-text-muted)' }}
             >
               <AccountLogo accountName={accountName} institution={accountInstitution} />
-              {accountName && <span className="truncate">{accountName}</span>}
+              {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+              {readOnlyReason && (
+                <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}>
+                  {readOnlyReason}
+                </span>
+              )}
             </span>
           ) : (
             <span aria-hidden>&nbsp;</span>
@@ -244,7 +258,12 @@ export default function TransactionRow({
             {hasAccountMeta ? (
               <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
                 <AccountLogo accountName={accountName} institution={accountInstitution} />
-                {accountName && <span className="truncate">{accountName}</span>}
+                {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                {readOnlyReason && (
+                  <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}>
+                    {readOnlyReason}
+                  </span>
+                )}
               </span>
             ) : (
               <span className="min-w-0 flex-1" aria-hidden />
@@ -300,7 +319,12 @@ export default function TransactionRow({
               <span aria-hidden>·</span>
               <span className="inline-flex min-w-0 items-center gap-1.5">
                 <AccountLogo accountName={accountName} institution={accountInstitution} />
-                {accountName && <span className="truncate">{accountName}</span>}
+                {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                {readOnlyReason && (
+                  <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}>
+                    {readOnlyReason}
+                  </span>
+                )}
               </span>
             </>
           )}

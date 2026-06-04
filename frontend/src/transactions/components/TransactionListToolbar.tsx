@@ -36,6 +36,8 @@ export default function TransactionListToolbar({
   onDateRangeReset,
   onDateRangeClose,
   onCreateTransaction,
+  createDisabled = false,
+  createDisabledReason,
   onStickyOffsetChange,
 }: {
   search: string
@@ -55,6 +57,8 @@ export default function TransactionListToolbar({
   onDateRangeReset: () => void
   onDateRangeClose: () => void
   onCreateTransaction: () => void
+  createDisabled?: boolean
+  createDisabledReason?: string
   onStickyOffsetChange?: (offset: number) => void
 }) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
@@ -368,7 +372,9 @@ export default function TransactionListToolbar({
             type="button"
             className="app-primary-button h-11 w-11 shrink-0 px-0"
             onClick={onCreateTransaction}
-            aria-label="Add transaction"
+            disabled={createDisabled}
+            title={createDisabledReason}
+            aria-label={createDisabledReason ?? 'Add transaction'}
           >
             <Plus size={18} aria-hidden />
           </button>
@@ -443,6 +449,8 @@ export default function TransactionListToolbar({
             type="button"
             className={`app-primary-button h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
             onClick={onCreateTransaction}
+            disabled={createDisabled}
+            title={createDisabledReason}
           >
             <Plus size={18} aria-hidden />
             <span>Add Transaction</span>

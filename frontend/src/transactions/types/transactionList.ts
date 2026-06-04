@@ -13,6 +13,7 @@ export interface TransactionListAccount {
   name?: string
   currency?: string
   institution?: AccountsOverview['institution']
+  is_archived?: boolean
 }
 
 export interface TransactionDateGroup {
