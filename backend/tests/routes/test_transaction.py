@@ -2138,6 +2138,38 @@ async def test_move_transaction_to_archived_account_returns_422(client):
     assert resp.json()["detail"] == "Account is archived"
 
 
+async def test_patch_transaction_on_archived_account_returns_422(client):
+    """Editing existing history on an archived account is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(client, headers, account_id, category_id, notes="before archive")
+    txn_id = create_resp.json()["id"]
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"notes": "after archive"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
+
+
+async def test_delete_transaction_on_archived_account_returns_422(client):
+    """Deleting existing history on an archived account is rejected."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    create_resp = await _create_transaction(client, headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+    archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+
+    resp = await client.delete(f"/transactions/{txn_id}", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
+
+
 async def test_create_transaction_on_closed_account_returns_422(client):
     """Creating a transaction on a closed account is rejected."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
