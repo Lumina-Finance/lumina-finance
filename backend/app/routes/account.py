@@ -35,7 +35,7 @@ from app.services.accounts import (
     get_account_cash_flow_history,
     get_account_spending_breakdown,
 )
-from app.services.snapshots import attach_current_balances, recompute_snapshots_from
+from app.services.snapshots import attach_current_balances, get_current_balances, recompute_snapshots_from
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -47,6 +47,7 @@ _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 _UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_archived"})
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"
+_ARCHIVE_BALANCE_ADJUSTMENT_NOTE = "Account archived"
 
 
 async def _attach_account_balance_fields(db: AsyncSession, accounts: list[Account], user: User) -> None:
@@ -73,6 +74,26 @@ async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.U
             detail="Balance adjustment category is not configured",
         )
     return category_id
+
+
+async def _zero_account_balance_for_archive(db: AsyncSession, account: Account, user: User) -> None:
+    current_balance = (await get_current_balances(db, [account.id])).get(account.id, 0)
+    if current_balance == 0:
+        return
+
+    archive_dt = datetime.now(ZoneInfo(user.tz)).date()
+    db.add(Transaction(
+        created_by_user_id=user.id,
+        account_id=account.id,
+        dt=archive_dt,
+        category_id=await _get_system_balance_adjustment_category_id(db),
+        amount=-current_balance,
+        currency=account.currency,
+        fx_rate=None,
+        notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
+    ))
+    await db.flush()
+    await recompute_snapshots_from(db, account.id, archive_dt)
 
 
 async def _validate_tax_advantaged_plan_link(
@@ -455,8 +476,13 @@ async def update_account(
             acting_user_id=user.id,
         )
 
+    should_archive = updates.get("is_archived") is True and not account.is_archived
+
     for field, value in updates.items():
         setattr(account, field, value)
+
+    if should_archive:
+        await _zero_account_balance_for_archive(db, account, user)
 
     await db.commit()
     # Re-fetch with eager loading so the institution relationship is fresh after a possible institution_id change.
