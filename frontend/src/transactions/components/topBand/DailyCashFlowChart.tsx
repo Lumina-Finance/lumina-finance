@@ -60,19 +60,24 @@ const titleCharVariants = {
   enter: { y: 0, opacity: 1, filter: 'blur(0px)' },
   exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
 } as const
+const dailyNetCashFlowCalculation =
+  'Each day\'s money in minus money out. Transfers count except Balance Adjustment.'
+const dailyCashFlowCalculation =
+  'Each day\'s money in and money out. Transfers count except Balance Adjustment.'
 // Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
 
 function getDailyCashFlowSeries(
   raw: DailyCashFlow[],
+  fromDate: string,
+  toDate: string,
 ): DailyCashFlowPoint[] {
-  if (raw.length === 0) return []
+  if (fromDate > toDate) return []
 
   // The API only returns days with activity; pad missing days so the line chart has a continuous axis.
   const byDate = new Map(raw.map((day) => [day.date, day]))
-  const first = parseYmdLocal(raw[0].date)
-  const last = parseYmdLocal(raw[raw.length - 1].date)
-  const cursor = new Date(first.getFullYear(), first.getMonth(), 1)
+  const cursor = parseYmdLocal(fromDate)
+  const last = parseYmdLocal(toDate)
   const result: DailyCashFlowPoint[] = []
 
   while (cursor <= last) {
@@ -210,8 +215,10 @@ function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
 
 export default function DailyCashFlowChart({
   rawDailyFlow,
+  fromDate,
+  toDate,
   fxStatus,
-  hasOverviewData,
+  showPlaceholderData,
   displayCurrency,
   chartAnimationKey,
   prefersReducedMotion,
@@ -219,8 +226,10 @@ export default function DailyCashFlowChart({
   onModeToggle,
 }: {
   rawDailyFlow: DailyCashFlow[]
+  fromDate: string
+  toDate: string
   fxStatus: FxStatus | undefined
-  hasOverviewData: boolean
+  showPlaceholderData: boolean
   displayCurrency: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
@@ -230,8 +239,12 @@ export default function DailyCashFlowChart({
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
   const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
   const dailyFlow = useMemo(
-    () => (hasOverviewData ? getDailyCashFlowSeries(rawDailyFlow) : PLACEHOLDER_DAILY_FLOW),
-    [hasOverviewData, rawDailyFlow],
+    () => (
+      showPlaceholderData
+        ? PLACEHOLDER_DAILY_FLOW
+        : getDailyCashFlowSeries(rawDailyFlow, fromDate, toDate)
+    ),
+    [fromDate, rawDailyFlow, showPlaceholderData, toDate],
   )
   const dailyFlowPointsByDate = useMemo(
     () => new Map(dailyFlow.map((point) => [point.date, point])),
@@ -239,6 +252,12 @@ export default function DailyCashFlowChart({
   )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 1000
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
+  const calculationTooltipLabel = mode === 'net'
+    ? 'How daily net cash flow is calculated'
+    : 'How daily cash flow is calculated'
+  const calculationTooltipMessage = mode === 'net'
+    ? dailyNetCashFlowCalculation
+    : dailyCashFlowCalculation
   const showDailyCashFlowTooltip = (
     state: DailyCashFlowTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
@@ -264,6 +283,14 @@ export default function DailyCashFlowChart({
             <DailyCashFlowTitleWord visible={mode === 'net'} />
             <span className="ml-[0.25em]">Cash Flow</span>
           </span>
+          <IconTooltip
+            label={calculationTooltipLabel}
+            level="info"
+            placement="top"
+            widthClassName="w-72"
+          >
+            {calculationTooltipMessage}
+          </IconTooltip>
           {fxStatus && (
             <IconTooltip
               label="Daily cash flow FX status"

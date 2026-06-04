@@ -29,6 +29,8 @@ export default function TransactionsTopBand({
   displayCurrency,
   loading,
   rangeLabel,
+  fromDate,
+  toDate,
   chartAnimationKey,
   prefersReducedMotion,
   openingOutlierId,
@@ -39,25 +41,43 @@ export default function TransactionsTopBand({
   displayCurrency: string
   loading: boolean
   rangeLabel: string
+  fromDate: string
+  toDate: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
   openingOutlierId: string | null
   outlierOpenError: string | null
   onOpenOutlierTransaction: (transactionId: string) => void
 }) {
-  // Null overview totals mean "no data"; placeholders preserve chart geometry under the empty overlay.
-  const hasOverviewData = overview?.total_inflow !== null && overview?.total_inflow !== undefined
-  const inflow = hasOverviewData ? overview!.total_inflow! : PLACEHOLDER_FLOW.total_inflow
-  const outflow = hasOverviewData ? overview!.total_outflow! : PLACEHOLDER_FLOW.total_outflow
-  const outliers = hasOverviewData
-    ? (overview!.outliers ?? [])
-    : PLACEHOLDER_OUTLIERS.map((outlier) => ({ ...outlier, currency: displayCurrency }))
-  const categorySpend = hasOverviewData
-    ? (overview!.top_categories ?? []).map((category) => ({
+  const overviewOutliers = overview?.outliers ?? []
+  const overviewCategories = overview?.top_categories ?? []
+  const overviewDailyCashFlow = overview?.daily_cash_flow ?? []
+  const hasTransactions = overview?.total_inflow !== null && overview?.total_inflow !== undefined
+  const hasNetFlowData =
+    (overview?.total_inflow ?? 0) !== 0 || (overview?.total_outflow ?? 0) !== 0
+  const hasOutlierData = overviewOutliers.length > 0
+  const hasCategoryData = overviewCategories.length > 0
+  const hasDailyCashFlowData = overviewDailyCashFlow.some((day) => day.inflow !== 0 || day.outflow !== 0)
+  const hasOverviewData = hasNetFlowData || hasOutlierData || hasCategoryData || hasDailyCashFlowData
+  const emptyOverlayMessage = hasTransactions
+    ? `No qualifying transactions for ${rangeLabel}`
+    : `No transaction data for ${rangeLabel}.`
+  // Placeholders preserve chart geometry only when the whole top band is under the empty overlay.
+  const inflow = hasNetFlowData ? overview!.total_inflow! : PLACEHOLDER_FLOW.total_inflow
+  const outflow = hasNetFlowData ? overview!.total_outflow! : PLACEHOLDER_FLOW.total_outflow
+  const outliers = hasOutlierData
+    ? overviewOutliers
+    : hasOverviewData
+      ? []
+      : PLACEHOLDER_OUTLIERS.map((outlier) => ({ ...outlier, currency: displayCurrency }))
+  const categorySpend = hasCategoryData
+    ? overviewCategories.map((category) => ({
         name: category.category_name,
         amount: Math.abs(category.total),
       }))
-    : PLACEHOLDER_CATEGORIES
+    : hasOverviewData
+      ? []
+      : PLACEHOLDER_CATEGORIES
   const metricsLayoutTransition = {
     duration: prefersReducedMotion ? 0 : 0.28,
     ease: [0.25, 0.1, 0.25, 1],
@@ -99,7 +119,7 @@ export default function TransactionsTopBand({
           }}
         >
           <p className="text-lg font-medium" style={{ color: 'var(--app-text-muted)' }}>
-            No transaction data for {rangeLabel}.
+            {emptyOverlayMessage}
           </p>
         </div>
       )}
@@ -151,9 +171,11 @@ export default function TransactionsTopBand({
       </div>
 
       <DailyCashFlowChart
-        rawDailyFlow={overview?.daily_cash_flow ?? []}
+        rawDailyFlow={overviewDailyCashFlow}
+        fromDate={fromDate}
+        toDate={toDate}
         fxStatus={overview?.daily_cash_flow_fx_status}
-        hasOverviewData={hasOverviewData}
+        showPlaceholderData={!hasOverviewData}
         displayCurrency={displayCurrency}
         chartAnimationKey={chartAnimationKey}
         prefersReducedMotion={prefersReducedMotion}
