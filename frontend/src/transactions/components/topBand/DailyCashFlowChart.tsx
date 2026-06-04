@@ -64,6 +64,7 @@ const dailyNetCashFlowCalculation =
   'Each day\'s money in minus money out. Transfers count except Balance Adjustment.'
 const dailyCashFlowCalculation =
   'Each day\'s money in and money out. Transfers count except Balance Adjustment.'
+const dailyCashFlowXAxisPadding = { left: 20, right: 20 } as const
 // Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
 
@@ -349,6 +350,7 @@ export default function DailyCashFlowChart({
               tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
               axisLine={false}
               tickLine={false}
+              padding={dailyCashFlowXAxisPadding}
               interval={Math.max(0, Math.ceil(dailyFlow.length / 10) - 1)}
             />
             <YAxis hide />
