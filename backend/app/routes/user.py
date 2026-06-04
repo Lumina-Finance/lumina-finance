@@ -66,11 +66,11 @@ async def _replace_runway_account_ids(
 ) -> list[uuid.UUID]:
     requested_ids = set(account_ids)
 
-    all_accessible = await get_accessible_accounts(db, user, include_hidden=True)
-    visible_ids = {a.id for a in all_accessible if not a.is_hidden}
-    hidden_ids = {a.id for a in all_accessible if a.is_hidden}
+    all_accessible = await get_accessible_accounts(db, user, include_archived=True)
+    active_ids = {a.id for a in all_accessible if not a.is_archived}
+    archived_ids = {a.id for a in all_accessible if a.is_archived}
 
-    invalid = requested_ids - visible_ids
+    invalid = requested_ids - active_ids
     if invalid:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -79,10 +79,10 @@ async def _replace_runway_account_ids(
 
     # Replace the full set in a single transaction — simpler than diffing and
     # the runway selection is expected to be small (a handful of accounts).
-    # Hidden selections are left untouched so hiding an account is reversible.
+    # Archived selections are left untouched so archiving an account is reversible.
     delete_query = delete(UserRunwayAccount).where(UserRunwayAccount.user_id == user.id)
-    if hidden_ids:
-        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(hidden_ids))
+    if archived_ids:
+        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(archived_ids))
     await db.execute(delete_query)
     for account_id in requested_ids:
         db.add(UserRunwayAccount(user_id=user.id, account_id=account_id))
@@ -147,7 +147,7 @@ async def list_runway_accounts(
     """Return the account IDs the user has picked to feed the runway calculation.
 
     Filters out any stored selections the user can no longer read or has
-    hidden, so the response only surfaces currently active IDs.
+    archived, so the response only surfaces currently active IDs.
     """
     return await _active_runway_account_ids(db, user)
 
@@ -162,8 +162,8 @@ async def replace_runway_accounts(
 
     Dedupes the submitted set. Rejects the whole request with 422 if any submitted
     account isn't readable by the user (personal, household admin, or explicit
-    permission) and currently visible. Stored hidden selections are preserved
-    so they become active again if the account is unhidden.
+    permission) and currently non-archived. Stored archived selections are
+    preserved so they become active again if the account is unarchived.
     """
     selected_ids = await _replace_runway_account_ids(db, user, data.account_ids)
     await db.commit()

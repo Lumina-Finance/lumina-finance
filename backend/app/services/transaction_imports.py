@@ -164,7 +164,7 @@ async def _create_import_account(db: AsyncSession, user: User, create) -> Accoun
         institution_id=create.institution_id,
         currency=currency,
         credit_limit=None,
-        is_hidden=False,
+        is_archived=False,
     )
     db.add(account)
     await db.flush()

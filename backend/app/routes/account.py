@@ -44,7 +44,7 @@ _VALID_ACCOUNT_KINDS = {e.value for e in AccountKind}
 _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 
 # UpdateAccountRequest fields that map to NOT NULL columns — explicit null on these is rejected with 422.
-_UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_hidden"})
+_UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_archived"})
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"
 
@@ -366,7 +366,7 @@ async def create_account(
         institution_id=data.institution_id,
         currency=data.currency,
         credit_limit=data.credit_limit,
-        is_hidden=data.is_hidden,
+        is_archived=data.is_archived,
     )
     db.add(account)
     await db.flush()

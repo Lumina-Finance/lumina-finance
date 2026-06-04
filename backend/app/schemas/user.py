@@ -49,7 +49,7 @@ class UpdateProfileRequest(BaseModel):
 
 
 class RunwayAccountsRequest(BaseModel):
-    """Replacement set for visible accounts in the user's runway selection."""
+    """Replacement set for active accounts in the user's runway selection."""
 
     account_ids: list[uuid.UUID]
 
@@ -98,8 +98,8 @@ class RunwayAccountBalance(BaseModel):
 class RunwayResponse(BaseModel):
     """Runway projection in months.
 
-    How many months the user's selected visible liquid balance covers at their
-    trailing 12-month average monthly net expense across readable non-hidden accounts.
+    How many months the user's selected active liquid balance covers at their
+    trailing 12-month average monthly net expense across readable non-archived accounts.
     """
 
     months: float | None
