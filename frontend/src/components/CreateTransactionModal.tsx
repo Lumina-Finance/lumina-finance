@@ -1161,19 +1161,17 @@ export default function CreateTransactionModal({
                       </div>
 
                       <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type</p>
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type &amp; Direction</p>
 
-                        {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                        <SlidingPillSelector
-                          value={form.kind}
-                          options={KIND_OPTIONS}
-                          ariaLabel="Transaction type"
-                          onChange={handleKindChange}
-                          disabled={editing}
-                        />
-
-                        <div>
-                          <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Direction</label>
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                          {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
+                          <SlidingPillSelector
+                            value={form.kind}
+                            options={KIND_OPTIONS}
+                            ariaLabel="Transaction type"
+                            onChange={handleKindChange}
+                            disabled={editing}
+                          />
                           <div className="relative rounded-lg">
                             <AnimatePresence initial={false}>
                               {directionHighlightKey > 0 && (
@@ -1197,18 +1195,6 @@ export default function CreateTransactionModal({
                           </div>
                         </div>
 
-                        {/* Date */}
-                        <div>
-                          <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
-                          <input
-                            id="txn-date"
-                            type="date"
-                            className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
-                            value={form.date}
-                            onChange={(e) => handleField('date', e.target.value)}
-                            onBlur={() => handleBlur('date')}
-                          />
-                        </div>
                       </div>
                     </section>
 
@@ -1414,10 +1400,21 @@ export default function CreateTransactionModal({
                       </div>
 
                       <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Amount</p>
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
 
-                        {/* Currency + Amount */}
-                        <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
+                        {/* Date + Currency + Amount */}
+                        <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
+                          <div>
+                            <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
+                            <input
+                              id="txn-date"
+                              type="date"
+                              className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
+                              value={form.date}
+                              onChange={(e) => handleField('date', e.target.value)}
+                              onBlur={() => handleBlur('date')}
+                            />
+                          </div>
                           <div>
                             <div className="mb-1.5 flex items-center gap-2">
                               <label className="app-label block text-[0.9375rem] leading-5">Currency</label>
