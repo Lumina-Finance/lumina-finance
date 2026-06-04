@@ -84,6 +84,11 @@ export interface RunwaySettings {
   thresholds: RunwayThresholds;
 }
 
+export interface RunwaySettingsUpdate {
+  accountIds: string[];
+  thresholds: RunwayThresholds;
+}
+
 function fromRunwayThresholdsResponse(thresholds: RunwayThresholdsResponse): RunwayThresholds {
   return normalizeRunwayThresholds({
     riskyBelowMonths: thresholds.risky_below_months,
@@ -107,7 +112,7 @@ function fromRunwaySettingsResponse(settings: RunwaySettingsResponse): RunwaySet
   };
 }
 
-function toRunwaySettingsPayload(settings: RunwaySettings): RunwaySettingsPayload {
+function toRunwaySettingsPayload(settings: RunwaySettingsUpdate): RunwaySettingsPayload {
   return {
     account_ids: settings.accountIds,
     thresholds: toRunwayThresholdsPayload(settings.thresholds),
@@ -129,7 +134,7 @@ export function useRunwaySettings() {
 export function useUpdateRunwaySettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (settings: RunwaySettings) => fromRunwaySettingsResponse(
+    mutationFn: async (settings: RunwaySettingsUpdate) => fromRunwaySettingsResponse(
       await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings', {
         method: 'PUT',
         body: JSON.stringify(toRunwaySettingsPayload(settings)),
