@@ -2,7 +2,9 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { TransactionsOverview } from '@/api/transactions'
 import TransactionFilterLoadingOverlay from '@/transactions/components/TransactionFilterLoadingOverlay'
-import DailyCashFlowChart from '@/transactions/components/topBand/DailyCashFlowChart'
+import DailyCashFlowChart, {
+  type DailyCashFlowChartMode,
+} from '@/transactions/components/topBand/DailyCashFlowChart'
 import MostExpensiveTransactionsPanel from '@/transactions/components/topBand/MostExpensiveTransactionsPanel'
 import NetFlowSummary from '@/transactions/components/topBand/NetFlowSummary'
 import TopCategoriesChart from '@/transactions/components/topBand/TopCategoriesChart'
@@ -62,6 +64,7 @@ export default function TransactionsTopBand({
   } as const
   const metricsBandContentRef = useRef<HTMLDivElement>(null)
   const [metricsBandHeight, setMetricsBandHeight] = useState<number | null>(null)
+  const [dailyCashFlowMode, setDailyCashFlowMode] = useState<DailyCashFlowChartMode>('net')
 
   // Keep the animated metrics band height in sync with responsive content.
   useLayoutEffect(() => {
@@ -154,6 +157,8 @@ export default function TransactionsTopBand({
         displayCurrency={displayCurrency}
         chartAnimationKey={chartAnimationKey}
         prefersReducedMotion={prefersReducedMotion}
+        mode={dailyCashFlowMode}
+        onModeToggle={() => setDailyCashFlowMode((mode) => (mode === 'net' ? 'gross' : 'net'))}
       />
     </section>
   )

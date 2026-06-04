@@ -13,18 +13,18 @@ export const PLACEHOLDER_CATEGORIES = [
 ]
 
 export const PLACEHOLDER_DAILY_FLOW = [
-  { date: 'Day 1', inflow: 320, outflow: -185 },
-  { date: 'Day 2', inflow: 0, outflow: -42 },
-  { date: 'Day 3', inflow: 0, outflow: -2450 },
-  { date: 'Day 4', inflow: 150, outflow: -67 },
-  { date: 'Day 5', inflow: 0, outflow: -23 },
-  { date: 'Day 6', inflow: 0, outflow: -95 },
-  { date: 'Day 7', inflow: 0, outflow: -875 },
-  { date: 'Day 8', inflow: 4200, outflow: -310 },
-  { date: 'Day 9', inflow: 0, outflow: -56 },
-  { date: 'Day 10', inflow: 0, outflow: -128 },
-  { date: 'Day 11', inflow: 0, outflow: -44 },
-  { date: 'Day 12', inflow: 3780, outflow: -159 },
+  { date: 'Day 1', inflow: 320, outflow: -185, net: 135 },
+  { date: 'Day 2', inflow: 0, outflow: -42, net: -42 },
+  { date: 'Day 3', inflow: 0, outflow: -2450, net: -2450 },
+  { date: 'Day 4', inflow: 150, outflow: -67, net: 83 },
+  { date: 'Day 5', inflow: 0, outflow: -23, net: -23 },
+  { date: 'Day 6', inflow: 0, outflow: -95, net: -95 },
+  { date: 'Day 7', inflow: 0, outflow: -875, net: -875 },
+  { date: 'Day 8', inflow: 4200, outflow: -310, net: 3890 },
+  { date: 'Day 9', inflow: 0, outflow: -56, net: -56 },
+  { date: 'Day 10', inflow: 0, outflow: -128, net: -128 },
+  { date: 'Day 11', inflow: 0, outflow: -44, net: -44 },
+  { date: 'Day 12', inflow: 3780, outflow: -159, net: 3621 },
 ]
 
 export const TOP_CATEGORY_AXIS_MIN_WIDTH = 110

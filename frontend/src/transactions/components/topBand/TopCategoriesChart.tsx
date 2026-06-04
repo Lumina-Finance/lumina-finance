@@ -201,14 +201,12 @@ export default function TopCategoriesChart({
       <div className="mt-2">
         <AnimatePresence initial={false} mode="popLayout">
           {categorySpend.length === 0 ? (
-            <motion.div
+            <motion.p
               key="empty-categories"
               layout
-              className="flex items-center justify-center rounded-md border px-2.5 py-2 text-sm italic"
+              className="flex items-center justify-center text-center text-sm italic"
               style={{
                 height: emptyTopCategoryHeight,
-                background: 'var(--app-surface-soft)',
-                borderColor: 'var(--app-border)',
                 color: 'var(--app-text-subtle)',
               }}
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
@@ -216,8 +214,8 @@ export default function TopCategoriesChart({
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={contentTransition}
             >
-              No category spend
-            </motion.div>
+              No qualifying transactions found
+            </motion.p>
           ) : (
             <motion.div
               ref={topCategoryChartRef}
