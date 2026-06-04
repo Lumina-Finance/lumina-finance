@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Archive, Check } from 'lucide-react'
 import {
   useRef,
   useState,
@@ -32,6 +32,7 @@ const RUNWAY_TRACK_LABEL_MIN_PCT = 12
 interface RunwaySectionProps {
   loading: boolean
   accounts: AccountsOverview[]
+  archivedAccounts: AccountsOverview[]
   selection: Set<string>
   onToggle: (id: string) => void
   thresholds: RunwayThresholds
@@ -42,6 +43,7 @@ interface RunwaySectionProps {
 export default function RunwaySection({
   loading,
   accounts,
+  archivedAccounts,
   selection,
   onToggle,
   thresholds,
@@ -109,12 +111,73 @@ export default function RunwaySection({
                 </p>
               </div>
             )}
+
+            {!loading && archivedAccounts.length > 0 && (
+              <div
+                className="space-y-3 rounded-xl border px-3 py-3"
+                style={{
+                  background: 'var(--app-surface)',
+                  borderColor: 'var(--app-border)',
+                }}
+              >
+                <div className="flex items-start gap-2">
+                  <Archive size={16} className="mt-0.5 shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
+                  <div className="min-w-0 space-y-1">
+                    <h4 className="text-sm font-semibold">Archived selections</h4>
+                    <p className="text-xs leading-5" style={{ color: 'var(--app-text-muted)' }}>
+                      These accounts were selected before being archived. Archived accounts do not count toward runway and cannot be changed here. Unarchive an account to make it eligible again.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-2 min-[1500px]:grid-cols-2">
+                  {archivedAccounts.map((account) => (
+                    <ArchivedRunwayAccountTile key={account.id} account={account} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {actions}
         </div>
       </SettingsCard>
     </section>
+  )
+}
+
+function ArchivedRunwayAccountTile({ account }: { account: AccountsOverview }) {
+  const institutionName = account.institution?.name ?? 'Cash'
+  return (
+    <div
+      className="app-marquee-trigger flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-left"
+      style={{
+        background: 'var(--app-input-bg)',
+        border: '1px solid var(--app-input-border)',
+        opacity: 0.6,
+      }}
+    >
+      <span
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md"
+        style={{
+          background: 'transparent',
+          border: '1px solid var(--app-border-strong)',
+          color: 'var(--app-text-muted)',
+        }}
+      >
+        <Archive size={12} aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1 overflow-hidden">
+        <MarqueeText active className="font-medium">{account.name}</MarqueeText>
+        <span className="block text-xs truncate" style={{ color: 'var(--app-text-muted)' }}>
+          {institutionName} · Archived
+        </span>
+      </span>
+      <span className="shrink-0 text-right tabular-nums">
+        <span className="block font-financial text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+          {formatCurrency(account.current_balance, account.currency)}
+        </span>
+      </span>
+    </div>
   )
 }
 

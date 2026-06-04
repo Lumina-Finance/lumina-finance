@@ -69,11 +69,18 @@ interface RunwayThresholdsResponse {
 
 interface RunwaySettingsResponse {
   account_ids: string[];
+  archived_account_ids: string[];
+  thresholds: RunwayThresholdsResponse;
+}
+
+interface RunwaySettingsPayload {
+  account_ids: string[];
   thresholds: RunwayThresholdsResponse;
 }
 
 export interface RunwaySettings {
   accountIds: string[];
+  archivedAccountIds: string[];
   thresholds: RunwayThresholds;
 }
 
@@ -95,11 +102,12 @@ function toRunwayThresholdsPayload(thresholds: RunwayThresholds): RunwayThreshol
 function fromRunwaySettingsResponse(settings: RunwaySettingsResponse): RunwaySettings {
   return {
     accountIds: settings.account_ids,
+    archivedAccountIds: settings.archived_account_ids,
     thresholds: fromRunwayThresholdsResponse(settings.thresholds),
   };
 }
 
-function toRunwaySettingsPayload(settings: RunwaySettings): RunwaySettingsResponse {
+function toRunwaySettingsPayload(settings: RunwaySettings): RunwaySettingsPayload {
   return {
     account_ids: settings.accountIds,
     thresholds: toRunwayThresholdsPayload(settings.thresholds),
