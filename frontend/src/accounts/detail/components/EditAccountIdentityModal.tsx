@@ -21,6 +21,7 @@ import {
   sanitizeMoneyInput,
   toMinorUnits,
 } from '@/accounts/detail/utils/moneyInput'
+import { formatCurrency } from '@/utils/formatCurrency'
 
 function FieldLabelRow({
   label,
@@ -73,6 +74,44 @@ function wait(ms: number): Promise<void> {
   })
 }
 
+function ArchiveBalanceWarning({
+  balance,
+  currency,
+}: {
+  balance: number
+  currency: string
+}) {
+  const adjustmentAmount = -balance
+  const hasBalance = balance !== 0
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: 'var(--app-warning-soft)',
+        border: '1px solid var(--app-warning)',
+      }}
+    >
+      <div className="flex gap-3">
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: 'var(--app-bg)', color: 'var(--app-warning)' }}
+        >
+          <AlertTriangle size={16} aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <p className="app-label font-semibold">Archiving will affect this account balance</p>
+          <p className="mt-1 text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
+            {hasBalance
+              ? `A Balance Adjustment of ${formatCurrency(adjustmentAmount, currency)} will be recorded with note "Account archived" so this account balance becomes ${formatCurrency(0, currency)}. Unarchiving will not restore the previous balance.`
+              : `This account already has a zero balance, so archiving will not create a balance adjustment.`}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function EditAccountIdentityModal({
   account,
   onClose,
@@ -107,6 +146,7 @@ export default function EditAccountIdentityModal({
   const [institutionModalName, setInstitutionModalName] = useState('')
   const [showInstitutionModal, setShowInstitutionModal] = useState(false)
   const [institutionModalKey, setInstitutionModalKey] = useState(0)
+  const [confirmingArchiveInstead, setConfirmingArchiveInstead] = useState(false)
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
@@ -223,11 +263,13 @@ export default function EditAccountIdentityModal({
   }
 
   const deleteLoading = deleteAccount.isPending
+  const archiveInsteadLoading = updateAccount.isPending && deleteStage !== 'idle'
   const saveLoading = (updateAccount.isPending && deleteStage === 'idle') || saveDelayPending
   const isBusy = updateAccount.isPending || saveDelayPending || deleteLoading
   const canDelete = deleteNameInput === account.name
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
+  const isArchiving = !account.is_archived && form.is_archived
 
   const requestClose = () => {
     if (isBusy) return
@@ -463,7 +505,10 @@ export default function EditAccountIdentityModal({
                                 type="checkbox"
                                 role="switch"
                                 checked={form.is_archived}
-                                onChange={(event) => setField('is_archived', event.target.checked)}
+                                onChange={(event) => {
+                                  setField('is_archived', event.target.checked)
+                                  setConfirmingArchiveInstead(false)
+                                }}
                                 className="peer sr-only"
                               />
                               <span
@@ -478,6 +523,19 @@ export default function EditAccountIdentityModal({
                               />
                             </span>
                           </label>
+
+                          <AnimatePresence initial={false}>
+                            {isArchiving && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                <ArchiveBalanceWarning balance={account.current_balance} currency={account.currency} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       </section>
 
@@ -530,13 +588,20 @@ export default function EditAccountIdentityModal({
                                     if you only want it out of view.
                                   </p>
 
-                                  <div
-                                    className="mt-4 overflow-hidden"
-                                    style={{
-                                      maxHeight: deleteStage === 'type-name' ? '18rem' : '7rem',
-                                      transition: 'max-height 320ms cubic-bezier(0.25, 0.1, 0.25, 1)',
-                                    }}
-                                  >
+                                  <div className="mt-4 space-y-4 overflow-hidden">
+                                    <AnimatePresence initial={false}>
+                                      {confirmingArchiveInstead && (
+                                        <motion.div
+                                          initial={{ opacity: 0, y: -4 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          exit={{ opacity: 0, y: -4 }}
+                                          transition={{ duration: 0.15 }}
+                                        >
+                                          <ArchiveBalanceWarning balance={account.current_balance} currency={account.currency} />
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+
                                     {deleteStage === 'confirm' ? (
                                       <motion.div
                                         key="confirm"
@@ -550,15 +615,21 @@ export default function EditAccountIdentityModal({
                                             type="button"
                                             className="inline-flex items-center gap-2 text-sm font-medium"
                                             style={{ color: 'var(--app-text-muted)' }}
-                                            onClick={handleArchiveAccount}
+                                            onClick={() => {
+                                              if (!confirmingArchiveInstead) {
+                                                setConfirmingArchiveInstead(true)
+                                                return
+                                              }
+                                              handleArchiveAccount()
+                                            }}
                                             disabled={isBusy}
                                           >
-                                            {updateAccount.isPending ? (
+                                            {archiveInsteadLoading ? (
                                               <span className="app-spinner" />
                                             ) : (
                                               <>
                                                 <EyeOff size={15} aria-hidden />
-                                                Archive instead
+                                                {confirmingArchiveInstead ? 'Confirm archive' : 'Archive instead'}
                                               </>
                                             )}
                                           </button>
@@ -568,7 +639,10 @@ export default function EditAccountIdentityModal({
                                         <button
                                           type="button"
                                           className="app-danger-button justify-center sm:ml-auto"
-                                          onClick={() => setDeleteStage('type-name')}
+                                          onClick={() => {
+                                            setConfirmingArchiveInstead(false)
+                                            setDeleteStage('type-name')
+                                          }}
                                           disabled={isBusy}
                                         >
                                           Continue
