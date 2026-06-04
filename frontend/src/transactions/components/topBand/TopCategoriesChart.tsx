@@ -214,7 +214,7 @@ export default function TopCategoriesChart({
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={contentTransition}
             >
-              No qualifying categories found
+              No qualifying transactions found
             </motion.p>
           ) : (
             <motion.div
