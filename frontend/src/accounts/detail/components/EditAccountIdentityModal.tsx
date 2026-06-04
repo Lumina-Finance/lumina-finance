@@ -149,7 +149,7 @@ export default function EditAccountIdentityModal({
   const [confirmingArchiveInstead, setConfirmingArchiveInstead] = useState(false)
 
   const isRevolving = account.account_kind === 'revolving'
-  const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null
+  const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
   const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
 
   const institutionOptions = useMemo(

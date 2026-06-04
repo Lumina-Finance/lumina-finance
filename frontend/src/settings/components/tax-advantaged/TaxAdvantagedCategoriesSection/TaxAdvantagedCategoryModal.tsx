@@ -374,6 +374,7 @@ export default function TaxAdvantagedCategoryModal({
   const bindableAccounts = accounts.filter(
     (account) =>
       account.closed_at === null
+      && !account.is_archived
       && account.account_kind === 'asset'
       && account.currency === plan.currency,
   )
