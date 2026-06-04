@@ -86,25 +86,25 @@ function ArchiveBalanceWarning({
 
   return (
     <div
-      className="rounded-xl p-4"
+      className="rounded-lg px-3 py-2.5"
       style={{
         background: 'var(--app-warning-soft)',
-        border: '1px solid var(--app-warning)',
+        border: '1px solid var(--app-border)',
       }}
     >
-      <div className="flex gap-3">
+      <div className="flex gap-2.5">
         <div
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
           style={{ background: 'var(--app-bg)', color: 'var(--app-warning)' }}
         >
-          <AlertTriangle size={16} aria-hidden />
+          <AlertTriangle size={13} aria-hidden />
         </div>
         <div className="min-w-0">
-          <p className="app-label font-semibold">Archiving will affect this account balance</p>
-          <p className="mt-1 text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
+          <p className="text-sm font-semibold leading-5">Balance will be set to zero</p>
+          <p className="mt-0.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
             {hasBalance
-              ? `A Balance Adjustment of ${formatCurrency(adjustmentAmount, currency)} will be recorded with note "Account archived" so this account balance becomes ${formatCurrency(0, currency)}. Unarchiving will not restore the previous balance.`
-              : `This account already has a zero balance, so archiving will not create a balance adjustment.`}
+              ? `${formatCurrency(adjustmentAmount, currency)} will be recorded as a Balance Adjustment with note "Account archived". Unarchiving will not restore the previous balance.`
+              : 'This account already has a zero balance, so no balance adjustment will be recorded.'}
           </p>
         </div>
       </div>
@@ -527,10 +527,11 @@ export default function EditAccountIdentityModal({
                           <AnimatePresence initial={false}>
                             {isArchiving && (
                               <motion.div
-                                initial={{ opacity: 0, y: -4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -4 }}
-                                transition={{ duration: 0.15 }}
+                                className="overflow-hidden"
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.18, ease: EASE }}
                               >
                                 <ArchiveBalanceWarning balance={account.current_balance} currency={account.currency} />
                               </motion.div>
@@ -592,10 +593,11 @@ export default function EditAccountIdentityModal({
                                     <AnimatePresence initial={false}>
                                       {confirmingArchiveInstead && (
                                         <motion.div
-                                          initial={{ opacity: 0, y: -4 }}
-                                          animate={{ opacity: 1, y: 0 }}
-                                          exit={{ opacity: 0, y: -4 }}
-                                          transition={{ duration: 0.15 }}
+                                          className="overflow-hidden"
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.18, ease: EASE }}
                                         >
                                           <ArchiveBalanceWarning balance={account.current_balance} currency={account.currency} />
                                         </motion.div>
