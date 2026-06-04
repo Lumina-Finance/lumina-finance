@@ -146,7 +146,6 @@ export default function EditAccountIdentityModal({
   const [institutionModalName, setInstitutionModalName] = useState('')
   const [showInstitutionModal, setShowInstitutionModal] = useState(false)
   const [institutionModalKey, setInstitutionModalKey] = useState(0)
-  const [confirmingArchiveInstead, setConfirmingArchiveInstead] = useState(false)
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
@@ -232,27 +231,26 @@ export default function EditAccountIdentityModal({
     }
   }
 
-  const handleArchiveAccount = () => {
-    setDeleteError(null)
-    updateAccount.mutate(
-      {
-        accountId: account.id,
-        payload: { is_archived: true },
-      },
-      {
-        onSuccess: onClose,
-        onError: (error) => {
-          setDeleteError(error instanceof Error ? error.message : 'Failed to archive account.')
-        },
-      },
-    )
-  }
-
   const handleStartDeleteAccount = () => {
     setField('is_archived', account.is_archived)
-    setConfirmingArchiveInstead(false)
     setDeleteError(null)
     setDeleteStage('confirm')
+  }
+
+  const handleArchiveInstead = () => {
+    setDeleteError(null)
+    setDeleteNameInput('')
+    setDeleteStage('idle')
+    setField('is_archived', true)
+  }
+
+  const handleArchiveToggle = (checked: boolean) => {
+    if (deleteStage !== 'idle') {
+      setDeleteError(null)
+      setDeleteNameInput('')
+      setDeleteStage('idle')
+    }
+    setField('is_archived', checked)
   }
 
   const handleDeleteAccount = async () => {
@@ -270,7 +268,6 @@ export default function EditAccountIdentityModal({
   }
 
   const deleteLoading = deleteAccount.isPending
-  const archiveInsteadLoading = updateAccount.isPending && deleteStage !== 'idle'
   const saveLoading = (updateAccount.isPending && deleteStage === 'idle') || saveDelayPending
   const isBusy = updateAccount.isPending || saveDelayPending || deleteLoading
   const canDelete = deleteNameInput === account.name
@@ -513,8 +510,7 @@ export default function EditAccountIdentityModal({
                                 role="switch"
                                 checked={form.is_archived}
                                 onChange={(event) => {
-                                  setField('is_archived', event.target.checked)
-                                  setConfirmingArchiveInstead(false)
+                                  handleArchiveToggle(event.target.checked)
                                 }}
                                 className="peer sr-only"
                               />
@@ -596,21 +592,7 @@ export default function EditAccountIdentityModal({
                                     if you only want it out of view.
                                   </p>
 
-                                  <div className="mt-4 space-y-4 overflow-hidden">
-                                    <AnimatePresence initial={false}>
-                                      {confirmingArchiveInstead && (
-                                        <motion.div
-                                          className="overflow-hidden"
-                                          initial={{ height: 0, opacity: 0 }}
-                                          animate={{ height: 'auto', opacity: 1 }}
-                                          exit={{ height: 0, opacity: 0 }}
-                                          transition={{ duration: 0.18, ease: EASE }}
-                                        >
-                                          <ArchiveBalanceWarning balance={account.current_balance} currency={account.currency} />
-                                        </motion.div>
-                                      )}
-                                    </AnimatePresence>
-
+                                  <div className="mt-4 overflow-hidden">
                                     {deleteStage === 'confirm' ? (
                                       <motion.div
                                         key="confirm"
@@ -624,23 +606,11 @@ export default function EditAccountIdentityModal({
                                             type="button"
                                             className="inline-flex items-center gap-2 text-sm font-medium"
                                             style={{ color: 'var(--app-text-muted)' }}
-                                            onClick={() => {
-                                              if (!confirmingArchiveInstead) {
-                                                setConfirmingArchiveInstead(true)
-                                                return
-                                              }
-                                              handleArchiveAccount()
-                                            }}
+                                            onClick={handleArchiveInstead}
                                             disabled={isBusy}
                                           >
-                                            {archiveInsteadLoading ? (
-                                              <span className="app-spinner" />
-                                            ) : (
-                                              <>
-                                                <EyeOff size={15} aria-hidden />
-                                                {confirmingArchiveInstead ? 'Confirm archive' : 'Archive instead'}
-                                              </>
-                                            )}
+                                            <EyeOff size={15} aria-hidden />
+                                            Archive instead
                                           </button>
                                         ) : (
                                           <span aria-hidden />
@@ -649,7 +619,6 @@ export default function EditAccountIdentityModal({
                                           type="button"
                                           className="app-danger-button justify-center sm:ml-auto"
                                           onClick={() => {
-                                            setConfirmingArchiveInstead(false)
                                             setDeleteStage('type-name')
                                           }}
                                           disabled={isBusy}
