@@ -673,7 +673,7 @@ export default function EditAccountIdentityModal({
                                             <div className="mt-4 flex justify-end">
                                               <button
                                                 type="button"
-                                                className={`app-danger-button ${deleteLoading ? 'app-primary-button-loading' : ''}`}
+                                                className={`app-danger-button w-full justify-center min-[1050px]:w-auto ${deleteLoading ? 'app-primary-button-loading' : ''}`}
                                                 onClick={handleDeleteAccount}
                                                 disabled={!canDelete || isBusy}
                                               >
