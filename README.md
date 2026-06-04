@@ -1,7 +1,11 @@
-# Lumina Finance
-
 <!-- markdownlint-disable MD033 -->
-<div style="display: flex; flex-wrap: wrap; justify-content: left; align-items: center; column-gap: 16px; row-gap: 0;">
+<!-- markdownlint-disable MD041 -->
+<div align="center">
+  <img src="docs/logo.png" alt="Lumina Finance logo" width="88">
+  <h1>Lumina Finance</h1>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; column-gap: 0.8rem; row-gap: 0; width: 100%;">
   <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/backend-tests.yml"><img alt="Backend Tests" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/backend-tests.yml?branch=main&label=Backend%20Tests&style=flat&logo=githubactions&logoColor=white"></a>
   <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/build-and-push-docker-image.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/build-and-push-docker-image.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>
   <a style="flex: 0 0 auto;" href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>
