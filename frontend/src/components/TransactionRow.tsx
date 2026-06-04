@@ -66,6 +66,17 @@ function AccountLogo({
   )
 }
 
+function ReadOnlyReasonPill({ reason }: { reason: string }) {
+  return (
+    <span
+      className="inline-flex w-fit max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
+      style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}
+    >
+      <span className="min-w-0 truncate">{reason}</span>
+    </span>
+  )
+}
+
 function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   return (
     <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 flex w-52 -translate-x-1/2 flex-col items-start gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
@@ -153,16 +164,14 @@ export default function TransactionRow({
         <span className="flex min-w-0 items-center self-stretch">
           {hasAccountMeta ? (
             <span
-              className="inline-flex max-w-full items-center gap-2 text-sm font-medium leading-none"
+              className="flex min-w-0 max-w-full flex-col gap-1 text-sm font-medium leading-none"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              <AccountLogo accountName={accountName} institution={accountInstitution} />
-              {accountName && <span className="min-w-0 truncate">{accountName}</span>}
-              {readOnlyReason && (
-                <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}>
-                  {readOnlyReason}
-                </span>
-              )}
+              <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+                <AccountLogo accountName={accountName} institution={accountInstitution} />
+                {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+              </span>
+              {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
             </span>
           ) : (
             <span aria-hidden>&nbsp;</span>
@@ -252,25 +261,23 @@ export default function TransactionRow({
 
         {(hasAccountMeta || hasSupplementalMeta) && (
           <span
-            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-center gap-2 text-sm leading-5"
+            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-start gap-2 text-sm leading-5"
             style={{ color: 'var(--app-text-muted)' }}
           >
             {hasAccountMeta ? (
-              <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
-                <AccountLogo accountName={accountName} institution={accountInstitution} />
-                {accountName && <span className="min-w-0 truncate">{accountName}</span>}
-                {readOnlyReason && (
-                  <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}>
-                    {readOnlyReason}
-                  </span>
-                )}
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <AccountLogo accountName={accountName} institution={accountInstitution} />
+                  {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                </span>
+                {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
               </span>
             ) : (
               <span className="min-w-0 flex-1" aria-hidden />
             )}
 
             {hasSupplementalMeta && (
-              <span className="inline-flex shrink-0 items-center gap-2">
+              <span className="inline-flex shrink-0 items-center gap-2 pt-0.5">
                 {hasNotes && (
                   <span className="inline-flex" aria-label="Has note">
                     <StickyNote size={14} strokeWidth={2} aria-hidden />
@@ -317,14 +324,12 @@ export default function TransactionRow({
           {hasAccountMeta && (
             <>
               <span aria-hidden>·</span>
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <AccountLogo accountName={accountName} institution={accountInstitution} />
-                {accountName && <span className="min-w-0 truncate">{accountName}</span>}
-                {readOnlyReason && (
-                  <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}>
-                    {readOnlyReason}
-                  </span>
-                )}
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <AccountLogo accountName={accountName} institution={accountInstitution} />
+                  {accountName && <span className="min-w-0 truncate">{accountName}</span>}
+                </span>
+                {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
               </span>
             </>
           )}
