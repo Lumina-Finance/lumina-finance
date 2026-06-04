@@ -47,6 +47,16 @@ type DailyCashFlowTooltipState = {
   }>
 }
 
+type DailyCashFlowXAxisTickProps = {
+  x?: string | number
+  y?: string | number
+  payload?: {
+    value?: string | number
+  }
+  firstLabel?: string
+  lastLabel?: string
+}
+
 const titleWordTransition = { duration: 0.34, ease: [0.16, 1, 0.3, 1] } as const
 const titleWidthTransition = { duration: 0.3, ease: [0.16, 1, 0.3, 1] } as const
 const titleExitWidthTransition = { delay: 0.34, duration: 0.22, ease: [0.16, 1, 0.3, 1] } as const
@@ -64,6 +74,7 @@ const dailyNetCashFlowCalculation =
   'Each day\'s money in minus money out. Transfers count except Balance Adjustment.'
 const dailyCashFlowCalculation =
   'Each day\'s money in and money out. Transfers count except Balance Adjustment.'
+const dailyCashFlowXAxisTickCount = 10
 const dailyCashFlowXAxisPadding = { left: 20, right: 20 } as const
 // Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
@@ -98,6 +109,16 @@ function getDailyCashFlowSeries(
   }
 
   return result
+}
+
+function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[]) {
+  const tickCount = Math.min(dailyCashFlowXAxisTickCount, data.length)
+  if (tickCount <= 1) return data.map((point) => point.date)
+
+  const lastIndex = data.length - 1
+  return Array.from({ length: tickCount }, (_, index) => (
+    data[Math.round((lastIndex * index) / (tickCount - 1))].date
+  ))
 }
 
 function getDailyCashFlowTooltipKey(point: DailyCashFlowPoint) {
@@ -164,6 +185,30 @@ function DailyCashFlowTooltipContent({
         </span>
       </div>
     </>
+  )
+}
+
+function DailyCashFlowXAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  firstLabel,
+  lastLabel,
+}: DailyCashFlowXAxisTickProps) {
+  const value = String(payload?.value ?? '')
+  const textAnchor = value === firstLabel ? 'start' : value === lastLabel ? 'end' : 'middle'
+
+  return (
+    <text
+      x={Number(x)}
+      y={Number(y)}
+      dy={12}
+      textAnchor={textAnchor}
+      fill="var(--app-text-subtle)"
+      fontSize={11}
+    >
+      {value}
+    </text>
   )
 }
 
@@ -251,6 +296,12 @@ export default function DailyCashFlowChart({
     () => new Map(dailyFlow.map((point) => [point.date, point])),
     [dailyFlow],
   )
+  const dailyFlowXAxisTicks = useMemo(
+    () => getDailyCashFlowXAxisTicks(dailyFlow),
+    [dailyFlow],
+  )
+  const firstDailyFlowXAxisTick = dailyFlowXAxisTicks[0]
+  const lastDailyFlowXAxisTick = dailyFlowXAxisTicks[dailyFlowXAxisTicks.length - 1]
   const chartAnimationDuration = prefersReducedMotion ? 0 : 1000
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
   const calculationTooltipLabel = mode === 'net'
@@ -347,11 +398,18 @@ export default function DailyCashFlowChart({
             </defs>
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11, fill: 'var(--app-text-subtle)' }}
               axisLine={false}
               tickLine={false}
               padding={dailyCashFlowXAxisPadding}
-              interval={Math.max(0, Math.ceil(dailyFlow.length / 10) - 1)}
+              interval={0}
+              ticks={dailyFlowXAxisTicks}
+              tick={(props) => (
+                <DailyCashFlowXAxisTick
+                  {...props}
+                  firstLabel={firstDailyFlowXAxisTick}
+                  lastLabel={lastDailyFlowXAxisTick}
+                />
+              )}
             />
             <YAxis hide />
             <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
