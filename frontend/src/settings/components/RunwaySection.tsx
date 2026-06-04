@@ -112,31 +112,23 @@ export default function RunwaySection({
               </div>
             )}
 
-            {!loading && archivedAccounts.length > 0 && (
-              <div
-                className="space-y-3 rounded-xl border px-3 py-3"
-                style={{
-                  background: 'var(--app-surface)',
-                  borderColor: 'var(--app-border)',
-                }}
-              >
-                <div className="flex items-start gap-2">
-                  <Archive size={16} className="mt-0.5 shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
-                  <div className="min-w-0 space-y-1">
-                    <h4 className="text-sm font-semibold">Archived selections</h4>
-                    <p className="text-xs leading-5" style={{ color: 'var(--app-text-muted)' }}>
-                      These accounts were selected before being archived. Archived accounts do not count toward runway and cannot be changed here. Unarchive an account to make it eligible again.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid gap-2 min-[1500px]:grid-cols-2">
-                  {archivedAccounts.map((account) => (
-                    <ArchivedRunwayAccountTile key={account.id} account={account} />
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
+
+          {!loading && archivedAccounts.length > 0 && (
+            <div className="space-y-4 border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold">Archived selections</h3>
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  These accounts were selected before being archived. Archived accounts do not count toward runway and cannot be changed here. Unarchive an account to make it eligible again.
+                </p>
+              </div>
+              <div className="grid gap-2 min-[1500px]:grid-cols-2">
+                {archivedAccounts.map((account) => (
+                  <ArchivedRunwayAccountTile key={account.id} account={account} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {actions}
         </div>
