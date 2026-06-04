@@ -1,5 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type UIEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { Pencil, Trash2, X } from 'lucide-react'
 import {
@@ -319,7 +320,7 @@ export default function BudgetDetailsModal({
     }
   }
 
-  return (
+  return createPortal(
     <>
       <motion.div
         className="fixed inset-0 z-50"
@@ -729,6 +730,7 @@ export default function BudgetDetailsModal({
           onSaved()
         }}
       />
-    </>
+    </>,
+    document.body,
   )
 }

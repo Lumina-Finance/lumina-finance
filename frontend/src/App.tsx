@@ -33,6 +33,10 @@ function isProtectedPath(pathname: string) {
   );
 }
 
+function isBudgetDetailRoute(pathname: string, search: string) {
+  return pathname === '/budgets' && new URLSearchParams(search).has('budget');
+}
+
 // Module-level flag so the loading screen only shows once per app session
 let hasShownLoadingScreen = false;
 
@@ -44,6 +48,7 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
   const isFocusedPage = location.pathname === '/settings/imports';
   const desktopBottomPadding = location.pathname === '/transactions' ? 'min-[1050px]:pb-12' : 'min-[1050px]:pb-5';
+  const pageTransitionOffset = isBudgetDetailRoute(location.pathname, location.search) ? 0 : PAGE_TRANSITION_OFFSET_PX;
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
@@ -84,11 +89,11 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
             <motion.div
               initial={{
                 opacity: pageContentEntering ? 0 : 1,
-                y: pageContentEntering ? PAGE_TRANSITION_OFFSET_PX : 0,
+                y: pageContentEntering ? pageTransitionOffset : 0,
               }}
               animate={{
                 opacity: pageContentVisible ? 1 : 0,
-                y: pageTransitionPhase === 'exiting' ? -PAGE_TRANSITION_OFFSET_PX : 0,
+                y: pageTransitionPhase === 'exiting' ? -pageTransitionOffset : 0,
               }}
               transition={{
                 duration: PAGE_TRANSITION_MS / 1000,
