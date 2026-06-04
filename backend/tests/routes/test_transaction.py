@@ -737,7 +737,7 @@ async def test_transactions_overview_net_flow_excludes_balance_adjustments(clien
     assert data["total_inflow"] == 12_500
     assert data["total_outflow"] == -5_500
     assert data["daily_cash_flow"] == [
-        {"date": "2026-03-15", "inflow": 12_500, "outflow": -5_500},
+        {"date": "2026-03-15", "end_date": "2026-03-15", "inflow": 12_500, "outflow": -5_500},
     ]
 
 
@@ -912,8 +912,8 @@ async def test_transactions_overview_daily_cash_flow_converts_foreign_accounts(c
     assert resp.status_code == 200
     data = resp.json()
     assert data["daily_cash_flow"] == [
-        {"date": "2026-03-14", "inflow": 16_000, "outflow": -1_000},
-        {"date": "2026-03-15", "inflow": 0, "outflow": -7_500},
+        {"date": "2026-03-14", "end_date": "2026-03-14", "inflow": 16_000, "outflow": -1_000},
+        {"date": "2026-03-15", "end_date": "2026-03-15", "inflow": 0, "outflow": -7_500},
     ]
     assert data["daily_cash_flow_fx_status"] == {"state": "complete", "missing_pairs": []}
 
@@ -974,12 +974,79 @@ async def test_transactions_overview_daily_cash_flow_reports_incomplete_fx(clien
     assert resp.status_code == 200
     data = resp.json()
     assert data["daily_cash_flow"] == [
-        {"date": "2026-03-14", "inflow": 15_000, "outflow": 0},
+        {"date": "2026-03-14", "end_date": "2026-03-14", "inflow": 15_000, "outflow": 0},
     ]
     assert data["daily_cash_flow_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
     }
+
+
+async def test_transactions_overview_cash_flow_uses_daily_buckets_through_31_day_ranges(client):
+    """Overview cash flow ranges up to 31 days stay daily."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    await _create_transaction(client, headers, account_id, category_id, amount=100_000, dt="2026-06-01")
+    await _create_transaction(client, headers, account_id, category_id, amount=50_000, dt="2026-07-01")
+
+    resp = await client.get(
+        "/transactions/overview",
+        params={"from_date": "2026-06-01", "to_date": "2026-07-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    points = resp.json()["daily_cash_flow"]
+    assert len(points) == 31
+    assert points[0] == {"date": "2026-06-01", "end_date": "2026-06-01", "inflow": 100_000, "outflow": 0}
+    assert points[-1] == {"date": "2026-07-01", "end_date": "2026-07-01", "inflow": 50_000, "outflow": 0}
+
+
+async def test_transactions_overview_cash_flow_uses_weekly_buckets_through_183_day_ranges(client):
+    """Overview cash flow ranges up to 183 days stay weekly."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    await _create_transaction(client, headers, account_id, category_id, amount=100_000, dt="2026-01-01")
+    await _create_transaction(client, headers, account_id, category_id, amount=-20_000, dt="2026-07-02")
+
+    resp = await client.get(
+        "/transactions/overview",
+        params={"from_date": "2026-01-01", "to_date": "2026-07-02"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    points = resp.json()["daily_cash_flow"]
+    assert len(points) == 27
+    assert points[0] == {"date": "2026-01-01", "end_date": "2026-01-04", "inflow": 100_000, "outflow": 0}
+    assert points[-1] == {"date": "2026-06-29", "end_date": "2026-07-02", "inflow": 0, "outflow": -20_000}
+
+
+async def test_transactions_overview_cash_flow_uses_monthly_buckets_for_long_ranges(client):
+    """Overview cash flow ranges over 183 days are grouped monthly."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    await _create_transaction(client, headers, account_id, category_id, amount=100_000, dt="2026-01-15")
+    await _create_transaction(client, headers, account_id, category_id, amount=-40_000, dt="2026-02-01")
+    await _create_transaction(client, headers, account_id, category_id, amount=80_000, dt="2026-05-20")
+
+    resp = await client.get(
+        "/transactions/overview",
+        params={"from_date": "2026-01-15", "to_date": "2026-08-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["daily_cash_flow"] == [
+        {"date": "2026-01-15", "end_date": "2026-01-31", "inflow": 100_000, "outflow": 0},
+        {"date": "2026-02-01", "end_date": "2026-02-28", "inflow": 0, "outflow": -40_000},
+        {"date": "2026-03-01", "end_date": "2026-03-31", "inflow": 0, "outflow": 0},
+        {"date": "2026-04-01", "end_date": "2026-04-30", "inflow": 0, "outflow": 0},
+        {"date": "2026-05-01", "end_date": "2026-05-31", "inflow": 80_000, "outflow": 0},
+        {"date": "2026-06-01", "end_date": "2026-06-30", "inflow": 0, "outflow": 0},
+        {"date": "2026-07-01", "end_date": "2026-07-31", "inflow": 0, "outflow": 0},
+        {"date": "2026-08-01", "end_date": "2026-08-01", "inflow": 0, "outflow": 0},
+    ]
 
 
 async def test_transactions_overview_explicit_archived_account_is_allowed(client):

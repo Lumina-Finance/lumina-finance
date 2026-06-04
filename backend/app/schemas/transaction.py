@@ -15,9 +15,10 @@ class TopCategorySpend(BaseModel):
 
 
 class DailyCashFlow(BaseModel):
-    """Inflow and outflow totals for a single day."""
+    """Inflow and outflow totals for one cash-flow chart period."""
 
     date: date
+    end_date: date
     inflow: int
     outflow: int
 
