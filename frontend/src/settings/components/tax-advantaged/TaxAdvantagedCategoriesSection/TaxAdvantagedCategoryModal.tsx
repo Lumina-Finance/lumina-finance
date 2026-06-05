@@ -21,6 +21,8 @@ import AutosaveStatusIcon from '@/settings/components/tax-advantaged/TaxAdvantag
 import InfoItem from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/InfoItem'
 import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
 import {
+  ACCOUNT_LINK_SAVE_MIN_LOADING_MS,
+  ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS,
   CATEGORY_FIELD_TRANSITION,
   CATEGORY_SUMMARY_LABEL_CLASS,
   CATEGORY_SUMMARY_VALUE_CLASS,
@@ -51,6 +53,12 @@ const LIMIT_FIELD_ACTION_TRANSITION = {
 }
 
 type LimitDraftField = keyof Pick<TaxPlanLimitFormState, 'contribution_limit' | 'withdrawal_limit'>
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
 
 function LimitInputShell({
   children,
@@ -550,28 +558,33 @@ export default function TaxAdvantagedCategoryModal({
     setLimitError(null)
   }
 
-  const handleToggleAccount = (account: AccountsOverview) => {
+  const handleToggleAccount = async (account: AccountsOverview) => {
     if (account.is_archived) return
 
     const isLinked = account.tax_advantaged_plan_id === plan.id
-    showAutosaveNotice({ status: 'saving', message: 'Saving account link...' })
-    updateAccount.mutate(
-      {
+    let savingNoticeShown = false
+    const savingNoticeTimer = window.setTimeout(() => {
+      savingNoticeShown = true
+      showAutosaveNotice({ status: 'saving', message: 'Saving account link...' })
+    }, ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS)
+
+    try {
+      await updateAccount.mutateAsync({
         accountId: account.id,
         payload: { tax_advantaged_plan_id: isLinked ? null : plan.id },
-      },
-      {
-        onError: (error) => {
-          const message = error instanceof Error ? error.message : 'Failed to update account binding.'
-          setAccountError(message)
-          showAutosaveNotice({ status: 'error', message })
-        },
-        onSuccess: () => {
-          setAccountError(null)
-          showAutosaveNotice({ status: 'saved', message: 'Account link saved.' })
-        },
-      },
-    )
+      })
+      window.clearTimeout(savingNoticeTimer)
+
+      if (savingNoticeShown) await delay(ACCOUNT_LINK_SAVE_MIN_LOADING_MS)
+
+      setAccountError(null)
+      showAutosaveNotice({ status: 'saved', message: 'Account link saved.' })
+    } catch (error) {
+      window.clearTimeout(savingNoticeTimer)
+      const message = error instanceof Error ? error.message : 'Failed to update account binding.'
+      setAccountError(message)
+      showAutosaveNotice({ status: 'error', message })
+    }
   }
 
   return (
