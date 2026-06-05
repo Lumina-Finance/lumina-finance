@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
@@ -10,7 +10,7 @@ import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
-import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchants'
+import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import {
@@ -140,13 +140,17 @@ function FieldLabelRow({
   label,
   htmlFor,
   error,
+  action,
 }: {
   label: string
   htmlFor?: string
   error?: string | false
+  action?: ReactNode
 }) {
+  const hasActionSlot = action !== undefined
+
   return (
-    <div className="mb-1.5 flex items-start justify-between gap-3">
+    <div className={joinClassNames('mb-1.5 flex items-start justify-between gap-3', hasActionSlot && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3')}>
       <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">{label}</label>
       <AnimatePresence initial={false}>
         {error && (
@@ -161,6 +165,20 @@ function FieldLabelRow({
           >
             {error}
           </motion.p>
+        )}
+      </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {!error && action && (
+          <motion.div
+            key="field-action"
+            className="min-w-0 max-w-full overflow-hidden sm:ml-auto"
+            initial={{ height: 0, opacity: 0, y: 4 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 4 }}
+            transition={{ duration: 0.18, ease: EASE }}
+          >
+            {action}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
@@ -315,6 +333,7 @@ export default function CreateTransactionModal({
   const queryClient = useQueryClient()
   const createMutation = useCreateTransaction({ deferAccountInvalidation: true })
   const updateMutation = useUpdateTransaction()
+  const updateMerchantMutation = useUpdateMerchant()
   const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -751,6 +770,15 @@ export default function CreateTransactionModal({
   const selectedMerchantOption = selectedMerchant
     ? { value: selectedMerchant.id, label: selectedMerchant.name }
     : undefined
+  const selectedCategory = form.category_id ? categoryById.get(form.category_id) : undefined
+  const showMerchantDefaultCategoryAction = !!(
+    selectedMerchant &&
+    selectedCategory &&
+    selectedMerchant.default_category_id !== selectedCategory.id
+  )
+  const merchantDefaultCategoryActionLabel = showMerchantDefaultCategoryAction
+    ? `Make "${selectedCategory.name}" the default category`
+    : ''
   const currencyOptions = useMemo(
     () => {
       const options = currencies.map((c) => ({ value: c.id, label: c.id }))
@@ -833,6 +861,26 @@ export default function CreateTransactionModal({
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
     setShowCategoryModal(false)
+  }
+
+  const handleMakeMerchantDefaultCategory = () => {
+    if (!selectedMerchant || !selectedCategory || updateMerchantMutation.isPending) return
+
+    setSubmitError('')
+    updateMerchantMutation.mutate(
+      {
+        merchantId: selectedMerchant.id,
+        payload: { default_category_id: selectedCategory.id },
+      },
+      {
+        onSuccess: (merchant) => {
+          if (createdMerchant?.id === merchant.id) setCreatedMerchant(merchant)
+        },
+        onError: (err) => {
+          setSubmitError(err instanceof ApiError ? err.message : 'Could not update merchant default category.')
+        },
+      },
+    )
   }
 
   const handleMerchantChange = (merchantId: string) => {
@@ -1297,7 +1345,22 @@ export default function CreateTransactionModal({
 
                         {/* Category */}
                         <div>
-                          <FieldLabelRow label="Category" error={showError('category_id')} />
+                          <FieldLabelRow
+                            label="Category"
+                            error={showError('category_id')}
+                            action={showMerchantDefaultCategoryAction && (
+                              <button
+                                type="button"
+                                className="block h-5 min-w-0 max-w-full truncate text-left text-xs font-medium leading-5 disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
+                                style={{ color: 'var(--app-accent)' }}
+                                title={merchantDefaultCategoryActionLabel}
+                                disabled={updateMerchantMutation.isPending}
+                                onClick={handleMakeMerchantDefaultCategory}
+                              >
+                                {merchantDefaultCategoryActionLabel}
+                              </button>
+                            )}
+                          />
                           <Dropdown
                             options={categoryOptions}
                             value={form.category_id}
