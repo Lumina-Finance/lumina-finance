@@ -5,11 +5,13 @@ on:
     branches:
       - main
     paths:
+      - "backend/uv.lock"
       - "backend/**/*.py"
   push:
     branches:
       - main
     paths:
+      - "backend/uv.lock"
       - "backend/**/*.py"
 
 permissions:
