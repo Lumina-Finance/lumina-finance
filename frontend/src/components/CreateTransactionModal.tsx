@@ -1,8 +1,8 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
-import { Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
+import { Calendar, Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import CreateTagModal from '@/components/CreateTagModal'
@@ -10,7 +10,7 @@ import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
-import { useInfiniteMerchants, useMerchant, type Merchant } from '@/api/merchants'
+import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import {
@@ -42,6 +42,7 @@ const TAG_DROPDOWN_PAGE_SIZE = 10
 const TAG_SEARCH_LOADING_TEXT_MIN_MS = 300
 const TAG_SEARCH_DEBOUNCE_MS = 300
 const TAG_FETCHING_MORE_TEXT_MIN_MS = 800
+const SEGMENTED_OPTION_GAP_REM = 0.35
 
 type Kind = 'expense' | 'income' | 'transfer'
 
@@ -139,13 +140,17 @@ function FieldLabelRow({
   label,
   htmlFor,
   error,
+  action,
 }: {
   label: string
   htmlFor?: string
   error?: string | false
+  action?: ReactNode
 }) {
+  const hasActionSlot = action !== undefined
+
   return (
-    <div className="mb-1.5 flex items-start justify-between gap-3">
+    <div className={joinClassNames('mb-1.5 flex items-start justify-between gap-3', hasActionSlot && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3')}>
       <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">{label}</label>
       <AnimatePresence initial={false}>
         {error && (
@@ -160,6 +165,20 @@ function FieldLabelRow({
           >
             {error}
           </motion.p>
+        )}
+      </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {!error && action && (
+          <motion.div
+            key="field-action"
+            className="min-w-0 max-w-full overflow-hidden sm:ml-auto"
+            initial={{ height: 0, opacity: 0, y: 4 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 4 }}
+            transition={{ duration: 0.18, ease: EASE }}
+          >
+            {action}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
@@ -220,18 +239,22 @@ function SlidingPillSelector<T extends string>({
 }) {
   const shouldReduceMotion = useReducedMotion()
   const activeIndex = Math.max(options.findIndex((option) => option.value === value), 0)
+  const optionGap = options.length > 1 ? SEGMENTED_OPTION_GAP_REM : 0
+  const indicatorWidth = `calc((100% - 0.5rem - ${(options.length - 1) * optionGap}rem) / ${options.length})`
+  const indicatorX = `calc(${activeIndex * 100}% + ${activeIndex * optionGap}rem)`
 
   return (
     <div
       className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
       role="tablist"
       aria-label={ariaLabel}
+      style={{ gap: `${optionGap}rem` }}
     >
       <motion.span
         className="app-create-transaction-pill-selector-indicator"
         aria-hidden
-        style={{ width: `calc((100% - 0.5rem) / ${options.length})` }}
-        animate={{ x: `${activeIndex * 100}%` }}
+        style={{ width: indicatorWidth }}
+        animate={{ x: indicatorX }}
         transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
       />
       {options.map((option) => {
@@ -310,6 +333,7 @@ export default function CreateTransactionModal({
   const queryClient = useQueryClient()
   const createMutation = useCreateTransaction({ deferAccountInvalidation: true })
   const updateMutation = useUpdateTransaction()
+  const updateMerchantMutation = useUpdateMerchant()
   const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -746,6 +770,15 @@ export default function CreateTransactionModal({
   const selectedMerchantOption = selectedMerchant
     ? { value: selectedMerchant.id, label: selectedMerchant.name }
     : undefined
+  const selectedCategory = form.category_id ? categoryById.get(form.category_id) : undefined
+  const showMerchantDefaultCategoryAction = !!(
+    selectedMerchant &&
+    selectedCategory &&
+    selectedMerchant.default_category_id !== selectedCategory.id
+  )
+  const merchantDefaultCategoryActionLabel = showMerchantDefaultCategoryAction
+    ? `Make "${selectedCategory.name}" the default category`
+    : ''
   const currencyOptions = useMemo(
     () => {
       const options = currencies.map((c) => ({ value: c.id, label: c.id }))
@@ -828,6 +861,26 @@ export default function CreateTransactionModal({
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
     setShowCategoryModal(false)
+  }
+
+  const handleMakeMerchantDefaultCategory = () => {
+    if (!selectedMerchant || !selectedCategory || updateMerchantMutation.isPending) return
+
+    setSubmitError('')
+    updateMerchantMutation.mutate(
+      {
+        merchantId: selectedMerchant.id,
+        payload: { default_category_id: selectedCategory.id },
+      },
+      {
+        onSuccess: (merchant) => {
+          if (createdMerchant?.id === merchant.id) setCreatedMerchant(merchant)
+        },
+        onError: (err) => {
+          setSubmitError(err instanceof ApiError ? err.message : 'Could not update merchant default category.')
+        },
+      },
+    )
   }
 
   const handleMerchantChange = (merchantId: string) => {
@@ -1161,19 +1214,17 @@ export default function CreateTransactionModal({
                       </div>
 
                       <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type</p>
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type &amp; Direction</p>
 
-                        {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                        <SlidingPillSelector
-                          value={form.kind}
-                          options={KIND_OPTIONS}
-                          ariaLabel="Transaction type"
-                          onChange={handleKindChange}
-                          disabled={editing}
-                        />
-
-                        <div>
-                          <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Direction</label>
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                          {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
+                          <SlidingPillSelector
+                            value={form.kind}
+                            options={KIND_OPTIONS}
+                            ariaLabel="Transaction type"
+                            onChange={handleKindChange}
+                            disabled={editing}
+                          />
                           <div className="relative rounded-lg">
                             <AnimatePresence initial={false}>
                               {directionHighlightKey > 0 && (
@@ -1197,18 +1248,6 @@ export default function CreateTransactionModal({
                           </div>
                         </div>
 
-                        {/* Date */}
-                        <div>
-                          <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
-                          <input
-                            id="txn-date"
-                            type="date"
-                            className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
-                            value={form.date}
-                            onChange={(e) => handleField('date', e.target.value)}
-                            onBlur={() => handleBlur('date')}
-                          />
-                        </div>
                       </div>
                     </section>
 
@@ -1306,7 +1345,22 @@ export default function CreateTransactionModal({
 
                         {/* Category */}
                         <div>
-                          <FieldLabelRow label="Category" error={showError('category_id')} />
+                          <FieldLabelRow
+                            label="Category"
+                            error={showError('category_id')}
+                            action={showMerchantDefaultCategoryAction && (
+                              <button
+                                type="button"
+                                className="block h-5 min-w-0 max-w-full truncate text-left text-xs font-medium leading-5 disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
+                                style={{ color: 'var(--app-accent)' }}
+                                title={merchantDefaultCategoryActionLabel}
+                                disabled={updateMerchantMutation.isPending}
+                                onClick={handleMakeMerchantDefaultCategory}
+                              >
+                                {merchantDefaultCategoryActionLabel}
+                              </button>
+                            )}
+                          />
                           <Dropdown
                             options={categoryOptions}
                             value={form.category_id}
@@ -1414,15 +1468,47 @@ export default function CreateTransactionModal({
                       </div>
 
                       <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Amount</p>
+                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
 
-                        {/* Currency + Amount */}
-                        <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
+                        {/* Date + Currency + Amount */}
+                        <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
+                          <div>
+                            <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
+                            <div
+                              className={`app-input relative flex items-center justify-between gap-2 overflow-hidden pr-3 text-sm min-[1050px]:hidden ${
+                                showError('date')
+                                  ? 'app-input-error'
+                                  : 'focus-within:border-[var(--app-accent-border)] focus-within:shadow-[0_0_0_2px_var(--app-accent-soft)]'
+                              }`}
+                            >
+                              <span className="min-w-0 truncate font-medium tabular-nums" aria-hidden>
+                                {form.date}
+                              </span>
+                              <Calendar size={15} className="shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
+                              <input
+                                id="txn-date-mobile"
+                                type="date"
+                                aria-label="Date"
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base"
+                                value={form.date}
+                                onChange={(e) => handleField('date', e.target.value)}
+                                onBlur={() => handleBlur('date')}
+                              />
+                            </div>
+                            <input
+                              id="txn-date"
+                              type="date"
+                              className={`app-input app-date-input-balanced hidden min-[1050px]:block ${showError('date') ? 'app-input-error' : ''}`}
+                              value={form.date}
+                              onChange={(e) => handleField('date', e.target.value)}
+                              onBlur={() => handleBlur('date')}
+                            />
+                          </div>
                           <div>
                             <div className="mb-1.5 flex items-center gap-2">
                               <label className="app-label block text-[0.9375rem] leading-5">Currency</label>
                               <IconTooltip label="Transaction currency limitation">
-                                Locked to the selected account currency. FX currency transactions will be supported soon
+                                Locked to the selected account's currency
                               </IconTooltip>
                             </div>
                             <Dropdown
@@ -1468,9 +1554,10 @@ export default function CreateTransactionModal({
                         {/* Notes */}
                         <div>
                           <label htmlFor="txn-notes" className="app-label mb-1.5 block text-[0.9375rem] leading-5">Notes</label>
-                          <textarea
+                          <input
                             id="txn-notes"
-                            className="app-input min-h-[4.5rem] resize-y py-2"
+                            type="text"
+                            className="app-input"
                             placeholder="Optional"
                             value={form.notes}
                             onChange={(e) => handleField('notes', e.target.value)}
