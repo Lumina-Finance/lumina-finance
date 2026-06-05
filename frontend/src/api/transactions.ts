@@ -35,6 +35,8 @@ export interface Transaction {
   merchant_name: string | null;
   category_id: string;
   amount: number;
+  account_amount: number | null;
+  base_currency_amount: number | null;
   currency: string;
   fx_rate: number | null;
   notes: string | null;
