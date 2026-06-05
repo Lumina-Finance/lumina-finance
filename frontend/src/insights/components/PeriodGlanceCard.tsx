@@ -14,6 +14,7 @@ import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 const PRIMARY_AMOUNT_MAX_REM = 3
 const PRIMARY_AMOUNT_MIN_REM = 1.875
+const PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS = 'inline-flex w-[1.375rem] shrink-0 items-center'
 
 type PeriodGlanceTone = 'positive' | 'neutral' | 'negative'
 
@@ -248,18 +249,22 @@ export function PeriodGlanceCard({
                 >
                   <div className="flex min-h-28 flex-col items-center justify-center text-center">
                     <p className="app-label inline-flex items-center justify-center gap-2">
+                      <span className={`${PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS} justify-end`}>
+                        {item.fxStatus && (
+                          <FxStatusBadge
+                            label={`${item.label} FX status`}
+                            status={item.fxStatus}
+                            getMessage={item.getFxStatusMessage}
+                          />
+                        )}
+                      </span>
                       {item.label}
-                      <MetricCalculationTooltip
-                        label={item.label}
-                        calculation={item.calculation}
-                      />
-                      {item.fxStatus && (
-                        <FxStatusBadge
-                          label={`${item.label} FX status`}
-                          status={item.fxStatus}
-                          getMessage={item.getFxStatusMessage}
+                      <span className={`${PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS} justify-start`}>
+                        <MetricCalculationTooltip
+                          label={item.label}
+                          calculation={item.calculation}
                         />
-                      )}
+                      </span>
                     </p>
                     <p
                       className={['mt-1 text-2xl font-semibold leading-tight', metricToneClass(item.tone)].join(' ')}
