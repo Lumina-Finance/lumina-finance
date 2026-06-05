@@ -14,6 +14,7 @@ import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 
 const PRIMARY_AMOUNT_MAX_REM = 3
 const PRIMARY_AMOUNT_MIN_REM = 1.875
+const PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS = 'inline-flex w-[1.375rem] shrink-0 items-center'
 
 type PeriodGlanceTone = 'positive' | 'neutral' | 'negative'
 
@@ -175,8 +176,8 @@ export function PeriodGlanceCard({
 
       <div className="relative overflow-hidden" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
-            <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1400px]:flex min-[1400px]:min-h-52 min-[1400px]:flex-col min-[1400px]:items-stretch min-[1400px]:justify-between">
+          <div className="grid gap-4 min-[1500px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+            <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1500px]:flex min-[1500px]:min-h-52 min-[1500px]:flex-col min-[1500px]:items-stretch min-[1500px]:justify-between">
               <div className="min-w-0 [container-type:inline-size]">
                 <p className="app-label inline-flex items-center gap-2">
                   {displaySnapshot.primaryMetric.label}
@@ -207,7 +208,7 @@ export function PeriodGlanceCard({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1400px]:mt-5 min-[1400px]:grid-cols-2 min-[1400px]:border-l-0 min-[1400px]:border-t min-[1400px]:pl-0 min-[1400px]:pt-3">
+              <div className="grid grid-cols-2 gap-4 border-t border-[var(--app-border)] pt-3 min-[750px]:grid-cols-1 min-[750px]:border-l min-[750px]:border-t-0 min-[750px]:pl-5 min-[750px]:pt-0 min-[1500px]:mt-5 min-[1500px]:grid-cols-2 min-[1500px]:border-l-0 min-[1500px]:border-t min-[1500px]:pl-0 min-[1500px]:pt-3">
                 <div>
                   <p className="app-label app-label-compact inline-flex items-center gap-2">
                     Income
@@ -248,18 +249,22 @@ export function PeriodGlanceCard({
                 >
                   <div className="flex min-h-28 flex-col items-center justify-center text-center">
                     <p className="app-label inline-flex items-center justify-center gap-2">
+                      <span className={`${PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS} justify-end`}>
+                        {item.fxStatus && (
+                          <FxStatusBadge
+                            label={`${item.label} FX status`}
+                            status={item.fxStatus}
+                            getMessage={item.getFxStatusMessage}
+                          />
+                        )}
+                      </span>
                       {item.label}
-                      <MetricCalculationTooltip
-                        label={item.label}
-                        calculation={item.calculation}
-                      />
-                      {item.fxStatus && (
-                        <FxStatusBadge
-                          label={`${item.label} FX status`}
-                          status={item.fxStatus}
-                          getMessage={item.getFxStatusMessage}
+                      <span className={`${PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS} justify-start`}>
+                        <MetricCalculationTooltip
+                          label={item.label}
+                          calculation={item.calculation}
                         />
-                      )}
+                      </span>
                     </p>
                     <p
                       className={['mt-1 text-2xl font-semibold leading-tight', metricToneClass(item.tone)].join(' ')}
