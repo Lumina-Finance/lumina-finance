@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, typ
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
-import { Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
+import { Calendar, Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import CreateTagModal from '@/components/CreateTagModal'
@@ -1474,10 +1474,31 @@ export default function CreateTransactionModal({
                         <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
                           <div>
                             <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
+                            <div
+                              className={`app-input relative flex items-center justify-between gap-2 overflow-hidden pr-3 text-sm min-[1050px]:hidden ${
+                                showError('date')
+                                  ? 'app-input-error'
+                                  : 'focus-within:border-[var(--app-accent-border)] focus-within:shadow-[0_0_0_2px_var(--app-accent-soft)]'
+                              }`}
+                            >
+                              <span className="min-w-0 truncate font-medium tabular-nums" aria-hidden>
+                                {form.date}
+                              </span>
+                              <Calendar size={15} className="shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
+                              <input
+                                id="txn-date-mobile"
+                                type="date"
+                                aria-label="Date"
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base"
+                                value={form.date}
+                                onChange={(e) => handleField('date', e.target.value)}
+                                onBlur={() => handleBlur('date')}
+                              />
+                            </div>
                             <input
                               id="txn-date"
                               type="date"
-                              className={`app-input ${showError('date') ? 'app-input-error' : ''}`}
+                              className={`app-input app-date-input-balanced hidden min-[1050px]:block ${showError('date') ? 'app-input-error' : ''}`}
                               value={form.date}
                               onChange={(e) => handleField('date', e.target.value)}
                               onBlur={() => handleBlur('date')}
