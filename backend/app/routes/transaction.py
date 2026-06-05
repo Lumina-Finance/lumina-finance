@@ -175,6 +175,59 @@ async def _prefetch_overview_rates(
             )
 
 
+async def _get_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UUID]) -> dict[uuid.UUID, Account]:
+    accounts = (
+        (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
+        if account_ids
+        else []
+    )
+    return {account.id: account for account in accounts}
+
+
+async def _get_transaction_response_context(
+    db: AsyncSession,
+    transactions: list[Transaction],
+    *,
+    extra_currencies: set[str] | None = None,
+) -> tuple[dict[uuid.UUID, Account], dict[str, int]]:
+    account_by_id = await _get_accounts_by_id(db, {txn.account_id for txn in transactions})
+    currencies = {
+        txn.currency
+        for txn in transactions
+    } | {
+        account.currency
+        for account in account_by_id.values()
+    } | (extra_currencies or set())
+    return account_by_id, await _get_currency_exponents(db, currencies)
+
+
+async def _prefetch_transaction_response_rates(
+    converter: FxConverter,
+    *,
+    transactions: list[Transaction],
+    account_by_id: dict[uuid.UUID, Account],
+    base_currency: str,
+) -> None:
+    if not transactions:
+        return
+
+    start = min(txn.dt for txn in transactions)
+    end = max(txn.dt for txn in transactions)
+    pairs = {
+        (txn.currency, quote)
+        for txn in transactions
+        for quote in (account_by_id[txn.account_id].currency, base_currency)
+        if txn.currency != quote
+    }
+    for base, quote in sorted(pairs):
+        await converter.prefetch_rates(
+            base=base,
+            quote=quote,
+            start_date=start,
+            end_date=end,
+        )
+
+
 def _fork_overview_converter(converter: FxConverter) -> FxConverter:
     fork = FxConverter(
         provider=converter.provider,
@@ -685,12 +738,45 @@ async def list_transactions(
     tag_map = await get_tag_ids_batch(db, [txn.id for txn in transactions])
     tag_summary_map = await get_tags_batch(db, [txn.id for txn in transactions])
     merchant_names = await get_merchant_names_batch(db, [txn.merchant_id for txn in transactions])
+    account_by_id, currency_exponents = await _get_transaction_response_context(
+        db,
+        transactions,
+        extra_currencies={user.base_currency},
+    )
+    base_converter = FxConverter(currency_exponents=currency_exponents)
+    await _prefetch_transaction_response_rates(
+        base_converter,
+        transactions=transactions,
+        account_by_id=account_by_id,
+        base_currency=user.base_currency,
+    )
+
+    account_amounts = {
+        txn.id: await base_converter.convert_minor_units(
+            txn.amount,
+            base=txn.currency,
+            quote=account_by_id[txn.account_id].currency,
+            rate_date=txn.dt,
+        )
+        for txn in transactions
+    }
+    base_currency_amounts = {
+        txn.id: await base_converter.convert_minor_units(
+            txn.amount,
+            base=txn.currency,
+            quote=user.base_currency,
+            rate_date=txn.dt,
+        )
+        for txn in transactions
+    }
     return [
         build_transaction_response(
             txn,
             tag_map[txn.id],
             merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
             tag_summary_map[txn.id],
+            account_amount=account_amounts[txn.id],
+            base_currency_amount=base_currency_amounts[txn.id],
         )
         for txn in transactions
     ]
