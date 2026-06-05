@@ -31,7 +31,7 @@ class UpdateTaxAdvantagedPlanLimitRequest(BaseModel):
 
 
 class TaxAdvantagedPlanResponse(BaseModel):
-    """Tax-advantaged plan plus current-year limit fields."""
+    """Tax-advantaged plan plus derived limit fields."""
 
     id: uuid.UUID
     plan_owner_user_id: uuid.UUID
@@ -40,6 +40,7 @@ class TaxAdvantagedPlanResponse(BaseModel):
     tax_treatment: str
     currency: str
     lifetime_contribution_limit: int | None
+    accrued_lifetime_contribution_limit: int | None
     current_year_contribution_limit: int | None
     current_year_withdrawal_limit: int | None
     ytd_contributions: int

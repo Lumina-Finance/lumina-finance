@@ -14,6 +14,7 @@ export interface TaxAdvantagedPlan {
   tax_treatment: TaxTreatment;
   currency: string;
   lifetime_contribution_limit: number | null;
+  accrued_lifetime_contribution_limit: number | null;
   current_year_contribution_limit: number | null;
   current_year_withdrawal_limit: number | null;
   ytd_contributions: number;

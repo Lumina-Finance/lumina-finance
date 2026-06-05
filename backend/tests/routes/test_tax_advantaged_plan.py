@@ -106,6 +106,7 @@ async def test_create_plan_returns_201_with_shape(client):
     assert data["tax_treatment"] == "tax_free"
     assert data["currency"] == "CAD"
     assert data["lifetime_contribution_limit"] == 9_500_000
+    assert data["accrued_lifetime_contribution_limit"] is None
     assert data["current_year_contribution_limit"] is None
     assert data["current_year_withdrawal_limit"] is None
     assert data["ytd_contributions"] == 0
@@ -243,6 +244,36 @@ async def test_plan_detail_surfaces_current_year_limits(client):
     assert resp.status_code == 200
     assert resp.json()["current_year_contribution_limit"] == 700_000
     assert resp.json()["current_year_withdrawal_limit"] is None
+
+
+async def test_plan_detail_surfaces_accrued_lifetime_limit(client):
+    """Accrued lifetime contribution room is summed through the owner's current year."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    plan_id = (await _create_plan(client, headers, lifetime_contribution_limit=1_200_000)).json()["id"]
+    current_year = datetime.now(UTC).year
+
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": current_year - 1, "contribution_limit": 700_000},
+        headers=headers,
+    )
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": current_year, "contribution_limit": 800_000},
+        headers=headers,
+    )
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": current_year + 1, "contribution_limit": 900_000},
+        headers=headers,
+    )
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["current_year_contribution_limit"] == 800_000
+    assert resp.json()["accrued_lifetime_contribution_limit"] == 1_200_000
 
 
 async def test_plan_metrics_use_plan_owner_timezone_for_current_year(client, monkeypatch):
