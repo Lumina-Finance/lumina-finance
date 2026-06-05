@@ -30,7 +30,10 @@ export default function TransactionDateGroupList({
   return (
     <>
       {dateGroups.map(({ dateLabel, transactions }, groupIndex) => {
-        const dailyTotal = transactions.reduce((sum, transaction) => sum + transaction.amount, 0)
+        const dailyTotal = transactions.reduce((sum, transaction) => {
+          const displayAmount = fixedAccount ? transaction.account_amount : transaction.base_currency_amount
+          return sum + (displayAmount ?? 0)
+        }, 0)
         const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
         return (
           <motion.div
@@ -80,7 +83,7 @@ export default function TransactionDateGroupList({
                     accountInstitution={rowAccount?.institution}
                     accountName={rowAccount?.name}
                     category={category}
-                    currency={fixedAccount?.currency ?? currency}
+                    currency={transaction.currency}
                     readOnlyReason={readOnlyReason}
                     transaction={transaction}
                     onOpen={onEditTransaction}

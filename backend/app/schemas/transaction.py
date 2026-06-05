@@ -71,6 +71,8 @@ class TransactionResponse(BaseModel):
     merchant_name: str | None = None
     category_id: uuid.UUID
     amount: int
+    account_amount: int | None = None
+    base_currency_amount: int | None = None
     currency: str
     fx_rate: float | None
     notes: str | None

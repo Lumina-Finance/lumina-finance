@@ -86,9 +86,13 @@ def build_transaction_response(
     tag_ids: list[uuid.UUID],
     merchant_name: str | None = None,
     tags: list[TransactionTagSummary] | None = None,
+    account_amount: int | None = None,
+    base_currency_amount: int | None = None,
 ) -> TransactionResponse:
     """Build a TransactionResponse from a Transaction model and its tag IDs."""
     data = TransactionResponse.model_validate(txn)
+    data.account_amount = account_amount
+    data.base_currency_amount = base_currency_amount
     data.tag_ids = tag_ids
     data.merchant_name = merchant_name
     data.tags = tags or []

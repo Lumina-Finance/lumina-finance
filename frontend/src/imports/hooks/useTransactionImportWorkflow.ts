@@ -334,6 +334,8 @@ export function useTransactionImportWorkflow() {
             merchant_name: merchant || null,
             category_id: category?.id ?? '',
             amount,
+            account_amount: amount,
+            base_currency_amount: amount,
             currency,
             fx_rate: null,
             notes: notes || null,

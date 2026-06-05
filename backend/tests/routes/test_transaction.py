@@ -536,6 +536,84 @@ async def test_create_transaction_fx_rate_accepted_for_different_currency(client
     assert resp.json()["fx_rate"] == 1.35
 
 
+async def test_list_transactions_returns_account_amount_for_foreign_currency(client, monkeypatch):
+    """Transaction responses include the amount converted into the account currency."""
+    from app.models.account import Account
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 15): Decimal("1.35")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+
+    async with TestSession() as session:
+        account = await session.get(Account, uuid.UUID(account_id))
+        session.add(Transaction(
+            created_by_user_id=account.owner_id,
+            account_id=uuid.UUID(account_id),
+            category_id=uuid.UUID(category_id),
+            dt=date(2026, 3, 15),
+            amount=-10_00,
+            currency="USD",
+            fx_rate=None,
+        ))
+        await session.commit()
+
+    list_resp = await client.get("/transactions", headers=headers)
+
+    assert list_resp.status_code == 200
+    transaction = list_resp.json()[0]
+    assert transaction["amount"] == -10_00
+    assert transaction["currency"] == "USD"
+    assert transaction["account_amount"] == -13_50
+    assert transaction["base_currency_amount"] == -13_50
+
+
+async def test_list_transactions_returns_per_day_base_currency_amount_for_foreign_account(client, monkeypatch):
+    """Transaction list responses convert account amounts into user base currency by transaction date."""
+    from app.services.fx import FrankfurterProvider
+
+    calls = []
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        calls.append((base, quote, start_date, end_date))
+        return {
+            date(2026, 3, 14): Decimal("1.4"),
+            date(2026, 3, 15): Decimal("1.5"),
+        }
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+    headers, _, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+    usd_account_id = (await _create_account(
+        client,
+        headers,
+        name="USD Chequing",
+        currency="USD",
+    )).json()["id"]
+
+    await _create_transaction(
+        client,
+        headers,
+        usd_account_id,
+        category_id,
+        amount=-10_00,
+        currency="USD",
+        dt="2026-03-15",
+    )
+
+    list_resp = await client.get("/transactions", headers=headers)
+
+    assert list_resp.status_code == 200
+    transaction = list_resp.json()[0]
+    assert transaction["amount"] == -10_00
+    assert transaction["account_amount"] == -10_00
+    assert transaction["base_currency_amount"] == -15_00
+    assert calls == [("USD", "CAD", date(2026, 3, 15), date(2026, 3, 15))]
+
+
 async def test_create_transaction_duplicate_tags_deduplicated(client):
     """Duplicate tag IDs are deduplicated — no integrity error."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
