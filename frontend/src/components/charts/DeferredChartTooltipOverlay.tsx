@@ -11,6 +11,7 @@ import {
   type ReactNode,
   type Ref,
   type RefObject,
+  type CSSProperties,
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
@@ -41,6 +42,7 @@ type DeferredChartTooltipOverlayProps<T> = {
   guideVariant?: GuideVariant
   guideWidth?: number
   guideMaxWidth?: number | ((chartWidth: number) => number)
+  tooltipTransition?: CSSProperties['transition']
 }
 
 const DEFAULT_DEFERRED_TOOLTIP_DELAY_MS = 45
@@ -56,6 +58,7 @@ function DeferredChartTooltipOverlayInner<T>({
   guideVariant = 'line',
   guideWidth = 28,
   guideMaxWidth,
+  tooltipTransition,
 }: DeferredChartTooltipOverlayProps<T>, ref: ForwardedRef<DeferredChartTooltipOverlayHandle<T>>) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const guideRef = useRef<HTMLDivElement>(null)
@@ -182,6 +185,7 @@ function DeferredChartTooltipOverlayInner<T>({
       style={{
         opacity: visible ? 1 : 0,
         transform: 'translate3d(var(--chart-tooltip-x, 0px), var(--chart-tooltip-y, 0px), 0)',
+        transition: tooltipTransition,
       }}
     >
       {item && renderContent(item)}
