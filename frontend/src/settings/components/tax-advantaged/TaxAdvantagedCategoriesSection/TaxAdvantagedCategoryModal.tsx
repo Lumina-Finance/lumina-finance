@@ -1036,7 +1036,7 @@ export default function TaxAdvantagedCategoryModal({
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="flex min-h-0 flex-col gap-4">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                       <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
                         Choose eligible {plan.currency} accounts for this category. Archived accounts stay visible for history but cannot be linked or unlinked until unarchived.
@@ -1058,7 +1058,7 @@ export default function TaxAdvantagedCategoryModal({
                       </p>
                     ) : (
                       <div
-                        className="overflow-hidden rounded-xl border"
+                        className="max-h-[22rem] overflow-y-auto overflow-x-hidden rounded-xl border"
                         style={{ borderColor: 'var(--app-border)' }}
                       >
                         {bindableAccounts.map((account, index) => {
