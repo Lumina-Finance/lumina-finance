@@ -707,7 +707,7 @@ export default function TaxAdvantagedCategoryModal({
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex h-full min-h-0 w-full flex-col min-[1050px]:grid min-[1050px]:max-h-[86vh] min-[1050px]:min-h-[580px] min-[1050px]:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="flex h-full min-h-0 w-full flex-col min-[1050px]:grid min-[1050px]:h-[580px] min-[1050px]:max-h-[86vh] min-[1050px]:grid-cols-[280px_minmax(0,1fr)]">
             <aside
               className="flex shrink-0 min-w-0 flex-col gap-3 border-b p-4 min-[750px]:gap-6 min-[750px]:p-7 min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:border-b-0 min-[1050px]:border-r"
               style={{ background: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
@@ -879,7 +879,7 @@ export default function TaxAdvantagedCategoryModal({
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto p-5 min-[750px]:p-6">
+              <div className={`min-h-0 flex-1 p-5 min-[750px]:p-6 ${activeTab === 'accounts' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
                 {activeTab === 'limits' ? (
                   <div className="space-y-5">
                     <div className="space-y-2 border-b pb-4" style={{ borderColor: 'var(--app-border)' }}>
@@ -1141,29 +1141,26 @@ export default function TaxAdvantagedCategoryModal({
                     )}
                   </div>
                 ) : (
-                  <div className="flex min-h-0 flex-col gap-4">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex h-full min-h-0 flex-col gap-4">
+                    <div className="shrink-0">
                       <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
                         Choose eligible {plan.currency} accounts for this category. Archived accounts stay visible for history but cannot be linked or unlinked until unarchived.
-                      </p>
-                      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                        {linkedAccountsCount} of {bindableAccounts.length} linked
                       </p>
                     </div>
 
                     {accountError && (
-                      <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                      <p className="shrink-0 text-sm" style={{ color: 'var(--app-negative)' }}>
                         {accountError}
                       </p>
                     )}
 
                     {bindableAccounts.length === 0 ? (
-                      <p className="py-3 text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                      <p className="min-h-0 flex-1 py-3 text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
                         No eligible {plan.currency} asset accounts.
                       </p>
                     ) : (
                       <div
-                        className="max-h-[22rem] overflow-y-auto overflow-x-hidden rounded-xl border"
+                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-xl border"
                         style={{ borderColor: 'var(--app-border)' }}
                       >
                         {bindableAccounts.map((account, index) => {
@@ -1208,6 +1205,10 @@ export default function TaxAdvantagedCategoryModal({
                         })}
                       </div>
                     )}
+
+                    <p className="shrink-0 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                      {linkedAccountsCount} of {bindableAccounts.length} linked
+                    </p>
                   </div>
                 )}
               </div>
