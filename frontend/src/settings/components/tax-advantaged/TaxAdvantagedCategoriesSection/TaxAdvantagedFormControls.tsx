@@ -13,13 +13,17 @@ import {
 
 export function TaxAdvantagedCurrencyWarning() {
   return (
-    <IconTooltip
-      label="Tax-advantaged category currency limitation"
-      level="important"
-      widthClassName="w-56"
-    >
-      Tax-advantaged categories currently link only accounts in the same currency.
-    </IconTooltip>
+    <span className="inline-flex h-4 items-center align-middle leading-none">
+      <IconTooltip
+        label="Tax-advantaged category currency limitation"
+        level="important"
+        widthClassName="w-56"
+        size={14}
+        strokeWidth={2.4}
+      >
+        Tax-advantaged categories currently link only accounts in the same currency.
+      </IconTooltip>
+    </span>
   )
 }
 
@@ -226,4 +230,3 @@ export function InlineTaxTreatmentSelect({
     </div>
   )
 }
-
