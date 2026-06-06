@@ -1007,7 +1007,7 @@ export default function TaxAdvantagedCategoryModal({
                                     <td className="col-span-2 row-start-4 min-w-0 pt-2 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
                                       {hasPriorActivity ? (
                                         <span className="block truncate text-sm font-medium">
-                                          Opening usage noted
+                                          Noted
                                         </span>
                                       ) : (
                                         <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>No opening usage</span>
