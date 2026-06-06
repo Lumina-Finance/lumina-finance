@@ -106,6 +106,15 @@
     font-family: "DM Sans", system-ui, sans-serif;
   }
 
+  @supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+      /* Prevent iOS Safari from zooming compact controls on focus. */
+      font-size: max(1rem, 16px) !important;
+    }
+  }
+
   @supports not (overflow: clip) {
     html,
     body {
