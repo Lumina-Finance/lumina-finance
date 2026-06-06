@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -35,6 +35,10 @@ function isProtectedPath(pathname: string) {
 
 function isBudgetDetailRoute(pathname: string, search: string) {
   return pathname === '/budgets' && new URLSearchParams(search).has('budget');
+}
+
+function scrollDocumentToTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 }
 
 // Module-level flag so the loading screen only shows once per app session
@@ -124,6 +128,10 @@ function AnimatedRoutes() {
   const location = useLocation();
   const [displayLocation, setDisplayLocation] = useState(location);
   const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('idle');
+
+  useLayoutEffect(() => {
+    scrollDocumentToTop();
+  }, [displayLocation.pathname]);
 
   // Keep rendering the previous protected route until its exit fade completes.
   useEffect(() => {
