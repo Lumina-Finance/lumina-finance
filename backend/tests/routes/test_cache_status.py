@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from tests.routes.conftest import _create_account, _create_user, _get_auth_header
 
@@ -25,6 +25,11 @@ def _parse_iso_timestamp(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+def _assert_utc_timestamp(value: str) -> None:
+    """Assert an API timestamp is explicitly UTC-aware."""
+    assert _parse_iso_timestamp(value).utcoffset() == UTC.utcoffset(None)
+
+
 async def test_cache_status_initially_null(client):
     """A fresh user has no visible app-data cache timestamp."""
     signup_resp = await _create_user(client)
@@ -48,7 +53,7 @@ async def test_personal_write_updates_cache_status(client):
     assert status_resp.status_code == 200
     changed_at = status_resp.json()["changed_at"]
     assert changed_at is not None
-    assert _parse_iso_timestamp(changed_at)
+    _assert_utc_timestamp(changed_at)
 
 
 async def test_group_write_updates_member_cache_status(client):
@@ -72,4 +77,4 @@ async def test_group_write_updates_member_cache_status(client):
     assert add_member_resp.status_code == 201
     changed_at = after_resp.json()["changed_at"]
     assert changed_at is not None
-    assert _parse_iso_timestamp(changed_at)
+    _assert_utc_timestamp(changed_at)

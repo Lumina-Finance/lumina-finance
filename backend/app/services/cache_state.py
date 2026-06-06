@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
@@ -46,12 +46,19 @@ async def get_visible_cache_changed_at(db: AsyncSession, user_id: uuid.UUID) -> 
         ),
     )
     values = [value for value in result.scalars().all() if value is not None]
-    return max(values) if values else None
+    return _as_utc(max(values)) if values else None
 
 
 def select_user_group_ids(user_id: uuid.UUID) -> Select[tuple[uuid.UUID]]:
     """Build the group ID query for all groups a user belongs to."""
     return sa.select(GroupMember.group_id).where(GroupMember.user_id == user_id)
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalize a timestamp to an explicit UTC-aware datetime."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 async def _upsert_cache_state(

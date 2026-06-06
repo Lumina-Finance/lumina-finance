@@ -59,8 +59,8 @@ async function validateAppData(
 ) {
   const storageKey = `${CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
   const status = await fetchCacheStatus()
-  const currentChangedAt = status.changed_at ?? ''
-  const previousChangedAt = window.localStorage.getItem(storageKey)
+  const currentChangedAt = toUtcCacheTimestamp(status.changed_at) ?? ''
+  const previousChangedAt = toUtcCacheTimestamp(window.localStorage.getItem(storageKey))
   window.localStorage.setItem(storageKey, currentChangedAt)
 
   if (acknowledgeLocalChange || previousChangedAt === null || previousChangedAt === currentChangedAt) {
@@ -69,6 +69,15 @@ async function validateAppData(
 
   invalidateAppData(queryClient)
   return true
+}
+
+function toUtcCacheTimestamp(value: string | null) {
+  if (!value) return value
+
+  const time = Date.parse(value)
+  if (!Number.isFinite(time)) return value
+
+  return new Date(time).toISOString()
 }
 
 function validateFxData(
