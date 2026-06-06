@@ -86,6 +86,7 @@
 
   html {
     min-height: 100dvh;
+    overflow-x: clip;
     scrollbar-gutter: stable;
     background-color: var(--app-bg);
     color: var(--app-text);
@@ -99,9 +100,17 @@
   body {
     min-height: 100dvh;
     margin: 0;
+    overflow-x: clip;
     background-color: var(--app-bg);
     color: var(--app-text);
     font-family: "DM Sans", system-ui, sans-serif;
+  }
+
+  @supports not (overflow: clip) {
+    html,
+    body {
+      overflow-x: hidden;
+    }
   }
 
   html,
