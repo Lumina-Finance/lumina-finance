@@ -942,16 +942,16 @@ export default function TaxAdvantagedCategoryModal({
                         </table>
                       </div>
 
-                      <div className={hasScrollableLimitRows ? 'max-h-[22rem] overflow-y-auto overflow-x-hidden pr-1' : 'overflow-hidden'}>
-                        <table className="block w-full text-left text-[0.9375rem] min-[750px]:table min-[750px]:table-fixed">
-                          <colgroup className="hidden min-[750px]:table-column-group">
+                      <div className={hasScrollableLimitRows ? 'hidden max-h-[22rem] overflow-y-auto overflow-x-hidden pr-1 min-[750px]:block' : 'hidden overflow-hidden min-[750px]:block'}>
+                        <table className="w-full table-fixed text-left text-[0.9375rem]">
+                          <colgroup>
                             <col style={{ width: '5rem' }} />
                             <col style={{ width: '25%' }} />
                             <col style={{ width: '25%' }} />
                             <col style={{ width: 'auto' }} />
                             <col style={{ width: '3.5rem' }} />
                           </colgroup>
-                          <tbody className="block space-y-3 min-[750px]:table-row-group min-[750px]:space-y-0">
+                          <tbody>
                             {limitsLoading ? null : sortedLimits.length === 0 ? (
                               <tr className="block min-[750px]:table-row">
                                 <td className="block py-4 text-sm italic min-[750px]:table-cell" colSpan={5} style={{ color: 'var(--app-text-subtle)' }}>
@@ -1067,6 +1067,69 @@ export default function TaxAdvantagedCategoryModal({
                             )}
                           </tbody>
                         </table>
+                      </div>
+                      <div className="space-y-3 min-[750px]:hidden">
+                        {limitsLoading ? null : sortedLimits.length === 0 ? (
+                          <p className="py-4 text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                            No limit entries yet.
+                          </p>
+                        ) : (
+                          sortedLimits.map((limit) => {
+                            const isSelected = selectedLimit?.year === limit.year && !showAddTaxYear
+                            const hasPriorActivity = limit.accrued_contributions > 0 || limit.accrued_withdrawals > 0
+                            return (
+                              <button
+                                key={limit.year}
+                                type="button"
+                                className="grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                                style={{
+                                  borderColor: isSelected ? 'var(--app-accent-border)' : 'var(--app-border)',
+                                  background: isSelected ? 'var(--app-accent-soft)' : undefined,
+                                  color: 'var(--app-text)',
+                                }}
+                                aria-label={`Edit ${limit.year} limits`}
+                                onClick={() => selectLimitYear(limit.year)}
+                              >
+                                <span className="col-start-1 row-start-1 min-w-0 truncate text-base font-medium">
+                                  {limit.year}
+                                </span>
+                                <ChevronRight size={16} className="col-start-2 row-start-1 self-center" style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
+                                <span className="col-span-2 row-start-2 mt-3 grid min-w-0 grid-cols-2 items-center gap-3 border-t pt-3 text-sm">
+                                  <span className="min-w-0 truncate font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                                    Contribution
+                                  </span>
+                                  <span className="min-w-0 justify-self-end truncate text-right font-financial font-medium">
+                                    {formatCurrency(limit.contribution_limit, plan.currency)}
+                                  </span>
+                                </span>
+                                <span className="col-span-2 row-start-3 grid min-w-0 grid-cols-2 items-center gap-3 pt-2 text-sm">
+                                  <span className="min-w-0 truncate font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                                    Withdrawal
+                                  </span>
+                                  <span className="min-w-0 justify-self-end truncate text-right font-financial font-medium">
+                                    {limit.withdrawal_limit === null ? (
+                                      <span className="font-sans text-sm font-normal" style={{ color: 'var(--app-text-muted)' }}>No limit</span>
+                                    ) : (
+                                      formatCurrency(limit.withdrawal_limit, plan.currency)
+                                    )}
+                                  </span>
+                                </span>
+                                <span className="col-span-2 row-start-4 grid min-w-0 grid-cols-2 items-center gap-3 pt-2 text-sm">
+                                  <span className="min-w-0 truncate font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                                    Opening usage
+                                  </span>
+                                  {hasPriorActivity ? (
+                                    <span className="min-w-0 justify-self-end truncate text-right font-medium">
+                                      Noted
+                                    </span>
+                                  ) : (
+                                    <span className="min-w-0 justify-self-end truncate text-right" style={{ color: 'var(--app-text-muted)' }}>No opening usage</span>
+                                  )}
+                                </span>
+                              </button>
+                            )
+                          })
+                        )}
                       </div>
                     </div>
 
