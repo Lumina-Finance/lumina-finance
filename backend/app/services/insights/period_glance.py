@@ -13,10 +13,10 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.fx import FxStatus
-from app.schemas.insights import InsightsPeriodGlanceResponse
+from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodGlanceResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
-from app.services.insights.common import previous_period_bounds
+from app.services.insights.common import comparison_period_bounds
 
 CategoryNetTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
 
@@ -388,9 +388,10 @@ async def get_period_glance(
     user: User,
     from_date: date,
     to_date: date,
+    comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsPeriodGlanceResponse:
     """Return compact insight totals for the top period-glance card."""
-    previous_from_date, previous_to_date = previous_period_bounds(from_date, to_date)
+    previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
     all_accounts = await get_accessible_accounts(db, user)
 
     if not all_accounts:
