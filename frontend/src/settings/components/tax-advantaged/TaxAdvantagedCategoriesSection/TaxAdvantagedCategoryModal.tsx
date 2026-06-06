@@ -407,13 +407,13 @@ export default function TaxAdvantagedCategoryModal({
       return
     }
     if (!isValidMoneyInput(draft.accrued_contributions)) {
-      setLimitError(`${year} prior contributions must be zero or higher.`)
-      showAutosaveNotice({ status: 'error', message: `${year} prior contributions must be zero or higher.` })
+      setLimitError(`${year} opening contributions must be zero or higher.`)
+      showAutosaveNotice({ status: 'error', message: `${year} opening contributions must be zero or higher.` })
       return
     }
     if (!isValidMoneyInput(draft.accrued_withdrawals)) {
-      setLimitError(`${year} prior withdrawals must be zero or higher.`)
-      showAutosaveNotice({ status: 'error', message: `${year} prior withdrawals must be zero or higher.` })
+      setLimitError(`${year} opening withdrawals must be zero or higher.`)
+      showAutosaveNotice({ status: 'error', message: `${year} opening withdrawals must be zero or higher.` })
       return
     }
 
@@ -472,13 +472,13 @@ export default function TaxAdvantagedCategoryModal({
       return
     }
     if (!isValidMoneyInput(newLimitForm.accrued_contributions)) {
-      setLimitError('Prior contributions must be zero or higher.')
-      showAutosaveNotice({ status: 'error', message: 'Prior contributions must be zero or higher.' })
+      setLimitError('Opening contributions must be zero or higher.')
+      showAutosaveNotice({ status: 'error', message: 'Opening contributions must be zero or higher.' })
       return
     }
     if (!isValidMoneyInput(newLimitForm.accrued_withdrawals)) {
-      setLimitError('Prior withdrawals must be zero or higher.')
-      showAutosaveNotice({ status: 'error', message: 'Prior withdrawals must be zero or higher.' })
+      setLimitError('Opening withdrawals must be zero or higher.')
+      showAutosaveNotice({ status: 'error', message: 'Opening withdrawals must be zero or higher.' })
       return
     }
 
@@ -870,7 +870,7 @@ export default function TaxAdvantagedCategoryModal({
                           </span>
                         </div>
                         <div className="grid min-w-0 gap-1 min-[750px]:grid-cols-[auto_minmax(0,1fr)] min-[750px]:items-baseline min-[750px]:gap-4">
-                          <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Prior activity</span>
+                          <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Opening usage</span>
                           <span className="min-w-0 truncate text-sm font-medium">
                             {hasLifetimePriorActivity ? 'Noted' : 'None'}
                           </span>
@@ -909,7 +909,7 @@ export default function TaxAdvantagedCategoryModal({
                               <th className="sticky top-0 z-10 py-2 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Year</th>
                               <th className="sticky top-0 z-10 py-2 pl-0 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Contribution limit</th>
                               <th className="sticky top-0 z-10 py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Withdrawal limit</th>
-                              <th className="sticky top-0 z-10 py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Prior activity</th>
+                              <th className="sticky top-0 z-10 py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Opening usage</th>
                               <th className="sticky top-0 z-10 py-2 pl-2 font-medium" style={{ background: 'var(--app-bg)' }} aria-label="Actions" />
                             </tr>
                           </thead>
@@ -970,10 +970,10 @@ export default function TaxAdvantagedCategoryModal({
                                     <td className="col-span-2 row-start-4 min-w-0 pt-2 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
                                       {hasPriorActivity ? (
                                         <span className="block truncate text-sm font-medium">
-                                          Prior activity noted
+                                          Opening usage noted
                                         </span>
                                       ) : (
-                                        <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>No prior activity</span>
+                                        <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>No opening usage</span>
                                       )}
                                     </td>
                                     <td
@@ -1336,7 +1336,7 @@ export default function TaxAdvantagedCategoryModal({
                       {showAddTaxYear ? 'New Year' : selectedLimit?.year}
                     </h4>
                     <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      {showAddTaxYear ? 'Configure annual limits and prior activity.' : 'Edit annual limits and prior activity.'}
+                      {showAddTaxYear ? 'Configure annual limits and opening usage.' : 'Edit annual limits and opening usage.'}
                     </p>
                   </div>
                   <button
@@ -1381,14 +1381,14 @@ export default function TaxAdvantagedCategoryModal({
                         <p className="text-sm font-medium">Contribution</p>
                         <div className="grid grid-cols-2 gap-3">
                           {renderNewLimitEditorField('contribution_limit', 'Limit', 'New tax-year contribution limit', 'Required')}
-                          {renderNewLimitEditorField('accrued_contributions', 'Prior', 'New tax-year prior contributions', '0')}
+                          {renderNewLimitEditorField('accrued_contributions', 'Opening', 'New tax-year opening contributions', '0')}
                         </div>
                       </div>
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Withdrawal</p>
                         <div className="grid grid-cols-2 gap-3">
                           {renderNewLimitEditorField('withdrawal_limit', 'Limit', 'New tax-year withdrawal limit', 'Optional')}
-                          {renderNewLimitEditorField('accrued_withdrawals', 'Prior', 'New tax-year prior withdrawals', '0')}
+                          {renderNewLimitEditorField('accrued_withdrawals', 'Opening', 'New tax-year opening withdrawals', '0')}
                         </div>
                       </div>
                       {limitError && (
@@ -1403,14 +1403,14 @@ export default function TaxAdvantagedCategoryModal({
                         <p className="text-sm font-medium">Contribution</p>
                         <div className="grid grid-cols-2 gap-3">
                           {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit)}
-                          {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Prior', 'Prior contributions', selectedDraft.accrued_contributions, '0')}
+                          {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Opening', 'Opening contributions', selectedDraft.accrued_contributions, '0')}
                         </div>
                       </div>
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Withdrawal</p>
                         <div className="grid grid-cols-2 gap-3">
                           {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, 'Optional')}
-                          {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Prior', 'Prior withdrawals', selectedDraft.accrued_withdrawals, '0')}
+                          {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Opening', 'Opening withdrawals', selectedDraft.accrued_withdrawals, '0')}
                         </div>
                       </div>
                       {limitError && (
