@@ -5,12 +5,15 @@ export interface TaxPlanFormState {
   tax_treatment: TaxTreatment
   currency: string
   lifetime_contribution_limit: string
+  accrued_contributions: string
 }
 
 export interface TaxPlanLimitFormState {
   year: string
   contribution_limit: string
   withdrawal_limit: string
+  accrued_contributions: string
+  accrued_withdrawals: string
 }
 
 export interface AutosaveNotice {

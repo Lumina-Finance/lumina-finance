@@ -14,6 +14,7 @@ export interface TaxAdvantagedPlan {
   tax_treatment: TaxTreatment;
   currency: string;
   lifetime_contribution_limit: number | null;
+  accrued_contributions: number;
   accrued_lifetime_contribution_limit: number | null;
   current_year_contribution_limit: number | null;
   current_year_withdrawal_limit: number | null;
@@ -29,6 +30,8 @@ export interface TaxAdvantagedPlanLimit {
   year: number;
   contribution_limit: number;
   withdrawal_limit: number | null;
+  accrued_contributions: number;
+  accrued_withdrawals: number;
 }
 
 export interface CreateTaxAdvantagedPlanPayload {
@@ -36,6 +39,7 @@ export interface CreateTaxAdvantagedPlanPayload {
   tax_treatment: TaxTreatment;
   currency: string;
   lifetime_contribution_limit: number | null;
+  accrued_contributions?: number;
   group_id?: string | null;
 }
 
@@ -43,6 +47,7 @@ export interface UpdateTaxAdvantagedPlanPayload {
   name?: string;
   tax_treatment?: TaxTreatment;
   lifetime_contribution_limit?: number | null;
+  accrued_contributions?: number;
   group_id?: string | null;
 }
 
@@ -51,6 +56,8 @@ export interface CreateTaxAdvantagedPlanLimitPayload {
   year: number;
   contribution_limit: number;
   withdrawal_limit: number | null;
+  accrued_contributions?: number;
+  accrued_withdrawals?: number;
 }
 
 export interface UpdateTaxAdvantagedPlanLimitPayload {
@@ -58,6 +65,8 @@ export interface UpdateTaxAdvantagedPlanLimitPayload {
   year: number;
   contribution_limit?: number;
   withdrawal_limit?: number | null;
+  accrued_contributions?: number;
+  accrued_withdrawals?: number;
 }
 
 function delay(ms: number) {

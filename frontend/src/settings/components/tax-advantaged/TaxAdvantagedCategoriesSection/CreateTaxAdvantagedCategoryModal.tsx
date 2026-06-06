@@ -37,6 +37,7 @@ export default function CreateTaxAdvantagedCategoryModal({
     tax_treatment: 'tax_free',
     currency: userBaseCurrency ?? '',
     lifetime_contribution_limit: '',
+    accrued_contributions: '',
   })
   const [createError, setCreateError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
@@ -77,6 +78,10 @@ export default function CreateTaxAdvantagedCategoryModal({
       setCreateError('Lifetime contribution limit must be zero or higher.')
       return
     }
+    if (!isValidMoneyInput(form.accrued_contributions)) {
+      setCreateError('Accrued contributions must be zero or higher.')
+      return
+    }
 
     setCreateInProgress(true)
     const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, CREATE_TAX_CATEGORY_MIN_LOADING_MS))
@@ -87,6 +92,7 @@ export default function CreateTaxAdvantagedCategoryModal({
         tax_treatment: form.tax_treatment,
         currency: selectedCurrency,
         lifetime_contribution_limit: toMinorUnits(form.lifetime_contribution_limit, currencies, selectedCurrency),
+        accrued_contributions: toMinorUnits(form.accrued_contributions, currencies, selectedCurrency) ?? 0,
         group_id: null,
       },
     ).then(async () => {
@@ -248,6 +254,16 @@ export default function CreateTaxAdvantagedCategoryModal({
                           value={form.lifetime_contribution_limit}
                           onChange={(value) => setField('lifetime_contribution_limit', value)}
                           placeholder="Optional"
+                        />
+                      </div>
+                      <div>
+                        <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Accrued Contributions</span>
+                        <CurrencyInput
+                          currencies={currencies}
+                          currency={selectedCurrency}
+                          value={form.accrued_contributions}
+                          onChange={(value) => setField('accrued_contributions', value)}
+                          placeholder="0"
                         />
                       </div>
                     </div>
