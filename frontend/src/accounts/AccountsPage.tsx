@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useTaxAdvantagedPlans } from '@/api/taxAdvantagedPlans'
-import { accountKeys, dashboardKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys'
-import { useFocusRefetch } from '@/hooks/useFocusRefetch'
 import CreateAccountModal from '@/components/CreateAccountModal'
 import AccountFilters from '@/accounts/components/AccountFilters'
 import AccountListSection from '@/accounts/components/AccountListSection'
@@ -22,13 +20,6 @@ export default function AccountsPage() {
   const { user } = useAuth()
   const { data: accounts, isFetching: accountsLoading, error } = useAccounts()
   const { data: taxAdvantagedPlans } = useTaxAdvantagedPlans()
-
-  useFocusRefetch([
-    accountKeys.list(),
-    dashboardKeys.credit(),
-    { queryKey: dashboardKeys.savingsRateAll, exact: false },
-    taxAdvantagedPlanKeys.list(),
-  ])
 
   const allRows = useMemo(() => accounts ?? [], [accounts])
   const rows = useMemo(() => allRows.filter((account) => !account.is_archived), [allRows])

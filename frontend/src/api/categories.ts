@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { invalidateInsightsData } from '@/api/cacheInvalidation';
 import {
   accountKeys,
   budgetKeys,
@@ -38,7 +39,7 @@ export interface MergeCategoryPayload {
   replacement_category_id: string;
 }
 
-function invalidateCategoryMergeQueries(queryClient: QueryClient) {
+function invalidateCategoryUsageQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
   queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
   queryClient.invalidateQueries({ queryKey: accountKeys.all, exact: false });
@@ -48,6 +49,7 @@ function invalidateCategoryMergeQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
   queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
   queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
+  invalidateInsightsData(queryClient);
 }
 
 export function useCategories() {
@@ -91,6 +93,7 @@ export function useUpdateCategory() {
           category.id === updatedCategory.id ? updatedCategory : category
         )) ?? categories,
       );
+      invalidateCategoryUsageQueries(queryClient);
     },
   });
 }
@@ -116,7 +119,7 @@ export function useMergeCategory() {
       queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
         categories?.filter((category) => category.id !== categoryId) ?? categories,
       );
-      invalidateCategoryMergeQueries(queryClient);
+      invalidateCategoryUsageQueries(queryClient);
     },
   });
 }

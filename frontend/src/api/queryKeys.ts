@@ -1,5 +1,3 @@
-import type { QueryKey } from '@tanstack/react-query';
-
 interface SnapshotKeyParams {
   fromDate?: string;
   toDate?: string;
@@ -140,5 +138,3 @@ export const institutionKeys = {
 export const currencyKeys = {
   list: () => ['currencies'] as const,
 };
-
-export type FocusRefetchTarget = QueryKey | { queryKey: QueryKey; exact?: boolean };

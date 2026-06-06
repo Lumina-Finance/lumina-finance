@@ -8,8 +8,7 @@ import {
   useTransactionsOverview,
   type Transaction,
 } from '@/api/transactions'
-import { transactionKeys, transactionOverviewKeys } from '@/api/queryKeys'
-import { useFocusRefetch } from '@/hooks/useFocusRefetch'
+import { transactionKeys } from '@/api/queryKeys'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
 import TransactionsTopBand from '@/transactions/components/TransactionsTopBand'
@@ -41,11 +40,6 @@ export default function TransactionsPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [openingOutlierId, setOpeningOutlierId] = useState<string | null>(null)
   const [outlierOpenError, setOutlierOpenError] = useState<string | null>(null)
-
-  useFocusRefetch([
-    { queryKey: transactionKeys.all, exact: false },
-    { queryKey: transactionOverviewKeys.all, exact: false },
-  ])
 
   const openCreateModal = () => {
     setEditingTransaction(null)

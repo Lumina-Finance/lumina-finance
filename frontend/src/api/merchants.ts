@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { invalidateInsightsData } from '@/api/cacheInvalidation';
 import {
   accountKeys,
   dashboardKeys,
@@ -114,13 +115,14 @@ function removeMerchantFromInfiniteData(
   };
 }
 
-function invalidateMerchantMergeQueries(qc: QueryClient) {
+function invalidateMerchantUsageQueries(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: accountKeys.all, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
   qc.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
+  invalidateInsightsData(qc);
 }
 
 export function useMerchant(merchantId: string | null | undefined, enabled = true) {
@@ -205,7 +207,7 @@ export function useUpdateMerchant() {
           );
         });
       qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
-      qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
+      invalidateMerchantUsageQueries(qc);
     },
   });
 }
@@ -230,7 +232,7 @@ export function useMergeMerchant() {
     onSuccess: (_, { merchantId }) => {
       qc.removeQueries({ queryKey: merchantKeys.detail(merchantId), exact: true });
       qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
-      invalidateMerchantMergeQueries(qc);
+      invalidateMerchantUsageQueries(qc);
     },
   });
 }

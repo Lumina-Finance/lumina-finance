@@ -9,6 +9,7 @@ interface AuthBindings {
 }
 
 let bindings: AuthBindings | null = null;
+export const LOCAL_CACHE_CHANGE_EVENT = 'lumina:local-cache-change';
 
 // Called once by AuthProvider on mount so authenticatedFetch can read the
 // current token and push refreshed sessions back into React state.
@@ -26,6 +27,11 @@ function refreshOnce(): Promise<AuthResponse> {
     });
   }
   return pendingRefresh;
+}
+
+function isMutatingRequest(options: RequestInit): boolean {
+  const method = (options.method ?? 'GET').toUpperCase();
+  return !['GET', 'HEAD', 'OPTIONS'].includes(method);
 }
 
 // Drop-in fetch for endpoints that require a Bearer token. On 401 it refreshes
@@ -68,6 +74,10 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
     const body = (await res.json().catch(() => null)) as { detail?: string } | null;
     const message = body?.detail ?? `Request failed (${res.status})`;
     throw new ApiError(message, res.status);
+  }
+
+  if (isMutatingRequest(options)) {
+    window.dispatchEvent(new Event(LOCAL_CACHE_CHANGE_EVENT));
   }
 
   // 204 No Content responses have an empty body, so calling res.json() would cause an error.

@@ -1,16 +1,12 @@
 import { useQuery, useQueryClient, useMutation, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { invalidateAggregateData } from '@/api/cacheInvalidation';
 import type { FxStatus } from '@/api/dashboard';
 import {
   accountKeys,
-  budgetKeys,
   dashboardKeys,
-  insightsKeys,
   taxAdvantagedPlanKeys,
-  transactionKeys,
-  transactionOverviewKeys,
-  userKeys,
 } from '@/api/queryKeys';
 
 // Split liabilities into revolving (credit cards, lines of credit, HELOCs —
@@ -189,7 +185,7 @@ export function useCreateAccount() {
     mutationFn: createAccount,
     onSuccess: (account) => {
       updateCachedAccountList(queryClient, account);
-      invalidateTaxAdvantagedPlanCaches(queryClient, [account.tax_advantaged_plan_id]);
+      invalidateAggregateData(queryClient);
     },
   });
 }
@@ -207,28 +203,8 @@ export function useUpdateAccount() {
       updateCachedAccountList(queryClient, account);
 
       if ('is_archived' in variables.payload && previousIsArchived !== account.is_archived) {
-        queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
         queryClient.invalidateQueries({ queryKey: accountKeys.accountScope(account.id), exact: false });
-        queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
-        queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
-        queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: insightsKeys.periodGlanceAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: insightsKeys.fundFlowAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: insightsKeys.incomeExpenseBreakdownAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: insightsKeys.cashFlowAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: insightsKeys.netWorthAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: insightsKeys.savingsRateTrendAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: insightsKeys.merchantsAll, exact: false });
-        queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts(), exact: true });
-        queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings(), exact: true });
-        queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
-        invalidateTaxAdvantagedPlanCaches(queryClient, [account.tax_advantaged_plan_id]);
+        invalidateAggregateData(queryClient);
       }
 
       if (
@@ -267,22 +243,11 @@ export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: 
       }
     },
     onSuccess: (_, accountId) => {
-      const previousPlanId = getCachedTaxAdvantagedPlanId(queryClient, accountId);
-
       queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) =>
         accounts?.filter((account) => account.id !== accountId) ?? accounts,
       );
       queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) });
-      queryClient.invalidateQueries({ queryKey: transactionKeys.all });
-      queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all });
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll });
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll });
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll });
-      queryClient.invalidateQueries({ queryKey: userKeys.runwayAccounts() });
-      queryClient.invalidateQueries({ queryKey: userKeys.runwaySettings() });
-      queryClient.invalidateQueries({ queryKey: userKeys.runway() });
-      invalidateTaxAdvantagedPlanCaches(queryClient, [previousPlanId]);
+      invalidateAggregateData(queryClient);
     },
   });
 }

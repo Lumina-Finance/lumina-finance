@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'rea
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { useAuth } from '@/hooks/useAuth'
+import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/Navigation'
 import DashboardPage from '@/dashboard/DashboardPage'
@@ -57,6 +58,9 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
   const [animateInitialPageMount] = useState(() => !hasShownLoadingScreen);
+  const ready = !loading && minTimePassed;
+
+  useCacheValidation(user?.id, Boolean(user && ready));
 
   // Enforce the first-session loading-screen minimum before revealing the app.
   useEffect(() => {
@@ -71,7 +75,6 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   // No session and not loading — go straight to login
   if (!loading && !user) return <Navigate to="/login" replace />;
 
-  const ready = !loading && minTimePassed;
   const pageContentEntering = pageTransitionPhase === 'entering' || animateInitialPageMount;
 
   return (

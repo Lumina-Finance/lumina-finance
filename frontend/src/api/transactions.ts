@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import { invalidateInsightsData } from '@/api/cacheInvalidation';
 import {
   accountKeys,
   budgetKeys,
@@ -315,6 +316,7 @@ function invalidateDashboardActivity(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
   queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
   queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
+  invalidateInsightsData(queryClient);
 }
 
 function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: string[]) {

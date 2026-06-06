@@ -16,6 +16,14 @@ export interface UpdateProfilePayload {
   tz?: string;
 }
 
+export interface CacheStatus {
+  changed_at: string | null;
+}
+
+export function fetchCacheStatus() {
+  return authenticatedFetch<CacheStatus>('/me/cache-status');
+}
+
 // PATCH /me — partial update, only provided fields change. Caller is expected
 // to wire the returned User back into AuthContext via setUser so the rest of
 // the app reflects the new profile immediately.
