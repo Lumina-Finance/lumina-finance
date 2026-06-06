@@ -14,6 +14,7 @@ import {
   type TaxAdvantagedPlanLimit,
 } from '@/api/taxAdvantagedPlans'
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
+import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import type {
@@ -1316,30 +1317,12 @@ export default function TaxAdvantagedCategoryModal({
                   <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
                     <div className="min-w-0">
                       <span className="app-label mb-1 block text-xs">Type</span>
-                      <div
-                        className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
-                        style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
-                      >
-                        <select
-                          aria-label="TAC type"
-                          className="block h-8 min-w-0 flex-1 appearance-none bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
-                          onChange={(event) => setPlanField('tax_treatment', event.target.value as TaxPlanFormState['tax_treatment'])}
-                          style={{ color: 'var(--app-text)' }}
-                          value={planForm.tax_treatment}
-                        >
-                          {TAX_TREATMENT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <Pencil
-                          size={13}
-                          className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-                          style={{ color: 'var(--app-text-subtle)' }}
-                          aria-hidden
-                        />
-                      </div>
+                      <Dropdown
+                        className="h-9 w-full rounded-md border border-transparent bg-[color-mix(in_srgb,var(--app-input-bg)_55%,var(--app-bg))] px-2 py-0 text-[0.9375rem] font-medium outline-none transition-colors duration-150 hover:border-[var(--app-border)] focus:border-[var(--app-accent-border)]"
+                        options={TAX_TREATMENT_OPTIONS}
+                        value={planForm.tax_treatment}
+                        onChange={(value) => setPlanField('tax_treatment', value as TaxPlanFormState['tax_treatment'])}
+                      />
                     </div>
                     <div className="grid min-w-0 grid-cols-1 gap-3 min-[620px]:grid-cols-2">
                       <div className="min-w-0">
