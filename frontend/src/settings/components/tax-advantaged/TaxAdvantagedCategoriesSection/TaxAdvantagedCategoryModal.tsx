@@ -918,30 +918,31 @@ export default function TaxAdvantagedCategoryModal({
                       </button>
                     </div>
 
-                    <div className="hidden min-[750px]:block">
-                      <table className="w-full table-fixed text-left text-[0.9375rem]">
-                        <colgroup>
-                          <col style={{ width: '5rem' }} />
-                          <col style={{ width: '25%' }} />
-                          <col style={{ width: '25%' }} />
-                          <col style={{ width: 'auto' }} />
-                          <col style={{ width: '3.5rem' }} />
-                        </colgroup>
-                        <thead>
-                          <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
-                            <th className="py-2 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Year</th>
-                            <th className="py-2 pl-0 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Contribution limit</th>
-                            <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Withdrawal limit</th>
-                            <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>
-                              <OpeningUsageLabel />
-                            </th>
-                            <th className="py-2 pl-2 font-medium" style={{ background: 'var(--app-bg)' }} aria-label="Actions" />
-                          </tr>
-                        </thead>
-                      </table>
-                    </div>
+                    <div>
+                      <div className="hidden min-[750px]:block">
+                        <table className="w-full table-fixed text-left text-[0.9375rem]">
+                          <colgroup>
+                            <col style={{ width: '5rem' }} />
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: 'auto' }} />
+                            <col style={{ width: '3.5rem' }} />
+                          </colgroup>
+                          <thead>
+                            <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+                              <th className="py-2 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Year</th>
+                              <th className="py-2 pl-0 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Contribution limit</th>
+                              <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Withdrawal limit</th>
+                              <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>
+                                <OpeningUsageLabel />
+                              </th>
+                              <th className="py-2 pl-2 font-medium" style={{ background: 'var(--app-bg)' }} aria-label="Actions" />
+                            </tr>
+                          </thead>
+                        </table>
+                      </div>
 
-                    <div className={hasScrollableLimitRows ? 'max-h-[22rem] overflow-y-auto overflow-x-hidden pr-1' : 'overflow-hidden'}>
+                      <div className={hasScrollableLimitRows ? 'max-h-[22rem] overflow-y-auto overflow-x-hidden pr-1' : 'overflow-hidden'}>
                         <table className="block w-full text-left text-[0.9375rem] min-[750px]:table min-[750px]:table-fixed">
                           <colgroup className="hidden min-[750px]:table-column-group">
                             <col style={{ width: '5rem' }} />
@@ -1067,6 +1068,7 @@ export default function TaxAdvantagedCategoryModal({
                           </tbody>
                         </table>
                       </div>
+                    </div>
 
                     {limitError && (
                       <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
