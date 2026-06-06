@@ -33,7 +33,6 @@ const CursorTooltipPortal = forwardRef<HTMLDivElement, CursorTooltipPortalProps>
       style={{
         ...defaultTooltipStyle,
         ...style,
-        transition: defaultTooltipStyle.transition,
       }}
     >
       {children}

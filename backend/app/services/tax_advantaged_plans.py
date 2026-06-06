@@ -40,7 +40,9 @@ async def attach_tax_advantaged_plan_metrics(
         for plan in plans
     }
 
-    limits: dict[tuple[uuid.UUID, int], tuple[int, int | None]] = {}
+    limits: dict[tuple[uuid.UUID, int], tuple[int, int | None, int, int]] = {}
+    accrued_lifetime_limits: dict[uuid.UUID, int] = {plan.id: 0 for plan in plans}
+    has_accrued_limit_rows: set[uuid.UUID] = set()
 
     result = await db.execute(
         select(
@@ -48,27 +50,41 @@ async def attach_tax_advantaged_plan_metrics(
             TaxAdvantagedPlanLimit.year,
             TaxAdvantagedPlanLimit.contribution_limit,
             TaxAdvantagedPlanLimit.withdrawal_limit,
-        ).where(
-            TaxAdvantagedPlanLimit.plan_id.in_(plan_ids),
-            TaxAdvantagedPlanLimit.year.in_(set(plan_years.values())),
-        ),
+            TaxAdvantagedPlanLimit.accrued_contributions,
+            TaxAdvantagedPlanLimit.accrued_withdrawals,
+        ).where(TaxAdvantagedPlanLimit.plan_id.in_(plan_ids)),
     )
     for row in result:
-        limits[(row.plan_id, row.year)] = (row.contribution_limit, row.withdrawal_limit)
+        limits[(row.plan_id, row.year)] = (
+            row.contribution_limit,
+            row.withdrawal_limit,
+            row.accrued_contributions,
+            row.accrued_withdrawals,
+        )
+        if row.year <= plan_years[row.plan_id]:
+            accrued_lifetime_limits[row.plan_id] += row.contribution_limit
+            has_accrued_limit_rows.add(row.plan_id)
 
     for plan in plans:
         row = limits.get((plan.id, plan_years[plan.id]))
         plan.current_year_contribution_limit = row[0] if row else None
         plan.current_year_withdrawal_limit = row[1] if row else None
+        if plan.lifetime_contribution_limit is not None and plan.id in has_accrued_limit_rows:
+            plan.accrued_lifetime_contribution_limit = min(
+                accrued_lifetime_limits[plan.id],
+                plan.lifetime_contribution_limit,
+            )
+        else:
+            plan.accrued_lifetime_contribution_limit = None
 
     positive = Transaction.amount > 0
     negative = Transaction.amount < 0
 
     tallies: dict[uuid.UUID, dict[str, int]] = {
         plan.id: {
-            "ytd_contributions": 0,
-            "ytd_withdrawals": 0,
-            "lifetime_contributions": 0,
+            "ytd_contributions": limits.get((plan.id, plan_years[plan.id]), (0, None, 0, 0))[2],
+            "ytd_withdrawals": limits.get((plan.id, plan_years[plan.id]), (0, None, 0, 0))[3],
+            "lifetime_contributions": plan.accrued_contributions,
             "lifetime_withdrawals": 0,
         }
         for plan in plans

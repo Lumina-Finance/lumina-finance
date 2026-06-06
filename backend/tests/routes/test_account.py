@@ -159,6 +159,8 @@ async def test_list_accounts_returns_overview_shape(client):
     for field in (
         "tax_treatment",
         "lifetime_contribution_limit",
+        "accrued_contributions",
+        "accrued_lifetime_contribution_limit",
         "ytd_contributions",
         "ytd_withdrawals",
         "lifetime_contributions",
@@ -559,6 +561,8 @@ async def test_get_account_returns_account(client):
     for field in (
         "tax_treatment",
         "lifetime_contribution_limit",
+        "accrued_contributions",
+        "accrued_lifetime_contribution_limit",
         "ytd_contributions",
         "ytd_withdrawals",
         "lifetime_contributions",

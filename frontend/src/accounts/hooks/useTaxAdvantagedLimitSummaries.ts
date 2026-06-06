@@ -41,7 +41,9 @@ export function useTaxAdvantagedLimitSummaries({
       .filter((plan) => visiblePlanIds.has(plan.id))
       .filter((plan) =>
         plan.current_year_contribution_limit !== null ||
-        plan.current_year_withdrawal_limit !== null)
+        plan.current_year_withdrawal_limit !== null ||
+        plan.lifetime_contribution_limit !== null ||
+        plan.accrued_lifetime_contribution_limit !== null)
       .map((plan) => ({
         plan,
         linkedAccountCount: linkedAccountCountByPlanId.get(plan.id) ?? 0,

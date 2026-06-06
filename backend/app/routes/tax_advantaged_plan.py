@@ -150,6 +150,7 @@ async def create_tax_advantaged_plan(
         tax_treatment=TaxTreatment(data.tax_treatment),
         currency=data.currency,
         lifetime_contribution_limit=data.lifetime_contribution_limit,
+        accrued_contributions=data.accrued_contributions,
     )
     db.add(plan)
     await db.commit()
@@ -311,6 +312,8 @@ async def create_tax_advantaged_plan_limit(
         year=data.year,
         contribution_limit=data.contribution_limit,
         withdrawal_limit=data.withdrawal_limit,
+        accrued_contributions=data.accrued_contributions,
+        accrued_withdrawals=data.accrued_withdrawals,
     )
     db.add(row)
     await db.commit()

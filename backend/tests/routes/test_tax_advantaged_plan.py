@@ -106,6 +106,8 @@ async def test_create_plan_returns_201_with_shape(client):
     assert data["tax_treatment"] == "tax_free"
     assert data["currency"] == "CAD"
     assert data["lifetime_contribution_limit"] == 9_500_000
+    assert data["accrued_contributions"] == 0
+    assert data["accrued_lifetime_contribution_limit"] is None
     assert data["current_year_contribution_limit"] is None
     assert data["current_year_withdrawal_limit"] is None
     assert data["ytd_contributions"] == 0
@@ -176,7 +178,12 @@ async def test_owner_can_update_and_delete_plan(client):
 
     patch = await client.patch(
         f"/tax-advantaged-plans/{plan_id}",
-        json={"name": "RRSP", "tax_treatment": "tax_deferred", "lifetime_contribution_limit": 1_000_000},
+        json={
+            "name": "RRSP",
+            "tax_treatment": "tax_deferred",
+            "lifetime_contribution_limit": 1_000_000,
+            "accrued_contributions": 500_000,
+        },
         headers=headers,
     )
     delete = await client.delete(f"/tax-advantaged-plans/{plan_id}", headers=headers)
@@ -186,6 +193,7 @@ async def test_owner_can_update_and_delete_plan(client):
     assert patch.json()["name"] == "RRSP"
     assert patch.json()["tax_treatment"] == "tax_deferred"
     assert patch.json()["lifetime_contribution_limit"] == 1_000_000
+    assert patch.json()["accrued_contributions"] == 500_000
     assert delete.status_code == 204
     assert get_after_delete.status_code == 404
 
@@ -198,7 +206,13 @@ async def test_plan_limits_crud(client):
 
     create = await client.post(
         f"/tax-advantaged-plans/{plan_id}/limits",
-        json={"year": 2026, "contribution_limit": 700_000, "withdrawal_limit": 200_000},
+        json={
+            "year": 2026,
+            "contribution_limit": 700_000,
+            "withdrawal_limit": 200_000,
+            "accrued_contributions": 100_000,
+            "accrued_withdrawals": 25_000,
+        },
         headers=headers,
     )
     duplicate = await client.post(
@@ -208,7 +222,7 @@ async def test_plan_limits_crud(client):
     )
     patch = await client.patch(
         f"/tax-advantaged-plans/{plan_id}/limits/2026",
-        json={"withdrawal_limit": None},
+        json={"withdrawal_limit": None, "accrued_contributions": 120_000, "accrued_withdrawals": 30_000},
         headers=headers,
     )
     listed = await client.get(f"/tax-advantaged-plans/{plan_id}/limits", headers=headers)
@@ -217,9 +231,13 @@ async def test_plan_limits_crud(client):
 
     assert create.status_code == 201
     assert create.json()["contribution_limit"] == 700_000
+    assert create.json()["accrued_contributions"] == 100_000
+    assert create.json()["accrued_withdrawals"] == 25_000
     assert duplicate.status_code == 409
     assert patch.status_code == 200
     assert patch.json()["withdrawal_limit"] is None
+    assert patch.json()["accrued_contributions"] == 120_000
+    assert patch.json()["accrued_withdrawals"] == 30_000
     assert listed.status_code == 200
     assert [row["year"] for row in listed.json()] == [2026]
     assert delete.status_code == 204
@@ -243,6 +261,36 @@ async def test_plan_detail_surfaces_current_year_limits(client):
     assert resp.status_code == 200
     assert resp.json()["current_year_contribution_limit"] == 700_000
     assert resp.json()["current_year_withdrawal_limit"] is None
+
+
+async def test_plan_detail_surfaces_accrued_lifetime_limit(client):
+    """Accrued lifetime contribution room is summed through the owner's current year."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    plan_id = (await _create_plan(client, headers, lifetime_contribution_limit=1_200_000)).json()["id"]
+    current_year = datetime.now(UTC).year
+
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": current_year - 1, "contribution_limit": 700_000},
+        headers=headers,
+    )
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": current_year, "contribution_limit": 800_000},
+        headers=headers,
+    )
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={"year": current_year + 1, "contribution_limit": 900_000},
+        headers=headers,
+    )
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["current_year_contribution_limit"] == 800_000
+    assert resp.json()["accrued_lifetime_contribution_limit"] == 1_200_000
 
 
 async def test_plan_metrics_use_plan_owner_timezone_for_current_year(client, monkeypatch):
@@ -321,6 +369,38 @@ async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(c
     assert resp.json()["ytd_withdrawals"] == 10_000
     assert resp.json()["lifetime_contributions"] == 100_000
     assert resp.json()["lifetime_withdrawals"] == 15_000
+
+
+async def test_plan_metrics_include_accrued_activity(client):
+    """Plan metrics include user-entered activity from before Lumina tracking."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    plan_id = (await _create_plan(client, headers, accrued_contributions=90_000)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    transfer_id = await _get_system_category_id("Transfer")
+    current_year = datetime.now(UTC).year
+    await client.post(
+        f"/tax-advantaged-plans/{plan_id}/limits",
+        json={
+            "year": current_year,
+            "contribution_limit": 700_000,
+            "accrued_contributions": 10_000,
+            "accrued_withdrawals": 3_000,
+        },
+        headers=headers,
+    )
+
+    await _seed_transaction(account_id, transfer_id, user_id, 20_000, date(current_year, 2, 1))
+    await _seed_transaction(account_id, transfer_id, user_id, -4_000, date(current_year, 3, 1))
+    await _seed_transaction(account_id, transfer_id, user_id, 30_000, date(current_year - 1, 4, 1))
+
+    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_contributions"] == 30_000
+    assert resp.json()["ytd_withdrawals"] == 7_000
+    assert resp.json()["lifetime_contributions"] == 140_000
 
 
 async def test_plan_detail_includes_archived_linked_account_activity(client):

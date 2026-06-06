@@ -343,6 +343,7 @@
 
   .app-danger-button {
     @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    font-size: 0.9375rem;
     background: var(--app-negative);
     border: 1px solid var(--app-negative-border);
     color: white;
