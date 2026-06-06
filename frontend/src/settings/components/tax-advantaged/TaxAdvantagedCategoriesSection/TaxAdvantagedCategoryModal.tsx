@@ -388,6 +388,7 @@ export default function TaxAdvantagedCategoryModal({
   )
   const linkedAccountsCount = bindableAccounts.filter((account) => account.tax_advantaged_plan_id === plan.id).length
   const linkedAccountsSummary = `${linkedAccountsCount} linked`
+  const linkedAccountsMobileSummary = `${linkedAccountsCount} ${linkedAccountsCount === 1 ? 'acct' : 'accts'} linked`
 
   const limitDraft = (year: number) => {
     const limit = limits.find((row) => row.year === year)
@@ -742,12 +743,9 @@ export default function TaxAdvantagedCategoryModal({
                   <span className="truncate">
                     {plan.group_id ? 'Group' : 'Personal'}
                   </span>
-                </div>
-
-                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t pt-2.5" style={{ borderColor: 'var(--app-border)' }}>
-                  <span className="app-label min-w-0">Linked Accounts</span>
-                  <span className="text-sm font-medium">
-                    {linkedAccountsSummary}
+                  <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>·</span>
+                  <span className="truncate">
+                    {linkedAccountsMobileSummary}
                   </span>
                 </div>
               </div>
