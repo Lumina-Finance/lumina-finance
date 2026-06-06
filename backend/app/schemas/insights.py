@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.schemas.fx import FxStatus
 
 NetWorthGroupKind = Literal["asset", "debt"]
+InsightsComparisonPeriod = Literal["same_length", "previous_month", "previous_year"]
 
 
 class InsightsPeriodGlanceResponse(BaseModel):

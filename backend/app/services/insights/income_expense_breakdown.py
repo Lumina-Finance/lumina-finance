@@ -14,10 +14,10 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.fx import FxStatus
-from app.schemas.insights import InsightsIncomeExpenseBreakdownResponse
+from app.schemas.insights import InsightsComparisonPeriod, InsightsIncomeExpenseBreakdownResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
-from app.services.insights.common import previous_period_bounds
+from app.services.insights.common import comparison_period_bounds
 
 CATEGORY_TREND_LIMIT = 3
 
@@ -308,9 +308,10 @@ async def get_income_expense_breakdown(
     user: User,
     from_date: date,
     to_date: date,
+    comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsIncomeExpenseBreakdownResponse:
     """Return category breakdown and trend rows for the income/expense card."""
-    previous_from_date, previous_to_date = previous_period_bounds(from_date, to_date)
+    previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
     accounts = await get_accessible_accounts(db, user)
 
     if not accounts:

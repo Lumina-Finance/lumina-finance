@@ -16,13 +16,14 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.fx import FxStatus
 from app.schemas.insights import (
+    InsightsComparisonPeriod,
     InsightsMerchantDistributionResponse,
     InsightsMerchantRankingResponse,
     InsightsMerchantsResponse,
 )
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
-from app.services.insights.common import previous_period_bounds
+from app.services.insights.common import comparison_period_bounds
 
 MERCHANT_DISTRIBUTION_LIMIT = 8
 MERCHANT_RANKING_LIMIT = 10
@@ -229,9 +230,10 @@ async def get_merchants(
     user: User,
     from_date: date,
     to_date: date,
+    comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsMerchantsResponse:
     """Return shared merchant spend data for the insights merchant cards."""
-    previous_from_date, previous_to_date = previous_period_bounds(from_date, to_date)
+    previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
     accounts = await get_accessible_accounts(db, user)
 
     if not accounts:
@@ -264,9 +266,10 @@ async def get_merchant_distribution(
     user: User,
     from_date: date,
     to_date: date,
+    comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsMerchantDistributionResponse:
     """Return merchant spend rows for the insights merchant distribution card."""
-    merchants = await get_merchants(db, user, from_date, to_date)
+    merchants = await get_merchants(db, user, from_date, to_date, comparison_period)
     return InsightsMerchantDistributionResponse(merchants=merchants.distribution)
 
 
@@ -275,7 +278,8 @@ async def get_merchant_ranking(
     user: User,
     from_date: date,
     to_date: date,
+    comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsMerchantRankingResponse:
     """Return merchant ranking rows for the insights merchant ranking card."""
-    merchants = await get_merchants(db, user, from_date, to_date)
+    merchants = await get_merchants(db, user, from_date, to_date, comparison_period)
     return InsightsMerchantRankingResponse(merchants=merchants.ranking)

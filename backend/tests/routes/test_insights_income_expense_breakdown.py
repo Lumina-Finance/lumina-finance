@@ -488,6 +488,38 @@ async def test_income_expense_breakdown_uses_stable_tie_breakers(client):
     ]
 
 
+async def test_income_expense_breakdown_compares_previous_calendar_month(client):
+    """Calendar-month presets compare against the previous full month."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            groceries,
+            _transaction(user_id, account_id, groceries_id, date(2026, 5, 15), -100_000),
+            _transaction(user_id, account_id, groceries_id, date(2026, 4, 10), -40_000),
+            _transaction(user_id, account_id, groceries_id, date(2026, 3, 31), -60_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/income-expense-breakdown",
+        params={
+            "from_date": "2026-05-01",
+            "to_date": "2026-05-31",
+            "comparison_period": "previous_month",
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["expense_increases"] == [[str(groceries_id), "Groceries", 100_000, 40_000, 150, 1]]
+
+
 async def test_income_expense_breakdown_rejects_invalid_date_range(client):
     """The endpoint rejects a start date after the end date."""
     signup_resp = await _create_user(client)

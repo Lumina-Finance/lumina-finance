@@ -771,6 +771,39 @@ async def test_period_glance_returns_net_worth_change_without_period_transaction
     assert "biggest_change_name" not in data
 
 
+async def test_period_glance_compares_previous_calendar_year(client):
+    """Year-to-date presets can compare against the previous full calendar year."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all([
+            groceries,
+            _transaction(user_id, account_id, groceries_id, date(2026, 2, 15), -100_000),
+            _transaction(user_id, account_id, groceries_id, date(2025, 2, 15), -40_000),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/period-glance",
+        params={
+            "from_date": "2026-01-01",
+            "to_date": "2026-06-06",
+            "comparison_period": "previous_year",
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["biggest_change_name"] == "Groceries"
+    assert data["biggest_change_amount"] == 60_000
+    assert data["biggest_change_pct"] == 150
+
+
 async def test_period_glance_rejects_invalid_date_range(client):
     """The endpoint rejects a start date after the end date."""
     signup_resp = await _create_user(client)

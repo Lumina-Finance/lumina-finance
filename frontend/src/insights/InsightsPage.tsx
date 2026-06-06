@@ -44,6 +44,7 @@ export default function InsightsPage() {
   const [merchantRankingCardRef, merchantRankingCardVisible] = useInsightCardVisibility()
   const queries = useInsightsCardQueries({
     rangeInputDates: range.rangeInputDates,
+    comparisonPeriod: range.comparisonPeriod,
     cardQueriesEnabled: range.cardQueriesEnabled,
     visibility: {
       periodGlance: periodGlanceCardVisible,

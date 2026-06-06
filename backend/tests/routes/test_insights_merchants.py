@@ -215,6 +215,47 @@ async def test_merchants_reports_incomplete_fx_with_missing_pairs(client, monkey
     }
 
 
+async def test_merchants_compare_previous_calendar_month(client):
+    """Merchant deltas can compare against the previous full calendar month."""
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
+    alpha_id, alpha = _merchant(user_id, "Alpha Market")
+
+    async with TestSession() as session:
+        session.add_all([
+            expense,
+            alpha,
+            _transaction(user_id, account_id, expense_id, date(2026, 5, 10), -100_000, alpha_id),
+            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -40_000, alpha_id),
+            _transaction(user_id, account_id, expense_id, date(2026, 3, 31), -60_000, alpha_id),
+        ])
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/merchants",
+        params={
+            "from_date": "2026-05-01",
+            "to_date": "2026-05-31",
+            "comparison_period": "previous_month",
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "distribution": [
+            [str(alpha_id), "Alpha Market", 100_000, 150, 60_000],
+        ],
+        "ranking": [
+            [str(alpha_id), "Alpha Market", 100_000, 1, 150],
+        ],
+        "fx_status": {"state": "none", "missing_pairs": []},
+    }
+
+
 async def test_merchants_rejects_invalid_date_range(client):
     """The shared endpoint rejects a start date after the end date."""
     signup_resp = await _create_user(client)

@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import type { FxStatus } from '@/api/dashboard';
 import { insightsKeys } from '@/api/queryKeys';
+import type { InsightsComparisonPeriod } from '@/insights/types/range';
 
 export interface InsightsPeriodGlanceResponse {
   income: number;
@@ -81,13 +82,29 @@ export interface InsightsMerchantsResponse {
   fx_status: FxStatus;
 }
 
-export function useInsightsPeriodGlance(fromDate: string, toDate: string, enabled = true) {
+function rangeQueryString(fromDate: string, toDate: string, comparisonPeriod?: InsightsComparisonPeriod) {
+  const params = new URLSearchParams({
+    from_date: fromDate,
+    to_date: toDate,
+  });
+  if (comparisonPeriod) {
+    params.set('comparison_period', comparisonPeriod);
+  }
+  return params.toString();
+}
+
+export function useInsightsPeriodGlance(
+  fromDate: string,
+  toDate: string,
+  comparisonPeriod: InsightsComparisonPeriod = 'same_length',
+  enabled = true,
+) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: insightsKeys.periodGlance(fromDate, toDate),
+    queryKey: insightsKeys.periodGlance(fromDate, toDate, comparisonPeriod),
     queryFn: () =>
       authenticatedFetch<InsightsPeriodGlanceResponse>(
-        `/insights/period-glance?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+        `/insights/period-glance?${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -100,7 +117,7 @@ export function useInsightsNetWorth(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.netWorth(fromDate, toDate),
     queryFn: () =>
       authenticatedFetch<InsightsNetWorthResponse>(
-        `/insights/net-worth?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+        `/insights/net-worth?${rangeQueryString(fromDate, toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -118,13 +135,18 @@ export function useInsightsSavingsRateTrend(enabled = true) {
   });
 }
 
-export function useInsightsIncomeExpenseBreakdown(fromDate: string, toDate: string, enabled = true) {
+export function useInsightsIncomeExpenseBreakdown(
+  fromDate: string,
+  toDate: string,
+  comparisonPeriod: InsightsComparisonPeriod = 'same_length',
+  enabled = true,
+) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: insightsKeys.incomeExpenseBreakdown(fromDate, toDate),
+    queryKey: insightsKeys.incomeExpenseBreakdown(fromDate, toDate, comparisonPeriod),
     queryFn: () =>
       authenticatedFetch<InsightsIncomeExpenseBreakdownResponse>(
-        `/insights/income-expense-breakdown?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+        `/insights/income-expense-breakdown?${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -137,7 +159,7 @@ export function useInsightsCashFlow(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.cashFlow(fromDate, toDate),
     queryFn: () =>
       authenticatedFetch<InsightsCashFlowResponse>(
-        `/insights/cash-flow?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+        `/insights/cash-flow?${rangeQueryString(fromDate, toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -150,20 +172,25 @@ export function useInsightsFundFlow(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.fundFlow(fromDate, toDate),
     queryFn: () =>
       authenticatedFetch<InsightsFundFlowResponse>(
-        `/insights/fund-flow?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+        `/insights/fund-flow?${rangeQueryString(fromDate, toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useInsightsMerchants(fromDate: string, toDate: string, enabled = true) {
+export function useInsightsMerchants(
+  fromDate: string,
+  toDate: string,
+  comparisonPeriod: InsightsComparisonPeriod = 'same_length',
+  enabled = true,
+) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: insightsKeys.merchants(fromDate, toDate),
+    queryKey: insightsKeys.merchants(fromDate, toDate, comparisonPeriod),
     queryFn: () =>
       authenticatedFetch<InsightsMerchantsResponse>(
-        `/insights/merchants?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`,
+        `/insights/merchants?${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,

@@ -12,6 +12,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.insights import (
     InsightsCashFlowResponse,
+    InsightsComparisonPeriod,
     InsightsFundFlowResponse,
     InsightsIncomeExpenseBreakdownResponse,
     InsightsMerchantDistributionResponse,
@@ -53,10 +54,11 @@ async def get_period_glance_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
+    comparison_period: Annotated[InsightsComparisonPeriod, Query()] = "same_length",
 ):
     """Return compact metrics for the insights top summary card."""
     _validate_date_range(from_date, to_date)
-    return await get_period_glance(db, user, from_date, to_date)
+    return await get_period_glance(db, user, from_date, to_date, comparison_period)
 
 
 @router.get("/fund-flow", response_model=InsightsFundFlowResponse)
@@ -77,10 +79,11 @@ async def get_income_expense_breakdown_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
+    comparison_period: Annotated[InsightsComparisonPeriod, Query()] = "same_length",
 ):
     """Return category breakdown and trend rows for the insights breakdown card."""
     _validate_date_range(from_date, to_date)
-    return await get_income_expense_breakdown(db, user, from_date, to_date)
+    return await get_income_expense_breakdown(db, user, from_date, to_date, comparison_period)
 
 
 @router.get("/cash-flow", response_model=InsightsCashFlowResponse)
@@ -122,10 +125,11 @@ async def get_merchant_distribution_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
+    comparison_period: Annotated[InsightsComparisonPeriod, Query()] = "same_length",
 ):
     """Return merchant spend rows for the insights merchant distribution card."""
     _validate_date_range(from_date, to_date)
-    return await get_merchant_distribution(db, user, from_date, to_date)
+    return await get_merchant_distribution(db, user, from_date, to_date, comparison_period)
 
 
 @router.get("/merchant-ranking", response_model=InsightsMerchantRankingResponse)
@@ -134,10 +138,11 @@ async def get_merchant_ranking_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
+    comparison_period: Annotated[InsightsComparisonPeriod, Query()] = "same_length",
 ):
     """Return merchant ranking rows for the insights merchant ranking card."""
     _validate_date_range(from_date, to_date)
-    return await get_merchant_ranking(db, user, from_date, to_date)
+    return await get_merchant_ranking(db, user, from_date, to_date, comparison_period)
 
 
 @router.get("/merchants", response_model=InsightsMerchantsResponse)
@@ -146,7 +151,8 @@ async def get_merchants_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
+    comparison_period: Annotated[InsightsComparisonPeriod, Query()] = "same_length",
 ):
     """Return shared merchant spend rows for the insights merchant cards."""
     _validate_date_range(from_date, to_date)
-    return await get_merchants(db, user, from_date, to_date)
+    return await get_merchants(db, user, from_date, to_date, comparison_period)
