@@ -7,7 +7,7 @@ import {
   useInsightsPeriodGlance,
   useInsightsSavingsRateTrend,
 } from '@/api/insights'
-import type { InsightsRangeInputDates } from '../types/range'
+import type { InsightsComparisonPeriod, InsightsRangeInputDates } from '../types/range'
 
 type InsightsCardQueryVisibility = {
   periodGlance: boolean
@@ -22,18 +22,21 @@ type InsightsCardQueryVisibility = {
 
 type UseInsightsCardQueriesParams = {
   rangeInputDates: InsightsRangeInputDates
+  comparisonPeriod: InsightsComparisonPeriod
   cardQueriesEnabled: boolean
   visibility: InsightsCardQueryVisibility
 }
 
 export function useInsightsCardQueries({
   rangeInputDates,
+  comparisonPeriod,
   cardQueriesEnabled,
   visibility,
 }: UseInsightsCardQueriesParams) {
   const periodGlance = useInsightsPeriodGlance(
     rangeInputDates.from,
     rangeInputDates.to,
+    comparisonPeriod,
     cardQueriesEnabled && visibility.periodGlance,
   )
   const fundFlow = useInsightsFundFlow(
@@ -44,6 +47,7 @@ export function useInsightsCardQueries({
   const incomeExpenseBreakdown = useInsightsIncomeExpenseBreakdown(
     rangeInputDates.from,
     rangeInputDates.to,
+    comparisonPeriod,
     cardQueriesEnabled && visibility.breakdown,
   )
   const netWorth = useInsightsNetWorth(
@@ -59,6 +63,7 @@ export function useInsightsCardQueries({
   const merchants = useInsightsMerchants(
     rangeInputDates.from,
     rangeInputDates.to,
+    comparisonPeriod,
     cardQueriesEnabled && (visibility.merchantDistribution || visibility.merchantRanking),
   )
   const savingsRateTrend = useInsightsSavingsRateTrend(visibility.savingsRate)

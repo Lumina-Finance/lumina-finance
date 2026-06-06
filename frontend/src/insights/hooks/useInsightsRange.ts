@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import type { InsightsRangeInputDates, InsightsRangePreset } from '../types/range'
+import type { InsightsComparisonPeriod, InsightsRangeInputDates, InsightsRangePreset } from '../types/range'
 import {
   getCustomRangeDays,
   getDefaultCustomRange,
+  getRangeComparisonPeriod,
+  getRangeDisplayDates,
   getRangeInputDates,
 } from '../utils/range'
 
@@ -16,6 +18,7 @@ export type InsightsRangeState = {
   commitCustomRange: () => void
   customInvalid: boolean
   rangeInputDates: InsightsRangeInputDates
+  comparisonPeriod: InsightsComparisonPeriod
   cardTransitionKey: string
   cardQueriesEnabled: boolean
 }
@@ -26,18 +29,23 @@ export function useInsightsRange(): InsightsRangeState {
     () => getRangeInputDates('THIS_MONTH', defaultCustomRange.from, defaultCustomRange.to),
     [defaultCustomRange],
   )
+  const initialRangeDisplayDates = useMemo(
+    () => getRangeDisplayDates('THIS_MONTH', defaultCustomRange.from, defaultCustomRange.to),
+    [defaultCustomRange],
+  )
   const [rangePreset, setRangePresetState] = useState<InsightsRangePreset>('THIS_MONTH')
   const [committedCustomFrom, setCommittedCustomFrom] = useState(defaultCustomRange.from)
   const [committedCustomTo, setCommittedCustomTo] = useState(defaultCustomRange.to)
-  const [customFrom, setCustomFromState] = useState(initialRangeInputDates.from)
-  const [customTo, setCustomToState] = useState(initialRangeInputDates.to)
+  const [customFrom, setCustomFromState] = useState(initialRangeDisplayDates.from)
+  const [customTo, setCustomToState] = useState(initialRangeDisplayDates.to)
   const [rangeInputDates, setRangeInputDates] = useState<InsightsRangeInputDates>(initialRangeInputDates)
+  const [comparisonPeriod, setComparisonPeriod] = useState<InsightsComparisonPeriod>(getRangeComparisonPeriod('THIS_MONTH'))
 
   const customInvalid = rangePreset === 'CUSTOM'
     && customFrom !== ''
     && customTo !== ''
     && getCustomRangeDays(customFrom, customTo) === null
-  const cardTransitionKey = `${rangeInputDates.from}:${rangeInputDates.to}`
+  const cardTransitionKey = `${rangeInputDates.from}:${rangeInputDates.to}:${comparisonPeriod}`
   const cardQueriesEnabled = rangeInputDates.from !== '' && rangeInputDates.to !== ''
 
   function setRangePreset(value: InsightsRangePreset) {
@@ -48,13 +56,16 @@ export function useInsightsRange(): InsightsRangeState {
       setCustomFromState(nextRange.from)
       setCustomToState(nextRange.to)
       setRangeInputDates(nextRange)
+      setComparisonPeriod(getRangeComparisonPeriod(value))
       return
     }
 
-    const nextRange = getRangeInputDates(value, committedCustomFrom, committedCustomTo)
-    setCustomFromState(nextRange.from)
-    setCustomToState(nextRange.to)
-    setRangeInputDates(nextRange)
+    const nextInputRange = getRangeInputDates(value, committedCustomFrom, committedCustomTo)
+    const nextDisplayRange = getRangeDisplayDates(value, committedCustomFrom, committedCustomTo)
+    setCustomFromState(nextDisplayRange.from)
+    setCustomToState(nextDisplayRange.to)
+    setRangeInputDates(nextInputRange)
+    setComparisonPeriod(getRangeComparisonPeriod(value))
   }
 
   function setCustomFrom(value: string) {
@@ -75,6 +86,7 @@ export function useInsightsRange(): InsightsRangeState {
     setCommittedCustomFrom(customFrom)
     setCommittedCustomTo(customTo)
     setRangeInputDates({ from: customFrom, to: customTo })
+    setComparisonPeriod(getRangeComparisonPeriod('CUSTOM'))
   }
 
   return {
@@ -87,6 +99,7 @@ export function useInsightsRange(): InsightsRangeState {
     commitCustomRange,
     customInvalid,
     rangeInputDates,
+    comparisonPeriod,
     cardTransitionKey,
     cardQueriesEnabled,
   }

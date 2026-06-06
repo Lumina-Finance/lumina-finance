@@ -1,54 +1,68 @@
-import type { InsightsRangeInputDates, InsightsRangePreset } from '../types/range'
+import type { InsightsComparisonPeriod, InsightsRangeInputDates, InsightsRangePreset } from '../types/range'
 import {
   addDays,
   formatYmd,
   parseYmd,
 } from './date'
 
-function getRangeDates(preset: InsightsRangePreset, customFrom: string, customTo: string) {
-  if (preset === 'CUSTOM') {
-    const fromDate = parseYmd(customFrom)
-    const toDate = parseYmd(customTo)
-    if (fromDate && toDate && fromDate <= toDate) {
-      const dates: Date[] = []
-      let cursor = fromDate
-      while (cursor <= toDate) {
-        dates.push(cursor)
-        cursor = addDays(cursor, 1)
-      }
-      return dates
-    }
-  }
-
+function getEffectiveRangeBounds(
+  preset: InsightsRangePreset,
+  customFrom: string,
+  customTo: string,
+): { start: Date; end: Date } {
   const today = new Date()
-  const rangeBoundary = (() => {
-    switch (preset) {
-      case 'THIS_MONTH':
-        return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: today }
-      case 'THIS_YEAR':
-        return { start: new Date(today.getFullYear(), 0, 1), end: today }
-      case 'LAST_MONTH': {
-        const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-        return { start, end: new Date(today.getFullYear(), today.getMonth(), 0) }
-      }
-      case 'LAST_30_DAYS':
-        return { start: addDays(today, -29), end: today }
-      case 'LAST_90_DAYS':
-        return { start: addDays(today, -89), end: today }
-      case 'CUSTOM':
-        return { start: addDays(today, -29), end: today }
-      default:
-        return { start: addDays(today, -29), end: today }
-    }
-  })()
 
-  const dates: Date[] = []
-  let cursor = rangeBoundary.start
-  while (cursor <= rangeBoundary.end) {
-    dates.push(cursor)
-    cursor = addDays(cursor, 1)
+  switch (preset) {
+    case 'THIS_MONTH':
+      return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: today }
+    case 'THIS_YEAR':
+      return { start: new Date(today.getFullYear(), 0, 1), end: today }
+    case 'LAST_MONTH': {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      return { start, end: new Date(today.getFullYear(), today.getMonth(), 0) }
+    }
+    case 'LAST_30_DAYS':
+      return { start: addDays(today, -29), end: today }
+    case 'LAST_90_DAYS':
+      return { start: addDays(today, -89), end: today }
+    case 'CUSTOM': {
+      const fromDate = parseYmd(customFrom)
+      const toDate = parseYmd(customTo)
+      if (fromDate && toDate && fromDate <= toDate) {
+        return { start: fromDate, end: toDate }
+      }
+      return { start: addDays(today, -29), end: today }
+    }
+    default:
+      return { start: addDays(today, -29), end: today }
   }
-  return dates
+}
+
+function getDisplayRangeBounds(
+  preset: InsightsRangePreset,
+  customFrom: string,
+  customTo: string,
+): { start: Date; end: Date } {
+  const today = new Date()
+
+  switch (preset) {
+    case 'THIS_MONTH':
+      return {
+        start: new Date(today.getFullYear(), today.getMonth(), 1),
+        end: new Date(today.getFullYear(), today.getMonth() + 1, 0),
+      }
+    case 'THIS_YEAR':
+      return {
+        start: new Date(today.getFullYear(), 0, 1),
+        end: new Date(today.getFullYear(), 11, 31),
+      }
+    default:
+      return getEffectiveRangeBounds(preset, customFrom, customTo)
+  }
+}
+
+function formatRangeBounds({ start, end }: { start: Date; end: Date }): InsightsRangeInputDates {
+  return { from: formatYmd(start), to: formatYmd(end) }
 }
 
 export function getDefaultCustomRange(): InsightsRangeInputDates {
@@ -71,15 +85,25 @@ export function getRangeInputDates(
   customFrom: string,
   customTo: string,
 ): InsightsRangeInputDates {
-  if (preset === 'CUSTOM') {
-    return { from: customFrom, to: customTo }
-  }
+  return formatRangeBounds(getEffectiveRangeBounds(preset, customFrom, customTo))
+}
 
-  const dates = getRangeDates(preset, customFrom, customTo)
-  const firstDate = dates[0]
-  const lastDate = dates.at(-1)
-  return {
-    from: firstDate ? formatYmd(firstDate) : customFrom,
-    to: lastDate ? formatYmd(lastDate) : customTo,
+export function getRangeDisplayDates(
+  preset: InsightsRangePreset,
+  customFrom: string,
+  customTo: string,
+): InsightsRangeInputDates {
+  return formatRangeBounds(getDisplayRangeBounds(preset, customFrom, customTo))
+}
+
+export function getRangeComparisonPeriod(preset: InsightsRangePreset): InsightsComparisonPeriod {
+  switch (preset) {
+    case 'THIS_MONTH':
+    case 'LAST_MONTH':
+      return 'previous_month'
+    case 'THIS_YEAR':
+      return 'previous_year'
+    default:
+      return 'same_length'
   }
 }
