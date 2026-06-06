@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type React from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { useUpdateAccount, type AccountsOverview } from '@/api/accounts'
@@ -50,11 +49,6 @@ import {
   TaxAdvantagedCurrencyWarning,
 } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 
-const LIMIT_FIELD_ACTION_TRANSITION = {
-  duration: 0.18,
-  ease: [0.25, 0.1, 0.25, 1] as const,
-}
-
 type LimitDraftField = keyof Pick<
   TaxPlanLimitFormState,
   'contribution_limit' | 'withdrawal_limit' | 'accrued_contributions' | 'accrued_withdrawals'
@@ -64,71 +58,6 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms)
   })
-}
-
-function LimitInputShell({
-  children,
-  dirty,
-  discardLabel,
-  disabled,
-  onDiscard,
-  onSave,
-  saveLabel,
-  saving,
-}: {
-  children: React.ReactNode
-  dirty: boolean
-  discardLabel: string
-  disabled: boolean
-  onDiscard: () => void
-  onSave: () => void
-  saveLabel: string
-  saving: boolean
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <div className="min-w-0 flex-1">
-        {children}
-      </div>
-      <AnimatePresence initial={false}>
-        {dirty && (
-          <motion.div
-            className="flex shrink-0 items-center gap-1 overflow-hidden"
-            initial={{ opacity: 0, width: 0, x: -4, filter: 'blur(3px)' }}
-            animate={{ opacity: 1, width: 68, x: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, width: 0, x: -4, filter: 'blur(3px)' }}
-            transition={LIMIT_FIELD_ACTION_TRANSITION}
-          >
-            <button
-              type="button"
-              className="app-icon-button h-8 w-8 shrink-0 disabled:cursor-wait disabled:opacity-60"
-              onClick={onSave}
-              disabled={disabled}
-              aria-label={saveLabel}
-              title="Save"
-              style={{ color: 'var(--app-accent)' }}
-            >
-              {saving ? (
-                <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden />
-              ) : (
-                <Check size={14} aria-hidden />
-              )}
-            </button>
-            <button
-              type="button"
-              className="app-icon-button h-8 w-8 shrink-0 disabled:cursor-wait disabled:opacity-60"
-              onClick={onDiscard}
-              disabled={disabled}
-              aria-label={discardLabel}
-              title="Discard"
-            >
-              <X size={14} aria-hidden />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
 }
 
 export default function TaxAdvantagedCategoryModal({
@@ -323,6 +252,14 @@ export default function TaxAdvantagedCategoryModal({
 
   const closeLimitDetailsModal = () => {
     if (creatingLimit || updateLimit.isPending) return
+    if (selectedLimitYear !== null) {
+      setLimitDrafts((current) => {
+        if (!(selectedLimitYear in current)) return current
+        const next = { ...current }
+        delete next[selectedLimitYear]
+        return next
+      })
+    }
     setShowAddTaxYear(false)
     setSelectedLimitYear(null)
     setLimitError(null)
@@ -455,39 +392,6 @@ export default function TaxAdvantagedCategoryModal({
       || (toMinorUnits(draft.accrued_withdrawals, currencies, plan.currency) ?? 0) !== limit.accrued_withdrawals
   }
 
-  const limitFieldDirty = (year: number, key: LimitDraftField) => {
-    const limit = limits.find((row) => row.year === year)
-    if (!limit) return false
-    const draft = limitDraft(year)
-    const baseline = {
-      contribution_limit: limit.contribution_limit,
-      withdrawal_limit: limit.withdrawal_limit,
-      accrued_contributions: limit.accrued_contributions,
-      accrued_withdrawals: limit.accrued_withdrawals,
-    }[key]
-    const value = key === 'accrued_contributions' || key === 'accrued_withdrawals'
-      ? toMinorUnits(draft[key], currencies, plan.currency) ?? 0
-      : toMinorUnits(draft[key], currencies, plan.currency)
-    return value !== baseline
-  }
-
-  const discardLimitField = (year: number, key: LimitDraftField) => {
-    setLimitDrafts((current) => {
-      const draft = current[year]
-      if (!draft || !(key in draft)) return current
-
-      const nextDraft = { ...draft }
-      delete nextDraft[key]
-
-      const next = { ...current }
-      if (Object.keys(nextDraft).length === 0) delete next[year]
-      else next[year] = nextDraft
-      return next
-    })
-    setLimitError(null)
-    setDeleteConfirmYear(null)
-  }
-
   const handleSaveLimit = (year: number) => {
     if (!limitDirty(year) || updateLimit.isPending) return
     const draft = limitDraft(year)
@@ -530,6 +434,7 @@ export default function TaxAdvantagedCategoryModal({
             return next
           })
           setLimitError(null)
+          setSelectedLimitYear(null)
           showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
         },
         onError: (error) => {
@@ -677,30 +582,18 @@ export default function TaxAdvantagedCategoryModal({
     label: string,
     ariaLabel: string,
     value: string,
-    dirty: boolean,
-    saving: boolean,
     placeholder?: string,
   ) => (
     <div className="min-w-0">
       <span className="app-label mb-1 block text-xs">{label}</span>
-      <LimitInputShell
-        dirty={dirty}
-        disabled={updateLimit.isPending}
-        saving={saving}
-        onSave={() => handleSaveLimit(year)}
-        onDiscard={() => discardLimitField(year, key)}
-        saveLabel={`Save ${year} ${ariaLabel.toLowerCase()}`}
-        discardLabel={`Discard ${year} ${ariaLabel.toLowerCase()} changes`}
-      >
-        <CompactCurrencyInput
-          ariaLabel={`${year} ${ariaLabel.toLowerCase()}`}
-          currencies={currencies}
-          currency={plan.currency}
-          value={value}
-          onChange={(nextValue) => setLimitField(year, key, nextValue)}
-          placeholder={placeholder}
-        />
-      </LimitInputShell>
+      <CompactCurrencyInput
+        ariaLabel={`${year} ${ariaLabel.toLowerCase()}`}
+        currencies={currencies}
+        currency={plan.currency}
+        value={value}
+        onChange={(nextValue) => setLimitField(year, key, nextValue)}
+        placeholder={placeholder}
+      />
     </div>
   )
 
@@ -732,10 +625,7 @@ export default function TaxAdvantagedCategoryModal({
   const selectedSavingLimit = selectedLimit !== null
     && updateLimit.isPending
     && updateLimit.variables?.year === selectedLimit.year
-  const selectedContributionDirty = selectedLimit ? limitFieldDirty(selectedLimit.year, 'contribution_limit') : false
-  const selectedWithdrawalDirty = selectedLimit ? limitFieldDirty(selectedLimit.year, 'withdrawal_limit') : false
-  const selectedPriorContributionDirty = selectedLimit ? limitFieldDirty(selectedLimit.year, 'accrued_contributions') : false
-  const selectedPriorWithdrawalDirty = selectedLimit ? limitFieldDirty(selectedLimit.year, 'accrued_withdrawals') : false
+  const selectedLimitDirty = selectedLimit ? limitDirty(selectedLimit.year) : false
 
   return (
     <>
@@ -1515,15 +1405,15 @@ export default function TaxAdvantagedCategoryModal({
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Contribution</p>
                       <div className="grid grid-cols-2 gap-3">
-                        {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit, selectedContributionDirty, selectedSavingLimit)}
-                        {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Prior', 'Prior contributions', selectedDraft.accrued_contributions, selectedPriorContributionDirty, selectedSavingLimit, '0')}
+                        {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit)}
+                        {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Prior', 'Prior contributions', selectedDraft.accrued_contributions, '0')}
                       </div>
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Withdrawal</p>
                       <div className="grid grid-cols-2 gap-3">
-                        {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, selectedWithdrawalDirty, selectedSavingLimit, 'Optional')}
-                        {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Prior', 'Prior withdrawals', selectedDraft.accrued_withdrawals, selectedPriorWithdrawalDirty, selectedSavingLimit, '0')}
+                        {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, 'Optional')}
+                        {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Prior', 'Prior withdrawals', selectedDraft.accrued_withdrawals, '0')}
                       </div>
                     </div>
                     {limitError && (
@@ -1531,6 +1421,24 @@ export default function TaxAdvantagedCategoryModal({
                         {limitError}
                       </p>
                     )}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        className="app-secondary-button justify-center"
+                        onClick={closeLimitDetailsModal}
+                        disabled={selectedSavingLimit}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="app-primary-button justify-center"
+                        onClick={() => handleSaveLimit(selectedLimit.year)}
+                        disabled={selectedSavingLimit || !selectedLimitDirty}
+                      >
+                        {selectedSavingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </div>
