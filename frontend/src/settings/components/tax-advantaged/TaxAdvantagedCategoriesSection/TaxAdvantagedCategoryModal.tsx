@@ -299,10 +299,10 @@ export default function TaxAdvantagedCategoryModal({
       return 'Name is required.'
     }
     if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-      return 'Lifetime contribution limit must be zero or higher.'
+      return 'Lifetime limit must be zero or higher.'
     }
     if (!isValidMoneyInput(form.accrued_contributions)) {
-      return 'Accrued contributions must be zero or higher.'
+      return 'Opening usage must be zero or higher.'
     }
     return null
   }
@@ -1240,7 +1240,8 @@ export default function TaxAdvantagedCategoryModal({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="tax-category-details-title"
-                className="app-modal-panel flex max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden rounded-none min-[620px]:min-h-0 min-[620px]:max-h-[calc(100dvh-2rem)] min-[620px]:max-w-[38rem] min-[620px]:rounded-2xl"
+                data-tooltip-bounds
+                className="app-modal-panel flex max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden rounded-none min-[620px]:min-h-0 min-[620px]:max-h-[calc(100dvh-2rem)] min-[620px]:max-w-[38rem] min-[620px]:overflow-visible min-[620px]:rounded-2xl"
                 style={{
                   background: 'var(--app-bg)',
                   border: '1px solid var(--app-border-strong)',
@@ -1254,7 +1255,7 @@ export default function TaxAdvantagedCategoryModal({
                       TAC Details
                     </h4>
                     <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      Edit category identity and lifetime contribution settings.
+                      Edit category identity and lifetime contribution room.
                     </p>
                   </div>
                   <button
@@ -1268,7 +1269,7 @@ export default function TaxAdvantagedCategoryModal({
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 min-[620px]:overflow-visible">
                   <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
                     <div className="grid min-w-0 grid-cols-2 gap-2">
@@ -1342,9 +1343,9 @@ export default function TaxAdvantagedCategoryModal({
                     </div>
                     <div className="grid min-w-0 grid-cols-1 gap-3 min-[620px]:grid-cols-2">
                       <div className="min-w-0">
-                        <span className="app-label mb-1 block text-xs">Lifetime Contribution Limit</span>
+                        <span className="app-label mb-1 block text-xs">Lifetime limit</span>
                         <CompactCurrencyInput
-                          ariaLabel="Lifetime contribution limit"
+                          ariaLabel="Lifetime limit"
                           currencies={currencies}
                           currency={plan.currency}
                           value={planForm.lifetime_contribution_limit}
@@ -1353,9 +1354,11 @@ export default function TaxAdvantagedCategoryModal({
                         />
                       </div>
                       <div className="min-w-0">
-                        <span className="app-label mb-1 block text-xs">Accrued Contributions</span>
+                        <span className="app-label mb-1 block text-xs">
+                          <OpeningUsageLabel />
+                        </span>
                         <CompactCurrencyInput
-                          ariaLabel="Accrued contributions"
+                          ariaLabel="Opening usage"
                           currencies={currencies}
                           currency={plan.currency}
                           value={planForm.accrued_contributions}
