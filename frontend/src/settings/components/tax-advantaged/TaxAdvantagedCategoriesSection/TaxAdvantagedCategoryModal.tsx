@@ -14,6 +14,7 @@ import {
   type TaxAdvantagedPlanLimit,
 } from '@/api/taxAdvantagedPlans'
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
+import IconTooltip from '@/components/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import type {
   AutosaveNotice,
@@ -51,6 +52,25 @@ type LimitDraftField = keyof Pick<
   TaxPlanLimitFormState,
   'contribution_limit' | 'withdrawal_limit' | 'accrued_contributions' | 'accrued_withdrawals'
 >
+
+const OPENING_USAGE_TOOLTIP = 'Opening usage is the amount already contributed or withdrawn before Lumina started tracking this TAC. Add it when setting up an existing limit so remaining room starts from the correct baseline.'
+
+function OpeningUsageLabel({ label = 'Opening usage' }: { label?: string }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 truncate">{label}</span>
+      <IconTooltip
+        label="Opening usage info"
+        placement="bottom"
+        widthClassName="w-72"
+        size={13}
+        strokeWidth={2.25}
+      >
+        {OPENING_USAGE_TOOLTIP}
+      </IconTooltip>
+    </span>
+  )
+}
 
 function delay(ms: number) {
   return new Promise<void>((resolve) => {
@@ -677,6 +697,7 @@ export default function TaxAdvantagedCategoryModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="tax-advantaged-category-title"
+          data-tooltip-bounds
           className="app-modal-panel flex max-h-[86vh] w-full max-w-[64rem] overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
@@ -870,7 +891,9 @@ export default function TaxAdvantagedCategoryModal({
                           </span>
                         </div>
                         <div className="grid min-w-0 gap-1 min-[750px]:grid-cols-[auto_minmax(0,1fr)] min-[750px]:items-baseline min-[750px]:gap-4">
-                          <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Opening usage</span>
+                          <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                            <OpeningUsageLabel />
+                          </span>
                           <span className="min-w-0 truncate text-sm font-medium">
                             {hasLifetimePriorActivity ? 'Noted' : 'None'}
                           </span>
@@ -895,6 +918,29 @@ export default function TaxAdvantagedCategoryModal({
                       </button>
                     </div>
 
+                    <div className="hidden min-[750px]:block">
+                      <table className="w-full table-fixed text-left text-[0.9375rem]">
+                        <colgroup>
+                          <col style={{ width: '5rem' }} />
+                          <col style={{ width: '25%' }} />
+                          <col style={{ width: '25%' }} />
+                          <col style={{ width: 'auto' }} />
+                          <col style={{ width: '3.5rem' }} />
+                        </colgroup>
+                        <thead>
+                          <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+                            <th className="py-2 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Year</th>
+                            <th className="py-2 pl-0 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Contribution limit</th>
+                            <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Withdrawal limit</th>
+                            <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>
+                              <OpeningUsageLabel />
+                            </th>
+                            <th className="py-2 pl-2 font-medium" style={{ background: 'var(--app-bg)' }} aria-label="Actions" />
+                          </tr>
+                        </thead>
+                      </table>
+                    </div>
+
                     <div className={hasScrollableLimitRows ? 'max-h-[22rem] overflow-y-auto overflow-x-hidden pr-1' : 'overflow-hidden'}>
                         <table className="block w-full text-left text-[0.9375rem] min-[750px]:table min-[750px]:table-fixed">
                           <colgroup className="hidden min-[750px]:table-column-group">
@@ -904,15 +950,6 @@ export default function TaxAdvantagedCategoryModal({
                             <col style={{ width: 'auto' }} />
                             <col style={{ width: '3.5rem' }} />
                           </colgroup>
-                          <thead className="hidden min-[750px]:table-header-group">
-                            <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
-                              <th className="sticky top-0 z-10 py-2 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Year</th>
-                              <th className="sticky top-0 z-10 py-2 pl-0 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Contribution limit</th>
-                              <th className="sticky top-0 z-10 py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Withdrawal limit</th>
-                              <th className="sticky top-0 z-10 py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Opening usage</th>
-                              <th className="sticky top-0 z-10 py-2 pl-2 font-medium" style={{ background: 'var(--app-bg)' }} aria-label="Actions" />
-                            </tr>
-                          </thead>
                           <tbody className="block space-y-3 min-[750px]:table-row-group min-[750px]:space-y-0">
                             {limitsLoading ? null : sortedLimits.length === 0 ? (
                               <tr className="block min-[750px]:table-row">
