@@ -27,8 +27,6 @@ import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdv
 import {
   ACCOUNT_LINK_SAVE_MIN_LOADING_MS,
   ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS,
-  CATEGORY_SUMMARY_LABEL_CLASS,
-  CATEGORY_SUMMARY_VALUE_CLASS,
   DEFAULT_NEW_LIMIT_YEAR,
   DELETE_TAX_CATEGORY_MIN_LOADING_MS,
   LIMIT_DELETE_BUTTON_TRANSITION,
@@ -360,12 +358,15 @@ export default function TaxAdvantagedCategoryModal({
   }, [limits, pendingCreateLimitYear, pendingDeletedLimit])
   const hasScrollableLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
   const creatingLimit = pendingCreateLimitYear !== null || createLimit.isPending
+  const hasLifetimePriorActivity = plan.accrued_contributions > 0
   const bindableAccounts = accounts.filter(
     (account) =>
       account.closed_at === null
       && account.account_kind === 'asset'
       && account.currency === plan.currency,
   )
+  const linkedAccountsCount = bindableAccounts.filter((account) => account.tax_advantaged_plan_id === plan.id).length
+  const linkedAccountsSummary = `${linkedAccountsCount} linked`
 
   const limitDraft = (year: number) => {
     const limit = limits.find((row) => row.year === year)
@@ -686,12 +687,12 @@ export default function TaxAdvantagedCategoryModal({
         >
           <div className="flex h-full min-h-0 w-full flex-col min-[1050px]:grid min-[1050px]:max-h-[86vh] min-[1050px]:min-h-[580px] min-[1050px]:grid-cols-[280px_minmax(0,1fr)]">
             <aside
-              className="flex shrink-0 min-w-0 flex-col gap-5 border-b p-5 min-[750px]:gap-6 min-[750px]:p-7 min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:border-b-0 min-[1050px]:border-r"
+              className="flex shrink-0 min-w-0 flex-col gap-3 border-b p-4 min-[750px]:gap-6 min-[750px]:p-7 min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:border-b-0 min-[1050px]:border-r"
               style={{ background: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
             >
               <div className="flex min-w-0 items-start justify-between gap-4">
-                <div className="h-10 min-w-0 flex-1 overflow-hidden">
-                  <h3 id="tax-advantaged-category-title" className="h-10 truncate font-serif text-3xl font-medium leading-10 tracking-tight">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <h3 id="tax-advantaged-category-title" className="truncate font-serif text-2xl font-medium leading-8 tracking-tight min-[750px]:text-3xl min-[750px]:leading-10">
                     {plan.name}
                   </h3>
                 </div>
@@ -705,8 +706,8 @@ export default function TaxAdvantagedCategoryModal({
                 </button>
               </div>
 
-              <div className="space-y-3 min-[750px]:hidden">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[0.9375rem] font-medium">
+              <div className="space-y-2.5 min-[750px]:hidden">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
                   <span className="truncate">
                     {formatTaxTreatment(plan.tax_treatment)}
                   </span>
@@ -721,16 +722,10 @@ export default function TaxAdvantagedCategoryModal({
                   </span>
                 </div>
 
-                <div className="flex min-w-0 items-center justify-between gap-4 border-t pt-3" style={{ borderColor: 'var(--app-border)' }}>
-                  <span className="app-label min-w-0">Lifetime Contribution Limit</span>
-                  <span className="font-financial text-[0.9375rem] font-medium">
-                    {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
-                  </span>
-                </div>
-                <div className="flex min-w-0 items-center justify-between gap-4">
-                  <span className="app-label min-w-0">Accrued Contributions</span>
-                  <span className="font-financial text-[0.9375rem] font-medium">
-                    {formatCurrency(plan.accrued_contributions, plan.currency)}
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t pt-2.5" style={{ borderColor: 'var(--app-border)' }}>
+                  <span className="app-label min-w-0">Linked Accounts</span>
+                  <span className="text-sm font-medium">
+                    {linkedAccountsSummary}
                   </span>
                 </div>
               </div>
@@ -743,20 +738,7 @@ export default function TaxAdvantagedCategoryModal({
                   value={plan.currency}
                 />
                 <InfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
-
-                <div className="relative h-14 min-w-0 overflow-hidden">
-                  <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Lifetime Contribution Limit</p>
-                  <p className={`font-financial ${CATEGORY_SUMMARY_VALUE_CLASS}`}>
-                    {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
-                  </p>
-                </div>
-
-                <div className="relative h-14 min-w-0 overflow-hidden">
-                  <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Accrued Contributions</p>
-                  <p className={`font-financial ${CATEGORY_SUMMARY_VALUE_CLASS}`}>
-                    {formatCurrency(plan.accrued_contributions, plan.currency)}
-                  </p>
-                </div>
+                <InfoItem label="Linked Accounts" value={linkedAccountsSummary} />
               </div>
 
               {planError && (
@@ -765,10 +747,10 @@ export default function TaxAdvantagedCategoryModal({
                 </p>
               )}
 
-              <div className="flex items-center justify-between border-t pt-4 min-[1050px]:mt-auto" style={{ borderColor: 'var(--app-border)' }}>
+              <div className="grid grid-cols-2 gap-2 border-t pt-3 min-[750px]:flex min-[750px]:items-center min-[750px]:justify-between min-[750px]:pt-4 min-[1050px]:mt-auto" style={{ borderColor: 'var(--app-border)' }}>
                 <button
                   type="button"
-                  className="app-secondary-button w-[72px]"
+                  className="app-secondary-button w-full justify-center min-[750px]:w-[72px]"
                   disabled={planSaveStatus !== 'idle'}
                   onClick={openCategoryDetailsModal}
                 >
@@ -777,7 +759,7 @@ export default function TaxAdvantagedCategoryModal({
                 <button
                   ref={planDeleteButtonRef}
                   type="button"
-                  className={`app-danger-button ${deletePlan.isPending && confirmingPlanDelete ? 'app-primary-button-loading' : ''}`}
+                  className={`app-danger-button w-full justify-center min-[750px]:w-auto ${deletePlan.isPending && confirmingPlanDelete ? 'app-primary-button-loading' : ''}`}
                   onClick={() => {
                     if (deletePlan.isPending) return
                     if (confirmingPlanDelete) handleDeletePlan()
@@ -877,11 +859,31 @@ export default function TaxAdvantagedCategoryModal({
 
               <div className="min-h-0 flex-1 overflow-y-auto p-5 min-[750px]:p-6">
                 {activeTab === 'limits' ? (
-                  <div className="space-y-4">
+                  <div className="space-y-5">
+                    <div className="space-y-2 border-b pb-4" style={{ borderColor: 'var(--app-border)' }}>
+                      <p className="text-sm font-medium">Lifetime Contribution Room</p>
+                      <div className="grid grid-cols-2 gap-3 min-[750px]:gap-x-8">
+                        <div className="grid min-w-0 gap-1 min-[750px]:grid-cols-[auto_minmax(0,1fr)] min-[750px]:items-baseline min-[750px]:gap-4">
+                          <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Limit</span>
+                          <span className="min-w-0 truncate font-financial text-sm font-medium">
+                            {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
+                          </span>
+                        </div>
+                        <div className="grid min-w-0 gap-1 min-[750px]:grid-cols-[auto_minmax(0,1fr)] min-[750px]:items-baseline min-[750px]:gap-4">
+                          <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Prior activity</span>
+                          <span className="min-w-0 truncate text-sm font-medium">
+                            {hasLifetimePriorActivity ? 'Noted' : 'None'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex flex-col gap-3 min-[750px]:flex-row min-[750px]:items-center min-[750px]:justify-between">
-                      <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
-                        Configure annual contribution and withdrawal limits.
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Annual Limits</p>
+                        <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
+                          Configure annual contribution and withdrawal limits.
+                        </p>
+                      </div>
                       <button
                         type="button"
                         className="app-secondary-button w-full shrink-0 justify-center min-[750px]:w-auto"
@@ -1042,7 +1044,7 @@ export default function TaxAdvantagedCategoryModal({
                         Choose eligible {plan.currency} accounts for this category. Archived accounts stay visible for history but cannot be linked or unlinked until unarchived.
                       </p>
                       <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                        {bindableAccounts.filter((account) => account.tax_advantaged_plan_id === plan.id).length} of {bindableAccounts.length} linked
+                        {linkedAccountsCount} of {bindableAccounts.length} linked
                       </p>
                     </div>
 
