@@ -305,10 +305,10 @@ export function IncomeExpenseBreakdownCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
-            <div className="flex min-h-[620px] flex-col">
+            <div className="flex flex-col min-[1350px]:min-h-[620px]">
               <div
                 ref={breakdownChartRef}
-                className="relative h-[450px] shrink-0"
+                className="relative aspect-square max-h-[450px] w-full shrink-0"
                 onMouseLeave={hideBreakdownTooltip}
               >
                 <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
@@ -409,14 +409,14 @@ export function IncomeExpenseBreakdownCard({
               </div>
             </div>
 
-            <div className="flex min-h-[620px] flex-col border-t border-[var(--app-border)] pt-3 min-[1350px]:border-t-0 min-[1350px]:pt-0">
-              <div className="grid gap-4 min-[1350px]:min-h-0 min-[1350px]:flex-1 min-[1350px]:grid-rows-2">
+            <div className="flex flex-col border-t border-[var(--app-border)] pt-4 min-[1350px]:min-h-[620px] min-[1350px]:border-t-0 min-[1350px]:pt-0">
+              <div className="grid gap-5 min-[1350px]:min-h-0 min-[1350px]:flex-1 min-[1350px]:grid-rows-2 min-[1350px]:gap-4">
                 {displaySnapshot.trendSections.map((section) => (
                   <div
                     key={section.id}
                     className="flex min-h-0 flex-col"
                   >
-                    <p className="app-label mb-2 inline-flex items-center gap-2">
+                    <p className="app-label mb-3 inline-flex items-center gap-2 min-[1350px]:mb-2">
                       {section.label}
                       <IconTooltip
                         label={`${section.label} calculation`}
