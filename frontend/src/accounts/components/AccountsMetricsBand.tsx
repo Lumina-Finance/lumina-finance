@@ -113,7 +113,7 @@ export default function AccountsMetricsBand({
                   className="h-full rounded-full"
                   style={{
                     background: savingsRate.color,
-                    width: `${Math.max(0, Math.min(savingsRate.value ?? 0, 100))}%`,
+                    width: `${savingsRate.progress}%`,
                   }}
                 />
               </div>

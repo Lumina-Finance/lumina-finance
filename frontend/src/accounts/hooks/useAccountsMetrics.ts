@@ -18,6 +18,7 @@ export interface AccountsMetricsViewModel {
     isLoading: boolean
     net: number
     income: number
+    progress: number
     color: string
     fxStatus: FxStatus | undefined
   }
@@ -89,6 +90,14 @@ export function useAccountsMetrics(
   const savingsRate =
     savingsRateIncome > 0 ? Math.round((savingsRateNet / savingsRateIncome) * 100) : null
   const savingsRateHasExpenses = savingsRateExpenses > 0
+  const savingsRateProgress =
+    dashboardSavingsRateLoading
+      ? 0
+      : savingsRate === null
+        ? savingsRateHasExpenses ? 100 : 0
+        : savingsRate <= 0
+          ? 100
+          : Math.min(savingsRate, 100)
   const savingsRateColor =
     dashboardSavingsRateLoading
       ? 'var(--app-text-subtle)'
@@ -109,6 +118,7 @@ export function useAccountsMetrics(
       isLoading: dashboardSavingsRateLoading,
       net: savingsRateNet,
       income: savingsRateIncome,
+      progress: savingsRateProgress,
       color: savingsRateColor,
       fxStatus: dashboardSavingsRate?.fx_status,
     },
