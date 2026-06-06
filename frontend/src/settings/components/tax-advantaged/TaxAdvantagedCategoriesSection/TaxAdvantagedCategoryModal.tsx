@@ -28,7 +28,6 @@ import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdv
 import {
   ACCOUNT_LINK_SAVE_MIN_LOADING_MS,
   ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS,
-  CATEGORY_FIELD_TRANSITION,
   CATEGORY_SUMMARY_LABEL_CLASS,
   CATEGORY_SUMMARY_VALUE_CLASS,
   DEFAULT_NEW_LIMIT_YEAR,
@@ -37,6 +36,7 @@ import {
   LIMIT_DELETE_FEEDBACK_MS,
   LIMIT_SAVE_FEEDBACK_MS,
   MAX_VISIBLE_LIMIT_ROWS,
+  TAX_TREATMENT_OPTIONS,
 } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   formatTaxTreatment,
@@ -47,8 +47,6 @@ import {
 } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
 import {
   CompactCurrencyInput,
-  InlineCurrencyInput,
-  InlineTaxTreatmentSelect,
   TaxAdvantagedCurrencyWarning,
 } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 
@@ -354,13 +352,25 @@ export default function TaxAdvantagedCategoryModal({
     return null
   }
 
-  const handleCategoryEditClick = async () => {
-    if (updatePlan.isPending || planSaveStatus !== 'idle') return
-    if (!categoryEditOpen) {
-      setCategoryEditOpen(true)
-      return
-    }
+  const openCategoryDetailsModal = () => {
+    if (planSaveStatus !== 'idle') return
+    setPlanOverrides({})
+    setPlanError(null)
+    setShowAddTaxYear(false)
+    setSelectedLimitYear(null)
+    setDeleteConfirmYear(null)
+    setCategoryEditOpen(true)
+  }
 
+  const closeCategoryDetailsModal = () => {
+    if (updatePlan.isPending || planSaveStatus !== 'idle') return
+    setCategoryEditOpen(false)
+    setPlanOverrides({})
+    setPlanError(null)
+  }
+
+  const handleSaveCategoryDetails = async () => {
+    if (updatePlan.isPending || planSaveStatus !== 'idle') return
     const validationError = validatePlanForm(planForm)
     if (validationError) {
       setPlanError(validationError)
@@ -383,8 +393,8 @@ export default function TaxAdvantagedCategoryModal({
       }
       await minimumLoading
       setPlanSaveStatus('success')
+      await delay(600)
       setCategoryEditOpen(false)
-      await new Promise((resolve) => window.setTimeout(resolve, 1200))
       setPlanSaveStatus('idle')
     } catch (error) {
       await minimumLoading
@@ -413,9 +423,6 @@ export default function TaxAdvantagedCategoryModal({
   }, [limits, pendingCreateLimitYear, pendingDeletedLimit])
   const hasScrollableLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
   const creatingLimit = pendingCreateLimitYear !== null || createLimit.isPending
-  const mobileTaxTreatmentLabel = categoryEditOpen
-    ? formatTaxTreatment(planForm.tax_treatment)
-    : formatTaxTreatment(plan.tax_treatment)
   const bindableAccounts = accounts.filter(
     (account) =>
       account.closed_at === null
@@ -791,43 +798,8 @@ export default function TaxAdvantagedCategoryModal({
             >
               <div className="flex min-w-0 items-start justify-between gap-4">
                 <div className="h-10 min-w-0 flex-1 overflow-hidden">
-                  <h3 id="tax-advantaged-category-title" className="h-10 font-serif text-3xl font-medium leading-10 tracking-tight">
-                    <div className="relative h-10 min-w-0">
-                      <motion.div
-                        className={`absolute inset-0 group flex h-10 min-w-0 items-center gap-2 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                        style={{ borderBottom: '1px solid var(--app-border-strong)' }}
-                        animate={{ opacity: categoryEditOpen ? 1 : 0 }}
-                        initial={false}
-                        transition={CATEGORY_FIELD_TRANSITION}
-                        aria-hidden={!categoryEditOpen}
-                      >
-                        <input
-                          aria-label="Category name"
-                          className="block h-10 min-w-0 flex-1 bg-transparent font-serif text-3xl font-medium leading-10 tracking-tight outline-none"
-                          maxLength={256}
-                          onChange={(event) => setPlanField('name', event.target.value)}
-                          required
-                          style={{ color: 'var(--app-text)' }}
-                          tabIndex={categoryEditOpen ? undefined : -1}
-                          value={planForm.name}
-                        />
-                        <Pencil
-                          size={15}
-                          className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-                          style={{ color: 'var(--app-text-subtle)' }}
-                          aria-hidden
-                        />
-                      </motion.div>
-                      <motion.span
-                        className={`absolute inset-0 block h-10 truncate leading-10 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
-                        animate={{ opacity: categoryEditOpen ? 0 : 1 }}
-                        initial={false}
-                        transition={CATEGORY_FIELD_TRANSITION}
-                        aria-hidden={categoryEditOpen}
-                      >
-                        {planForm.name.trim() || plan.name}
-                      </motion.span>
-                    </div>
+                  <h3 id="tax-advantaged-category-title" className="h-10 truncate font-serif text-3xl font-medium leading-10 tracking-tight">
+                    {plan.name}
                   </h3>
                 </div>
                 <button
@@ -842,32 +814,8 @@ export default function TaxAdvantagedCategoryModal({
 
               <div className="space-y-3 min-[750px]:hidden">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[0.9375rem] font-medium">
-                  <span className="relative inline-block h-6 min-w-0 max-w-[8rem] align-bottom">
-                    <span className={`invisible flex h-6 items-center leading-6 ${categoryEditOpen ? 'gap-1' : ''}`} aria-hidden>
-                      <span className="truncate">{mobileTaxTreatmentLabel}</span>
-                      {categoryEditOpen && <Pencil size={13} className="shrink-0" />}
-                    </span>
-                    <motion.span
-                      className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={!categoryEditOpen}
-                    >
-                      <InlineTaxTreatmentSelect
-                        value={planForm.tax_treatment}
-                        onChange={(value) => setPlanField('tax_treatment', value)}
-                      />
-                    </motion.span>
-                    <motion.span
-                      className={`absolute inset-0 flex h-6 items-center truncate leading-6 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
-                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={categoryEditOpen}
-                    >
-                      {formatTaxTreatment(plan.tax_treatment)}
-                    </motion.span>
+                  <span className="truncate">
+                    {formatTaxTreatment(plan.tax_treatment)}
                   </span>
                   <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>·</span>
                   <span className="inline-flex min-w-0 items-center gap-1">
@@ -882,94 +830,20 @@ export default function TaxAdvantagedCategoryModal({
 
                 <div className="flex min-w-0 items-center justify-between gap-4 border-t pt-3" style={{ borderColor: 'var(--app-border)' }}>
                   <span className="app-label min-w-0">Lifetime Contribution Limit</span>
-                  <span className="relative block h-6 min-w-[7rem] flex-1">
-                    <motion.span
-                      className={`absolute inset-y-0 right-0 w-full max-w-[10rem] ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={!categoryEditOpen}
-                    >
-                      <InlineCurrencyInput
-                        ariaLabel="Lifetime contribution limit"
-                        currencies={currencies}
-                        currency={plan.currency}
-                        value={planForm.lifetime_contribution_limit}
-                        onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
-                        placeholder="Optional"
-                      />
-                    </motion.span>
-                    <motion.span
-                      className={`flex h-6 items-center justify-end truncate text-right text-[0.9375rem] font-medium leading-6 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
-                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={categoryEditOpen}
-                    >
-                      {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
-                    </motion.span>
+                  <span className="font-financial text-[0.9375rem] font-medium">
+                    {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
                   </span>
                 </div>
                 <div className="flex min-w-0 items-center justify-between gap-4">
                   <span className="app-label min-w-0">Accrued Contributions</span>
-                  <span className="relative block h-6 min-w-[7rem] flex-1">
-                    <motion.span
-                      className={`absolute inset-y-0 right-0 w-full max-w-[10rem] ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={!categoryEditOpen}
-                    >
-                      <InlineCurrencyInput
-                        ariaLabel="Accrued contributions"
-                        currencies={currencies}
-                        currency={plan.currency}
-                        value={planForm.accrued_contributions}
-                        onChange={(value) => setPlanField('accrued_contributions', value)}
-                        placeholder="0"
-                      />
-                    </motion.span>
-                    <motion.span
-                      className={`flex h-6 items-center justify-end truncate text-right text-[0.9375rem] font-medium leading-6 ${categoryEditOpen ? 'pointer-events-none' : ''}`}
-                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={categoryEditOpen}
-                    >
-                      {formatCurrency(plan.accrued_contributions, plan.currency)}
-                    </motion.span>
+                  <span className="font-financial text-[0.9375rem] font-medium">
+                    {formatCurrency(plan.accrued_contributions, plan.currency)}
                   </span>
                 </div>
               </div>
 
               <div className="hidden min-[750px]:grid min-[750px]:grid-cols-4 min-[750px]:gap-x-4 min-[750px]:gap-y-3 min-[1050px]:block min-[1050px]:space-y-4">
-                <div className="relative h-14 min-w-0 overflow-hidden">
-                  <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Type</p>
-                  <div className="relative h-6 min-w-0">
-                    <motion.div
-                      className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={!categoryEditOpen}
-                    >
-                      <InlineTaxTreatmentSelect
-                        value={planForm.tax_treatment}
-                        onChange={(value) => setPlanField('tax_treatment', value)}
-                      />
-                    </motion.div>
-                    <motion.p
-                      className={`absolute inset-0 ${CATEGORY_SUMMARY_VALUE_CLASS} ${categoryEditOpen ? 'pointer-events-none' : ''}`}
-                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={categoryEditOpen}
-                    >
-                      {formatTaxTreatment(plan.tax_treatment)}
-                    </motion.p>
-                  </div>
-                </div>
-
+                <InfoItem label="Type" value={formatTaxTreatment(plan.tax_treatment)} />
                 <InfoItem
                   label="Currency"
                   labelAccessory={<TaxAdvantagedCurrencyWarning />}
@@ -979,64 +853,16 @@ export default function TaxAdvantagedCategoryModal({
 
                 <div className="relative h-14 min-w-0 overflow-hidden">
                   <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Lifetime Contribution Limit</p>
-                  <div className="relative h-6 min-w-0">
-                    <motion.div
-                      className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={!categoryEditOpen}
-                    >
-                      <InlineCurrencyInput
-                        ariaLabel="Lifetime contribution limit"
-                        currencies={currencies}
-                        currency={plan.currency}
-                        value={planForm.lifetime_contribution_limit}
-                        onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
-                        placeholder="Optional"
-                      />
-                    </motion.div>
-                    <motion.p
-                      className={`absolute inset-0 font-financial ${CATEGORY_SUMMARY_VALUE_CLASS} ${categoryEditOpen ? 'pointer-events-none' : ''}`}
-                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={categoryEditOpen}
-                    >
-                      {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
-                    </motion.p>
-                  </div>
+                  <p className={`font-financial ${CATEGORY_SUMMARY_VALUE_CLASS}`}>
+                    {plan.lifetime_contribution_limit === null ? 'Not set' : formatCurrency(plan.lifetime_contribution_limit, plan.currency)}
+                  </p>
                 </div>
 
                 <div className="relative h-14 min-w-0 overflow-hidden">
                   <p className={CATEGORY_SUMMARY_LABEL_CLASS}>Accrued Contributions</p>
-                  <div className="relative h-6 min-w-0">
-                    <motion.div
-                      className={`absolute inset-0 ${categoryEditOpen ? '' : 'pointer-events-none'}`}
-                      animate={{ opacity: categoryEditOpen ? 1 : 0 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={!categoryEditOpen}
-                    >
-                      <InlineCurrencyInput
-                        ariaLabel="Accrued contributions"
-                        currencies={currencies}
-                        currency={plan.currency}
-                        value={planForm.accrued_contributions}
-                        onChange={(value) => setPlanField('accrued_contributions', value)}
-                        placeholder="0"
-                      />
-                    </motion.div>
-                    <motion.p
-                      className={`absolute inset-0 font-financial ${CATEGORY_SUMMARY_VALUE_CLASS} ${categoryEditOpen ? 'pointer-events-none' : ''}`}
-                      animate={{ opacity: categoryEditOpen ? 0 : 1 }}
-                      initial={false}
-                      transition={CATEGORY_FIELD_TRANSITION}
-                      aria-hidden={categoryEditOpen}
-                    >
-                      {formatCurrency(plan.accrued_contributions, plan.currency)}
-                    </motion.p>
-                  </div>
+                  <p className={`font-financial ${CATEGORY_SUMMARY_VALUE_CLASS}`}>
+                    {formatCurrency(plan.accrued_contributions, plan.currency)}
+                  </p>
                 </div>
               </div>
 
@@ -1047,16 +873,14 @@ export default function TaxAdvantagedCategoryModal({
               )}
 
               <div className="flex items-center justify-between border-t pt-4 min-[1050px]:mt-auto" style={{ borderColor: 'var(--app-border)' }}>
-                <ActionFeedbackButton
+                <button
                   type="button"
                   className="app-secondary-button w-[72px]"
                   disabled={planSaveStatus !== 'idle'}
-                  loadingLabel="Saving"
-                  onClick={() => { void handleCategoryEditClick() }}
-                  status={planSaveStatus}
+                  onClick={openCategoryDetailsModal}
                 >
-                  {categoryEditOpen ? 'Done' : 'Edit'}
-                </ActionFeedbackButton>
+                  Edit
+                </button>
                 <button
                   ref={planDeleteButtonRef}
                   type="button"
@@ -1384,6 +1208,190 @@ export default function TaxAdvantagedCategoryModal({
           </div>
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {categoryEditOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-[60]"
+              style={{ background: 'rgba(0, 0, 0, 0.28)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              onClick={closeCategoryDetailsModal}
+              aria-hidden
+            />
+            <motion.div
+              className="fixed inset-0 z-[61] flex items-stretch justify-center p-0 min-[620px]:items-center min-[620px]:p-4"
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
+              transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+              onClick={closeCategoryDetailsModal}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="tax-category-details-title"
+                className="app-modal-panel flex max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden rounded-none min-[620px]:min-h-0 min-[620px]:max-h-[calc(100dvh-2rem)] min-[620px]:max-w-[38rem] min-[620px]:rounded-2xl"
+                style={{
+                  background: 'var(--app-bg)',
+                  border: '1px solid var(--app-border-strong)',
+                  boxShadow: 'var(--app-shadow-soft)',
+                }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b p-5" style={{ borderColor: 'var(--app-border)' }}>
+                  <div className="min-w-0">
+                    <h4 id="tax-category-details-title" className="font-serif text-2xl font-medium tracking-tight">
+                      TAC Details
+                    </h4>
+                    <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                      Edit category identity and lifetime contribution settings.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="app-icon-button shrink-0"
+                    onClick={closeCategoryDetailsModal}
+                    disabled={updatePlan.isPending || planSaveStatus !== 'idle'}
+                    aria-label="Close TAC details"
+                  >
+                    <X size={18} aria-hidden />
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
+                    <div className="grid min-w-0 grid-cols-2 gap-2">
+                      <div className="min-w-0">
+                        <span className="app-label mb-0.5 block text-xs">Scope</span>
+                        <span className="block h-8 truncate text-[0.9375rem] font-medium leading-8">
+                          {plan.group_id ? 'Group' : 'Personal'}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="app-label mb-0.5 block text-xs">Currency</span>
+                        <span className="inline-flex h-8 min-w-0 items-center gap-1 text-[0.9375rem] font-medium">
+                          <span className="truncate">{plan.currency}</span>
+                          <TaxAdvantagedCurrencyWarning />
+                        </span>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="app-label mb-0.5 block text-xs">Name</span>
+                      <div
+                        className="group flex h-8 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+                        style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+                      >
+                        <input
+                          aria-label="TAC name"
+                          className="block h-7 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-7 outline-none"
+                          maxLength={256}
+                          onChange={(event) => setPlanField('name', event.target.value)}
+                          required
+                          style={{ color: 'var(--app-text)' }}
+                          type="text"
+                          value={planForm.name}
+                        />
+                        <Pencil
+                          size={13}
+                          className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                          style={{ color: 'var(--app-text-subtle)' }}
+                          aria-hidden
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
+                    <div className="min-w-0">
+                      <span className="app-label mb-1 block text-xs">Type</span>
+                      <div
+                        className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+                        style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+                      >
+                        <select
+                          aria-label="TAC type"
+                          className="block h-8 min-w-0 flex-1 appearance-none bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+                          onChange={(event) => setPlanField('tax_treatment', event.target.value as TaxPlanFormState['tax_treatment'])}
+                          style={{ color: 'var(--app-text)' }}
+                          value={planForm.tax_treatment}
+                        >
+                          {TAX_TREATMENT_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <Pencil
+                          size={13}
+                          className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                          style={{ color: 'var(--app-text-subtle)' }}
+                          aria-hidden
+                        />
+                      </div>
+                    </div>
+                    <div className="grid min-w-0 grid-cols-1 gap-3 min-[620px]:grid-cols-2">
+                      <div className="min-w-0">
+                        <span className="app-label mb-1 block text-xs">Lifetime Contribution Limit</span>
+                        <CompactCurrencyInput
+                          ariaLabel="Lifetime contribution limit"
+                          currencies={currencies}
+                          currency={plan.currency}
+                          value={planForm.lifetime_contribution_limit}
+                          onChange={(value) => setPlanField('lifetime_contribution_limit', value)}
+                          placeholder="Optional"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="app-label mb-1 block text-xs">Accrued Contributions</span>
+                        <CompactCurrencyInput
+                          ariaLabel="Accrued contributions"
+                          currencies={currencies}
+                          currency={plan.currency}
+                          value={planForm.accrued_contributions}
+                          onChange={(value) => setPlanField('accrued_contributions', value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {planError && (
+                    <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                      {planError}
+                    </p>
+                  )}
+                  </div>
+                </div>
+                <div className="grid shrink-0 grid-cols-2 gap-2 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
+                  <button
+                    type="button"
+                    className="app-secondary-button justify-center"
+                    onClick={closeCategoryDetailsModal}
+                    disabled={updatePlan.isPending || planSaveStatus !== 'idle'}
+                  >
+                    Cancel
+                  </button>
+                  <ActionFeedbackButton
+                    type="button"
+                    className="app-primary-button justify-center"
+                    disabled={planSaveStatus !== 'idle'}
+                    loadingLabel="Saving"
+                    onClick={() => { void handleSaveCategoryDetails() }}
+                    status={planSaveStatus}
+                  >
+                    Save
+                  </ActionFeedbackButton>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {(showAddTaxYear || (selectedLimit && selectedDraft)) && (
