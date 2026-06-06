@@ -27,6 +27,7 @@ from app.schemas.budget import (
 from app.schemas.permission import BudgetPermissionResponse, GrantBudgetPermissionRequest
 from app.services.budget_periods import compute_period_end, validate_period_start
 from app.services.budget_responses import build_base_budget_response, build_budget_response, load_tracked_categories
+from app.services.cache_state import mark_cache_changed_for_scope, mark_group_cache_changed
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 
@@ -158,6 +159,7 @@ async def update_base_budget(
         for cat_id in added:
             db.add(BudgetTrackedCategory(base_budget_id=base_budget_id, category_id=cat_id, added_at=today))
 
+    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(base_budget)
     return await _build_base_budget_response(db, base_budget)
@@ -171,6 +173,7 @@ async def delete_base_budget(
 ):
     """Delete a base budget. Cascades to period instances, tracked categories, and permissions. Requires ADMIN access."""
     base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
+    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.delete(base_budget)
     await db.commit()
 
@@ -291,6 +294,7 @@ async def create_base_budget(
                 ),
             )
 
+    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(base_budget)
     return await _build_base_budget_response(db, base_budget)
@@ -368,6 +372,7 @@ async def grant_base_budget_permission(
     existing = existing_result.scalar_one_or_none()
     if existing:
         existing.level = data.level
+        await mark_group_cache_changed(db, base_budget.group_id)
         await db.commit()
         await db.refresh(existing)
         return existing
@@ -379,6 +384,7 @@ async def grant_base_budget_permission(
         level=data.level,
     )
     db.add(budget_permission)
+    await mark_group_cache_changed(db, base_budget.group_id)
     await db.commit()
     await db.refresh(budget_permission)
     return budget_permission
@@ -409,6 +415,7 @@ async def revoke_base_budget_permission(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
 
     await db.delete(budget_permission)
+    await mark_group_cache_changed(db, base_budget.group_id)
     await db.commit()
 
 

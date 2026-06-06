@@ -11,6 +11,7 @@ from app.models.base import InstitutionStatus
 from app.models.institution import Institution
 from app.models.user import User
 from app.schemas.institution import CreateInstitutionRequest, InstitutionResponse
+from app.services.cache_state import mark_user_cache_changed
 
 # Auth required on all endpoints — institution data is internal to Lumina users
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -68,14 +69,14 @@ async def get_institution(
 @router.post("", response_model=InstitutionResponse, status_code=status.HTTP_201_CREATED)
 async def create_institution(
     data: CreateInstitutionRequest,
-    _user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Submit a new institution for review. Status defaults to PENDING.
 
     Args:
         data: Institution details (name, country_code, website).
-        _user: Authenticated user (enforces auth gate).
+        user: Authenticated user (enforces auth gate).
         db: Async database session.
 
     Returns:
@@ -106,6 +107,7 @@ async def create_institution(
         status=InstitutionStatus.PENDING,
     )
     db.add(institution)
+    await mark_user_cache_changed(db, user.id)
     await db.commit()
     await db.refresh(institution)
     return institution

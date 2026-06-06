@@ -35,6 +35,7 @@ from app.services.accounts import (
     get_account_cash_flow_history,
     get_account_spending_breakdown,
 )
+from app.services.cache_state import mark_cache_changed_for_scope, mark_group_cache_changed
 from app.services.snapshots import attach_current_balances, get_current_balances, recompute_snapshots_from
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -417,6 +418,7 @@ async def create_account(
         await db.flush()
         await recompute_snapshots_from(db, account.id, anchor_dt)
 
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
     # Re-fetch with eager loading so the institution relationship is populated for serialization
     result = await db.execute(
@@ -484,6 +486,7 @@ async def update_account(
     if should_archive:
         await _zero_account_balance_for_archive(db, account, user)
 
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
     # Re-fetch with eager loading so the institution relationship is fresh after a possible institution_id change.
     # populate_existing forces SQLAlchemy to overwrite the cached instance in the identity map; without it the
@@ -507,6 +510,7 @@ async def delete_account(
 ):
     """Delete an account. Requires admin access."""
     account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.delete(account)
     await db.commit()
 
@@ -605,6 +609,7 @@ async def grant_account_permission(
     existing = existing_result.scalar_one_or_none()
     if existing:
         existing.level = data.level
+        await mark_group_cache_changed(db, account.group_id)
         await db.commit()
         await db.refresh(existing)
         return existing
@@ -616,6 +621,7 @@ async def grant_account_permission(
         level=data.level,
     )
     db.add(account_permission)
+    await mark_group_cache_changed(db, account.group_id)
     await db.commit()
     await db.refresh(account_permission)
     return account_permission
@@ -643,6 +649,7 @@ async def revoke_account_permission(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
 
     await db.delete(account_permission)
+    await mark_group_cache_changed(db, account.group_id)
     await db.commit()
 
 

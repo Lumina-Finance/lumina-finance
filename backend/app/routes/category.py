@@ -23,6 +23,7 @@ from app.schemas.category import (
     MergeCategoryRequest,
     UpdateCategoryRequest,
 )
+from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -241,6 +242,7 @@ async def create_category(
     )
     db.add(category)
     try:
+        await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
@@ -299,6 +301,7 @@ async def update_category(
         setattr(category, field, value)
 
     try:
+        await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
@@ -325,6 +328,7 @@ async def merge_category(
     await _require_group_category_admin(db, category, user.id)
     replacement = await _get_merge_replacement_category(db, category, data.replacement_category_id, user.id)
     await _move_category_references(db, category.id, replacement.id)
+    await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
     await db.delete(category)
     await db.commit()
 
@@ -368,6 +372,7 @@ async def delete_category(
     # The FK from transactions.category_id uses RESTRICT; catch the violation
     # and surface it as 409 instead of a 500 from the raw IntegrityError.
     try:
+        await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()

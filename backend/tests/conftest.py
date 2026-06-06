@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     active_token,
     auth,
     budget,
+    cache_state,
     category,
     currency,
     group,

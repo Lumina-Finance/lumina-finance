@@ -20,6 +20,7 @@ from app.schemas.tax_advantaged_plan import (
     UpdateTaxAdvantagedPlanLimitRequest,
     UpdateTaxAdvantagedPlanRequest,
 )
+from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.tax_advantaged_plans import attach_tax_advantaged_plan_metrics
 
 router = APIRouter(prefix="/tax-advantaged-plans", tags=["tax-advantaged-plans"])
@@ -153,6 +154,7 @@ async def create_tax_advantaged_plan(
         accrued_contributions=data.accrued_contributions,
     )
     db.add(plan)
+    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
     await db.refresh(plan)
     await attach_tax_advantaged_plan_metrics(db, [plan])
@@ -205,6 +207,7 @@ async def update_tax_advantaged_plan(
         HTTPException: If the plan is inaccessible or any supplied field is invalid.
     """
     plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    previous_group_id = plan.group_id
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         await attach_tax_advantaged_plan_metrics(db, [plan])
@@ -226,6 +229,9 @@ async def update_tax_advantaged_plan(
             value = TaxTreatment(value)
         setattr(plan, field, value)
 
+    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=previous_group_id)
+    if plan.group_id != previous_group_id:
+        await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
     await db.refresh(plan)
     await attach_tax_advantaged_plan_metrics(db, [plan])
@@ -249,6 +255,7 @@ async def delete_tax_advantaged_plan(
         HTTPException: If the plan does not exist or belongs to another user.
     """
     plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.delete(plan)
     await db.commit()
 
@@ -302,7 +309,7 @@ async def create_tax_advantaged_plan_limit(
     Raises:
         HTTPException: If the plan is inaccessible or the year already has a limit row.
     """
-    await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
     existing = await db.get(TaxAdvantagedPlanLimit, (plan_id, data.year))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A limit for this year already exists")
@@ -316,6 +323,7 @@ async def create_tax_advantaged_plan_limit(
         accrued_withdrawals=data.accrued_withdrawals,
     )
     db.add(row)
+    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
     await db.refresh(row)
     return row
@@ -344,7 +352,7 @@ async def update_tax_advantaged_plan_limit(
     Raises:
         HTTPException: If the plan or limit row is inaccessible, missing, or invalid.
     """
-    await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
     row = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax-advantaged plan limit not found")
@@ -361,6 +369,7 @@ async def update_tax_advantaged_plan_limit(
     for field, value in updates.items():
         setattr(row, field, value)
 
+    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
     await db.refresh(row)
     return row
@@ -384,10 +393,11 @@ async def delete_tax_advantaged_plan_limit(
     Raises:
         HTTPException: If the plan or limit row is inaccessible or missing.
     """
-    await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
     row = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax-advantaged plan limit not found")
 
     await db.delete(row)
+    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()

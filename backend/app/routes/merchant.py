@@ -15,6 +15,7 @@ from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
+from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/merchants", tags=["merchants"])
 
@@ -218,6 +219,7 @@ async def create_merchant(
         default_category_id=data.default_category_id,
     )
     db.add(merchant)
+    await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
     await db.commit()
     await db.refresh(merchant)
     return merchant
@@ -274,6 +276,7 @@ async def update_merchant(
         setattr(merchant, field, value)
 
     try:
+        await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
@@ -297,6 +300,7 @@ async def merge_merchant(
     await _require_group_merchant_admin(db, merchant, user.id)
     replacement = await _get_merge_replacement_merchant(db, merchant, data.replacement_merchant_id, user.id)
     await _move_merchant_references(db, merchant.id, replacement.id)
+    await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
     await db.delete(merchant)
     await db.commit()
 
@@ -339,6 +343,7 @@ async def delete_merchant(
     # The FK from transactions.merchant_id uses RESTRICT; catch the violation
     # and surface it as 409 instead of a 500 from the raw IntegrityError.
     try:
+        await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()

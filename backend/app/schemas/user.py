@@ -30,6 +30,12 @@ class UserProfile(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CacheStatus(BaseModel):
+    """Latest visible app-data cache timestamp."""
+
+    changed_at: datetime | None
+
+
 class UpdateProfileRequest(BaseModel):
     """Partial update for user profile. Only provided fields are changed."""
 

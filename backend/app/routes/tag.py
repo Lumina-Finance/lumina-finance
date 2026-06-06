@@ -14,6 +14,7 @@ from app.models.group import GroupMember
 from app.models.tag import Tag, TransactionTag
 from app.models.user import User
 from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
+from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
@@ -197,6 +198,7 @@ async def create_tag(
 
     tag = Tag(owner_id=user.id, group_id=group_id, name=data.name)
     db.add(tag)
+    await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
     await db.commit()
     await db.refresh(tag)
     return tag
@@ -244,6 +246,7 @@ async def update_tag(
         setattr(tag, field, value)
 
     try:
+        await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
@@ -267,6 +270,7 @@ async def merge_tag(
     await _require_group_tag_admin(db, tag, user.id)
     replacement = await _get_merge_replacement_tag(db, tag, data.replacement_tag_id, user.id)
     await _move_tag_references(db, tag.id, replacement.id)
+    await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
     await db.delete(tag)
     await db.commit()
 
@@ -306,6 +310,7 @@ async def delete_tag(
 
     await db.delete(tag)
     try:
+        await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()

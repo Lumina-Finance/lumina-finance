@@ -26,6 +26,7 @@ from app.schemas.transaction import (
     TransactionImportRequest,
     TransactionImportResponse,
 )
+from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.snapshots import recompute_snapshots_from
 
 _RAW_AMOUNT_RE = re.compile(r"^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$")
@@ -94,6 +95,12 @@ async def import_transactions(
     await db.flush()
     for account_id, from_dt in affected_from.items():
         await recompute_snapshots_from(db, account_id, from_dt)
+
+    await mark_user_cache_changed(db, user.id)
+    affected_accounts = {account.id: account for account in account_map.values()}
+    for account_id in affected_from:
+        account = affected_accounts[account_id]
+        await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
 
     await db.commit()
 
