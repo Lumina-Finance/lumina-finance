@@ -81,10 +81,10 @@ export default function AccountsMetricsBand({
         }}
       />
       <div
-        className="grid grid-cols-1 py-3 min-[730px]:grid-cols-3"
+        className="grid grid-cols-1 py-3 min-[730px]:grid-cols-2 min-[1201px]:grid-cols-3"
         style={{ borderBottom: '1px solid var(--app-border-strong)' }}
       >
-        <div className="min-w-0 border-b border-[var(--app-border)] pb-3 min-[730px]:border-b-0 min-[730px]:pr-6 min-[730px]:pb-0">
+        <div className="order-1 min-w-0 border-b border-[var(--app-border)] pb-3 min-[730px]:order-2 min-[730px]:border-b-0 min-[730px]:pr-4 min-[730px]:pt-3 min-[730px]:pb-0 min-[1201px]:order-1 min-[1201px]:pr-6 min-[1201px]:pt-0">
           <div className="mb-1 flex items-center gap-2">
             <p className="app-label">Savings Rate</p>
             <FxStatusTooltip
@@ -127,7 +127,7 @@ export default function AccountsMetricsBand({
           </AccountsLoadingRegion>
         </div>
 
-        <div className="min-w-0 border-b border-[var(--app-border)] py-3 min-[730px]:border-x min-[730px]:border-b-0 min-[730px]:px-6 min-[730px]:py-0">
+        <div className="order-2 min-w-0 border-b border-[var(--app-border)] py-3 min-[730px]:order-1 min-[730px]:col-span-2 min-[730px]:pt-0 min-[730px]:pb-3 min-[1201px]:order-2 min-[1201px]:col-span-1 min-[1201px]:border-x min-[1201px]:border-b-0 min-[1201px]:px-6 min-[1201px]:py-0">
           <div className="mb-1 flex items-center gap-2">
             <p className="app-label">Credit Usage</p>
             <FxStatusTooltip
@@ -170,7 +170,7 @@ export default function AccountsMetricsBand({
           </AccountsLoadingRegion>
         </div>
 
-        <div className="relative min-w-0 pt-3 min-[730px]:pl-6 min-[730px]:pt-0">
+        <div className="relative order-3 min-w-0 pt-3 min-[730px]:border-l min-[730px]:border-[var(--app-border)] min-[730px]:pl-4 min-[1201px]:border-l-0 min-[1201px]:pl-6 min-[1201px]:pt-0">
           <div className="mb-1 flex items-center gap-2 pr-20">
             <p className="app-label">Runway</p>
             <FxStatusTooltip
@@ -181,7 +181,7 @@ export default function AccountsMetricsBand({
           </div>
           {runway.style && (
             <span
-              className="absolute right-0 top-3 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold min-[730px]:top-0"
+              className="absolute right-0 top-3 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold min-[1201px]:top-0"
               style={{ background: runway.style.bg, color: runway.style.fg }}
             >
               {runway.style.label}
