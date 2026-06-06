@@ -409,14 +409,14 @@ export function IncomeExpenseBreakdownCard({
               </div>
             </div>
 
-            <div className="flex flex-col border-t border-[var(--app-border)] pt-3 min-[1350px]:min-h-[620px] min-[1350px]:border-t-0 min-[1350px]:pt-0">
-              <div className="grid gap-4 min-[1350px]:min-h-0 min-[1350px]:flex-1 min-[1350px]:grid-rows-2">
+            <div className="flex flex-col border-t border-[var(--app-border)] pt-4 min-[1350px]:min-h-[620px] min-[1350px]:border-t-0 min-[1350px]:pt-0">
+              <div className="grid gap-5 min-[1350px]:min-h-0 min-[1350px]:flex-1 min-[1350px]:grid-rows-2 min-[1350px]:gap-4">
                 {displaySnapshot.trendSections.map((section) => (
                   <div
                     key={section.id}
                     className="flex min-h-0 flex-col"
                   >
-                    <p className="app-label mb-2 inline-flex items-center gap-2">
+                    <p className="app-label mb-3 inline-flex items-center gap-2 min-[1350px]:mb-2">
                       {section.label}
                       <IconTooltip
                         label={`${section.label} calculation`}
