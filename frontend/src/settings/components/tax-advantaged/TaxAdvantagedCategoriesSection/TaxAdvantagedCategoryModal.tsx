@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Check, ChevronRight, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { useUpdateAccount, type AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
@@ -434,6 +434,7 @@ export default function TaxAdvantagedCategoryModal({
             return next
           })
           setLimitError(null)
+          setDeleteConfirmYear(null)
           setSelectedLimitYear(null)
           showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
         },
@@ -626,6 +627,8 @@ export default function TaxAdvantagedCategoryModal({
     && updateLimit.isPending
     && updateLimit.variables?.year === selectedLimit.year
   const selectedLimitDirty = selectedLimit ? limitDirty(selectedLimit.year) : false
+  const selectedLimitDeleteConfirming = selectedLimit !== null && deleteConfirmYear === selectedLimit.year
+  const selectedLimitDeleting = selectedLimit !== null && pendingDeleteLimitYear === selectedLimit.year
 
   return (
     <>
@@ -924,7 +927,7 @@ export default function TaxAdvantagedCategoryModal({
                                 return (
                                   <tr
                                     key={limit.year}
-                                    className={`grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 rounded-xl border p-3 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
+                                    className={`grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
                                     style={{
                                       borderColor: isSelected ? 'var(--app-accent-border)' : 'var(--app-border)',
                                       background: isSelected ? 'var(--app-accent-soft)' : undefined,
@@ -939,24 +942,30 @@ export default function TaxAdvantagedCategoryModal({
                                       }
                                     }}
                                   >
-                                    <td className="col-start-1 row-start-1 py-0 pr-0 font-medium min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pr-4">
-                                      <span className="app-label mb-1 block min-[750px]:hidden">Year</span>
+                                    <td className="col-start-1 row-start-1 min-w-0 py-0 pr-0 text-base font-medium min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pr-4 min-[750px]:text-[0.9375rem]">
                                       {limit.year}
                                     </td>
-                                    <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 font-financial min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-0 min-[750px]:pr-4">
-                                      <span className="app-label mb-1 block min-[750px]:hidden">Contribution limit</span>
-                                      {formatCurrency(limit.contribution_limit, plan.currency)}
+                                    <td className="col-span-2 row-start-2 mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t pt-3 text-sm min-[750px]:table-cell min-[750px]:mt-0 min-[750px]:border-t-0 min-[750px]:py-3 min-[750px]:pl-0 min-[750px]:pr-4">
+                                      <span className="font-medium min-[750px]:hidden" style={{ color: 'var(--app-text-muted)' }}>
+                                        Contribution
+                                      </span>
+                                      <span className="min-w-0 truncate font-financial font-medium min-[750px]:font-normal">
+                                        {formatCurrency(limit.contribution_limit, plan.currency)}
+                                      </span>
                                     </td>
-                                    <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 font-financial min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
-                                      <span className="app-label mb-1 block min-[750px]:hidden">Withdrawal limit</span>
-                                      {limit.withdrawal_limit === null ? (
-                                        <span className="font-sans text-sm" style={{ color: 'var(--app-text-muted)' }}>No limit</span>
-                                      ) : (
-                                        formatCurrency(limit.withdrawal_limit, plan.currency)
-                                      )}
+                                    <td className="col-span-2 row-start-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pt-2 text-sm min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
+                                      <span className="font-medium min-[750px]:hidden" style={{ color: 'var(--app-text-muted)' }}>
+                                        Withdrawal
+                                      </span>
+                                      <span className="min-w-0 truncate font-financial font-medium min-[750px]:font-normal">
+                                        {limit.withdrawal_limit === null ? (
+                                          <span className="font-sans text-sm font-normal" style={{ color: 'var(--app-text-muted)' }}>No limit</span>
+                                        ) : (
+                                          formatCurrency(limit.withdrawal_limit, plan.currency)
+                                        )}
+                                      </span>
                                     </td>
-                                    <td className="col-span-2 min-w-0 py-0 pl-0 pr-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
-                                      <span className="app-label mb-1 block min-[750px]:hidden">Prior activity</span>
+                                    <td className="col-span-2 row-start-4 min-w-0 pt-2 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-4 min-[750px]:pr-0">
                                       {hasPriorActivity ? (
                                         <span className="block truncate text-sm font-medium">
                                           Prior activity noted
@@ -966,11 +975,14 @@ export default function TaxAdvantagedCategoryModal({
                                       )}
                                     </td>
                                     <td
-                                      className="col-start-2 row-start-1 py-0 pl-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-2"
-                                      onClick={(event) => event.stopPropagation()}
-                                      onKeyDown={(event) => event.stopPropagation()}
+                                      className="col-start-2 row-start-1 flex items-center justify-end py-0 pl-0 min-[750px]:table-cell min-[750px]:py-3 min-[750px]:pl-2"
                                     >
-                                      <div className="flex items-center justify-center">
+                                      <ChevronRight size={16} className="min-[750px]:hidden" style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
+                                      <div
+                                        className="hidden items-center justify-center min-[750px]:flex"
+                                        onClick={(event) => event.stopPropagation()}
+                                        onKeyDown={(event) => event.stopPropagation()}
+                                      >
                                         <button
                                           ref={confirmingDelete ? limitDeleteButtonRef : undefined}
                                           type="button"
@@ -1297,7 +1309,7 @@ export default function TaxAdvantagedCategoryModal({
               aria-hidden
             />
             <motion.div
-              className="fixed inset-0 z-[61] flex items-center justify-center p-4"
+              className="fixed inset-0 z-[61] flex items-stretch justify-center p-0 min-[620px]:items-center min-[620px]:p-4"
               initial={{ opacity: 0, scale: 0.97, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: 8 }}
@@ -1308,7 +1320,7 @@ export default function TaxAdvantagedCategoryModal({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="tax-year-limit-title"
-                className="app-modal-panel w-full max-w-[38rem] rounded-2xl p-5"
+                className="app-modal-panel flex max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden rounded-none min-[620px]:min-h-0 min-[620px]:max-h-[calc(100dvh-2rem)] min-[620px]:max-w-[38rem] min-[620px]:rounded-2xl"
                 style={{
                   background: 'var(--app-bg)',
                   border: '1px solid var(--app-border-strong)',
@@ -1316,7 +1328,7 @@ export default function TaxAdvantagedCategoryModal({
                 }}
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b p-5" style={{ borderColor: 'var(--app-border)' }}>
                   <div className="min-w-0">
                     <h4 id="tax-year-limit-title" className="font-serif text-2xl font-medium tracking-tight">
                       {showAddTaxYear ? 'New Year' : selectedLimit?.year}
@@ -1336,52 +1348,80 @@ export default function TaxAdvantagedCategoryModal({
                   </button>
                 </div>
 
-                {showAddTaxYear ? (
-                  <div className="space-y-4">
-                    <div>
-                      <span className="app-label mb-1 block text-xs">Year</span>
-                      <div
-                        className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
-                        style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
-                      >
-                        <input
-                          aria-label="New tax year"
-                          className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          type="text"
-                          value={newLimitForm.year}
-                          onChange={(event) => setNewLimitField('year', event.target.value.replace(/\D/g, '').slice(0, 4))}
-                          style={{ color: 'var(--app-text)' }}
-                        />
-                        <Pencil
-                          size={13}
-                          className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-                          style={{ color: 'var(--app-text-subtle)' }}
-                          aria-hidden
-                        />
+                <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                  {showAddTaxYear ? (
+                    <div className="space-y-4">
+                      <div>
+                        <span className="app-label mb-1 block text-xs">Year</span>
+                        <div
+                          className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+                          style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
+                        >
+                          <input
+                            aria-label="New tax year"
+                            className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            type="text"
+                            value={newLimitForm.year}
+                            onChange={(event) => setNewLimitField('year', event.target.value.replace(/\D/g, '').slice(0, 4))}
+                            style={{ color: 'var(--app-text)' }}
+                          />
+                          <Pencil
+                            size={13}
+                            className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                            aria-hidden
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Contribution</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {renderNewLimitEditorField('contribution_limit', 'Limit', 'New tax-year contribution limit', 'Required')}
-                        {renderNewLimitEditorField('accrued_contributions', 'Prior', 'New tax-year prior contributions', '0')}
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Contribution</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {renderNewLimitEditorField('contribution_limit', 'Limit', 'New tax-year contribution limit', 'Required')}
+                          {renderNewLimitEditorField('accrued_contributions', 'Prior', 'New tax-year prior contributions', '0')}
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Withdrawal</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {renderNewLimitEditorField('withdrawal_limit', 'Limit', 'New tax-year withdrawal limit', 'Optional')}
-                        {renderNewLimitEditorField('accrued_withdrawals', 'Prior', 'New tax-year prior withdrawals', '0')}
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Withdrawal</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {renderNewLimitEditorField('withdrawal_limit', 'Limit', 'New tax-year withdrawal limit', 'Optional')}
+                          {renderNewLimitEditorField('accrued_withdrawals', 'Prior', 'New tax-year prior withdrawals', '0')}
+                        </div>
                       </div>
+                      {limitError && (
+                        <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                          {limitError}
+                        </p>
+                      )}
                     </div>
-                    {limitError && (
-                      <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                        {limitError}
-                      </p>
-                    )}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
+                  ) : selectedLimit && selectedDraft ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Contribution</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit)}
+                          {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Prior', 'Prior contributions', selectedDraft.accrued_contributions, '0')}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Withdrawal</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, 'Optional')}
+                          {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Prior', 'Prior withdrawals', selectedDraft.accrued_withdrawals, '0')}
+                        </div>
+                      </div>
+                      {limitError && (
+                        <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+                          {limitError}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="shrink-0 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
+                  {showAddTaxYear ? (
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         className="app-secondary-button justify-center"
@@ -1399,48 +1439,46 @@ export default function TaxAdvantagedCategoryModal({
                         {creatingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
                       </button>
                     </div>
-                  </div>
-                ) : selectedLimit && selectedDraft ? (
-                  <div className="space-y-4">
+                  ) : selectedLimit ? (
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Contribution</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit)}
-                        {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Prior', 'Prior contributions', selectedDraft.accrued_contributions, '0')}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Withdrawal</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, 'Optional')}
-                        {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Prior', 'Prior withdrawals', selectedDraft.accrued_withdrawals, '0')}
-                      </div>
-                    </div>
-                    {limitError && (
-                      <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-                        {limitError}
-                      </p>
-                    )}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
                         type="button"
-                        className="app-secondary-button justify-center"
-                        onClick={closeLimitDetailsModal}
-                        disabled={selectedSavingLimit}
+                        className={`app-danger-button w-full justify-center min-[750px]:hidden ${selectedLimitDeleting ? 'app-primary-button-loading' : ''}`}
+                        onClick={() => { void handleDeleteLimit(selectedLimit) }}
+                        disabled={selectedSavingLimit || pendingDeleteLimitYear !== null}
                       >
-                        Cancel
+                        {selectedLimitDeleting ? (
+                          <div className="app-spinner" aria-label="Deleting" />
+                        ) : selectedLimitDeleteConfirming ? (
+                          'Confirm delete'
+                        ) : (
+                          <>
+                            <Trash2 size={16} aria-hidden />
+                            Delete year
+                          </>
+                        )}
                       </button>
-                      <button
-                        type="button"
-                        className="app-primary-button justify-center"
-                        onClick={() => handleSaveLimit(selectedLimit.year)}
-                        disabled={selectedSavingLimit || !selectedLimitDirty}
-                      >
-                        {selectedSavingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className="app-secondary-button justify-center"
+                          onClick={closeLimitDetailsModal}
+                          disabled={selectedSavingLimit}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="app-primary-button justify-center"
+                          onClick={() => handleSaveLimit(selectedLimit.year)}
+                          disabled={selectedSavingLimit || !selectedLimitDirty}
+                        >
+                          {selectedSavingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
             </motion.div>
           </>
