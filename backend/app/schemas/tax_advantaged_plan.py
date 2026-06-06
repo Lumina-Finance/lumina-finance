@@ -11,6 +11,8 @@ class TaxAdvantagedPlanLimitResponse(BaseModel):
     year: int
     contribution_limit: int
     withdrawal_limit: int | None
+    accrued_contributions: int
+    accrued_withdrawals: int
 
     model_config = {"from_attributes": True}
 
@@ -21,6 +23,8 @@ class CreateTaxAdvantagedPlanLimitRequest(BaseModel):
     year: int = Field(ge=1900, le=2100)
     contribution_limit: int = Field(ge=0)
     withdrawal_limit: int | None = Field(default=None, ge=0)
+    accrued_contributions: int = Field(default=0, ge=0)
+    accrued_withdrawals: int = Field(default=0, ge=0)
 
 
 class UpdateTaxAdvantagedPlanLimitRequest(BaseModel):
@@ -28,6 +32,8 @@ class UpdateTaxAdvantagedPlanLimitRequest(BaseModel):
 
     contribution_limit: int | None = Field(default=None, ge=0)
     withdrawal_limit: int | None = Field(default=None, ge=0)
+    accrued_contributions: int = Field(default=0, ge=0)
+    accrued_withdrawals: int = Field(default=0, ge=0)
 
 
 class TaxAdvantagedPlanResponse(BaseModel):
@@ -40,6 +46,7 @@ class TaxAdvantagedPlanResponse(BaseModel):
     tax_treatment: str
     currency: str
     lifetime_contribution_limit: int | None
+    accrued_contributions: int
     accrued_lifetime_contribution_limit: int | None
     current_year_contribution_limit: int | None
     current_year_withdrawal_limit: int | None
@@ -59,6 +66,7 @@ class CreateTaxAdvantagedPlanRequest(BaseModel):
     tax_treatment: str
     currency: str = Field(min_length=3, max_length=3)
     lifetime_contribution_limit: int | None = Field(default=None, ge=0)
+    accrued_contributions: int = Field(default=0, ge=0)
     group_id: uuid.UUID | None = None
 
 
@@ -68,4 +76,5 @@ class UpdateTaxAdvantagedPlanRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=256)
     tax_treatment: str | None = None
     lifetime_contribution_limit: int | None = Field(default=None, ge=0)
+    accrued_contributions: int = Field(default=0, ge=0)
     group_id: uuid.UUID | None = None

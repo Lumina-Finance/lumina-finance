@@ -97,6 +97,12 @@ class TaxAdvantagedPlan(Base):
     tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False)
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     lifetime_contribution_limit: Mapped[int | None] = mapped_column(BigInteger)
+    accrued_contributions: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
@@ -111,3 +117,15 @@ class TaxAdvantagedPlanLimit(Base):
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True, nullable=False)
     contribution_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Annual limit in currency base units
     withdrawal_limit: Mapped[int | None] = mapped_column(BigInteger)  # Null = no limit
+    accrued_contributions: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    accrued_withdrawals: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
