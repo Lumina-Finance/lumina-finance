@@ -1,15 +1,16 @@
-"""add cache change state
+"""Add cache change state.
 
 Revision ID: c9e5d4a1b2f0
 Revises: 59b2a047c3ad
 Create Date: 2026-06-06 00:00:00.000000
 
 """
-from typing import Sequence
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 revision: str = "c9e5d4a1b2f0"
 down_revision: str | Sequence[str] | None = "59b2a047c3ad"
@@ -23,6 +24,7 @@ def upgrade() -> None:
         "user_cache_states",
         sa.Column("user_id", sa.UUID(), nullable=False),
         sa.Column("changed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("last_changed_session_id", sa.UUID(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("user_id"),
     )
@@ -30,6 +32,7 @@ def upgrade() -> None:
         "group_cache_states",
         sa.Column("group_id", sa.UUID(), nullable=False),
         sa.Column("changed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("last_changed_session_id", sa.UUID(), nullable=True),
         sa.ForeignKeyConstraint(["group_id"], ["groups.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("group_id"),
     )
