@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { focusManager, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { LOCAL_CACHE_CHANGE_EVENT } from '@/api/client'
 import { fetchCacheStatus } from '@/api/user'
 import { invalidateAppData, invalidateFxData } from '@/api/cacheInvalidation'
 
@@ -42,13 +41,8 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
     const unsubscribeFocus = focusManager.subscribe((focused) => {
       if (focused) void validate()
     })
-    const validateLocalChange = () => {
-      void validate()
-    }
-    window.addEventListener(LOCAL_CACHE_CHANGE_EVENT, validateLocalChange)
     return () => {
       unsubscribeFocus()
-      window.removeEventListener(LOCAL_CACHE_CHANGE_EVENT, validateLocalChange)
     }
   }, [enabled, queryClient, userId])
 }
