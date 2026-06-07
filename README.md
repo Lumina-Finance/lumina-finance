@@ -2,15 +2,16 @@
 <!-- markdownlint-disable MD041 -->
 <div align="center">
   <img src="docs/logo.png" alt="Lumina Finance logo" width="88">
-  <h1>Lumina Finance</h1>
+  <div style="font-size: 2rem; font-weight: 600; line-height: 1.25; margin: 0.67em 0;">Lumina Finance</div>
 </div>
 
-<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; column-gap: 0.8rem; row-gap: 0; width: 100%;">
-  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/backend-tests.yml"><img alt="Backend Tests" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/backend-tests.yml?branch=main&label=Backend%20Tests&style=flat&logo=githubactions&logoColor=white"></a>
-  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/build-and-push-docker-image.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/build-and-push-docker-image.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>
-  <a style="flex: 0 0 auto;" href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>
-  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>
-</div>
+<p align="center">
+  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/backend-tests.yml"><img alt="Backend Tests" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/backend-tests.yml?branch=main&label=Backend%20Tests&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/build-and-push-docker-image.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/build-and-push-docker-image.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+  <a href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>&nbsp;&nbsp;
+  <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>&nbsp;&nbsp;
+  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black"></a>
+</p>
 
 <!-- markdownlint-enable MD033 -->
 
@@ -25,6 +26,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 Lumina Finance gives you one place to track accounts, transactions, budgets, and financial trends while keeping the app under your control.
 
 - **Accounts** - Track cash, credit, savings, and other account types with balance history, detail views, and hide archived accounts
+- **Multi-currency** - Track accounts and activity in different currencies with FX conversions across dashboards, budgets, runway, and insights
 - **Transactions** - Add or import transactions, then organize them with merchants, categories, tags, and notes
 - **Budgets** - Create recurring or one-off budgets, attach them to categories, and see current and historical utilization at a glance
 - **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
