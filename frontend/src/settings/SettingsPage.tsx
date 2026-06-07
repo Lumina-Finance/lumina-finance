@@ -481,8 +481,8 @@ export default function SettingsPage() {
 
       <div className="min-[1200px]:grid min-[1200px]:grid-cols-[260px_minmax(0,1fr)] min-[1200px]:gap-10 min-[1200px]:items-start">
         {/* Sidebar — sticky on desktop, hidden on mobile (sections just stack) */}
-        <aside className="sticky top-6 hidden min-[1200px]:block">
-          <nav className="space-y-0.5" aria-label="Settings sections">
+        <aside className="hidden w-[260px] self-stretch min-[1200px]:grid min-[1200px]:min-h-[calc(100vh-3rem)] min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]">
+          <nav className="sticky top-6 row-start-1 space-y-0.5" aria-label="Settings sections">
           {SETTINGS_SECTIONS.map((s) => {
               const Icon = s.icon
               const isActive = activeSection === s.id
@@ -500,7 +500,7 @@ export default function SettingsPage() {
             })}
 
           </nav>
-          <div className="fixed bottom-6 left-[calc(260px+1.5rem)] w-[260px]">
+          <div className="sticky bottom-6 row-start-3">
             <button
               type="button"
               onClick={() => navigate('/settings/imports')}
