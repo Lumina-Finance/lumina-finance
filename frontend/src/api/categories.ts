@@ -1,15 +1,19 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
-import { invalidateInsightsData } from '@/api/cacheInvalidation';
 import {
-  accountKeys,
-  budgetKeys,
+  invalidateAccounts,
+  invalidateBudgets,
+  invalidateDashboardBudgets,
+  invalidateDashboardIncomeExpense,
+  invalidateDashboardRecent,
+  invalidateInsightsIncomeExpense,
+  invalidateMerchants,
+  invalidateTransactionOverview,
+  invalidateTransactions,
+} from '@/api/cacheInvalidation';
+import {
   categoryKeys,
-  dashboardKeys,
-  merchantKeys,
-  transactionKeys,
-  transactionOverviewKeys,
 } from '@/api/queryKeys';
 
 export interface Category {
@@ -40,16 +44,15 @@ export interface MergeCategoryPayload {
 }
 
 function invalidateCategoryUsageQueries(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: accountKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
-  invalidateInsightsData(queryClient);
+  invalidateTransactions(queryClient);
+  invalidateTransactionOverview(queryClient);
+  invalidateAccounts(queryClient);
+  invalidateDashboardRecent(queryClient);
+  invalidateDashboardIncomeExpense(queryClient);
+  invalidateInsightsIncomeExpense(queryClient);
+  invalidateBudgets(queryClient);
+  invalidateDashboardBudgets(queryClient);
+  invalidateMerchants(queryClient);
 }
 
 export function useCategories() {
@@ -99,11 +102,18 @@ export function useUpdateCategory() {
 }
 
 export function useDeleteCategory() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (categoryId: string) =>
       authenticatedFetch<void>(`/categories/${categoryId}`, {
         method: 'DELETE',
       }),
+    onSuccess: (_, categoryId) => {
+      queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
+        categories?.filter((category) => category.id !== categoryId) ?? categories,
+      );
+      invalidateCategoryUsageQueries(queryClient);
+    },
   });
 }
 
