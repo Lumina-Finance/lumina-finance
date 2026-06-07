@@ -189,6 +189,36 @@
     }
   }
 
+  @media (max-width: 1049.98px) {
+    .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
+      display: block;
+      height: 3.75rem;
+    }
+
+    .app-body-scroll-locked .settings-mobile-section-menu-shell {
+      position: fixed;
+      top: 0;
+      left: 0.5rem;
+      right: 0.5rem;
+      margin: 0;
+    }
+  }
+
+  @media (min-width: 1050px) and (max-width: 1199.98px) {
+    .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
+      display: block;
+      height: 3.75rem;
+    }
+
+    .app-body-scroll-locked .settings-mobile-section-menu-shell {
+      position: fixed;
+      top: 0;
+      left: calc(260px + 1rem);
+      right: 1rem;
+      margin: 0;
+    }
+  }
+
   .app-input {
     @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
     font-size: 0.9375rem;
