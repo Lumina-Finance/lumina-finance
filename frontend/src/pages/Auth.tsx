@@ -227,7 +227,7 @@ const Auth = () => {
   return (
     <motion.div
       ref={containerRef}
-      className="flex min-h-screen items-start justify-center px-4 pt-[10vh] lg:pt-[20vh]"
+      className="flex min-h-[100dvh] items-start justify-center px-4 pt-[10dvh] lg:pt-[20dvh]"
       style={{ backgroundColor: 'var(--app-bg)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
