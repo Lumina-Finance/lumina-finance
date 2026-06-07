@@ -16,8 +16,15 @@ export interface UpdateProfilePayload {
   tz?: string;
 }
 
+export interface CacheScopeStatus {
+  changed_at: string | null;
+  last_change_from_current_session: boolean;
+}
+
 export interface CacheStatus {
   changed_at: string | null;
+  personal: CacheScopeStatus;
+  groups: Record<string, CacheScopeStatus>;
 }
 
 export function fetchCacheStatus() {
