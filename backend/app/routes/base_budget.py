@@ -499,6 +499,7 @@ async def create_budget_instance(
         overall_limit=data.overall_limit,
     )
     db.add(budget)
+    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(budget)
 

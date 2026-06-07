@@ -100,6 +100,28 @@ async def test_create_budget_instance_returns_201(client):
     assert base["category_ids"] == [cat_id]
 
 
+async def test_create_budget_instance_updates_cache_status(client):
+    """Creating a budget instance marks app data changed for cache validation."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    base_resp = await _create_base_budget(client, headers)
+    before_resp = await client.get("/me/cache-status", headers=headers)
+    resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
+    after_resp = await client.get("/me/cache-status", headers=headers)
+
+    assert before_resp.status_code == 200
+    assert resp.status_code == 201
+    assert after_resp.status_code == 200
+    before_changed_at = before_resp.json()["personal"]["changed_at"]
+    after_payload = after_resp.json()
+    after_changed_at = after_payload["personal"]["changed_at"]
+    assert after_changed_at is not None
+    assert after_changed_at != before_changed_at
+    assert after_payload["changed_at"] == after_changed_at
+    assert after_payload["personal"]["last_change_from_current_session"] is True
+
+
 async def test_create_budget_instance_misaligned_period_start_returns_422(client):
     """period_start that doesn't match the base's cadence is rejected."""
     signup_resp = await _create_user(client)
