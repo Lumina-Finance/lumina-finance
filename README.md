@@ -1,12 +1,17 @@
-# Lumina Finance
-
 <!-- markdownlint-disable MD033 -->
-<div style="display: flex; flex-wrap: wrap; justify-content: left; align-items: center; column-gap: 16px; row-gap: 0;">
-  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/backend-tests.yml"><img alt="Backend Tests" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/backend-tests.yml?branch=main&label=Backend%20Tests&style=flat&logo=githubactions&logoColor=white"></a>
-  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/build-and-push-docker-image.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/build-and-push-docker-image.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>
-  <a style="flex: 0 0 auto;" href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>
-  <a style="flex: 0 0 auto;" href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>
+<!-- markdownlint-disable MD041 -->
+<div align="center">
+  <img src="docs/logo.png" alt="Lumina Finance logo" width="88">
+  <div style="font-size: 2rem; font-weight: 600; line-height: 1.25; margin: 0.67em 0;">Lumina Finance</div>
 </div>
+
+<p align="center">
+  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/backend-tests.yml"><img alt="Backend Tests" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/backend-tests.yml?branch=main&label=Backend%20Tests&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/build-and-push-docker-image.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/build-and-push-docker-image.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+  <a href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>&nbsp;&nbsp;
+  <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>&nbsp;&nbsp;
+  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black"></a>
+</p>
 
 <!-- markdownlint-enable MD033 -->
 
@@ -21,6 +26,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 Lumina Finance gives you one place to track accounts, transactions, budgets, and financial trends while keeping the app under your control.
 
 - **Accounts** - Track cash, credit, savings, and other account types with balance history, detail views, and hide archived accounts
+- **Multi-currency** - Track accounts and activity in different currencies with FX conversions across dashboards, budgets, runway, and insights
 - **Transactions** - Add or import transactions, then organize them with merchants, categories, tags, and notes
 - **Budgets** - Create recurring or one-off budgets, attach them to categories, and see current and historical utilization at a glance
 - **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
@@ -37,7 +43,7 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 - [X] Insights tab for deeper reports and trends
 - [X] UI/UX polish across the main workflows
 - [X] Bug fixes and stability improvements
-- [ ] Multi-currency support
+- [X] Multi-currency support
 - [ ] Application security improvements and fixes
 - [ ] OIDC and WebAuthN support
 - [ ] SaaS development and testing
@@ -95,11 +101,17 @@ These pages are now also fully mobile and tablet optimized!
 
 ### Docker
 
-If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL` value.
+If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL` and `FRANKFURTER_URL` values.
 
 ### Bare Metal
 
 If you'd like to deploy this bare metal, please clone the repo. The frontend is built with vite and you can build it and serve the static files with things like Caddy or Nginx. The backend is built with FastAPI, so you can serve it as a plain ASGI application with uvicorn. All environment variables should be set at the repo's root level. **Note that you will be responsible for generating the required RSA256 private keys as the auto generation currently only works with the Docker deployment as part of the startup process, in additon to configuring the environment variables correctly.**
+
+### Frankfurter (Foreign Currency Exchange Rates)
+
+Lumina uses [Frankfurter](https://github.com/lineofflight/frankfurter) for FX rates. By default, it uses the hosted API at `https://api.frankfurter.dev/v2`.
+
+Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfurter's GitHub repository for details. After it's set up, set `FRANKFURTER_URL` to its versioned API URL, including the `/v2` path, for Lumina Finance to use your self hosted instance.
 
 ## Environment Variables
 
@@ -111,7 +123,7 @@ If you'd like to deploy this bare metal, please clone the repo. The frontend is 
 | `DB_NAME` | Yes | Database name | None | PostgreSQL database name |
 | `DB_USER` | Yes | Database user | None | PostgreSQL username |
 | `DB_PASSWORD` | Yes | Database password | None | PostgreSQL password |
-| `FRANKFURTER_BASE_URL` | No | URL origin | `https://api.frankfurter.dev` | Frankfurter-compatible FX rate API base URL. Set this to a self-hosted Frankfurter instance to keep FX lookups private |
+| `FRANKFURTER_URL` | No | URL including API version path | `https://api.frankfurter.dev/v2` | Frankfurter-compatible FX rate API URL; set this to a self-hosted Frankfurter instance to keep FX lookups private |
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
