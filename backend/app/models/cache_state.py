@@ -17,6 +17,7 @@ class UserCacheState(Base):
         primary_key=True,
     )
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_changed_session_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
 
 
 class GroupCacheState(Base):
@@ -29,3 +30,4 @@ class GroupCacheState(Base):
         primary_key=True,
     )
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_changed_session_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)

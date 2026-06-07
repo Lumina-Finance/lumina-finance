@@ -1,3 +1,5 @@
+import uuid
+from contextvars import ContextVar
 from typing import Annotated
 
 import jwt
@@ -17,6 +19,12 @@ _private_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=No
 ACCESS_PUBLIC_KEY = _private_key.public_key()
 
 _security = HTTPBearer()
+_current_session_id: ContextVar[uuid.UUID | None] = ContextVar("current_session_id", default=None)
+
+
+def get_current_session_id() -> uuid.UUID | None:
+    """Return the authenticated session id for the current request."""
+    return _current_session_id.get()
 
 
 async def get_current_user(
@@ -56,8 +64,10 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     result = await db.execute(select(ActiveToken).where(ActiveToken.jti == jti))
-    if not result.scalar_one_or_none():
+    active_token = result.scalar_one_or_none()
+    if not active_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is not active")
+    _current_session_id.set(active_token.session_id)
 
     user_id = payload.get("sub")
     if not user_id:

@@ -20,6 +20,15 @@ async def _create_group(client, headers):
     return await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
 
 
+async def _login_default_user(client):
+    """Log in as the default test user and return auth headers."""
+    resp = await client.post("/auth/login", json={
+        "email": "test@example.com",
+        "password": "securepassword123",
+    })
+    return _get_auth_header(resp)
+
+
 def _parse_iso_timestamp(value: str) -> datetime:
     """Parse an API timestamp in either offset or Zulu form."""
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -38,7 +47,14 @@ async def test_cache_status_initially_null(client):
     resp = await client.get("/me/cache-status", headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json() == {"changed_at": None}
+    assert resp.json() == {
+        "changed_at": None,
+        "personal": {
+            "changed_at": None,
+            "last_change_from_current_session": False,
+        },
+        "groups": {},
+    }
 
 
 async def test_personal_write_updates_cache_status(client):
@@ -51,9 +67,36 @@ async def test_personal_write_updates_cache_status(client):
 
     assert account_resp.status_code == 201
     assert status_resp.status_code == 200
-    changed_at = status_resp.json()["changed_at"]
+    payload = status_resp.json()
+    changed_at = payload["changed_at"]
     assert changed_at is not None
     _assert_utc_timestamp(changed_at)
+    assert payload["personal"] == {
+        "changed_at": changed_at,
+        "last_change_from_current_session": True,
+    }
+    assert payload["groups"] == {}
+
+
+async def test_other_session_personal_write_marks_status_external(client):
+    """A personal change from another session is visible as external."""
+    signup_resp = await _create_user(client)
+    first_session_headers = _get_auth_header(signup_resp)
+    second_session_headers = await _login_default_user(client)
+
+    account_resp = await _create_account(client, second_session_headers)
+    status_resp = await client.get("/me/cache-status", headers=first_session_headers)
+
+    assert account_resp.status_code == 201
+    assert status_resp.status_code == 200
+    payload = status_resp.json()
+    changed_at = payload["changed_at"]
+    assert changed_at is not None
+    _assert_utc_timestamp(changed_at)
+    assert payload["personal"] == {
+        "changed_at": changed_at,
+        "last_change_from_current_session": False,
+    }
 
 
 async def test_group_write_updates_member_cache_status(client):
@@ -72,9 +115,22 @@ async def test_group_write_updates_member_cache_status(client):
     after_resp = await client.get("/me/cache-status", headers=member_headers)
 
     assert before_resp.status_code == 200
-    assert before_resp.json() == {"changed_at": None}
+    assert before_resp.json() == {
+        "changed_at": None,
+        "personal": {
+            "changed_at": None,
+            "last_change_from_current_session": False,
+        },
+        "groups": {},
+    }
     assert group_resp.status_code == 201
     assert add_member_resp.status_code == 201
-    changed_at = after_resp.json()["changed_at"]
+    payload = after_resp.json()
+    changed_at = payload["changed_at"]
     assert changed_at is not None
     _assert_utc_timestamp(changed_at)
+    group_id = group_resp.json()["id"]
+    assert payload["personal"]["changed_at"] is None
+    assert payload["personal"]["last_change_from_current_session"] is False
+    assert payload["groups"][group_id]["changed_at"] is not None
+    assert payload["groups"][group_id]["last_change_from_current_session"] is False

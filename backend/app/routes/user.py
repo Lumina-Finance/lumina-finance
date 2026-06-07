@@ -18,6 +18,7 @@ from app.models.transaction import Transaction
 from app.models.user import User, UserRunwayAccount
 from app.schemas.fx import FxStatus
 from app.schemas.user import (
+    CacheScopeStatus,
     CacheStatus,
     RunwayAccountBalance,
     RunwayAccountsRequest,
@@ -27,7 +28,7 @@ from app.schemas.user import (
     UpdateProfileRequest,
     UserProfile,
 )
-from app.services.cache_state import get_visible_cache_changed_at, mark_user_cache_changed
+from app.services.cache_state import get_visible_cache_status, mark_user_cache_changed
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
 from app.services.snapshots import get_current_balances
@@ -139,7 +140,21 @@ async def get_cache_status(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Return the latest app-data change timestamp visible to the user."""
-    return CacheStatus(changed_at=await get_visible_cache_changed_at(db, user.id))
+    status = await get_visible_cache_status(db, user.id)
+    return CacheStatus(
+        changed_at=status.changed_at,
+        personal=CacheScopeStatus(
+            changed_at=status.personal.changed_at,
+            last_change_from_current_session=status.personal.last_change_from_current_session,
+        ),
+        groups={
+            group_id: CacheScopeStatus(
+                changed_at=group_status.changed_at,
+                last_change_from_current_session=group_status.last_change_from_current_session,
+            )
+            for group_id, group_status in status.groups.items()
+        },
+    )
 
 
 @router.patch("", response_model=UserProfile)

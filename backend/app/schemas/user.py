@@ -30,10 +30,19 @@ class UserProfile(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class CacheStatus(BaseModel):
-    """Latest visible app-data cache timestamp."""
+class CacheScopeStatus(BaseModel):
+    """Latest app-data cache timestamp for one scope."""
 
     changed_at: datetime | None
+    last_change_from_current_session: bool = False
+
+
+class CacheStatus(BaseModel):
+    """Latest visible app-data cache status."""
+
+    changed_at: datetime | None
+    personal: CacheScopeStatus
+    groups: dict[uuid.UUID, CacheScopeStatus] = Field(default_factory=dict)
 
 
 class UpdateProfileRequest(BaseModel):
