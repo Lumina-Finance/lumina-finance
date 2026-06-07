@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
+import {
+  invalidateTaxPlanOverview,
+  invalidateTaxPlans,
+} from '@/api/cacheInvalidation';
 import { accountKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys';
 import type { Account, AccountsOverview } from '@/api/accounts';
 
@@ -86,8 +90,8 @@ function upsertTaxAdvantagedPlan(queryClient: QueryClient, plan: TaxAdvantagedPl
 }
 
 function refreshTaxAdvantagedPlanSummary(queryClient: QueryClient, planId: string) {
-  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.list(), exact: true });
-  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.detail(planId), exact: true });
+  invalidateTaxPlans(queryClient, [planId]);
+  invalidateTaxPlanOverview(queryClient);
 }
 
 function upsertTaxAdvantagedPlanLimit(
@@ -146,6 +150,7 @@ function clearLinkedAccountPlanCaches(queryClient: QueryClient, planId: string) 
   }
 
   queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
+  invalidateTaxPlanOverview(queryClient);
 }
 
 export function useTaxAdvantagedPlans() {
@@ -168,6 +173,7 @@ export function useCreateTaxAdvantagedPlan() {
       }),
     onSuccess: (plan) => {
       upsertTaxAdvantagedPlan(queryClient, plan);
+      invalidateTaxPlanOverview(queryClient);
     },
   });
 }
@@ -182,6 +188,7 @@ export function useUpdateTaxAdvantagedPlan(planId: string) {
       }),
     onSuccess: (plan) => {
       upsertTaxAdvantagedPlan(queryClient, plan);
+      invalidateTaxPlanOverview(queryClient);
     },
   });
 }

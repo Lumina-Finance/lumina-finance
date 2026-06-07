@@ -1,5 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/api/client';
+import { invalidateBudgets, invalidateDashboardBudgets } from '@/api/cacheInvalidation';
 import type { FxStatus } from '@/api/dashboard';
 import { budgetKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
@@ -146,7 +147,8 @@ function updateBudget({ id, patch }: UpdateBudgetPayload) {
 }
 
 function invalidateBudgetActivity(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
+  invalidateBudgets(queryClient);
+  invalidateDashboardBudgets(queryClient);
 }
 
 export function useBaseBudgets() {
