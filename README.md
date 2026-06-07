@@ -1,8 +1,8 @@
 <!-- markdownlint-disable MD033 -->
 <!-- markdownlint-disable MD041 -->
 <div align="center">
-  <img src="docs/logo.png" alt="Lumina Finance logo" width="88">
-  <div style="font-size: 2rem; font-weight: 600; line-height: 1.25; margin: 0.67em 0;">Lumina Finance</div>
+  <img src="docs/logo.png" alt="Lumina Finance logo" width="115">
+  <h1>Lumina Finance</h1>
 </div>
 
 <p align="center">
