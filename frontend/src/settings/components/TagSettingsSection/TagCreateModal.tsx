@@ -4,6 +4,7 @@ import { Tag as TagIcon, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ApiError } from '@/api/auth'
 import { useCreateTag, type Tag } from '@/api/tags'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import {
   CREATE_TAG_MIN_LOADING_MS,
   EASE,
@@ -25,16 +26,16 @@ export default function TagCreateModal({
   const [createInProgress, setCreateInProgress] = useState(false)
   const isSubmitting = createTag.isPending || createInProgress
 
+  useBodyScrollLock(open)
+
   useEffect(() => {
     if (!open) return undefined
 
-    document.body.style.overflow = 'hidden'
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !isSubmitting) onClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      document.body.style.overflow = ''
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [isSubmitting, onClose, open])

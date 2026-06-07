@@ -16,6 +16,7 @@ import {
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
 import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { formatCurrency } from '@/utils/formatCurrency'
 import type {
   AutosaveNotice,
@@ -151,14 +152,14 @@ export default function TaxAdvantagedCategoryModal({
     }
   }
 
+  useBodyScrollLock(true)
+
   useEffect(() => {
-    document.body.style.overflow = 'hidden'
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      document.body.style.overflow = ''
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [onClose])

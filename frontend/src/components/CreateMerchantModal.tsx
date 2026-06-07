@@ -5,6 +5,7 @@ import { Store, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
 const CREATE_MERCHANT_MIN_LOADING_MS = 800
@@ -54,11 +55,7 @@ export default function CreateMerchantModal({
   const isCreating = createMerchant.isPending || createInProgress
   const isSecondary = variant === 'secondary'
 
-  useEffect(() => {
-    if (!open || isSecondary) return
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [isSecondary, open])
+  useBodyScrollLock(open && !isSecondary)
 
   useEffect(() => {
     if (!open) return

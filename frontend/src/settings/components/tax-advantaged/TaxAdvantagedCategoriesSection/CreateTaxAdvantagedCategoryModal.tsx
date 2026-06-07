@@ -6,6 +6,7 @@ import { Landmark, X } from 'lucide-react'
 import type { Currency } from '@/api/currency'
 import { useCreateTaxAdvantagedPlan, type TaxTreatment } from '@/api/taxAdvantagedPlans'
 import Dropdown from '@/components/Dropdown'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type { TaxPlanFormState } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
 import {
   CREATE_TAX_CATEGORY_MIN_LOADING_MS,
@@ -45,14 +46,14 @@ export default function CreateTaxAdvantagedCategoryModal({
   const options = useMemo(() => currencyOptions(currencies), [currencies])
   const isCreating = createPlan.isPending || createInProgress
 
+  useBodyScrollLock(true)
+
   useEffect(() => {
-    document.body.style.overflow = 'hidden'
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      document.body.style.overflow = ''
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [onClose])
