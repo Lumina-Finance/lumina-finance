@@ -181,6 +181,14 @@
     color: var(--app-accent);
   }
 
+  @media (min-width: 1200px) {
+    .app-body-scroll-locked .settings-desktop-section-nav {
+      position: fixed;
+      top: 1.5rem;
+      width: 260px;
+    }
+  }
+
   .app-input {
     @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
     font-size: 0.9375rem;

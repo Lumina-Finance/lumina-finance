@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Tag as TagIcon, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateTag, type Tag } from '@/api/tags'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
 const CREATE_TAG_MIN_LOADING_MS = 800
@@ -40,14 +41,7 @@ export default function CreateTagModal({
   const isSubmitting = createTag.isPending || createInProgress
   const isSecondary = variant === 'secondary'
 
-  useEffect(() => {
-    if (!open || isSecondary) return undefined
-
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [isSecondary, open])
+  useBodyScrollLock(open && !isSecondary)
 
   useEffect(() => {
     if (!open) return undefined

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Tag, X } from 'lucide-react'
 import { useCreateCategory, type Category } from '@/api/categories'
 import Dropdown from '@/components/Dropdown'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 type CategoryKind = Category['kind']
 type CreateCategoryField = 'icon' | 'name'
@@ -127,11 +128,7 @@ export default function CreateCategoryModal({
   const isCreating = createCategory.isPending || createInProgress
   const isSecondary = variant === 'secondary'
 
-  useEffect(() => {
-    if (!open || isSecondary) return
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [isSecondary, open])
+  useBodyScrollLock(open && !isSecondary)
 
   useEffect(() => {
     if (!open) return

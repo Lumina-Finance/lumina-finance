@@ -7,6 +7,7 @@ import {
   type Merchant,
 } from '@/api/merchants'
 import Dropdown from '@/components/Dropdown'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import {
   DELETE_SPINNER_MS,
   EASE,
@@ -52,14 +53,14 @@ export default function MergeDeleteMerchantModal({
     : options[0]?.value ?? ''
   const isSubmitting = isPending || mergeInProgress
 
+  useBodyScrollLock(true)
+
   useEffect(() => {
-    document.body.style.overflow = 'hidden'
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !isSubmitting) onClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      document.body.style.overflow = ''
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [isSubmitting, onClose])
