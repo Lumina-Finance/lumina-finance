@@ -10,6 +10,7 @@ export const accountKeys = {
   list: () => ['accounts'] as const,
   detail: (accountId: string | undefined) => ['accounts', accountId] as const,
   accountScope: (accountId: string) => ['accounts', accountId] as const,
+  snapshotsAll: (accountId: string | undefined) => ['accounts', accountId, 'snapshots'] as const,
   snapshots: (accountId: string | undefined, params: SnapshotKeyParams) => [
     'accounts',
     accountId,
@@ -19,12 +20,18 @@ export const accountKeys = {
     params.granularity ?? 'day',
     params.includeAnchor ?? false,
   ] as const,
+  spendingBreakdownAll: (accountId: string | undefined) => [
+    'accounts',
+    accountId,
+    'spending-breakdown',
+  ] as const,
   spendingBreakdown: (accountId: string | undefined, range: string) => [
     'accounts',
     accountId,
     'spending-breakdown',
     range,
   ] as const,
+  cashFlowAll: (accountId: string | undefined) => ['accounts', accountId, 'cash-flow'] as const,
   cashFlow: (accountId: string | undefined, months: number) => [
     'accounts',
     accountId,
