@@ -23,6 +23,7 @@ from app.schemas.budget import (
     UpdateBudgetRequest,
 )
 from app.services.budget_responses import build_budget_response, load_tracked_categories
+from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.fx import FxConverter
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
@@ -277,7 +278,8 @@ async def delete_budget(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Delete a budget instance. Requires ADMIN access on the base budget."""
-    budget, _ = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
+    budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
+    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.delete(budget)
     await db.commit()
 
@@ -310,6 +312,7 @@ async def update_budget(
     for field, value in changed_fields.items():
         setattr(budget, field, value)
 
+    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(budget)
     return await _build_budget_response(db, budget, base_budget)

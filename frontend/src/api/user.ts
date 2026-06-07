@@ -2,6 +2,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import type { User } from '@/api/auth';
 import { authenticatedFetch } from '@/api/client';
+import { invalidateAggregateData } from '@/api/cacheInvalidation';
 import type { FxStatus } from '@/api/dashboard';
 import { userKeys } from '@/api/queryKeys';
 import { normalizeRunwayThresholds, type RunwayThresholds } from '@/utils/runway';
@@ -16,16 +17,35 @@ export interface UpdateProfilePayload {
   tz?: string;
 }
 
+export interface CacheScopeStatus {
+  changed_at: string | null;
+  last_change_from_current_session: boolean;
+}
+
+export interface CacheStatus {
+  changed_at: string | null;
+  personal: CacheScopeStatus;
+  groups: Record<string, CacheScopeStatus>;
+}
+
+export function fetchCacheStatus() {
+  return authenticatedFetch<CacheStatus>('/me/cache-status');
+}
+
 // PATCH /me — partial update, only provided fields change. Caller is expected
 // to wire the returned User back into AuthContext via setUser so the rest of
 // the app reflects the new profile immediately.
 export function useUpdateProfile() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateProfilePayload) =>
       authenticatedFetch<User>('/me', {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
+    onSuccess: (_, payload) => {
+      if ('tz' in payload) invalidateAggregateData(queryClient);
+    },
   });
 }
 

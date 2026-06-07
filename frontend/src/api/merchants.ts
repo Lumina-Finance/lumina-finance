@@ -10,11 +10,14 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import {
-  accountKeys,
-  dashboardKeys,
+  invalidateDashboardRecent,
+  invalidateInsightsMerchants,
+  invalidateMerchants,
+  invalidateTransactionOverview,
+  invalidateTransactions,
+} from '@/api/cacheInvalidation';
+import {
   merchantKeys,
-  transactionKeys,
-  transactionOverviewKeys,
 } from '@/api/queryKeys';
 
 export interface Merchant {
@@ -114,13 +117,12 @@ function removeMerchantFromInfiniteData(
   };
 }
 
-function invalidateMerchantMergeQueries(qc: QueryClient) {
-  qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
-  qc.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
-  qc.invalidateQueries({ queryKey: accountKeys.all, exact: false });
-  qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
-  qc.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
-  qc.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
+function invalidateMerchantUsageQueries(qc: QueryClient) {
+  invalidateMerchants(qc);
+  invalidateTransactions(qc);
+  invalidateTransactionOverview(qc);
+  invalidateDashboardRecent(qc);
+  invalidateInsightsMerchants(qc);
 }
 
 export function useMerchant(merchantId: string | null | undefined, enabled = true) {
@@ -163,7 +165,7 @@ export function useCreateMerchant() {
       authenticatedFetch<Merchant>('/merchants', {
         method: 'POST',
         body: JSON.stringify(payload),
-    }),
+      }),
     onSuccess: (created) => {
       qc.setQueryData<Merchant>(merchantKeys.detail(created.id), created);
       qc.getQueryCache()
@@ -189,7 +191,7 @@ export function useUpdateMerchant() {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
-    onSuccess: (updated) => {
+    onSuccess: (updated, { payload }) => {
       qc.setQueryData<Merchant>(merchantKeys.detail(updated.id), updated);
       qc.getQueryCache()
         .findAll({ queryKey: merchantKeys.all, exact: false })
@@ -204,18 +206,22 @@ export function useUpdateMerchant() {
               : removeMerchantFromInfiniteData(data, updated.id),
           );
         });
-      qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
-      qc.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
+      if ('name' in payload) invalidateMerchantUsageQueries(qc);
     },
   });
 }
 
 export function useDeleteMerchant() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (merchantId: string) =>
       authenticatedFetch<void>(`/merchants/${merchantId}`, {
         method: 'DELETE',
       }),
+    onSuccess: (_, merchantId) => {
+      qc.removeQueries({ queryKey: merchantKeys.detail(merchantId), exact: true });
+      invalidateMerchantUsageQueries(qc);
+    },
   });
 }
 
@@ -229,8 +235,7 @@ export function useMergeMerchant() {
       }),
     onSuccess: (_, { merchantId }) => {
       qc.removeQueries({ queryKey: merchantKeys.detail(merchantId), exact: true });
-      qc.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
-      invalidateMerchantMergeQueries(qc);
+      invalidateMerchantUsageQueries(qc);
     },
   });
 }

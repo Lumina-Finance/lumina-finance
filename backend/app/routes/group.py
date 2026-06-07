@@ -17,6 +17,7 @@ from app.schemas.group import (
     UpdateGroupMemberAdminRequest,
     UpdateGroupRequest,
 )
+from app.services.cache_state import mark_group_cache_changed, mark_user_cache_changed
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -126,6 +127,7 @@ async def update_group(
     for field, value in changed_fields.items():
         setattr(group, field, value)
 
+    await mark_group_cache_changed(db, group_id)
     await db.commit()
     await db.refresh(group)
     return group
@@ -148,6 +150,9 @@ async def delete_group(
     if group.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can delete this group")
 
+    member_ids = (await db.execute(select(GroupMember.user_id).where(GroupMember.group_id == group_id))).scalars().all()
+    for member_user_id in member_ids:
+        await mark_user_cache_changed(db, member_user_id)
     await db.delete(group)
     await db.commit()
 
@@ -195,6 +200,7 @@ async def add_member(
 
     group_member = GroupMember(group_id=group_id, user_id=data.user_id)
     db.add(group_member)
+    await mark_group_cache_changed(db, group_id)
     await db.commit()
     await db.refresh(group_member)
     return group_member
@@ -234,6 +240,7 @@ async def update_member_admin(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot demote the owner")
 
     target.is_admin = data.is_admin
+    await mark_group_cache_changed(db, group_id)
     await db.commit()
     await db.refresh(target)
     return target
@@ -278,6 +285,8 @@ async def remove_member(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
 
     await db.delete(target)
+    await mark_group_cache_changed(db, group_id)
+    await mark_user_cache_changed(db, member_id)
     await db.commit()
 
 
@@ -293,6 +302,8 @@ async def create_group(
     group_member = GroupMember(group_id=group_id, user_id=user.id, is_admin=True)
     db.add(group)
     db.add(group_member)
+    await mark_user_cache_changed(db, user.id)
+    await mark_group_cache_changed(db, group_id)
     await db.commit()
     await db.refresh(group)
     return group

@@ -7,7 +7,8 @@ import {
   type QueryKey,
 } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/api/client';
-import { tagKeys, transactionKeys } from '@/api/queryKeys';
+import { invalidateTags, invalidateTransactions } from '@/api/cacheInvalidation';
+import { tagKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 export interface Tag {
@@ -127,7 +128,7 @@ export function useCreateTag() {
       authenticatedFetch<Tag>('/tags', {
         method: 'POST',
         body: JSON.stringify(payload),
-    }),
+      }),
     onSuccess: (created) => {
       qc.setQueryData<Tag>(tagKeys.detail(created.id), created);
       qc.getQueryCache()
@@ -155,18 +156,24 @@ export function useUpdateTag() {
       }),
     onSuccess: (updated) => {
       qc.setQueryData<Tag>(tagKeys.detail(updated.id), updated);
-      qc.invalidateQueries({ queryKey: tagKeys.all, exact: false });
-      qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
+      invalidateTags(qc);
+      invalidateTransactions(qc);
     },
   });
 }
 
 export function useDeleteTag() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (tagId: string) =>
       authenticatedFetch<void>(`/tags/${tagId}`, {
         method: 'DELETE',
       }),
+    onSuccess: (_, tagId) => {
+      qc.removeQueries({ queryKey: tagKeys.detail(tagId), exact: true });
+      invalidateTags(qc);
+      invalidateTransactions(qc);
+    },
   });
 }
 
@@ -180,8 +187,8 @@ export function useMergeTag() {
       }),
     onSuccess: (_, { tagId }) => {
       qc.removeQueries({ queryKey: tagKeys.detail(tagId), exact: true });
-      qc.invalidateQueries({ queryKey: tagKeys.all, exact: false });
-      qc.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
+      invalidateTags(qc);
+      invalidateTransactions(qc);
     },
   });
 }

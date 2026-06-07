@@ -9,18 +9,30 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import {
+  invalidateAccountActivity,
+  invalidateAccountBalances,
+  invalidateAccounts,
+  invalidateAppData,
+  invalidateBudgets,
+  invalidateDashboardBalance,
+  invalidateDashboardBudgets,
+  invalidateDashboardCredit,
+  invalidateDashboardIncomeExpense,
+  invalidateDashboardRecent,
+  invalidateInsightsBalance,
+  invalidateInsightsIncomeExpense,
+  invalidateInsightsMerchants,
+  invalidateRunway,
+  invalidateTaxPlans,
+  invalidateTransactionOverview as invalidateTransactionOverviewQueries,
+  invalidateTransactions,
+} from '@/api/cacheInvalidation';
+import {
   accountKeys,
-  budgetKeys,
-  categoryKeys,
-  dashboardKeys,
-  merchantKeys,
-  tagKeys,
-  taxAdvantagedPlanKeys,
   transactionKeys,
   transactionOverviewKeys,
-  userKeys,
 } from '@/api/queryKeys';
-import type { Account, AccountsOverview } from '@/api/accounts';
+import type { Account, AccountKind, AccountsOverview } from '@/api/accounts';
 import type { FxStatus } from '@/api/dashboard';
 
 // ── Types (mirror backend schemas) ──
@@ -192,7 +204,39 @@ export interface TransactionImportResponse {
 
 // ── Helpers ──
 
+const TRANSACTION_LIST_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
+  'merchant_id',
+  'notes',
+  'tag_ids',
+]);
+
+const TRANSACTION_OVERVIEW_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
+  'merchant_id',
+  'notes',
+]);
+
+const ACCOUNT_BALANCE_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'amount',
+]);
+
 const ACCOUNT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
+]);
+
+const DASHBOARD_RECENT_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'account_id',
   'dt',
   'category_id',
@@ -200,14 +244,22 @@ const ACCOUNT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'merchant_id',
 ]);
 
-const TAX_ADVANTAGED_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+const INCOME_EXPENSE_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'account_id',
   'dt',
   'category_id',
   'amount',
 ]);
 
-const OVERVIEW_INDEPENDENT_FIELDS = new Set<keyof UpdateTransactionPayload>(['tag_ids']);
+const CREDIT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'amount',
+]);
+
+const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'merchant_id',
+]);
+
 const MAX_IMPORT_BATCH_BYTES = 750 * 1024;
 const TARGET_IMPORT_BATCH_BYTES = 650 * 1024;
 const IMPORT_BATCH_YIELD_INTERVAL = 250;
@@ -277,56 +329,54 @@ function getCachedAccountPlanId(
   return accounts?.find((account) => account.id === accountId)?.tax_advantaged_plan_id;
 }
 
-function invalidateTransactionLists(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: transactionKeys.all, exact: false });
-}
+function getCachedAccountKind(
+  queryClient: QueryClient,
+  accountId: string,
+): AccountKind | undefined {
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
+  if (detail) return detail.account_kind;
 
-function invalidateTransactionOverview(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: transactionOverviewKeys.all, exact: false });
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
+  return accounts?.find((account) => account.id === accountId)?.account_kind;
 }
 
 interface AccountActivityInvalidationOptions {
   refetchAccountList?: boolean;
 }
 
-function invalidateAccountActivity(
-  queryClient: QueryClient,
-  accountIds: string[],
-  options: AccountActivityInvalidationOptions = {},
-) {
-  if (accountIds.length === 0) return;
-
-  queryClient.invalidateQueries({
-    queryKey: accountKeys.list(),
-    exact: true,
-    refetchType: options.refetchAccountList ? 'active' : 'none',
-  });
-  for (const accountId of accountIds) {
-    queryClient.invalidateQueries({ queryKey: accountKeys.accountScope(accountId), exact: false });
+function invalidateTransactionAccountBalances(queryClient: QueryClient, accountIds: string[]) {
+  if (accountIds.length > 0) {
+    invalidateAccountBalances(queryClient, accountIds);
+    return;
   }
+
+  invalidateAccounts(queryClient);
 }
 
-function invalidateDashboardActivity(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: budgetKeys.all, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.credit(), exact: true });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.netWorthAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.savingsRateAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.recentActivityAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingComparisonAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: dashboardKeys.spendingBreakdownAll, exact: false });
-  queryClient.invalidateQueries({ queryKey: userKeys.runway(), exact: true });
+function invalidateTransactionAccountActivity(queryClient: QueryClient, accountIds: string[]) {
+  if (accountIds.length > 0) {
+    invalidateAccountActivity(queryClient, accountIds);
+    return;
+  }
+
+  invalidateAccounts(queryClient);
+}
+
+function invalidateCreditActivity(queryClient: QueryClient, accountIds: string[]) {
+  const mayAffectCredit = accountIds.length === 0
+    || accountIds.some((accountId) => {
+      const accountKind = getCachedAccountKind(queryClient, accountId);
+      return accountKind === undefined || accountKind === 'revolving';
+    });
+
+  if (mayAffectCredit) invalidateDashboardCredit(queryClient);
 }
 
 function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: string[]) {
   const planIds = uniqueIds(
     accountIds.map((accountId) => getCachedAccountPlanId(queryClient, accountId)),
   );
-  if (planIds.length === 0) return;
-
-  queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.list(), exact: true });
-  for (const planId of planIds) {
-    queryClient.invalidateQueries({ queryKey: taxAdvantagedPlanKeys.detail(planId), exact: true });
-  }
+  invalidateTaxPlans(queryClient, planIds);
 }
 
 export function invalidateTransactionAccountData(
@@ -334,8 +384,63 @@ export function invalidateTransactionAccountData(
   accountIds: string[],
   options: AccountActivityInvalidationOptions = {},
 ) {
-  invalidateAccountActivity(queryClient, accountIds, options);
+  if (options.refetchAccountList) invalidateTransactionAccountBalances(queryClient, accountIds);
+  invalidateTransactionAccountActivity(queryClient, accountIds);
   invalidateTaxAdvantagedActivity(queryClient, accountIds);
+}
+
+interface FinancialTransactionInvalidationOptions {
+  deferAccountInvalidation?: boolean;
+}
+
+function invalidateFinancialTransactionData(
+  queryClient: QueryClient,
+  accountIds: string[],
+  options: FinancialTransactionInvalidationOptions = {},
+) {
+  invalidateTransactionOverviewQueries(queryClient);
+  invalidateDashboardBalance(queryClient);
+  invalidateDashboardIncomeExpense(queryClient);
+  invalidateDashboardRecent(queryClient);
+  invalidateInsightsBalance(queryClient);
+  invalidateInsightsIncomeExpense(queryClient);
+  invalidateBudgets(queryClient);
+  invalidateDashboardBudgets(queryClient);
+  invalidateRunway(queryClient);
+  if (!options.deferAccountInvalidation) {
+    invalidateTransactionAccountBalances(queryClient, accountIds);
+    invalidateTransactionAccountActivity(queryClient, accountIds);
+    invalidateTaxAdvantagedActivity(queryClient, accountIds);
+    invalidateCreditActivity(queryClient, accountIds);
+  }
+}
+
+function invalidatePatchedTransactionData(
+  queryClient: QueryClient,
+  patch: UpdateTransactionPayload,
+  accountIds: string[],
+) {
+  if (patchTouches(patch, TRANSACTION_LIST_FIELDS)) invalidateTransactions(queryClient);
+  if (patchTouches(patch, TRANSACTION_OVERVIEW_FIELDS)) invalidateTransactionOverviewQueries(queryClient);
+  if (patchTouches(patch, ACCOUNT_BALANCE_FIELDS)) {
+    invalidateTransactionAccountBalances(queryClient, accountIds);
+    invalidateDashboardBalance(queryClient);
+    invalidateInsightsBalance(queryClient);
+  }
+  if (patchTouches(patch, ACCOUNT_ACTIVITY_FIELDS)) {
+    invalidateTransactionAccountActivity(queryClient, accountIds);
+  }
+  if (patchTouches(patch, DASHBOARD_RECENT_FIELDS)) invalidateDashboardRecent(queryClient);
+  if (patchTouches(patch, INCOME_EXPENSE_FIELDS)) {
+    invalidateDashboardIncomeExpense(queryClient);
+    invalidateInsightsIncomeExpense(queryClient);
+    invalidateBudgets(queryClient);
+    invalidateDashboardBudgets(queryClient);
+    invalidateRunway(queryClient);
+    invalidateTaxAdvantagedActivity(queryClient, accountIds);
+  }
+  if (patchTouches(patch, CREDIT_ACTIVITY_FIELDS)) invalidateCreditActivity(queryClient, accountIds);
+  if (patchTouches(patch, MERCHANT_ACTIVITY_FIELDS)) invalidateInsightsMerchants(queryClient);
 }
 
 // ── Hooks ──
@@ -408,12 +513,9 @@ export function useCreateTransaction({
       }),
     onSuccess: (transaction) => {
       const accountIds = [transaction.account_id];
-      invalidateTransactionLists(queryClient);
-      invalidateTransactionOverview(queryClient);
-      invalidateDashboardActivity(queryClient);
-      if (!deferAccountInvalidation) {
-        invalidateTransactionAccountData(queryClient, accountIds);
-      }
+      invalidateTransactions(queryClient);
+      invalidateFinancialTransactionData(queryClient, accountIds, { deferAccountInvalidation });
+      invalidateInsightsMerchants(queryClient);
     },
   });
 }
@@ -642,25 +744,8 @@ export function useImportTransactions() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: importTransactionsInBatches,
-    onSuccess: (result) => {
-      invalidateTransactionLists(queryClient);
-      invalidateTransactionOverview(queryClient);
-      invalidateAccountActivity(queryClient, result.affected_account_ids);
-      invalidateDashboardActivity(queryClient);
-      invalidateTaxAdvantagedActivity(queryClient, result.affected_account_ids);
-
-      if (result.created_account_ids.length > 0) {
-        queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true });
-      }
-      if (result.created_category_ids.length > 0) {
-        queryClient.invalidateQueries({ queryKey: categoryKeys.list(), exact: true });
-      }
-      if (result.created_merchant_ids.length > 0) {
-        queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false });
-      }
-      if (result.created_tag_ids.length > 0) {
-        queryClient.invalidateQueries({ queryKey: tagKeys.all, exact: false });
-      }
+    onSuccess: () => {
+      invalidateAppData(queryClient);
     },
   });
 }
@@ -681,21 +766,7 @@ export function useUpdateTransaction() {
         context?.previousTransaction?.account_id,
         updated.account_id,
       ]);
-      const overviewChanged = !Object.keys(patch).every((key) =>
-        OVERVIEW_INDEPENDENT_FIELDS.has(key as keyof UpdateTransactionPayload),
-      );
-
-      invalidateTransactionLists(queryClient);
-      if (overviewChanged) {
-        invalidateTransactionOverview(queryClient);
-        invalidateDashboardActivity(queryClient);
-      }
-      if (patchTouches(patch, ACCOUNT_ACTIVITY_FIELDS)) {
-        invalidateAccountActivity(queryClient, accountIds);
-      }
-      if (patchTouches(patch, TAX_ADVANTAGED_ACTIVITY_FIELDS)) {
-        invalidateTaxAdvantagedActivity(queryClient, accountIds);
-      }
+      invalidatePatchedTransactionData(queryClient, patch, accountIds);
     },
   });
 }
@@ -719,11 +790,9 @@ export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingM
     }),
     onSuccess: (_data, _id, context) => {
       const accountIds = uniqueIds([context?.deletedTransaction?.account_id]);
-      invalidateTransactionLists(queryClient);
-      invalidateTransactionOverview(queryClient);
-      invalidateAccountActivity(queryClient, accountIds);
-      invalidateDashboardActivity(queryClient);
-      invalidateTaxAdvantagedActivity(queryClient, accountIds);
+      invalidateTransactions(queryClient);
+      invalidateFinancialTransactionData(queryClient, accountIds);
+      invalidateInsightsMerchants(queryClient);
     },
   });
 }

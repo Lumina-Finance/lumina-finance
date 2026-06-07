@@ -33,6 +33,7 @@ from app.schemas.transaction import (
     TransactionsOverview,
     UpdateTransactionRequest,
 )
+from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.fx import FxConverter
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_imports import import_transactions
@@ -865,6 +866,7 @@ async def create_transaction(
     # Rebuild balance snapshots from this transaction's day forward
     await recompute_snapshots_from(db, data.account_id, data.dt)
 
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
     await db.refresh(txn)
 
@@ -907,6 +909,7 @@ async def update_transaction(
     # Capture pre-change values needed to recompute balance snapshots
     old_account_id = txn.account_id
     old_dt = txn.dt
+    new_account = None
 
     # Resolve the account's group_id for category/merchant validation
     account_group_id = None
@@ -958,6 +961,9 @@ async def update_transaction(
             # Same account — recompute from the earliest affected day
             await recompute_snapshots_from(db, txn.account_id, min(old_dt, txn.dt))
 
+    await mark_cache_changed_for_scope(db, user_id=current_account.owner_id, group_id=current_account.group_id)
+    if new_account is not None and new_account.id != current_account.id:
+        await mark_cache_changed_for_scope(db, user_id=new_account.owner_id, group_id=new_account.group_id)
     await db.commit()
     await db.refresh(txn)
 
@@ -998,4 +1004,5 @@ async def delete_transaction(
     # Rebuild balance snapshots from this transaction's day forward
     await recompute_snapshots_from(db, account_id, deleted_dt)
 
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
