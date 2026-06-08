@@ -1,10 +1,9 @@
 """Account route handlers"""
 import uuid
-from datetime import date, datetime
-from typing import Annotated, Literal
+from datetime import datetime
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,8 +21,8 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.account_permissions import router as account_permissions_router
+from app.routes.account_snapshots import router as account_snapshots_router
 from app.schemas.account import (
-    AccountBalanceSnapshotResponse,
     AccountResponse,
     AccountsOverview,
     AccountSpendingBreakdown,
@@ -41,6 +40,7 @@ from app.services.snapshots import attach_current_balances, get_current_balances
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(account_permissions_router)
+router.include_router(account_snapshots_router)
 
 # Valid enum values for request validation
 _VALID_ACCOUNT_KINDS = {e.value for e in AccountKind}
@@ -243,83 +243,6 @@ async def get_account(
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     await _attach_account_balance_fields(db, [account], user)
     return account
-
-
-@router.get("/{account_id}/snapshots", response_model=list[AccountBalanceSnapshotResponse])
-async def list_account_balance_snapshots(
-    account_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
-    granularity: Annotated[Literal["day", "week", "month", "quarter"], Query()] = "day",
-    include_anchor: Annotated[bool, Query()] = False,
-):
-    """Return account balance snapshots ordered by date
-
-    Snapshots back the historical balance chart on the account detail page and
-    feed the group net-worth aggregation
-
-    When `granularity` is coarser than `day`, returns the latest snapshot in
-    each bucket, which caps payload size for long ranges. When `include_anchor` is
-    true and `from_date` is set, the latest snapshot *before* that date is
-    prepended so the client can seed forward-fill at the start of the window
-
-    Args:
-        account_id: Account identifier from the route path
-        user: Authenticated user requesting snapshots
-        db: Active database session
-        from_date: Optional inclusive lower date bound
-        to_date: Optional inclusive upper date bound
-        granularity: Snapshot grouping granularity
-        include_anchor: Whether to prepend the latest snapshot before from_date
-
-    Returns:
-        Account balance snapshots ordered ascending by date
-
-    Raises:
-        HTTPException: User does not have read access or the date range is invalid
-    """
-    await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-
-    if from_date is not None and to_date is not None and from_date > to_date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Start date must be before end date",
-        )
-
-    base = select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == account_id)
-    if from_date is not None:
-        base = base.where(AccountBalanceSnapshot.dt >= from_date)
-    if to_date is not None:
-        base = base.where(AccountBalanceSnapshot.dt <= to_date)
-
-    if granularity == "day":
-        query = base.order_by(AccountBalanceSnapshot.dt)
-        result = await db.execute(query)
-        rows = list(result.scalars().all())
-    else:
-        # DISTINCT ON (bucket) ORDER BY bucket, dt DESC returns the latest row per bucket
-        bucket = sa.func.date_trunc(granularity, AccountBalanceSnapshot.dt)
-        query = base.distinct(bucket).order_by(bucket, AccountBalanceSnapshot.dt.desc())
-        result = await db.execute(query)
-        rows = sorted(result.scalars().all(), key=lambda r: r.dt)
-
-    if include_anchor and from_date is not None:
-        anchor_query = (
-            select(AccountBalanceSnapshot)
-            .where(
-                AccountBalanceSnapshot.account_id == account_id,
-                AccountBalanceSnapshot.dt < from_date,
-            )
-            .order_by(AccountBalanceSnapshot.dt.desc())
-            .limit(1)
-        )
-        anchor = (await db.execute(anchor_query)).scalar_one_or_none()
-        if anchor is not None:
-            rows.insert(0, anchor)
-
-    return rows
 
 
 @router.get("/{account_id}/spending-breakdown", response_model=AccountSpendingBreakdown)
