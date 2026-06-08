@@ -12,7 +12,6 @@ from app.dependencies import get_current_user
 from app.models.base import AccountKind, PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
-from app.routes.accounts.account_balance_adjustments import zero_account_balance_for_archive
 from app.routes.accounts.account_balance_fields import attach_account_balance_fields
 from app.routes.accounts.account_creation import create_account_with_initial_balance_history
 from app.routes.accounts.account_creation_scope import resolve_account_creation_scope
@@ -23,6 +22,7 @@ from app.routes.accounts.account_request_validation import (
 )
 from app.routes.accounts.account_response_loading import get_account_for_response
 from app.routes.accounts.account_tax_advantaged_plan_links import validate_tax_advantaged_plan_link
+from app.routes.accounts.account_updates import apply_account_updates
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
 from app.schemas.account import (
@@ -222,18 +222,7 @@ async def update_account(
             acting_user_id=user.id,
         )
 
-    should_archive = updates.get("is_archived") is True and not account.is_archived
-
-    for field, value in updates.items():
-        setattr(account, field, value)
-
-    if should_archive:
-        await zero_account_balance_for_archive(
-            db,
-            account,
-            user,
-            datetime.now(ZoneInfo(user.tz)).date(),
-        )
+    await apply_account_updates(db, account, updates, user, datetime.now(ZoneInfo(user.tz)).date())
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
