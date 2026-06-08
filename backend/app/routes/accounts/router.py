@@ -9,15 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account, AccountBalanceSnapshot
 from app.models.base import AccountKind, PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
-from app.routes.accounts.account_balance_adjustments import (
-    add_account_starting_balance_adjustment,
-    zero_account_balance_for_archive,
-)
+from app.routes.accounts.account_balance_adjustments import zero_account_balance_for_archive
 from app.routes.accounts.account_balance_fields import attach_account_balance_fields
+from app.routes.accounts.account_creation import create_account_with_initial_balance_history
 from app.routes.accounts.account_creation_scope import resolve_account_creation_scope
 from app.routes.accounts.account_listing import get_accounts_visible_to_user
 from app.routes.accounts.account_request_validation import (
@@ -178,39 +175,7 @@ async def create_account(
         acting_user_id=user.id,
     )
 
-    account = Account(
-        owner_id=creation_scope.owner_id,
-        group_id=creation_scope.group_id,
-        account_kind=data.account_kind,
-        account_type=data.account_type,
-        tax_advantaged_plan_id=data.tax_advantaged_plan_id,
-        name=data.name,
-        institution_id=data.institution_id,
-        currency=data.currency,
-        credit_limit=data.credit_limit,
-        is_archived=data.is_archived,
-    )
-    db.add(account)
-    await db.flush()
-
-    # Anchor balance history with a zero-balance snapshot for stable account charts
-    # Recompute restores this anchor when transaction history is emptied
-    anchor_dt = account.created_at.astimezone(ZoneInfo(creation_scope.anchor_tz)).date()
-    db.add(AccountBalanceSnapshot(
-        account_id=account.id,
-        dt=anchor_dt,
-        balance=0,
-    ))
-
-    if data.starting_balance:
-        await add_account_starting_balance_adjustment(
-            db,
-            account,
-            user_id=user.id,
-            amount=data.starting_balance,
-            adjustment_date=anchor_dt,
-        )
-
+    account = await create_account_with_initial_balance_history(db, data, creation_scope, user)
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
     return await get_account_for_response(db, user, account.id, datetime.now(ZoneInfo(user.tz)).date())
