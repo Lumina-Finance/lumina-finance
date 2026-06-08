@@ -1,4 +1,4 @@
-"""Transaction API routes."""
+"""Transaction API routes"""
 import uuid
 from datetime import date
 from typing import Annotated
@@ -6,9 +6,7 @@ from typing import Annotated
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import MappedColumn
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -30,138 +28,39 @@ from app.schemas.transaction import (
     UpdateTransactionRequest,
 )
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.fx import FxConverter
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_imports import import_transactions
 from app.services.transaction_responses import (
     build_transaction_response,
     get_merchant_names_batch,
     get_tag_ids,
-    get_tag_ids_batch,
     get_tags_batch,
 )
-from app.services.transactions.access import accessible_account_ids_subquery
+from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
-
-# Sortable fields mapped to their SQLAlchemy column objects
-_SORT_FIELDS: dict[str, MappedColumn] = {
-    "dt": Transaction.dt,
-    "amount": Transaction.amount,
-    "created_at": Transaction.created_at,
-    "updated_at": Transaction.updated_at,
-}
-
-# Filter fields mapped to their SQLAlchemy column objects
-_FILTER_FIELDS: dict[str, MappedColumn] = {
-    "account_id": Transaction.account_id,
-    "category_id": Transaction.category_id,
-    "merchant_id": Transaction.merchant_id,
-    "currency": Transaction.currency,
-}
-
-
-def _escape_like(value: str) -> str:
-    """Escape LIKE-special characters so user input is matched literally."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def _transaction_tag_sort_subquery():
-    tag_name = sa.func.lower(Tag.name)
-    return (
-        select(
-            TransactionTag.transaction_id,
-            sa.func.string_agg(
-                tag_name,
-                aggregate_order_by(",", tag_name),
-            ).label("tag_names"),
-        )
-        .join(Tag, Tag.id == TransactionTag.tag_id)
-        .group_by(TransactionTag.transaction_id)
-        .subquery()
-    )
-
-
-def _date_sort_order(sort_order: str, tag_names):
-    date_order = Transaction.dt.desc() if sort_order == "desc" else Transaction.dt.asc()
-    created_order = Transaction.created_at.desc() if sort_order == "desc" else Transaction.created_at.asc()
-    return (
-        date_order,
-        created_order,
-        Transaction.amount.asc(),
-        sa.func.lower(Category.name).asc(),
-        sa.func.lower(sa.func.coalesce(Merchant.name, "")).asc(),
-        sa.func.lower(sa.func.coalesce(Transaction.notes, "")).asc(),
-        sa.func.coalesce(tag_names, "").asc(),
-        Transaction.id,
-    )
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in result}
-
-
-async def _get_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UUID]) -> dict[uuid.UUID, Account]:
-    accounts = (
-        (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
-        if account_ids
-        else []
-    )
-    return {account.id: account for account in accounts}
-
-
-async def _get_transaction_response_context(
-    db: AsyncSession,
-    transactions: list[Transaction],
-    *,
-    extra_currencies: set[str] | None = None,
-) -> tuple[dict[uuid.UUID, Account], dict[str, int]]:
-    account_by_id = await _get_accounts_by_id(db, {txn.account_id for txn in transactions})
-    currencies = {
-        txn.currency
-        for txn in transactions
-    } | {
-        account.currency
-        for account in account_by_id.values()
-    } | (extra_currencies or set())
-    return account_by_id, await _get_currency_exponents(db, currencies)
-
-
-async def _prefetch_transaction_response_rates(
-    converter: FxConverter,
-    *,
-    transactions: list[Transaction],
-    account_by_id: dict[uuid.UUID, Account],
-    base_currency: str,
-) -> None:
-    if not transactions:
-        return
-
-    start = min(txn.dt for txn in transactions)
-    end = max(txn.dt for txn in transactions)
-    pairs = {
-        (txn.currency, quote)
-        for txn in transactions
-        for quote in (account_by_id[txn.account_id].currency, base_currency)
-        if txn.currency != quote
-    }
-    for base, quote in sorted(pairs):
-        await converter.prefetch_rates(
-            base=base,
-            quote=quote,
-            start_date=start,
-            end_date=end,
-        )
 
 
 async def _check_category_access_or_422(
     db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, group_id: uuid.UUID | None = None,
 ) -> None:
-    """Validate a category exists and is accessible for the account scope."""
+    """Validate category access for a transaction account scope
+
+    Args:
+        db: Active database session
+        category_id: Category ID to validate
+        user_id: User ID that must own or access the category
+        group_id: Optional account group ID that expands validation to group
+            categories
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the category does not exist or is
+            outside the account scope
+    """
     query = select(Category).where(Category.id == category_id)
     if group_id is not None:
         query = query.where(
@@ -181,7 +80,22 @@ async def _check_category_access_or_422(
 async def _check_merchant_access_or_422(
     db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID, group_id: uuid.UUID | None = None,
 ) -> None:
-    """Validate a merchant exists and is accessible (personal or same group)."""
+    """Validate merchant access for a transaction account scope
+
+    Args:
+        db: Active database session
+        merchant_id: Merchant ID to validate
+        user_id: User ID that must own or access the merchant
+        group_id: Optional account group ID that expands validation to group
+            merchants
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the merchant does not exist or is
+            outside the account scope
+    """
     query = select(Merchant).where(Merchant.id == merchant_id)
     if group_id is not None:
         query = query.where(
@@ -196,7 +110,22 @@ async def _check_merchant_access_or_422(
 async def _validate_tag_ids(
     db: AsyncSession, user_id: uuid.UUID, tag_ids: list[uuid.UUID], group_id: uuid.UUID | None = None,
 ) -> list[uuid.UUID]:
-    """Validate all tag IDs are accessible in the transaction account scope."""
+    """Validate tag access for a transaction account scope
+
+    Args:
+        db: Active database session
+        user_id: User ID that must own or access each tag
+        tag_ids: Tag IDs to validate
+        group_id: Optional account group ID that expands validation to group
+            tags
+
+    Returns:
+        Deduplicated tag IDs that preserve the submitted order
+
+    Raises:
+        HTTPException: Raised with 422 when any tag does not exist or is
+            outside the account scope
+    """
     # Deduplicate to avoid inserting duplicate junction rows (composite PK violation)
     unique_ids = list(dict.fromkeys(tag_ids))
     tag_filter = (Tag.owner_id == user_id) & (Tag.group_id.is_(None))
@@ -213,7 +142,16 @@ async def _validate_tag_ids(
 
 
 async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
-    """Replace all tags on a transaction with the given tag IDs."""
+    """Replace the tag set attached to a transaction
+
+    Args:
+        db: Active database session
+        transaction_id: Transaction ID whose tag links should be replaced
+        tag_ids: Tag IDs to attach after removing existing tag links
+
+    Returns:
+        None
+    """
     await db.execute(
         sa.delete(TransactionTag).where(TransactionTag.transaction_id == transaction_id),
     )
@@ -229,20 +167,20 @@ async def get_transactions_overview(
     to_date: Annotated[date | None, Query()] = None,
     account_id: Annotated[uuid.UUID | None, Query()] = None,
 ):
-    """Return aggregated transaction metrics for a date range.
+    """Return aggregated transaction metrics for a date range
 
     Args:
-        user: Authenticated user requesting the overview.
-        db: Active database session.
-        from_date: Optional inclusive start date for the transaction window.
-        to_date: Optional inclusive end date for the transaction window.
-        account_id: Optional account filter applied within the user's accessible accounts.
+        user: Authenticated user requesting the overview
+        db: Active database session
+        from_date: Optional inclusive start date for the transaction window
+        to_date: Optional inclusive end date for the transaction window
+        account_id: Optional account filter applied within the user's accessible accounts
 
     Returns:
-        Aggregated transaction overview metrics for the selected filters.
+        Aggregated transaction overview metrics for the selected filters
 
     Raises:
-        HTTPException: Raised with 422 when ``from_date`` is after ``to_date``.
+        HTTPException: Raised with 422 when ``from_date`` is after ``to_date``
     """
     return await get_transactions_overview_response(
         db,
@@ -263,117 +201,51 @@ async def list_transactions(
     currency: Annotated[str | None, Query()] = None,
     from_date: Annotated[date | None, Query()] = None,
     to_date: Annotated[date | None, Query()] = None,
-    q: Annotated[str | None, Query(max_length=200)] = None,
+    search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
     sort_by: Annotated[str, Query()] = "dt",
     sort_order: Annotated[str, Query()] = "desc",
     limit: Annotated[int, Query(ge=1, le=50)] = 15,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
-    """Return paginated transactions with sorting and filtering."""
-    if sort_by not in _SORT_FIELDS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid sort field")
-    if sort_order not in ("asc", "desc"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Sort order must be 'asc' or 'desc'")
-    if from_date is not None and to_date is not None and from_date > to_date:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
+    """Return paginated transactions with sorting and filtering
 
-    sort_column = _SORT_FIELDS[sort_by]
+    Args:
+        user: Authenticated user requesting transactions
+        db: Active database session
+        account_id: Optional account filter applied within the user's accessible accounts
+        category_id: Optional category filter
+        merchant_id: Optional merchant filter
+        currency: Optional transaction currency filter
+        from_date: Optional inclusive start date for transaction dates
+        to_date: Optional inclusive end date for transaction dates
+        search_text: Optional text search across merchant name and notes
+        sort_by: Transaction field used for ordering
+        sort_order: Sort direction, either ``asc`` or ``desc``
+        limit: Maximum number of transactions to return
+        offset: Number of transactions to skip before returning rows
 
-    accessible_account_ids = accessible_account_ids_subquery(user.id)
-    query = select(Transaction).where(Transaction.account_id.in_(accessible_account_ids))
+    Returns:
+        Matching transaction responses for the requested page
 
-    # Apply exact-match filters
-    filters = {
-        "account_id": account_id,
-        "category_id": category_id,
-        "merchant_id": merchant_id,
-        "currency": currency,
-    }
-    for field, value in filters.items():
-        if value is not None:
-            query = query.where(_FILTER_FIELDS[field] == value)
-
-    # Apply date range filters
-    if from_date is not None:
-        query = query.where(Transaction.dt >= from_date)
-    if to_date is not None:
-        query = query.where(Transaction.dt <= to_date)
-
-    tag_sort = None
-    merchant_joined = False
-    if sort_by == "dt":
-        tag_sort = _transaction_tag_sort_subquery()
-        query = (
-            query
-            .join(Category, Category.id == Transaction.category_id)
-            .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
-            .outerjoin(tag_sort, tag_sort.c.transaction_id == Transaction.id)
-        )
-        merchant_joined = True
-
-    # Text search across merchant name and notes
-    if q is not None:
-        pattern = f"%{_escape_like(q)}%"
-        if not merchant_joined:
-            query = query.outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
-        query = query.where(Transaction.notes.ilike(pattern) | Merchant.name.ilike(pattern))
-
-    if sort_by == "dt":
-        query = query.order_by(*_date_sort_order(sort_order, tag_sort.c.tag_names))
-    else:
-        # Secondary sort by id for deterministic pagination
-        order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
-        query = query.order_by(order, Transaction.id)
-    query = query.limit(limit).offset(offset)
-
-    result = await db.execute(query)
-    transactions = result.scalars().all()
-
-    tag_map = await get_tag_ids_batch(db, [txn.id for txn in transactions])
-    tag_summary_map = await get_tags_batch(db, [txn.id for txn in transactions])
-    merchant_names = await get_merchant_names_batch(db, [txn.merchant_id for txn in transactions])
-    account_by_id, currency_exponents = await _get_transaction_response_context(
+    Raises:
+        HTTPException: Raised with 422 for invalid sort fields, sort order, or
+            date range
+    """
+    return await list_transaction_responses(
         db,
-        transactions,
-        extra_currencies={user.base_currency},
+        user,
+        account_id=account_id,
+        category_id=category_id,
+        merchant_id=merchant_id,
+        currency=currency,
+        from_date=from_date,
+        to_date=to_date,
+        search_text=search_text,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=offset,
     )
-    base_converter = FxConverter(currency_exponents=currency_exponents)
-    await _prefetch_transaction_response_rates(
-        base_converter,
-        transactions=transactions,
-        account_by_id=account_by_id,
-        base_currency=user.base_currency,
-    )
-
-    account_amounts = {
-        txn.id: await base_converter.convert_minor_units(
-            txn.amount,
-            base=txn.currency,
-            quote=account_by_id[txn.account_id].currency,
-            rate_date=txn.dt,
-        )
-        for txn in transactions
-    }
-    base_currency_amounts = {
-        txn.id: await base_converter.convert_minor_units(
-            txn.amount,
-            base=txn.currency,
-            quote=user.base_currency,
-            rate_date=txn.dt,
-        )
-        for txn in transactions
-    }
-    return [
-        build_transaction_response(
-            txn,
-            tag_map[txn.id],
-            merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
-            tag_summary_map[txn.id],
-            account_amount=account_amounts[txn.id],
-            base_currency_amount=base_currency_amounts[txn.id],
-        )
-        for txn in transactions
-    ]
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
@@ -382,7 +254,7 @@ async def get_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single transaction by ID. Requires read access on the parent account."""
+    """Return a single transaction by ID. Requires read access on the parent account"""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
     tag_ids = await get_tag_ids(db, txn.id)
     tag_summary_map = await get_tags_batch(db, [txn.id])
@@ -401,7 +273,7 @@ async def import_transaction_batch(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Import frontend-compiled transactions and rebuild affected account snapshots once."""
+    """Import frontend-compiled transactions and rebuild affected account snapshots once"""
     return await import_transactions(db, user, data)
 
 
@@ -411,7 +283,7 @@ async def create_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new transaction. Requires write access on the target account."""
+    """Create a new transaction. Requires write access on the target account"""
     account = await check_account_access(
         db,
         data.account_id,
@@ -481,7 +353,7 @@ async def update_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a transaction. Requires write access on the target account."""
+    """Update a transaction. Requires write access on the target account"""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
     current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
     if current_account.is_archived:
@@ -507,7 +379,7 @@ async def update_transaction(
     # Resolve the account's group_id for category/merchant validation
     account_group_id = None
     if "account_id" in changed_fields:
-        # Moving to a new account requires a writable target that accepts new history.
+        # Moving to a new account requires a writable target that accepts new history
         new_account = await check_account_access(
             db,
             changed_fields["account_id"],
@@ -577,7 +449,7 @@ async def delete_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a transaction. Requires write access on the parent account."""
+    """Delete a transaction. Requires write access on the parent account"""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
     account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
     if account.is_archived:
