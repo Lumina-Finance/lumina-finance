@@ -26,13 +26,13 @@ from app.schemas.dashboard import (
 )
 from app.services.dashboard import (
     get_accessible_accounts,
-    get_savings_rate_history,
     get_spending_breakdown,
     get_spending_comparison,
 )
 from app.services.dashboard_widgets.credit import get_credit_widget
 from app.services.dashboard_widgets.net_worth import get_net_worth_history
 from app.services.dashboard_widgets.recent_activity import get_recent_transactions
+from app.services.dashboard_widgets.savings_rate import get_savings_rate_history
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
