@@ -11,9 +11,8 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
+from app.models.account import Account, AccountBalanceSnapshot
 from app.models.base import AccountKind, PermissionLevel
-from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.accounts.account_balance_adjustments import (
@@ -22,6 +21,7 @@ from app.routes.accounts.account_balance_adjustments import (
 )
 from app.routes.accounts.account_balance_fields import attach_account_balance_fields
 from app.routes.accounts.account_creation_scope import resolve_account_creation_scope
+from app.routes.accounts.account_listing import get_accounts_visible_to_user
 from app.routes.accounts.account_request_validation import (
     validate_create_account_request,
     validate_update_account_request,
@@ -58,24 +58,7 @@ async def list_accounts(
     Returns:
         Accounts the user can access
     """
-    # Personal accounts OR group accounts where user is admin OR has explicit permission
-    query = (
-        select(Account)
-        .options(selectinload(Account.institution))
-        .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
-        .outerjoin(
-            AccountPermission,
-            (AccountPermission.account_id == Account.id) & (AccountPermission.user_id == user.id),
-        )
-        .where(
-            (Account.owner_id == user.id)
-            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
-            | (AccountPermission.user_id == user.id),
-        )
-        .order_by(Account.created_at)
-    )
-    result = await db.execute(query)
-    accounts = result.scalars().unique().all()
+    accounts = await get_accounts_visible_to_user(db, user.id)
     await attach_account_balance_fields(db, accounts, user, datetime.now(ZoneInfo(user.tz)).date())
     return accounts
 
