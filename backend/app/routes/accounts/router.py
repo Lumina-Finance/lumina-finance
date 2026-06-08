@@ -12,10 +12,8 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
-from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, PermissionLevel
-from app.models.currency import Currency
+from app.models.base import AccountKind, PermissionLevel
 from app.models.group import Group, GroupMember
-from app.models.institution import Institution
 from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.accounts.account_balance_adjustments import (
@@ -23,6 +21,10 @@ from app.routes.accounts.account_balance_adjustments import (
     zero_account_balance_for_archive,
 )
 from app.routes.accounts.account_balance_fields import attach_account_balance_fields
+from app.routes.accounts.account_request_validation import (
+    validate_create_account_request,
+    validate_update_account_request,
+)
 from app.routes.accounts.account_tax_advantaged_plan_links import validate_tax_advantaged_plan_link
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
@@ -41,12 +43,6 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
 router.include_router(snapshots_router)
 
-# Valid enum values for request validation
-_VALID_ACCOUNT_KINDS = {e.value for e in AccountKind}
-_VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
-
-# UpdateAccountRequest fields that map to NOT NULL columns reject explicit null with 422
-_UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_archived"})
 @router.get("", response_model=list[AccountsOverview])
 async def list_accounts(
     user: Annotated[User, Depends(get_current_user)],
@@ -185,30 +181,7 @@ async def create_account(
     Raises:
         HTTPException: Account details, ownership, or linked plan are invalid
     """
-    if data.account_kind not in _VALID_ACCOUNT_KINDS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid account kind")
-    if data.account_type not in _VALID_ACCOUNT_TYPES:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid account type")
-    if ACCOUNT_KIND_BY_TYPE[AccountType(data.account_type)] != AccountKind(data.account_kind):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Account kind does not match account type",
-        )
-    if data.credit_limit is not None and AccountKind(data.account_kind) != AccountKind.REVOLVING:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="credit_limit is only valid on revolving-credit accounts",
-        )
-    # Validate currency exists
-    result = await db.execute(select(Currency).where(Currency.id == data.currency))
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
-
-    # Validate institution exists if provided
-    if data.institution_id:
-        result = await db.execute(select(Institution).where(Institution.id == data.institution_id))
-        if not result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
+    await validate_create_account_request(db, data)
 
     # Determine ownership
     owner_id = user.id
@@ -318,27 +291,7 @@ async def update_account(
         await attach_account_balance_fields(db, [account], user, datetime.now(ZoneInfo(user.tz)).date())
         return account
 
-    # Reject explicit null on fields that map to NOT NULL columns before they reach the DB
-    for field in _UPDATE_ACCOUNT_NOT_NULL_FIELDS:
-        if field in updates and updates[field] is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{field} cannot be null",
-            )
-
-    # Validate institution if being changed
-    if "institution_id" in updates and updates["institution_id"] is not None:
-        result = await db.execute(select(Institution).where(Institution.id == updates["institution_id"]))
-        if not result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
-
-    # credit_limit is only meaningful on revolving-credit accounts
-    # Amortizing debt has a principal schedule, and account_kind is fixed at creation
-    if updates.get("credit_limit") is not None and account.account_kind != AccountKind.REVOLVING:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="credit_limit is only valid on revolving-credit accounts",
-        )
+    await validate_update_account_request(db, account, updates)
 
     if "tax_advantaged_plan_id" in updates:
         await validate_tax_advantaged_plan_link(
