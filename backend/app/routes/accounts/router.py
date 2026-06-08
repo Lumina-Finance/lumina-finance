@@ -12,14 +12,16 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
-from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, CategoryKind, PermissionLevel
-from app.models.category import Category
+from app.models.base import ACCOUNT_KIND_BY_TYPE, AccountKind, AccountType, PermissionLevel
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.institution import Institution
-from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access
+from app.routes.accounts.account_balance_adjustments import (
+    add_account_starting_balance_adjustment,
+    zero_account_balance_for_archive,
+)
 from app.routes.accounts.account_balance_fields import attach_account_balance_fields
 from app.routes.accounts.account_tax_advantaged_plan_links import validate_tax_advantaged_plan_link
 from app.routes.accounts.permissions import router as permissions_router
@@ -34,7 +36,6 @@ from app.schemas.account import (
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
 from app.services.accounts import get_account_cash_flow_history, get_account_spending_breakdown
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.snapshots import get_current_balances, recompute_snapshots_from
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
@@ -46,65 +47,6 @@ _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 
 # UpdateAccountRequest fields that map to NOT NULL columns reject explicit null with 422
 _UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_archived"})
-_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
-_STARTING_BALANCE_NOTE = "Starting balance"
-_ARCHIVE_BALANCE_ADJUSTMENT_NOTE = "Account archived"
-
-
-async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.UUID:
-    """Return the system balance adjustment category identifier
-
-    Args:
-        db: Active database session
-
-    Returns:
-        Balance adjustment category identifier
-
-    Raises:
-        HTTPException: Balance adjustment category is not configured
-    """
-    category_id = await db.scalar(
-        select(Category.id).where(
-            Category.is_system.is_(True),
-            Category.kind == CategoryKind.TRANSFER,
-            Category.name == _BALANCE_ADJUSTMENT_CATEGORY_NAME,
-        ),
-    )
-    if category_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Balance adjustment category is not configured",
-        )
-    return category_id
-
-
-async def _zero_account_balance_for_archive(db: AsyncSession, account: Account, user: User) -> None:
-    """Add an archive adjustment when an account has a nonzero balance
-
-    Args:
-        db: Active database session
-        account: Account being archived
-        user: Authenticated user archiving the account
-    """
-    current_balance = (await get_current_balances(db, [account.id])).get(account.id, 0)
-    if current_balance == 0:
-        return
-
-    archive_dt = datetime.now(ZoneInfo(user.tz)).date()
-    db.add(Transaction(
-        created_by_user_id=user.id,
-        account_id=account.id,
-        dt=archive_dt,
-        category_id=await _get_system_balance_adjustment_category_id(db),
-        amount=-current_balance,
-        currency=account.currency,
-        fx_rate=None,
-        notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
-    ))
-    await db.flush()
-    await recompute_snapshots_from(db, account.id, archive_dt)
-
-
 @router.get("", response_model=list[AccountsOverview])
 async def list_accounts(
     user: Annotated[User, Depends(get_current_user)],
@@ -329,18 +271,13 @@ async def create_account(
     ))
 
     if data.starting_balance:
-        db.add(Transaction(
-            created_by_user_id=user.id,
-            account_id=account.id,
-            dt=anchor_dt,
-            category_id=await _get_system_balance_adjustment_category_id(db),
+        await add_account_starting_balance_adjustment(
+            db,
+            account,
+            user_id=user.id,
             amount=data.starting_balance,
-            currency=account.currency,
-            fx_rate=None,
-            notes=_STARTING_BALANCE_NOTE,
-        ))
-        await db.flush()
-        await recompute_snapshots_from(db, account.id, anchor_dt)
+            adjustment_date=anchor_dt,
+        )
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
@@ -420,7 +357,12 @@ async def update_account(
         setattr(account, field, value)
 
     if should_archive:
-        await _zero_account_balance_for_archive(db, account, user)
+        await zero_account_balance_for_archive(
+            db,
+            account,
+            user,
+            datetime.now(ZoneInfo(user.tz)).date(),
+        )
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
