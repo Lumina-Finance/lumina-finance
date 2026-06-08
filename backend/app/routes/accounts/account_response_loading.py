@@ -1,0 +1,45 @@
+"""Account response loading helpers"""
+import uuid
+from datetime import date
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.account import Account
+from app.models.user import User
+from app.routes.accounts.account_balance_fields import attach_account_balance_fields
+
+
+async def get_account_for_response(
+    db: AsyncSession,
+    user: User,
+    account_id: uuid.UUID,
+    as_of_date: date,
+    *,
+    refresh_cached_account: bool = False,
+) -> Account:
+    """Return an account with API response relationships and balance fields
+
+    Args:
+        db: Active database session
+        user: Authenticated user receiving the response
+        account_id: Account identifier to load
+        as_of_date: Date used for current balance fields
+        refresh_cached_account: Whether to overwrite a cached account instance
+
+    Returns:
+        Account prepared for route response serialization
+    """
+    query = (
+        select(Account)
+        .where(Account.id == account_id)
+        .options(selectinload(Account.institution))
+    )
+    if refresh_cached_account:
+        query = query.execution_options(populate_existing=True)
+
+    result = await db.execute(query)
+    account = result.scalar_one()
+    await attach_account_balance_fields(db, [account], user, as_of_date)
+    return account

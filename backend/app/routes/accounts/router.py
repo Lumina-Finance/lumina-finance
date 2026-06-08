@@ -5,9 +5,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -26,6 +24,7 @@ from app.routes.accounts.account_request_validation import (
     validate_create_account_request,
     validate_update_account_request,
 )
+from app.routes.accounts.account_response_loading import get_account_for_response
 from app.routes.accounts.account_tax_advantaged_plan_links import validate_tax_advantaged_plan_link
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
@@ -214,13 +213,7 @@ async def create_account(
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
-    # Re-fetch with eager loading so the institution relationship is populated for the response
-    result = await db.execute(
-        select(Account).where(Account.id == account.id).options(selectinload(Account.institution)),
-    )
-    fresh = result.scalar_one()
-    await attach_account_balance_fields(db, [fresh], user, datetime.now(ZoneInfo(user.tz)).date())
-    return fresh
+    return await get_account_for_response(db, user, account.id, datetime.now(ZoneInfo(user.tz)).date())
 
 
 @router.patch("/{account_id}", response_model=AccountResponse)
@@ -279,17 +272,13 @@ async def update_account(
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
-    # Re-fetch with eager loading so the institution relationship is fresh after a possible institution_id change
-    # populate_existing overwrites the cached instance so stale institution data is not reused
-    result = await db.execute(
-        select(Account)
-        .where(Account.id == account_id)
-        .options(selectinload(Account.institution))
-        .execution_options(populate_existing=True),
+    return await get_account_for_response(
+        db,
+        user,
+        account_id,
+        datetime.now(ZoneInfo(user.tz)).date(),
+        refresh_cached_account=True,
     )
-    fresh = result.scalar_one()
-    await attach_account_balance_fields(db, [fresh], user, datetime.now(ZoneInfo(user.tz)).date())
-    return fresh
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
