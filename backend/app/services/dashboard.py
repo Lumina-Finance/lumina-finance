@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import DASHBOARD_SAVINGS_HISTORY_MONTHS
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
-from app.models.base import AccountKind, CategoryKind
+from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import GroupMember
@@ -37,7 +37,6 @@ from app.schemas.dashboard import (
 )
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
-from app.services.snapshots import get_current_balances
 
 DASHBOARD_BREAKDOWN_CATEGORY_LIMIT = 6
 
@@ -251,68 +250,6 @@ async def _sum_converted_balances(
         if converted is not None:
             total += converted
     return total
-
-
-# ---------------------------------------------------------------------------
-# Credit widget
-# ---------------------------------------------------------------------------
-
-async def get_credit_widget(
-    db: AsyncSession,
-    accounts: list[Account],
-    base_currency: str,
-    rate_date: date,
-) -> tuple[int, int, FxStatus]:
-    """Return ``(credit_limit_total, credit_used)`` summed across eligible accounts
-
-    Revolving-credit accounts with ``credit_limit`` set contribute after
-    converting foreign-currency limits and balances to the user's base currency
-    Account balances stay signed from the user's perspective: negative means
-    debt, positive means stored credit. Stored credit does not reduce the usage
-    total below zero
-    """
-    credit_accounts = [
-        a for a in accounts
-        if a.account_kind == AccountKind.REVOLVING and a.credit_limit is not None
-    ]
-    if not credit_accounts:
-        return 0, 0, FxStatus()
-
-    balances = await get_current_balances(db, [a.id for a in credit_accounts])
-    converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in credit_accounts)},
-        ),
-    )
-    for currency in sorted({account.currency for account in credit_accounts if account.currency != base_currency}):
-        await converter.prefetch_rates(
-            base=currency,
-            quote=base_currency,
-            start_date=rate_date,
-            end_date=rate_date,
-        )
-
-    credit_limit_total = 0
-    credit_used = 0
-    for account in credit_accounts:
-        converted_limit = await converter.convert_minor_units(
-            account.credit_limit or 0,
-            base=account.currency,
-            quote=base_currency,
-            rate_date=rate_date,
-        )
-        converted_used = await converter.convert_minor_units(
-            max(-balances.get(account.id, 0), 0),
-            base=account.currency,
-            quote=base_currency,
-            rate_date=rate_date,
-        )
-        if converted_limit is not None:
-            credit_limit_total += converted_limit
-        if converted_used is not None:
-            credit_used += converted_used
-    return credit_limit_total, credit_used, converter.get_status()
 
 
 async def get_savings_rate_history(
