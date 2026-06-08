@@ -1,3 +1,4 @@
+"""Account route handlers"""
 import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
@@ -20,6 +21,7 @@ from app.models.institution import Institution
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access
+from app.routes.account_permissions import router as account_permissions_router
 from app.schemas.account import (
     AccountBalanceSnapshotResponse,
     AccountResponse,
@@ -29,22 +31,22 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
-from app.schemas.permission import AccountPermissionResponse, GrantAccountPermissionRequest
 from app.services.accounts import (
     attach_base_currency_current_balances,
     get_account_cash_flow_history,
     get_account_spending_breakdown,
 )
-from app.services.cache_state import mark_cache_changed_for_scope, mark_group_cache_changed
+from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.snapshots import attach_current_balances, get_current_balances, recompute_snapshots_from
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
+router.include_router(account_permissions_router)
 
 # Valid enum values for request validation
 _VALID_ACCOUNT_KINDS = {e.value for e in AccountKind}
 _VALID_ACCOUNT_TYPES = {e.value for e in AccountType}
 
-# UpdateAccountRequest fields that map to NOT NULL columns — explicit null on these is rejected with 422.
+# UpdateAccountRequest fields that map to NOT NULL columns reject explicit null with 422
 _UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_archived"})
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"
@@ -52,6 +54,13 @@ _ARCHIVE_BALANCE_ADJUSTMENT_NOTE = "Account archived"
 
 
 async def _attach_account_balance_fields(db: AsyncSession, accounts: list[Account], user: User) -> None:
+    """Attach current and base-currency balance fields to accounts
+
+    Args:
+        db: Active database session
+        accounts: Accounts receiving derived balance fields
+        user: Authenticated user requesting the account data
+    """
     await attach_current_balances(db, accounts)
     await attach_base_currency_current_balances(
         db,
@@ -62,6 +71,17 @@ async def _attach_account_balance_fields(db: AsyncSession, accounts: list[Accoun
 
 
 async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.UUID:
+    """Return the system balance adjustment category identifier
+
+    Args:
+        db: Active database session
+
+    Returns:
+        Balance adjustment category identifier
+
+    Raises:
+        HTTPException: Balance adjustment category is not configured
+    """
     category_id = await db.scalar(
         select(Category.id).where(
             Category.is_system.is_(True),
@@ -78,6 +98,13 @@ async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.U
 
 
 async def _zero_account_balance_for_archive(db: AsyncSession, account: Account, user: User) -> None:
+    """Add an archive adjustment when an account has a nonzero balance
+
+    Args:
+        db: Active database session
+        account: Account being archived
+        user: Authenticated user archiving the account
+    """
     current_balance = (await get_current_balances(db, [account.id])).get(account.id, 0)
     if current_balance == 0:
         return
@@ -107,19 +134,19 @@ async def _validate_tax_advantaged_plan_link(
     group_id: uuid.UUID | None,
     acting_user_id: uuid.UUID,
 ) -> None:
-    """Validate that an account can link to a tax-advantaged plan.
+    """Validate that an account can link to a tax-advantaged plan
 
     Args:
-        db: Active database session.
-        plan_id: Plan identifier to link, or None to leave the account unlinked.
-        account_kind: Account kind for the account being created or updated.
-        currency: Account currency code.
-        owner_id: Personal account owner, if the account is personal.
-        group_id: Group account owner, if the account is group-scoped.
-        acting_user_id: Authenticated user making the change.
+        db: Active database session
+        plan_id: Plan identifier to link, or None to leave the account unlinked
+        account_kind: Account kind for the account being created or updated
+        currency: Account currency code
+        owner_id: Personal account owner, if the account is personal
+        group_id: Group account owner, if the account is group-scoped
+        acting_user_id: Authenticated user making the change
 
     Raises:
-        HTTPException: If the plan is missing, inaccessible, or incompatible with the account.
+        HTTPException: Plan is missing, inaccessible, or incompatible with the account
     """
     if plan_id is None:
         return
@@ -163,7 +190,15 @@ async def list_accounts(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return all accounts the user can access: personal, group admin, or explicit permission."""
+    """Return accounts accessible through ownership, group admin, or permission
+
+    Args:
+        user: Authenticated user requesting accounts
+        db: Active database session
+
+    Returns:
+        Accounts the user can access
+    """
     # Personal accounts OR group accounts where user is admin OR has explicit permission
     query = (
         select(Account)
@@ -192,7 +227,19 @@ async def get_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single account by ID. Requires read access."""
+    """Return a single account by ID
+
+    Args:
+        account_id: Account identifier from the route path
+        user: Authenticated user requesting the account
+        db: Active database session
+
+    Returns:
+        Account with derived balance fields
+
+    Raises:
+        HTTPException: User does not have read access
+    """
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     await _attach_account_balance_fields(db, [account], user)
     return account
@@ -208,15 +255,30 @@ async def list_account_balance_snapshots(
     granularity: Annotated[Literal["day", "week", "month", "quarter"], Query()] = "day",
     include_anchor: Annotated[bool, Query()] = False,
 ):
-    """Return the account's balance snapshots, ordered ascending by dt.
+    """Return account balance snapshots ordered by date
 
     Snapshots back the historical balance chart on the account detail page and
-    feed the group net-worth aggregation. Requires read access on the account.
+    feed the group net-worth aggregation
 
     When `granularity` is coarser than `day`, returns the latest snapshot in
-    each bucket — caps payload size for long ranges. When `include_anchor` is
+    each bucket, which caps payload size for long ranges. When `include_anchor` is
     true and `from_date` is set, the latest snapshot *before* that date is
-    prepended so the client can seed forward-fill at the start of the window.
+    prepended so the client can seed forward-fill at the start of the window
+
+    Args:
+        account_id: Account identifier from the route path
+        user: Authenticated user requesting snapshots
+        db: Active database session
+        from_date: Optional inclusive lower date bound
+        to_date: Optional inclusive upper date bound
+        granularity: Snapshot grouping granularity
+        include_anchor: Whether to prepend the latest snapshot before from_date
+
+    Returns:
+        Account balance snapshots ordered ascending by date
+
+    Raises:
+        HTTPException: User does not have read access or the date range is invalid
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
 
@@ -237,7 +299,7 @@ async def list_account_balance_snapshots(
         result = await db.execute(query)
         rows = list(result.scalars().all())
     else:
-        # DISTINCT ON (bucket) ORDER BY bucket, dt DESC → latest row per bucket.
+        # DISTINCT ON (bucket) ORDER BY bucket, dt DESC returns the latest row per bucket
         bucket = sa.func.date_trunc(granularity, AccountBalanceSnapshot.dt)
         query = base.distinct(bucket).order_by(bucket, AccountBalanceSnapshot.dt.desc())
         result = await db.execute(query)
@@ -267,12 +329,23 @@ async def get_account_spending_breakdown_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     range_: Annotated[RangeKind, Query(alias="range")] = "MTD",
 ):
-    """Return top-5 spending categories and merchants for the account over ``range``.
+    """Return top spending categories and merchants for an account range
 
     Backs the spending-by-category and top-merchants cards on the account
-    detail page. ``range`` picks the calendar period (WTD/MTD/QTD/YTD); the
-    backend derives the start date so the frontend only sends the range key.
-    Requires read access on the account.
+    detail page. ``range`` picks the calendar period, and the backend derives
+    the start date so the frontend only sends the range key
+
+    Args:
+        account_id: Account identifier from the route path
+        user: Authenticated user requesting the breakdown
+        db: Active database session
+        range_: Calendar period used for spending totals
+
+    Returns:
+        Spending breakdown for the account and range
+
+    Raises:
+        HTTPException: User does not have read access
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     return await get_account_spending_breakdown(db, account_id, range_, datetime.now(ZoneInfo(user.tz)))
@@ -285,12 +358,24 @@ async def get_account_cash_flow_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     months: Annotated[int, Query(ge=1, le=24)] = 6,
 ):
-    """Return per-month income / expense totals for the account, oldest-first.
+    """Return monthly income and expense totals for an account
 
     Backs the monthly cash flow widget on the account detail page. Series
     covers ``months`` calendar months ending with the current (in-progress)
-    month; income, expense, and transfer movement are included except Balance
-    Adjustment reconciliation rows. Requires read access on the account.
+    month. Income, expense, and transfer movement are included except Balance
+    Adjustment reconciliation rows
+
+    Args:
+        account_id: Account identifier from the route path
+        user: Authenticated user requesting cash flow
+        db: Active database session
+        months: Number of months to include, ending in the current month
+
+    Returns:
+        Oldest-first monthly income and expense totals
+
+    Raises:
+        HTTPException: User does not have read access
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     return await get_account_cash_flow_history(db, account_id, months, datetime.now(ZoneInfo(user.tz)))
@@ -302,20 +387,18 @@ async def create_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new account. Personal by default, or group-scoped if group_id is provided.
+    """Create a new personal or group-scoped account
 
     Args:
-        data: Account details.
-        user: The authenticated user.
-        db: Async database session.
+        data: Account details
+        user: Authenticated user creating the account
+        db: Active database session
 
     Returns:
-        The created account.
+        Created account with derived balance fields
 
     Raises:
-        HTTPException 422: Invalid account_type, currency, or institution.
-        HTTPException 403: User is not an admin of the group.
-        HTTPException 404: User is not a member of the group.
+        HTTPException: Account details, ownership, or linked plan are invalid
     """
     if data.account_kind not in _VALID_ACCOUNT_KINDS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid account kind")
@@ -393,10 +476,8 @@ async def create_account(
     db.add(account)
     await db.flush()
 
-    # Anchor balance history with a zero-balance snapshot on the creation day.
-    # This gives the frontend a stable starting point for charts without needing
-    # to join against account.created_at. Recompute restores this anchor when
-    # transaction history is emptied.
+    # Anchor balance history with a zero-balance snapshot for stable account charts
+    # Recompute restores this anchor when transaction history is emptied
     anchor_dt = account.created_at.astimezone(ZoneInfo(anchor_tz)).date()
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
@@ -420,7 +501,7 @@ async def create_account(
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
-    # Re-fetch with eager loading so the institution relationship is populated for serialization
+    # Re-fetch with eager loading so the institution relationship is populated for the response
     result = await db.execute(
         select(Account).where(Account.id == account.id).options(selectinload(Account.institution)),
     )
@@ -436,7 +517,20 @@ async def update_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update an account. Requires admin access."""
+    """Update an account
+
+    Args:
+        account_id: Account identifier from the route path
+        data: Account fields to update
+        user: Authenticated user updating the account
+        db: Active database session
+
+    Returns:
+        Updated account with derived balance fields
+
+    Raises:
+        HTTPException: User lacks admin access or update fields are invalid
+    """
     account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
 
     updates = data.model_dump(exclude_unset=True)
@@ -444,7 +538,7 @@ async def update_account(
         await _attach_account_balance_fields(db, [account], user)
         return account
 
-    # Reject explicit null on fields that map to NOT NULL columns before they reach the DB.
+    # Reject explicit null on fields that map to NOT NULL columns before they reach the DB
     for field in _UPDATE_ACCOUNT_NOT_NULL_FIELDS:
         if field in updates and updates[field] is None:
             raise HTTPException(
@@ -458,9 +552,8 @@ async def update_account(
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
-    # credit_limit is only meaningful on revolving-credit accounts (credit
-    # cards, LOCs, HELOCs). Amortizing debt has a principal schedule, not a
-    # limit. account_kind is fixed at creation.
+    # credit_limit is only meaningful on revolving-credit accounts
+    # Amortizing debt has a principal schedule, and account_kind is fixed at creation
     if updates.get("credit_limit") is not None and account.account_kind != AccountKind.REVOLVING:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -488,9 +581,8 @@ async def update_account(
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.commit()
-    # Re-fetch with eager loading so the institution relationship is fresh after a possible institution_id change.
-    # populate_existing forces SQLAlchemy to overwrite the cached instance in the identity map; without it the
-    # session would return the same Account row with its previously eager-loaded (now stale) institution.
+    # Re-fetch with eager loading so the institution relationship is fresh after a possible institution_id change
+    # populate_existing overwrites the cached instance so stale institution data is not reused
     result = await db.execute(
         select(Account)
         .where(Account.id == account_id)
@@ -508,165 +600,17 @@ async def delete_account(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete an account. Requires admin access."""
+    """Delete an account
+
+    Args:
+        account_id: Account identifier from the route path
+        user: Authenticated user deleting the account
+        db: Active database session
+
+    Raises:
+        HTTPException: User does not have admin access
+    """
     account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.delete(account)
     await db.commit()
-
-
-# --- Account permissions ---
-
-
-async def _get_group_account_or_404(
-    db: AsyncSession, account_id: uuid.UUID,
-) -> Account:
-    """Fetch an account that belongs to a group, or raise 404.
-
-    Personal accounts also return 404 (not 422) so that unauthorized
-    callers cannot distinguish between nonexistent and personal accounts.
-
-    Args:
-        db: Async database session.
-        account_id: UUID of the account.
-
-    Returns:
-        The Account row with group_id set.
-
-    Raises:
-        HTTPException 404: Account not found or is a personal account.
-    """
-    result = await db.execute(select(Account).where(Account.id == account_id))
-    account = result.scalar_one_or_none()
-    if not account or not account.group_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    return account
-
-
-async def _check_account_admin_or_403(
-    db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID,
-) -> GroupMember:
-    """Verify the user is an admin of the account's group.
-
-    Args:
-        db: Async database session.
-        group_id: UUID of the group.
-        user_id: UUID of the user.
-
-    Returns:
-        The GroupMember row.
-
-    Raises:
-        HTTPException 404: User is not a member of the group.
-        HTTPException 403: User is not an admin.
-    """
-    result = await db.execute(
-        select(GroupMember).where(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == user_id,
-        ),
-    )
-    membership = result.scalar_one_or_none()
-    if not membership:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    if not membership.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
-    return membership
-
-
-@router.post("/{account_id}/permissions", response_model=AccountPermissionResponse, status_code=status.HTTP_201_CREATED)
-async def grant_account_permission(
-    account_id: uuid.UUID,
-    data: GrantAccountPermissionRequest,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Grant or update a member's access level on a group account. Requires admin."""
-    account = await _get_group_account_or_404(db, account_id)
-    await _check_account_admin_or_403(db, account.group_id, user.id)
-
-    # Target must be a non-admin group member (admins have implicit full access)
-    target_result = await db.execute(
-        select(GroupMember).where(
-            GroupMember.group_id == account.group_id,
-            GroupMember.user_id == data.user_id,
-        ),
-    )
-    target_member = target_result.scalar_one_or_none()
-    if not target_member:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="User is not a member of this group")
-    if target_member.is_admin:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Admins have implicit full access")
-
-    # Update level if permission already exists, otherwise create a new one
-    existing_result = await db.execute(
-        select(AccountPermission).where(
-            AccountPermission.group_id == account.group_id,
-            AccountPermission.user_id == data.user_id,
-            AccountPermission.account_id == account_id,
-        ),
-    )
-    existing = existing_result.scalar_one_or_none()
-    if existing:
-        existing.level = data.level
-        await mark_group_cache_changed(db, account.group_id)
-        await db.commit()
-        await db.refresh(existing)
-        return existing
-
-    account_permission = AccountPermission(
-        group_id=account.group_id,
-        user_id=data.user_id,
-        account_id=account_id,
-        level=data.level,
-    )
-    db.add(account_permission)
-    await mark_group_cache_changed(db, account.group_id)
-    await db.commit()
-    await db.refresh(account_permission)
-    return account_permission
-
-
-@router.delete("/{account_id}/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_account_permission(
-    account_id: uuid.UUID,
-    permission_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Revoke a member's access to a group account. Requires admin."""
-    account = await _get_group_account_or_404(db, account_id)
-    await _check_account_admin_or_403(db, account.group_id, user.id)
-
-    result = await db.execute(
-        select(AccountPermission).where(
-            AccountPermission.id == permission_id,
-            AccountPermission.account_id == account_id,
-        ),
-    )
-    account_permission = result.scalar_one_or_none()
-    if not account_permission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
-
-    await db.delete(account_permission)
-    await mark_group_cache_changed(db, account.group_id)
-    await db.commit()
-
-
-@router.get("/{account_id}/permissions", response_model=list[AccountPermissionResponse])
-async def list_account_permissions(
-    account_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    user_id: uuid.UUID | None = None,
-):
-    """List permissions for a group account. Requires admin."""
-    account = await _get_group_account_or_404(db, account_id)
-    await _check_account_admin_or_403(db, account.group_id, user.id)
-
-    query = select(AccountPermission).where(AccountPermission.account_id == account_id)
-    if user_id:
-        query = query.where(AccountPermission.user_id == user_id)
-
-    result = await db.execute(query.order_by(AccountPermission.created_at))
-    return result.scalars().all()
