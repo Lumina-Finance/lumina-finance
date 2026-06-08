@@ -46,6 +46,7 @@ exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["B", "D", "E", "F", "I", "RUF", "S", "UP", "W"]
+ignore = ["D415"]  # House style omits trailing punctuation in docstrings
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
