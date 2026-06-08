@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,7 +13,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
 from app.models.base import AccountKind, PermissionLevel
-from app.models.group import Group, GroupMember
+from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.accounts.account_balance_adjustments import (
@@ -21,6 +21,7 @@ from app.routes.accounts.account_balance_adjustments import (
     zero_account_balance_for_archive,
 )
 from app.routes.accounts.account_balance_fields import attach_account_balance_fields
+from app.routes.accounts.account_creation_scope import resolve_account_creation_scope
 from app.routes.accounts.account_request_validation import (
     validate_create_account_request,
     validate_update_account_request,
@@ -183,45 +184,21 @@ async def create_account(
     """
     await validate_create_account_request(db, data)
 
-    # Determine ownership
-    owner_id = user.id
-    group_id = data.group_id
-    anchor_tz = user.tz
-    if group_id:
-        membership_result = await db.execute(
-            select(GroupMember).where(
-                GroupMember.group_id == group_id,
-                GroupMember.user_id == user.id,
-            ),
-        )
-        membership = membership_result.scalar_one_or_none()
-        if not membership:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-        if not membership.is_admin:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create group accounts")
-        owner_id = None
-        group_owner_tz = await db.scalar(
-            select(User.tz)
-            .join(Group, Group.owner_id == User.id)
-            .where(Group.id == group_id),
-        )
-        if group_owner_tz is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-        anchor_tz = group_owner_tz
+    creation_scope = await resolve_account_creation_scope(db, user, data.group_id)
 
     await validate_tax_advantaged_plan_link(
         db,
         data.tax_advantaged_plan_id,
         account_kind=AccountKind(data.account_kind),
         currency=data.currency,
-        owner_id=owner_id,
-        group_id=group_id,
+        owner_id=creation_scope.owner_id,
+        group_id=creation_scope.group_id,
         acting_user_id=user.id,
     )
 
     account = Account(
-        owner_id=owner_id,
-        group_id=group_id,
+        owner_id=creation_scope.owner_id,
+        group_id=creation_scope.group_id,
         account_kind=data.account_kind,
         account_type=data.account_type,
         tax_advantaged_plan_id=data.tax_advantaged_plan_id,
@@ -236,7 +213,7 @@ async def create_account(
 
     # Anchor balance history with a zero-balance snapshot for stable account charts
     # Recompute restores this anchor when transaction history is emptied
-    anchor_dt = account.created_at.astimezone(ZoneInfo(anchor_tz)).date()
+    anchor_dt = account.created_at.astimezone(ZoneInfo(creation_scope.anchor_tz)).date()
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
         dt=anchor_dt,
