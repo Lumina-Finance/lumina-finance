@@ -20,6 +20,7 @@ from app.models.institution import Institution
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access
+from app.routes.accounts.account_balance_fields import attach_account_balance_fields
 from app.routes.accounts.account_tax_advantaged_plan_links import validate_tax_advantaged_plan_link
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
@@ -31,13 +32,9 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
-from app.services.accounts import (
-    attach_base_currency_current_balances,
-    get_account_cash_flow_history,
-    get_account_spending_breakdown,
-)
+from app.services.accounts import get_account_cash_flow_history, get_account_spending_breakdown
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.snapshots import attach_current_balances, get_current_balances, recompute_snapshots_from
+from app.services.snapshots import get_current_balances, recompute_snapshots_from
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
@@ -52,23 +49,6 @@ _UPDATE_ACCOUNT_NOT_NULL_FIELDS = frozenset({"name", "is_archived"})
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"
 _ARCHIVE_BALANCE_ADJUSTMENT_NOTE = "Account archived"
-
-
-async def _attach_account_balance_fields(db: AsyncSession, accounts: list[Account], user: User) -> None:
-    """Attach current and base-currency balance fields to accounts
-
-    Args:
-        db: Active database session
-        accounts: Accounts receiving derived balance fields
-        user: Authenticated user requesting the account data
-    """
-    await attach_current_balances(db, accounts)
-    await attach_base_currency_current_balances(
-        db,
-        accounts,
-        user.base_currency,
-        datetime.now(ZoneInfo(user.tz)).date(),
-    )
 
 
 async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.UUID:
@@ -157,7 +137,7 @@ async def list_accounts(
     )
     result = await db.execute(query)
     accounts = result.scalars().unique().all()
-    await _attach_account_balance_fields(db, accounts, user)
+    await attach_account_balance_fields(db, accounts, user, datetime.now(ZoneInfo(user.tz)).date())
     return accounts
 
 
@@ -181,7 +161,7 @@ async def get_account(
         HTTPException: User does not have read access
     """
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-    await _attach_account_balance_fields(db, [account], user)
+    await attach_account_balance_fields(db, [account], user, datetime.now(ZoneInfo(user.tz)).date())
     return account
 
 
@@ -369,7 +349,7 @@ async def create_account(
         select(Account).where(Account.id == account.id).options(selectinload(Account.institution)),
     )
     fresh = result.scalar_one()
-    await _attach_account_balance_fields(db, [fresh], user)
+    await attach_account_balance_fields(db, [fresh], user, datetime.now(ZoneInfo(user.tz)).date())
     return fresh
 
 
@@ -398,7 +378,7 @@ async def update_account(
 
     updates = data.model_dump(exclude_unset=True)
     if not updates:
-        await _attach_account_balance_fields(db, [account], user)
+        await attach_account_balance_fields(db, [account], user, datetime.now(ZoneInfo(user.tz)).date())
         return account
 
     # Reject explicit null on fields that map to NOT NULL columns before they reach the DB
@@ -453,7 +433,7 @@ async def update_account(
         .execution_options(populate_existing=True),
     )
     fresh = result.scalar_one()
-    await _attach_account_balance_fields(db, [fresh], user)
+    await attach_account_balance_fields(db, [fresh], user, datetime.now(ZoneInfo(user.tz)).date())
     return fresh
 
 
