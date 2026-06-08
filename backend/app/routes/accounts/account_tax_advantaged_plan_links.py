@@ -1,12 +1,75 @@
 """Account tax-advantaged plan link validation helpers"""
 import uuid
+from collections.abc import Mapping
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import TaxAdvantagedPlan
+from app.models.account import Account, TaxAdvantagedPlan
 from app.models.base import AccountKind, TaxTreatment
 from app.models.group import GroupMember
+from app.routes.accounts.account_creation_scope import AccountCreationScope
+from app.schemas.account import CreateAccountRequest
+
+
+async def validate_create_account_tax_advantaged_plan_link(
+    db: AsyncSession,
+    data: CreateAccountRequest,
+    creation_scope: AccountCreationScope,
+    acting_user_id: uuid.UUID,
+) -> None:
+    """Validate tax-advantaged plan linking for account creation
+
+    Args:
+        db: Active database session
+        data: Account creation request body
+        creation_scope: Resolved ownership and date-anchor details
+        acting_user_id: Authenticated user making the change
+
+    Raises:
+        HTTPException: Plan is missing, inaccessible, or incompatible with the account
+    """
+    await validate_tax_advantaged_plan_link(
+        db,
+        data.tax_advantaged_plan_id,
+        account_kind=AccountKind(data.account_kind),
+        currency=data.currency,
+        owner_id=creation_scope.owner_id,
+        group_id=creation_scope.group_id,
+        acting_user_id=acting_user_id,
+    )
+
+
+async def validate_update_account_tax_advantaged_plan_link(
+    db: AsyncSession,
+    account: Account,
+    updates: Mapping[str, Any],
+    acting_user_id: uuid.UUID,
+) -> None:
+    """Validate tax-advantaged plan linking for account updates
+
+    Args:
+        db: Active database session
+        account: Account being updated
+        updates: Explicit fields from the account update request
+        acting_user_id: Authenticated user making the change
+
+    Raises:
+        HTTPException: Plan is missing, inaccessible, or incompatible with the account
+    """
+    if "tax_advantaged_plan_id" not in updates:
+        return
+
+    await validate_tax_advantaged_plan_link(
+        db,
+        updates["tax_advantaged_plan_id"],
+        account_kind=account.account_kind,
+        currency=account.currency,
+        owner_id=account.owner_id,
+        group_id=account.group_id,
+        acting_user_id=acting_user_id,
+    )
 
 
 async def validate_tax_advantaged_plan_link(

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.base import AccountKind, PermissionLevel
+from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.accounts.account_balance_fields import attach_account_balance_fields
@@ -21,7 +21,10 @@ from app.routes.accounts.account_request_validation import (
     validate_update_account_request,
 )
 from app.routes.accounts.account_response_loading import get_account_for_response
-from app.routes.accounts.account_tax_advantaged_plan_links import validate_tax_advantaged_plan_link
+from app.routes.accounts.account_tax_advantaged_plan_links import (
+    validate_create_account_tax_advantaged_plan_link,
+    validate_update_account_tax_advantaged_plan_link,
+)
 from app.routes.accounts.account_updates import apply_account_updates
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
@@ -165,15 +168,7 @@ async def create_account(
 
     creation_scope = await resolve_account_creation_scope(db, user, data.group_id)
 
-    await validate_tax_advantaged_plan_link(
-        db,
-        data.tax_advantaged_plan_id,
-        account_kind=AccountKind(data.account_kind),
-        currency=data.currency,
-        owner_id=creation_scope.owner_id,
-        group_id=creation_scope.group_id,
-        acting_user_id=user.id,
-    )
+    await validate_create_account_tax_advantaged_plan_link(db, data, creation_scope, user.id)
 
     account = await create_account_with_initial_balance_history(db, data, creation_scope, user)
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
@@ -211,16 +206,7 @@ async def update_account(
 
     await validate_update_account_request(db, account, updates)
 
-    if "tax_advantaged_plan_id" in updates:
-        await validate_tax_advantaged_plan_link(
-            db,
-            updates["tax_advantaged_plan_id"],
-            account_kind=account.account_kind,
-            currency=account.currency,
-            owner_id=account.owner_id,
-            group_id=account.group_id,
-            acting_user_id=user.id,
-        )
+    await validate_update_account_tax_advantaged_plan_link(db, account, updates, user.id)
 
     await apply_account_updates(db, account, updates, user, datetime.now(ZoneInfo(user.tz)).date())
 
