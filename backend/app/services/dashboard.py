@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import DASHBOARD_SAVINGS_HISTORY_MONTHS
-from app.models.account import Account, AccountBalanceSnapshot, AccountPermission
+from app.models.account import Account, AccountPermission
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
@@ -108,103 +108,6 @@ async def get_accessible_accounts(
     return list(result.scalars().unique().all())
 
 
-# ---------------------------------------------------------------------------
-# Net worth widget
-# ---------------------------------------------------------------------------
-
-async def get_net_worth_history(
-    db: AsyncSession,
-    accounts: list[Account],
-    base_currency: str,
-    window_days: int,
-    now: datetime,
-) -> tuple[int, list[int], FxStatus]:
-    """Return ``(current_net_worth, daily_history)`` across the last ``window_days`` days
-
-    Seeds a per-account running balance from the last snapshot strictly
-    before the window start, then advances it using snapshots inside the
-    window. The final daily total == current net worth; intermediate totals
-    form the history series (index 0 = earliest day, final index = today)
-    Balances are already signed from the user's perspective: positive asset
-    balances add to net worth, negative liability balances reduce it
-    """
-    series = [0] * window_days
-    if not accounts:
-        return 0, series, FxStatus()
-
-    today = now.date()
-    window_start = today - timedelta(days=window_days - 1)
-    ids = [a.id for a in accounts]
-    account_by_id = {account.id: account for account in accounts}
-    converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
-    )
-    for currency in sorted({account.currency for account in accounts if account.currency != base_currency}):
-        await converter.prefetch_rates(
-            base=currency,
-            quote=base_currency,
-            start_date=window_start,
-            end_date=today,
-        )
-
-    # Anchor: most recent snapshot strictly before window_start per account
-    anchor_result = await db.execute(
-        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
-        .where(
-            AccountBalanceSnapshot.account_id.in_(ids),
-            AccountBalanceSnapshot.dt < window_start,
-        )
-        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
-        .distinct(AccountBalanceSnapshot.account_id),
-    )
-    running: dict[uuid.UUID, int] = {row.account_id: row.balance for row in anchor_result}
-    for aid in ids:
-        running.setdefault(aid, 0)
-
-    # In-window snapshots, oldest first so we can walk day-by-day
-    in_window_result = await db.execute(
-        select(
-            AccountBalanceSnapshot.account_id,
-            AccountBalanceSnapshot.balance,
-            AccountBalanceSnapshot.dt,
-        )
-        .where(
-            AccountBalanceSnapshot.account_id.in_(ids),
-            AccountBalanceSnapshot.dt >= window_start,
-        )
-        .order_by(AccountBalanceSnapshot.dt),
-    )
-    updates_by_day: dict[date, dict[uuid.UUID, int]] = {}
-    for row in in_window_result:
-        updates_by_day.setdefault(row.dt, {})[row.account_id] = row.balance
-
-    for day_idx in range(window_days):
-        current_day = window_start + timedelta(days=day_idx)
-        if current_day > today:
-            break
-        for aid, balance in updates_by_day.get(current_day, {}).items():
-            running[aid] = balance
-        series[day_idx] = await _sum_converted_balances(
-            account_by_id,
-            running,
-            base_currency=base_currency,
-            rate_date=current_day,
-            converter=converter,
-        )
-
-    current_net_worth = await _sum_converted_balances(
-        account_by_id,
-        running,
-        base_currency=base_currency,
-        rate_date=today,
-        converter=converter,
-    )
-    return current_net_worth, series, converter.get_status()
-
-
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
@@ -217,39 +120,6 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     """
     result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)))
     return {row.id: row.minor_unit_exponent for row in result}
-
-
-async def _sum_converted_balances(
-    account_by_id: dict[uuid.UUID, Account],
-    running: dict[uuid.UUID, int],
-    *,
-    base_currency: str,
-    rate_date: date,
-    converter: FxConverter,
-) -> int:
-    """Sum account balances after converting them into the user's base currency
-
-    Args:
-        account_by_id: Account rows keyed by account ID
-        running: Account balances keyed by account ID
-        base_currency: User base currency used for dashboard totals
-        rate_date: Date used for FX conversion
-        converter: Request-scoped FX converter
-
-    Returns:
-        Sum of balances that converted successfully
-    """
-    total = 0
-    for account_id, account in account_by_id.items():
-        converted = await converter.convert_minor_units(
-            running[account_id],
-            base=account.currency,
-            quote=base_currency,
-            rate_date=rate_date,
-        )
-        if converted is not None:
-            total += converted
-    return total
 
 
 async def get_savings_rate_history(
