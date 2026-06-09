@@ -11,8 +11,7 @@ from app.models.account import Account
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.fx import FxStatus
-from app.schemas.transaction import OutlierTransaction, TransactionsOverview
+from app.schemas.transaction import TransactionsOverview
 from app.services.fx import FxConverter
 from app.services.transactions.access import accessible_account_ids_subquery
 from app.services.transactions.overview_cash_flow import (
@@ -20,6 +19,7 @@ from app.services.transactions.overview_cash_flow import (
     sum_overview_net_flow,
 )
 from app.services.transactions.overview_categories import convert_overview_top_categories
+from app.services.transactions.overview_outliers import convert_overview_outliers
 from app.services.transactions.overview_queries import (
     get_overview_cash_flow_rows,
     get_overview_category_total_rows,
@@ -114,7 +114,7 @@ async def get_transactions_overview(
         to_date=to_date,
     )
     total_inflow, total_outflow = sum_overview_net_flow(daily_cash_flow)
-    outliers, outliers_fx_status = await _convert_overview_outliers(
+    outliers, outliers_fx_status = await convert_overview_outliers(
         category_total_rows=category_total_rows,
         outlier_candidate_rows=outlier_candidate_rows,
         accounts_by_id=accounts_by_id,
@@ -253,77 +253,3 @@ def _fork_overview_converter(converter: FxConverter) -> FxConverter:
     cloned_converter.rates = converter.rates.copy()
     cloned_converter.failed_rates = converter.failed_rates.copy()
     return cloned_converter
-
-
-async def _convert_overview_outliers(
-    *,
-    category_total_rows,
-    outlier_candidate_rows,
-    accounts_by_id: dict[uuid.UUID, Account],
-    converter: FxConverter,
-    base_currency: str,
-) -> tuple[list[OutlierTransaction], FxStatus]:
-    """Convert and rank overview outlier transactions
-
-    Args:
-        category_total_rows: Category total rows used to cap outlier contribution
-        outlier_candidate_rows: Candidate transaction rows eligible for outlier ranking
-        accounts_by_id: Account rows keyed by account ID
-        converter: Request-scoped FX converter
-        base_currency: User base currency used for overview metrics
-
-    Returns:
-        Top converted outlier response rows and FX status for the conversion
-    """
-    category_totals: dict[uuid.UUID, int] = {}
-    for row in category_total_rows:
-        currency = accounts_by_id[row.account_id].currency
-        converted_total = await converter.convert_minor_units(
-            int(row.total or 0),
-            base=currency,
-            quote=base_currency,
-            rate_date=row.date,
-        )
-        if converted_total is None:
-            continue
-
-        category_totals[row.category_id] = category_totals.get(row.category_id, 0) + converted_total
-
-    # Cap each category's outlier contribution at that category's converted spend total
-    remaining_by_category = {
-        category_id: -total
-        for category_id, total in category_totals.items()
-        if total < 0
-    }
-
-    converted_outlier_candidates = []
-    for row in outlier_candidate_rows:
-        currency = accounts_by_id[row.account_id].currency
-        converted_amount = await converter.convert_minor_units(
-            int(row.amount),
-            base=currency,
-            quote=base_currency,
-            rate_date=row.date,
-        )
-        if converted_amount is None or converted_amount >= 0:
-            continue
-
-        converted_outlier_candidates.append((row, converted_amount))
-
-    outliers = []
-    for row, converted_amount in sorted(converted_outlier_candidates, key=lambda item: item[1]):
-        remaining = remaining_by_category.get(row.category_id, 0)
-        if remaining <= 0:
-            continue
-        amount = -min(-converted_amount, remaining)
-        remaining_by_category[row.category_id] = remaining + amount
-        outliers.append(OutlierTransaction(
-            id=row.id,
-            merchant_name=row.merchant_name,
-            notes=row.notes,
-            amount=int(row.amount),
-            currency=accounts_by_id[row.account_id].currency,
-            dt=row.date,
-        ))
-
-    return outliers[:3], converter.get_status()
