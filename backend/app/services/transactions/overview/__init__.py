@@ -12,13 +12,13 @@ from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.transaction import TransactionsOverview
 from app.services.fx import FxConverter
-from app.services.transactions.overview_cash_flow import (
+from app.services.transactions.overview.cash_flow import (
     convert_overview_daily_cash_flow,
     sum_overview_net_flow,
 )
-from app.services.transactions.overview_categories import convert_overview_top_categories
-from app.services.transactions.overview_outliers import convert_overview_outliers
-from app.services.transactions.overview_queries import (
+from app.services.transactions.overview.categories import convert_overview_top_categories
+from app.services.transactions.overview.outliers import convert_overview_outliers
+from app.services.transactions.overview.queries import (
     build_overview_transaction_filters,
     get_overview_cash_flow_rows,
     get_overview_category_total_rows,

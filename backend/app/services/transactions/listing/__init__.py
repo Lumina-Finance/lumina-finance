@@ -13,8 +13,8 @@ from app.services.transaction_responses import (
     get_tag_ids_batch,
     get_tags_batch,
 )
-from app.services.transactions.listing_amounts import get_transaction_listing_converted_amounts
-from app.services.transactions.listing_queries import (
+from app.services.transactions.listing.amounts import get_transaction_listing_converted_amounts
+from app.services.transactions.listing.queries import (
     build_transaction_listing_query,
     is_valid_transaction_listing_sort_field,
 )
