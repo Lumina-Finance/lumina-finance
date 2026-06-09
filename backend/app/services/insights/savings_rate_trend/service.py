@@ -1,17 +1,13 @@
 """Savings-rate trend service for the insights page"""
 
-import uuid
 from datetime import date, datetime
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.base import CategoryKind
-from app.models.category import Category
-from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.insights import InsightsSavingsRateTrendResponse
 from app.services.dashboard import get_accessible_accounts
+from app.services.insights.savings_rate_trend.activity_helpers import get_first_activity_month
 from app.services.insights.savings_rate_trend.monthly_category_totals_helpers import get_converted_monthly_category_totals
 from app.services.insights.savings_rate_trend.response import (
     build_empty_savings_rate_trend_response,
@@ -41,36 +37,6 @@ def _get_inclusive_month_count(start_month: date, end_month: date) -> int:
     return month_count
 
 
-async def _get_first_activity_month(
-    db: AsyncSession,
-    account_ids: list[uuid.UUID],
-    window_end: date,
-) -> date | None:
-    """Return the first month with income or expense activity before a window end
-
-    Args:
-        db: Active database session
-        account_ids: Account IDs included in the savings-rate trend
-        window_end: Exclusive activity lookup end date
-
-    Returns:
-        First activity month, or None when there is no matching activity
-    """
-    # Find the earliest income or expense transaction before the trend window end
-    result = await db.execute(
-        select(func.min(Transaction.dt))
-        .join(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.account_id.in_(account_ids),
-            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
-            Transaction.dt < window_end,
-        ),
-    )
-    first_activity = result.scalar_one_or_none()
-    first_activity_month = get_month_start_date(first_activity) if first_activity else None
-    return first_activity_month
-
-
 async def get_savings_rate_trend(
     db: AsyncSession,
     user: User,
@@ -95,7 +61,7 @@ async def get_savings_rate_trend(
 
     current_month = get_month_start_date(now.date())
     window_end = get_shifted_month_start_date(current_month, 1)
-    first_activity_month = await _get_first_activity_month(db, account_ids, window_end)
+    first_activity_month = await get_first_activity_month(db, account_ids, window_end)
     if first_activity_month is None:
         response = build_empty_savings_rate_trend_response()
         return response
