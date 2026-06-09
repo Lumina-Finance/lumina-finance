@@ -1,4 +1,4 @@
-"""Income/expense category breakdown service for the insights page."""
+"""Income/expense category breakdown service for the insights page"""
 
 import uuid
 from dataclasses import dataclass
@@ -24,6 +24,14 @@ CATEGORY_TREND_LIMIT = 3
 
 @dataclass(frozen=True)
 class CategoryStats:
+    """Store display stats for one category in one card mode
+
+    Attributes:
+        name: Category display name
+        amount: Positive display amount for the selected card mode
+        transaction_count: Number of transactions behind the amount
+    """
+
     name: str
     amount: int
     transaction_count: int
@@ -31,6 +39,14 @@ class CategoryStats:
 
 @dataclass(frozen=True)
 class BreakdownCategoryStats:
+    """Store category stats used by the pie breakdown rows
+
+    Attributes:
+        name: Category display name
+        category_kind: Original category kind before sign-directed display
+        amount: Positive display amount for the breakdown row
+    """
+
     name: str
     category_kind: CategoryKind
     amount: int
@@ -38,6 +54,15 @@ class BreakdownCategoryStats:
 
 @dataclass(frozen=True)
 class CategoryPeriodStats:
+    """Store signed category stats for a single period
+
+    Attributes:
+        name: Category display name
+        category_kind: Original category kind
+        signed_amount: Converted signed total for the period
+        transaction_count: Number of transactions behind the signed amount
+    """
+
     name: str
     category_kind: CategoryKind
     signed_amount: int
@@ -46,6 +71,18 @@ class CategoryPeriodStats:
 
 @dataclass(frozen=True)
 class CategoryTrend:
+    """Store category trend values before response row formatting
+
+    Attributes:
+        category_id: Category ID used in the response row
+        name: Category display name
+        current_amount: Positive display amount for the selected period
+        previous_amount: Positive display amount for the comparison period
+        change_pct: Percentage change from the comparison period
+        transaction_count: Number of selected-period transactions
+        change_amount: Amount movement between periods
+    """
+
     category_id: uuid.UUID
     name: str
     current_amount: int
@@ -69,11 +106,24 @@ async def _query_category_period_stats(
     from_date: date,
     to_date: date,
 ) -> tuple[CategoryPeriodStatsById, FxStatus]:
-    """Return converted signed category totals and transaction counts for a period."""
+    """Return converted signed category totals and transaction counts for a period
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the insight summary
+        base_currency: User base currency used for converted values
+        from_date: Inclusive period start date
+        to_date: Inclusive period end date
+
+    Returns:
+        Converted category period stats and FX conversion status
+    """
     if not accounts:
         return {}, FxStatus()
 
     account_ids = [account.id for account in accounts]
+
+    # Load category totals grouped by account currency and date so each amount can use the correct FX rate
     result = await db.execute(
         select(
             Category.id,
@@ -109,6 +159,8 @@ async def _query_category_period_stats(
     )
 
     raw_stats: CategoryPeriodStatsById = {}
+
+    # Convert each grouped total, then fold it into one signed total per category
     for row in rows:
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
@@ -131,6 +183,16 @@ async def _query_category_period_stats(
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    """Return minor-unit exponents keyed by currency code
+
+    Args:
+        db: Active database session
+        currencies: Currency codes needed for conversion
+
+    Returns:
+        Minor-unit exponent keyed by currency code
+    """
+    # Load currency precision so FX conversion can convert minor units correctly
     result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
@@ -143,7 +205,19 @@ async def _prefetch_breakdown_rates(
     rows,
     base_currency: str,
 ) -> None:
+    """Prefetch FX rates required by category breakdown rows
+
+    Args:
+        converter: FX converter used by the breakdown calculation
+        rows: Grouped transaction rows that may require FX conversion
+        base_currency: User base currency used for converted values
+
+    Returns:
+        None
+    """
     ranges: dict[str, tuple[date, date]] = {}
+
+    # Build one date range per foreign currency to avoid prefetching each row individually
     for row in rows:
         currency = row.account_currency
         if currency == base_currency:
@@ -163,9 +237,18 @@ async def _prefetch_breakdown_rates(
 def _breakdown_stats_from_period(
     period_stats: CategoryPeriodStatsById,
 ) -> tuple[BreakdownCategoryStatsById, BreakdownCategoryStatsById]:
-    """Return sign-directed category totals for the pie breakdowns."""
+    """Return sign-directed category totals for the pie breakdowns
+
+    Args:
+        period_stats: Signed category stats for the selected period
+
+    Returns:
+        Expense-side and income-side breakdown stats keyed by category ID
+    """
     expense_stats: BreakdownCategoryStatsById = {}
     income_stats: BreakdownCategoryStatsById = {}
+
+    # Route categories by net sign so refunds and losses appear on the side they affect
     for category_id, stats in period_stats.items():
         if stats.signed_amount < 0:
             expense_stats[category_id] = BreakdownCategoryStats(
@@ -186,7 +269,15 @@ def _category_stats_from_period(
     period_stats: CategoryPeriodStatsById,
     kind: CategoryKind,
 ) -> CategoryStatsById:
-    """Return display amount and transaction count by category for one card mode."""
+    """Return display amount and transaction count by category for one card mode
+
+    Args:
+        period_stats: Signed category stats for one period
+        kind: Category kind being prepared for trend comparison
+
+    Returns:
+        Display stats keyed by category ID
+    """
     stats_by_id: CategoryStatsById = {}
     for category_id, stats in period_stats.items():
         if stats.category_kind != kind:
@@ -201,6 +292,15 @@ def _category_stats_from_period(
 
 
 def _combine_fx_statuses(current_status: FxStatus, previous_status: FxStatus) -> FxStatus:
+    """Return one FX status for current and comparison period calculations
+
+    Args:
+        current_status: FX status from the selected period
+        previous_status: FX status from the comparison period
+
+    Returns:
+        Combined FX status with duplicate missing pairs removed
+    """
     if current_status.state == "none":
         return previous_status
     if previous_status.state == "none":
@@ -224,6 +324,14 @@ def _combine_fx_statuses(current_status: FxStatus, previous_status: FxStatus) ->
 
 
 def _breakdown_sort_key(entry: tuple[uuid.UUID, BreakdownCategoryStats]) -> tuple[int, str]:
+    """Return sort key for breakdown rows
+
+    Args:
+        entry: Category ID and breakdown stats being ranked
+
+    Returns:
+        Sort key using descending amount and ascending category name
+    """
     _category_id, stats = entry
     return -stats.amount, stats.name
 
@@ -231,7 +339,14 @@ def _breakdown_sort_key(entry: tuple[uuid.UUID, BreakdownCategoryStats]) -> tupl
 def _breakdown_entries(
     stats_by_id: BreakdownCategoryStatsById,
 ) -> list[BreakdownEntryRow]:
-    """Return every positive category row for the pie breakdown."""
+    """Return every positive category row for the pie breakdown
+
+    Args:
+        stats_by_id: Breakdown stats keyed by category ID
+
+    Returns:
+        Sorted response rows for the pie breakdown
+    """
     positive_entries = [
         (category_id, stats)
         for category_id, stats in stats_by_id.items()
@@ -246,10 +361,27 @@ def _breakdown_entries(
 
 
 def _breakdown_total(stats_by_id: BreakdownCategoryStatsById) -> int:
+    """Return total amount across breakdown stats
+
+    Args:
+        stats_by_id: Breakdown stats keyed by category ID
+
+    Returns:
+        Sum of all category breakdown amounts
+    """
     return sum(stats.amount for stats in stats_by_id.values())
 
 
 def _change_pct(current_amount: int, previous_amount: int) -> int | None:
+    """Return percentage change from a previous amount
+
+    Args:
+        current_amount: Current-period display amount
+        previous_amount: Comparison-period display amount
+
+    Returns:
+        Rounded percentage change, or None when there is no positive previous amount
+    """
     if previous_amount <= 0:
         return None
     return round(((current_amount - previous_amount) / previous_amount) * 100)
@@ -259,9 +391,19 @@ def _category_trends(
     current_stats_by_id: CategoryStatsById,
     previous_stats_by_id: CategoryStatsById,
 ) -> tuple[list[CategoryTrendRow], list[CategoryTrendRow]]:
-    """Return top increases and decreases by dollar movement."""
+    """Return top increases and decreases by dollar movement
+
+    Args:
+        current_stats_by_id: Selected-period category stats keyed by category ID
+        previous_stats_by_id: Comparison-period category stats keyed by category ID
+
+    Returns:
+        Increase rows and decrease rows for the response
+    """
     increases: list[CategoryTrend] = []
     decreases: list[CategoryTrend] = []
+
+    # Compare every category seen in either period so new and vanished categories are included
     for category_id in set(current_stats_by_id) | set(previous_stats_by_id):
         current_stats = current_stats_by_id.get(category_id, CategoryStats("", 0, 0))
         previous_stats = previous_stats_by_id.get(category_id, CategoryStats("", 0, 0))
@@ -290,6 +432,14 @@ def _category_trends(
 
 
 def _response_rows(trends: list[CategoryTrend]) -> list[CategoryTrendRow]:
+    """Return API response rows from sorted category trends
+
+    Args:
+        trends: Sorted category trend values
+
+    Returns:
+        Response rows capped at the category trend limit
+    """
     return [
         (
             str(trend.category_id),
@@ -310,7 +460,18 @@ async def get_income_expense_breakdown(
     to_date: date,
     comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsIncomeExpenseBreakdownResponse:
-    """Return category breakdown and trend rows for the income/expense card."""
+    """Return category breakdown and trend rows for the income/expense card
+
+    Args:
+        db: Active database session
+        user: User requesting the insight summary
+        from_date: Inclusive selected period start date
+        to_date: Inclusive selected period end date
+        comparison_period: Comparison period used for trend rows
+
+    Returns:
+        Income and expense breakdown response payload
+    """
     previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
     accounts = await get_accessible_accounts(db, user)
 
