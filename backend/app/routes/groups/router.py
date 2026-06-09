@@ -8,10 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.group import Group, GroupMember
+from app.models.group import GroupMember
 from app.models.user import User
 from app.routes.groups.creation_helpers import create_group_and_get_response
 from app.routes.groups.deletion_helpers import delete_group_for_owner
+from app.routes.groups.listing_helpers import get_groups_for_user
 from app.routes.groups.membership_helpers import (
     get_group_admin_membership_or_403,
     get_group_member_or_404,
@@ -50,17 +51,7 @@ async def list_groups(
     Returns:
         Groups the user belongs to, ordered by name
     """
-    query = (
-        select(Group)
-        .join(GroupMember, GroupMember.group_id == Group.id)
-        .where(GroupMember.user_id == user.id)
-    )
-    if exclude_archived:
-        query = query.where(Group.is_archived.is_(False))
-
-    # Fetch groups where the user has membership, optionally excluding archived groups
-    result = await db.execute(query.order_by(Group.name))
-    groups = result.scalars().all()
+    groups = await get_groups_for_user(db, user.id, exclude_archived)
     return groups
 
 
