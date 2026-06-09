@@ -26,12 +26,7 @@ from app.schemas.transaction import (
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_imports import import_transactions
-from app.services.transaction_responses import (
-    build_transaction_response,
-    get_merchant_names_batch,
-    get_tag_ids,
-    get_tags_batch,
-)
+from app.services.transaction_responses import get_transaction_response
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.tags import delete_transaction_tag_links, replace_transaction_tag_links
@@ -153,15 +148,7 @@ async def get_transaction(
         Transaction response enriched with tag and merchant display data
     """
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
-    tag_ids = await get_tag_ids(db, txn.id)
-    tag_summary_map = await get_tags_batch(db, [txn.id])
-    merchant_names = await get_merchant_names_batch(db, [txn.merchant_id])
-    return build_transaction_response(
-        txn,
-        tag_ids,
-        merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
-        tag_summary_map[txn.id],
-    )
+    return await get_transaction_response(db, txn)
 
 
 @router.post("/import", response_model=TransactionImportResponse, status_code=status.HTTP_201_CREATED)
@@ -258,15 +245,7 @@ async def create_transaction(
     await db.commit()
     await db.refresh(txn)
 
-    tag_ids = await get_tag_ids(db, txn.id)
-    tag_summary_map = await get_tags_batch(db, [txn.id])
-    merchant_names = await get_merchant_names_batch(db, [txn.merchant_id])
-    return build_transaction_response(
-        txn,
-        tag_ids,
-        merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
-        tag_summary_map[txn.id],
-    )
+    return await get_transaction_response(db, txn)
 
 
 @router.patch("/{transaction_id}", response_model=TransactionResponse)
@@ -299,15 +278,7 @@ async def update_transaction(
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
-        tag_ids = await get_tag_ids(db, txn.id)
-        tag_summary_map = await get_tags_batch(db, [txn.id])
-        merchant_names = await get_merchant_names_batch(db, [txn.merchant_id])
-        return build_transaction_response(
-            txn,
-            tag_ids,
-            merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
-            tag_summary_map[txn.id],
-        )
+        return await get_transaction_response(db, txn)
 
     # Capture pre-change values needed to recompute balance snapshots
     old_account_id = txn.account_id
@@ -370,15 +341,7 @@ async def update_transaction(
     await db.commit()
     await db.refresh(txn)
 
-    tag_ids = await get_tag_ids(db, txn.id)
-    tag_summary_map = await get_tags_batch(db, [txn.id])
-    merchant_names = await get_merchant_names_batch(db, [txn.merchant_id])
-    return build_transaction_response(
-        txn,
-        tag_ids,
-        merchant_names.get(txn.merchant_id) if txn.merchant_id else None,
-        tag_summary_map[txn.id],
-    )
+    return await get_transaction_response(db, txn)
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
