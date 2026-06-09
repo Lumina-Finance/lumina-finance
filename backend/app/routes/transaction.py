@@ -11,7 +11,6 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.base import PermissionLevel
-from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
@@ -33,6 +32,8 @@ from app.services.transactions.tags import delete_transaction_tag_links, replace
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
+    validate_transaction_currency_exists,
+    validate_transaction_fx_rate_for_account_currency,
     validate_transaction_merchant_access,
 )
 
@@ -203,16 +204,8 @@ async def create_transaction(
     if account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
 
-    # Confirm the transaction currency exists before storing the transaction
-    currency_lookup = await db.execute(select(Currency).where(Currency.id == data.currency))
-    if not currency_lookup.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
-
-    if data.currency != account.currency and data.fx_rate is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="fx_rate is required when transaction currency differs from account currency",
-        )
+    await validate_transaction_currency_exists(db, data.currency)
+    validate_transaction_fx_rate_for_account_currency(data.currency, account.currency, data.fx_rate)
 
     await validate_transaction_category_access(db, data.category_id, user.id, account.group_id)
     if data.merchant_id:
@@ -299,11 +292,12 @@ async def update_transaction(
         if new_account.is_archived:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
         account_group_id = new_account.group_id
-        if txn.currency != new_account.currency and txn.fx_rate is None and "fx_rate" not in changed_fields:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="fx_rate is required when transaction currency differs from account currency",
-            )
+        validate_transaction_fx_rate_for_account_currency(
+            txn.currency,
+            new_account.currency,
+            txn.fx_rate,
+            fx_rate_change_requested="fx_rate" in changed_fields,
+        )
     else:
         account_group_id = current_account.group_id
 

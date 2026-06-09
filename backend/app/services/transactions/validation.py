@@ -6,8 +6,64 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag
+
+_FX_RATE_REQUIRED_DETAIL = "fx_rate is required when transaction currency differs from account currency"
+
+
+async def validate_transaction_currency_exists(db: AsyncSession, currency: str) -> None:
+    """Ensure a transaction currency code is configured
+
+    The transaction amount may be stored in a receipt currency that differs
+    from the account currency, but the submitted currency code still needs to
+    exist before the transaction row can be persisted
+
+    Args:
+        db: Active database session
+        currency: Currency code submitted on the transaction
+
+    Raises:
+        HTTPException: Currency code is not configured
+    """
+    # Confirm the transaction currency exists before storing the transaction
+    result = await db.execute(select(Currency).where(Currency.id == currency))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
+
+
+def validate_transaction_fx_rate_for_account_currency(
+    transaction_currency: str,
+    account_currency: str,
+    fx_rate: float | None,
+    *,
+    fx_rate_change_requested: bool = False,
+) -> None:
+    """Ensure cross-currency transactions include an FX rate
+
+    Transactions can use a currency different from their account currency only
+    when the request supplies an FX rate. Update requests may ask to change the
+    FX rate in the same patch, so callers can mark that field as requested
+
+    Args:
+        transaction_currency: Currency stored on the transaction
+        account_currency: Currency configured on the account
+        fx_rate: Existing or submitted FX rate
+        fx_rate_change_requested: Whether the current request includes the FX rate field
+
+    Raises:
+        HTTPException: Cross-currency transaction is missing an FX rate
+    """
+    if transaction_currency == account_currency:
+        return
+    if fx_rate is not None or fx_rate_change_requested:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=_FX_RATE_REQUIRED_DETAIL,
+    )
 
 
 async def validate_transaction_category_access(
