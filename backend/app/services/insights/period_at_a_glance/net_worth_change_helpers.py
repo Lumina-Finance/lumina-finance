@@ -3,13 +3,13 @@
 import uuid
 from datetime import date, timedelta
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account, AccountBalanceSnapshot
-from app.models.currency import Currency
+from app.models.account import Account
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
+from app.services.insights.net_worth.balance_conversion_helpers import build_net_worth_fx_converter
+from app.services.insights.net_worth.balance_snapshot_helpers import get_latest_account_balances_on_or_before
 
 
 async def get_period_at_a_glance_net_worth_change(
@@ -36,13 +36,11 @@ async def get_period_at_a_glance_net_worth_change(
 
     account_ids = [account.id for account in accounts]
     baseline_date = from_date - timedelta(days=1)
-    start_balances = await _get_account_balances_at(db, account_ids, baseline_date)
-    end_balances = await _get_account_balances_at(db, account_ids, to_date)
-    converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    start_balances = await get_latest_account_balances_on_or_before(db, account_ids, baseline_date)
+    end_balances = await get_latest_account_balances_on_or_before(db, account_ids, to_date)
+    converter = await build_net_worth_fx_converter(
+        db,
+        {base_currency, *(account.currency for account in accounts)},
     )
     await _prefetch_net_worth_change_rates(
         converter,
@@ -80,54 +78,6 @@ async def get_period_at_a_glance_net_worth_change(
         net_worth_change += converted_end - converted_start
 
     return net_worth_change, converter.get_status()
-
-
-async def _get_account_balances_at(
-    db: AsyncSession,
-    account_ids: list[uuid.UUID],
-    target_date: date,
-) -> dict[uuid.UUID, int]:
-    """Return latest account balances on or before the target date
-
-    Args:
-        db: Active database session
-        account_ids: Account IDs included in the balance lookup
-        target_date: Latest snapshot date allowed in the lookup
-
-    Returns:
-        Balance amount keyed by account ID
-    """
-    if not account_ids:
-        return {}
-
-    # Fetch the latest snapshot for each account on or before the requested date
-    result = await db.execute(
-        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
-        .where(
-            AccountBalanceSnapshot.account_id.in_(account_ids),
-            AccountBalanceSnapshot.dt <= target_date,
-        )
-        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
-        .distinct(AccountBalanceSnapshot.account_id),
-    )
-    return {row.account_id: int(row.balance) for row in result}
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents keyed by currency code
-
-    Args:
-        db: Active database session
-        currencies: Currency codes needed for conversion
-
-    Returns:
-        Minor-unit exponent keyed by currency code
-    """
-    # Load currency precision so FX conversion can convert minor units correctly
-    result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in result}
 
 
 async def _prefetch_net_worth_change_rates(
