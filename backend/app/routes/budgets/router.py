@@ -20,6 +20,7 @@ from app.schemas.budget import (
     UpdateBudgetRequest,
 )
 from app.services.budget_responses import build_budget_response, load_tracked_categories
+from app.services.budgets.listing import get_visible_budget_responses
 from app.services.budgets.utilization import get_budget_utilization_responses
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -235,27 +236,4 @@ async def get_budgets(
     Returns:
         Budget instances visible through ownership, group admin membership, or explicit permission
     """
-    query = (
-        select(Budget, BaseBudget)
-        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
-        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
-        .outerjoin(
-            BudgetPermission,
-            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user.id),
-        )
-        .where(
-            (BaseBudget.owner_id == user.id)
-            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
-            | (BudgetPermission.user_id == user.id),
-        )
-        .order_by(Budget.period_end.desc(), BaseBudget.name)
-    )
-    result = await db.execute(query)
-    budget_rows = result.unique().all()
-
-    # Batch-load tracked categories for all base budgets in one query to avoid N+1
-    tracked_categories_by_base_budget = await load_tracked_categories(db, list({base.id for _, base in budget_rows}))
-    return [
-        build_budget_response(budget, base, tracked_categories_by_base_budget.get(base.id, []))
-        for budget, base in budget_rows
-    ]
+    return await get_visible_budget_responses(db, user.id)
