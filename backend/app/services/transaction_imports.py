@@ -3,12 +3,10 @@ import uuid
 from datetime import date
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.category import Category
-from app.models.currency import Currency
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -18,6 +16,7 @@ from app.services.snapshots import recompute_snapshots_from
 from app.services.transactions.imports.accounts import get_or_create_import_accounts_by_source
 from app.services.transactions.imports.amounts import parse_import_amount_to_minor_units
 from app.services.transactions.imports.categories import get_or_create_import_categories_by_source
+from app.services.transactions.imports.currencies import get_import_currencies_by_code
 from app.services.transactions.imports.merchants import (
     get_or_create_import_merchant,
     get_personal_import_merchants_by_name,
@@ -45,7 +44,7 @@ async def import_transactions(
     stats = ImportStats()
     accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
     categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
-    currencies = await _load_currencies(db, {account.currency for account in accounts_by_source.values()})
+    currencies_by_code = await get_import_currencies_by_code(db, {account.currency for account in accounts_by_source.values()})
     merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
     tags_by_name = await get_personal_import_tags_by_name(db, user.id)
     affected_from: dict[uuid.UUID, date] = {}
@@ -55,7 +54,7 @@ async def import_transactions(
         category = _get_required(categories_by_source, strip_import_text_or_raise(row.category_source, "Category source"), "Category source")
         _ensure_category_valid_for_account(category, account, user.id)
 
-        currency = currencies[account.currency]
+        currency = currencies_by_code[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
         merchant = await get_or_create_import_merchant(db, user.id, row.merchant_name, merchants_by_name, stats)
         tags = await get_or_create_import_tags(db, user.id, row.tag_names, tags_by_name, stats)
@@ -110,31 +109,6 @@ async def import_transactions(
         created_merchant_ids=stats.created_merchant_ids,
         created_tag_ids=stats.created_tag_ids,
     )
-
-
-async def _load_currencies(db: AsyncSession, currency_ids: set[str]) -> dict[str, Currency]:
-    """Return currency rows keyed by currency code for imported accounts
-
-    Args:
-        db: Active database session
-        currency_ids: Currency codes used by accounts in the import
-
-    Returns:
-        Currency rows keyed by currency code
-
-    Raises:
-        HTTPException: Raised with 422 when any currency code is missing
-    """
-    # Load all account currencies used by the import so row amounts can be parsed with the right precision
-    result = await db.execute(select(Currency).where(Currency.id.in_(currency_ids)))
-    currencies = {currency.id: currency for currency in result.scalars().all()}
-    missing = currency_ids - currencies.keys()
-    if missing:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Invalid currency code: {sorted(missing)[0]}",
-        )
-    return currencies
 
 
 def _ensure_category_valid_for_account(category: Category, account: Account, user_id: uuid.UUID) -> None:
