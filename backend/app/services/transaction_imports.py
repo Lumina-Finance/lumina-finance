@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.tag import Tag, TransactionTag
+from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
@@ -23,6 +23,7 @@ from app.services.transactions.imports.merchants import (
     get_personal_import_merchants_by_name,
 )
 from app.services.transactions.imports.stats import ImportStats
+from app.services.transactions.imports.tags import get_or_create_import_tags, get_personal_import_tags_by_name
 from app.services.transactions.imports.validation import strip_import_text_or_raise
 
 
@@ -46,7 +47,7 @@ async def import_transactions(
     categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
     currencies = await _load_currencies(db, {account.currency for account in accounts_by_source.values()})
     merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
-    tag_cache = await _load_personal_tags(db, user.id)
+    tags_by_name = await get_personal_import_tags_by_name(db, user.id)
     affected_from: dict[uuid.UUID, date] = {}
 
     for row in data.rows:
@@ -57,7 +58,7 @@ async def import_transactions(
         currency = currencies[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
         merchant = await get_or_create_import_merchant(db, user.id, row.merchant_name, merchants_by_name, stats)
-        tags = await _get_or_create_tags(db, user.id, row.tag_names, tag_cache, stats)
+        tags = await get_or_create_import_tags(db, user.id, row.tag_names, tags_by_name, stats)
 
         txn = Transaction(
             created_by_user_id=user.id,
@@ -134,70 +135,6 @@ async def _load_currencies(db: AsyncSession, currency_ids: set[str]) -> dict[str
             detail=f"Invalid currency code: {sorted(missing)[0]}",
         )
     return currencies
-
-
-async def _load_personal_tags(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Tag]:
-    """Return personal tag rows keyed by tag name
-
-    Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-
-    Returns:
-        Personal tag rows keyed by tag name
-    """
-    # Load existing personal tags once so repeated import rows can reuse them by name
-    result = await db.execute(select(Tag).where(Tag.owner_id == user_id, Tag.group_id.is_(None)))
-    return {tag.name: tag for tag in result.scalars().all()}
-
-
-async def _get_or_create_tags(
-    db: AsyncSession,
-    user_id: uuid.UUID,
-    raw_names: list[str],
-    cache: dict[str, Tag],
-    stats: ImportStats,
-) -> list[Tag]:
-    """Return tag rows for one import row, creating personal tags when needed
-
-    Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-        raw_names: Raw tag names from an import row
-        cache: Request-local tag lookup keyed by tag name
-        stats: Import summary counters updated when tags are reused or created
-
-    Returns:
-        Ordered tag rows for the import row after dropping blanks and duplicates
-
-    Raises:
-        HTTPException: Raised with 422 when a tag name is too long
-    """
-    tags: list[Tag] = []
-    seen: set[str] = set()
-
-    # Deduplicate tags within one row while preserving first-seen order
-    for raw_name in raw_names:
-        name = raw_name.strip()
-        if not name or name in seen:
-            continue
-        if len(name) > 64:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Tag name is too long: {name[:28]}")
-
-        tag = cache.get(name)
-        if tag is not None:
-            stats.tags_reused += 1
-        else:
-            tag = Tag(owner_id=user_id, group_id=None, name=name)
-            db.add(tag)
-            await db.flush()
-            cache[name] = tag
-            stats.tags_created += 1
-            stats.created_tag_ids.append(tag.id)
-
-        tags.append(tag)
-        seen.add(name)
-    return tags
 
 
 def _ensure_category_valid_for_account(category: Category, account: Account, user_id: uuid.UUID) -> None:
