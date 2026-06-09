@@ -25,7 +25,16 @@ _CategoryTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
 
 
 class _CategoryDailyTotal(NamedTuple):
-    """Daily transaction total grouped by account and category"""
+    """Daily aggregate row for one account and category
+
+    Attributes:
+        transaction_date: Date represented by the aggregate row
+        account_id: Account that owns the aggregated transactions
+        category_id: Category represented by the aggregate row
+        category_name: Display name for the category
+        category_kind: Category classification used to split income and expense
+        amount: Signed total amount in the account currency
+    """
 
     transaction_date: date
     account_id: uuid.UUID
@@ -136,6 +145,9 @@ async def _query_category_daily_totals(
 ) -> list[_CategoryDailyTotal]:
     """Return daily transaction totals grouped by account and category
 
+    The query keeps account, date, and category on each aggregate row so
+    foreign-currency totals can be converted before category entries are merged
+
     Args:
         db: Active database session
         accounts_by_id: Account rows keyed by account ID
@@ -145,6 +157,7 @@ async def _query_category_daily_totals(
     Returns:
         Grouped transaction totals for income and expense categories
     """
+    # Aggregate daily income and expense totals across readable dashboard accounts
     query_result = await db.execute(
         select(
             Transaction.dt,
@@ -332,6 +345,9 @@ def _dashboard_breakdown_entries(
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
+    Spending breakdown conversion uses this metadata to interpret category
+    totals before converting them to the user's base currency
+
     Args:
         db: Active database session
         currencies: Currency codes to load
@@ -339,6 +355,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    # Load exponent metadata for every currency needed by spending breakdown conversions
     currency_result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )

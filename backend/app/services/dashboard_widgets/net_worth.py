@@ -52,7 +52,7 @@ async def get_net_worth_history(
             end_date=today,
         )
 
-    # Anchor each account with its most recent snapshot before the displayed window
+    # Load each account's latest pre-window snapshot so balances are continuous at the first slot
     anchor_result = await db.execute(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
         .where(
@@ -66,7 +66,7 @@ async def get_net_worth_history(
     for account_id in account_ids:
         running_balances.setdefault(account_id, 0)
 
-    # Walk in-window snapshots from oldest to newest to build the daily history
+    # Load every in-window snapshot update that can change the daily net-worth series
     in_window_result = await db.execute(
         select(
             AccountBalanceSnapshot.account_id,
@@ -110,6 +110,9 @@ async def get_net_worth_history(
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
+    Net-worth conversion uses this metadata to interpret snapshot balances
+    before converting them to the user's base currency
+
     Args:
         db: Active database session
         currencies: Currency codes to load
@@ -117,6 +120,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    # Load exponent metadata for every currency needed by net-worth conversions
     currency_result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )

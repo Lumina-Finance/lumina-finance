@@ -37,6 +37,7 @@ async def get_recent_transactions(
         return []
 
     window_start = now.date() - timedelta(days=window_days)
+    # Fetch newest transactions in the readable-account scope for the dashboard activity list
     transaction_result = await db.execute(
         select(Transaction)
         .where(

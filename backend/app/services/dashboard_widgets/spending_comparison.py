@@ -271,6 +271,9 @@ async def _query_daily_expense(
 ) -> dict[date, int]:
     """Return positive daily expense totals for a date range
 
+    The query groups account-currency expense totals by transaction date and
+    account so conversion happens before same-date totals are merged
+
     Args:
         db: Active database session
         accounts_by_id: Account rows keyed by account ID
@@ -282,6 +285,7 @@ async def _query_daily_expense(
     Returns:
         Positive expense totals keyed by transaction date
     """
+    # Aggregate daily expense totals across readable accounts for one comparison window
     result = await db.execute(
         select(
             Transaction.dt,
@@ -365,6 +369,9 @@ def _cumulative_totals(values: list[int]) -> list[int]:
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
+    Spending comparison conversion uses this metadata to interpret daily
+    account totals before converting them to the user's base currency
+
     Args:
         db: Active database session
         currencies: Currency codes to load
@@ -372,6 +379,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    # Load exponent metadata for every currency needed by spending comparison conversions
     currency_result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )

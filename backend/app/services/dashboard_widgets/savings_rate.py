@@ -43,6 +43,7 @@ async def get_savings_rate_history(
         return empty_history, FxStatus()
 
     accounts_by_id = {account.id: account for account in accounts}
+    # Aggregate monthly income and expense category totals for readable dashboard accounts
     result = await db.execute(
         select(
             Transaction.dt,
@@ -172,6 +173,9 @@ def _savings_rate_months(first_month: date, months_count: int) -> list[date]:
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
+    Savings-rate conversion uses this metadata to interpret monthly totals
+    before converting them to the user's base currency
+
     Args:
         db: Active database session
         currencies: Currency codes to load
@@ -179,6 +183,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    # Load exponent metadata for every currency needed by savings-rate conversions
     currency_result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )

@@ -76,6 +76,9 @@ async def get_credit_widget(
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
+    Credit limit and balance conversion uses this metadata to interpret each
+    account amount in that currency's minor unit
+
     Args:
         db: Active database session
         currencies: Currency codes to load
@@ -83,6 +86,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    # Load exponent metadata for every currency needed by credit widget conversions
     currency_result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )

@@ -19,7 +19,20 @@ from app.models.user import User
 async def get_accessible_accounts(
     db: AsyncSession, user: User, *, include_archived: bool = True,
 ) -> list[Account]:
-    """Return accounts the user can read, including archived accounts by default"""
+    """Return accounts readable by the dashboard viewer
+
+    The query treats owned accounts, admin-managed group accounts, and directly
+    permitted accounts as readable. Archived accounts stay included unless the
+    caller opts into active-account filtering
+
+    Args:
+        db: Active database session
+        user: Authenticated user requesting dashboard data
+        include_archived: Whether archived accounts should remain in scope
+
+    Returns:
+        Accounts visible to the user for dashboard aggregation
+    """
     query = (
         select(Account)
         .outerjoin(GroupMember, Account.group_id == GroupMember.group_id)
@@ -36,7 +49,6 @@ async def get_accessible_accounts(
     if not include_archived:
         query = query.where(Account.is_archived.is_(False))
 
-    result = await db.execute(
-        query,
-    )
+    # Fetch the shared readable-account scope used by dashboard widgets and insights
+    result = await db.execute(query)
     return list(result.scalars().unique().all())

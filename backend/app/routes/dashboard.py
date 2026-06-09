@@ -40,7 +40,20 @@ async def get_recent_activity_widget_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     window_days: Annotated[int, Query(ge=1, le=365)] = 90,
 ):
-    """Return recent transaction rows for the dashboard recent activity widget"""
+    """Return recent transaction rows for the dashboard
+
+    The route derives the viewer-local time window, loads readable accounts,
+    and delegates transaction selection and response assembly to the widget
+    service
+
+    Args:
+        user: Authenticated user requesting dashboard activity
+        db: Active database session
+        window_days: Number of days to include before the viewer-local date
+
+    Returns:
+        Recent activity widget response
+    """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
     all_account_ids = [a.id for a in accounts]
@@ -56,7 +69,19 @@ async def get_savings_rate_widget_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return savings-rate history for the dashboard savings-rate widget"""
+    """Return savings-rate history for the dashboard
+
+    The route scopes the widget to accounts readable by the user and asks the
+    service to produce monthly income and expense totals in the user's base
+    currency
+
+    Args:
+        user: Authenticated user requesting savings-rate history
+        db: Active database session
+
+    Returns:
+        Savings-rate widget response
+    """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
     savings_rate_history, fx_status = await get_savings_rate_history(
@@ -77,7 +102,20 @@ async def get_net_worth_widget_route(
     db: Annotated[AsyncSession, Depends(get_db)],
     window_days: Annotated[int, Query(ge=1, le=365)] = 90,
 ):
-    """Return net worth totals and trend for the dashboard net worth widget"""
+    """Return current net worth and daily history for the dashboard
+
+    The route scopes the widget to readable accounts, derives the viewer-local
+    date window, and delegates historical balance conversion to the widget
+    service
+
+    Args:
+        user: Authenticated user requesting net-worth data
+        db: Active database session
+        window_days: Number of daily history slots to return
+
+    Returns:
+        Net-worth widget response
+    """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
     current_net_worth, net_worth_history, fx_status = await get_net_worth_history(
@@ -100,7 +138,18 @@ async def get_credit_widget_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return credit usage totals for the dashboard credit widget"""
+    """Return credit limit and usage totals for the dashboard
+
+    The route loads readable accounts and lets the widget service filter
+    revolving accounts, convert limits and balances, and report FX status
+
+    Args:
+        user: Authenticated user requesting credit totals
+        db: Active database session
+
+    Returns:
+        Credit widget response
+    """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
     credit_limit_total, credit_used, fx_status = await get_credit_widget(
@@ -128,6 +177,14 @@ async def get_spending_comparison_route(
     year-to-date. The payload is always same-length ``current`` / ``previous``
     cumulative totals in positive minor units, converted to the user's base
     currency when needed and scoped to expense categories
+
+    Args:
+        user: Authenticated user requesting spending comparison data
+        db: Active database session
+        range_: Calendar range used for current and previous comparison slots
+
+    Returns:
+        Spending comparison widget response
     """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
@@ -146,6 +203,14 @@ async def get_spending_breakdown_route(
     can flip without refetching. Foreign-currency account activity is converted
     to the user's base currency and uses the same current-period bounds as the
     spending comparison chart
+
+    Args:
+        user: Authenticated user requesting spending breakdown data
+        db: Active database session
+        range_: Calendar range used for current-period breakdown totals
+
+    Returns:
+        Spending breakdown widget response
     """
     now = datetime.now(ZoneInfo(user.tz))
     accounts = await get_accessible_accounts(db, user)
