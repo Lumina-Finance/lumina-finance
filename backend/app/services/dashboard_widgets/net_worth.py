@@ -1,18 +1,19 @@
 """Net worth dashboard widget service"""
-import uuid
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.currency import Currency
 from app.schemas.fx import FxStatus
+from app.services.dashboard_widgets.net_worth_balance_conversion_helpers import (
+    get_converted_net_worth_balance_total,
+    get_dashboard_net_worth_fx_converter,
+    prefetch_dashboard_net_worth_fx_rates,
+)
 from app.services.dashboard_widgets.net_worth_balance_snapshot_helpers import (
     get_net_worth_balance_updates_by_day,
     get_net_worth_starting_balances,
 )
-from app.services.fx import FxConverter
 
 
 async def get_net_worth_history(
@@ -44,19 +45,17 @@ async def get_net_worth_history(
     window_start = today - timedelta(days=window_days - 1)
     account_ids = [account.id for account in accounts]
     accounts_by_id = {account.id: account for account in accounts}
-    converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    converter = await get_dashboard_net_worth_fx_converter(
+        db,
+        {base_currency, *(account.currency for account in accounts)},
     )
-    for currency in sorted({account.currency for account in accounts if account.currency != base_currency}):
-        await converter.prefetch_rates(
-            base=currency,
-            quote=base_currency,
-            start_date=window_start,
-            end_date=today,
-        )
+    await prefetch_dashboard_net_worth_fx_rates(
+        converter,
+        accounts,
+        base_currency=base_currency,
+        start_date=window_start,
+        end_date=today,
+    )
 
     running_balances = await get_net_worth_starting_balances(db, account_ids, window_start)
     balance_updates_by_day = await get_net_worth_balance_updates_by_day(
@@ -72,7 +71,7 @@ async def get_net_worth_history(
             break
         for account_id, balance in balance_updates_by_day.get(current_day, {}).items():
             running_balances[account_id] = balance
-        series[day_index] = await _sum_converted_balances(
+        series[day_index] = await get_converted_net_worth_balance_total(
             accounts_by_id,
             running_balances,
             base_currency=base_currency,
@@ -80,7 +79,7 @@ async def get_net_worth_history(
             converter=converter,
         )
 
-    current_net_worth = await _sum_converted_balances(
+    current_net_worth = await get_converted_net_worth_balance_total(
         accounts_by_id,
         running_balances,
         base_currency=base_currency,
@@ -89,61 +88,3 @@ async def get_net_worth_history(
     )
     fx_status = converter.get_status()
     return current_net_worth, series, fx_status
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Load minor-unit exponents for currency codes
-
-    Net-worth conversion uses this metadata to interpret snapshot balances
-    before converting them to the user's base currency
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Mapping from currency code to minor-unit exponent
-    """
-    currency_codes = sorted(currencies)
-
-    # Load exponent metadata for every currency needed by net-worth conversions
-    currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currency_codes)),
-    )
-    currency_exponents = {row.id: row.minor_unit_exponent for row in currency_result}
-    return currency_exponents
-
-
-async def _sum_converted_balances(
-    accounts_by_id: dict[uuid.UUID, Account],
-    running_balances: dict[uuid.UUID, int],
-    *,
-    base_currency: str,
-    rate_date: date,
-    converter: FxConverter,
-) -> int:
-    """Sum account balances after converting them into the user's base currency
-
-    Args:
-        accounts_by_id: Account rows keyed by account ID
-        running_balances: Account balances keyed by account ID
-        base_currency: User base currency used for dashboard totals
-        rate_date: Date used for FX conversion
-        converter: Request-scoped FX converter
-
-    Returns:
-        Sum of balances that converted successfully
-    """
-    total = 0
-
-    # Convert each running account balance before adding it to the base-currency total
-    for account_id, account in accounts_by_id.items():
-        converted_balance = await converter.convert_minor_units(
-            running_balances[account_id],
-            base=account.currency,
-            quote=base_currency,
-            rate_date=rate_date,
-        )
-        if converted_balance is not None:
-            total += converted_balance
-    return total
