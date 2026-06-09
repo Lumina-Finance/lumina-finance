@@ -42,20 +42,45 @@ async def get_or_create_import_categories_by_source(
         source = strip_import_text_or_raise(mapping.source, "Category source")
         if source in categories_by_source:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Duplicate category source: {source}")
-        if (mapping.category_id is None) == (mapping.create is None):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category source must map to exactly one category action: {source}",
-            )
 
-        if mapping.category_id is not None:
-            category = await _get_import_category_by_id(db, mapping.category_id, user.id)
-            stats.categories_reused += 1
-        else:
-            category = await _get_or_create_personal_import_category(db, user.id, mapping.create, stats)
-
-        categories_by_source[source] = category
+        categories_by_source[source] = await _get_or_create_import_category_for_mapping(db, user.id, mapping, source, stats)
     return categories_by_source
+
+
+async def _get_or_create_import_category_for_mapping(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    mapping: TransactionImportCategoryMapping,
+    source: str,
+    stats: ImportStats,
+) -> Category:
+    """Return the category selected by one import category source mapping
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        mapping: Category source mapping from the import payload
+        source: Trimmed category source used in validation messages
+        stats: Import summary counters updated when a category is reused or created
+
+    Returns:
+        Existing or newly created category row for the import source
+
+    Raises:
+        HTTPException: Raised with 422 when the source does not map to exactly one category action
+    """
+    if (mapping.category_id is None) == (mapping.create is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Category source must map to exactly one category action: {source}",
+        )
+
+    if mapping.category_id is not None:
+        category = await _get_import_category_by_id(db, mapping.category_id, user_id)
+        stats.categories_reused += 1
+        return category
+
+    return await _get_or_create_personal_import_category(db, user_id, mapping.create, stats)
 
 
 async def _get_import_category_by_id(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category:
