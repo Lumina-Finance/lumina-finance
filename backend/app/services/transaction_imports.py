@@ -1,8 +1,7 @@
-import re
+"""Transaction import orchestration service"""
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -28,8 +27,7 @@ from app.schemas.transaction import (
 )
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.snapshots import recompute_snapshots_from
-
-_RAW_AMOUNT_RE = re.compile(r"^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$")
+from app.services.transactions.imports.amounts import parse_import_amount_to_minor_units
 
 
 @dataclass
@@ -53,7 +51,16 @@ async def import_transactions(
     user: User,
     data: TransactionImportRequest,
 ) -> TransactionImportResponse:
-    """Create transactions from a frontend-compiled import payload."""
+    """Create transactions from a frontend-compiled import payload
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        data: Prepared import payload from the frontend compiler
+
+    Returns:
+        Import summary containing created rows, reused records, and affected account IDs
+    """
     stats = _ImportStats()
     account_map = await _resolve_accounts(db, user, data.accounts, stats)
     category_map = await _resolve_categories(db, user, data.categories, stats)
@@ -68,7 +75,7 @@ async def import_transactions(
         _ensure_category_valid_for_account(category, account, user.id)
 
         currency = currencies[account.currency]
-        amount = _parse_amount_to_minor_units(row.amount, currency)
+        amount = parse_import_amount_to_minor_units(row.amount, currency)
         merchant = await _get_or_create_merchant(db, user.id, row.merchant_name, merchant_cache, stats)
         tags = await _get_or_create_tags(db, user.id, row.tag_names, tag_cache, stats)
 
@@ -358,26 +365,6 @@ async def _get_or_create_tags(
         tags.append(tag)
         seen.add(name)
     return tags
-
-
-def _parse_amount_to_minor_units(raw_amount: str, currency: Currency) -> int:
-    normalized = raw_amount.strip()
-    if not _RAW_AMOUNT_RE.fullmatch(normalized):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Invalid amount: {raw_amount}")
-
-    try:
-        amount = Decimal(normalized.replace(",", ""))
-    except InvalidOperation as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Invalid amount: {raw_amount}") from exc
-
-    multiplier = Decimal(10) ** currency.minor_unit_exponent
-    minor_units = amount * multiplier
-    if minor_units != minor_units.to_integral_value():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Amount has too many decimal places for {currency.id}: {raw_amount}",
-        )
-    return int(minor_units)
 
 
 def _ensure_category_valid_for_account(category: Category, account: Account, user_id: uuid.UUID) -> None:
