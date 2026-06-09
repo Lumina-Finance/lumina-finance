@@ -5,7 +5,6 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.schemas.fx import FxStatus
 from app.schemas.insights import (
     InsightsComparisonPeriod,
     InsightsMerchantDistributionResponse,
@@ -14,44 +13,12 @@ from app.schemas.insights import (
 )
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
+from app.services.insights.fx_status_helpers import get_combined_fx_status
 from app.services.insights.merchants.distribution_and_ranking_helpers import (
     get_merchant_distribution_rows,
     get_merchant_ranking_rows,
 )
 from app.services.insights.merchants.spend_stats_helpers import get_merchant_spend_stats
-
-
-def _combine_fx_statuses(current: FxStatus, previous: FxStatus) -> FxStatus:
-    """Return one FX status for current and comparison period calculations
-
-    Args:
-        current: FX status from the selected period
-        previous: FX status from the comparison period
-
-    Returns:
-        Combined FX status with duplicate missing pairs removed
-    """
-    if current.state == "none":
-        return previous
-    if previous.state == "none":
-        return current
-
-    missing_pairs = [
-        *current.missing_pairs,
-        *[
-            pair
-            for pair in previous.missing_pairs
-            if not any(existing.base == pair.base and existing.quote == pair.quote for existing in current.missing_pairs)
-        ],
-    ]
-    if current.state == "complete" and previous.state == "complete":
-        fx_status = FxStatus(state="complete")
-        return fx_status
-    if current.state == "unavailable" and previous.state == "unavailable":
-        fx_status = FxStatus(state="unavailable", missing_pairs=missing_pairs)
-        return fx_status
-    fx_status = FxStatus(state="incomplete", missing_pairs=missing_pairs)
-    return fx_status
 
 
 async def get_merchants(
@@ -98,7 +65,7 @@ async def get_merchants(
     response = InsightsMerchantsResponse(
         distribution=get_merchant_distribution_rows(current_stats, previous_stats),
         ranking=get_merchant_ranking_rows(current_stats, previous_stats),
-        fx_status=_combine_fx_statuses(current_fx_status, previous_fx_status),
+        fx_status=get_combined_fx_status(current_fx_status, previous_fx_status),
     )
     return response
 
