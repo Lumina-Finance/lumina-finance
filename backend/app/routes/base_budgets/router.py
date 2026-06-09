@@ -13,11 +13,11 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
-from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_base_budget_access
+from app.routes.base_budgets.categories import get_valid_tracked_category_ids
 from app.routes.base_budgets.listing import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
 from app.routes.base_budgets.responses import get_base_budget_response, get_budget_instance_response
@@ -63,48 +63,6 @@ async def _check_group_admin_or_403(
     if not membership.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage base budgets")
     return membership
-
-
-async def _validate_category_ids(
-    db: AsyncSession, category_ids: list[uuid.UUID], user_id: uuid.UUID, group_id: uuid.UUID | None,
-) -> list[uuid.UUID]:
-    """Return valid tracked category identifiers for a base budget
-
-    Scope rules:
-    - Personal base budget: system categories or the user's own personal categories
-    - Group base budget: system categories or categories owned by the same group
-
-    Mixing scopes (e.g., a group base budget tracking a personal category) is rejected
-    so every group member sees the same tracked-category set and the same totals
-
-    Args:
-        db: Active database session
-        category_ids: Requested tracked category identifiers
-        user_id: Authenticated user identifier
-        group_id: Optional group scope for the base budget
-
-    Returns:
-        Deduplicated category identifiers
-
-    Raises:
-        HTTPException: A category is missing or outside the base budget scope
-    """
-    if not category_ids:
-        return []
-    unique_ids = list(set(category_ids))
-    query = select(Category.id).where(Category.id.in_(unique_ids))
-    if group_id:
-        query = query.where(Category.is_system.is_(True) | (Category.group_id == group_id))
-    else:
-        query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
-        )
-    result = await db.execute(query)
-    found = set(result.scalars().all())
-    if found != set(unique_ids):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
-    return unique_ids
 
 
 def _initial_budget_period_starts(base_budget: BaseBudget, period_start: date, today: date) -> list[date]:
@@ -173,7 +131,7 @@ async def update_base_budget(
     # Update tracked categories if provided — soft-delete removed, insert new
     if new_category_ids is not None:
         today = datetime.now(ZoneInfo(user.tz)).date()
-        validated = set(await _validate_category_ids(db, new_category_ids, user.id, base_budget.group_id))
+        validated = set(await get_valid_tracked_category_ids(db, new_category_ids, user.id, base_budget.group_id))
         current_result = await db.execute(
             select(BudgetTrackedCategory.category_id).where(
                 BudgetTrackedCategory.base_budget_id == base_budget_id,
@@ -300,7 +258,7 @@ async def create_base_budget(
         owner_id = None
 
     # Validate tracked category IDs
-    validated_cat_ids = await _validate_category_ids(db, data.category_ids, user.id, group_id)
+    validated_cat_ids = await get_valid_tracked_category_ids(db, data.category_ids, user.id, group_id)
 
     if data.period_start is not None:
         alignment_error = validate_period_start(
