@@ -11,6 +11,7 @@ from app.services.insights.common import comparison_period_bounds
 from app.services.insights.period_at_a_glance.category_highlights import get_period_at_a_glance_category_highlights
 from app.services.insights.period_at_a_glance.net_worth_change import get_period_at_a_glance_net_worth_change
 from app.services.insights.period_at_a_glance.period_totals import get_period_at_a_glance_income_expense_totals
+from app.services.insights.period_at_a_glance.response import build_period_at_a_glance_response
 
 
 async def get_period_at_a_glance(
@@ -55,17 +56,11 @@ async def get_period_at_a_glance(
         to_date,
     )
 
-    return InsightsPeriodAtAGlanceResponse(
+    return build_period_at_a_glance_response(
         income=income,
         expenses=expenses,
         income_expense_fx_status=income_expense_fx_status,
         net_worth_change=net_worth_change,
         net_worth_change_fx_status=net_worth_change_fx_status,
-        top_category_name=category_highlights.top_category[0] if category_highlights.top_category else None,
-        top_category_share_pct=category_highlights.top_category[1] if category_highlights.top_category else None,
-        top_category_fx_status=category_highlights.top_category_fx_status,
-        biggest_change_name=category_highlights.biggest_change[0] if category_highlights.biggest_change else None,
-        biggest_change_amount=category_highlights.biggest_change[1] if category_highlights.biggest_change else None,
-        biggest_change_pct=category_highlights.biggest_change[2] if category_highlights.biggest_change else None,
-        biggest_change_fx_status=category_highlights.biggest_change_fx_status,
+        category_highlights=category_highlights,
     )
