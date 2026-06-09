@@ -8,9 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.base import PermissionLevel
 from app.models.user import User
-from app.permissions import check_transaction_access
 from app.schemas.transaction import (
     CreateTransactionRequest,
     TransactionImportRequest,
@@ -20,9 +18,9 @@ from app.schemas.transaction import (
     UpdateTransactionRequest,
 )
 from app.services.transaction_imports import import_transactions
-from app.services.transaction_responses import get_transaction_response
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import delete_transaction_for_user
+from app.services.transactions.detail import get_transaction_response_for_user
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.update import update_transaction_and_get_response
@@ -125,10 +123,10 @@ async def get_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return one transaction after checking account read access
+    """Return one transaction after checking read access
 
-    The route resolves the transaction through the access helper, then loads
-    tags and merchant names required by the public response shape
+    The route delegates read access checks and response assembly to the detail
+    service
 
     Args:
         transaction_id: Transaction identifier from the route path
@@ -138,8 +136,7 @@ async def get_transaction(
     Returns:
         Transaction response enriched with tag and merchant display data
     """
-    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
-    return await get_transaction_response(db, txn)
+    return await get_transaction_response_for_user(db, user, transaction_id)
 
 
 @router.post("/import", response_model=TransactionImportResponse, status_code=status.HTTP_201_CREATED)
