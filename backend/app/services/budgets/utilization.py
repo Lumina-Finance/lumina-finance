@@ -5,10 +5,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
+from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.currency import Currency
+from app.models.group import GroupMember
 from app.models.transaction import Transaction
-from app.schemas.budget import BudgetCategoryUtilization, BudgetUtilizationResponse
+from app.schemas.budget import BudgetCategoryUtilization, BudgetUtilizationResponse, LatestBudgetUtilizationResponse
 from app.services.fx import FxConverter
 
 
@@ -22,6 +23,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Minor-unit exponents keyed by currency code
     """
+    # Fetch each currency's decimal precision so converted minor-unit amounts stay correctly scaled
     result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
@@ -41,6 +43,7 @@ async def _get_tracked_category_ids_by_budget(
     Returns:
         Tracked category identifiers keyed by budget instance identifier
     """
+    # Fetch categories tracked by each budget's base budget during that budget period
     result = await db.execute(
         select(Budget.id, BudgetTrackedCategory.category_id)
         .join(BudgetTrackedCategory, BudgetTrackedCategory.base_budget_id == Budget.base_budget_id)
@@ -67,6 +70,7 @@ async def _get_budget_spend_rows(db: AsyncSession, budget_ids: list[uuid.UUID]):
     Returns:
         Aggregated spend rows grouped by budget, category, account, date, and currency pair
     """
+    # Fetch spend that falls inside each budget period and belongs to the matching personal or group account scope
     result = await db.execute(
         select(
             Budget.id,
@@ -106,6 +110,51 @@ async def _get_budget_spend_rows(db: AsyncSession, budget_ids: list[uuid.UUID]):
             Account.currency,
             BaseBudget.currency,
         ),
+    )
+    return result.all()
+
+
+async def _get_latest_budget_rows(db: AsyncSession, user_id: uuid.UUID) -> list[tuple[Budget, BaseBudget]]:
+    """Return latest budget instance rows for visible base budgets
+
+    Args:
+        db: Active database session
+        user_id: Authenticated user identifier
+
+    Returns:
+        Latest budget instance rows with parent base budget rows
+    """
+    # Rank visible budget instances so each accessible base budget contributes only its newest period
+    ranked_budget_ids = (
+        select(
+            Budget.id.label("budget_id"),
+            func.row_number()
+            .over(
+                partition_by=Budget.base_budget_id,
+                order_by=(Budget.period_start.desc(), Budget.created_at.desc()),
+            )
+            .label("rank"),
+        )
+        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
+        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
+        .outerjoin(
+            BudgetPermission,
+            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user_id),
+        )
+        .where(
+            (BaseBudget.owner_id == user_id)
+            | ((GroupMember.user_id == user_id) & (GroupMember.is_admin.is_(True)))
+            | (BudgetPermission.user_id == user_id),
+        )
+        .subquery()
+    )
+    # Fetch the latest visible budget instance for each base budget in display order
+    result = await db.execute(
+        select(Budget, BaseBudget)
+        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
+        .join(ranked_budget_ids, Budget.id == ranked_budget_ids.c.budget_id)
+        .where(ranked_budget_ids.c.rank == 1)
+        .order_by(BaseBudget.name),
     )
     return result.all()
 
@@ -242,3 +291,29 @@ async def get_budget_utilization_responses(
             ),
         )
     return responses
+
+
+async def get_latest_budget_utilization_responses(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> list[LatestBudgetUtilizationResponse]:
+    """Return latest utilization responses for visible base budgets
+
+    Args:
+        db: Active database session
+        user_id: Authenticated user identifier
+
+    Returns:
+        Latest budget utilization responses ordered by base budget name
+    """
+    budget_rows = await _get_latest_budget_rows(db, user_id)
+    utilizations = await get_budget_utilization_responses(db, budget_rows)
+    return [
+        LatestBudgetUtilizationResponse(
+            **utilization.model_dump(),
+            base_budget_id=base_budget.id,
+            name=base_budget.name,
+            currency=base_budget.currency,
+        )
+        for utilization, (_, base_budget) in zip(utilizations, budget_rows, strict=True)
+    ]

@@ -3,14 +3,12 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
-from app.models.budget import BaseBudget, Budget, BudgetPermission
-from app.models.group import GroupMember
+from app.models.budget import BaseBudget, Budget
 from app.models.user import User
 from app.permissions import check_budget_access
 from app.schemas.budget import (
@@ -21,7 +19,10 @@ from app.schemas.budget import (
 )
 from app.services.budget_responses import build_budget_response, load_tracked_categories
 from app.services.budgets.listing import get_visible_budget_responses
-from app.services.budgets.utilization import get_budget_utilization_responses
+from app.services.budgets.utilization import (
+    get_budget_utilization_responses,
+    get_latest_budget_utilization_responses,
+)
 from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
@@ -40,6 +41,7 @@ async def _build_budget_response(
     Returns:
         Budget instance response with tracked category IDs from the parent base budget
     """
+    # Fetch active tracked categories for this base budget before building the embedded response
     tracked_categories_by_base_budget = await load_tracked_categories(db, [base_budget.id])
     return build_budget_response(budget, base_budget, tracked_categories_by_base_budget.get(base_budget.id, []))
 
@@ -58,47 +60,7 @@ async def get_latest_budget_utilizations(
     Returns:
         Latest budget utilization responses ordered by base budget name
     """
-    ranked_budget_ids = (
-        select(
-            Budget.id.label("budget_id"),
-            func.row_number()
-            .over(
-                partition_by=Budget.base_budget_id,
-                order_by=(Budget.period_start.desc(), Budget.created_at.desc()),
-            )
-            .label("rank"),
-        )
-        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
-        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
-        .outerjoin(
-            BudgetPermission,
-            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user.id),
-        )
-        .where(
-            (BaseBudget.owner_id == user.id)
-            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
-            | (BudgetPermission.user_id == user.id),
-        )
-        .subquery()
-    )
-    result = await db.execute(
-        select(Budget, BaseBudget)
-        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
-        .join(ranked_budget_ids, Budget.id == ranked_budget_ids.c.budget_id)
-        .where(ranked_budget_ids.c.rank == 1)
-        .order_by(BaseBudget.name),
-    )
-    budget_rows = result.all()
-    utilizations = await get_budget_utilization_responses(db, budget_rows)
-    return [
-        LatestBudgetUtilizationResponse(
-            **utilization.model_dump(),
-            base_budget_id=base_budget.id,
-            name=base_budget.name,
-            currency=base_budget.currency,
-        )
-        for utilization, (_, base_budget) in zip(utilizations, budget_rows, strict=True)
-    ]
+    return await get_latest_budget_utilization_responses(db, user.id)
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)
