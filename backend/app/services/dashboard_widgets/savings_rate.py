@@ -14,6 +14,7 @@ from app.models.transaction import Transaction
 from app.schemas.dashboard import MonthlyIncomeExpense
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
+from app.utils.dates import get_month_start_date, get_next_month_start_date, get_recent_month_start_dates
 
 
 async def get_savings_rate_history(
@@ -34,15 +35,18 @@ async def get_savings_rate_history(
         Oldest-first monthly income and expense history plus FX status
     """
     months_count = DASHBOARD_SAVINGS_HISTORY_MONTHS
-    first_month = _months_before(now, months_count - 1)
-    window_end = _first_of_next_month(now)
+    months = get_recent_month_start_dates(now, months_count)
+    first_month = months[0]
+    window_end = get_next_month_start_date(now)
 
-    months = _savings_rate_months(first_month, months_count)
     empty_history = [MonthlyIncomeExpense(month=month, income=0, expenses=0) for month in months]
     if not accounts:
-        return empty_history, FxStatus()
+        fx_status = FxStatus()
+        return empty_history, fx_status
 
     accounts_by_id = {account.id: account for account in accounts}
+    account_ids = list(accounts_by_id)
+
     # Aggregate monthly income and expense category totals for readable dashboard accounts
     result = await db.execute(
         select(
@@ -53,25 +57,26 @@ async def get_savings_rate_history(
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(list(accounts_by_id)),
+            Transaction.account_id.in_(account_ids),
             Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
             Transaction.dt >= first_month,
             Transaction.dt < window_end,
         )
         .group_by(Transaction.dt, Transaction.account_id, Category.id),
     )
-    rows = list(result)
-    if not rows:
-        return empty_history, FxStatus()
+    monthly_category_rows = list(result)
+    if not monthly_category_rows:
+        fx_status = FxStatus()
+        return empty_history, fx_status
 
-    row_currencies = {accounts_by_id[row.account_id].currency for row in rows}
+    total_currencies = {accounts_by_id[row.account_id].currency for row in monthly_category_rows}
     converter = FxConverter(
         currency_exponents=await _get_currency_exponents(
             db,
-            {base_currency, *row_currencies},
+            {base_currency, *total_currencies},
         ),
     )
-    for currency in sorted(row_currencies - {base_currency}):
+    for currency in sorted(total_currencies - {base_currency}):
         await converter.prefetch_rates(
             base=currency,
             quote=base_currency,
@@ -81,8 +86,9 @@ async def get_savings_rate_history(
 
     totals = {month: {"income": 0, "expenses": 0} for month in months}
     category_totals: dict[tuple[date, uuid.UUID], int] = {}
-    for row in rows:
-        # Transaction.amount uses the account currency, while Transaction.currency is receipt metadata
+
+    # Transaction.amount uses the account currency, while Transaction.currency is receipt metadata
+    for row in monthly_category_rows:
         total = await converter.convert_minor_units(
             int(row.total or 0),
             base=accounts_by_id[row.account_id].currency,
@@ -92,82 +98,26 @@ async def get_savings_rate_history(
         if total is None:
             continue
 
-        key = (date(row.dt.year, row.dt.month, 1), row.category_id)
+        key = (get_month_start_date(row.dt), row.category_id)
         category_totals[key] = category_totals.get(key, 0) + total
 
+    # Net each category before assigning the signed result to income or expenses
     for (month, _category_id), total in category_totals.items():
         if total > 0:
             totals[month]["income"] += total
         elif total < 0:
             totals[month]["expenses"] += -total
 
-    return (
-        [
-            MonthlyIncomeExpense(
-                month=month,
-                income=totals[month]["income"],
-                expenses=totals[month]["expenses"],
-            )
-            for month in months
-        ],
-        converter.get_status(),
-    )
-
-
-def _months_before(now: datetime, count: int) -> date:
-    """Return the first day of the month ``count`` months before ``now``
-
-    Args:
-        now: Viewer-local timestamp used as the reference month
-        count: Number of full calendar months to move backwards
-
-    Returns:
-        First day of the target month
-    """
-    year, month = now.year, now.month
-    for _ in range(count):
-        if month == 1:
-            year -= 1
-            month = 12
-        else:
-            month -= 1
-    return date(year, month, 1)
-
-
-def _first_of_next_month(now: datetime) -> date:
-    """Return the first day of the month immediately after ``now``
-
-    Args:
-        now: Viewer-local timestamp used as the reference month
-
-    Returns:
-        First day of the next calendar month
-    """
-    if now.month == 12:
-        return date(now.year + 1, 1, 1)
-    return date(now.year, now.month + 1, 1)
-
-
-def _savings_rate_months(first_month: date, months_count: int) -> list[date]:
-    """Build the ordered calendar months emitted by the savings-rate widget
-
-    Args:
-        first_month: First month in the history window
-        months_count: Number of monthly history entries to emit
-
-    Returns:
-        Ordered list of first-of-month dates
-    """
-    months: list[date] = []
-    year, month = first_month.year, first_month.month
-    for _ in range(months_count):
-        months.append(date(year, month, 1))
-        if month == 12:
-            year += 1
-            month = 1
-        else:
-            month += 1
-    return months
+    history = [
+        MonthlyIncomeExpense(
+            month=month,
+            income=totals[month]["income"],
+            expenses=totals[month]["expenses"],
+        )
+        for month in months
+    ]
+    fx_status = converter.get_status()
+    return history, fx_status
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
@@ -183,8 +133,11 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    currency_codes = sorted(currencies)
+
     # Load exponent metadata for every currency needed by savings-rate conversions
     currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currency_codes)),
     )
-    return {row.id: row.minor_unit_exponent for row in currency_result}
+    currency_exponents = {row.id: row.minor_unit_exponent for row in currency_result}
+    return currency_exponents
