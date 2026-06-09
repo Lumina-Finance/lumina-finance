@@ -4,21 +4,20 @@ from datetime import datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
-from app.models.budget import Budget
 from app.models.user import User
 from app.permissions import check_base_budget_access
 from app.routes.base_budgets.category_helpers import update_tracked_category_links
 from app.routes.base_budgets.creation_helpers import create_base_budget_and_get_response
+from app.routes.base_budgets.instance_helpers import create_budget_instance_and_get_response
 from app.routes.base_budgets.listing_helpers import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
-from app.routes.base_budgets.response_helpers import get_base_budget_response, get_budget_instance_response
+from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import (
     BaseBudgetResponse,
     BudgetResponse,
@@ -26,7 +25,6 @@ from app.schemas.budget import (
     CreateBudgetRequest,
     UpdateBaseBudgetRequest,
 )
-from app.services.budget_periods import compute_period_end, validate_period_start
 from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
@@ -194,54 +192,4 @@ async def create_budget_instance(
     Raises:
         HTTPException: User lacks admin access, period start is invalid, or period overlaps
     """
-    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
-
-    # Validate period_start alignment against the base's cadence
-    alignment_error = validate_period_start(
-        data.period_start,
-        base_budget.recurrence_freq,
-        weekday=base_budget.recurrence_weekday,
-        dom=base_budget.recurrence_dom,
-        month=base_budget.recurrence_month,
-    )
-    if alignment_error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=alignment_error,
-        )
-
-    # Compute period_end from the base's cadence
-    period_end = compute_period_end(
-        data.period_start,
-        base_budget.recurrence_freq,
-        base_budget.instance_length,
-        dom=base_budget.recurrence_dom,
-        month=base_budget.recurrence_month,
-    )
-
-    # Block overlapping instances because two ranges overlap when each starts before the other ends
-    overlap_result = await db.execute(
-        select(Budget).where(
-            Budget.base_budget_id == base_budget_id,
-            Budget.period_start <= period_end,
-            Budget.period_end >= data.period_start,
-        ),
-    )
-    if overlap_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A budget instance already exists for this period",
-        )
-
-    budget = Budget(
-        base_budget_id=base_budget_id,
-        period_start=data.period_start,
-        period_end=period_end,
-        overall_limit=data.overall_limit,
-    )
-    db.add(budget)
-    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
-    await db.commit()
-    await db.refresh(budget)
-
-    return await get_budget_instance_response(db, budget, base_budget)
+    return await create_budget_instance_and_get_response(db, user.id, base_budget_id, data)
