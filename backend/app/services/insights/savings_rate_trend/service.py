@@ -9,7 +9,7 @@ from app.schemas.insights import InsightsSavingsRateTrendResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.savings_rate_trend.activity_helpers import get_first_activity_month
 from app.services.insights.savings_rate_trend.monthly_category_totals_helpers import get_converted_monthly_category_totals
-from app.services.insights.savings_rate_trend.response import (
+from app.services.insights.savings_rate_trend.response_helpers import (
     build_empty_savings_rate_trend_response,
     build_savings_rate_trend_response,
 )

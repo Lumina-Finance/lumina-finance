@@ -2,7 +2,7 @@
 
 from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsPeriodAtAGlanceResponse
-from app.services.insights.period_at_a_glance.category_highlights import PeriodAtAGlanceCategoryHighlights
+from app.services.insights.period_at_a_glance.category_highlight_helpers import PeriodAtAGlanceCategoryHighlights
 
 
 def build_period_at_a_glance_response(

@@ -11,7 +11,7 @@ from app.models.group import GroupMember
 from app.models.user import User
 from app.schemas.transaction import TransactionImportCategoryMapping, TransactionImportCreateCategory
 from app.services.transactions.imports.stats import ImportStats
-from app.services.transactions.imports.validation import strip_import_text_or_raise
+from app.services.transactions.imports.validation_helpers import strip_import_text_or_raise
 
 
 async def get_or_create_import_categories_by_source(

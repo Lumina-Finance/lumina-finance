@@ -11,7 +11,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
-from app.services.transactions.access import accessible_account_ids_subquery
+from app.services.transactions.access_helpers import accessible_account_ids_subquery
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 

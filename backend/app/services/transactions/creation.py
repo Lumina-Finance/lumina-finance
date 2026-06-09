@@ -8,7 +8,7 @@ from app.permissions import check_account_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.snapshots import recompute_snapshots_from
-from app.services.transaction_responses import get_transaction_response
+from app.services.transaction_response_helpers import get_transaction_response
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 from app.services.transactions.tags import replace_transaction_tag_links
 from app.services.transactions.validation import (

@@ -16,7 +16,7 @@ from app.schemas.budget import (
     LatestBudgetUtilizationResponse,
     UpdateBudgetRequest,
 )
-from app.services.budget_responses import get_budget_response
+from app.services.budget_response_helpers import get_budget_response
 from app.services.budgets.deletion import delete_budget_instance
 from app.services.budgets.listing import get_visible_budget_responses
 from app.services.budgets.updates import update_budget_instance

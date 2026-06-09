@@ -7,7 +7,7 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_transaction_access
 from app.schemas.transaction import TransactionResponse
-from app.services.transaction_responses import get_transaction_response
+from app.services.transaction_response_helpers import get_transaction_response
 
 
 async def get_transaction_response_for_user(

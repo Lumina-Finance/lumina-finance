@@ -8,10 +8,10 @@ from app.models.user import User
 from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodAtAGlanceResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
-from app.services.insights.period_at_a_glance.category_highlights import get_period_at_a_glance_category_highlights
-from app.services.insights.period_at_a_glance.net_worth_change import get_period_at_a_glance_net_worth_change
-from app.services.insights.period_at_a_glance.period_totals import get_period_at_a_glance_income_expense_totals
-from app.services.insights.period_at_a_glance.response import build_period_at_a_glance_response
+from app.services.insights.period_at_a_glance.category_highlight_helpers import get_period_at_a_glance_category_highlights
+from app.services.insights.period_at_a_glance.net_worth_change_helpers import get_period_at_a_glance_net_worth_change
+from app.services.insights.period_at_a_glance.period_total_helpers import get_period_at_a_glance_income_expense_totals
+from app.services.insights.period_at_a_glance.response_helpers import build_period_at_a_glance_response
 
 
 async def get_period_at_a_glance(

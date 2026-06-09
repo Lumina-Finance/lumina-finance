@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 
 from app.models.base import CategoryKind
-from app.services.insights.income_expense_breakdown.period_stats import CategoryPeriodStatsById
+from app.services.insights.income_expense_breakdown.period_stat_helpers import CategoryPeriodStatsById
 
 
 @dataclass(frozen=True)

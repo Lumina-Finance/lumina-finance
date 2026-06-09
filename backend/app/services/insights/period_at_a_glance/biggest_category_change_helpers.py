@@ -3,7 +3,7 @@
 import uuid
 
 from app.models.base import CategoryKind
-from app.services.insights.period_at_a_glance.category_totals import CategoryNetTotals
+from app.services.insights.period_at_a_glance.category_total_helpers import CategoryNetTotals
 
 
 def get_period_at_a_glance_biggest_category_change(

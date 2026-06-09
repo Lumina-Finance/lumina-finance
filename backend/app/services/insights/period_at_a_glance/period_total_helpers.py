@@ -1,4 +1,4 @@
-"""Category total query helpers for the insights Period At A Glance card"""
+"""Income and expense total helpers for the insights Period At A Glance card"""
 
 import uuid
 from datetime import date
@@ -10,21 +10,22 @@ from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
-from app.services.insights.period_at_a_glance.conversion import prefetch_period_at_a_glance_rates
+from app.services.insights.period_at_a_glance.conversion_helpers import (
+    get_period_at_a_glance_currency_exponents,
+    prefetch_period_at_a_glance_rates,
+)
 
-CategoryNetTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
 
-
-async def get_period_at_a_glance_category_net_totals(
+async def get_period_at_a_glance_income_expense_totals(
     db: AsyncSession,
     accounts: list[Account],
     base_currency: str,
     from_date: date,
     to_date: date,
-    converter: FxConverter,
-) -> CategoryNetTotals:
-    """Return converted signed category totals keyed by category ID for an inclusive period
+) -> tuple[int, int, FxStatus]:
+    """Return sign-directed income and expense totals converted to base currency
 
     Args:
         db: Active database session
@@ -32,22 +33,19 @@ async def get_period_at_a_glance_category_net_totals(
         base_currency: User base currency used for converted values
         from_date: Inclusive period start date
         to_date: Inclusive period end date
-        converter: FX converter used for category total conversion
 
     Returns:
-        Signed category totals keyed by category ID
+        Income total, expense total, and FX conversion status
     """
     if not accounts:
-        return {}
+        return 0, 0, FxStatus()
 
     account_ids = [account.id for account in accounts]
 
-    # Load signed transaction totals grouped by category, account, transaction date, and account currency
+    # Load transaction totals grouped by category, account, transaction date, and account currency
     result = await db.execute(
         select(
             Category.id,
-            Category.name,
-            Category.kind,
             Transaction.account_id,
             Transaction.dt.label("date"),
             Account.currency.label("account_currency"),
@@ -61,18 +59,24 @@ async def get_period_at_a_glance_category_net_totals(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.id, Category.name, Category.kind, Transaction.account_id, Transaction.dt, Account.currency),
+        .group_by(Category.id, Transaction.account_id, Transaction.dt, Account.currency),
     )
     rows = result.all()
+    converter = FxConverter(
+        currency_exponents=await get_period_at_a_glance_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
     await prefetch_period_at_a_glance_rates(
         converter,
         rows=rows,
         base_currency=base_currency,
     )
 
-    raw_totals: dict[uuid.UUID, tuple[str, CategoryKind, int]] = {}
+    category_totals: dict[uuid.UUID, int] = {}
 
-    # Convert each grouped total before adding it into its signed category net total
+    # Convert each grouped transaction total before netting categories into income and expenses
     for row in rows:
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
@@ -82,11 +86,16 @@ async def get_period_at_a_glance_category_net_totals(
         )
         if converted_total is None:
             continue
-        name, kind, current_total = raw_totals.get(row.id, (row.name, row.kind, 0))
-        raw_totals[row.id] = (name, kind, current_total + converted_total)
+        category_totals[row.id] = category_totals.get(row.id, 0) + converted_total
 
-    return {
-        category_id: (name, kind, amount)
-        for category_id, (name, kind, amount) in raw_totals.items()
-        if amount
-    }
+    income = 0
+    expenses = 0
+
+    # Split signed category net totals into display income and expense amounts
+    for total in category_totals.values():
+        if total > 0:
+            income += total
+        elif total < 0:
+            expenses += -total
+
+    return income, expenses, converter.get_status()

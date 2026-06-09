@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget
 from app.schemas.budget import BaseBudgetResponse, BudgetResponse
-from app.services.budget_responses import build_base_budget_response, build_budget_response, load_tracked_categories
+from app.services.budget_response_helpers import build_base_budget_response, build_budget_response, load_tracked_categories
 
 
 async def get_base_budget_response(db: AsyncSession, base_budget: BaseBudget) -> BaseBudgetResponse:

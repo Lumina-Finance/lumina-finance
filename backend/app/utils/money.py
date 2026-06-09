@@ -1,4 +1,4 @@
-"""Money amount utility helpers"""
+"""Money amount utilities"""
 import re
 from decimal import Decimal, InvalidOperation
 

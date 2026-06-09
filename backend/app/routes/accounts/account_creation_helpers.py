@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountBalanceSnapshot
 from app.models.user import User
-from app.routes.accounts.account_balance_adjustments import add_account_starting_balance_adjustment
-from app.routes.accounts.account_creation_scope import AccountCreationScope
+from app.routes.accounts.account_balance_adjustment_helpers import add_account_starting_balance_adjustment
+from app.routes.accounts.account_creation_scope_helpers import AccountCreationScope
 from app.schemas.account import CreateAccountRequest
 
 

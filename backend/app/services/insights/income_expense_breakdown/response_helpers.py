@@ -4,12 +4,12 @@ from app.models.base import CategoryKind
 from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsIncomeExpenseBreakdownResponse
 from app.services.insights.fx_status_helpers import get_combined_fx_status
-from app.services.insights.income_expense_breakdown.breakdown_rows import (
+from app.services.insights.income_expense_breakdown.breakdown_row_helpers import (
     BreakdownCategoryStatsById,
     get_income_expense_breakdown_rows,
     get_income_expense_breakdown_total,
 )
-from app.services.insights.income_expense_breakdown.trend_rows import CategoryTrendRow
+from app.services.insights.income_expense_breakdown.trend_row_helpers import CategoryTrendRow
 
 
 def build_income_expense_breakdown_response(

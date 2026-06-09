@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.account import Account
 from app.models.user import User
-from app.routes.accounts.account_balance_fields import attach_account_balance_fields
+from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
 
 
 async def get_account_for_response(

@@ -9,14 +9,14 @@ from app.models.user import User
 from app.schemas.insights import InsightsComparisonPeriod, InsightsIncomeExpenseBreakdownResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
-from app.services.insights.income_expense_breakdown.breakdown_rows import (
+from app.services.insights.income_expense_breakdown.breakdown_row_helpers import (
     get_income_expense_breakdown_stats_by_side,
 )
-from app.services.insights.income_expense_breakdown.period_stats import (
+from app.services.insights.income_expense_breakdown.period_stat_helpers import (
     get_income_expense_breakdown_period_stats,
 )
-from app.services.insights.income_expense_breakdown.response import build_income_expense_breakdown_response
-from app.services.insights.income_expense_breakdown.trend_rows import (
+from app.services.insights.income_expense_breakdown.response_helpers import build_income_expense_breakdown_response
+from app.services.insights.income_expense_breakdown.trend_row_helpers import (
     get_income_expense_breakdown_category_stats,
     get_income_expense_breakdown_trend_rows,
 )

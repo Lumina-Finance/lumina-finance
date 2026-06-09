@@ -13,7 +13,7 @@ from app.schemas.insights import (
 )
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
-from app.services.insights.merchants.response import build_merchants_response
+from app.services.insights.merchants.response_helpers import build_merchants_response
 from app.services.insights.merchants.spend_stats_helpers import get_merchant_spend_stats
 
 

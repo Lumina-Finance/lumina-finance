@@ -14,7 +14,7 @@ from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import TransactionImportAccountMapping, TransactionImportCreateAccount
 from app.services.transactions.imports.stats import ImportStats
-from app.services.transactions.imports.validation import strip_import_text_or_raise
+from app.services.transactions.imports.validation_helpers import strip_import_text_or_raise
 
 
 async def get_or_create_import_accounts_by_source(

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, TaxAdvantagedPlan
 from app.models.base import AccountKind, TaxTreatment
 from app.models.group import GroupMember
-from app.routes.accounts.account_creation_scope import AccountCreationScope
+from app.routes.accounts.account_creation_scope_helpers import AccountCreationScope
 from app.schemas.account import CreateAccountRequest
 
 

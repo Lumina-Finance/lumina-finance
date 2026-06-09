@@ -12,20 +12,20 @@ from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
-from app.routes.accounts.account_balance_fields import attach_account_balance_fields
-from app.routes.accounts.account_creation import create_account_with_initial_balance_history
-from app.routes.accounts.account_creation_scope import resolve_account_creation_scope
-from app.routes.accounts.account_listing import get_accounts_visible_to_user
-from app.routes.accounts.account_request_validation import (
+from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
+from app.routes.accounts.account_creation_helpers import create_account_with_initial_balance_history
+from app.routes.accounts.account_creation_scope_helpers import resolve_account_creation_scope
+from app.routes.accounts.account_listing_helpers import get_accounts_visible_to_user
+from app.routes.accounts.account_request_validation_helpers import (
     validate_create_account_request,
     validate_update_account_request,
 )
-from app.routes.accounts.account_response_loading import get_account_for_response
-from app.routes.accounts.account_tax_advantaged_plan_links import (
+from app.routes.accounts.account_response_loading_helpers import get_account_for_response
+from app.routes.accounts.account_tax_advantaged_plan_link_helpers import (
     validate_create_account_tax_advantaged_plan_link,
     validate_update_account_tax_advantaged_plan_link,
 )
-from app.routes.accounts.account_updates import apply_account_updates
+from app.routes.accounts.account_update_helpers import apply_account_updates
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
 from app.schemas.account import (

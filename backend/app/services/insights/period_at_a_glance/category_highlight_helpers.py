@@ -12,8 +12,8 @@ from app.services.fx import FxConverter
 from app.services.insights.period_at_a_glance.biggest_category_change_helpers import (
     get_period_at_a_glance_biggest_category_change,
 )
-from app.services.insights.period_at_a_glance.category_totals import CategoryNetTotals, get_period_at_a_glance_category_net_totals
-from app.services.insights.period_at_a_glance.conversion import get_period_at_a_glance_currency_exponents
+from app.services.insights.period_at_a_glance.category_total_helpers import CategoryNetTotals, get_period_at_a_glance_category_net_totals
+from app.services.insights.period_at_a_glance.conversion_helpers import get_period_at_a_glance_currency_exponents
 
 ExpenseCategoryTotals = dict[uuid.UUID, tuple[str, int]]
 

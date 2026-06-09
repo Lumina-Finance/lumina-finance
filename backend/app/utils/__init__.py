@@ -1,1 +1,1 @@
-"""Application utility helpers"""
+"""Application utilities"""

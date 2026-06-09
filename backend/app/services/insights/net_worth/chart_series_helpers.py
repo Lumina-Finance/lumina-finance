@@ -10,7 +10,7 @@ from app.models.account import Account, AccountBalanceSnapshot
 from app.models.currency import Currency
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
-from app.services.insights.net_worth.buckets import build_net_worth_buckets
+from app.services.insights.net_worth.bucket_helpers import build_net_worth_buckets
 from app.services.insights.net_worth.groups import (
     NET_WORTH_GROUP_INDEX_BY_ID,
     NET_WORTH_GROUPS,

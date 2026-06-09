@@ -8,7 +8,7 @@ from app.models.user import User
 from app.schemas.insights import InsightsFundFlowResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.fund_flow.entry_group_helpers import get_fund_flow_entry_groups
-from app.services.insights.fund_flow.response import build_empty_fund_flow_response, build_fund_flow_response
+from app.services.insights.fund_flow.response_helpers import build_empty_fund_flow_response, build_fund_flow_response
 
 
 async def get_fund_flow(

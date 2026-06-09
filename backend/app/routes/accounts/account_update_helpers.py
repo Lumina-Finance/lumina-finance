@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.user import User
-from app.routes.accounts.account_balance_adjustments import zero_account_balance_for_archive
+from app.routes.accounts.account_balance_adjustment_helpers import zero_account_balance_for_archive
 
 
 async def apply_account_updates(

@@ -8,7 +8,7 @@ from app.models.user import User
 from app.schemas.insights import InsightsCashFlowResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.cash_flow.daily_totals_helpers import get_cash_flow_daily_totals
-from app.services.insights.cash_flow.response import build_cash_flow_response
+from app.services.insights.cash_flow.response_helpers import build_cash_flow_response
 
 
 async def get_cash_flow(
