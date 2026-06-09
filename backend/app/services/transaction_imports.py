@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
@@ -51,21 +52,70 @@ async def import_transactions(
     currencies_by_code = await get_import_currencies_by_code(db, {account.currency for account in accounts_by_source.values()})
     merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
     tags_by_name = await get_personal_import_tags_by_name(db, user.id)
+    first_import_date_by_account_id = await _create_imported_transactions(
+        db,
+        user_id=user.id,
+        rows=data.rows,
+        accounts_by_source=accounts_by_source,
+        categories_by_source=categories_by_source,
+        currencies_by_code=currencies_by_code,
+        merchants_by_name=merchants_by_name,
+        tags_by_name=tags_by_name,
+        stats=stats,
+    )
+
+    await db.flush()
+    await _recompute_snapshots_for_imported_accounts(db, first_import_date_by_account_id)
+    await _mark_caches_changed_for_imported_accounts(db, user.id, accounts_by_source, first_import_date_by_account_id)
+    await db.commit()
+
+    return _build_transaction_import_response(data, stats, accounts_by_source, categories_by_source, first_import_date_by_account_id)
+
+
+async def _create_imported_transactions(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    rows: list[TransactionImportRow],
+    accounts_by_source: dict[str, Account],
+    categories_by_source: dict[str, Category],
+    currencies_by_code: dict[str, Currency],
+    merchants_by_name: dict[str, Merchant],
+    tags_by_name: dict[str, Tag],
+    stats: ImportStats,
+) -> dict[uuid.UUID, date]:
+    """Create imported transaction rows and return first import dates by account
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        rows: Prepared transaction rows from the import payload
+        accounts_by_source: Account rows keyed by import source
+        categories_by_source: Category rows keyed by import source
+        currencies_by_code: Currency rows keyed by currency code
+        merchants_by_name: Request-local merchant lookup keyed by merchant name
+        tags_by_name: Request-local tag lookup keyed by tag name
+        stats: Import summary counters updated during the import
+
+    Returns:
+        Earliest imported transaction date by affected account ID
+    """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
 
-    for row in data.rows:
+    # Convert each frontend-compiled row into a transaction and track affected account dates
+    for row in rows:
         account = get_import_row_account(accounts_by_source, row.account_source)
         category = get_import_row_category(categories_by_source, row.category_source)
-        validate_import_category_can_be_used_for_account(category, account, user.id)
+        validate_import_category_can_be_used_for_account(category, account, user_id)
 
         currency = currencies_by_code[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
-        merchant = await get_or_create_import_merchant(db, user.id, row.merchant_name, merchants_by_name, stats)
-        tags = await get_or_create_import_tags(db, user.id, row.tag_names, tags_by_name, stats)
+        merchant = await get_or_create_import_merchant(db, user_id, row.merchant_name, merchants_by_name, stats)
+        tags = await get_or_create_import_tags(db, user_id, row.tag_names, tags_by_name, stats)
 
         await _insert_imported_transaction_with_tag_links(
             db,
-            user_id=user.id,
+            user_id=user_id,
             account=account,
             category=category,
             row=row,
@@ -79,12 +129,7 @@ async def import_transactions(
             row.dt if current_first_import_date is None else min(current_first_import_date, row.dt)
         )
 
-    await db.flush()
-    await _recompute_snapshots_for_imported_accounts(db, first_import_date_by_account_id)
-    await _mark_caches_changed_for_imported_accounts(db, user.id, accounts_by_source, first_import_date_by_account_id)
-    await db.commit()
-
-    return _build_transaction_import_response(data, stats, accounts_by_source, categories_by_source, first_import_date_by_account_id)
+    return first_import_date_by_account_id
 
 
 async def _recompute_snapshots_for_imported_accounts(
