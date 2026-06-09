@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.fx import FxStatus
@@ -21,6 +20,10 @@ from app.services.insights.period_at_a_glance.category_highlights import (
     CategoryNetTotals,
     get_period_at_a_glance_biggest_category_change,
     get_period_at_a_glance_top_category,
+)
+from app.services.insights.period_at_a_glance.conversion import (
+    get_period_at_a_glance_currency_exponents,
+    prefetch_period_at_a_glance_rates,
 )
 from app.services.insights.period_at_a_glance.net_worth_change import get_period_at_a_glance_net_worth_change
 
@@ -70,12 +73,12 @@ async def _query_period_totals(
     )
     rows = result.all()
     converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
+        currency_exponents=await get_period_at_a_glance_currency_exponents(
             db,
             {base_currency, *(account.currency for account in accounts)},
         ),
     )
-    await _prefetch_period_total_rates(
+    await prefetch_period_at_a_glance_rates(
         converter,
         rows=rows,
         base_currency=base_currency,
@@ -104,58 +107,6 @@ async def _query_period_totals(
             expenses += -total
 
     return income, expenses, converter.get_status()
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents keyed by currency code
-
-    Args:
-        db: Active database session
-        currencies: Currency codes needed for conversion
-
-    Returns:
-        Minor-unit exponent keyed by currency code
-    """
-    # Load currency precision so FX conversion can convert minor units correctly
-    result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in result}
-
-
-async def _prefetch_period_total_rates(
-    converter: FxConverter,
-    *,
-    rows,
-    base_currency: str,
-) -> None:
-    """Prefetch FX rates needed for period total conversion
-
-    Args:
-        converter: FX converter used by the Period At A Glance calculation
-        rows: Grouped transaction rows containing account currency and transaction date
-        base_currency: User base currency used for converted values
-
-    Returns:
-        None
-    """
-    ranges: dict[str, tuple[date, date]] = {}
-
-    # Build one date range per currency so rate prefetching stays compact
-    for row in rows:
-        currency = row.account_currency
-        if currency == base_currency:
-            continue
-        start, end = ranges.get(currency, (row.date, row.date))
-        ranges[currency] = (min(start, row.date), max(end, row.date))
-
-    for currency, (start_date, end_date) in sorted(ranges.items()):
-        await converter.prefetch_rates(
-            base=currency,
-            quote=base_currency,
-            start_date=start_date,
-            end_date=end_date,
-        )
 
 
 async def _query_category_net_totals(
@@ -206,7 +157,7 @@ async def _query_category_net_totals(
         .group_by(Category.id, Category.name, Category.kind, Transaction.account_id, Transaction.dt, Account.currency),
     )
     rows = result.all()
-    await _prefetch_period_total_rates(
+    await prefetch_period_at_a_glance_rates(
         converter,
         rows=rows,
         base_currency=base_currency,
@@ -260,7 +211,7 @@ async def get_period_at_a_glance(
         to_date,
     )
     top_category_converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
+        currency_exponents=await get_period_at_a_glance_currency_exponents(
             db,
             {user.base_currency, *(account.currency for account in all_accounts)},
         ),
@@ -274,7 +225,7 @@ async def get_period_at_a_glance(
         top_category_converter,
     )
     biggest_change_converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
+        currency_exponents=await get_period_at_a_glance_currency_exponents(
             db,
             {user.base_currency, *(account.currency for account in all_accounts)},
         ),
