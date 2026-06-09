@@ -1,7 +1,7 @@
 """Spending breakdown response helpers"""
 
 import uuid
-from typing import NamedTuple
+from dataclasses import dataclass
 
 from app.models.base import CategoryKind
 from app.schemas.dashboard import CategoryBreakdownEntry, RangeKind, SpendingBreakdownResponse
@@ -10,7 +10,8 @@ from app.schemas.fx import FxStatus
 DASHBOARD_BREAKDOWN_CATEGORY_LIMIT = 6
 
 
-class SpendingBreakdownCategoryTotal(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class SpendingBreakdownCategoryTotal:
     """Converted total for one category in a spending breakdown
 
     Attributes:
