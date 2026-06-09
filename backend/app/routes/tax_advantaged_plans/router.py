@@ -2,15 +2,11 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import TaxAdvantagedPlan
-from app.models.base import TaxTreatment
-from app.models.currency import Currency
 from app.models.user import User
 from app.routes.tax_advantaged_plans.tac_limit_helpers import (
     apply_tac_limit_updates,
@@ -20,7 +16,12 @@ from app.routes.tax_advantaged_plans.tac_limit_helpers import (
     validate_tac_limit_year_available,
 )
 from app.routes.tax_advantaged_plans.tac_plan_helpers import (
+    apply_tac_plan_updates,
+    build_tac_plan,
     get_owned_tax_advantaged_plan_or_404,
+    get_tax_advantaged_plans_for_owner,
+    validate_tac_plan_updates,
+    validate_tax_advantaged_plan_currency,
     validate_tax_advantaged_plan_group_scope,
     validate_tax_advantaged_plan_tax_treatment,
 )
@@ -52,15 +53,7 @@ async def list_tax_advantaged_plans(
     Returns:
         Plans owned by the authenticated user with current-year limits attached
     """
-    owner_id = user.id
-
-    # Fetch the user's plans in creation order before adding derived limit metrics
-    result = await db.execute(
-        select(TaxAdvantagedPlan)
-        .where(TaxAdvantagedPlan.plan_owner_user_id == owner_id)
-        .order_by(TaxAdvantagedPlan.created_at),
-    )
-    plans = result.scalars().all()
+    plans = await get_tax_advantaged_plans_for_owner(db, user.id)
     await attach_tax_advantaged_plan_metrics(db, plans)
     return plans
 
@@ -86,21 +79,8 @@ async def create_tax_advantaged_plan(
     """
     validate_tax_advantaged_plan_tax_treatment(data.tax_treatment)
     await validate_tax_advantaged_plan_group_scope(db, data.group_id, user.id)
-
-    # Fetch the currency so plans cannot reference an unsupported currency code
-    currency = await db.get(Currency, data.currency)
-    if not currency:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
-
-    plan = TaxAdvantagedPlan(
-        plan_owner_user_id=user.id,
-        group_id=data.group_id,
-        name=data.name,
-        tax_treatment=TaxTreatment(data.tax_treatment),
-        currency=data.currency,
-        lifetime_contribution_limit=data.lifetime_contribution_limit,
-        accrued_contributions=data.accrued_contributions,
-    )
+    await validate_tax_advantaged_plan_currency(db, data.currency)
+    plan = build_tac_plan(user.id, data)
     db.add(plan)
     await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
@@ -161,22 +141,8 @@ async def update_tax_advantaged_plan(
         await attach_tax_advantaged_plan_metrics(db, [plan])
         return plan
 
-    if "tax_treatment" in updates:
-        if updates["tax_treatment"] is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="tax_treatment cannot be null")
-        validate_tax_advantaged_plan_tax_treatment(updates["tax_treatment"])
-
-    if "group_id" in updates:
-        await validate_tax_advantaged_plan_group_scope(db, updates["group_id"], user.id)
-
-    if "name" in updates and updates["name"] is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="name cannot be null")
-
-    for field, value in updates.items():
-        if field == "tax_treatment":
-            value = TaxTreatment(value)
-        setattr(plan, field, value)
-
+    await validate_tac_plan_updates(db, updates, user.id)
+    apply_tac_plan_updates(plan, updates)
     await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=previous_group_id)
     if plan.group_id != previous_group_id:
         await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
