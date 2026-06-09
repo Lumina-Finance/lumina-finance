@@ -15,7 +15,7 @@ from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
 from app.routes.merchant import router as merchant_router
 from app.routes.tag import router as tag_router
-from app.routes.tax_advantaged_plan import router as tax_advantaged_plan_router
+from app.routes.tax_advantaged_plans import router as tax_advantaged_plan_router
 from app.routes.transaction import router as transaction_router
 from app.routes.user import router as user_router
 

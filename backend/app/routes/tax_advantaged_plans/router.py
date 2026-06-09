@@ -1,3 +1,4 @@
+"""Tax-advantaged plan routes"""
 import uuid
 from typing import Annotated
 
@@ -10,8 +11,12 @@ from app.dependencies import get_current_user
 from app.models.account import TaxAdvantagedPlan, TaxAdvantagedPlanLimit
 from app.models.base import TaxTreatment
 from app.models.currency import Currency
-from app.models.group import GroupMember
 from app.models.user import User
+from app.routes.tax_advantaged_plans.tac_plan_helpers import (
+    get_owned_tax_advantaged_plan_or_404,
+    validate_tax_advantaged_plan_group_scope,
+    validate_tax_advantaged_plan_tax_treatment,
+)
 from app.schemas.tax_advantaged_plan import (
     CreateTaxAdvantagedPlanLimitRequest,
     CreateTaxAdvantagedPlanRequest,
@@ -25,92 +30,27 @@ from app.services.tax_advantaged_plans import attach_tax_advantaged_plan_metrics
 
 router = APIRouter(prefix="/tax-advantaged-plans", tags=["tax-advantaged-plans"])
 
-_VALID_TAX_TREATMENTS = {e.value for e in TaxTreatment}
-
-
-def _validate_tax_treatment(value: str) -> None:
-    """Validate a non-taxable tax treatment value.
-
-    Args:
-        value: Tax treatment enum value from the request.
-
-    Raises:
-        HTTPException: If the value is invalid or taxable.
-    """
-    if value not in _VALID_TAX_TREATMENTS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax treatment")
-    if value == TaxTreatment.TAXABLE.value:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Tax-advantaged plans require a non-taxable tax treatment",
-        )
-
-
-async def _validate_group_scope(db: AsyncSession, group_id: uuid.UUID | None, user_id: uuid.UUID) -> None:
-    """Ensure the user can own a plan in the requested group scope.
-
-    Args:
-        db: Active database session.
-        group_id: Optional group context for the plan.
-        user_id: User that would own the plan.
-
-    Raises:
-        HTTPException: If the group is not visible to the user.
-    """
-    if group_id is None:
-        return
-
-    result = await db.execute(
-        select(GroupMember).where(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == user_id,
-        ),
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Group not found")
-
-
-async def _get_owned_plan_or_404(
-    db: AsyncSession,
-    plan_id: uuid.UUID,
-    user_id: uuid.UUID,
-) -> TaxAdvantagedPlan:
-    """Return a plan if the authenticated user owns it.
-
-    Args:
-        db: Active database session.
-        plan_id: Plan identifier to fetch.
-        user_id: Authenticated user identifier.
-
-    Returns:
-        The owned tax-advantaged plan.
-
-    Raises:
-        HTTPException: If the plan does not exist or belongs to another user.
-    """
-    plan = await db.get(TaxAdvantagedPlan, plan_id)
-    if not plan or plan.plan_owner_user_id != user_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax-advantaged plan not found")
-    return plan
-
 
 @router.get("", response_model=list[TaxAdvantagedPlanResponse])
 async def list_tax_advantaged_plans(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return tax-advantaged plans owned by the authenticated user.
+    """Return tax-advantaged plans owned by the authenticated user
 
     Args:
-        user: Authenticated user.
-        db: Active database session.
+        user: Authenticated user
+        db: Active database session
 
     Returns:
-        Plans owned by the authenticated user with current-year limits attached.
+        Plans owned by the authenticated user with current-year limits attached
     """
+    owner_id = user.id
+
+    # Fetch the user's plans in creation order before adding derived limit metrics
     result = await db.execute(
         select(TaxAdvantagedPlan)
-        .where(TaxAdvantagedPlan.plan_owner_user_id == user.id)
+        .where(TaxAdvantagedPlan.plan_owner_user_id == owner_id)
         .order_by(TaxAdvantagedPlan.created_at),
     )
     plans = result.scalars().all()
@@ -124,22 +64,23 @@ async def create_tax_advantaged_plan(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a tax-advantaged plan owned by the authenticated user.
+    """Create a tax-advantaged plan owned by the authenticated user
 
     Args:
-        data: Plan creation payload.
-        user: Authenticated user.
-        db: Active database session.
+        data: Plan creation payload
+        user: Authenticated user
+        db: Active database session
 
     Returns:
-        Created plan with current-year limits attached.
+        Created plan with current-year limits attached
 
     Raises:
-        HTTPException: If tax treatment, group scope, or currency is invalid.
+        HTTPException: Tax treatment, group scope, or currency is invalid
     """
-    _validate_tax_treatment(data.tax_treatment)
-    await _validate_group_scope(db, data.group_id, user.id)
+    validate_tax_advantaged_plan_tax_treatment(data.tax_treatment)
+    await validate_tax_advantaged_plan_group_scope(db, data.group_id, user.id)
 
+    # Fetch the currency so plans cannot reference an unsupported currency code
     currency = await db.get(Currency, data.currency)
     if not currency:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
@@ -167,20 +108,20 @@ async def get_tax_advantaged_plan(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return an owned tax-advantaged plan.
+    """Return an owned tax-advantaged plan
 
     Args:
-        plan_id: Plan identifier to fetch.
-        user: Authenticated user.
-        db: Active database session.
+        plan_id: Plan identifier to fetch
+        user: Authenticated user
+        db: Active database session
 
     Returns:
-        Owned plan with current-year limits attached.
+        Owned plan with current-year limits attached
 
     Raises:
-        HTTPException: If the plan does not exist or belongs to another user.
+        HTTPException: Plan does not exist or belongs to another user
     """
-    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
     await attach_tax_advantaged_plan_metrics(db, [plan])
     return plan
 
@@ -192,21 +133,21 @@ async def update_tax_advantaged_plan(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update an owned tax-advantaged plan.
+    """Update an owned tax-advantaged plan
 
     Args:
-        plan_id: Plan identifier to update.
-        data: Partial plan update payload.
-        user: Authenticated user.
-        db: Active database session.
+        plan_id: Plan identifier to update
+        data: Partial plan update payload
+        user: Authenticated user
+        db: Active database session
 
     Returns:
-        Updated plan with current-year limits attached.
+        Updated plan with current-year limits attached
 
     Raises:
-        HTTPException: If the plan is inaccessible or any supplied field is invalid.
+        HTTPException: Plan is inaccessible or a supplied field is invalid
     """
-    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
     previous_group_id = plan.group_id
     updates = data.model_dump(exclude_unset=True)
     if not updates:
@@ -216,10 +157,10 @@ async def update_tax_advantaged_plan(
     if "tax_treatment" in updates:
         if updates["tax_treatment"] is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="tax_treatment cannot be null")
-        _validate_tax_treatment(updates["tax_treatment"])
+        validate_tax_advantaged_plan_tax_treatment(updates["tax_treatment"])
 
     if "group_id" in updates:
-        await _validate_group_scope(db, updates["group_id"], user.id)
+        await validate_tax_advantaged_plan_group_scope(db, updates["group_id"], user.id)
 
     if "name" in updates and updates["name"] is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="name cannot be null")
@@ -244,17 +185,17 @@ async def delete_tax_advantaged_plan(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete an owned tax-advantaged plan.
+    """Delete an owned tax-advantaged plan
 
     Args:
-        plan_id: Plan identifier to delete.
-        user: Authenticated user.
-        db: Active database session.
+        plan_id: Plan identifier to delete
+        user: Authenticated user
+        db: Active database session
 
     Raises:
-        HTTPException: If the plan does not exist or belongs to another user.
+        HTTPException: Plan does not exist or belongs to another user
     """
-    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
     await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.delete(plan)
     await db.commit()
@@ -266,20 +207,22 @@ async def list_tax_advantaged_plan_limits(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return per-year limits for an owned tax-advantaged plan.
+    """Return per-year limits for an owned tax-advantaged plan
 
     Args:
-        plan_id: Plan identifier whose limits should be listed.
-        user: Authenticated user.
-        db: Active database session.
+        plan_id: Plan identifier whose limits should be listed
+        user: Authenticated user
+        db: Active database session
 
     Returns:
-        Yearly limits ordered by year.
+        Yearly limits ordered by year
 
     Raises:
-        HTTPException: If the plan does not exist or belongs to another user.
+        HTTPException: Plan does not exist or belongs to another user
     """
-    await _get_owned_plan_or_404(db, plan_id, user.id)
+    await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
+
+    # Fetch every yearly limit row for the owned plan in chronological order
     result = await db.execute(
         select(TaxAdvantagedPlanLimit)
         .where(TaxAdvantagedPlanLimit.plan_id == plan_id)
@@ -295,21 +238,23 @@ async def create_tax_advantaged_plan_limit(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a per-year limit for an owned tax-advantaged plan.
+    """Create a per-year limit for an owned tax-advantaged plan
 
     Args:
-        plan_id: Plan identifier that owns the limit row.
-        data: Yearly limit creation payload.
-        user: Authenticated user.
-        db: Active database session.
+        plan_id: Plan identifier that owns the limit row
+        data: Yearly limit creation payload
+        user: Authenticated user
+        db: Active database session
 
     Returns:
-        Created yearly limit row.
+        Created yearly limit row
 
     Raises:
-        HTTPException: If the plan is inaccessible or the year already has a limit row.
+        HTTPException: Plan is inaccessible or the year already has a limit row
     """
-    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
+
+    # Check the composite key before creating a yearly limit for this plan
     existing = await db.get(TaxAdvantagedPlanLimit, (plan_id, data.year))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A limit for this year already exists")
@@ -337,22 +282,24 @@ async def update_tax_advantaged_plan_limit(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a per-year limit for an owned tax-advantaged plan.
+    """Update a per-year limit for an owned tax-advantaged plan
 
     Args:
-        plan_id: Plan identifier that owns the limit row.
-        year: Year to update.
-        data: Partial yearly limit update payload.
-        user: Authenticated user.
-        db: Active database session.
+        plan_id: Plan identifier that owns the limit row
+        year: Year to update
+        data: Partial yearly limit update payload
+        user: Authenticated user
+        db: Active database session
 
     Returns:
-        Updated yearly limit row.
+        Updated yearly limit row
 
     Raises:
-        HTTPException: If the plan or limit row is inaccessible, missing, or invalid.
+        HTTPException: Plan or limit row is inaccessible, missing, or invalid
     """
-    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
+
+    # Fetch the limit row by plan and year after ownership has been verified
     row = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax-advantaged plan limit not found")
@@ -382,18 +329,20 @@ async def delete_tax_advantaged_plan_limit(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a per-year limit for an owned tax-advantaged plan.
+    """Delete a per-year limit for an owned tax-advantaged plan
 
     Args:
-        plan_id: Plan identifier that owns the limit row.
-        year: Year to delete.
-        user: Authenticated user.
-        db: Active database session.
+        plan_id: Plan identifier that owns the limit row
+        year: Year to delete
+        user: Authenticated user
+        db: Active database session
 
     Raises:
-        HTTPException: If the plan or limit row is inaccessible or missing.
+        HTTPException: Plan or limit row is inaccessible or missing
     """
-    plan = await _get_owned_plan_or_404(db, plan_id, user.id)
+    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
+
+    # Fetch the limit row by plan and year after ownership has been verified
     row = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax-advantaged plan limit not found")
