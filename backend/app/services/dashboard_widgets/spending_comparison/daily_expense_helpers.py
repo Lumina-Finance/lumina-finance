@@ -13,7 +13,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
-from app.services.dashboard_widgets.spending_comparison_range_helpers import DateSlotRange
+from app.services.dashboard_widgets.spending_comparison.range_helpers import DateSlotRange
 from app.services.fx import FxConverter
 
 

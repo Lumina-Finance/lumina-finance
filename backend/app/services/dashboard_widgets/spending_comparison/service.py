@@ -6,10 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.schemas.dashboard import RangeKind, SpendingComparisonResponse
 from app.schemas.fx import FxStatus
-from app.services.dashboard_widgets.spending_comparison_daily_expense_helpers import (
+from app.services.dashboard_widgets.spending_comparison.daily_expense_helpers import (
     get_converted_spending_comparison_daily_expenses,
 )
-from app.services.dashboard_widgets.spending_comparison_range_helpers import get_spending_comparison_slot_ranges
+from app.services.dashboard_widgets.spending_comparison.range_helpers import get_spending_comparison_slot_ranges
 
 
 async def get_spending_comparison(
