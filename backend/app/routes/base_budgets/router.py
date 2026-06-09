@@ -11,13 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
-from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
-from app.models.currency import Currency
-from app.models.group import GroupMember
+from app.models.budget import Budget
 from app.models.user import User
 from app.permissions import check_base_budget_access
-from app.routes.base_budgets.category_helpers import get_valid_tracked_category_ids, update_tracked_category_links
-from app.routes.base_budgets.instance_helpers import add_initial_budget_instances
+from app.routes.base_budgets.category_helpers import update_tracked_category_links
+from app.routes.base_budgets.creation_helpers import create_base_budget_and_get_response
 from app.routes.base_budgets.listing_helpers import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
 from app.routes.base_budgets.response_helpers import get_base_budget_response, get_budget_instance_response
@@ -33,37 +31,6 @@ from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 router.include_router(permissions_router)
-
-
-async def _check_group_admin_or_403(
-    db: AsyncSession, group_id: uuid.UUID, user_id: uuid.UUID,
-) -> GroupMember:
-    """Return group membership when a user can manage base budgets
-
-    Args:
-        db: Active database session
-        group_id: Group identifier for the base budget
-        user_id: Authenticated user identifier
-
-    Returns:
-        Group membership for an admin user
-
-    Raises:
-        HTTPException: Group is missing or user is not an admin
-    """
-    # Fetch the actor's group membership before allowing base budget management
-    result = await db.execute(
-        select(GroupMember).where(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == user_id,
-        ),
-    )
-    membership = result.scalar_one_or_none()
-    if not membership:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-    if not membership.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage base budgets")
-    return membership
 
 
 @router.patch("/{base_budget_id}", response_model=BaseBudgetResponse)
@@ -198,68 +165,8 @@ async def create_base_budget(
     Raises:
         HTTPException: Currency, ownership, categories, or period cadence are invalid
     """
-    # Validate currency exists
-    currency_result = await db.execute(select(Currency).where(Currency.id == data.currency))
-    if not currency_result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
-
-    # Determine ownership
-    owner_id = user.id
-    group_id = data.group_id
-    if group_id:
-        await _check_group_admin_or_403(db, group_id, user.id)
-        owner_id = None
-
-    # Validate tracked category IDs against the selected ownership scope
-    valid_tracked_category_ids = await get_valid_tracked_category_ids(db, data.category_ids, user.id, group_id)
-
-    if data.period_start is not None:
-        alignment_error = validate_period_start(
-            data.period_start,
-            data.recurrence_freq,
-            weekday=data.recurrence_weekday,
-            dom=data.recurrence_dom,
-            month=data.recurrence_month,
-        )
-        if alignment_error:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=alignment_error,
-            )
-
-    base_budget = BaseBudget(
-        owner_id=owner_id,
-        group_id=group_id,
-        name=data.name,
-        currency=data.currency,
-        recurrence_freq=data.recurrence_freq,
-        instance_length=data.instance_length,
-        recurrence_weekday=data.recurrence_weekday,
-        recurrence_dom=data.recurrence_dom,
-        recurrence_month=data.recurrence_month,
-        recurs=data.recurs,
-    )
-    db.add(base_budget)
-    await db.flush()
-
-    # Create tracked category links for the new base budget
     today = datetime.now(ZoneInfo(user.tz)).date()
-    category_added_at = data.period_start or today
-    for category_id in valid_tracked_category_ids:
-        db.add(
-            BudgetTrackedCategory(
-                base_budget_id=base_budget.id,
-                category_id=category_id,
-                added_at=category_added_at,
-            ),
-        )
-
-    add_initial_budget_instances(db, base_budget, data.period_start, data.overall_limit, today)
-
-    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
-    await db.commit()
-    await db.refresh(base_budget)
-    return await get_base_budget_response(db, base_budget)
+    return await create_base_budget_and_get_response(db, user, data, today)
 
 
 @router.post(
