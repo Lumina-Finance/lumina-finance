@@ -52,6 +52,28 @@ async def get_or_create_import_merchant(
     if len(name) > 256:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Merchant name is too long: {name[:28]}")
 
+    return await _get_or_create_import_merchant_by_name(db, user_id, name, merchants_by_name, stats)
+
+
+async def _get_or_create_import_merchant_by_name(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    name: str,
+    merchants_by_name: dict[str, Merchant],
+    stats: ImportStats,
+) -> Merchant:
+    """Return one existing merchant by name or create a personal import merchant
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        name: Trimmed merchant name from an import row
+        merchants_by_name: Request-local merchant lookup keyed by merchant name
+        stats: Import summary counters updated when a merchant is reused or created
+
+    Returns:
+        Existing or newly created merchant row for the import row
+    """
     existing_merchant = merchants_by_name.get(name)
     if existing_merchant is not None:
         stats.merchants_reused += 1
