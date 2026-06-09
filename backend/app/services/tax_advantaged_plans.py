@@ -1,3 +1,4 @@
+"""Tax-advantaged plan metric service"""
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
@@ -6,99 +7,83 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account, TaxAdvantagedPlan, TaxAdvantagedPlanLimit
+from app.models.account import Account, TaxAdvantagedPlan
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
-from app.models.user import User
+from app.services.tac_limit_metric_helpers import (
+    attach_tac_limit_metrics,
+    get_tac_limit_metrics,
+    get_tac_plan_current_years,
+)
 
 _TAC_TRANSFER_CATEGORY_NAME = "Transfer"
+
+
+def _get_current_datetime_for_timezone(timezone: ZoneInfo) -> datetime:
+    """Return the current datetime for a timezone
+
+    Args:
+        timezone: Timezone used for the current datetime
+
+    Returns:
+        Current datetime in the supplied timezone
+    """
+    current_datetime = datetime.now(timezone)
+    return current_datetime
 
 
 async def attach_tax_advantaged_plan_metrics(
     db: AsyncSession,
     plans: Sequence[TaxAdvantagedPlan],
 ) -> None:
-    """Attach current-year limits and transfer tallies to plan rows.
+    """Attach current-year limits and transfer tallies to plan rows
 
     Archived linked accounts are included because contribution and withdrawal
-    room is historical tax data, not active account availability.
+    room is historical tax data, not active account availability
 
     Args:
-        db: Active database session.
-        plans: Plan rows to enrich in place.
+        db: Active database session
+        plans: Plan rows to enrich in place
     """
     if not plans:
         return
 
-    plan_ids = [p.id for p in plans]
-    owner_ids = {p.plan_owner_user_id for p in plans}
-    owner_result = await db.execute(select(User.id, User.tz).where(User.id.in_(owner_ids)))
-    owner_timezones = dict(owner_result.all())
-    plan_years = {
-        plan.id: datetime.now(ZoneInfo(owner_timezones[plan.plan_owner_user_id])).year
-        for plan in plans
-    }
+    plan_ids = [plan.id for plan in plans]
+    current_years_by_plan_id = await get_tac_plan_current_years(db, plans, _get_current_datetime_for_timezone)
+    limit_metrics = await get_tac_limit_metrics(db, plan_ids, current_years_by_plan_id)
+    attach_tac_limit_metrics(plans, current_years_by_plan_id, limit_metrics)
 
-    limits: dict[tuple[uuid.UUID, int], tuple[int, int | None, int, int]] = {}
-    accrued_lifetime_limits: dict[uuid.UUID, int] = {plan.id: 0 for plan in plans}
-    has_accrued_limit_rows: set[uuid.UUID] = set()
+    positive_amount_filter = Transaction.amount > 0
+    negative_amount_filter = Transaction.amount < 0
 
-    result = await db.execute(
-        select(
-            TaxAdvantagedPlanLimit.plan_id,
-            TaxAdvantagedPlanLimit.year,
-            TaxAdvantagedPlanLimit.contribution_limit,
-            TaxAdvantagedPlanLimit.withdrawal_limit,
-            TaxAdvantagedPlanLimit.accrued_contributions,
-            TaxAdvantagedPlanLimit.accrued_withdrawals,
-        ).where(TaxAdvantagedPlanLimit.plan_id.in_(plan_ids)),
-    )
-    for row in result:
-        limits[(row.plan_id, row.year)] = (
-            row.contribution_limit,
-            row.withdrawal_limit,
-            row.accrued_contributions,
-            row.accrued_withdrawals,
-        )
-        if row.year <= plan_years[row.plan_id]:
-            accrued_lifetime_limits[row.plan_id] += row.contribution_limit
-            has_accrued_limit_rows.add(row.plan_id)
-
-    for plan in plans:
-        row = limits.get((plan.id, plan_years[plan.id]))
-        plan.current_year_contribution_limit = row[0] if row else None
-        plan.current_year_withdrawal_limit = row[1] if row else None
-        if plan.lifetime_contribution_limit is not None and plan.id in has_accrued_limit_rows:
-            plan.accrued_lifetime_contribution_limit = min(
-                accrued_lifetime_limits[plan.id],
-                plan.lifetime_contribution_limit,
-            )
-        else:
-            plan.accrued_lifetime_contribution_limit = None
-
-    positive = Transaction.amount > 0
-    negative = Transaction.amount < 0
-
-    tallies: dict[uuid.UUID, dict[str, int]] = {
+    transfer_totals_by_plan_id: dict[uuid.UUID, dict[str, int]] = {
         plan.id: {
-            "ytd_contributions": limits.get((plan.id, plan_years[plan.id]), (0, None, 0, 0))[2],
-            "ytd_withdrawals": limits.get((plan.id, plan_years[plan.id]), (0, None, 0, 0))[3],
+            "ytd_contributions": limit_metrics.limit_values_by_plan_year.get(
+                (plan.id, current_years_by_plan_id[plan.id]),
+                (0, None, 0, 0),
+            )[2],
+            "ytd_withdrawals": limit_metrics.limit_values_by_plan_year.get(
+                (plan.id, current_years_by_plan_id[plan.id]),
+                (0, None, 0, 0),
+            )[3],
             "lifetime_contributions": plan.accrued_contributions,
             "lifetime_withdrawals": 0,
         }
         for plan in plans
     }
-    result = await db.execute(
+
+    # Sum transfer-category activity for linked accounts by TAC plan and transaction year
+    transfer_total_result = await db.execute(
         select(
             Account.tax_advantaged_plan_id,
             func.extract("year", Transaction.dt).label("year"),
             func.coalesce(
-                func.sum(case((positive, Transaction.amount), else_=0)),
+                func.sum(case((positive_amount_filter, Transaction.amount), else_=0)),
                 0,
             ).label("contributions"),
             func.coalesce(
-                func.sum(case((negative, -Transaction.amount), else_=0)),
+                func.sum(case((negative_amount_filter, -Transaction.amount), else_=0)),
                 0,
             ).label("withdrawals"),
         )
@@ -106,23 +91,27 @@ async def attach_tax_advantaged_plan_metrics(
         .join(Category, Transaction.category_id == Category.id)
         .where(
             Account.tax_advantaged_plan_id.in_(plan_ids),
-            # Archived accounts remain linked to their plan history.
+
+            # Archived accounts remain linked to their plan history
             Category.kind == CategoryKind.TRANSFER,
             Category.name == _TAC_TRANSFER_CATEGORY_NAME,
         )
         .group_by(Account.tax_advantaged_plan_id, "year"),
     )
-    for row in result:
-        plan_id = row.tax_advantaged_plan_id
-        tallies[plan_id]["lifetime_contributions"] += row.contributions
-        tallies[plan_id]["lifetime_withdrawals"] += row.withdrawals
-        if int(row.year) == plan_years[plan_id]:
-            tallies[plan_id]["ytd_contributions"] += row.contributions
-            tallies[plan_id]["ytd_withdrawals"] += row.withdrawals
 
+    # Fold yearly transfer totals into current-year and lifetime fields for each plan
+    for transfer_total_row in transfer_total_result:
+        plan_id = transfer_total_row.tax_advantaged_plan_id
+        transfer_totals_by_plan_id[plan_id]["lifetime_contributions"] += transfer_total_row.contributions
+        transfer_totals_by_plan_id[plan_id]["lifetime_withdrawals"] += transfer_total_row.withdrawals
+        if int(transfer_total_row.year) == current_years_by_plan_id[plan_id]:
+            transfer_totals_by_plan_id[plan_id]["ytd_contributions"] += transfer_total_row.contributions
+            transfer_totals_by_plan_id[plan_id]["ytd_withdrawals"] += transfer_total_row.withdrawals
+
+    # Assign the completed transfer tallies onto each plan response row
     for plan in plans:
-        row = tallies[plan.id]
-        plan.ytd_contributions = row["ytd_contributions"]
-        plan.ytd_withdrawals = row["ytd_withdrawals"]
-        plan.lifetime_contributions = row["lifetime_contributions"]
-        plan.lifetime_withdrawals = row["lifetime_withdrawals"]
+        transfer_totals = transfer_totals_by_plan_id[plan.id]
+        plan.ytd_contributions = transfer_totals["ytd_contributions"]
+        plan.ytd_withdrawals = transfer_totals["ytd_withdrawals"]
+        plan.lifetime_contributions = transfer_totals["lifetime_contributions"]
+        plan.lifetime_withdrawals = transfer_totals["lifetime_withdrawals"]
