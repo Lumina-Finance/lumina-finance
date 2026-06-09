@@ -1,3 +1,4 @@
+"""User profile and runway routes"""
 import calendar
 import uuid
 from datetime import date, datetime, timedelta
@@ -6,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -15,7 +16,14 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
-from app.models.user import User, UserRunwayAccount
+from app.models.user import User
+from app.routes.user_runway_account_helpers import (
+    get_active_runway_account_ids,
+    get_readable_non_archived_accounts_for_runway,
+    get_runway_account_ids_by_archive_state,
+    get_runway_thresholds_from_user,
+    replace_runway_account_ids,
+)
 from app.schemas.fx import FxStatus
 from app.schemas.user import (
     CacheScopeStatus,
@@ -24,22 +32,27 @@ from app.schemas.user import (
     RunwayAccountsRequest,
     RunwayResponse,
     RunwaySettings,
-    RunwayThresholds,
     UpdateProfileRequest,
     UserProfile,
 )
 from app.services.cache_state import get_visible_cache_status, mark_user_cache_changed
-from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
 from app.services.snapshots import get_current_balances
 
-# Trailing window the runway average is taken over. 12 months gives enough data
-# to smooth out seasonal spikes (e.g. insurance renewals, holiday spend) while
-# staying current with lifestyle changes.
+# Trailing window used to smooth seasonal spikes while staying current with lifestyle changes
 _RUNWAY_WINDOW_MONTHS = 12
 
 
 def _add_months_anchored(start: date, months: int) -> date:
+    """Return a date shifted by whole calendar months
+
+    Args:
+        start: Starting date
+        months: Number of months to shift
+
+    Returns:
+        Shifted date anchored to the closest valid day in the target month
+    """
     month_index = (start.year * 12 + start.month - 1) + months
     year = month_index // 12
     month = month_index % 12 + 1
@@ -47,80 +60,22 @@ def _add_months_anchored(start: date, months: int) -> date:
     return date(year, month, day)
 
 
-def _runway_thresholds_from_user(user: User) -> RunwayThresholds:
-    return RunwayThresholds(
-        risky_below_months=user.runway_risky_below_months,
-        healthy_at_months=user.runway_healthy_at_months,
-    )
-
-
-async def _accessible_non_archived_accounts(db: AsyncSession, user: User):
-    return [
-        account
-        for account in await get_accessible_accounts(db, user, include_archived=True)
-        if not account.is_archived
-    ]
-
-
-async def _runway_account_ids_by_archive_state(
-    db: AsyncSession,
-    user: User,
-) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
-    accessible_accounts = await get_accessible_accounts(db, user, include_archived=True)
-    active_ids = {account.id for account in accessible_accounts if not account.is_archived}
-    archived_ids = {account.id for account in accessible_accounts if account.is_archived}
-    stored = await db.execute(
-        select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
-    )
-    active: list[uuid.UUID] = []
-    archived: list[uuid.UUID] = []
-    for account_id in stored.scalars().all():
-        if account_id in active_ids:
-            active.append(account_id)
-        elif account_id in archived_ids:
-            archived.append(account_id)
-    return active, archived
-
-
-async def _active_runway_account_ids(db: AsyncSession, user: User) -> list[uuid.UUID]:
-    active, _archived = await _runway_account_ids_by_archive_state(db, user)
-    return active
-
-
-async def _replace_runway_account_ids(
-    db: AsyncSession,
-    user: User,
-    account_ids: list[uuid.UUID],
-) -> list[uuid.UUID]:
-    requested_ids = set(account_ids)
-
-    all_accessible = await get_accessible_accounts(db, user, include_archived=True)
-    active_ids = {a.id for a in all_accessible if not a.is_archived}
-    archived_ids = {a.id for a in all_accessible if a.is_archived}
-
-    invalid = requested_ids - active_ids
-    if invalid:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Inaccessible accounts: {sorted(str(x) for x in invalid)}",
-        )
-
-    # Replace the full set in a single transaction — simpler than diffing and
-    # the runway selection is expected to be small (a handful of accounts).
-    # Archived selections are left untouched so archiving an account is reversible.
-    delete_query = delete(UserRunwayAccount).where(UserRunwayAccount.user_id == user.id)
-    if archived_ids:
-        delete_query = delete_query.where(UserRunwayAccount.account_id.not_in(archived_ids))
-    await db.execute(delete_query)
-    for account_id in requested_ids:
-        db.add(UserRunwayAccount(user_id=user.id, account_id=account_id))
-
-    return sorted(requested_ids)
-
-
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)))
-    return {row.id: row.minor_unit_exponent for row in result}
+    """Return minor-unit exponents for currency codes
+
+    Args:
+        db: Active database session
+        currencies: Currency codes to fetch
+
+    Returns:
+        Minor-unit exponent keyed by currency code
+    """
+    requested_currencies = currencies
+
+    # Fetch currency exponents so balance and transaction amounts can be converted correctly
+    currency_result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(requested_currencies)))
+    currency_exponents = {row.id: row.minor_unit_exponent for row in currency_result}
+    return currency_exponents
 
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -130,7 +85,7 @@ router = APIRouter(prefix="/me", tags=["me"])
 async def get_me(
     user: Annotated[User, Depends(get_current_user)],
 ):
-    """Return the authenticated user's full profile."""
+    """Return the authenticated user's full profile"""
     return UserProfile.model_validate(user)
 
 
@@ -139,9 +94,9 @@ async def get_cache_status(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return the latest app-data change timestamp visible to the user."""
+    """Return the latest app-data change timestamp visible to the user"""
     status = await get_visible_cache_status(db, user.id)
-    return CacheStatus(
+    cache_status = CacheStatus(
         changed_at=status.changed_at,
         personal=CacheScopeStatus(
             changed_at=status.personal.changed_at,
@@ -155,6 +110,7 @@ async def get_cache_status(
             for group_id, group_status in status.groups.items()
         },
     )
+    return cache_status
 
 
 @router.patch("", response_model=UserProfile)
@@ -163,7 +119,7 @@ async def update_me(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update the authenticated user's profile. Only provided fields are changed."""
+    """Update the authenticated user's profile"""
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return UserProfile.model_validate(user)
@@ -177,9 +133,11 @@ async def update_me(
             detail=f"Cannot set to null: {', '.join(sorted(null_fields))}",
         )
 
-    # Validate currency exists if being changed
     if "base_currency" in updates:
-        result = await db.execute(select(Currency).where(Currency.id == updates["base_currency"]))
+        base_currency = updates["base_currency"]
+
+        # Fetch the target currency so users cannot save an unsupported base currency
+        result = await db.execute(select(Currency).where(Currency.id == base_currency))
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
 
@@ -196,12 +154,13 @@ async def list_runway_accounts(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return the account IDs currently feeding the runway calculation.
+    """Return the account IDs currently feeding the runway calculation
 
     Filters out any stored selections the user can no longer read or has
-    archived, so the response only surfaces currently active IDs.
+    archived, so the response only surfaces currently active IDs
     """
-    return await _active_runway_account_ids(db, user)
+    active_account_ids = await get_active_runway_account_ids(db, user)
+    return active_account_ids
 
 
 @router.put("/runway-accounts", response_model=list[uuid.UUID])
@@ -210,14 +169,14 @@ async def replace_runway_accounts(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Replace the user's runway account selection with the submitted set.
+    """Replace the user's runway account selection with the submitted set
 
-    Dedupes the submitted set. Rejects the whole request with 422 if any submitted
+    Dedupes the submitted set and rejects the whole request with 422 if any submitted
     account isn't readable by the user (personal, household admin, or explicit
-    permission) and currently non-archived. Stored archived selections are
-    preserved so they become active again if the account is unarchived.
+    permission) and currently non-archived while stored archived selections are
+    preserved so they become active again if the account is unarchived
     """
-    selected_ids = await _replace_runway_account_ids(db, user, data.account_ids)
+    selected_ids = await replace_runway_account_ids(db, user, data.account_ids)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
 
@@ -229,13 +188,14 @@ async def get_runway_settings(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return the user's runway account selection and status thresholds."""
-    active_account_ids, archived_account_ids = await _runway_account_ids_by_archive_state(db, user)
-    return RunwaySettings(
+    """Return the user's runway account selection and status thresholds"""
+    active_account_ids, archived_account_ids = await get_runway_account_ids_by_archive_state(db, user)
+    runway_settings = RunwaySettings(
         account_ids=active_account_ids,
         archived_account_ids=archived_account_ids,
-        thresholds=_runway_thresholds_from_user(user),
+        thresholds=get_runway_thresholds_from_user(user),
     )
+    return runway_settings
 
 
 @router.put("/runway-settings", response_model=RunwaySettings)
@@ -244,19 +204,20 @@ async def replace_runway_settings(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Replace the user's runway account selection and status thresholds."""
-    await _replace_runway_account_ids(db, user, data.account_ids)
+    """Replace the user's runway account selection and status thresholds"""
+    await replace_runway_account_ids(db, user, data.account_ids)
     user.runway_risky_below_months = data.thresholds.risky_below_months
     user.runway_healthy_at_months = data.thresholds.healthy_at_months
     await mark_user_cache_changed(db, user.id)
     await db.commit()
-    active_account_ids, archived_account_ids = await _runway_account_ids_by_archive_state(db, user)
+    active_account_ids, archived_account_ids = await get_runway_account_ids_by_archive_state(db, user)
 
-    return RunwaySettings(
+    runway_settings = RunwaySettings(
         account_ids=active_account_ids,
         archived_account_ids=archived_account_ids,
-        thresholds=_runway_thresholds_from_user(user),
+        thresholds=get_runway_thresholds_from_user(user),
     )
+    return runway_settings
 
 
 @router.get("/runway", response_model=RunwayResponse)
@@ -264,36 +225,36 @@ async def get_runway(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Compute the user's cash runway in months.
+    """Compute the user's cash runway in months
 
     Runway = (sum of current balance across selected runway accounts) divided
-    by the average monthly net expense over the last 12 completed months.
+    by the average monthly net expense over the last 12 completed months
     Expense refunds reduce expenses, while income and transfer-category
-    transactions are excluded.
+    transactions are excluded
     """
-    accounts = await _accessible_non_archived_accounts(db, user)
+    accounts = await get_readable_non_archived_accounts_for_runway(db, user)
     account_by_id = {account.id: account for account in accounts}
-    accessible_ids = set(account_by_id)
-    stored = await db.execute(
-        select(UserRunwayAccount.account_id).where(UserRunwayAccount.user_id == user.id),
-    )
-    selected_ids = [aid for aid in stored.scalars().all() if aid in accessible_ids]
+    readable_account_ids = set(account_by_id)
+    active_runway_account_ids = await get_active_runway_account_ids(db, user)
+    selected_ids = [account_id for account_id in active_runway_account_ids if account_id in readable_account_ids]
     selected_accounts = [account_by_id[account_id] for account_id in selected_ids]
-    thresholds = _runway_thresholds_from_user(user)
+    thresholds = get_runway_thresholds_from_user(user)
 
     if not selected_ids:
-        return RunwayResponse(
+        response = RunwayResponse(
             months=None, reason="no_accounts",
             avg_monthly_expense=0, months_covered=0, liquid_balance=0,
             account_balances=[],
             thresholds=thresholds,
             fx_status=FxStatus(),
         )
+        return response
 
     today = datetime.now(ZoneInfo(user.tz)).date()
     window_end = date(today.year, today.month, 1)
     window_start = _add_months_anchored(window_end, -_RUNWAY_WINDOW_MONTHS)
 
+    # Fetch expense totals by transaction date, account, and category inside the completed-month runway window
     expense_result = await db.execute(
         select(
             Transaction.dt,
@@ -303,7 +264,7 @@ async def get_runway(
         )
         .select_from(Transaction)
         .join(Category, Category.id == Transaction.category_id)
-        .where(Transaction.account_id.in_(accessible_ids))
+        .where(Transaction.account_id.in_(readable_account_ids))
         .where(Transaction.dt >= window_start)
         .where(Transaction.dt < window_end)
         .where(Category.kind == CategoryKind.EXPENSE)
@@ -344,7 +305,8 @@ async def get_runway(
 
     category_month_totals: dict[tuple[date, uuid.UUID], int] = {}
     for row in expense_rows:
-        # Transaction.amount is stored in the account currency; Transaction.currency is receipt metadata.
+
+        # Convert account-currency expense totals into the user's base currency by transaction date
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
             base=account_by_id[row.account_id].currency,
@@ -363,13 +325,13 @@ async def get_runway(
         if total < 0
     ]
     months_covered = len({month for month, _total in outflow_totals})
-    # Negative expense category-month totals count toward runway. Refunds reduce
-    # expenses; over-refunded categories, income, and transfers are ignored.
+
+    # Negative expense category-month totals count toward runway while refunds reduce expenses
     expense_outflow = sum(total for _month, total in outflow_totals)
     fx_status = converter.get_status()
 
     if months_covered < 1 or expense_outflow >= 0:
-        return RunwayResponse(
+        response = RunwayResponse(
             months=None, reason="insufficient_history",
             avg_monthly_expense=0, months_covered=months_covered,
             liquid_balance=liquid_balance,
@@ -377,10 +339,11 @@ async def get_runway(
             thresholds=thresholds,
             fx_status=fx_status,
         )
+        return response
 
     avg_monthly_expense = abs(expense_outflow) // months_covered
     months = liquid_balance / avg_monthly_expense if avg_monthly_expense > 0 else None
-    return RunwayResponse(
+    response = RunwayResponse(
         months=max(0.0, months) if months is not None else None,
         reason=None,
         avg_monthly_expense=avg_monthly_expense,
@@ -390,3 +353,4 @@ async def get_runway(
         thresholds=thresholds,
         fx_status=fx_status,
     )
+    return response
