@@ -6,10 +6,15 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account, AccountBalanceSnapshot
+from app.models.account import Account
 from app.models.currency import Currency
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
+from app.services.insights.net_worth.balance_snapshot_helpers import (
+    get_account_balance_snapshots_in_range,
+    get_latest_account_balances_before,
+    get_latest_account_balances_on_or_before,
+)
 from app.services.insights.net_worth.bucket_helpers import build_net_worth_buckets
 from app.services.insights.net_worth.groups import (
     NET_WORTH_GROUP_INDEX_BY_ID,
@@ -60,7 +65,7 @@ async def get_net_worth_chart_series(
         base_currency=base_currency,
         baseline_date=baseline_date,
     )
-    baseline_balances = await _get_account_balances_at(db, account_ids, baseline_date)
+    baseline_balances = await get_latest_account_balances_on_or_before(db, account_ids, baseline_date)
     baseline_values = await _get_grouped_values_from_balances(
         accounts,
         group_index_by_account_id,
@@ -71,43 +76,19 @@ async def get_net_worth_chart_series(
     )
     first_bucket_start = buckets[0][0]
 
-    # Load each account's latest balance before the first bucket so chart rows can carry values forward
-    anchor_result = await db.execute(
-        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
-        .where(
-            AccountBalanceSnapshot.account_id.in_(account_ids),
-            AccountBalanceSnapshot.dt < first_bucket_start,
-        )
-        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
-        .distinct(AccountBalanceSnapshot.account_id),
-    )
-    running = {row.account_id: int(row.balance) for row in anchor_result}
+    running = await get_latest_account_balances_before(db, account_ids, first_bucket_start)
     for account_id in account_ids:
         running.setdefault(account_id, 0)
 
-    # Load all in-range balance snapshots once, then walk them into bucket values in date order
-    snapshot_result = await db.execute(
-        select(
-            AccountBalanceSnapshot.account_id,
-            AccountBalanceSnapshot.balance,
-            AccountBalanceSnapshot.dt,
-        )
-        .where(
-            AccountBalanceSnapshot.account_id.in_(account_ids),
-            AccountBalanceSnapshot.dt >= first_bucket_start,
-            AccountBalanceSnapshot.dt <= to_date,
-        )
-        .order_by(AccountBalanceSnapshot.dt, AccountBalanceSnapshot.account_id),
-    )
-    snapshots = list(snapshot_result)
+    snapshots = await get_account_balance_snapshots_in_range(db, account_ids, first_bucket_start, to_date)
     snapshot_index = 0
     chart_rows: list[tuple[date, date, list[int]]] = []
 
     # Carry account balances forward through buckets and convert each bucket's grouped values
     for label_date, value_date in buckets:
-        while snapshot_index < len(snapshots) and snapshots[snapshot_index].dt <= value_date:
+        while snapshot_index < len(snapshots) and snapshots[snapshot_index].snapshot_date <= value_date:
             snapshot = snapshots[snapshot_index]
-            running[snapshot.account_id] = int(snapshot.balance)
+            running[snapshot.account_id] = snapshot.balance
             snapshot_index += 1
 
         values = await _get_grouped_values_from_balances(
@@ -121,37 +102,6 @@ async def get_net_worth_chart_series(
         chart_rows.append((label_date, value_date, values))
 
     return baseline_values, chart_rows, converter.get_status()
-
-
-async def _get_account_balances_at(
-    db: AsyncSession,
-    account_ids: list[uuid.UUID],
-    target_date: date,
-) -> dict[uuid.UUID, int]:
-    """Return latest account balances on or before a target date
-
-    Args:
-        db: Active database session
-        account_ids: Account IDs included in the lookup
-        target_date: Latest snapshot date allowed in the lookup
-
-    Returns:
-        Balance amount keyed by account ID
-    """
-    if not account_ids:
-        return {}
-
-    # Fetch the latest snapshot for each account on or before the requested date
-    result = await db.execute(
-        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
-        .where(
-            AccountBalanceSnapshot.account_id.in_(account_ids),
-            AccountBalanceSnapshot.dt <= target_date,
-        )
-        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
-        .distinct(AccountBalanceSnapshot.account_id),
-    )
-    return {row.account_id: int(row.balance) for row in result}
 
 
 async def _get_grouped_values_from_balances(
