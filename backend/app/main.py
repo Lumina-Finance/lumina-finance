@@ -14,10 +14,11 @@ from app.routes.group import router as group_router
 from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
 from app.routes.merchant import router as merchant_router
+from app.routes.runway import router as runway_router
 from app.routes.tag import router as tag_router
 from app.routes.tax_advantaged_plans import router as tax_advantaged_plan_router
 from app.routes.transaction import router as transaction_router
-from app.routes.user import router as user_router
+from app.routes.users import router as user_router
 
 app = FastAPI(title="Lumina Finance API")
 
@@ -35,6 +36,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(user_router)
+app.include_router(runway_router)
 app.include_router(currency_router)
 app.include_router(institution_router)
 app.include_router(account_router)

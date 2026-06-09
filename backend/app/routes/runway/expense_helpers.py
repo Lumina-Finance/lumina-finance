@@ -1,4 +1,4 @@
-"""User runway expense route helpers"""
+"""Runway expense route helpers"""
 import calendar
 import uuid
 from datetime import date

@@ -1,4 +1,4 @@
-"""User runway response build helpers"""
+"""Runway response build helpers"""
 
 from app.schemas.fx import FxStatus
 from app.schemas.user import RunwayAccountBalance, RunwayResponse, RunwayThresholds

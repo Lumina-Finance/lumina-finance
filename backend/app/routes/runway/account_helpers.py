@@ -1,4 +1,4 @@
-"""User runway account route helpers"""
+"""Runway account route helpers"""
 import uuid
 
 from fastapi import HTTPException, status
