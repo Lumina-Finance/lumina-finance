@@ -10,6 +10,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.group import Group, GroupMember
 from app.models.user import User
+from app.routes.groups.creation_helpers import create_group_and_get_response
 from app.routes.groups.deletion_helpers import delete_group_for_owner
 from app.routes.groups.membership_helpers import (
     get_group_admin_membership_or_403,
@@ -291,13 +292,4 @@ async def create_group(
     Returns:
         Newly created group
     """
-    group_id = uuid.uuid4()
-    group = Group(id=group_id, owner_id=user.id, name=data.name, profile_pic=data.profile_pic)
-    group_member = GroupMember(group_id=group_id, user_id=user.id, is_admin=True)
-    db.add(group)
-    db.add(group_member)
-    await mark_user_cache_changed(db, user.id)
-    await mark_group_cache_changed(db, group_id)
-    await db.commit()
-    await db.refresh(group)
-    return group
+    return await create_group_and_get_response(db, user, data)
