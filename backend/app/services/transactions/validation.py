@@ -46,6 +46,7 @@ async def validate_transaction_category_access(
             | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
         )
 
+    # Confirm the category exists inside the transaction account scope
     if not (await db.execute(query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 
@@ -81,6 +82,7 @@ async def validate_transaction_merchant_access(
     else:
         query = query.where(Merchant.owner_id == user_id, Merchant.group_id.is_(None))
 
+    # Confirm the merchant exists inside the transaction account scope
     if not (await db.execute(query)).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
 

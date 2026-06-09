@@ -61,6 +61,10 @@ async def list_transaction_responses(
 ) -> list[TransactionResponse]:
     """Return paginated transaction responses with sorting and filtering
 
+    The service builds a visibility-scoped transaction query, batch-loads
+    related response data, and converts each transaction into account and user
+    base-currency amounts without issuing per-transaction lookup queries
+
     Args:
         db: Active database session
         user: Authenticated user requesting the transaction list
@@ -106,6 +110,7 @@ async def list_transaction_responses(
         offset=offset,
     )
 
+    # Fetch one transaction page inside the user's readable account scope and requested filters
     transaction_result = await db.execute(transaction_query)
     transactions = list(transaction_result.scalars().all())
 
@@ -301,6 +306,9 @@ def _date_sort_order(sort_order: str, tag_names):
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
+    The returned mapping lets the FX converter interpret each amount in the
+    smallest unit used by that currency before converting response amounts
+
     Args:
         db: Active database session
         currencies: Currency codes to load
@@ -308,6 +316,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    # Load exponent metadata for every currency needed by response conversions
     currency_result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
@@ -317,6 +326,10 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
 async def _get_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UUID]) -> dict[uuid.UUID, Account]:
     """Load accounts keyed by ID
 
+    Response conversion needs the persisted account currency for each
+    transaction, so this helper batches parent account loading and returns a
+    lookup map
+
     Args:
         db: Active database session
         account_ids: Account IDs to fetch
@@ -324,6 +337,7 @@ async def _get_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UUID]) -> 
     Returns:
         Mapping from account ID to account row
     """
+    # Fetch transaction parent accounts so account-currency conversions use persisted account currency
     account_rows = (
         (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
         if account_ids

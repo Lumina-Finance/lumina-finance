@@ -159,7 +159,19 @@ async def get_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single transaction by ID. Requires read access on the parent account"""
+    """Return one transaction after checking account read access
+
+    The route resolves the transaction through the access helper, then loads
+    tags and merchant names required by the public response shape
+
+    Args:
+        transaction_id: Transaction identifier from the route path
+        user: Authenticated user requesting the transaction
+        db: Active database session
+
+    Returns:
+        Transaction response enriched with tag and merchant display data
+    """
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
     tag_ids = await get_tag_ids(db, txn.id)
     tag_summary_map = await get_tags_batch(db, [txn.id])
@@ -178,7 +190,19 @@ async def import_transaction_batch(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Import frontend-compiled transactions and rebuild affected account snapshots once"""
+    """Import a prepared transaction batch for the authenticated user
+
+    The route delegates transaction validation, creation, cache invalidation,
+    and affected snapshot recomputation to the import service
+
+    Args:
+        data: Prepared import payload from the frontend compiler
+        user: Authenticated user running the import
+        db: Active database session
+
+    Returns:
+        Import summary containing created and skipped transaction counts
+    """
     return await import_transactions(db, user, data)
 
 
@@ -188,7 +212,20 @@ async def create_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Create a new transaction. Requires write access on the target account"""
+    """Create a transaction after validating target account write access
+
+    The route validates related category, merchant, tag, and currency inputs,
+    inserts the transaction, updates tag links, and rebuilds affected account
+    snapshots before returning the enriched response
+
+    Args:
+        data: Transaction creation payload
+        user: Authenticated user creating the transaction
+        db: Active database session
+
+    Returns:
+        Newly created transaction response
+    """
     account = await check_account_access(
         db,
         data.account_id,
@@ -259,7 +296,21 @@ async def update_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Update a transaction. Requires write access on the target account"""
+    """Update a transaction after checking write access
+
+    The route applies provided fields, validates changed related entities,
+    replaces tag links when requested, and recomputes balance snapshots when
+    the account, date, or amount changes
+
+    Args:
+        transaction_id: Transaction identifier from the route path
+        data: Partial transaction update payload
+        user: Authenticated user updating the transaction
+        db: Active database session
+
+    Returns:
+        Updated transaction response with current related display data
+    """
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
     # Fetch the current account so archived status and cache scope use the persisted parent account
     current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
@@ -356,7 +407,20 @@ async def delete_transaction(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete a transaction. Requires write access on the parent account"""
+    """Delete a transaction after checking write access
+
+    The route removes tag links, deletes the transaction, recomputes affected
+    account snapshots from the deleted transaction date, and marks the parent
+    cache scope as changed
+
+    Args:
+        transaction_id: Transaction identifier from the route path
+        user: Authenticated user deleting the transaction
+        db: Active database session
+
+    Returns:
+        None
+    """
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
     # Fetch the parent account so archived status and cache scope are based on the persisted account row
     account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()

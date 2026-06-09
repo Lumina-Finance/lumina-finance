@@ -36,6 +36,10 @@ async def get_transactions_overview(
 ) -> TransactionsOverview:
     """Return aggregated transaction metrics for the user's accessible accounts
 
+    The service builds a shared transaction scope, runs separate aggregate
+    queries for each overview panel, and reuses prefetched FX rates while each
+    panel reports its own conversion status
+
     Args:
         db: Active database session
         user: Authenticated user requesting the overview
@@ -66,6 +70,7 @@ async def get_transactions_overview(
     transaction_filters = transaction_query.whereclause
 
     matching_transaction_query = select(sa.literal(1)).where(transaction_filters).limit(1)
+    # Check for any matching transaction before running the heavier overview aggregate queries
     if (await db.execute(matching_transaction_query)).scalar_one_or_none() is None:
         return TransactionsOverview(
             total_inflow=None,
@@ -132,6 +137,10 @@ async def get_transactions_overview(
 async def _query_overview_cash_flow(db: AsyncSession, transaction_filters):
     """Query per-day inflow and outflow totals for the overview
 
+    The query groups eligible income, expense, and real transfer activity by
+    transaction date and account so later conversion can use each account's
+    persisted currency
+
     Args:
         db: Active database session
         transaction_filters: SQLAlchemy filters shared by overview queries
@@ -139,6 +148,7 @@ async def _query_overview_cash_flow(db: AsyncSession, transaction_filters):
     Returns:
         SQLAlchemy rows containing date, account, inflow, and outflow values
     """
+    # Aggregate cash-flow totals by date and account for transactions in the overview scope
     return (
         await db.execute(
             select(
@@ -167,6 +177,9 @@ async def _query_overview_cash_flow(db: AsyncSession, transaction_filters):
 async def _query_overview_categories(db: AsyncSession, transaction_filters):
     """Query per-category transaction totals for the overview
 
+    The query preserves account and date on each aggregate row so totals can be
+    converted accurately before being merged into top category results
+
     Args:
         db: Active database session
         transaction_filters: SQLAlchemy filters shared by overview queries
@@ -174,6 +187,7 @@ async def _query_overview_categories(db: AsyncSession, transaction_filters):
     Returns:
         SQLAlchemy rows containing category, account, date, and total values
     """
+    # Aggregate income and expense totals by category, account, and date for conversion
     return (
         await db.execute(
             select(
@@ -194,6 +208,9 @@ async def _query_overview_categories(db: AsyncSession, transaction_filters):
 async def _query_overview_outliers(db: AsyncSession, transaction_filters):
     """Query candidate outlier transactions for the overview
 
+    The query loads negative income or expense transactions with merchant data
+    so the conversion layer can rank the largest converted spending rows
+
     Args:
         db: Active database session
         transaction_filters: SQLAlchemy filters shared by overview queries
@@ -201,6 +218,7 @@ async def _query_overview_outliers(db: AsyncSession, transaction_filters):
     Returns:
         SQLAlchemy rows for expense-side transactions eligible for outlier ranking
     """
+    # Fetch negative income or expense transactions that can be ranked as outliers
     return (
         await db.execute(
             select(
@@ -225,6 +243,9 @@ async def _query_overview_outliers(db: AsyncSession, transaction_filters):
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
     """Load minor-unit exponents for currency codes
 
+    Overview conversion uses these exponents to interpret aggregate values in
+    minor units before converting them to the user's base currency
+
     Args:
         db: Active database session
         currencies: Currency codes to load
@@ -232,6 +253,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    # Load exponent metadata for every currency needed by overview conversions
     currency_result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
@@ -241,6 +263,10 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
 async def _get_overview_accounts_by_id(db: AsyncSession, conversion_rows) -> dict[uuid.UUID, Account]:
     """Load accounts required for overview currency conversion
 
+    Aggregate rows keep account IDs instead of account models, so this helper
+    batches parent account loading and returns the account currency lookup used
+    by every overview converter
+
     Args:
         db: Active database session
         conversion_rows: Overview query rows that reference account IDs
@@ -249,6 +275,7 @@ async def _get_overview_accounts_by_id(db: AsyncSession, conversion_rows) -> dic
         Account rows keyed by account ID
     """
     account_ids = {row.account_id for row in conversion_rows}
+    # Fetch accounts referenced by aggregate rows so conversion uses the account currency
     accounts = (
         (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
         if account_ids
