@@ -3,7 +3,6 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +12,6 @@ from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.currency import Currency
-from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
@@ -36,6 +34,7 @@ from app.services.transaction_responses import (
 )
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
+from app.services.transactions.tags import delete_transaction_tag_links, replace_transaction_tag_links
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
@@ -43,25 +42,6 @@ from app.services.transactions.validation import (
 )
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
-
-
-async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
-    """Replace the tag set attached to a transaction
-
-    Args:
-        db: Active database session
-        transaction_id: Transaction ID whose tag links should be replaced
-        tag_ids: Tag IDs to attach after removing existing tag links
-
-    Returns:
-        None
-    """
-    # Remove existing tag links for the transaction before adding the replacement set
-    await db.execute(
-        sa.delete(TransactionTag).where(TransactionTag.transaction_id == transaction_id),
-    )
-    for tag_id in tag_ids:
-        db.add(TransactionTag(transaction_id=transaction_id, tag_id=tag_id))
 
 
 @router.get("/overview", response_model=TransactionsOverview)
@@ -269,7 +249,7 @@ async def create_transaction(
     await db.flush()
 
     if validated_tag_ids:
-        await _replace_tags(db, txn.id, validated_tag_ids)
+        await replace_transaction_tag_links(db, txn.id, validated_tag_ids)
 
     # Rebuild balance snapshots from this transaction's day forward
     await recompute_snapshots_from(db, data.account_id, data.dt)
@@ -372,7 +352,7 @@ async def update_transaction(
 
     if new_tag_ids is not None:
         validated = await get_valid_transaction_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
-        await _replace_tags(db, txn.id, validated)
+        await replace_transaction_tag_links(db, txn.id, validated)
 
     if recompute_needed:
         await db.flush()
@@ -431,10 +411,7 @@ async def delete_transaction(
     account_id = txn.account_id
     deleted_dt = txn.dt
 
-    # Delete junction rows before the transaction itself
-    await db.execute(
-        sa.delete(TransactionTag).where(TransactionTag.transaction_id == transaction_id),
-    )
+    await delete_transaction_tag_links(db, transaction_id)
     await db.delete(txn)
     await db.flush()
 
