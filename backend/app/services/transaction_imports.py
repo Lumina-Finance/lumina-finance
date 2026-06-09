@@ -7,23 +7,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.group import GroupMember
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.transaction import (
-    TransactionImportCategoryMapping,
-    TransactionImportRequest,
-    TransactionImportResponse,
-)
+from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transactions.imports.accounts import get_or_create_import_accounts_by_source
 from app.services.transactions.imports.amounts import parse_import_amount_to_minor_units
+from app.services.transactions.imports.categories import get_or_create_import_categories_by_source
 from app.services.transactions.imports.stats import ImportStats
 from app.services.transactions.imports.validation import strip_import_text_or_raise
 
@@ -45,7 +40,7 @@ async def import_transactions(
     """
     stats = ImportStats()
     accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
-    categories_by_source = await _resolve_categories(db, user, data.categories, stats)
+    categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
     currencies = await _load_currencies(db, {account.currency for account in accounts_by_source.values()})
     merchant_cache = await _load_personal_merchants(db, user.id)
     tag_cache = await _load_personal_tags(db, user.id)
@@ -113,86 +108,20 @@ async def import_transactions(
     )
 
 
-async def _resolve_categories(
-    db: AsyncSession,
-    user: User,
-    mappings: list[TransactionImportCategoryMapping],
-    stats: ImportStats,
-) -> dict[str, Category]:
-    category_map: dict[str, Category] = {}
-    for mapping in mappings:
-        source = strip_import_text_or_raise(mapping.source, "Category source")
-        if source in category_map:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Duplicate category source: {source}")
-        if (mapping.category_id is None) == (mapping.create is None):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category source must map to exactly one category action: {source}",
-            )
-
-        if mapping.category_id is not None:
-            category = await _get_accessible_category(db, mapping.category_id, user.id)
-            stats.categories_reused += 1
-        else:
-            category = await _get_or_create_personal_category(db, user.id, mapping.create, stats)
-
-        category_map[source] = category
-    return category_map
-
-
-async def _get_accessible_category(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category:
-    group_ids = select(GroupMember.group_id).where(GroupMember.user_id == user_id).scalar_subquery()
-    result = await db.execute(
-        select(Category).where(
-            Category.id == category_id,
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
-            | (Category.group_id.in_(group_ids)),
-        ),
-    )
-    category = result.scalar_one_or_none()
-    if category is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
-    return category
-
-
-async def _get_or_create_personal_category(db: AsyncSession, user_id: uuid.UUID, create, stats: ImportStats) -> Category:
-    kind = _parse_category_kind(create.kind)
-    name = strip_import_text_or_raise(create.name, "Category name")
-    result = await db.execute(
-        select(Category)
-        .where(
-            Category.name == name,
-            Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
-        )
-        .order_by(Category.is_system.asc())
-        .limit(1),
-    )
-    existing = result.scalar_one_or_none()
-    if existing is not None:
-        if existing.kind != kind:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category with this name already exists with a different type: {name}",
-            )
-        stats.categories_reused += 1
-        return existing
-
-    category = Category(
-        owner_id=user_id,
-        group_id=None,
-        name=name,
-        kind=kind,
-        icon=create.icon,
-    )
-    db.add(category)
-    await db.flush()
-    stats.categories_created += 1
-    stats.created_category_ids.append(category.id)
-    return category
-
-
 async def _load_currencies(db: AsyncSession, currency_ids: set[str]) -> dict[str, Currency]:
+    """Return currency rows keyed by currency code for imported accounts
+
+    Args:
+        db: Active database session
+        currency_ids: Currency codes used by accounts in the import
+
+    Returns:
+        Currency rows keyed by currency code
+
+    Raises:
+        HTTPException: Raised with 422 when any currency code is missing
+    """
+    # Load all account currencies used by the import so row amounts can be parsed with the right precision
     result = await db.execute(select(Currency).where(Currency.id.in_(currency_ids)))
     currencies = {currency.id: currency for currency in result.scalars().all()}
     missing = currency_ids - currencies.keys()
@@ -205,6 +134,16 @@ async def _load_currencies(db: AsyncSession, currency_ids: set[str]) -> dict[str
 
 
 async def _load_personal_merchants(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Merchant]:
+    """Return personal merchant rows keyed by merchant name
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+
+    Returns:
+        Personal merchant rows keyed by merchant name
+    """
+    # Load existing personal merchants once so repeated import rows can reuse them by name
     result = await db.execute(select(Merchant).where(Merchant.owner_id == user_id, Merchant.group_id.is_(None)))
     return {merchant.name: merchant for merchant in result.scalars().all()}
 
@@ -216,6 +155,21 @@ async def _get_or_create_merchant(
     cache: dict[str, Merchant],
     stats: ImportStats,
 ) -> Merchant | None:
+    """Return an existing merchant by name or create a personal merchant
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        raw_name: Raw merchant name from an import row
+        cache: Request-local merchant lookup keyed by merchant name
+        stats: Import summary counters updated when a merchant is reused or created
+
+    Returns:
+        Existing or newly created merchant row, or None when the name is blank
+
+    Raises:
+        HTTPException: Raised with 422 when the merchant name is too long
+    """
     name = raw_name.strip() if raw_name else ""
     if not name:
         return None
@@ -237,6 +191,16 @@ async def _get_or_create_merchant(
 
 
 async def _load_personal_tags(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Tag]:
+    """Return personal tag rows keyed by tag name
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+
+    Returns:
+        Personal tag rows keyed by tag name
+    """
+    # Load existing personal tags once so repeated import rows can reuse them by name
     result = await db.execute(select(Tag).where(Tag.owner_id == user_id, Tag.group_id.is_(None)))
     return {tag.name: tag for tag in result.scalars().all()}
 
@@ -248,8 +212,25 @@ async def _get_or_create_tags(
     cache: dict[str, Tag],
     stats: ImportStats,
 ) -> list[Tag]:
+    """Return tag rows for one import row, creating personal tags when needed
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        raw_names: Raw tag names from an import row
+        cache: Request-local tag lookup keyed by tag name
+        stats: Import summary counters updated when tags are reused or created
+
+    Returns:
+        Ordered tag rows for the import row after dropping blanks and duplicates
+
+    Raises:
+        HTTPException: Raised with 422 when a tag name is too long
+    """
     tags: list[Tag] = []
     seen: set[str] = set()
+
+    # Deduplicate tags within one row while preserving first-seen order
     for raw_name in raw_names:
         name = raw_name.strip()
         if not name or name in seen:
@@ -274,20 +255,39 @@ async def _get_or_create_tags(
 
 
 def _ensure_category_valid_for_account(category: Category, account: Account, user_id: uuid.UUID) -> None:
+    """Validate that a mapped category can be used for an account
+
+    Args:
+        category: Category selected for the import row
+        account: Account selected for the import row
+        user_id: Identifier for the user running the import
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the category cannot be used by the account
+    """
     if category.is_system or (category.owner_id == user_id and category.group_id is None) or category.group_id == account.group_id:
         return
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
 
 
 def _get_required(mapping: dict[str, Account] | dict[str, Category], source: str, label: str):
+    """Return an import source mapping value or raise when it is missing
+
+    Args:
+        mapping: Lookup keyed by import source
+        source: Import source requested by a row
+        label: Human-readable field label used in validation errors
+
+    Returns:
+        Account or category mapped to the requested source
+
+    Raises:
+        HTTPException: Raised with 422 when the source is not declared
+    """
     value = mapping.get(source)
     if value is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"{label} is not mapped: {source}")
     return value
-
-
-def _parse_category_kind(value: str) -> CategoryKind:
-    try:
-        return CategoryKind(value)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid category kind") from exc
