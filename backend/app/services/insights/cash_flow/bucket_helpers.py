@@ -3,10 +3,11 @@
 from datetime import date, timedelta
 from typing import Literal
 
+from app.services.insights.cash_flow.daily_totals_helpers import DailyCashFlowTotalsByDate
+
 CashFlowGranularity = Literal["day", "week", "month"]
 CashFlowBucket = tuple[date, date]
 CashFlowBucketRow = tuple[date, date, int, int]
-DailyCashFlowTotalsByDate = dict[date, tuple[int, int]]
 
 _MONTHLY_RANGE_DAY_COUNT = 31
 _HALF_YEAR_DAY_COUNT = 183
