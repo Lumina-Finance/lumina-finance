@@ -2,7 +2,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -18,6 +18,7 @@ from app.schemas.budget import (
 )
 from app.services.budget_responses import get_budget_response
 from app.services.budgets.listing import get_visible_budget_responses
+from app.services.budgets.updates import update_budget_instance
 from app.services.budgets.utilization import (
     get_budget_utilization_responses,
     get_latest_budget_utilization_responses,
@@ -144,25 +145,7 @@ async def update_budget(
         HTTPException: User does not have admin access or update fields are invalid
     """
     budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
-
-    changed_fields = data.model_dump(exclude_unset=True)
-    if not changed_fields:
-        return await get_budget_response(db, budget, base_budget)
-
-    # Reject explicit null because overall_limit is non-nullable on the model
-    if "overall_limit" in changed_fields and changed_fields["overall_limit"] is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Cannot set to null: overall_limit",
-        )
-
-    for field, value in changed_fields.items():
-        setattr(budget, field, value)
-
-    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
-    await db.commit()
-    await db.refresh(budget)
-    return await get_budget_response(db, budget, base_budget)
+    return await update_budget_instance(db, budget, base_budget, data.model_dump(exclude_unset=True))
 
 
 @router.get("", response_model=list[BudgetResponse])
