@@ -87,12 +87,13 @@ async def get_transactions_overview(
     outlier_candidate_rows = await get_overview_outlier_candidate_rows(db, transaction_filters)
     currency_conversion_rows = [*cash_flow_rows, *category_total_rows, *outlier_candidate_rows]
     accounts_by_id = await _get_overview_accounts_by_id(db, currency_conversion_rows)
-    shared_converter = await _get_overview_converter(
-        db,
-        accounts_by_id=accounts_by_id,
-        base_currency=user.base_currency,
+    shared_converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {user.base_currency, *(account.currency for account in accounts_by_id.values())},
+        ),
     )
-    # Prefetch rates once, then fork converter state so each panel reports its own FX status
+    # Prefetch rates once, then clone converter state so each panel reports its own FX status
     await _prefetch_overview_rates(
         shared_converter,
         conversion_rows=currency_conversion_rows,
@@ -102,13 +103,13 @@ async def get_transactions_overview(
     top_categories, top_categories_fx_status = await convert_overview_top_categories(
         category_total_rows=category_total_rows,
         accounts_by_id=accounts_by_id,
-        converter=_fork_overview_converter(shared_converter),
+        converter=_clone_overview_converter(shared_converter),
         base_currency=user.base_currency,
     )
     daily_cash_flow, daily_cash_flow_fx_status = await convert_overview_daily_cash_flow(
         cash_flow_rows=cash_flow_rows,
         accounts_by_id=accounts_by_id,
-        converter=_fork_overview_converter(shared_converter),
+        converter=_clone_overview_converter(shared_converter),
         base_currency=user.base_currency,
         from_date=from_date,
         to_date=to_date,
@@ -118,7 +119,7 @@ async def get_transactions_overview(
         category_total_rows=category_total_rows,
         outlier_candidate_rows=outlier_candidate_rows,
         accounts_by_id=accounts_by_id,
-        converter=_fork_overview_converter(shared_converter),
+        converter=_clone_overview_converter(shared_converter),
         base_currency=user.base_currency,
     )
 
@@ -136,7 +137,7 @@ async def get_transactions_overview(
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Load minor-unit exponents for currency codes
+    """Return minor-unit exponents for currency codes
 
     Overview conversion uses these exponents to interpret aggregate values in
     minor units before converting them to the user's base currency
@@ -156,7 +157,7 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
 
 
 async def _get_overview_accounts_by_id(db: AsyncSession, conversion_rows) -> dict[uuid.UUID, Account]:
-    """Load accounts required for overview currency conversion
+    """Return accounts required for overview currency conversion
 
     Aggregate rows keep account IDs instead of account models, so this helper
     batches parent account loading and returns the account currency lookup used
@@ -179,30 +180,6 @@ async def _get_overview_accounts_by_id(db: AsyncSession, conversion_rows) -> dic
     return {account.id: account for account in accounts}
 
 
-async def _get_overview_converter(
-    db: AsyncSession,
-    *,
-    accounts_by_id: dict[uuid.UUID, Account],
-    base_currency: str,
-) -> FxConverter:
-    """Create an FX converter for overview account currencies
-
-    Args:
-        db: Active database session
-        accounts_by_id: Account rows keyed by account ID
-        base_currency: User base currency used for overview metrics
-
-    Returns:
-        FX converter loaded with the required currency exponents
-    """
-    return FxConverter(
-        currency_exponents=await _get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts_by_id.values())},
-        ),
-    )
-
-
 async def _prefetch_overview_rates(
     converter: FxConverter,
     *,
@@ -221,23 +198,27 @@ async def _prefetch_overview_rates(
     Returns:
         None
     """
-    if conversion_rows:
-        start_date = min(row.date for row in conversion_rows)
-        end_date = max(row.date for row in conversion_rows)
-        for currency in sorted({
-            accounts_by_id[row.account_id].currency
-            for row in conversion_rows
-            if accounts_by_id[row.account_id].currency != base_currency
-        }):
-            await converter.prefetch_rates(
-                base=currency,
-                quote=base_currency,
-                start_date=start_date,
-                end_date=end_date,
-            )
+    if not conversion_rows:
+        return
+
+    start_date = min(row.date for row in conversion_rows)
+    end_date = max(row.date for row in conversion_rows)
+
+    # Prefetch each distinct account-currency to base-currency range once for the overview
+    for currency in sorted({
+        accounts_by_id[row.account_id].currency
+        for row in conversion_rows
+        if accounts_by_id[row.account_id].currency != base_currency
+    }):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
 
-def _fork_overview_converter(converter: FxConverter) -> FxConverter:
+def _clone_overview_converter(converter: FxConverter) -> FxConverter:
     """Clone a converter's cached state for an overview metric
 
     Args:
