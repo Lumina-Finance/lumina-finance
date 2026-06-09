@@ -14,18 +14,11 @@ from app.schemas.insights import (
 )
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
-from app.services.insights.merchants.spend_stats_helpers import (
-    MerchantSpendStats,
-    MerchantSpendStatsById,
-    get_merchant_spend_stats,
+from app.services.insights.merchants.distribution_and_ranking_helpers import (
+    get_merchant_distribution_rows,
+    get_merchant_ranking_rows,
 )
-
-MERCHANT_DISTRIBUTION_LIMIT = 8
-MERCHANT_RANKING_LIMIT = 10
-
-
-MerchantDistributionRow = tuple[str, str, int, int | None, int | None]
-MerchantRankingRow = tuple[str, str, int, int, int | None]
+from app.services.insights.merchants.spend_stats_helpers import get_merchant_spend_stats
 
 
 def _combine_fx_statuses(current: FxStatus, previous: FxStatus) -> FxStatus:
@@ -59,94 +52,6 @@ def _combine_fx_statuses(current: FxStatus, previous: FxStatus) -> FxStatus:
         return fx_status
     fx_status = FxStatus(state="incomplete", missing_pairs=missing_pairs)
     return fx_status
-
-
-def _change_pct(current_amount: int, previous_amount: int) -> int | None:
-    """Return percentage change from a previous amount
-
-    Args:
-        current_amount: Current-period merchant spend
-        previous_amount: Comparison-period merchant spend
-
-    Returns:
-        Rounded percentage change, or None when there is no positive previous amount
-    """
-    if previous_amount <= 0:
-        return None
-    return round(((current_amount - previous_amount) / previous_amount) * 100)
-
-
-def _merchant_distribution_rows(
-    current_stats_by_id: MerchantSpendStatsById,
-    previous_stats_by_id: MerchantSpendStatsById,
-) -> list[MerchantDistributionRow]:
-    """Return top merchant rows plus one Other row for remaining spend
-
-    Args:
-        current_stats_by_id: Selected-period merchant spend stats keyed by merchant ID
-        previous_stats_by_id: Comparison-period merchant spend stats keyed by merchant ID
-
-    Returns:
-        Merchant distribution rows for the response
-    """
-    ranked_entries = sorted(
-        current_stats_by_id.items(),
-        key=lambda entry: (-entry[1].amount, entry[1].name),
-    )
-    visible_entries = ranked_entries[:MERCHANT_DISTRIBUTION_LIMIT]
-    remaining_entries = ranked_entries[MERCHANT_DISTRIBUTION_LIMIT:]
-
-    rows: list[MerchantDistributionRow] = []
-
-    # Build visible merchant rows with comparison movement values
-    for merchant_id, stats in visible_entries:
-        previous_amount = previous_stats_by_id.get(merchant_id, MerchantSpendStats("", 0, 0)).amount
-        rows.append((
-            str(merchant_id),
-            stats.name,
-            stats.amount,
-            _change_pct(stats.amount, previous_amount),
-            stats.amount - previous_amount,
-        ))
-
-    other_amount = sum(stats.amount for _merchant_id, stats in remaining_entries)
-    if other_amount > 0:
-        rows.append(("other-merchants", "Other", other_amount, None, None))
-
-    return rows
-
-
-def _merchant_ranking_rows(
-    current_stats_by_id: MerchantSpendStatsById,
-    previous_stats_by_id: MerchantSpendStatsById,
-) -> list[MerchantRankingRow]:
-    """Return top merchant rows sorted by current spend
-
-    Args:
-        current_stats_by_id: Selected-period merchant spend stats keyed by merchant ID
-        previous_stats_by_id: Comparison-period merchant spend stats keyed by merchant ID
-
-    Returns:
-        Merchant ranking rows for the response
-    """
-    ranked_entries = sorted(
-        current_stats_by_id.items(),
-        key=lambda entry: (-entry[1].amount, entry[1].name),
-    )
-
-    rows: list[MerchantRankingRow] = []
-
-    # Build capped ranking rows with transaction counts and comparison percentage
-    for merchant_id, stats in ranked_entries[:MERCHANT_RANKING_LIMIT]:
-        previous_amount = previous_stats_by_id.get(merchant_id, MerchantSpendStats("", 0, 0)).amount
-        rows.append((
-            str(merchant_id),
-            stats.name,
-            stats.amount,
-            stats.transaction_count,
-            _change_pct(stats.amount, previous_amount),
-        ))
-    return rows
 
 
 async def get_merchants(
@@ -191,8 +96,8 @@ async def get_merchants(
     )
 
     response = InsightsMerchantsResponse(
-        distribution=_merchant_distribution_rows(current_stats, previous_stats),
-        ranking=_merchant_ranking_rows(current_stats, previous_stats),
+        distribution=get_merchant_distribution_rows(current_stats, previous_stats),
+        ranking=get_merchant_ranking_rows(current_stats, previous_stats),
         fx_status=_combine_fx_statuses(current_fx_status, previous_fx_status),
     )
     return response
