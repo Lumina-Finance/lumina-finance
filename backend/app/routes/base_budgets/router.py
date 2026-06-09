@@ -20,6 +20,7 @@ from app.models.user import User
 from app.permissions import check_base_budget_access
 from app.routes.base_budgets.listing import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
+from app.routes.base_budgets.responses import get_base_budget_response, get_budget_instance_response
 from app.schemas.budget import (
     BaseBudgetResponse,
     BudgetResponse,
@@ -28,7 +29,6 @@ from app.schemas.budget import (
     UpdateBaseBudgetRequest,
 )
 from app.services.budget_periods import compute_period_end, validate_period_start
-from app.services.budget_responses import build_base_budget_response, build_budget_response, load_tracked_categories
 from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
@@ -107,22 +107,6 @@ async def _validate_category_ids(
     return unique_ids
 
 
-async def _build_base_budget_response(
-    db: AsyncSession, base_budget: BaseBudget,
-) -> BaseBudgetResponse:
-    """Return a response model for one base budget
-
-    Args:
-        db: Active database session
-        base_budget: Base budget row to serialize
-
-    Returns:
-        Base budget response with tracked categories
-    """
-    cats = await load_tracked_categories(db, [base_budget.id])
-    return build_base_budget_response(base_budget, cats.get(base_budget.id, []))
-
-
 def _initial_budget_period_starts(base_budget: BaseBudget, period_start: date, today: date) -> list[date]:
     """Return initial period starts for a base budget
 
@@ -178,7 +162,7 @@ async def update_base_budget(
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
-        return await _build_base_budget_response(db, base_budget)
+        return await get_base_budget_response(db, base_budget)
 
     # Handle tracked categories separately from simple field updates
     new_category_ids = changed_fields.pop("category_ids", None)
@@ -219,7 +203,7 @@ async def update_base_budget(
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(base_budget)
-    return await _build_base_budget_response(db, base_budget)
+    return await get_base_budget_response(db, base_budget)
 
 
 @router.delete("/{base_budget_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -264,7 +248,7 @@ async def get_base_budget(
         HTTPException: User lacks read access
     """
     base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.READ)
-    return await _build_base_budget_response(db, base_budget)
+    return await get_base_budget_response(db, base_budget)
 
 
 @router.get("", response_model=list[BaseBudgetResponse])
@@ -373,7 +357,7 @@ async def create_base_budget(
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(base_budget)
-    return await _build_base_budget_response(db, base_budget)
+    return await get_base_budget_response(db, base_budget)
 
 
 @router.post(
@@ -451,6 +435,4 @@ async def create_budget_instance(
     await db.commit()
     await db.refresh(budget)
 
-    # Build the instance response with the parent base embedded
-    cats = await load_tracked_categories(db, [base_budget.id])
-    return build_budget_response(budget, base_budget, cats.get(base_budget.id, []))
+    return await get_budget_instance_response(db, budget, base_budget)
