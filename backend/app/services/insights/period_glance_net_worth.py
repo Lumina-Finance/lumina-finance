@@ -1,0 +1,190 @@
+"""Net-worth movement helpers for the insights period-glance card"""
+
+import uuid
+from datetime import date, timedelta
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.account import Account, AccountBalanceSnapshot
+from app.models.currency import Currency
+from app.schemas.fx import FxStatus
+from app.services.fx import FxConverter
+
+
+async def get_period_glance_net_worth_change(
+    db: AsyncSession,
+    accounts: list[Account],
+    base_currency: str,
+    from_date: date,
+    to_date: date,
+) -> tuple[int, FxStatus]:
+    """Return converted net-worth movement over the inclusive period-glance range
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the period-glance summary
+        base_currency: User base currency used for converted values
+        from_date: Inclusive period start date
+        to_date: Inclusive period end date
+
+    Returns:
+        Converted net-worth movement and FX conversion status
+    """
+    if not accounts:
+        return 0, FxStatus()
+
+    account_ids = [account.id for account in accounts]
+    baseline_date = from_date - timedelta(days=1)
+    start_balances = await _get_account_balances_at(db, account_ids, baseline_date)
+    end_balances = await _get_account_balances_at(db, account_ids, to_date)
+    converter = FxConverter(
+        currency_exponents=await _get_currency_exponents(
+            db,
+            {base_currency, *(account.currency for account in accounts)},
+        ),
+    )
+    await _prefetch_net_worth_change_rates(
+        converter,
+        base_currency=base_currency,
+        required_dates_by_currency=_get_net_worth_change_rate_dates(
+            accounts,
+            base_currency=base_currency,
+            start_balances=start_balances,
+            end_balances=end_balances,
+            baseline_date=baseline_date,
+            to_date=to_date,
+        ),
+    )
+
+    net_worth_change = 0
+
+    # Convert each account's starting and ending balances, then add the movement to the total
+    for account in accounts:
+        start_amount = start_balances.get(account.id, 0)
+        end_amount = end_balances.get(account.id, 0)
+        converted_start = await converter.convert_minor_units(
+            start_amount,
+            base=account.currency,
+            quote=base_currency,
+            rate_date=baseline_date,
+        )
+        converted_end = await converter.convert_minor_units(
+            end_amount,
+            base=account.currency,
+            quote=base_currency,
+            rate_date=to_date,
+        )
+        if converted_start is None or converted_end is None:
+            continue
+        net_worth_change += converted_end - converted_start
+
+    return net_worth_change, converter.get_status()
+
+
+async def _get_account_balances_at(
+    db: AsyncSession,
+    account_ids: list[uuid.UUID],
+    target_date: date,
+) -> dict[uuid.UUID, int]:
+    """Return latest account balances on or before the target date
+
+    Args:
+        db: Active database session
+        account_ids: Account IDs included in the balance lookup
+        target_date: Latest snapshot date allowed in the lookup
+
+    Returns:
+        Balance amount keyed by account ID
+    """
+    if not account_ids:
+        return {}
+
+    # Fetch the latest snapshot for each account on or before the requested date
+    result = await db.execute(
+        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
+        .where(
+            AccountBalanceSnapshot.account_id.in_(account_ids),
+            AccountBalanceSnapshot.dt <= target_date,
+        )
+        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
+        .distinct(AccountBalanceSnapshot.account_id),
+    )
+    return {row.account_id: int(row.balance) for row in result}
+
+
+async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    """Return minor-unit exponents keyed by currency code
+
+    Args:
+        db: Active database session
+        currencies: Currency codes needed for conversion
+
+    Returns:
+        Minor-unit exponent keyed by currency code
+    """
+    # Load currency precision so FX conversion can convert minor units correctly
+    result = await db.execute(
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+    )
+    return {row.id: row.minor_unit_exponent for row in result}
+
+
+async def _prefetch_net_worth_change_rates(
+    converter: FxConverter,
+    *,
+    base_currency: str,
+    required_dates_by_currency: dict[str, set[date]],
+) -> None:
+    """Prefetch FX rates needed for net-worth change conversion
+
+    Args:
+        converter: FX converter used by the period-glance net-worth calculation
+        base_currency: User base currency used for converted values
+        required_dates_by_currency: Exact conversion dates keyed by account currency
+
+    Returns:
+        None
+    """
+    # Load exact-date rates before converting balances so missing FX status is complete
+    for currency, target_dates in sorted(required_dates_by_currency.items()):
+        for target_date in sorted(target_dates):
+            await converter.prefetch_rates(
+                base=currency,
+                quote=base_currency,
+                start_date=target_date,
+                end_date=target_date,
+            )
+
+
+def _get_net_worth_change_rate_dates(
+    accounts: list[Account],
+    *,
+    base_currency: str,
+    start_balances: dict[uuid.UUID, int],
+    end_balances: dict[uuid.UUID, int],
+    baseline_date: date,
+    to_date: date,
+) -> dict[str, set[date]]:
+    """Return FX rate dates needed for non-base account balances
+
+    Args:
+        accounts: Accounts included in the period-glance summary
+        base_currency: User base currency used for converted values
+        start_balances: Starting balance amounts keyed by account ID
+        end_balances: Ending balance amounts keyed by account ID
+        baseline_date: Date immediately before the selected period
+        to_date: Inclusive period end date
+
+    Returns:
+        Exact conversion dates keyed by account currency
+    """
+    dates_by_currency: dict[str, set[date]] = {}
+    for account in accounts:
+        if account.currency == base_currency:
+            continue
+        if start_balances.get(account.id, 0) != 0:
+            dates_by_currency.setdefault(account.currency, set()).add(baseline_date)
+        if end_balances.get(account.id, 0) != 0:
+            dates_by_currency.setdefault(account.currency, set()).add(to_date)
+    return dates_by_currency

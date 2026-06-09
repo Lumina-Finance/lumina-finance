@@ -1,12 +1,12 @@
 """Period glance service for the insights page."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account, AccountBalanceSnapshot
+from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
@@ -17,6 +17,7 @@ from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodGlanceR
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
 from app.services.insights.common import comparison_period_bounds
+from app.services.insights.period_glance_net_worth import get_period_glance_net_worth_change
 
 CategoryNetTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
 
@@ -269,120 +270,6 @@ def _category_change_basis(kind: CategoryKind, current_amount: int, previous_amo
     return abs(previous_amount)
 
 
-async def _balances_at(
-    db: AsyncSession,
-    account_ids: list[uuid.UUID],
-    target_date: date,
-) -> dict[uuid.UUID, int]:
-    """Return latest balances on or before target_date keyed by account id."""
-    if not account_ids:
-        return {}
-
-    result = await db.execute(
-        select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
-        .where(
-            AccountBalanceSnapshot.account_id.in_(account_ids),
-            AccountBalanceSnapshot.dt <= target_date,
-        )
-        .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
-        .distinct(AccountBalanceSnapshot.account_id),
-    )
-    return {row.account_id: int(row.balance) for row in result}
-
-
-async def _query_net_worth_change(
-    db: AsyncSession,
-    accounts: list[Account],
-    base_currency: str,
-    from_date: date,
-    to_date: date,
-) -> tuple[int, FxStatus]:
-    """Return converted net-worth movement over the inclusive selected period."""
-    if not accounts:
-        return 0, FxStatus()
-
-    account_ids = [account.id for account in accounts]
-    baseline_date = from_date - timedelta(days=1)
-    start_balances = await _balances_at(db, account_ids, baseline_date)
-    end_balances = await _balances_at(db, account_ids, to_date)
-    converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
-    )
-    await _prefetch_net_worth_change_rates(
-        converter,
-        base_currency=base_currency,
-        required_dates_by_currency=_net_worth_change_rate_dates(
-            accounts,
-            base_currency=base_currency,
-            start_balances=start_balances,
-            end_balances=end_balances,
-            baseline_date=baseline_date,
-            to_date=to_date,
-        ),
-    )
-
-    net_worth_change = 0
-    for account in accounts:
-        start_amount = start_balances.get(account.id, 0)
-        end_amount = end_balances.get(account.id, 0)
-        converted_start = await converter.convert_minor_units(
-            start_amount,
-            base=account.currency,
-            quote=base_currency,
-            rate_date=baseline_date,
-        )
-        converted_end = await converter.convert_minor_units(
-            end_amount,
-            base=account.currency,
-            quote=base_currency,
-            rate_date=to_date,
-        )
-        if converted_start is None or converted_end is None:
-            continue
-        net_worth_change += converted_end - converted_start
-
-    return net_worth_change, converter.get_status()
-
-
-async def _prefetch_net_worth_change_rates(
-    converter: FxConverter,
-    *,
-    base_currency: str,
-    required_dates_by_currency: dict[str, set[date]],
-) -> None:
-    for currency, target_dates in sorted(required_dates_by_currency.items()):
-        for target_date in sorted(target_dates):
-            await converter.prefetch_rates(
-                base=currency,
-                quote=base_currency,
-                start_date=target_date,
-                end_date=target_date,
-            )
-
-
-def _net_worth_change_rate_dates(
-    accounts: list[Account],
-    *,
-    base_currency: str,
-    start_balances: dict[uuid.UUID, int],
-    end_balances: dict[uuid.UUID, int],
-    baseline_date: date,
-    to_date: date,
-) -> dict[str, set[date]]:
-    dates_by_currency: dict[str, set[date]] = {}
-    for account in accounts:
-        if account.currency == base_currency:
-            continue
-        if start_balances.get(account.id, 0) != 0:
-            dates_by_currency.setdefault(account.currency, set()).add(baseline_date)
-        if end_balances.get(account.id, 0) != 0:
-            dates_by_currency.setdefault(account.currency, set()).add(to_date)
-    return dates_by_currency
-
-
 async def get_period_glance(
     db: AsyncSession,
     user: User,
@@ -445,7 +332,7 @@ async def get_period_glance(
         previous_to_date,
         biggest_change_converter,
     )
-    net_worth_change, net_worth_change_fx_status = await _query_net_worth_change(
+    net_worth_change, net_worth_change_fx_status = await get_period_glance_net_worth_change(
         db,
         all_accounts,
         user.base_currency,
