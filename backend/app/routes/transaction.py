@@ -30,6 +30,7 @@ from app.services.transactions.accounts import (
 )
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
+from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
 from app.services.transactions.tags import delete_transaction_tag_links, replace_transaction_tag_links
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
@@ -272,9 +273,8 @@ async def update_transaction(
     if not changed_fields:
         return await get_transaction_response(db, txn)
 
-    # Capture pre-change values needed to recompute balance snapshots
-    old_account_id = txn.account_id
-    old_dt = txn.dt
+    previous_account_id = txn.account_id
+    previous_date = txn.dt
     new_account = None
 
     # Resolve the account's group_id for category/merchant validation
@@ -304,9 +304,6 @@ async def update_transaction(
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
         await validate_transaction_merchant_access(db, changed_fields["merchant_id"], user.id, account_group_id)
 
-    # Snapshot recomputation is only needed when balance-affecting fields change
-    recompute_needed = bool({"account_id", "dt", "amount"} & changed_fields.keys())
-
     # Handle tags separately — validate and replace in bulk
     new_tag_ids = changed_fields.pop("tag_ids", None)
 
@@ -317,15 +314,13 @@ async def update_transaction(
         validated = await get_valid_transaction_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
         await replace_transaction_tag_links(db, txn.id, validated)
 
-    if recompute_needed:
-        await db.flush()
-        if txn.account_id != old_account_id:
-            # Account moved — recompute both sides from their respective affected days
-            await recompute_snapshots_from(db, old_account_id, old_dt)
-            await recompute_snapshots_from(db, txn.account_id, txn.dt)
-        else:
-            # Same account — recompute from the earliest affected day
-            await recompute_snapshots_from(db, txn.account_id, min(old_dt, txn.dt))
+    await recompute_snapshots_after_transaction_update(
+        db,
+        txn,
+        previous_account_id=previous_account_id,
+        previous_date=previous_date,
+        changed_fields=changed_fields,
+    )
 
     await mark_cache_changed_for_scope(db, user_id=current_account.owner_id, group_id=current_account.group_id)
     if new_account is not None and new_account.id != current_account.id:
@@ -360,7 +355,6 @@ async def delete_transaction(
     account = await get_parent_account_for_transaction(db, txn)
     validate_transaction_account_is_not_archived(account)
 
-    # Capture pre-delete values for snapshot recomputation
     account_id = txn.account_id
     deleted_dt = txn.dt
 
@@ -368,7 +362,7 @@ async def delete_transaction(
     await db.delete(txn)
     await db.flush()
 
-    # Rebuild balance snapshots from this transaction's day forward
+    # Rebuild balance snapshots from the deleted transaction's day forward
     await recompute_snapshots_from(db, account_id, deleted_dt)
 
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
