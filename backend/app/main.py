@@ -52,7 +52,14 @@ app.include_router(insights_router)
 
 @app.get("/health")
 async def health():
-    """Return a simple health check response"""
+    """Return API process health
+
+    The endpoint intentionally avoids database or dependency checks so load
+    balancers can verify that the application process is responding
+
+    Returns:
+        Static health status payload
+    """
     return {"status": "ok"}
 
 
