@@ -20,7 +20,6 @@ from app.schemas.transaction import (
     UpdateTransactionRequest,
 )
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_imports import import_transactions
 from app.services.transaction_responses import get_transaction_response
 from app.services.transactions.accounts import (
@@ -28,10 +27,11 @@ from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
 )
 from app.services.transactions.creation import create_transaction_and_get_response
+from app.services.transactions.deletion import delete_transaction_for_user
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
-from app.services.transactions.tags import delete_transaction_tag_links, replace_transaction_tag_links
+from app.services.transactions.tags import replace_transaction_tag_links
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
@@ -295,9 +295,8 @@ async def delete_transaction(
 ):
     """Delete a transaction after checking write access
 
-    The route removes tag links, deletes the transaction, recomputes affected
-    account snapshots from the deleted transaction date, and marks the parent
-    cache scope as changed
+    The route delegates access checks, tag removal, transaction deletion,
+    snapshot recalculation, and cache updates to the deletion service
 
     Args:
         transaction_id: Transaction identifier from the route path
@@ -307,19 +306,4 @@ async def delete_transaction(
     Returns:
         None
     """
-    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
-    account = await get_parent_account_for_transaction(db, txn)
-    validate_transaction_account_is_not_archived(account)
-
-    account_id = txn.account_id
-    deleted_dt = txn.dt
-
-    await delete_transaction_tag_links(db, transaction_id)
-    await db.delete(txn)
-    await db.flush()
-
-    # Rebuild balance snapshots from the deleted transaction's day forward
-    await recompute_snapshots_from(db, account_id, deleted_dt)
-
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-    await db.commit()
+    await delete_transaction_for_user(db, user, transaction_id)
