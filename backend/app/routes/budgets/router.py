@@ -17,13 +17,13 @@ from app.schemas.budget import (
     UpdateBudgetRequest,
 )
 from app.services.budget_responses import get_budget_response
+from app.services.budgets.deletion import delete_budget_instance
 from app.services.budgets.listing import get_visible_budget_responses
 from app.services.budgets.updates import update_budget_instance
 from app.services.budgets.utilization import (
     get_budget_utilization_responses,
     get_latest_budget_utilization_responses,
 )
-from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -115,9 +115,7 @@ async def delete_budget(
         HTTPException: User does not have admin access
     """
     budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
-    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
-    await db.delete(budget)
-    await db.commit()
+    await delete_budget_instance(db, budget, base_budget)
 
 
 @router.patch("/{budget_id}", response_model=BudgetResponse)
