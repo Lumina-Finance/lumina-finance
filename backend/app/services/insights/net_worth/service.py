@@ -1,77 +1,24 @@
 """Net worth service for the insights page"""
 
 import uuid
-from dataclasses import dataclass
 from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account, AccountBalanceSnapshot
-from app.models.base import AccountKind, AccountType
 from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.fx import FxStatus
-from app.schemas.insights import InsightsNetWorthResponse, NetWorthGroupKind
+from app.schemas.insights import InsightsNetWorthResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
 from app.services.insights.net_worth.buckets import build_net_worth_buckets
-
-
-@dataclass(frozen=True)
-class NetWorthGroup:
-    """Store one net worth chart group definition
-
-    Attributes:
-        id: Stable group ID returned in the response
-        name: Display name returned in the response
-        kind: Whether the group belongs to assets or debt
-    """
-
-    id: str
-    name: str
-    kind: NetWorthGroupKind
-
-
-NET_WORTH_GROUPS: tuple[NetWorthGroup, ...] = (
-    NetWorthGroup("cash", "Cash", "asset"),
-    NetWorthGroup("term_deposits", "Term Deposits", "asset"),
-    NetWorthGroup("investments", "Investments", "asset"),
-    NetWorthGroup("other_assets", "Other Assets", "asset"),
-    NetWorthGroup("revolving_debt", "Revolving Debt", "debt"),
-    NetWorthGroup("loans", "Loans", "debt"),
-    NetWorthGroup("mortgages", "Mortgages", "debt"),
-    NetWorthGroup("other_debt", "Other Debt", "debt"),
+from app.services.insights.net_worth.groups import (
+    NET_WORTH_GROUP_INDEX_BY_ID,
+    NET_WORTH_GROUPS,
+    get_net_worth_group_id_for_account,
 )
-
-GROUP_INDEX_BY_ID = {group.id: index for index, group in enumerate(NET_WORTH_GROUPS)}
-
-
-def _get_group_id_for_account(account: Account) -> str:
-    """Return the net worth group ID for an account
-
-    Args:
-        account: Account being placed into a chart group
-
-    Returns:
-        Net worth group ID for the account
-    """
-    if account.account_kind == AccountKind.ASSET:
-        if account.account_type in {AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH}:
-            return "cash"
-        if account.account_type == AccountType.TERM_DEPOSIT:
-            return "term_deposits"
-        if account.account_type == AccountType.INVESTMENT:
-            return "investments"
-        return "other_assets"
-
-    if account.account_type in {AccountType.CREDIT_CARD, AccountType.LINE_OF_CREDIT, AccountType.HELOC}:
-        return "revolving_debt"
-    if account.account_type == AccountType.LOAN:
-        return "loans"
-    if account.account_type == AccountType.MORTGAGE:
-        return "mortgages"
-    return "other_debt"
 
 
 async def _get_net_worth_points(
@@ -99,7 +46,7 @@ async def _get_net_worth_points(
 
     account_ids = [account.id for account in accounts]
     group_index_by_account_id = {
-        account.id: GROUP_INDEX_BY_ID[_get_group_id_for_account(account)]
+        account.id: NET_WORTH_GROUP_INDEX_BY_ID[get_net_worth_group_id_for_account(account)]
         for account in accounts
     }
     baseline_date = from_date - timedelta(days=1)
