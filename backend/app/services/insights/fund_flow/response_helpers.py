@@ -1,14 +1,14 @@
 """Response assembly helpers for fund-flow insights"""
 
 from app.schemas.insights import InsightsFundFlowResponse
-from app.services.insights.fund_flow.entry_group_helpers import FundFlowEntryGroups
+from app.services.insights.fund_flow.response_field_helpers import FundFlowResponseFields
 
 
 def build_empty_fund_flow_response() -> InsightsFundFlowResponse:
     """Return an empty fund-flow response
 
     Returns:
-        Fund-flow response payload with no entries
+        Fund-flow response payload with empty response fields
     """
     response = InsightsFundFlowResponse(
         income_sources=[],
@@ -21,22 +21,22 @@ def build_empty_fund_flow_response() -> InsightsFundFlowResponse:
     return response
 
 
-def build_fund_flow_response(entry_groups: FundFlowEntryGroups) -> InsightsFundFlowResponse:
-    """Return fund-flow response from grouped entries
+def build_fund_flow_response(response_fields: FundFlowResponseFields) -> InsightsFundFlowResponse:
+    """Return fund-flow response from converted response field values
 
     Args:
-        entry_groups: Fund-flow entries grouped by response role
+        response_fields: Converted values for the Fund Flow response fields
 
     Returns:
         Fund-flow response payload
     """
     response = InsightsFundFlowResponse(
-        income_sources=entry_groups.income_sources,
-        expense_categories=entry_groups.expense_categories,
-        income_outflows=entry_groups.income_outflows,
-        expense_inflows=entry_groups.expense_inflows,
-        income_source_count=len(entry_groups.income_sources),
-        expense_category_count=len(entry_groups.expense_categories),
-        fx_status=entry_groups.fx_status,
+        income_sources=response_fields.income_sources,
+        expense_categories=response_fields.expense_categories,
+        income_outflows=response_fields.income_outflows,
+        expense_inflows=response_fields.expense_inflows,
+        income_source_count=len(response_fields.income_sources),
+        expense_category_count=len(response_fields.expense_categories),
+        fx_status=response_fields.fx_status,
     )
     return response
