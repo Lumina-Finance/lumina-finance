@@ -11,7 +11,6 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodAtAGlanceResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
@@ -26,87 +25,7 @@ from app.services.insights.period_at_a_glance.conversion import (
     prefetch_period_at_a_glance_rates,
 )
 from app.services.insights.period_at_a_glance.net_worth_change import get_period_at_a_glance_net_worth_change
-
-
-async def _query_period_totals(
-    db: AsyncSession,
-    accounts: list[Account],
-    base_currency: str,
-    from_date: date,
-    to_date: date,
-) -> tuple[int, int, FxStatus]:
-    """Return sign-directed income and expense totals converted to base currency
-
-    Args:
-        db: Active database session
-        accounts: Accounts included in the Period At A Glance summary
-        base_currency: User base currency used for converted values
-        from_date: Inclusive period start date
-        to_date: Inclusive period end date
-
-    Returns:
-        Income total, expense total, and FX conversion status
-    """
-    if not accounts:
-        return 0, 0, FxStatus()
-
-    account_ids = [account.id for account in accounts]
-
-    # Load transaction totals grouped by category, account, transaction date, and account currency
-    result = await db.execute(
-        select(
-            Category.id,
-            Transaction.account_id,
-            Transaction.dt.label("date"),
-            Account.currency.label("account_currency"),
-            func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .join(Account, Transaction.account_id == Account.id)
-        .where(
-            Transaction.account_id.in_(account_ids),
-            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
-            Transaction.dt >= from_date,
-            Transaction.dt <= to_date,
-        )
-        .group_by(Category.id, Transaction.account_id, Transaction.dt, Account.currency),
-    )
-    rows = result.all()
-    converter = FxConverter(
-        currency_exponents=await get_period_at_a_glance_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
-    )
-    await prefetch_period_at_a_glance_rates(
-        converter,
-        rows=rows,
-        base_currency=base_currency,
-    )
-
-    category_totals: dict[uuid.UUID, int] = {}
-
-    # Convert each grouped transaction total before netting categories into income and expenses
-    for row in rows:
-        converted_total = await converter.convert_minor_units(
-            int(row.total or 0),
-            base=row.account_currency,
-            quote=base_currency,
-            rate_date=row.date,
-        )
-        if converted_total is None:
-            continue
-        category_totals[row.id] = category_totals.get(row.id, 0) + converted_total
-
-    income = 0
-    expenses = 0
-    for total in category_totals.values():
-        if total > 0:
-            income += total
-        elif total < 0:
-            expenses += -total
-
-    return income, expenses, converter.get_status()
+from app.services.insights.period_at_a_glance.period_totals import get_period_at_a_glance_income_expense_totals
 
 
 async def _query_category_net_totals(
@@ -203,7 +122,7 @@ async def get_period_at_a_glance(
             net_worth_change=0,
         )
 
-    income, expenses, income_expense_fx_status = await _query_period_totals(
+    income, expenses, income_expense_fx_status = await get_period_at_a_glance_income_expense_totals(
         db,
         all_accounts,
         user.base_currency,
