@@ -150,13 +150,27 @@ async def _create_import_account(
     db.add(account)
     await db.flush()
 
-    # Create the zero-balance anchor snapshot used before imported transactions are applied
+    _add_import_account_opening_snapshot(db, account, user.tz)
+    return account
+
+
+def _add_import_account_opening_snapshot(db: AsyncSession, account: Account, user_timezone: str) -> None:
+    """Add the zero-balance snapshot that anchors a new import account
+
+    Args:
+        db: Active database session
+        account: Account row created from the import mapping
+        user_timezone: Time zone used to convert the account creation time into a local date
+
+    Returns:
+        None
+    """
+    # Anchor the imported account at zero before imported transactions are applied
     db.add(AccountBalanceSnapshot(
         account_id=account.id,
-        dt=account.created_at.astimezone(ZoneInfo(user.tz)).date(),
+        dt=account.created_at.astimezone(ZoneInfo(user_timezone)).date(),
         balance=0,
     ))
-    return account
 
 
 async def _validate_import_account_currency(db: AsyncSession, currency: str) -> None:
