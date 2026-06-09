@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
-from app.models.budget import BaseBudget, Budget
 from app.models.user import User
 from app.permissions import check_budget_access
 from app.schemas.budget import (
@@ -17,7 +16,7 @@ from app.schemas.budget import (
     LatestBudgetUtilizationResponse,
     UpdateBudgetRequest,
 )
-from app.services.budget_responses import build_budget_response, load_tracked_categories
+from app.services.budget_responses import get_budget_response
 from app.services.budgets.listing import get_visible_budget_responses
 from app.services.budgets.utilization import (
     get_budget_utilization_responses,
@@ -26,24 +25,6 @@ from app.services.budgets.utilization import (
 from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
-
-
-async def _build_budget_response(
-    db: AsyncSession, budget: Budget, base_budget: BaseBudget,
-) -> BudgetResponse:
-    """Return a budget instance response
-
-    Args:
-        db: Active database session
-        budget: Budget instance row
-        base_budget: Parent base budget row
-
-    Returns:
-        Budget instance response with tracked category IDs from the parent base budget
-    """
-    # Fetch active tracked categories for this base budget before building the embedded response
-    tracked_categories_by_base_budget = await load_tracked_categories(db, [base_budget.id])
-    return build_budget_response(budget, base_budget, tracked_categories_by_base_budget.get(base_budget.id, []))
 
 
 @router.get("/latest-utilizations", response_model=list[LatestBudgetUtilizationResponse])
@@ -83,7 +64,7 @@ async def get_budget(
         HTTPException: User does not have read access
     """
     budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
-    return await _build_budget_response(db, budget, base_budget)
+    return await get_budget_response(db, budget, base_budget)
 
 
 @router.get("/{budget_id}/utilization", response_model=BudgetUtilizationResponse)
@@ -166,7 +147,7 @@ async def update_budget(
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
-        return await _build_budget_response(db, budget, base_budget)
+        return await get_budget_response(db, budget, base_budget)
 
     # Reject explicit null because overall_limit is non-nullable on the model
     if "overall_limit" in changed_fields and changed_fields["overall_limit"] is None:
@@ -181,7 +162,7 @@ async def update_budget(
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(budget)
-    return await _build_budget_response(db, budget, base_budget)
+    return await get_budget_response(db, budget, base_budget)
 
 
 @router.get("", response_model=list[BudgetResponse])

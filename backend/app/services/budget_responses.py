@@ -1,4 +1,4 @@
-"""Shared response-building helpers for budget and base-budget routes."""
+"""Shared response-building helpers for budget and base-budget routes"""
 
 import uuid
 
@@ -12,9 +12,19 @@ from app.schemas.budget import BaseBudgetResponse, BudgetResponse
 async def load_tracked_categories(
     db: AsyncSession, base_budget_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, list[uuid.UUID]]:
-    """Batch-load active tracked category IDs for multiple base budgets in one query."""
+    """Return active tracked category IDs keyed by base budget ID
+
+    Args:
+        db: Active database session
+        base_budget_ids: Base budget identifiers to inspect
+
+    Returns:
+        Active tracked category identifiers keyed by base budget identifier
+    """
     if not base_budget_ids:
         return {}
+
+    # Fetch active tracked category links for the requested base budgets in one batch
     rows = (
         await db.execute(
             select(BudgetTrackedCategory.base_budget_id, BudgetTrackedCategory.category_id).where(
@@ -32,16 +42,33 @@ async def load_tracked_categories(
 def build_base_budget_response(
     base_budget: BaseBudget, category_ids: list[uuid.UUID],
 ) -> BaseBudgetResponse:
-    """Build a BaseBudgetResponse from a model and pre-loaded category IDs."""
-    resp = BaseBudgetResponse.model_validate(base_budget)
-    resp.category_ids = category_ids
-    return resp
+    """Return a base budget response from a model and preloaded category IDs
+
+    Args:
+        base_budget: Base budget row to serialize
+        category_ids: Active tracked category identifiers
+
+    Returns:
+        Base budget response with tracked category IDs
+    """
+    response = BaseBudgetResponse.model_validate(base_budget)
+    response.category_ids = category_ids
+    return response
 
 
 def build_budget_response(
     budget: Budget, base_budget: BaseBudget, category_ids: list[uuid.UUID],
 ) -> BudgetResponse:
-    """Build a BudgetResponse from models and pre-loaded category IDs."""
+    """Return a budget response from models and preloaded category IDs
+
+    Args:
+        budget: Budget instance row to serialize
+        base_budget: Parent base budget row to embed
+        category_ids: Active tracked category identifiers for the parent base budget
+
+    Returns:
+        Budget response with embedded base budget details
+    """
     return BudgetResponse(
         id=budget.id,
         base_budget_id=budget.base_budget_id,
@@ -51,3 +78,21 @@ def build_budget_response(
         created_at=budget.created_at,
         base_budget=build_base_budget_response(base_budget, category_ids),
     )
+
+
+async def get_budget_response(
+    db: AsyncSession, budget: Budget, base_budget: BaseBudget,
+) -> BudgetResponse:
+    """Return a budget instance response
+
+    Args:
+        db: Active database session
+        budget: Budget instance row
+        base_budget: Parent base budget row
+
+    Returns:
+        Budget instance response with tracked category IDs from the parent base budget
+    """
+    # Fetch active tracked categories for this base budget before building the embedded response
+    tracked_categories_by_base_budget = await load_tracked_categories(db, [base_budget.id])
+    return build_budget_response(budget, base_budget, tracked_categories_by_base_budget.get(base_budget.id, []))
