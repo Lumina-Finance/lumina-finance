@@ -4,7 +4,6 @@ from datetime import date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +16,7 @@ from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_base_budget_access
-from app.routes.base_budgets.categories import get_valid_tracked_category_ids
+from app.routes.base_budgets.categories import get_valid_tracked_category_ids, update_tracked_category_links
 from app.routes.base_budgets.listing import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
 from app.routes.base_budgets.responses import get_base_budget_response, get_budget_instance_response
@@ -128,35 +127,17 @@ async def update_base_budget(
     for field, value in changed_fields.items():
         setattr(base_budget, field, value)
 
-    # Update tracked categories if provided — soft-delete removed, insert new
+    # Update tracked categories when the PATCH body includes category_ids
     if new_category_ids is not None:
         today = datetime.now(ZoneInfo(user.tz)).date()
-        validated = set(await get_valid_tracked_category_ids(db, new_category_ids, user.id, base_budget.group_id))
-        current_result = await db.execute(
-            select(BudgetTrackedCategory.category_id).where(
-                BudgetTrackedCategory.base_budget_id == base_budget_id,
-                BudgetTrackedCategory.removed_at.is_(None),
-            ),
+        await update_tracked_category_links(
+            db,
+            base_budget_id,
+            new_category_ids,
+            user.id,
+            base_budget.group_id,
+            today,
         )
-        current = set(current_result.scalars().all())
-
-        # Soft-delete categories no longer tracked
-        removed = current - validated
-        if removed:
-            await db.execute(
-                sa.update(BudgetTrackedCategory)
-                .where(
-                    BudgetTrackedCategory.base_budget_id == base_budget_id,
-                    BudgetTrackedCategory.category_id.in_(removed),
-                    BudgetTrackedCategory.removed_at.is_(None),
-                )
-                .values(removed_at=today),
-            )
-
-        # Insert newly added categories
-        added = validated - current
-        for cat_id in added:
-            db.add(BudgetTrackedCategory(base_budget_id=base_budget_id, category_id=cat_id, added_at=today))
 
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
