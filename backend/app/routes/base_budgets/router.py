@@ -1,6 +1,6 @@
 """Base budget route handlers"""
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -17,6 +17,7 @@ from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_base_budget_access
 from app.routes.base_budgets.categories import get_valid_tracked_category_ids, update_tracked_category_links
+from app.routes.base_budgets.instances import add_initial_budget_instances
 from app.routes.base_budgets.listing import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
 from app.routes.base_budgets.responses import get_base_budget_response, get_budget_instance_response
@@ -62,36 +63,6 @@ async def _check_group_admin_or_403(
     if not membership.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can manage base budgets")
     return membership
-
-
-def _initial_budget_period_starts(base_budget: BaseBudget, period_start: date, today: date) -> list[date]:
-    """Return initial period starts for a base budget
-
-    Args:
-        base_budget: Base budget row being created
-        period_start: First requested period start date
-        today: Current date in the user's timezone
-
-    Returns:
-        Period start dates to materialize
-    """
-    starts = [period_start]
-    if not base_budget.recurs:
-        return starts
-
-    next_start = period_start
-    while True:
-        period_end = compute_period_end(
-            next_start,
-            base_budget.recurrence_freq,
-            base_budget.instance_length,
-            dom=base_budget.recurrence_dom,
-            month=base_budget.recurrence_month,
-        )
-        next_start = period_end + timedelta(days=1)
-        if next_start > today:
-            return starts
-        starts.append(next_start)
 
 
 @router.patch("/{base_budget_id}", response_model=BaseBudgetResponse)
@@ -276,22 +247,7 @@ async def create_base_budget(
     for cat_id in validated_cat_ids:
         db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat_id, added_at=category_added_at))
 
-    if data.period_start is not None and data.overall_limit is not None:
-        for period_start in _initial_budget_period_starts(base_budget, data.period_start, today):
-            db.add(
-                Budget(
-                    base_budget_id=base_budget.id,
-                    period_start=period_start,
-                    period_end=compute_period_end(
-                        period_start,
-                        base_budget.recurrence_freq,
-                        base_budget.instance_length,
-                        dom=base_budget.recurrence_dom,
-                        month=base_budget.recurrence_month,
-                    ),
-                    overall_limit=data.overall_limit,
-                ),
-            )
+    add_initial_budget_instances(db, base_budget, data.period_start, data.overall_limit, today)
 
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
