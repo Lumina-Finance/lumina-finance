@@ -1,4 +1,4 @@
-"""Net-worth movement helpers for the insights period-glance card"""
+"""Net-worth movement helpers for the insights Period At A Glance card"""
 
 import uuid
 from datetime import date, timedelta
@@ -12,18 +12,18 @@ from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
 
 
-async def get_period_glance_net_worth_change(
+async def get_period_at_a_glance_net_worth_change(
     db: AsyncSession,
     accounts: list[Account],
     base_currency: str,
     from_date: date,
     to_date: date,
 ) -> tuple[int, FxStatus]:
-    """Return converted net-worth movement over the inclusive period-glance range
+    """Return converted net-worth movement over the inclusive Period At A Glance range
 
     Args:
         db: Active database session
-        accounts: Accounts included in the period-glance summary
+        accounts: Accounts included in the Period At A Glance summary
         base_currency: User base currency used for converted values
         from_date: Inclusive period start date
         to_date: Inclusive period end date
@@ -139,7 +139,7 @@ async def _prefetch_net_worth_change_rates(
     """Prefetch FX rates needed for net-worth change conversion
 
     Args:
-        converter: FX converter used by the period-glance net-worth calculation
+        converter: FX converter used by the Period At A Glance net-worth calculation
         base_currency: User base currency used for converted values
         required_dates_by_currency: Exact conversion dates keyed by account currency
 
@@ -169,7 +169,7 @@ def _get_net_worth_change_rate_dates(
     """Return FX rate dates needed for non-base account balances
 
     Args:
-        accounts: Accounts included in the period-glance summary
+        accounts: Accounts included in the Period At A Glance summary
         base_currency: User base currency used for converted values
         start_balances: Starting balance amounts keyed by account ID
         end_balances: Ending balance amounts keyed by account ID

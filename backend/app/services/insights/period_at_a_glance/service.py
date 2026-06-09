@@ -1,4 +1,4 @@
-"""Period glance service for the insights page."""
+"""Period At A Glance service for the insights page"""
 
 import uuid
 from datetime import date
@@ -13,16 +13,16 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.fx import FxStatus
-from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodGlanceResponse
+from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodAtAGlanceResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
 from app.services.insights.common import comparison_period_bounds
-from app.services.insights.period_glance_category_highlights import (
+from app.services.insights.period_at_a_glance.category_highlights import (
     CategoryNetTotals,
-    get_period_glance_biggest_category_change,
-    get_period_glance_top_category,
+    get_period_at_a_glance_biggest_category_change,
+    get_period_at_a_glance_top_category,
 )
-from app.services.insights.period_glance_net_worth import get_period_glance_net_worth_change
+from app.services.insights.period_at_a_glance.net_worth_change import get_period_at_a_glance_net_worth_change
 
 
 async def _query_period_totals(
@@ -32,11 +32,24 @@ async def _query_period_totals(
     from_date: date,
     to_date: date,
 ) -> tuple[int, int, FxStatus]:
-    """Return sign-directed income and expense totals converted to base currency."""
+    """Return sign-directed income and expense totals converted to base currency
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the Period At A Glance summary
+        base_currency: User base currency used for converted values
+        from_date: Inclusive period start date
+        to_date: Inclusive period end date
+
+    Returns:
+        Income total, expense total, and FX conversion status
+    """
     if not accounts:
         return 0, 0, FxStatus()
 
     account_ids = [account.id for account in accounts]
+
+    # Load transaction totals grouped by category, account, transaction date, and account currency
     result = await db.execute(
         select(
             Category.id,
@@ -69,6 +82,8 @@ async def _query_period_totals(
     )
 
     category_totals: dict[uuid.UUID, int] = {}
+
+    # Convert each grouped transaction total before netting categories into income and expenses
     for row in rows:
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
@@ -92,6 +107,16 @@ async def _query_period_totals(
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    """Return minor-unit exponents keyed by currency code
+
+    Args:
+        db: Active database session
+        currencies: Currency codes needed for conversion
+
+    Returns:
+        Minor-unit exponent keyed by currency code
+    """
+    # Load currency precision so FX conversion can convert minor units correctly
     result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
@@ -104,7 +129,19 @@ async def _prefetch_period_total_rates(
     rows,
     base_currency: str,
 ) -> None:
+    """Prefetch FX rates needed for period total conversion
+
+    Args:
+        converter: FX converter used by the Period At A Glance calculation
+        rows: Grouped transaction rows containing account currency and transaction date
+        base_currency: User base currency used for converted values
+
+    Returns:
+        None
+    """
     ranges: dict[str, tuple[date, date]] = {}
+
+    # Build one date range per currency so rate prefetching stays compact
     for row in rows:
         currency = row.account_currency
         if currency == base_currency:
@@ -129,11 +166,25 @@ async def _query_category_net_totals(
     to_date: date,
     converter: FxConverter,
 ) -> CategoryNetTotals:
-    """Return converted signed category totals keyed by category id for an inclusive period."""
+    """Return converted signed category totals keyed by category ID for an inclusive period
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the Period At A Glance summary
+        base_currency: User base currency used for converted values
+        from_date: Inclusive period start date
+        to_date: Inclusive period end date
+        converter: FX converter used for category total conversion
+
+    Returns:
+        Signed category totals keyed by category ID
+    """
     if not accounts:
         return {}
 
     account_ids = [account.id for account in accounts]
+
+    # Load signed transaction totals grouped by category, account, transaction date, and account currency
     result = await db.execute(
         select(
             Category.id,
@@ -162,6 +213,8 @@ async def _query_category_net_totals(
     )
 
     raw_totals: dict[uuid.UUID, tuple[str, CategoryKind, int]] = {}
+
+    # Convert each grouped total before adding it into its signed category net total
     for row in rows:
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
@@ -181,19 +234,19 @@ async def _query_category_net_totals(
     }
 
 
-async def get_period_glance(
+async def get_period_at_a_glance(
     db: AsyncSession,
     user: User,
     from_date: date,
     to_date: date,
     comparison_period: InsightsComparisonPeriod = "same_length",
-) -> InsightsPeriodGlanceResponse:
-    """Return compact insight totals for the top period-glance card."""
+) -> InsightsPeriodAtAGlanceResponse:
+    """Return compact insight totals for the Period At A Glance card"""
     previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
     all_accounts = await get_accessible_accounts(db, user)
 
     if not all_accounts:
-        return InsightsPeriodGlanceResponse(
+        return InsightsPeriodAtAGlanceResponse(
             income=0,
             expenses=0,
             net_worth_change=0,
@@ -242,19 +295,19 @@ async def get_period_glance(
         previous_to_date,
         biggest_change_converter,
     )
-    net_worth_change, net_worth_change_fx_status = await get_period_glance_net_worth_change(
+    net_worth_change, net_worth_change_fx_status = await get_period_at_a_glance_net_worth_change(
         db,
         all_accounts,
         user.base_currency,
         from_date,
         to_date,
     )
-    top_category = get_period_glance_top_category(current_top_category_net_totals)
+    top_category = get_period_at_a_glance_top_category(current_top_category_net_totals)
     top_category_fx_status = top_category_converter.get_status()
-    biggest_change = get_period_glance_biggest_category_change(current_category_net_totals, previous_category_net_totals)
+    biggest_change = get_period_at_a_glance_biggest_category_change(current_category_net_totals, previous_category_net_totals)
     biggest_change_fx_status = biggest_change_converter.get_status()
 
-    return InsightsPeriodGlanceResponse(
+    return InsightsPeriodAtAGlanceResponse(
         income=income,
         expenses=expenses,
         income_expense_fx_status=income_expense_fx_status,

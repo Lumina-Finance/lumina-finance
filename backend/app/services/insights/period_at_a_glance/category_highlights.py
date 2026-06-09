@@ -1,4 +1,4 @@
-"""Category highlight helpers for the insights period-glance card"""
+"""Category highlight helpers for the insights Period At A Glance card"""
 
 import uuid
 
@@ -8,7 +8,7 @@ CategoryNetTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
 ExpenseCategoryTotals = dict[uuid.UUID, tuple[str, int]]
 
 
-def get_period_glance_top_category(
+def get_period_at_a_glance_top_category(
     category_net_totals: CategoryNetTotals,
 ) -> tuple[str, int | None] | None:
     """Return the largest current expense category and its expense share
@@ -28,7 +28,7 @@ def get_period_glance_top_category(
     return name, round((amount / total_positive_expenses) * 100) if total_positive_expenses > 0 else None
 
 
-def get_period_glance_biggest_category_change(
+def get_period_at_a_glance_biggest_category_change(
     current_totals: CategoryNetTotals,
     previous_totals: CategoryNetTotals,
 ) -> tuple[str, int, int | None] | None:

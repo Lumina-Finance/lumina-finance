@@ -19,7 +19,7 @@ from app.schemas.insights import (
     InsightsMerchantRankingResponse,
     InsightsMerchantsResponse,
     InsightsNetWorthResponse,
-    InsightsPeriodGlanceResponse,
+    InsightsPeriodAtAGlanceResponse,
     InsightsSavingsRateTrendResponse,
 )
 from app.services.insights import (
@@ -30,7 +30,7 @@ from app.services.insights import (
     get_merchant_ranking,
     get_merchants,
     get_net_worth,
-    get_period_glance,
+    get_period_at_a_glance,
     get_savings_rate_trend,
 )
 
@@ -48,17 +48,17 @@ def _validate_date_range(
         )
 
 
-@router.get("/period-glance", response_model=InsightsPeriodGlanceResponse, response_model_exclude_none=True)
-async def get_period_glance_route(
+@router.get("/period-glance", response_model=InsightsPeriodAtAGlanceResponse, response_model_exclude_none=True)
+async def get_period_at_a_glance_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: Annotated[date, Query()],
     to_date: Annotated[date, Query()],
     comparison_period: Annotated[InsightsComparisonPeriod, Query()] = "same_length",
 ):
-    """Return compact metrics for the insights top summary card."""
+    """Return compact metrics for the insights Period At A Glance card"""
     _validate_date_range(from_date, to_date)
-    return await get_period_glance(db, user, from_date, to_date, comparison_period)
+    return await get_period_at_a_glance(db, user, from_date, to_date, comparison_period)
 
 
 @router.get("/fund-flow", response_model=InsightsFundFlowResponse)

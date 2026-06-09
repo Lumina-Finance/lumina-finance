@@ -5,7 +5,7 @@ from app.services.insights.fund_flow import get_fund_flow
 from app.services.insights.income_expense_breakdown import get_income_expense_breakdown
 from app.services.insights.merchants import get_merchant_distribution, get_merchant_ranking, get_merchants
 from app.services.insights.net_worth import get_net_worth
-from app.services.insights.period_glance import get_period_glance
+from app.services.insights.period_at_a_glance import get_period_at_a_glance
 from app.services.insights.savings_rate_trend import get_savings_rate_trend
 
 __all__ = [
@@ -16,6 +16,6 @@ __all__ = [
     "get_merchant_ranking",
     "get_merchants",
     "get_net_worth",
-    "get_period_glance",
+    "get_period_at_a_glance",
     "get_savings_rate_trend",
 ]
