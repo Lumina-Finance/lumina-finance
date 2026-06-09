@@ -139,6 +139,7 @@ async def _raise_for_missing_currency(db: AsyncSession, currency: str) -> None:
     Raises:
         HTTPException: Currency code is not configured
     """
+    # Confirm the submitted account currency is configured before persisting the account
     result = await db.execute(select(Currency).where(Currency.id == currency))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
@@ -154,6 +155,7 @@ async def _raise_for_missing_institution(db: AsyncSession, institution_id: objec
     Raises:
         HTTPException: Institution identifier is not configured
     """
+    # Confirm the optional institution exists before linking it to the account
     result = await db.execute(select(Institution).where(Institution.id == institution_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")

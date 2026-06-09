@@ -105,6 +105,7 @@ async def validate_tax_advantaged_plan_link(
             detail="Tax-advantaged plans can only be linked to asset accounts",
         )
 
+    # Fetch the plan so account-link validation can check ownership, scope, and currency
     plan = await db.get(TaxAdvantagedPlan, plan_id)
     if not plan or plan.tax_treatment == TaxTreatment.TAXABLE:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax-advantaged plan")
@@ -128,6 +129,7 @@ async def validate_tax_advantaged_plan_link(
             detail="Only the plan owner can link this plan to a group account",
         )
 
+    # Confirm the plan owner still belongs to the target account group
     owner_membership = await db.get(GroupMember, (group_id, plan.plan_owner_user_id))
     if not owner_membership:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tax-advantaged plan")

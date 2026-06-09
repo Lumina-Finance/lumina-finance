@@ -30,6 +30,7 @@ async def _get_group_account_or_404(db: AsyncSession, account_id: uuid.UUID) -> 
     Raises:
         HTTPException: Account is missing or personal
     """
+    # Fetch the account row and reject personal accounts because permissions apply only to group accounts
     result = await db.execute(select(Account).where(Account.id == account_id))
     account = result.scalar_one_or_none()
     if not account or not account.group_id:
@@ -51,6 +52,7 @@ async def _is_group_account_admin(db: AsyncSession, group_id: uuid.UUID, user_id
     Raises:
         HTTPException: User is not a group member
     """
+    # Fetch the actor's group membership to determine whether admin-only permission changes are allowed
     result = await db.execute(
         select(GroupMember).where(
             GroupMember.group_id == group_id,
@@ -88,6 +90,7 @@ async def grant_account_permission(
     if not await _is_group_account_admin(db, account.group_id, user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
+    # Confirm the target user belongs to the account group before granting explicit access
     target_result = await db.execute(
         select(GroupMember).where(
             GroupMember.group_id == account.group_id,
@@ -100,6 +103,7 @@ async def grant_account_permission(
     if target_member.is_admin:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Admins have implicit full access")
 
+    # Look for an existing permission so repeated grants update the access level instead of duplicating rows
     existing_result = await db.execute(
         select(AccountPermission).where(
             AccountPermission.group_id == account.group_id,
@@ -150,6 +154,7 @@ async def revoke_account_permission(
     if not await _is_group_account_admin(db, account.group_id, user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
+    # Fetch the permission row within the account so revocation cannot cross account boundaries
     result = await db.execute(
         select(AccountPermission).where(
             AccountPermission.id == permission_id,
@@ -194,5 +199,6 @@ async def list_account_permissions(
     if user_id:
         query = query.where(AccountPermission.user_id == user_id)
 
+    # Fetch permission rows for the group account, optionally narrowed to one member
     result = await db.execute(query.order_by(AccountPermission.created_at))
     return result.scalars().all()

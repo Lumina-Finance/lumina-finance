@@ -99,6 +99,7 @@ async def _get_system_balance_adjustment_category_id(db: AsyncSession) -> uuid.U
     Raises:
         HTTPException: Balance adjustment category is not configured
     """
+    # Fetch the system transfer category used for synthetic balance adjustment transactions
     category_id = await db.scalar(
         select(Category.id).where(
             Category.is_system.is_(True),

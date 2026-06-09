@@ -111,6 +111,7 @@ async def _query_grand_total_spend(db: AsyncSession, expense_predicate) -> int:
     Returns:
         Positive total spending in minor units
     """
+    # Sum all expense transactions in the period before ranking categories or merchants
     total_result = await db.execute(
         select(func.coalesce(func.sum(Transaction.amount), 0))
         .join(Category, Transaction.category_id == Category.id)
@@ -130,6 +131,7 @@ async def _query_top_categories(db: AsyncSession, expense_predicate) -> tuple[li
         Top category rows and count of hidden nonzero categories
     """
     category_total = func.sum(Transaction.amount)
+    # Fetch the largest spending categories plus one extra row to detect hidden results
     category_result = await db.execute(
         select(
             Category.id,
@@ -173,6 +175,7 @@ async def _count_hidden_categories(db: AsyncSession, expense_predicate, category
         .having(func.sum(Transaction.amount) != 0)
         .subquery()
     )
+    # Count all nonzero categories so the response can report how many are hidden
     total_categories = (await db.execute(
         select(func.count()).select_from(nonzero_categories),
     )).scalar_one()
@@ -190,6 +193,7 @@ async def _query_top_merchants(db: AsyncSession, expense_predicate) -> tuple[lis
         Top merchant rows and count of hidden nonzero merchants
     """
     merchant_total = func.sum(Transaction.amount)
+    # Fetch the largest spending merchants plus one extra row to detect hidden results
     merchant_result = await db.execute(
         select(
             Merchant.id,
@@ -234,6 +238,7 @@ async def _count_hidden_merchants(db: AsyncSession, expense_predicate, merchant_
         .having(func.sum(Transaction.amount) != 0)
         .subquery()
     )
+    # Count all nonzero merchants so the response can report how many are hidden
     total_merchants = (await db.execute(
         select(func.count()).select_from(nonzero_merchants),
     )).scalar_one()

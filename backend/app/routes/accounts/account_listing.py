@@ -35,5 +35,6 @@ async def get_accounts_visible_to_user(db: AsyncSession, user_id: uuid.UUID) -> 
         )
         .order_by(Account.created_at)
     )
+    # Execute the visibility query and collapse duplicates from group and permission joins
     result = await db.execute(query)
     return list(result.scalars().unique().all())

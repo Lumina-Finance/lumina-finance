@@ -73,6 +73,7 @@ async def _get_group_membership_or_404(
     Raises:
         HTTPException: User is not a member of the requested group
     """
+    # Fetch the acting user's membership so group-account creation can enforce admin access
     result = await db.execute(
         select(GroupMember).where(
             GroupMember.group_id == group_id,
@@ -111,6 +112,7 @@ async def _get_group_owner_timezone_or_404(db: AsyncSession, group_id: uuid.UUID
     Raises:
         HTTPException: Group does not exist
     """
+    # Fetch the owning user's timezone so group-account history starts on the owner's local day
     group_owner_tz = await db.scalar(
         select(User.tz)
         .join(Group, Group.owner_id == User.id)

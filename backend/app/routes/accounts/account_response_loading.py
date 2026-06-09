@@ -39,6 +39,7 @@ async def get_account_for_response(
     if refresh_cached_account:
         query = query.execution_options(populate_existing=True)
 
+    # Fetch the account with response relationships and optional identity-map refresh
     result = await db.execute(query)
     account = result.scalar_one()
     await attach_account_balance_fields(db, [account], user, as_of_date)
