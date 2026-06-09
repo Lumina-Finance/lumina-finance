@@ -10,12 +10,12 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsSavingsRateTrendResponse
 from app.services.dashboard import get_accessible_accounts
-from app.services.insights.savings_rate_trend.monthly_category_totals_helpers import (
-    MonthlyCategoryTotalsByKey,
-    get_converted_monthly_category_totals,
+from app.services.insights.savings_rate_trend.monthly_category_totals_helpers import get_converted_monthly_category_totals
+from app.services.insights.savings_rate_trend.response import (
+    build_empty_savings_rate_trend_response,
+    build_savings_rate_trend_response,
 )
 from app.utils.dates import (
     get_month_start_date,
@@ -24,8 +24,6 @@ from app.utils.dates import (
 )
 
 SAVINGS_RATE_TREND_MONTHS = 12
-
-MonthlySavingsRateTotals = dict[date, dict[str, int]]
 
 
 def _get_inclusive_month_count(start_month: date, end_month: date) -> int:
@@ -73,65 +71,6 @@ async def _get_first_activity_month(
     return first_activity_month
 
 
-def _build_empty_savings_rate_trend_response() -> InsightsSavingsRateTrendResponse:
-    """Return an empty savings-rate trend response
-
-    Returns:
-        Savings-rate trend response payload with no points
-    """
-    response = InsightsSavingsRateTrendResponse(points=[])
-    return response
-
-
-def _get_monthly_savings_rate_totals(months: list[date], monthly_category_totals: MonthlyCategoryTotalsByKey) -> MonthlySavingsRateTotals:
-    """Return monthly income and expense totals from signed category totals
-
-    Args:
-        months: Month starts included in the response
-        monthly_category_totals: Converted monthly category totals keyed by month and category
-
-    Returns:
-        Income and expense totals keyed by month
-    """
-    totals = {month: {"income": 0, "expenses": 0} for month in months}
-
-    # Classify signed category totals into monthly income and expense totals
-    for (month, _category_id), total in monthly_category_totals.items():
-        if total > 0:
-            totals[month]["income"] += total
-        elif total < 0:
-            totals[month]["expenses"] += -total
-
-    return totals
-
-
-def _build_savings_rate_trend_response(
-    months: list[date],
-    totals: MonthlySavingsRateTotals,
-    fx_status: FxStatus,
-) -> InsightsSavingsRateTrendResponse:
-    """Return savings-rate trend response from monthly totals
-
-    Args:
-        months: Month starts included in the response
-        totals: Income and expense totals keyed by month
-        fx_status: FX conversion status from monthly total loading
-
-    Returns:
-        Savings-rate trend response payload
-    """
-    points = [
-        (
-            month,
-            totals[month]["income"],
-            totals[month]["expenses"],
-        )
-        for month in months
-    ]
-    response = InsightsSavingsRateTrendResponse(points=points, fx_status=fx_status)
-    return response
-
-
 async def get_savings_rate_trend(
     db: AsyncSession,
     user: User,
@@ -151,14 +90,14 @@ async def get_savings_rate_trend(
     accounts = await get_accessible_accounts(db, user)
     account_ids = [account.id for account in accounts]
     if not account_ids:
-        response = _build_empty_savings_rate_trend_response()
+        response = build_empty_savings_rate_trend_response()
         return response
 
     current_month = get_month_start_date(now.date())
     window_end = get_shifted_month_start_date(current_month, 1)
     first_activity_month = await _get_first_activity_month(db, account_ids, window_end)
     if first_activity_month is None:
-        response = _build_empty_savings_rate_trend_response()
+        response = build_empty_savings_rate_trend_response()
         return response
 
     earliest_visible_month = get_shifted_month_start_date(current_month, -(SAVINGS_RATE_TREND_MONTHS - 1))
@@ -172,6 +111,5 @@ async def get_savings_rate_trend(
         start_month,
         window_end,
     )
-    totals = _get_monthly_savings_rate_totals(months, monthly_category_totals)
-    response = _build_savings_rate_trend_response(months, totals, fx_status)
+    response = build_savings_rate_trend_response(months, monthly_category_totals, fx_status)
     return response
