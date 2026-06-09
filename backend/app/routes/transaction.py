@@ -10,7 +10,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.user import User
-from app.permissions import check_account_access, check_transaction_access
+from app.permissions import check_transaction_access
 from app.schemas.transaction import (
     CreateTransactionRequest,
     TransactionImportRequest,
@@ -19,25 +19,13 @@ from app.schemas.transaction import (
     TransactionsOverview,
     UpdateTransactionRequest,
 )
-from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transaction_imports import import_transactions
 from app.services.transaction_responses import get_transaction_response
-from app.services.transactions.accounts import (
-    get_parent_account_for_transaction,
-    validate_transaction_account_is_not_archived,
-)
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import delete_transaction_for_user
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
-from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
-from app.services.transactions.tags import replace_transaction_tag_links
-from app.services.transactions.validation import (
-    get_valid_transaction_tag_ids,
-    validate_transaction_category_access,
-    validate_transaction_fx_rate_for_account_currency,
-    validate_transaction_merchant_access,
-)
+from app.services.transactions.update import update_transaction_and_get_response
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -208,9 +196,9 @@ async def update_transaction(
 ):
     """Update a transaction after checking write access
 
-    The route applies provided fields, validates changed related entities,
-    replaces tag links when requested, and recomputes balance snapshots when
-    the account, date, or amount changes
+    The route delegates write access checks, related entity validation, field
+    updates, tag updates, snapshot recalculation, and response assembly to the
+    update service
 
     Args:
         transaction_id: Transaction identifier from the route path
@@ -221,70 +209,7 @@ async def update_transaction(
     Returns:
         Updated transaction response with current related display data
     """
-    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
-    current_account = await get_parent_account_for_transaction(db, txn)
-    validate_transaction_account_is_not_archived(current_account)
-
-    changed_fields = data.model_dump(exclude_unset=True)
-    if not changed_fields:
-        return await get_transaction_response(db, txn)
-
-    previous_account_id = txn.account_id
-    previous_date = txn.dt
-    new_account = None
-
-    # Resolve the account's group_id for category/merchant validation
-    account_group_id = None
-    if "account_id" in changed_fields:
-        # Moving to a new account requires a writable target that accepts new history
-        new_account = await check_account_access(
-            db,
-            changed_fields["account_id"],
-            user.id,
-            PermissionLevel.WRITE,
-            require_open=True,
-        )
-        validate_transaction_account_is_not_archived(new_account)
-        account_group_id = new_account.group_id
-        validate_transaction_fx_rate_for_account_currency(
-            txn.currency,
-            new_account.currency,
-            txn.fx_rate,
-            fx_rate_change_requested="fx_rate" in changed_fields,
-        )
-    else:
-        account_group_id = current_account.group_id
-
-    if "category_id" in changed_fields:
-        await validate_transaction_category_access(db, changed_fields["category_id"], user.id, account_group_id)
-    if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
-        await validate_transaction_merchant_access(db, changed_fields["merchant_id"], user.id, account_group_id)
-
-    # Handle tags separately — validate and replace in bulk
-    new_tag_ids = changed_fields.pop("tag_ids", None)
-
-    for field, value in changed_fields.items():
-        setattr(txn, field, value)
-
-    if new_tag_ids is not None:
-        validated = await get_valid_transaction_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
-        await replace_transaction_tag_links(db, txn.id, validated)
-
-    await recompute_snapshots_after_transaction_update(
-        db,
-        txn,
-        previous_account_id=previous_account_id,
-        previous_date=previous_date,
-        changed_fields=changed_fields,
-    )
-
-    await mark_cache_changed_for_scope(db, user_id=current_account.owner_id, group_id=current_account.group_id)
-    if new_account is not None and new_account.id != current_account.id:
-        await mark_cache_changed_for_scope(db, user_id=new_account.owner_id, group_id=new_account.group_id)
-    await db.commit()
-    await db.refresh(txn)
-
-    return await get_transaction_response(db, txn)
+    return await update_transaction_and_get_response(db, user, transaction_id, data)
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
