@@ -57,17 +57,40 @@ async def get_or_create_import_tags(
         if len(name) > 64:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Tag name is too long: {name[:28]}")
 
-        tag = tags_by_name.get(name)
-        if tag is not None:
-            stats.tags_reused += 1
-        else:
-            tag = Tag(owner_id=user_id, group_id=None, name=name)
-            db.add(tag)
-            await db.flush()
-            tags_by_name[name] = tag
-            stats.tags_created += 1
-            stats.created_tag_ids.append(tag.id)
-
+        tag = await _get_or_create_import_tag(db, user_id, name, tags_by_name, stats)
         tags.append(tag)
         seen_names.add(name)
     return tags
+
+
+async def _get_or_create_import_tag(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    name: str,
+    tags_by_name: dict[str, Tag],
+    stats: ImportStats,
+) -> Tag:
+    """Return one existing tag by name or create a personal import tag
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        name: Trimmed tag name from an import row
+        tags_by_name: Request-local tag lookup keyed by tag name
+        stats: Import summary counters updated when a tag is reused or created
+
+    Returns:
+        Existing or newly created tag row for the import row
+    """
+    existing_tag = tags_by_name.get(name)
+    if existing_tag is not None:
+        stats.tags_reused += 1
+        return existing_tag
+
+    tag = Tag(owner_id=user_id, group_id=None, name=name)
+    db.add(tag)
+    await db.flush()
+    tags_by_name[name] = tag
+    stats.tags_created += 1
+    stats.created_tag_ids.append(tag.id)
+    return tag
