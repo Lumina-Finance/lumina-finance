@@ -9,18 +9,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import CategoryKind
-from app.models.category import Category
 from app.models.currency import Currency
-from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.fx import FxStatus
 from app.schemas.transaction import DailyCashFlow, OutlierTransaction, TopCategorySpend, TransactionsOverview
 from app.services.fx import FxConverter
 from app.services.transactions.access import accessible_account_ids_subquery
+from app.services.transactions.overview_queries import (
+    get_overview_cash_flow_rows,
+    get_overview_category_total_rows,
+    get_overview_outlier_candidate_rows,
+)
 
-_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 OverviewCashFlowGranularity = Literal["day", "week", "month"]
 _MONTHLY_RANGE_DAY_COUNT = 31
 _HALF_YEAR_DAY_COUNT = 183
@@ -81,9 +82,9 @@ async def get_transactions_overview(
         )
 
     # Each overview panel uses the same transaction scope but needs a different aggregate shape
-    cash_flow_rows = await _query_overview_cash_flow(db, transaction_filters)
-    category_total_rows = await _query_overview_categories(db, transaction_filters)
-    outlier_candidate_rows = await _query_overview_outliers(db, transaction_filters)
+    cash_flow_rows = await get_overview_cash_flow_rows(db, transaction_filters)
+    category_total_rows = await get_overview_category_total_rows(db, transaction_filters)
+    outlier_candidate_rows = await get_overview_outlier_candidate_rows(db, transaction_filters)
     currency_conversion_rows = [*cash_flow_rows, *category_total_rows, *outlier_candidate_rows]
     accounts_by_id = await _get_overview_accounts_by_id(db, currency_conversion_rows)
     shared_converter = await _get_overview_converter(
@@ -132,112 +133,6 @@ async def get_transactions_overview(
         outliers=outliers,
         outliers_fx_status=outliers_fx_status,
     )
-
-
-async def _query_overview_cash_flow(db: AsyncSession, transaction_filters):
-    """Query per-day inflow and outflow totals for the overview
-
-    The query groups eligible income, expense, and real transfer activity by
-    transaction date and account so later conversion can use each account's
-    persisted currency
-
-    Args:
-        db: Active database session
-        transaction_filters: SQLAlchemy filters shared by overview queries
-
-    Returns:
-        SQLAlchemy rows containing date, account, inflow, and outflow values
-    """
-    # Aggregate cash-flow totals by date and account for transactions in the overview scope
-    return (
-        await db.execute(
-            select(
-                Transaction.dt.label("date"),
-                Transaction.account_id,
-                sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount > 0, Transaction.amount))), 0).label("inflow"),
-                sa.func.coalesce(sa.func.sum(sa.case((Transaction.amount < 0, Transaction.amount))), 0).label("outflow"),
-            )
-            .join(Category, Transaction.category_id == Category.id)
-            .where(transaction_filters)
-            # Real transfers affect cash flow, but synthetic balance adjustments should not
-            .where(
-                sa.or_(
-                    Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]),
-                    (
-                        (Category.kind == CategoryKind.TRANSFER)
-                        & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)
-                    ),
-                ),
-            )
-            .group_by(Transaction.dt, Transaction.account_id),
-        )
-    ).all()
-
-
-async def _query_overview_categories(db: AsyncSession, transaction_filters):
-    """Query per-category transaction totals for the overview
-
-    The query preserves account and date on each aggregate row so totals can be
-    converted accurately before being merged into top category results
-
-    Args:
-        db: Active database session
-        transaction_filters: SQLAlchemy filters shared by overview queries
-
-    Returns:
-        SQLAlchemy rows containing category, account, date, and total values
-    """
-    # Aggregate income and expense totals by category, account, and date for conversion
-    return (
-        await db.execute(
-            select(
-                Transaction.category_id,
-                Category.name.label("category_name"),
-                Transaction.account_id,
-                Transaction.dt.label("date"),
-                sa.func.sum(Transaction.amount).label("total"),
-            )
-            .join(Category, Transaction.category_id == Category.id)
-            .where(transaction_filters)
-            .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
-            .group_by(Transaction.category_id, Category.name, Transaction.account_id, Transaction.dt),
-        )
-    ).all()
-
-
-async def _query_overview_outliers(db: AsyncSession, transaction_filters):
-    """Query candidate outlier transactions for the overview
-
-    The query loads negative income or expense transactions with merchant data
-    so the conversion layer can rank the largest converted spending rows
-
-    Args:
-        db: Active database session
-        transaction_filters: SQLAlchemy filters shared by overview queries
-
-    Returns:
-        SQLAlchemy rows for expense-side transactions eligible for outlier ranking
-    """
-    # Fetch negative income or expense transactions that can be ranked as outliers
-    return (
-        await db.execute(
-            select(
-                Transaction.id,
-                Transaction.account_id,
-                Merchant.name.label("merchant_name"),
-                Transaction.notes,
-                Transaction.amount,
-                Transaction.dt.label("date"),
-                Transaction.category_id,
-            )
-            .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
-            .join(Category, Transaction.category_id == Category.id)
-            .where(transaction_filters)
-            .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
-            .where(Transaction.amount < 0)
-            .order_by(Transaction.amount.asc()),
-        )
-    ).all()
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
