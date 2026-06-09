@@ -12,10 +12,8 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.base import PermissionLevel
-from app.models.category import Category
 from app.models.currency import Currency
-from app.models.merchant import Merchant
-from app.models.tag import Tag, TransactionTag
+from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
@@ -38,107 +36,13 @@ from app.services.transaction_responses import (
 )
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
+from app.services.transactions.validation import (
+    get_valid_transaction_tag_ids,
+    validate_transaction_category_access,
+    validate_transaction_merchant_access,
+)
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
-
-
-async def _check_category_access_or_422(
-    db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID, group_id: uuid.UUID | None = None,
-) -> None:
-    """Validate category access for a transaction account scope
-
-    Args:
-        db: Active database session
-        category_id: Category ID to validate
-        user_id: User ID that must own or access the category
-        group_id: Optional account group ID that expands validation to group
-            categories
-
-    Returns:
-        None
-
-    Raises:
-        HTTPException: Raised with 422 when the category does not exist or is
-            outside the account scope
-    """
-    query = select(Category).where(Category.id == category_id)
-    if group_id is not None:
-        query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
-            | (Category.group_id == group_id),
-        )
-    else:
-        query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
-        )
-    if not (await db.execute(query)).scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
-
-
-async def _check_merchant_access_or_422(
-    db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID, group_id: uuid.UUID | None = None,
-) -> None:
-    """Validate merchant access for a transaction account scope
-
-    Args:
-        db: Active database session
-        merchant_id: Merchant ID to validate
-        user_id: User ID that must own or access the merchant
-        group_id: Optional account group ID that expands validation to group
-            merchants
-
-    Returns:
-        None
-
-    Raises:
-        HTTPException: Raised with 422 when the merchant does not exist or is
-            outside the account scope
-    """
-    query = select(Merchant).where(Merchant.id == merchant_id)
-    if group_id is not None:
-        query = query.where(
-            ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
-        )
-    else:
-        query = query.where(Merchant.owner_id == user_id, Merchant.group_id.is_(None))
-    if not (await db.execute(query)).scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
-
-
-async def _validate_tag_ids(
-    db: AsyncSession, user_id: uuid.UUID, tag_ids: list[uuid.UUID], group_id: uuid.UUID | None = None,
-) -> list[uuid.UUID]:
-    """Validate tag access for a transaction account scope
-
-    Args:
-        db: Active database session
-        user_id: User ID that must own or access each tag
-        tag_ids: Tag IDs to validate
-        group_id: Optional account group ID that expands validation to group
-            tags
-
-    Returns:
-        Deduplicated tag IDs that preserve the submitted order
-
-    Raises:
-        HTTPException: Raised with 422 when any tag does not exist or is
-            outside the account scope
-    """
-    # Deduplicate to avoid inserting duplicate junction rows (composite PK violation)
-    unique_ids = list(dict.fromkeys(tag_ids))
-    tag_filter = (Tag.owner_id == user_id) & (Tag.group_id.is_(None))
-    if group_id is not None:
-        tag_filter = tag_filter | (Tag.group_id == group_id)
-
-    result = await db.execute(
-        select(Tag.id).where(Tag.id.in_(unique_ids), tag_filter),
-    )
-    found_ids = set(result.scalars().all())
-    if found_ids != set(unique_ids):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag not found")
-    return unique_ids
 
 
 async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> None:
@@ -152,6 +56,7 @@ async def _replace_tags(db: AsyncSession, transaction_id: uuid.UUID, tag_ids: li
     Returns:
         None
     """
+    # Remove existing tag links for the transaction before adding the replacement set
     await db.execute(
         sa.delete(TransactionTag).where(TransactionTag.transaction_id == transaction_id),
     )
@@ -294,6 +199,7 @@ async def create_transaction(
     if account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
 
+    # Confirm the transaction currency exists before storing the transaction
     currency_lookup = await db.execute(select(Currency).where(Currency.id == data.currency))
     if not currency_lookup.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
@@ -304,12 +210,12 @@ async def create_transaction(
             detail="fx_rate is required when transaction currency differs from account currency",
         )
 
-    await _check_category_access_or_422(db, data.category_id, user.id, account.group_id)
+    await validate_transaction_category_access(db, data.category_id, user.id, account.group_id)
     if data.merchant_id:
-        await _check_merchant_access_or_422(db, data.merchant_id, user.id, account.group_id)
+        await validate_transaction_merchant_access(db, data.merchant_id, user.id, account.group_id)
     validated_tag_ids = []
     if data.tag_ids:
-        validated_tag_ids = await _validate_tag_ids(db, user.id, data.tag_ids, account.group_id)
+        validated_tag_ids = await get_valid_transaction_tag_ids(db, user.id, data.tag_ids, account.group_id)
 
     txn = Transaction(
         created_by_user_id=user.id,
@@ -355,6 +261,7 @@ async def update_transaction(
 ):
     """Update a transaction. Requires write access on the target account"""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    # Fetch the current account so archived status and cache scope use the persisted parent account
     current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
     if current_account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
@@ -399,9 +306,9 @@ async def update_transaction(
         account_group_id = current_account.group_id
 
     if "category_id" in changed_fields:
-        await _check_category_access_or_422(db, changed_fields["category_id"], user.id, account_group_id)
+        await validate_transaction_category_access(db, changed_fields["category_id"], user.id, account_group_id)
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
-        await _check_merchant_access_or_422(db, changed_fields["merchant_id"], user.id, account_group_id)
+        await validate_transaction_merchant_access(db, changed_fields["merchant_id"], user.id, account_group_id)
 
     # Snapshot recomputation is only needed when balance-affecting fields change
     recompute_needed = bool({"account_id", "dt", "amount"} & changed_fields.keys())
@@ -413,7 +320,7 @@ async def update_transaction(
         setattr(txn, field, value)
 
     if new_tag_ids is not None:
-        validated = await _validate_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
+        validated = await get_valid_transaction_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
         await _replace_tags(db, txn.id, validated)
 
     if recompute_needed:
@@ -451,6 +358,7 @@ async def delete_transaction(
 ):
     """Delete a transaction. Requires write access on the parent account"""
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    # Fetch the parent account so archived status and cache scope are based on the persisted account row
     account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
     if account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
