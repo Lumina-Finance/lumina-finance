@@ -1,4 +1,4 @@
-"""Shared merchant spending service for the insights page."""
+"""Shared merchant spending service for the insights page"""
 
 import uuid
 from dataclasses import dataclass
@@ -31,6 +31,14 @@ MERCHANT_RANKING_LIMIT = 10
 
 @dataclass(frozen=True)
 class MerchantSpendStats:
+    """Store converted merchant spend stats for one period
+
+    Attributes:
+        name: Merchant display name
+        amount: Positive spend amount
+        transaction_count: Number of transactions behind the amount
+    """
+
     name: str
     amount: int
     transaction_count: int
@@ -48,11 +56,25 @@ async def _query_merchant_stats(
     from_date: date,
     to_date: date,
 ) -> tuple[MerchantSpendStatsById, FxStatus]:
-    """Return converted net expense-kind spend and transaction counts by merchant."""
+    """Return converted net expense-kind spend and transaction counts by merchant
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the merchant insight summary
+        base_currency: User base currency used for converted values
+        from_date: Inclusive period start date
+        to_date: Inclusive period end date
+
+    Returns:
+        Positive merchant spend stats and FX conversion status
+    """
     if not accounts:
-        return {}, FxStatus()
+        fx_status = FxStatus()
+        return {}, fx_status
 
     account_ids = [account.id for account in accounts]
+
+    # Load merchant totals grouped by date and account currency so each amount can use the correct FX rate
     result = await db.execute(
         select(
             Merchant.id,
@@ -88,6 +110,8 @@ async def _query_merchant_stats(
     )
 
     stats_by_id: MerchantSpendStatsById = {}
+
+    # Convert each grouped total, then net expense refunds against merchant spend
     for row in rows:
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
@@ -105,17 +129,26 @@ async def _query_merchant_stats(
             transaction_count=current_stats.transaction_count + int(row.transaction_count or 0),
         )
 
-    return (
-        {
-            merchant_id: stats
-            for merchant_id, stats in stats_by_id.items()
-            if stats.amount > 0
-        },
-        converter.get_status(),
-    )
+    positive_stats_by_id = {
+        merchant_id: stats
+        for merchant_id, stats in stats_by_id.items()
+        if stats.amount > 0
+    }
+    fx_status = converter.get_status()
+    return positive_stats_by_id, fx_status
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    """Return minor-unit exponents keyed by currency code
+
+    Args:
+        db: Active database session
+        currencies: Currency codes needed for conversion
+
+    Returns:
+        Minor-unit exponent keyed by currency code
+    """
+    # Load currency precision so FX conversion can convert minor units correctly
     result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
@@ -128,7 +161,19 @@ async def _prefetch_merchant_rates(
     rows,
     base_currency: str,
 ) -> None:
+    """Prefetch FX rates required by merchant spend rows
+
+    Args:
+        converter: FX converter used by the merchant insight calculation
+        rows: Grouped merchant transaction rows that may require FX conversion
+        base_currency: User base currency used for converted values
+
+    Returns:
+        None
+    """
     ranges: dict[str, tuple[date, date]] = {}
+
+    # Build one date range per foreign currency to avoid prefetching each row individually
     for row in rows:
         currency = row.account_currency
         if currency == base_currency:
@@ -146,6 +191,15 @@ async def _prefetch_merchant_rates(
 
 
 def _combine_fx_statuses(current: FxStatus, previous: FxStatus) -> FxStatus:
+    """Return one FX status for current and comparison period calculations
+
+    Args:
+        current: FX status from the selected period
+        previous: FX status from the comparison period
+
+    Returns:
+        Combined FX status with duplicate missing pairs removed
+    """
     if current.state == "none":
         return previous
     if previous.state == "none":
@@ -160,13 +214,25 @@ def _combine_fx_statuses(current: FxStatus, previous: FxStatus) -> FxStatus:
         ],
     ]
     if current.state == "complete" and previous.state == "complete":
-        return FxStatus(state="complete")
+        fx_status = FxStatus(state="complete")
+        return fx_status
     if current.state == "unavailable" and previous.state == "unavailable":
-        return FxStatus(state="unavailable", missing_pairs=missing_pairs)
-    return FxStatus(state="incomplete", missing_pairs=missing_pairs)
+        fx_status = FxStatus(state="unavailable", missing_pairs=missing_pairs)
+        return fx_status
+    fx_status = FxStatus(state="incomplete", missing_pairs=missing_pairs)
+    return fx_status
 
 
 def _change_pct(current_amount: int, previous_amount: int) -> int | None:
+    """Return percentage change from a previous amount
+
+    Args:
+        current_amount: Current-period merchant spend
+        previous_amount: Comparison-period merchant spend
+
+    Returns:
+        Rounded percentage change, or None when there is no positive previous amount
+    """
     if previous_amount <= 0:
         return None
     return round(((current_amount - previous_amount) / previous_amount) * 100)
@@ -176,7 +242,15 @@ def _merchant_distribution_rows(
     current_stats_by_id: MerchantSpendStatsById,
     previous_stats_by_id: MerchantSpendStatsById,
 ) -> list[MerchantDistributionRow]:
-    """Return top merchant rows plus one Other row for remaining spend."""
+    """Return top merchant rows plus one Other row for remaining spend
+
+    Args:
+        current_stats_by_id: Selected-period merchant spend stats keyed by merchant ID
+        previous_stats_by_id: Comparison-period merchant spend stats keyed by merchant ID
+
+    Returns:
+        Merchant distribution rows for the response
+    """
     ranked_entries = sorted(
         current_stats_by_id.items(),
         key=lambda entry: (-entry[1].amount, entry[1].name),
@@ -185,6 +259,8 @@ def _merchant_distribution_rows(
     remaining_entries = ranked_entries[MERCHANT_DISTRIBUTION_LIMIT:]
 
     rows: list[MerchantDistributionRow] = []
+
+    # Build visible merchant rows with comparison movement values
     for merchant_id, stats in visible_entries:
         previous_amount = previous_stats_by_id.get(merchant_id, MerchantSpendStats("", 0, 0)).amount
         rows.append((
@@ -206,13 +282,23 @@ def _merchant_ranking_rows(
     current_stats_by_id: MerchantSpendStatsById,
     previous_stats_by_id: MerchantSpendStatsById,
 ) -> list[MerchantRankingRow]:
-    """Return top merchant rows sorted by current spend."""
+    """Return top merchant rows sorted by current spend
+
+    Args:
+        current_stats_by_id: Selected-period merchant spend stats keyed by merchant ID
+        previous_stats_by_id: Comparison-period merchant spend stats keyed by merchant ID
+
+    Returns:
+        Merchant ranking rows for the response
+    """
     ranked_entries = sorted(
         current_stats_by_id.items(),
         key=lambda entry: (-entry[1].amount, entry[1].name),
     )
 
     rows: list[MerchantRankingRow] = []
+
+    # Build capped ranking rows with transaction counts and comparison percentage
     for merchant_id, stats in ranked_entries[:MERCHANT_RANKING_LIMIT]:
         previous_amount = previous_stats_by_id.get(merchant_id, MerchantSpendStats("", 0, 0)).amount
         rows.append((
@@ -232,12 +318,24 @@ async def get_merchants(
     to_date: date,
     comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsMerchantsResponse:
-    """Return shared merchant spend data for the insights merchant cards."""
+    """Return shared merchant spend data for the insights merchant cards
+
+    Args:
+        db: Active database session
+        user: User requesting the merchant insight summary
+        from_date: Inclusive selected period start date
+        to_date: Inclusive selected period end date
+        comparison_period: Comparison period used for movement values
+
+    Returns:
+        Shared merchant response payload
+    """
     previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
     accounts = await get_accessible_accounts(db, user)
 
     if not accounts:
-        return InsightsMerchantsResponse(distribution=[], ranking=[])
+        response = InsightsMerchantsResponse(distribution=[], ranking=[])
+        return response
 
     current_stats, current_fx_status = await _query_merchant_stats(
         db,
@@ -254,11 +352,12 @@ async def get_merchants(
         previous_to_date,
     )
 
-    return InsightsMerchantsResponse(
+    response = InsightsMerchantsResponse(
         distribution=_merchant_distribution_rows(current_stats, previous_stats),
         ranking=_merchant_ranking_rows(current_stats, previous_stats),
         fx_status=_combine_fx_statuses(current_fx_status, previous_fx_status),
     )
+    return response
 
 
 async def get_merchant_distribution(
@@ -268,9 +367,21 @@ async def get_merchant_distribution(
     to_date: date,
     comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsMerchantDistributionResponse:
-    """Return merchant spend rows for the insights merchant distribution card."""
+    """Return merchant spend rows for the insights merchant distribution card
+
+    Args:
+        db: Active database session
+        user: User requesting the merchant insight summary
+        from_date: Inclusive selected period start date
+        to_date: Inclusive selected period end date
+        comparison_period: Comparison period used for movement values
+
+    Returns:
+        Merchant distribution response payload
+    """
     merchants = await get_merchants(db, user, from_date, to_date, comparison_period)
-    return InsightsMerchantDistributionResponse(merchants=merchants.distribution)
+    response = InsightsMerchantDistributionResponse(merchants=merchants.distribution)
+    return response
 
 
 async def get_merchant_ranking(
@@ -280,6 +391,18 @@ async def get_merchant_ranking(
     to_date: date,
     comparison_period: InsightsComparisonPeriod = "same_length",
 ) -> InsightsMerchantRankingResponse:
-    """Return merchant ranking rows for the insights merchant ranking card."""
+    """Return merchant ranking rows for the insights merchant ranking card
+
+    Args:
+        db: Active database session
+        user: User requesting the merchant insight summary
+        from_date: Inclusive selected period start date
+        to_date: Inclusive selected period end date
+        comparison_period: Comparison period used for movement values
+
+    Returns:
+        Merchant ranking response payload
+    """
     merchants = await get_merchants(db, user, from_date, to_date, comparison_period)
-    return InsightsMerchantRankingResponse(merchants=merchants.ranking)
+    response = InsightsMerchantRankingResponse(merchants=merchants.ranking)
+    return response
