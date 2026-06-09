@@ -1,11 +1,98 @@
 """Category highlight helpers for the insights Period At A Glance card"""
 
 import uuid
+from dataclasses import dataclass
+from datetime import date
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.account import Account
 from app.models.base import CategoryKind
-from app.services.insights.period_at_a_glance.category_totals import CategoryNetTotals
+from app.schemas.fx import FxStatus
+from app.services.fx import FxConverter
+from app.services.insights.period_at_a_glance.category_totals import CategoryNetTotals, get_period_at_a_glance_category_net_totals
+from app.services.insights.period_at_a_glance.conversion import get_period_at_a_glance_currency_exponents
 
 ExpenseCategoryTotals = dict[uuid.UUID, tuple[str, int]]
+
+
+@dataclass(frozen=True)
+class PeriodAtAGlanceCategoryHighlights:
+    """Store category highlights and FX statuses for the Period At A Glance response
+
+    Attributes:
+        top_category: Largest current expense category and percentage share
+        top_category_fx_status: FX status for top-category conversion
+        biggest_change: Category with the largest comparable amount change
+        biggest_change_fx_status: FX status for biggest-change conversion
+    """
+
+    top_category: tuple[str, int | None] | None
+    top_category_fx_status: FxStatus
+    biggest_change: tuple[str, int, int | None] | None
+    biggest_change_fx_status: FxStatus
+
+
+async def get_period_at_a_glance_category_highlights(
+    db: AsyncSession,
+    accounts: list[Account],
+    base_currency: str,
+    from_date: date,
+    to_date: date,
+    previous_from_date: date,
+    previous_to_date: date,
+) -> PeriodAtAGlanceCategoryHighlights:
+    """Return category highlights and FX statuses for the Period At A Glance card
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the Period At A Glance summary
+        base_currency: User base currency used for converted values
+        from_date: Inclusive selected period start date
+        to_date: Inclusive selected period end date
+        previous_from_date: Inclusive comparison period start date
+        previous_to_date: Inclusive comparison period end date
+
+    Returns:
+        Category highlights and their FX conversion statuses
+    """
+    currency_exponents = await get_period_at_a_glance_currency_exponents(
+        db,
+        {base_currency, *(account.currency for account in accounts)},
+    )
+    top_category_converter = FxConverter(currency_exponents=currency_exponents)
+    current_top_category_net_totals = await get_period_at_a_glance_category_net_totals(
+        db,
+        accounts,
+        base_currency,
+        from_date,
+        to_date,
+        top_category_converter,
+    )
+    biggest_change_converter = FxConverter(currency_exponents=currency_exponents)
+    current_category_net_totals = await get_period_at_a_glance_category_net_totals(
+        db,
+        accounts,
+        base_currency,
+        from_date,
+        to_date,
+        biggest_change_converter,
+    )
+    previous_category_net_totals = await get_period_at_a_glance_category_net_totals(
+        db,
+        accounts,
+        base_currency,
+        previous_from_date,
+        previous_to_date,
+        biggest_change_converter,
+    )
+
+    return PeriodAtAGlanceCategoryHighlights(
+        top_category=get_period_at_a_glance_top_category(current_top_category_net_totals),
+        top_category_fx_status=top_category_converter.get_status(),
+        biggest_change=get_period_at_a_glance_biggest_category_change(current_category_net_totals, previous_category_net_totals),
+        biggest_change_fx_status=biggest_change_converter.get_status(),
+    )
 
 
 def get_period_at_a_glance_top_category(
