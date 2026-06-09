@@ -2,11 +2,8 @@
 import uuid
 from datetime import date
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
-from app.models.category import Category
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -21,9 +18,13 @@ from app.services.transactions.imports.merchants import (
     get_or_create_import_merchant,
     get_personal_import_merchants_by_name,
 )
+from app.services.transactions.imports.row_mappings import (
+    get_import_row_account,
+    get_import_row_category,
+    validate_import_category_can_be_used_for_account,
+)
 from app.services.transactions.imports.stats import ImportStats
 from app.services.transactions.imports.tags import get_or_create_import_tags, get_personal_import_tags_by_name
-from app.services.transactions.imports.validation import strip_import_text_or_raise
 
 
 async def import_transactions(
@@ -50,9 +51,9 @@ async def import_transactions(
     affected_from: dict[uuid.UUID, date] = {}
 
     for row in data.rows:
-        account = _get_required(accounts_by_source, strip_import_text_or_raise(row.account_source, "Account source"), "Account source")
-        category = _get_required(categories_by_source, strip_import_text_or_raise(row.category_source, "Category source"), "Category source")
-        _ensure_category_valid_for_account(category, account, user.id)
+        account = get_import_row_account(accounts_by_source, row.account_source)
+        category = get_import_row_category(categories_by_source, row.category_source)
+        validate_import_category_can_be_used_for_account(category, account, user.id)
 
         currency = currencies_by_code[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
@@ -109,42 +110,3 @@ async def import_transactions(
         created_merchant_ids=stats.created_merchant_ids,
         created_tag_ids=stats.created_tag_ids,
     )
-
-
-def _ensure_category_valid_for_account(category: Category, account: Account, user_id: uuid.UUID) -> None:
-    """Validate that a mapped category can be used for an account
-
-    Args:
-        category: Category selected for the import row
-        account: Account selected for the import row
-        user_id: Identifier for the user running the import
-
-    Returns:
-        None
-
-    Raises:
-        HTTPException: Raised with 422 when the category cannot be used by the account
-    """
-    if category.is_system or (category.owner_id == user_id and category.group_id is None) or category.group_id == account.group_id:
-        return
-    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
-
-
-def _get_required(mapping: dict[str, Account] | dict[str, Category], source: str, label: str):
-    """Return an import source mapping value or raise when it is missing
-
-    Args:
-        mapping: Lookup keyed by import source
-        source: Import source requested by a row
-        label: Human-readable field label used in validation errors
-
-    Returns:
-        Account or category mapped to the requested source
-
-    Raises:
-        HTTPException: Raised with 422 when the source is not declared
-    """
-    value = mapping.get(source)
-    if value is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"{label} is not mapped: {source}")
-    return value
