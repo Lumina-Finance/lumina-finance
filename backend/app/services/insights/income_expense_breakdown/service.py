@@ -12,6 +12,11 @@ from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsComparisonPeriod, InsightsIncomeExpenseBreakdownResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
+from app.services.insights.income_expense_breakdown.breakdown_rows import (
+    get_income_expense_breakdown_rows,
+    get_income_expense_breakdown_stats_by_side,
+    get_income_expense_breakdown_total,
+)
 from app.services.insights.income_expense_breakdown.period_stats import (
     CategoryPeriodStatsById,
     get_income_expense_breakdown_period_stats,
@@ -33,21 +38,6 @@ class CategoryStats:
     name: str
     amount: int
     transaction_count: int
-
-
-@dataclass(frozen=True)
-class BreakdownCategoryStats:
-    """Store category stats used by the pie breakdown rows
-
-    Attributes:
-        name: Category display name
-        category_kind: Original category kind before sign-directed display
-        amount: Positive display amount for the breakdown row
-    """
-
-    name: str
-    category_kind: CategoryKind
-    amount: int
 
 
 @dataclass(frozen=True)
@@ -74,40 +64,7 @@ class CategoryTrend:
 
 
 CategoryStatsById = dict[uuid.UUID, CategoryStats]
-BreakdownCategoryStatsById = dict[uuid.UUID, BreakdownCategoryStats]
 CategoryTrendRow = tuple[str, str, int, int, int | None, int]
-BreakdownEntryRow = tuple[str, str, str, int]
-
-
-def _breakdown_stats_from_period(
-    period_stats: CategoryPeriodStatsById,
-) -> tuple[BreakdownCategoryStatsById, BreakdownCategoryStatsById]:
-    """Return sign-directed category totals for the pie breakdowns
-
-    Args:
-        period_stats: Signed category stats for the selected period
-
-    Returns:
-        Expense-side and income-side breakdown stats keyed by category ID
-    """
-    expense_stats: BreakdownCategoryStatsById = {}
-    income_stats: BreakdownCategoryStatsById = {}
-
-    # Route categories by net sign so refunds and losses appear on the side they affect
-    for category_id, stats in period_stats.items():
-        if stats.signed_amount < 0:
-            expense_stats[category_id] = BreakdownCategoryStats(
-                name=stats.name,
-                category_kind=stats.category_kind,
-                amount=-stats.signed_amount,
-            )
-        elif stats.signed_amount > 0:
-            income_stats[category_id] = BreakdownCategoryStats(
-                name=stats.name,
-                category_kind=stats.category_kind,
-                amount=stats.signed_amount,
-            )
-    return expense_stats, income_stats
 
 
 def _category_stats_from_period(
@@ -166,55 +123,6 @@ def _combine_fx_statuses(current_status: FxStatus, previous_status: FxStatus) ->
 
     state = "unavailable" if current_status.state == previous_status.state == "unavailable" else "incomplete"
     return FxStatus(state=state, missing_pairs=missing_pairs)
-
-
-def _breakdown_sort_key(entry: tuple[uuid.UUID, BreakdownCategoryStats]) -> tuple[int, str]:
-    """Return sort key for breakdown rows
-
-    Args:
-        entry: Category ID and breakdown stats being ranked
-
-    Returns:
-        Sort key using descending amount and ascending category name
-    """
-    _category_id, stats = entry
-    return -stats.amount, stats.name
-
-
-def _breakdown_entries(
-    stats_by_id: BreakdownCategoryStatsById,
-) -> list[BreakdownEntryRow]:
-    """Return every positive category row for the pie breakdown
-
-    Args:
-        stats_by_id: Breakdown stats keyed by category ID
-
-    Returns:
-        Sorted response rows for the pie breakdown
-    """
-    positive_entries = [
-        (category_id, stats)
-        for category_id, stats in stats_by_id.items()
-        if stats.amount > 0
-    ]
-    positive_entries.sort(key=_breakdown_sort_key)
-
-    return [
-        (str(category_id), stats.name, stats.category_kind.value, stats.amount)
-        for category_id, stats in positive_entries
-    ]
-
-
-def _breakdown_total(stats_by_id: BreakdownCategoryStatsById) -> int:
-    """Return total amount across breakdown stats
-
-    Args:
-        stats_by_id: Breakdown stats keyed by category ID
-
-    Returns:
-        Sum of all category breakdown amounts
-    """
-    return sum(stats.amount for stats in stats_by_id.values())
 
 
 def _change_pct(current_amount: int, previous_amount: int) -> int | None:
@@ -346,7 +254,7 @@ async def get_income_expense_breakdown(
         previous_from_date,
         previous_to_date,
     )
-    current_expense_breakdown, current_income_breakdown = _breakdown_stats_from_period(current_period_stats)
+    current_expense_breakdown, current_income_breakdown = get_income_expense_breakdown_stats_by_side(current_period_stats)
     current_expense_stats = _category_stats_from_period(current_period_stats, CategoryKind.EXPENSE)
     previous_expense_stats = _category_stats_from_period(previous_period_stats, CategoryKind.EXPENSE)
     current_income_stats = _category_stats_from_period(current_period_stats, CategoryKind.INCOME)
@@ -366,10 +274,10 @@ async def get_income_expense_breakdown(
     )
 
     return InsightsIncomeExpenseBreakdownResponse(
-        expense=_breakdown_entries(current_expense_breakdown),
-        income=_breakdown_entries(current_income_breakdown),
-        expense_total=max(_breakdown_total(current_expense_breakdown) - expense_refunds, 0),
-        income_total=max(_breakdown_total(current_income_breakdown) - income_losses, 0),
+        expense=get_income_expense_breakdown_rows(current_expense_breakdown),
+        income=get_income_expense_breakdown_rows(current_income_breakdown),
+        expense_total=max(get_income_expense_breakdown_total(current_expense_breakdown) - expense_refunds, 0),
+        income_total=max(get_income_expense_breakdown_total(current_income_breakdown) - income_losses, 0),
         expense_increases=expense_increases,
         expense_decreases=expense_decreases,
         income_increases=income_increases,
