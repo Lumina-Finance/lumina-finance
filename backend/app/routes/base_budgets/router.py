@@ -162,7 +162,7 @@ async def get_base_budget(
 
 
 @router.get("", response_model=list[BaseBudgetResponse])
-async def list_base_budgets(
+async def get_base_budgets(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -209,8 +209,8 @@ async def create_base_budget(
         await _check_group_admin_or_403(db, group_id, user.id)
         owner_id = None
 
-    # Validate tracked category IDs
-    validated_cat_ids = await get_valid_tracked_category_ids(db, data.category_ids, user.id, group_id)
+    # Validate tracked category IDs against the selected ownership scope
+    valid_tracked_category_ids = await get_valid_tracked_category_ids(db, data.category_ids, user.id, group_id)
 
     if data.period_start is not None:
         alignment_error = validate_period_start(
@@ -241,11 +241,17 @@ async def create_base_budget(
     db.add(base_budget)
     await db.flush()
 
-    # Link tracked categories
+    # Create tracked category links for the new base budget
     today = datetime.now(ZoneInfo(user.tz)).date()
     category_added_at = data.period_start or today
-    for cat_id in validated_cat_ids:
-        db.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=cat_id, added_at=category_added_at))
+    for category_id in valid_tracked_category_ids:
+        db.add(
+            BudgetTrackedCategory(
+                base_budget_id=base_budget.id,
+                category_id=category_id,
+                added_at=category_added_at,
+            ),
+        )
 
     add_initial_budget_instances(db, base_budget, data.period_start, data.overall_limit, today)
 
@@ -305,7 +311,7 @@ async def create_budget_instance(
         month=base_budget.recurrence_month,
     )
 
-    # Block overlapping instances — two ranges overlap when each starts before the other ends
+    # Block overlapping instances because two ranges overlap when each starts before the other ends
     overlap_result = await db.execute(
         select(Budget).where(
             Budget.base_budget_id == base_budget_id,
