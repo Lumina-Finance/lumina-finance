@@ -13,6 +13,7 @@ from app.models.user import User
 from app.routes.groups.creation_helpers import create_group_and_get_response
 from app.routes.groups.deletion_helpers import delete_group_for_owner
 from app.routes.groups.listing_helpers import get_groups_for_user
+from app.routes.groups.member_listing_helpers import get_group_members_for_user
 from app.routes.groups.membership_helpers import (
     get_group_admin_membership_or_403,
     get_group_member_or_404,
@@ -129,13 +130,7 @@ async def list_members(
     Returns:
         Group members
     """
-    await get_group_membership_or_404(db, group_id, user.id)
-
-    # Fetch members for the requested group after confirming the caller is a member
-    result = await db.execute(
-        select(GroupMember).where(GroupMember.group_id == group_id),
-    )
-    members = result.scalars().all()
+    members = await get_group_members_for_user(db, group_id, user.id)
     return members
 
 
