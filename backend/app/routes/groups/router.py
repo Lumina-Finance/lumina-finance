@@ -10,6 +10,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.group import Group, GroupMember
 from app.models.user import User
+from app.routes.groups.deletion_helpers import delete_group_for_owner
 from app.routes.groups.membership_helpers import (
     get_group_admin_membership_or_403,
     get_group_member_or_404,
@@ -129,21 +130,7 @@ async def delete_group(
         user: Authenticated user deleting the group
         db: Active database session
     """
-    await get_group_membership_or_404(db, group_id, user.id)
-    group = await get_group_or_404(db, group_id)
-
-    if group.owner_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can delete this group")
-
-    # Fetch current member IDs so each member's personal cache is invalidated before group deletion
-    member_result = await db.execute(select(GroupMember.user_id).where(GroupMember.group_id == group_id))
-    member_ids = member_result.scalars().all()
-    for member_user_id in member_ids:
-        await mark_user_cache_changed(db, member_user_id)
-
-    # Delete the group after member cache invalidations are recorded
-    await db.delete(group)
-    await db.commit()
+    await delete_group_for_owner(db, group_id, user.id)
 
 
 @router.get("/{group_id}/members", response_model=list[GroupMemberResponse])
