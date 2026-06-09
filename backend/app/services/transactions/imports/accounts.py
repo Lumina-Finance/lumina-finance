@@ -44,22 +44,48 @@ async def get_or_create_import_accounts_by_source(
         source = strip_import_text_or_raise(mapping.source, "Account source")
         if source in accounts_by_source:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Duplicate account source: {source}")
-        if (mapping.account_id is None) == (mapping.create is None):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Account source must map to exactly one account action: {source}",
-            )
 
-        if mapping.account_id is not None:
-            account = await _get_existing_import_account(db, user, mapping.account_id)
-            stats.accounts_reused += 1
-        else:
-            account = await _create_import_account(db, user, mapping.create)
-            stats.accounts_created += 1
-            stats.created_account_ids.append(account.id)
-
-        accounts_by_source[source] = account
+        accounts_by_source[source] = await _get_or_create_import_account_for_mapping(db, user, mapping, source, stats)
     return accounts_by_source
+
+
+async def _get_or_create_import_account_for_mapping(
+    db: AsyncSession,
+    user: User,
+    mapping: TransactionImportAccountMapping,
+    source: str,
+    stats: ImportStats,
+) -> Account:
+    """Return the account selected by one import account source mapping
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        mapping: Account source mapping from the import payload
+        source: Trimmed account source used in validation messages
+        stats: Import summary counters updated when an account is reused or created
+
+    Returns:
+        Existing or newly created account row for the import source
+
+    Raises:
+        HTTPException: Raised with 422 when the source does not map to exactly one account action
+    """
+    if (mapping.account_id is None) == (mapping.create is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Account source must map to exactly one account action: {source}",
+        )
+
+    if mapping.account_id is not None:
+        account = await _get_existing_import_account(db, user, mapping.account_id)
+        stats.accounts_reused += 1
+        return account
+
+    account = await _create_import_account(db, user, mapping.create)
+    stats.accounts_created += 1
+    stats.created_account_ids.append(account.id)
+    return account
 
 
 async def _get_existing_import_account(db: AsyncSession, user: User, account_id: uuid.UUID) -> Account:
