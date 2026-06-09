@@ -3,24 +3,21 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.group import GroupMember
 from app.models.user import User
 from app.routes.groups.creation_helpers import create_group_and_get_response
 from app.routes.groups.deletion_helpers import delete_group_for_owner
 from app.routes.groups.listing_helpers import get_groups_for_user
+from app.routes.groups.member_addition_helpers import add_group_member_and_get_membership
 from app.routes.groups.member_listing_helpers import get_group_members_for_user
 from app.routes.groups.membership_helpers import (
-    get_group_admin_membership_or_403,
     get_group_member_or_404,
     get_group_membership_or_404,
     get_group_or_404,
     get_group_owner_id,
-    require_user_exists,
 )
 from app.routes.groups.update_helpers import update_group_and_get_response
 from app.schemas.group import (
@@ -152,24 +149,7 @@ async def add_member(
     Returns:
         Created group membership
     """
-    await get_group_admin_membership_or_403(db, group_id, user.id)
-    await require_user_exists(db, data.user_id)
-
-    # Check whether the target user is already a member of this group
-    existing = await db.execute(
-        select(GroupMember).where(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == data.user_id,
-        ),
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member")
-
-    group_member = GroupMember(group_id=group_id, user_id=data.user_id)
-    db.add(group_member)
-    await mark_group_cache_changed(db, group_id)
-    await db.commit()
-    await db.refresh(group_member)
+    group_member = await add_group_member_and_get_membership(db, group_id, user.id, data)
     return group_member
 
 
