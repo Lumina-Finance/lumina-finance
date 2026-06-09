@@ -13,6 +13,7 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_base_budget_access
 from app.routes.base_budgets.creation_helpers import create_base_budget_and_get_response
+from app.routes.base_budgets.deletion_helpers import delete_base_budget_for_user
 from app.routes.base_budgets.instance_helpers import create_budget_instance_and_get_response
 from app.routes.base_budgets.listing_helpers import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
@@ -25,7 +26,6 @@ from app.schemas.budget import (
     CreateBudgetRequest,
     UpdateBaseBudgetRequest,
 )
-from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 router.include_router(permissions_router)
@@ -72,10 +72,7 @@ async def delete_base_budget(
     Raises:
         HTTPException: User lacks admin access
     """
-    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
-    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
-    await db.delete(base_budget)
-    await db.commit()
+    await delete_base_budget_for_user(db, user.id, base_budget_id)
 
 
 @router.get("/{base_budget_id}", response_model=BaseBudgetResponse)
