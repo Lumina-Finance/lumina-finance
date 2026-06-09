@@ -1,4 +1,4 @@
-"""Cash-flow service for the insights page."""
+"""Cash-flow service for the insights page"""
 
 from datetime import date, timedelta
 from typing import Literal
@@ -18,13 +18,25 @@ from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
 
 CashFlowGranularity = Literal["day", "week", "month"]
+CashFlowBucket = tuple[date, date]
+CashFlowBucketRow = tuple[date, date, int, int]
+DailyCashFlowTotalsByDate = dict[date, tuple[int, int]]
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _MONTHLY_RANGE_DAY_COUNT = 31
 _HALF_YEAR_DAY_COUNT = 183
 
 
-def _get_granularity(from_date: date, to_date: date) -> CashFlowGranularity:
+def _get_cash_flow_granularity(from_date: date, to_date: date) -> CashFlowGranularity:
+    """Return the bucket granularity for a cash-flow date range
+
+    Args:
+        from_date: Inclusive cash-flow range start date
+        to_date: Inclusive cash-flow range end date
+
+    Returns:
+        Bucket granularity used for the response rows
+    """
     day_count = (to_date - from_date).days + 1
     if day_count <= _MONTHLY_RANGE_DAY_COUNT:
         return "day"
@@ -33,28 +45,49 @@ def _get_granularity(from_date: date, to_date: date) -> CashFlowGranularity:
     return "month"
 
 
-def _bucket_key(target: date, granularity: CashFlowGranularity) -> tuple[int, ...]:
+def _get_cash_flow_bucket_key(target: date, granularity: CashFlowGranularity) -> tuple[int, ...]:
+    """Return the grouping key for a cash-flow bucket date
+
+    Args:
+        target: Date being assigned to a bucket
+        granularity: Bucket granularity used for the selected range
+
+    Returns:
+        Tuple key representing the target date bucket
+    """
     if granularity == "day":
-        return (target.year, target.month, target.day)
-    if granularity == "week":
+        bucket_key = (target.year, target.month, target.day)
+    elif granularity == "week":
         iso_year, iso_week, _weekday = target.isocalendar()
-        return (iso_year, iso_week)
-    return (target.year, target.month)
+        bucket_key = (iso_year, iso_week)
+    else:
+        bucket_key = (target.year, target.month)
+    return bucket_key
 
 
-def _build_buckets(from_date: date, to_date: date) -> list[tuple[date, date]]:
-    granularity = _get_granularity(from_date, to_date)
-    buckets: list[tuple[date, date]] = []
+def _get_cash_flow_buckets(from_date: date, to_date: date) -> list[CashFlowBucket]:
+    """Return inclusive cash-flow bucket ranges for the selected date range
+
+    Args:
+        from_date: Inclusive cash-flow range start date
+        to_date: Inclusive cash-flow range end date
+
+    Returns:
+        Inclusive bucket start and end dates for the response rows
+    """
+    granularity = _get_cash_flow_granularity(from_date, to_date)
+    buckets: list[CashFlowBucket] = []
     bucket_start = from_date
-    current_key = _bucket_key(from_date, granularity)
+    current_key = _get_cash_flow_bucket_key(from_date, granularity)
     cursor = from_date
 
+    # Walk the range and close a bucket when the granularity key changes
     while cursor <= to_date:
-        key = _bucket_key(cursor, granularity)
-        if key != current_key:
+        bucket_key = _get_cash_flow_bucket_key(cursor, granularity)
+        if bucket_key != current_key:
             buckets.append((bucket_start, cursor - timedelta(days=1)))
             bucket_start = cursor
-            current_key = key
+            current_key = bucket_key
         cursor += timedelta(days=1)
 
     buckets.append((bucket_start, to_date))
@@ -67,11 +100,26 @@ async def _query_daily_cash_flow(
     base_currency: str,
     from_date: date,
     to_date: date,
-) -> tuple[dict[date, tuple[int, int]], FxStatus]:
+) -> tuple[DailyCashFlowTotalsByDate, FxStatus]:
+    """Return converted daily inflow and outflow totals for cash-flow rows
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the cash-flow insight
+        base_currency: User base currency used for converted values
+        from_date: Inclusive cash-flow range start date
+        to_date: Inclusive cash-flow range end date
+
+    Returns:
+        Daily base-currency cash-flow totals and FX conversion status
+    """
     if not accounts:
-        return {}, FxStatus()
+        fx_status = FxStatus()
+        return {}, fx_status
 
     account_ids = [account.id for account in accounts]
+
+    # Load daily inflow and outflow totals grouped by account currency for FX conversion
     result = await db.execute(
         select(
             Transaction.dt.label("date"),
@@ -116,7 +164,9 @@ async def _query_daily_cash_flow(
         base_currency=base_currency,
     )
 
-    daily_totals: dict[date, tuple[int, int]] = {}
+    daily_totals: DailyCashFlowTotalsByDate = {}
+
+    # Convert grouped totals into the user's base currency and merge account rows by date
     for row in rows:
         converted_inflow = await converter.convert_minor_units(
             int(row.inflow or 0),
@@ -139,14 +189,26 @@ async def _query_daily_cash_flow(
             current_outflow + (converted_outflow or 0),
         )
 
-    return daily_totals, converter.get_status()
+    fx_status = converter.get_status()
+    return daily_totals, fx_status
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    """Return minor-unit exponents keyed by currency code
+
+    Args:
+        db: Active database session
+        currencies: Currency codes needed for conversion
+
+    Returns:
+        Minor-unit exponent keyed by currency code
+    """
+    # Load currency precision so FX conversion can convert minor units correctly
     result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
-    return {row.id: row.minor_unit_exponent for row in result}
+    exponents_by_currency = {row.id: row.minor_unit_exponent for row in result}
+    return exponents_by_currency
 
 
 async def _prefetch_cash_flow_rates(
@@ -155,7 +217,19 @@ async def _prefetch_cash_flow_rates(
     rows,
     base_currency: str,
 ) -> None:
+    """Prefetch FX rates required by cash-flow rows
+
+    Args:
+        converter: FX converter used by the cash-flow insight calculation
+        rows: Grouped cash-flow transaction rows that may require FX conversion
+        base_currency: User base currency used for converted values
+
+    Returns:
+        None
+    """
     ranges: dict[str, tuple[date, date]] = {}
+
+    # Build one date range per foreign currency to avoid prefetching each row individually
     for row in rows:
         currency = row.account_currency
         if currency == base_currency:
@@ -172,11 +246,22 @@ async def _prefetch_cash_flow_rates(
         )
 
 
-def _bucket_points(
-    buckets: list[tuple[date, date]],
-    daily_totals: dict[date, tuple[int, int]],
-) -> list[tuple[date, date, int, int]]:
-    points: list[tuple[date, date, int, int]] = []
+def _get_cash_flow_bucket_rows(
+    buckets: list[CashFlowBucket],
+    daily_totals: DailyCashFlowTotalsByDate,
+) -> list[CashFlowBucketRow]:
+    """Return cash-flow response rows for bucket ranges
+
+    Args:
+        buckets: Inclusive bucket ranges used by the response
+        daily_totals: Daily inflow and outflow totals keyed by date
+
+    Returns:
+        Cash-flow bucket rows containing date range, inflow, and outflow
+    """
+    cash_flow_rows: list[CashFlowBucketRow] = []
+
+    # Sum daily totals into each bucket so the response granularity matches the selected range
     for bucket_start, bucket_end in buckets:
         inflow = 0
         outflow = 0
@@ -186,8 +271,8 @@ def _bucket_points(
             inflow += day_inflow
             outflow += day_outflow
             cursor += timedelta(days=1)
-        points.append((bucket_start, bucket_end, inflow, outflow))
-    return points
+        cash_flow_rows.append((bucket_start, bucket_end, inflow, outflow))
+    return cash_flow_rows
 
 
 async def get_cash_flow(
@@ -196,14 +281,29 @@ async def get_cash_flow(
     from_date: date,
     to_date: date,
 ) -> InsightsCashFlowResponse:
-    """Return inflow and outflow buckets for the cash-flow card."""
+    """Return inflow and outflow buckets for the cash-flow card
+
+    Args:
+        db: Active database session
+        user: User requesting the cash-flow insight
+        from_date: Inclusive cash-flow range start date
+        to_date: Inclusive cash-flow range end date
+
+    Returns:
+        Cash-flow response payload
+    """
+    # Load accounts the user can read before aggregating cash-flow totals
     accounts = await get_accessible_accounts(db, user)
     if not accounts:
-        return InsightsCashFlowResponse(points=[])
+        response = InsightsCashFlowResponse(points=[])
+        return response
 
-    buckets = _build_buckets(from_date, to_date)
+    buckets = _get_cash_flow_buckets(from_date, to_date)
     daily_totals, fx_status = await _query_daily_cash_flow(db, accounts, user.base_currency, from_date, to_date)
     if not any(inflow > 0 or outflow > 0 for inflow, outflow in daily_totals.values()):
-        return InsightsCashFlowResponse(points=[], fx_status=fx_status)
+        response = InsightsCashFlowResponse(points=[], fx_status=fx_status)
+        return response
 
-    return InsightsCashFlowResponse(points=_bucket_points(buckets, daily_totals), fx_status=fx_status)
+    cash_flow_rows = _get_cash_flow_bucket_rows(buckets, daily_totals)
+    response = InsightsCashFlowResponse(points=cash_flow_rows, fx_status=fx_status)
+    return response
