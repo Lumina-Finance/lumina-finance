@@ -17,9 +17,12 @@ from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodGlanceR
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
 from app.services.insights.common import comparison_period_bounds
+from app.services.insights.period_glance_category_highlights import (
+    CategoryNetTotals,
+    get_period_glance_biggest_category_change,
+    get_period_glance_top_category,
+)
 from app.services.insights.period_glance_net_worth import get_period_glance_net_worth_change
-
-CategoryNetTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
 
 
 async def _query_period_totals(
@@ -178,98 +181,6 @@ async def _query_category_net_totals(
     }
 
 
-def _expense_totals_from_category_net_totals(
-    category_totals: CategoryNetTotals,
-) -> dict[uuid.UUID, tuple[str, int]]:
-    """Return positive expense-side totals keyed by category id."""
-    totals: dict[uuid.UUID, tuple[str, int]] = {}
-    for category_id, (name, _kind, total) in category_totals.items():
-        amount = max(-total, 0)
-        if amount:
-            totals[category_id] = (name, amount)
-    return totals
-
-
-def _top_category(
-    current_totals: dict[uuid.UUID, tuple[str, int]],
-) -> tuple[str, int | None] | None:
-    """Return the largest current expense category, if present."""
-    if not current_totals:
-        return None
-    total_positive_expenses = sum(amount for _name, amount in current_totals.values())
-    name, amount = sorted(current_totals.values(), key=lambda item: (-item[1], item[0]))[0]
-    return name, round((amount / total_positive_expenses) * 100) if total_positive_expenses > 0 else None
-
-
-def _biggest_category_change(
-    current_totals: CategoryNetTotals,
-    previous_totals: CategoryNetTotals,
-) -> tuple[str, int, int | None] | None:
-    """Return the tracked category with the largest comparable dollar change."""
-    category_ids = [
-        category_id
-        for category_id in set(current_totals) | set(previous_totals)
-        if _is_change_candidate(category_id, current_totals, previous_totals)
-    ]
-    if not category_ids:
-        return None
-
-    def change_sort_key(candidate: uuid.UUID) -> tuple[int, str]:
-        name, kind = _category_identity(candidate, current_totals, previous_totals)
-        current_amount = current_totals.get(candidate, ("", kind, 0))[2]
-        previous_amount = previous_totals.get(candidate, ("", kind, 0))[2]
-        return -abs(_category_change_amount(kind, current_amount, previous_amount)), name
-
-    category_id = sorted(category_ids, key=change_sort_key)[0]
-    name, kind = _category_identity(category_id, current_totals, previous_totals)
-    current_amount = current_totals.get(category_id, ("", kind, 0))[2]
-    previous_amount = previous_totals.get(category_id, ("", kind, 0))[2]
-    change_amount = _category_change_amount(kind, current_amount, previous_amount)
-    previous_basis = _category_change_basis(kind, current_amount, previous_amount)
-    change_pct = round((change_amount / previous_basis) * 100) if previous_basis > 0 else None
-    return name, change_amount, change_pct
-
-
-def _category_identity(
-    category_id: uuid.UUID,
-    current_totals: CategoryNetTotals,
-    previous_totals: CategoryNetTotals,
-) -> tuple[str, CategoryKind]:
-    name, kind, _amount = current_totals.get(
-        category_id,
-        previous_totals.get(category_id, ("", CategoryKind.EXPENSE, 0)),
-    )
-    return name, kind
-
-
-def _is_change_candidate(
-    category_id: uuid.UUID,
-    current_totals: CategoryNetTotals,
-    previous_totals: CategoryNetTotals,
-) -> bool:
-    _name, kind = _category_identity(category_id, current_totals, previous_totals)
-    current_amount = current_totals.get(category_id, ("", kind, 0))[2]
-    previous_amount = previous_totals.get(category_id, ("", kind, 0))[2]
-
-    if kind == CategoryKind.INCOME:
-        return current_amount < 0
-    return current_amount != 0 or previous_amount != 0
-
-
-def _category_change_amount(kind: CategoryKind, current_amount: int, previous_amount: int) -> int:
-    if kind == CategoryKind.EXPENSE and current_amount <= 0 and previous_amount <= 0:
-        return (-current_amount) - (-previous_amount)
-    return current_amount - previous_amount
-
-
-def _category_change_basis(kind: CategoryKind, current_amount: int, previous_amount: int) -> int:
-    if previous_amount == 0:
-        return 0
-    if kind == CategoryKind.EXPENSE and current_amount <= 0 and previous_amount <= 0:
-        return -previous_amount
-    return abs(previous_amount)
-
-
 async def get_period_glance(
     db: AsyncSession,
     user: User,
@@ -309,7 +220,6 @@ async def get_period_glance(
         to_date,
         top_category_converter,
     )
-    current_category_totals = _expense_totals_from_category_net_totals(current_top_category_net_totals)
     biggest_change_converter = FxConverter(
         currency_exponents=await _get_currency_exponents(
             db,
@@ -339,9 +249,9 @@ async def get_period_glance(
         from_date,
         to_date,
     )
-    top_category = _top_category(current_category_totals)
+    top_category = get_period_glance_top_category(current_top_category_net_totals)
     top_category_fx_status = top_category_converter.get_status()
-    biggest_change = _biggest_category_change(current_category_net_totals, previous_category_net_totals)
+    biggest_change = get_period_glance_biggest_category_change(current_category_net_totals, previous_category_net_totals)
     biggest_change_fx_status = biggest_change_converter.get_status()
 
     return InsightsPeriodGlanceResponse(
