@@ -13,7 +13,7 @@ from app.routes.dashboard import router as dashboard_router
 from app.routes.group import router as group_router
 from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
-from app.routes.merchant import router as merchant_router
+from app.routes.merchants import router as merchant_router
 from app.routes.runway import router as runway_router
 from app.routes.tag import router as tag_router
 from app.routes.tax_advantaged_plans import router as tax_advantaged_plan_router
