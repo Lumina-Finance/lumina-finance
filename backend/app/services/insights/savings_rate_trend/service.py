@@ -8,11 +8,11 @@ from app.models.user import User
 from app.schemas.insights import InsightsSavingsRateTrendResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.savings_rate_trend.activity_helpers import get_first_activity_month
-from app.services.insights.savings_rate_trend.monthly_category_totals_helpers import get_converted_monthly_category_totals
 from app.services.insights.savings_rate_trend.response_helpers import (
     build_empty_savings_rate_trend_response,
     build_savings_rate_trend_response,
 )
+from app.services.savings_rate_monthly_category_total_helpers import get_converted_savings_rate_monthly_category_totals
 from app.utils.dates import (
     get_month_start_date,
     get_month_start_dates,
@@ -70,7 +70,7 @@ async def get_savings_rate_trend(
     start_month = max(first_activity_month, earliest_visible_month)
     month_count = _get_inclusive_month_count(start_month, current_month)
     months = get_month_start_dates(start_month, month_count)
-    monthly_category_totals, fx_status = await get_converted_monthly_category_totals(
+    monthly_category_totals, fx_status = await get_converted_savings_rate_monthly_category_totals(
         db,
         accounts,
         user.base_currency,

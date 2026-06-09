@@ -4,7 +4,7 @@ from datetime import date
 
 from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsSavingsRateTrendResponse
-from app.services.insights.savings_rate_trend.monthly_category_totals_helpers import MonthlyCategoryTotalsByKey
+from app.services.savings_rate_monthly_category_total_helpers import SavingsRateMonthlyCategoryTotalsByKey
 
 MonthlySavingsRateTotals = dict[date, dict[str, int]]
 
@@ -21,7 +21,7 @@ def build_empty_savings_rate_trend_response() -> InsightsSavingsRateTrendRespons
 
 def build_savings_rate_trend_response(
     months: list[date],
-    monthly_category_totals: MonthlyCategoryTotalsByKey,
+    monthly_category_totals: SavingsRateMonthlyCategoryTotalsByKey,
     fx_status: FxStatus,
 ) -> InsightsSavingsRateTrendResponse:
     """Return savings-rate trend response from monthly category totals
@@ -49,7 +49,7 @@ def build_savings_rate_trend_response(
 
 def _get_monthly_savings_rate_totals(
     months: list[date],
-    monthly_category_totals: MonthlyCategoryTotalsByKey,
+    monthly_category_totals: SavingsRateMonthlyCategoryTotalsByKey,
 ) -> MonthlySavingsRateTotals:
     """Return monthly income and expense totals from signed category totals
 

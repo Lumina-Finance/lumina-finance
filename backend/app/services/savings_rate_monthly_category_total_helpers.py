@@ -1,4 +1,4 @@
-"""Helpers for loading savings-rate monthly category totals"""
+"""Savings-rate monthly category total helpers"""
 
 import uuid
 from datetime import date
@@ -14,30 +14,35 @@ from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
 
-MonthlyCategoryTotalsByKey = dict[tuple[date, uuid.UUID], int]
+SavingsRateMonthlyCategoryTotalsByKey = dict[tuple[date, uuid.UUID], int]
 
 
-async def get_converted_monthly_category_totals(
+async def get_converted_savings_rate_monthly_category_totals(
     db: AsyncSession,
     accounts: list[Account],
     base_currency: str,
     start_month: date,
     window_end: date,
-) -> tuple[MonthlyCategoryTotalsByKey, FxStatus]:
+    *,
+    prefetch_start_date: date | None = None,
+    prefetch_end_date: date | None = None,
+) -> tuple[SavingsRateMonthlyCategoryTotalsByKey, FxStatus]:
     """Return converted monthly category totals before sign classification
 
     Args:
         db: Active database session
-        accounts: Accounts included in the savings-rate trend
+        accounts: Accounts included in the savings-rate calculation
         base_currency: User base currency used for converted values
-        start_month: Inclusive month start for the trend window
-        window_end: Exclusive trend window end date
+        start_month: Inclusive month start for the savings-rate window
+        window_end: Exclusive savings-rate window end date
+        prefetch_start_date: Optional inclusive rate prefetch start date
+        prefetch_end_date: Optional inclusive rate prefetch end date
 
     Returns:
         Converted monthly category totals and FX conversion status
     """
     if not accounts:
-        monthly_totals: MonthlyCategoryTotalsByKey = {}
+        monthly_totals: SavingsRateMonthlyCategoryTotalsByKey = {}
         fx_status = FxStatus()
         return monthly_totals, fx_status
 
@@ -63,7 +68,7 @@ async def get_converted_monthly_category_totals(
         )
         .group_by(month_start_expr, Category.id, Transaction.dt, Account.currency),
     )
-    rows = result.all()
+    monthly_category_rows = result.all()
     converter = FxConverter(
         currency_exponents=await _get_currency_exponents(
             db,
@@ -72,14 +77,16 @@ async def get_converted_monthly_category_totals(
     )
     await _prefetch_savings_rate_rates(
         converter,
-        rows=rows,
+        monthly_category_rows=monthly_category_rows,
         base_currency=base_currency,
+        prefetch_start_date=prefetch_start_date,
+        prefetch_end_date=prefetch_end_date,
     )
 
-    totals: MonthlyCategoryTotalsByKey = {}
+    totals: SavingsRateMonthlyCategoryTotalsByKey = {}
 
     # Convert grouped totals into the user's base currency and merge rows by month and category
-    for row in rows:
+    for row in monthly_category_rows:
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
             base=row.account_currency,
@@ -107,9 +114,11 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Minor-unit exponent keyed by currency code
     """
+    currency_codes = sorted(currencies)
+
     # Load currency precision so FX conversion can convert minor units correctly
     result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currency_codes)),
     )
     exponents_by_currency = {row.id: row.minor_unit_exponent for row in result}
     return exponents_by_currency
@@ -118,23 +127,37 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
 async def _prefetch_savings_rate_rates(
     converter: FxConverter,
     *,
-    rows,
+    monthly_category_rows,
     base_currency: str,
+    prefetch_start_date: date | None,
+    prefetch_end_date: date | None,
 ) -> None:
-    """Prefetch FX rates required by savings-rate trend rows
+    """Prefetch FX rates required by savings-rate monthly category totals
 
     Args:
-        converter: FX converter used by the savings-rate trend calculation
-        rows: Grouped savings-rate trend transaction rows that may require FX conversion
+        converter: FX converter used by the savings-rate calculation
+        monthly_category_rows: Grouped monthly category totals that may require FX conversion
         base_currency: User base currency used for converted values
+        prefetch_start_date: Optional inclusive rate prefetch start date
+        prefetch_end_date: Optional inclusive rate prefetch end date
 
     Returns:
         None
     """
+    if prefetch_start_date is not None and prefetch_end_date is not None:
+        await _prefetch_savings_rate_window_rates(
+            converter,
+            monthly_category_rows=monthly_category_rows,
+            base_currency=base_currency,
+            prefetch_start_date=prefetch_start_date,
+            prefetch_end_date=prefetch_end_date,
+        )
+        return
+
     ranges: dict[str, tuple[date, date]] = {}
 
     # Build one date range per foreign currency to avoid prefetching each row individually
-    for row in rows:
+    for row in monthly_category_rows:
         currency = row.account_currency
         if currency == base_currency:
             continue
@@ -147,4 +170,35 @@ async def _prefetch_savings_rate_rates(
             quote=base_currency,
             start_date=start_date,
             end_date=end_date,
+        )
+
+
+async def _prefetch_savings_rate_window_rates(
+    converter: FxConverter,
+    *,
+    monthly_category_rows,
+    base_currency: str,
+    prefetch_start_date: date,
+    prefetch_end_date: date,
+) -> None:
+    """Prefetch one explicit FX rate window for savings-rate foreign currencies
+
+    Args:
+        converter: FX converter used by the savings-rate calculation
+        monthly_category_rows: Grouped monthly category totals that may require FX conversion
+        base_currency: User base currency used for converted values
+        prefetch_start_date: Inclusive rate prefetch start date
+        prefetch_end_date: Inclusive rate prefetch end date
+    """
+    foreign_currencies = {
+        row.account_currency
+        for row in monthly_category_rows
+        if row.account_currency != base_currency
+    }
+    for currency in sorted(foreign_currencies):
+        await converter.prefetch_rates(
+            base=currency,
+            quote=base_currency,
+            start_date=prefetch_start_date,
+            end_date=prefetch_end_date,
         )
