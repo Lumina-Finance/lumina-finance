@@ -1,5 +1,8 @@
 """Transaction overview aggregate queries"""
 
+import uuid
+from datetime import date
+
 import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,8 +11,38 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
+from app.services.transactions.access import accessible_account_ids_subquery
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
+
+
+def build_overview_transaction_filters(
+    user_id: uuid.UUID,
+    *,
+    from_date: date | None,
+    to_date: date | None,
+    account_id: uuid.UUID | None,
+):
+    """Build the shared transaction filters for overview queries
+
+    Args:
+        user_id: Identifier for the user requesting the overview
+        from_date: Optional inclusive start date for the transaction window
+        to_date: Optional inclusive end date for the transaction window
+        account_id: Optional account filter applied within the user's accessible accounts
+
+    Returns:
+        SQLAlchemy filters shared by all overview aggregate queries
+    """
+    accessible_account_ids_query = accessible_account_ids_subquery(user_id)
+    transaction_query = select(Transaction).where(Transaction.account_id.in_(accessible_account_ids_query))
+    if account_id is not None:
+        transaction_query = transaction_query.where(Transaction.account_id == account_id)
+    if from_date is not None:
+        transaction_query = transaction_query.where(Transaction.dt >= from_date)
+    if to_date is not None:
+        transaction_query = transaction_query.where(Transaction.dt <= to_date)
+    return transaction_query.whereclause
 
 
 async def get_overview_cash_flow_rows(db: AsyncSession, transaction_filters):

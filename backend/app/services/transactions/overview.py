@@ -9,11 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.currency import Currency
-from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.transaction import TransactionsOverview
 from app.services.fx import FxConverter
-from app.services.transactions.access import accessible_account_ids_subquery
 from app.services.transactions.overview_cash_flow import (
     convert_overview_daily_cash_flow,
     sum_overview_net_flow,
@@ -21,6 +19,7 @@ from app.services.transactions.overview_cash_flow import (
 from app.services.transactions.overview_categories import convert_overview_top_categories
 from app.services.transactions.overview_outliers import convert_overview_outliers
 from app.services.transactions.overview_queries import (
+    build_overview_transaction_filters,
     get_overview_cash_flow_rows,
     get_overview_category_total_rows,
     get_overview_outlier_candidate_rows,
@@ -58,21 +57,17 @@ async def get_transactions_overview(
     if from_date is not None and to_date is not None and from_date > to_date:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
 
-    accessible_account_ids_query = accessible_account_ids_subquery(user.id)
+    transaction_filters = build_overview_transaction_filters(
+        user.id,
+        from_date=from_date,
+        to_date=to_date,
+        account_id=account_id,
+    )
 
-    transaction_query = select(Transaction).where(Transaction.account_id.in_(accessible_account_ids_query))
-    if account_id is not None:
-        transaction_query = transaction_query.where(Transaction.account_id == account_id)
-    if from_date is not None:
-        transaction_query = transaction_query.where(Transaction.dt >= from_date)
-    if to_date is not None:
-        transaction_query = transaction_query.where(Transaction.dt <= to_date)
-
-    transaction_filters = transaction_query.whereclause
-
-    matching_transaction_query = select(sa.literal(1)).where(transaction_filters).limit(1)
     # Check for any matching transaction before running the heavier overview aggregate queries
-    if (await db.execute(matching_transaction_query)).scalar_one_or_none() is None:
+    matching_transaction_query = select(sa.literal(1)).where(transaction_filters).limit(1)
+    has_matching_transactions = (await db.execute(matching_transaction_query)).scalar_one_or_none() is not None
+    if not has_matching_transactions:
         return TransactionsOverview(
             total_inflow=None,
             total_outflow=None,
