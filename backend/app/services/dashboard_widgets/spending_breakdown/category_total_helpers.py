@@ -13,7 +13,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
-from app.services.dashboard_widgets.spending_breakdown_response_helpers import (
+from app.services.dashboard_widgets.spending_breakdown.response_helpers import (
     SpendingBreakdownCategoryTotal,
     SpendingBreakdownCategoryTotalsById,
 )

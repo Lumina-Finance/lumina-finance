@@ -6,8 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import CategoryKind
 from app.schemas.dashboard import RangeKind, SpendingBreakdownResponse
-from app.services.dashboard_widgets.spending_breakdown_category_total_helpers import get_converted_spending_breakdown_category_totals
-from app.services.dashboard_widgets.spending_breakdown_response_helpers import (
+from app.services.dashboard_widgets.spending_breakdown.category_total_helpers import (
+    get_converted_spending_breakdown_category_totals,
+)
+from app.services.dashboard_widgets.spending_breakdown.response_helpers import (
     build_empty_spending_breakdown_response,
     get_limited_spending_breakdown_categories,
     get_spending_breakdown_categories_by_sign,
