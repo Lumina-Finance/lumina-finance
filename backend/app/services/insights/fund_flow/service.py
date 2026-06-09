@@ -8,6 +8,7 @@ from app.models.user import User
 from app.schemas.insights import InsightsFundFlowResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.fund_flow.entry_group_helpers import get_fund_flow_entry_groups
+from app.services.insights.fund_flow.response import build_empty_fund_flow_response, build_fund_flow_response
 
 
 async def get_fund_flow(
@@ -31,14 +32,7 @@ async def get_fund_flow(
     accounts = await get_accessible_accounts(db, user)
 
     if not accounts:
-        response = InsightsFundFlowResponse(
-            income_sources=[],
-            expense_categories=[],
-            income_outflows=[],
-            expense_inflows=[],
-            income_source_count=0,
-            expense_category_count=0,
-        )
+        response = build_empty_fund_flow_response()
         return response
 
     entry_groups = await get_fund_flow_entry_groups(
@@ -49,13 +43,5 @@ async def get_fund_flow(
         to_date,
     )
 
-    response = InsightsFundFlowResponse(
-        income_sources=entry_groups.income_sources,
-        expense_categories=entry_groups.expense_categories,
-        income_outflows=entry_groups.income_outflows,
-        expense_inflows=entry_groups.expense_inflows,
-        income_source_count=len(entry_groups.income_sources),
-        expense_category_count=len(entry_groups.expense_categories),
-        fx_status=entry_groups.fx_status,
-    )
+    response = build_fund_flow_response(entry_groups)
     return response
