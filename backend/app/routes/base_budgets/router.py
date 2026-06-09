@@ -12,12 +12,12 @@ from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_base_budget_access
-from app.routes.base_budgets.category_helpers import update_tracked_category_links
 from app.routes.base_budgets.creation_helpers import create_base_budget_and_get_response
 from app.routes.base_budgets.instance_helpers import create_budget_instance_and_get_response
 from app.routes.base_budgets.listing_helpers import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
 from app.routes.base_budgets.response_helpers import get_base_budget_response
+from app.routes.base_budgets.update_helpers import update_base_budget_and_get_response
 from app.schemas.budget import (
     BaseBudgetResponse,
     BudgetResponse,
@@ -52,34 +52,8 @@ async def update_base_budget(
     Raises:
         HTTPException: User lacks admin access or update fields are invalid
     """
-    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
-
-    changed_fields = data.model_dump(exclude_unset=True)
-    if not changed_fields:
-        return await get_base_budget_response(db, base_budget)
-
-    # Handle tracked categories separately from simple field updates
-    new_category_ids = changed_fields.pop("category_ids", None)
-
-    for field, value in changed_fields.items():
-        setattr(base_budget, field, value)
-
-    # Update tracked categories when the PATCH body includes category_ids
-    if new_category_ids is not None:
-        today = datetime.now(ZoneInfo(user.tz)).date()
-        await update_tracked_category_links(
-            db,
-            base_budget_id,
-            new_category_ids,
-            user.id,
-            base_budget.group_id,
-            today,
-        )
-
-    await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
-    await db.commit()
-    await db.refresh(base_budget)
-    return await get_base_budget_response(db, base_budget)
+    today = datetime.now(ZoneInfo(user.tz)).date()
+    return await update_base_budget_and_get_response(db, user, base_budget_id, data, today)
 
 
 @router.delete("/{base_budget_id}", status_code=status.HTTP_204_NO_CONTENT)
