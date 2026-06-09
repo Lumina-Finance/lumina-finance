@@ -3,8 +3,8 @@
 import uuid
 
 from app.models.base import CategoryKind
+from app.services.insights.period_at_a_glance.category_totals import CategoryNetTotals
 
-CategoryNetTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
 ExpenseCategoryTotals = dict[uuid.UUID, tuple[str, int]]
 
 
