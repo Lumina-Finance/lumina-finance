@@ -12,12 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
-from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
+from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions import check_base_budget_access
+from app.routes.base_budgets.listing import get_visible_base_budget_responses
 from app.routes.base_budgets.permissions import router as permissions_router
 from app.schemas.budget import (
     BaseBudgetResponse,
@@ -280,29 +281,7 @@ async def list_base_budgets(
     Returns:
         Base budget responses visible through ownership, group admin membership, or explicit permission
     """
-    query = (
-        select(BaseBudget)
-        .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
-        .outerjoin(
-            BudgetPermission,
-            (BudgetPermission.base_budget_id == BaseBudget.id) & (BudgetPermission.user_id == user.id),
-        )
-        .where(
-            (BaseBudget.owner_id == user.id)
-            | ((GroupMember.user_id == user.id) & (GroupMember.is_admin.is_(True)))
-            | (BudgetPermission.user_id == user.id),
-        )
-        .order_by(BaseBudget.name)
-    )
-    result = await db.execute(query)
-    base_budgets = result.scalars().unique().all()
-
-    # Batch-load tracked categories for all base budgets in one query to avoid N+1
-    cats_by_base = await load_tracked_categories(db, [b.id for b in base_budgets])
-    return [
-        build_base_budget_response(b, cats_by_base.get(b.id, []))
-        for b in base_budgets
-    ]
+    return await get_visible_base_budget_responses(db, user.id)
 
 
 @router.post("", response_model=BaseBudgetResponse, status_code=status.HTTP_201_CREATED)
