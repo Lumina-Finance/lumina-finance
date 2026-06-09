@@ -16,6 +16,11 @@ from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsSavingsRateTrendResponse
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
+from app.utils.dates import (
+    get_month_start_date,
+    get_month_start_dates,
+    get_shifted_month_start_date,
+)
 
 SAVINGS_RATE_TREND_MONTHS = 12
 
@@ -23,50 +28,19 @@ MonthlyCategoryTotalsByKey = dict[tuple[date, uuid.UUID], int]
 MonthlySavingsRateTotals = dict[date, dict[str, int]]
 
 
-def _get_month_start(target: date) -> date:
-    """Return the first day of a date's month
+def _get_inclusive_month_count(start_month: date, end_month: date) -> int:
+    """Return the number of months including both boundary months
 
     Args:
-        target: Date used to determine the month
+        start_month: First month start in the range
+        end_month: Last month start in the range
 
     Returns:
-        First day of the target date's month
+        Inclusive number of months between the start and end months
     """
-    month_start = date(target.year, target.month, 1)
-    return month_start
-
-
-def _get_month_start_after_offset(target: date, month_offset: int) -> date:
-    """Return a month start shifted by a month offset
-
-    Args:
-        target: Month start used as the offset base
-        month_offset: Number of months to move from the base month
-
-    Returns:
-        First day of the shifted month
-    """
-    month_index = (target.year * 12) + (target.month - 1) + month_offset
-    month_start = date(month_index // 12, (month_index % 12) + 1, 1)
-    return month_start
-
-
-def _get_month_starts(start_month: date, end_month: date) -> list[date]:
-    """Return month starts from the start month through the end month
-
-    Args:
-        start_month: First month start to include
-        end_month: Last month start to include
-
-    Returns:
-        Month starts in chronological order
-    """
-    months: list[date] = []
-    cursor = start_month
-    while cursor <= end_month:
-        months.append(cursor)
-        cursor = _get_month_start_after_offset(cursor, 1)
-    return months
+    # Count both boundary months so the response includes the visible start and current month
+    month_count = ((end_month.year - start_month.year) * 12) + (end_month.month - start_month.month) + 1
+    return month_count
 
 
 async def _get_first_activity_month(
@@ -95,7 +69,7 @@ async def _get_first_activity_month(
         ),
     )
     first_activity = result.scalar_one_or_none()
-    first_activity_month = _get_month_start(first_activity) if first_activity else None
+    first_activity_month = get_month_start_date(first_activity) if first_activity else None
     return first_activity_month
 
 
@@ -313,16 +287,17 @@ async def get_savings_rate_trend(
         response = _build_empty_savings_rate_trend_response()
         return response
 
-    current_month = _get_month_start(now.date())
-    window_end = _get_month_start_after_offset(current_month, 1)
+    current_month = get_month_start_date(now.date())
+    window_end = get_shifted_month_start_date(current_month, 1)
     first_activity_month = await _get_first_activity_month(db, account_ids, window_end)
     if first_activity_month is None:
         response = _build_empty_savings_rate_trend_response()
         return response
 
-    earliest_visible_month = _get_month_start_after_offset(current_month, -(SAVINGS_RATE_TREND_MONTHS - 1))
+    earliest_visible_month = get_shifted_month_start_date(current_month, -(SAVINGS_RATE_TREND_MONTHS - 1))
     start_month = max(first_activity_month, earliest_visible_month)
-    months = _get_month_starts(start_month, current_month)
+    month_count = _get_inclusive_month_count(start_month, current_month)
+    months = get_month_start_dates(start_month, month_count)
     monthly_category_totals, fx_status = await _get_converted_monthly_category_totals(
         db,
         accounts,
