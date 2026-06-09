@@ -20,6 +20,7 @@ from app.routes.groups.membership_helpers import (
     get_group_owner_id,
     require_user_exists,
 )
+from app.routes.groups.update_helpers import update_group_and_get_response
 from app.schemas.group import (
     AddGroupMemberRequest,
     CreateGroupRequest,
@@ -102,20 +103,7 @@ async def update_group(
     Returns:
         Updated group
     """
-    await get_group_admin_membership_or_403(db, group_id, user.id)
-    group = await get_group_or_404(db, group_id)
-
-    changed_fields = data.model_dump(exclude_unset=True)
-    if not changed_fields:
-        return group
-
-    for field, value in changed_fields.items():
-        setattr(group, field, value)
-
-    await mark_group_cache_changed(db, group_id)
-    await db.commit()
-    await db.refresh(group)
-    return group
+    return await update_group_and_get_response(db, user, group_id, data)
 
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
