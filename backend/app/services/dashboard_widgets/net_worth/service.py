@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.schemas.fx import FxStatus
-from app.services.dashboard_widgets.net_worth_balance_conversion_helpers import (
+from app.services.dashboard_widgets.net_worth.balance_conversion_helpers import (
     get_converted_net_worth_balance_total,
     get_dashboard_net_worth_fx_converter,
     prefetch_dashboard_net_worth_fx_rates,
 )
-from app.services.dashboard_widgets.net_worth_balance_snapshot_helpers import (
+from app.services.dashboard_widgets.net_worth.balance_snapshot_helpers import (
     get_net_worth_balance_updates_by_day,
     get_net_worth_starting_balances,
 )
