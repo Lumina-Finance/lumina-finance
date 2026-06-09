@@ -1,7 +1,5 @@
 """Income/expense category breakdown service for the insights page"""
 
-import uuid
-from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,79 +16,12 @@ from app.services.insights.income_expense_breakdown.breakdown_rows import (
     get_income_expense_breakdown_total,
 )
 from app.services.insights.income_expense_breakdown.period_stats import (
-    CategoryPeriodStatsById,
     get_income_expense_breakdown_period_stats,
 )
-
-CATEGORY_TREND_LIMIT = 3
-
-
-@dataclass(frozen=True)
-class CategoryStats:
-    """Store display stats for one category in one card mode
-
-    Attributes:
-        name: Category display name
-        amount: Positive display amount for the selected card mode
-        transaction_count: Number of transactions behind the amount
-    """
-
-    name: str
-    amount: int
-    transaction_count: int
-
-
-@dataclass(frozen=True)
-class CategoryTrend:
-    """Store category trend values before response row formatting
-
-    Attributes:
-        category_id: Category ID used in the response row
-        name: Category display name
-        current_amount: Positive display amount for the selected period
-        previous_amount: Positive display amount for the comparison period
-        change_pct: Percentage change from the comparison period
-        transaction_count: Number of selected-period transactions
-        change_amount: Amount movement between periods
-    """
-
-    category_id: uuid.UUID
-    name: str
-    current_amount: int
-    previous_amount: int
-    change_pct: int | None
-    transaction_count: int
-    change_amount: int
-
-
-CategoryStatsById = dict[uuid.UUID, CategoryStats]
-CategoryTrendRow = tuple[str, str, int, int, int | None, int]
-
-
-def _category_stats_from_period(
-    period_stats: CategoryPeriodStatsById,
-    kind: CategoryKind,
-) -> CategoryStatsById:
-    """Return display amount and transaction count by category for one card mode
-
-    Args:
-        period_stats: Signed category stats for one period
-        kind: Category kind being prepared for trend comparison
-
-    Returns:
-        Display stats keyed by category ID
-    """
-    stats_by_id: CategoryStatsById = {}
-    for category_id, stats in period_stats.items():
-        if stats.category_kind != kind:
-            continue
-        amount = max(stats.signed_amount, 0) if kind == CategoryKind.INCOME else max(-stats.signed_amount, 0)
-        stats_by_id[category_id] = CategoryStats(
-            name=stats.name,
-            amount=amount,
-            transaction_count=stats.transaction_count,
-        )
-    return stats_by_id
+from app.services.insights.income_expense_breakdown.trend_rows import (
+    get_income_expense_breakdown_category_stats,
+    get_income_expense_breakdown_trend_rows,
+)
 
 
 def _combine_fx_statuses(current_status: FxStatus, previous_status: FxStatus) -> FxStatus:
@@ -123,87 +54,6 @@ def _combine_fx_statuses(current_status: FxStatus, previous_status: FxStatus) ->
 
     state = "unavailable" if current_status.state == previous_status.state == "unavailable" else "incomplete"
     return FxStatus(state=state, missing_pairs=missing_pairs)
-
-
-def _change_pct(current_amount: int, previous_amount: int) -> int | None:
-    """Return percentage change from a previous amount
-
-    Args:
-        current_amount: Current-period display amount
-        previous_amount: Comparison-period display amount
-
-    Returns:
-        Rounded percentage change, or None when there is no positive previous amount
-    """
-    if previous_amount <= 0:
-        return None
-    return round(((current_amount - previous_amount) / previous_amount) * 100)
-
-
-def _category_trends(
-    current_stats_by_id: CategoryStatsById,
-    previous_stats_by_id: CategoryStatsById,
-) -> tuple[list[CategoryTrendRow], list[CategoryTrendRow]]:
-    """Return top increases and decreases by dollar movement
-
-    Args:
-        current_stats_by_id: Selected-period category stats keyed by category ID
-        previous_stats_by_id: Comparison-period category stats keyed by category ID
-
-    Returns:
-        Increase rows and decrease rows for the response
-    """
-    increases: list[CategoryTrend] = []
-    decreases: list[CategoryTrend] = []
-
-    # Compare every category seen in either period so new and vanished categories are included
-    for category_id in set(current_stats_by_id) | set(previous_stats_by_id):
-        current_stats = current_stats_by_id.get(category_id, CategoryStats("", 0, 0))
-        previous_stats = previous_stats_by_id.get(category_id, CategoryStats("", 0, 0))
-        change_amount = current_stats.amount - previous_stats.amount
-        if change_amount == 0:
-            continue
-
-        trend = CategoryTrend(
-            category_id=category_id,
-            name=current_stats.name or previous_stats.name,
-            current_amount=current_stats.amount,
-            previous_amount=previous_stats.amount,
-            change_pct=_change_pct(current_stats.amount, previous_stats.amount),
-            transaction_count=current_stats.transaction_count,
-            change_amount=change_amount,
-        )
-        if change_amount > 0:
-            increases.append(trend)
-        else:
-            decreases.append(trend)
-
-    increases.sort(key=lambda trend: (-trend.change_amount, trend.name))
-    decreases.sort(key=lambda trend: (trend.change_amount, trend.name))
-
-    return _response_rows(increases), _response_rows(decreases)
-
-
-def _response_rows(trends: list[CategoryTrend]) -> list[CategoryTrendRow]:
-    """Return API response rows from sorted category trends
-
-    Args:
-        trends: Sorted category trend values
-
-    Returns:
-        Response rows capped at the category trend limit
-    """
-    return [
-        (
-            str(trend.category_id),
-            trend.name,
-            trend.current_amount,
-            trend.previous_amount,
-            trend.change_pct,
-            trend.transaction_count,
-        )
-        for trend in trends[:CATEGORY_TREND_LIMIT]
-    ]
 
 
 async def get_income_expense_breakdown(
@@ -255,13 +105,13 @@ async def get_income_expense_breakdown(
         previous_to_date,
     )
     current_expense_breakdown, current_income_breakdown = get_income_expense_breakdown_stats_by_side(current_period_stats)
-    current_expense_stats = _category_stats_from_period(current_period_stats, CategoryKind.EXPENSE)
-    previous_expense_stats = _category_stats_from_period(previous_period_stats, CategoryKind.EXPENSE)
-    current_income_stats = _category_stats_from_period(current_period_stats, CategoryKind.INCOME)
-    previous_income_stats = _category_stats_from_period(previous_period_stats, CategoryKind.INCOME)
+    current_expense_stats = get_income_expense_breakdown_category_stats(current_period_stats, CategoryKind.EXPENSE)
+    previous_expense_stats = get_income_expense_breakdown_category_stats(previous_period_stats, CategoryKind.EXPENSE)
+    current_income_stats = get_income_expense_breakdown_category_stats(current_period_stats, CategoryKind.INCOME)
+    previous_income_stats = get_income_expense_breakdown_category_stats(previous_period_stats, CategoryKind.INCOME)
 
-    expense_increases, expense_decreases = _category_trends(current_expense_stats, previous_expense_stats)
-    income_increases, income_decreases = _category_trends(current_income_stats, previous_income_stats)
+    expense_increases, expense_decreases = get_income_expense_breakdown_trend_rows(current_expense_stats, previous_expense_stats)
+    income_increases, income_decreases = get_income_expense_breakdown_trend_rows(current_income_stats, previous_income_stats)
     expense_refunds = sum(
         stats.amount
         for stats in current_income_breakdown.values()
