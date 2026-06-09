@@ -13,11 +13,7 @@ from app.schemas.insights import (
 )
 from app.services.dashboard import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
-from app.services.insights.fx_status_helpers import get_combined_fx_status
-from app.services.insights.merchants.distribution_and_ranking_helpers import (
-    get_merchant_distribution_rows,
-    get_merchant_ranking_rows,
-)
+from app.services.insights.merchants.response import build_merchants_response
 from app.services.insights.merchants.spend_stats_helpers import get_merchant_spend_stats
 
 
@@ -41,12 +37,15 @@ async def get_merchants(
         Shared merchant response payload
     """
     previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
+
+    # Load accounts the user can read before aggregating merchant spend
     accounts = await get_accessible_accounts(db, user)
 
     if not accounts:
         response = InsightsMerchantsResponse(distribution=[], ranking=[])
         return response
 
+    # Query selected-period merchant spend for readable accounts
     current_stats, current_fx_status = await get_merchant_spend_stats(
         db,
         accounts,
@@ -54,6 +53,8 @@ async def get_merchants(
         from_date,
         to_date,
     )
+
+    # Query comparison-period merchant spend for movement values
     previous_stats, previous_fx_status = await get_merchant_spend_stats(
         db,
         accounts,
@@ -62,10 +63,11 @@ async def get_merchants(
         previous_to_date,
     )
 
-    response = InsightsMerchantsResponse(
-        distribution=get_merchant_distribution_rows(current_stats, previous_stats),
-        ranking=get_merchant_ranking_rows(current_stats, previous_stats),
-        fx_status=get_combined_fx_status(current_fx_status, previous_fx_status),
+    response = build_merchants_response(
+        current_stats=current_stats,
+        previous_stats=previous_stats,
+        current_fx_status=current_fx_status,
+        previous_fx_status=previous_fx_status,
     )
     return response
 
