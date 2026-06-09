@@ -89,6 +89,31 @@ async def import_transactions(
 
     await db.commit()
 
+    return _build_transaction_import_response(data, stats, accounts_by_source, categories_by_source, affected_from)
+
+
+def _build_transaction_import_response(
+    data: TransactionImportRequest,
+    stats: ImportStats,
+    accounts_by_source: dict[str, Account],
+    categories_by_source: dict[str, Category],
+    affected_from: dict[uuid.UUID, date],
+) -> TransactionImportResponse:
+    """Build the API summary returned after importing transactions
+
+    Args:
+        data: Prepared import payload from the frontend compiler
+        stats: Import summary counters updated during the import
+        accounts_by_source: Account rows keyed by import source
+        categories_by_source: Category rows keyed by import source
+        affected_from: Earliest imported transaction date by affected account ID
+
+    Returns:
+        Import response with created, reused, and affected account details
+    """
+    # Sort affected account IDs for deterministic API responses
+    affected_account_ids = sorted(affected_from, key=str)
+
     return TransactionImportResponse(
         transactions_created=len(data.rows),
         accounts_created=stats.accounts_created,
@@ -99,7 +124,7 @@ async def import_transactions(
         merchants_reused=stats.merchants_reused,
         tags_created=stats.tags_created,
         tags_reused=stats.tags_reused,
-        affected_account_ids=sorted(affected_from, key=str),
+        affected_account_ids=affected_account_ids,
         account_source_ids={source: account.id for source, account in accounts_by_source.items()},
         category_source_ids={source: category.id for source, category in categories_by_source.items()},
         created_account_ids=stats.created_account_ids,
