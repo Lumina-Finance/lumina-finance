@@ -3,7 +3,6 @@
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,11 +15,7 @@ from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsNetWorthResponse, NetWorthGroupKind
 from app.services.dashboard import get_accessible_accounts
 from app.services.fx import FxConverter
-
-NetWorthGranularity = Literal["day", "week", "month"]
-
-_MONTHLY_RANGE_DAY_COUNT = 31
-_HALF_YEAR_DAY_COUNT = 183
+from app.services.insights.net_worth.buckets import build_net_worth_buckets
 
 
 @dataclass(frozen=True)
@@ -50,81 +45,6 @@ NET_WORTH_GROUPS: tuple[NetWorthGroup, ...] = (
 )
 
 GROUP_INDEX_BY_ID = {group.id: index for index, group in enumerate(NET_WORTH_GROUPS)}
-
-
-def _get_granularity(from_date: date, to_date: date) -> NetWorthGranularity:
-    """Return the insights net worth chart bucket cadence
-
-    Args:
-        from_date: Inclusive chart start date
-        to_date: Inclusive chart end date
-
-    Returns:
-        Bucket granularity for the requested date range
-    """
-    day_count = (to_date - from_date).days + 1
-    if day_count <= _MONTHLY_RANGE_DAY_COUNT:
-        return "day"
-    if day_count <= _HALF_YEAR_DAY_COUNT:
-        return "week"
-    return "month"
-
-
-def _get_bucket_start(target: date, granularity: NetWorthGranularity) -> date:
-    """Return the bucket start date containing a target date
-
-    Args:
-        target: Date to place inside a bucket
-        granularity: Bucket cadence used by the chart
-
-    Returns:
-        Start date for the bucket containing the target date
-    """
-    if granularity == "day":
-        return target
-    if granularity == "week":
-        return target - timedelta(days=target.weekday())
-    return date(target.year, target.month, 1)
-
-
-def _get_next_bucket_start(target: date, granularity: NetWorthGranularity) -> date:
-    """Return the start date for the bucket after the target bucket
-
-    Args:
-        target: Current bucket start date
-        granularity: Bucket cadence used by the chart
-
-    Returns:
-        Start date for the next bucket
-    """
-    if granularity == "day":
-        return target + timedelta(days=1)
-    if granularity == "week":
-        return target + timedelta(days=7)
-    if target.month == 12:
-        return date(target.year + 1, 1, 1)
-    return date(target.year, target.month + 1, 1)
-
-
-def _build_buckets(from_date: date, to_date: date) -> list[tuple[date, date]]:
-    """Return label and value dates for net worth chart buckets
-
-    Args:
-        from_date: Inclusive chart start date
-        to_date: Inclusive chart end date
-
-    Returns:
-        Bucket label dates and value dates using account-detail semantics
-    """
-    granularity = _get_granularity(from_date, to_date)
-    buckets: list[tuple[date, date]] = []
-    cursor = _get_bucket_start(from_date, granularity)
-    while cursor <= to_date:
-        next_start = _get_next_bucket_start(cursor, granularity)
-        value_date = min(next_start - timedelta(days=1), to_date)
-        buckets.append((cursor, value_date))
-        cursor = next_start
-    return buckets
 
 
 def _get_group_id_for_account(account: Account) -> str:
@@ -173,7 +93,7 @@ async def _get_net_worth_points(
     Returns:
         Baseline values, chart points, and FX conversion status
     """
-    buckets = _build_buckets(from_date, to_date)
+    buckets = build_net_worth_buckets(from_date, to_date)
     if not accounts or not buckets:
         return [], [], FxStatus()
 
