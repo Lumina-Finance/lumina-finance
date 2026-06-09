@@ -1,5 +1,6 @@
 """Transaction import orchestration service"""
 import uuid
+from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +32,25 @@ from app.services.transactions.imports.stats import ImportStats
 from app.services.transactions.imports.tags import get_or_create_import_tags, get_personal_import_tags_by_name
 
 
+@dataclass
+class _TransactionImportLookups:
+    """Store lookup maps used while creating imported transactions
+
+    Attributes:
+        accounts_by_source: Account rows keyed by import source
+        categories_by_source: Category rows keyed by import source
+        currencies_by_code: Currency rows keyed by currency code
+        merchants_by_name: Request-local merchant lookup keyed by merchant name
+        tags_by_name: Request-local tag lookup keyed by tag name
+    """
+
+    accounts_by_source: dict[str, Account]
+    categories_by_source: dict[str, Category]
+    currencies_by_code: dict[str, Currency]
+    merchants_by_name: dict[str, Merchant]
+    tags_by_name: dict[str, Tag]
+
+
 async def import_transactions(
     db: AsyncSession,
     user: User,
@@ -47,29 +67,61 @@ async def import_transactions(
         Import summary containing transaction, account, category, merchant, tag, and affected account counts
     """
     stats = ImportStats()
-    accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
-    categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
-    currencies_by_code = await get_import_currencies_by_code(db, {account.currency for account in accounts_by_source.values()})
-    merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
-    tags_by_name = await get_personal_import_tags_by_name(db, user.id)
+    import_lookups = await _load_transaction_import_lookups(db, user, data, stats)
     first_import_date_by_account_id = await _create_imported_transactions(
         db,
         user_id=user.id,
         rows=data.rows,
-        accounts_by_source=accounts_by_source,
-        categories_by_source=categories_by_source,
-        currencies_by_code=currencies_by_code,
-        merchants_by_name=merchants_by_name,
-        tags_by_name=tags_by_name,
+        import_lookups=import_lookups,
         stats=stats,
     )
 
     await db.flush()
     await _recompute_snapshots_for_imported_accounts(db, first_import_date_by_account_id)
-    await _mark_caches_changed_for_imported_accounts(db, user.id, accounts_by_source, first_import_date_by_account_id)
+    await _mark_caches_changed_for_imported_accounts(
+        db,
+        user.id,
+        import_lookups.accounts_by_source,
+        first_import_date_by_account_id,
+    )
     await db.commit()
 
-    return _build_transaction_import_response(data, stats, accounts_by_source, categories_by_source, first_import_date_by_account_id)
+    return _build_transaction_import_response(data, stats, import_lookups, first_import_date_by_account_id)
+
+
+async def _load_transaction_import_lookups(
+    db: AsyncSession,
+    user: User,
+    data: TransactionImportRequest,
+    stats: ImportStats,
+) -> _TransactionImportLookups:
+    """Load lookup maps needed to create imported transactions
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        data: Prepared import payload from the frontend compiler
+        stats: Import summary counters updated while mappings are matched or created
+
+    Returns:
+        Lookup maps used by the transaction import row creation helper
+    """
+    accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
+    categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
+
+    # Load currencies after account mappings because new accounts can introduce new currency codes
+    account_currency_codes = {account.currency for account in accounts_by_source.values()}
+    currencies_by_code = await get_import_currencies_by_code(db, account_currency_codes)
+    merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
+    tags_by_name = await get_personal_import_tags_by_name(db, user.id)
+
+    return _TransactionImportLookups(
+        accounts_by_source=accounts_by_source,
+        categories_by_source=categories_by_source,
+        currencies_by_code=currencies_by_code,
+        merchants_by_name=merchants_by_name,
+        tags_by_name=tags_by_name,
+    )
 
 
 async def _create_imported_transactions(
@@ -77,11 +129,7 @@ async def _create_imported_transactions(
     *,
     user_id: uuid.UUID,
     rows: list[TransactionImportRow],
-    accounts_by_source: dict[str, Account],
-    categories_by_source: dict[str, Category],
-    currencies_by_code: dict[str, Currency],
-    merchants_by_name: dict[str, Merchant],
-    tags_by_name: dict[str, Tag],
+    import_lookups: _TransactionImportLookups,
     stats: ImportStats,
 ) -> dict[uuid.UUID, date]:
     """Create imported transaction rows and return first import dates by account
@@ -90,11 +138,7 @@ async def _create_imported_transactions(
         db: Active database session
         user_id: Identifier for the user running the import
         rows: Prepared transaction rows from the import payload
-        accounts_by_source: Account rows keyed by import source
-        categories_by_source: Category rows keyed by import source
-        currencies_by_code: Currency rows keyed by currency code
-        merchants_by_name: Request-local merchant lookup keyed by merchant name
-        tags_by_name: Request-local tag lookup keyed by tag name
+        import_lookups: Lookup maps needed to create imported transaction rows
         stats: Import summary counters updated during the import
 
     Returns:
@@ -104,14 +148,14 @@ async def _create_imported_transactions(
 
     # Convert each frontend-compiled row into a transaction and track affected account dates
     for row in rows:
-        account = get_import_row_account(accounts_by_source, row.account_source)
-        category = get_import_row_category(categories_by_source, row.category_source)
+        account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)
+        category = get_import_row_category(import_lookups.categories_by_source, row.category_source)
         validate_import_category_can_be_used_for_account(category, account, user_id)
 
-        currency = currencies_by_code[account.currency]
+        currency = import_lookups.currencies_by_code[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
-        merchant = await get_or_create_import_merchant(db, user_id, row.merchant_name, merchants_by_name, stats)
-        tags = await get_or_create_import_tags(db, user_id, row.tag_names, tags_by_name, stats)
+        merchant = await get_or_create_import_merchant(db, user_id, row.merchant_name, import_lookups.merchants_by_name, stats)
+        tags = await get_or_create_import_tags(db, user_id, row.tag_names, import_lookups.tags_by_name, stats)
 
         await _insert_imported_transaction_with_tag_links(
             db,
@@ -179,8 +223,7 @@ async def _mark_caches_changed_for_imported_accounts(
 def _build_transaction_import_response(
     data: TransactionImportRequest,
     stats: ImportStats,
-    accounts_by_source: dict[str, Account],
-    categories_by_source: dict[str, Category],
+    import_lookups: _TransactionImportLookups,
     first_import_date_by_account_id: dict[uuid.UUID, date],
 ) -> TransactionImportResponse:
     """Build the API summary returned after importing transactions
@@ -188,8 +231,7 @@ def _build_transaction_import_response(
     Args:
         data: Prepared import payload from the frontend compiler
         stats: Import summary counters updated during the import
-        accounts_by_source: Account rows keyed by import source
-        categories_by_source: Category rows keyed by import source
+        import_lookups: Lookup maps used while creating imported transactions
         first_import_date_by_account_id: Earliest imported transaction date by affected account ID
 
     Returns:
@@ -209,8 +251,8 @@ def _build_transaction_import_response(
         tags_created=stats.tags_created,
         tags_reused=stats.tags_reused,
         affected_account_ids=affected_account_ids,
-        account_source_ids={source: account.id for source, account in accounts_by_source.items()},
-        category_source_ids={source: category.id for source, category in categories_by_source.items()},
+        account_source_ids={source: account.id for source, account in import_lookups.accounts_by_source.items()},
+        category_source_ids={source: category.id for source, category in import_lookups.categories_by_source.items()},
         created_account_ids=stats.created_account_ids,
         created_category_ids=stats.created_category_ids,
         created_merchant_ids=stats.created_merchant_ids,
