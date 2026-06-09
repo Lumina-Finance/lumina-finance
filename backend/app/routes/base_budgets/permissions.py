@@ -36,6 +36,7 @@ async def _get_group_base_budget_or_404(
     Raises:
         HTTPException: Base budget is missing or personal
     """
+    # Fetch the base budget row and reject personal budgets because permissions apply only to group budgets
     result = await db.execute(select(BaseBudget).where(BaseBudget.id == base_budget_id))
     base_budget = result.scalar_one_or_none()
     if not base_budget or not base_budget.group_id:
@@ -61,6 +62,7 @@ async def _get_base_budget_admin_membership_or_403(
     Raises:
         HTTPException: User is not a member or is not an admin
     """
+    # Fetch the actor's group membership to enforce admin-only permission changes
     result = await db.execute(
         select(GroupMember).where(
             GroupMember.group_id == group_id,
@@ -103,6 +105,7 @@ async def grant_base_budget_permission(
     base_budget = await _get_group_base_budget_or_404(db, base_budget_id)
     await _get_base_budget_admin_membership_or_403(db, base_budget.group_id, user.id)
 
+    # Confirm the target user belongs to the base budget group before granting explicit access
     target_result = await db.execute(
         select(GroupMember).where(
             GroupMember.group_id == base_budget.group_id,
@@ -115,6 +118,7 @@ async def grant_base_budget_permission(
     if target_member.is_admin:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Admins have implicit full access")
 
+    # Look for an existing permission so repeated grants update the access level instead of duplicating rows
     existing_result = await db.execute(
         select(BudgetPermission).where(
             BudgetPermission.group_id == base_budget.group_id,
@@ -167,6 +171,7 @@ async def revoke_base_budget_permission(
     base_budget = await _get_group_base_budget_or_404(db, base_budget_id)
     await _get_base_budget_admin_membership_or_403(db, base_budget.group_id, user.id)
 
+    # Fetch the permission row within the base budget so revocation cannot cross budget boundaries
     result = await db.execute(
         select(BudgetPermission).where(
             BudgetPermission.id == permission_id,
@@ -213,5 +218,6 @@ async def list_base_budget_permissions(
     if user_id:
         query = query.where(BudgetPermission.user_id == user_id)
 
+    # Fetch permission rows for the group base budget, optionally narrowed to one member
     result = await db.execute(query.order_by(BudgetPermission.created_at))
     return result.scalars().all()

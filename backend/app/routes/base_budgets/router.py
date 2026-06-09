@@ -51,6 +51,7 @@ async def _check_group_admin_or_403(
     Raises:
         HTTPException: Group is missing or user is not an admin
     """
+    # Fetch the actor's group membership before allowing base budget management
     result = await db.execute(
         select(GroupMember).where(
             GroupMember.group_id == group_id,

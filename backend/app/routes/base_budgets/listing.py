@@ -34,6 +34,7 @@ async def get_visible_base_budget_responses(db: AsyncSession, user_id: uuid.UUID
         )
         .order_by(BaseBudget.name)
     )
+    # Execute the visibility query and collapse duplicates from group and permission joins
     result = await db.execute(query)
     base_budgets = result.scalars().unique().all()
 

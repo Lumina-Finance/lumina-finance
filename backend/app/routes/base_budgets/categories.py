@@ -53,6 +53,7 @@ async def get_valid_tracked_category_ids(
             | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
         )
 
+    # Fetch categories that are valid for the base budget scope
     result = await db.execute(query)
     found_category_ids = set(result.scalars().all())
     # Missing and out-of-scope categories use the same client-facing validation error
@@ -83,6 +84,7 @@ async def update_tracked_category_links(
         HTTPException: A category is missing or outside the base budget scope
     """
     valid_category_ids = set(await get_valid_tracked_category_ids(db, category_ids, user_id, group_id))
+    # Fetch currently active tracked categories so changes can be reconciled without deleting history
     current_result = await db.execute(
         select(BudgetTrackedCategory.category_id).where(
             BudgetTrackedCategory.base_budget_id == base_budget_id,
