@@ -7,11 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.schemas.insights import InsightsCashFlowResponse
 from app.services.dashboard import get_accessible_accounts
-from app.services.insights.cash_flow.bucket_helpers import (
-    get_cash_flow_bucket_rows,
-    get_cash_flow_buckets,
-)
 from app.services.insights.cash_flow.daily_totals_helpers import get_cash_flow_daily_totals
+from app.services.insights.cash_flow.response import build_cash_flow_response
 
 
 async def get_cash_flow(
@@ -37,12 +34,11 @@ async def get_cash_flow(
         response = InsightsCashFlowResponse(points=[])
         return response
 
-    buckets = get_cash_flow_buckets(from_date, to_date)
     daily_totals, fx_status = await get_cash_flow_daily_totals(db, accounts, user.base_currency, from_date, to_date)
-    if not any(inflow > 0 or outflow > 0 for inflow, outflow in daily_totals.values()):
-        response = InsightsCashFlowResponse(points=[], fx_status=fx_status)
-        return response
-
-    cash_flow_rows = get_cash_flow_bucket_rows(buckets, daily_totals)
-    response = InsightsCashFlowResponse(points=cash_flow_rows, fx_status=fx_status)
+    response = build_cash_flow_response(
+        from_date=from_date,
+        to_date=to_date,
+        daily_totals=daily_totals,
+        fx_status=fx_status,
+    )
     return response
