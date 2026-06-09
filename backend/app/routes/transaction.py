@@ -3,13 +3,11 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -26,6 +24,10 @@ from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_imports import import_transactions
 from app.services.transaction_responses import get_transaction_response
+from app.services.transactions.accounts import (
+    get_parent_account_for_transaction,
+    validate_transaction_account_is_not_archived,
+)
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.tags import delete_transaction_tag_links, replace_transaction_tag_links
@@ -201,8 +203,7 @@ async def create_transaction(
         PermissionLevel.WRITE,
         require_open=True,
     )
-    if account.is_archived:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
+    validate_transaction_account_is_not_archived(account)
 
     await validate_transaction_currency_exists(db, data.currency)
     validate_transaction_fx_rate_for_account_currency(data.currency, account.currency, data.fx_rate)
@@ -264,10 +265,8 @@ async def update_transaction(
         Updated transaction response with current related display data
     """
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
-    # Fetch the current account so archived status and cache scope use the persisted parent account
-    current_account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
-    if current_account.is_archived:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
+    current_account = await get_parent_account_for_transaction(db, txn)
+    validate_transaction_account_is_not_archived(current_account)
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
@@ -289,8 +288,7 @@ async def update_transaction(
             PermissionLevel.WRITE,
             require_open=True,
         )
-        if new_account.is_archived:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
+        validate_transaction_account_is_not_archived(new_account)
         account_group_id = new_account.group_id
         validate_transaction_fx_rate_for_account_currency(
             txn.currency,
@@ -359,10 +357,8 @@ async def delete_transaction(
         None
     """
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
-    # Fetch the parent account so archived status and cache scope are based on the persisted account row
-    account = (await db.execute(select(Account).where(Account.id == txn.account_id))).scalar_one()
-    if account.is_archived:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
+    account = await get_parent_account_for_transaction(db, txn)
+    validate_transaction_account_is_not_archived(account)
 
     # Capture pre-delete values for snapshot recomputation
     account_id = txn.account_id
