@@ -1,4 +1,4 @@
-"""Net worth service for the insights page."""
+"""Net worth service for the insights page"""
 
 import uuid
 from dataclasses import dataclass
@@ -25,6 +25,14 @@ _HALF_YEAR_DAY_COUNT = 183
 
 @dataclass(frozen=True)
 class NetWorthGroup:
+    """Store one net worth chart group definition
+
+    Attributes:
+        id: Stable group ID returned in the response
+        name: Display name returned in the response
+        kind: Whether the group belongs to assets or debt
+    """
+
     id: str
     name: str
     kind: NetWorthGroupKind
@@ -45,7 +53,15 @@ GROUP_INDEX_BY_ID = {group.id: index for index, group in enumerate(NET_WORTH_GRO
 
 
 def _get_granularity(from_date: date, to_date: date) -> NetWorthGranularity:
-    """Return the Insights net worth chart bucket cadence."""
+    """Return the insights net worth chart bucket cadence
+
+    Args:
+        from_date: Inclusive chart start date
+        to_date: Inclusive chart end date
+
+    Returns:
+        Bucket granularity for the requested date range
+    """
     day_count = (to_date - from_date).days + 1
     if day_count <= _MONTHLY_RANGE_DAY_COUNT:
         return "day"
@@ -54,7 +70,16 @@ def _get_granularity(from_date: date, to_date: date) -> NetWorthGranularity:
     return "month"
 
 
-def _bucket_start(target: date, granularity: NetWorthGranularity) -> date:
+def _get_bucket_start(target: date, granularity: NetWorthGranularity) -> date:
+    """Return the bucket start date containing a target date
+
+    Args:
+        target: Date to place inside a bucket
+        granularity: Bucket cadence used by the chart
+
+    Returns:
+        Start date for the bucket containing the target date
+    """
     if granularity == "day":
         return target
     if granularity == "week":
@@ -62,7 +87,16 @@ def _bucket_start(target: date, granularity: NetWorthGranularity) -> date:
     return date(target.year, target.month, 1)
 
 
-def _next_bucket_start(target: date, granularity: NetWorthGranularity) -> date:
+def _get_next_bucket_start(target: date, granularity: NetWorthGranularity) -> date:
+    """Return the start date for the bucket after the target bucket
+
+    Args:
+        target: Current bucket start date
+        granularity: Bucket cadence used by the chart
+
+    Returns:
+        Start date for the next bucket
+    """
     if granularity == "day":
         return target + timedelta(days=1)
     if granularity == "week":
@@ -73,19 +107,35 @@ def _next_bucket_start(target: date, granularity: NetWorthGranularity) -> date:
 
 
 def _build_buckets(from_date: date, to_date: date) -> list[tuple[date, date]]:
-    """Return `(label_date, value_date)` buckets using account-detail semantics."""
+    """Return label and value dates for net worth chart buckets
+
+    Args:
+        from_date: Inclusive chart start date
+        to_date: Inclusive chart end date
+
+    Returns:
+        Bucket label dates and value dates using account-detail semantics
+    """
     granularity = _get_granularity(from_date, to_date)
     buckets: list[tuple[date, date]] = []
-    cursor = _bucket_start(from_date, granularity)
+    cursor = _get_bucket_start(from_date, granularity)
     while cursor <= to_date:
-        next_start = _next_bucket_start(cursor, granularity)
+        next_start = _get_next_bucket_start(cursor, granularity)
         value_date = min(next_start - timedelta(days=1), to_date)
         buckets.append((cursor, value_date))
         cursor = next_start
     return buckets
 
 
-def _group_id_for_account(account: Account) -> str:
+def _get_group_id_for_account(account: Account) -> str:
+    """Return the net worth group ID for an account
+
+    Args:
+        account: Account being placed into a chart group
+
+    Returns:
+        Net worth group ID for the account
+    """
     if account.account_kind == AccountKind.ASSET:
         if account.account_type in {AccountType.CHECKING, AccountType.SAVINGS, AccountType.CASH}:
             return "cash"
@@ -104,21 +154,32 @@ def _group_id_for_account(account: Account) -> str:
     return "other_debt"
 
 
-async def _query_net_worth_points(
+async def _get_net_worth_points(
     db: AsyncSession,
     accounts: list[Account],
     base_currency: str,
     from_date: date,
     to_date: date,
 ) -> tuple[list[int], list[tuple[date, date, list[int]]], FxStatus]:
-    """Return signed grouped balances converted to base currency for each chart bucket."""
+    """Return signed grouped balances converted to base currency for each chart bucket
+
+    Args:
+        db: Active database session
+        accounts: Accounts included in the chart
+        base_currency: User base currency used for converted values
+        from_date: Inclusive chart start date
+        to_date: Inclusive chart end date
+
+    Returns:
+        Baseline values, chart points, and FX conversion status
+    """
     buckets = _build_buckets(from_date, to_date)
     if not accounts or not buckets:
         return [], [], FxStatus()
 
     account_ids = [account.id for account in accounts]
     group_index_by_account_id = {
-        account.id: GROUP_INDEX_BY_ID[_group_id_for_account(account)]
+        account.id: GROUP_INDEX_BY_ID[_get_group_id_for_account(account)]
         for account in accounts
     }
     baseline_date = from_date - timedelta(days=1)
@@ -135,8 +196,8 @@ async def _query_net_worth_points(
         base_currency=base_currency,
         baseline_date=baseline_date,
     )
-    baseline_balances = await _balances_at(db, account_ids, baseline_date)
-    baseline_values = await _grouped_values_from_balances(
+    baseline_balances = await _get_account_balances_at(db, account_ids, baseline_date)
+    baseline_values = await _get_grouped_values_from_balances(
         accounts,
         group_index_by_account_id,
         baseline_balances,
@@ -145,6 +206,8 @@ async def _query_net_worth_points(
         converter=converter,
     )
     first_bucket_start = buckets[0][0]
+
+    # Load each account's latest balance before the first bucket so chart points can carry values forward
     anchor_result = await db.execute(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
         .where(
@@ -158,6 +221,7 @@ async def _query_net_worth_points(
     for account_id in account_ids:
         running.setdefault(account_id, 0)
 
+    # Load all in-range balance snapshots once, then walk them into bucket values in date order
     snapshot_result = await db.execute(
         select(
             AccountBalanceSnapshot.account_id,
@@ -175,13 +239,14 @@ async def _query_net_worth_points(
     snapshot_index = 0
     points: list[tuple[date, date, list[int]]] = []
 
+    # Carry account balances forward through buckets and convert each bucket's grouped values
     for label_date, value_date in buckets:
         while snapshot_index < len(snapshots) and snapshots[snapshot_index].dt <= value_date:
             snapshot = snapshots[snapshot_index]
             running[snapshot.account_id] = int(snapshot.balance)
             snapshot_index += 1
 
-        values = await _grouped_values_from_balances(
+        values = await _get_grouped_values_from_balances(
             accounts,
             group_index_by_account_id,
             running,
@@ -194,15 +259,25 @@ async def _query_net_worth_points(
     return baseline_values, points, converter.get_status()
 
 
-async def _balances_at(
+async def _get_account_balances_at(
     db: AsyncSession,
     account_ids: list[uuid.UUID],
     target_date: date,
 ) -> dict[uuid.UUID, int]:
-    """Return latest balances on or before target_date keyed by account id."""
+    """Return latest account balances on or before a target date
+
+    Args:
+        db: Active database session
+        account_ids: Account IDs included in the lookup
+        target_date: Latest snapshot date allowed in the lookup
+
+    Returns:
+        Balance amount keyed by account ID
+    """
     if not account_ids:
         return {}
 
+    # Fetch the latest snapshot for each account on or before the requested date
     result = await db.execute(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
         .where(
@@ -215,7 +290,7 @@ async def _balances_at(
     return {row.account_id: int(row.balance) for row in result}
 
 
-async def _grouped_values_from_balances(
+async def _get_grouped_values_from_balances(
     accounts: list[Account],
     group_index_by_account_id: dict[uuid.UUID, int],
     balances: dict[uuid.UUID, int],
@@ -224,7 +299,22 @@ async def _grouped_values_from_balances(
     rate_date: date,
     converter: FxConverter,
 ) -> list[int]:
+    """Return grouped converted balance values for one chart date
+
+    Args:
+        accounts: Accounts included in the chart
+        group_index_by_account_id: Net worth group indexes keyed by account ID
+        balances: Balance amounts keyed by account ID
+        base_currency: User base currency used for converted values
+        rate_date: Date used for FX conversion
+        converter: FX converter used for balance conversion
+
+    Returns:
+        Converted grouped values in net worth group order
+    """
     values = [0] * len(NET_WORTH_GROUPS)
+
+    # Convert each account balance and add it to the account's configured net worth group
     for account in accounts:
         converted_balance = await converter.convert_minor_units(
             int(balances.get(account.id, 0)),
@@ -241,6 +331,16 @@ async def _grouped_values_from_balances(
 
 
 async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
+    """Return minor-unit exponents keyed by currency code
+
+    Args:
+        db: Active database session
+        currencies: Currency codes needed for conversion
+
+    Returns:
+        Minor-unit exponent keyed by currency code
+    """
+    # Load currency precision so FX conversion can convert minor units correctly
     result = await db.execute(
         select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
     )
@@ -255,6 +355,18 @@ async def _prefetch_net_worth_rates(
     base_currency: str,
     baseline_date: date,
 ) -> None:
+    """Prefetch FX rates needed for net worth chart conversion
+
+    Args:
+        converter: FX converter used by the net worth chart calculation
+        accounts: Accounts included in the chart
+        buckets: Chart buckets whose value dates may require conversion
+        base_currency: User base currency used for converted values
+        baseline_date: Date immediately before the selected range
+
+    Returns:
+        None
+    """
     if not buckets:
         return
 
@@ -275,12 +387,22 @@ async def get_net_worth(
     from_date: date,
     to_date: date,
 ) -> InsightsNetWorthResponse:
-    """Return compact grouped net worth history for the insights card."""
+    """Return compact grouped net worth history for the insights card
+
+    Args:
+        db: Active database session
+        user: User requesting the insight summary
+        from_date: Inclusive chart start date
+        to_date: Inclusive chart end date
+
+    Returns:
+        Net worth chart response payload
+    """
     accounts = await get_accessible_accounts(db, user)
     if not accounts:
         return InsightsNetWorthResponse(groups=[], points=[])
 
-    baseline, points, fx_status = await _query_net_worth_points(db, accounts, user.base_currency, from_date, to_date)
+    baseline, points, fx_status = await _get_net_worth_points(db, accounts, user.base_currency, from_date, to_date)
     active_group_indexes = [
         index
         for index in range(len(NET_WORTH_GROUPS))
