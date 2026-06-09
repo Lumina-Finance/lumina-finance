@@ -1,5 +1,4 @@
 """Spending-comparison dashboard widget service"""
-import calendar
 import uuid
 from datetime import date, datetime, timedelta
 
@@ -13,12 +12,8 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.schemas.dashboard import RangeKind, SpendingComparisonResponse
 from app.schemas.fx import FxStatus
+from app.services.dashboard_widgets.spending_comparison_range_helpers import get_spending_comparison_slot_ranges
 from app.services.fx import FxConverter
-
-_MONTH_ABBREVIATIONS = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
 
 
 async def get_spending_comparison(
@@ -40,16 +35,17 @@ async def get_spending_comparison(
     Returns:
         Spending comparison response with slot labels, cumulative totals, and FX status
     """
-    labels, current_ranges, previous_ranges = _plan_spending_comparison(range_, now.date())
+    labels, current_ranges, previous_ranges = get_spending_comparison_slot_ranges(range_, now.date())
 
     if not accounts:
-        return SpendingComparisonResponse(
+        response = SpendingComparisonResponse(
             range=range_,
             slot_labels=labels,
             current=[0] * len(current_ranges),
             previous=[0] * len(previous_ranges),
             fx_status=FxStatus(),
         )
+        return response
 
     accounts_by_id = {account.id: account for account in accounts}
     converter = FxConverter(
@@ -92,173 +88,14 @@ async def get_spending_comparison(
         for date_range in previous_ranges
     ]
 
-    return SpendingComparisonResponse(
+    response = SpendingComparisonResponse(
         range=range_,
         slot_labels=labels,
         current=_cumulative_totals(current_slot_totals),
         previous=_cumulative_totals(previous_slot_totals),
         fx_status=converter.get_status(),
     )
-
-
-def _plan_spending_comparison(
-    range_: RangeKind, today: date,
-) -> tuple[list[str], list[tuple[date, date]], list[tuple[date, date]]]:
-    """Build labels and per-slot date ranges for a spending comparison period
-
-    Args:
-        range_: Calendar period requested by the dashboard
-        today: Viewer-local current date
-
-    Returns:
-        Slot labels, current-period slot ranges, and previous-period slot ranges
-    """
-    if range_ == "WTD":
-        # Full Monday-Sunday week drives the x-axis while current data fills up to today
-        week_start = today - timedelta(days=today.weekday())
-        labels = [(week_start + timedelta(days=index)).strftime("%a") for index in range(7)]
-        elapsed_days = today.weekday() + 1
-        current_ranges = [
-            (week_start + timedelta(days=index), week_start + timedelta(days=index))
-            for index in range(elapsed_days)
-        ]
-        previous_week_start = week_start - timedelta(days=7)
-        previous_ranges = [
-            (previous_week_start + timedelta(days=index), previous_week_start + timedelta(days=index))
-            for index in range(7)
-        ]
-        return labels, current_ranges, previous_ranges
-
-    if range_ == "MTD":
-        return _plan_month_to_date_comparison(today)
-
-    if range_ == "QTD":
-        return _plan_quarter_to_date_comparison(today)
-
-    return _plan_year_to_date_comparison(today)
-
-
-def _plan_month_to_date_comparison(
-    today: date,
-) -> tuple[list[str], list[tuple[date, date]], list[tuple[date, date]]]:
-    """Build labels and date ranges for month-to-date comparison
-
-    Args:
-        today: Viewer-local current date
-
-    Returns:
-        Day labels, current-month day ranges, and previous-month day ranges
-    """
-    month_days = calendar.monthrange(today.year, today.month)[1]
-    labels = [str(index + 1) for index in range(month_days)]
-    current_ranges = [
-        (date(today.year, today.month, day), date(today.year, today.month, day))
-        for day in range(1, today.day + 1)
-    ]
-    if today.month == 1:
-        previous_year, previous_month = today.year - 1, 12
-    else:
-        previous_year, previous_month = today.year, today.month - 1
-    previous_month_days = calendar.monthrange(previous_year, previous_month)[1]
-    # Cap the prior-month days to the current month x-axis length
-    previous_ranges = [
-        (date(previous_year, previous_month, day), date(previous_year, previous_month, day))
-        for day in range(1, min(previous_month_days, month_days) + 1)
-    ]
-    return labels, current_ranges, previous_ranges
-
-
-def _plan_quarter_to_date_comparison(
-    today: date,
-) -> tuple[list[str], list[tuple[date, date]], list[tuple[date, date]]]:
-    """Build labels and date ranges for quarter-to-date comparison
-
-    Args:
-        today: Viewer-local current date
-
-    Returns:
-        Week labels, current-quarter week ranges, and previous-quarter week ranges
-    """
-    quarter_month = ((today.month - 1) // 3) * 3 + 1
-    current_quarter_start = date(today.year, quarter_month, 1)
-    next_quarter_start = (
-        date(today.year + 1, 1, 1) if quarter_month == 10
-        else date(today.year, quarter_month + 3, 1)
-    )
-    days_in_quarter = (next_quarter_start - current_quarter_start).days
-    week_count = (days_in_quarter + 6) // 7
-    quarter_last_day = next_quarter_start - timedelta(days=1)
-    labels = [f"W{index + 1}" for index in range(week_count)]
-    current_weeks_elapsed = (today - current_quarter_start).days // 7 + 1
-    current_ranges = []
-    for index in range(current_weeks_elapsed):
-        slot_start = current_quarter_start + timedelta(days=7 * index)
-        slot_end = min(slot_start + timedelta(days=6), today, quarter_last_day)
-        current_ranges.append((slot_start, slot_end))
-
-    previous_quarter_start, previous_quarter_end = _previous_quarter_bounds(today.year, quarter_month)
-    previous_days = (previous_quarter_end - previous_quarter_start).days + 1
-    previous_week_count = (previous_days + 6) // 7
-    previous_ranges = []
-    for index in range(min(previous_week_count, week_count)):
-        slot_start = previous_quarter_start + timedelta(days=7 * index)
-        slot_end = min(slot_start + timedelta(days=6), previous_quarter_end)
-        previous_ranges.append((slot_start, slot_end))
-    return labels, current_ranges, previous_ranges
-
-
-def _previous_quarter_bounds(year: int, quarter_month: int) -> tuple[date, date]:
-    """Return the start and end dates for the previous quarter
-
-    Args:
-        year: Year containing the current quarter
-        quarter_month: First month of the current quarter
-
-    Returns:
-        Previous quarter start and end dates
-    """
-    if quarter_month == 1:
-        previous_year, previous_quarter_month = year - 1, 10
-    else:
-        previous_year, previous_quarter_month = year, quarter_month - 3
-    previous_quarter_start = date(previous_year, previous_quarter_month, 1)
-    previous_next_quarter_start = (
-        date(previous_year + 1, 1, 1) if previous_quarter_month == 10
-        else date(previous_year, previous_quarter_month + 3, 1)
-    )
-    return previous_quarter_start, previous_next_quarter_start - timedelta(days=1)
-
-
-def _plan_year_to_date_comparison(
-    today: date,
-) -> tuple[list[str], list[tuple[date, date]], list[tuple[date, date]]]:
-    """Build labels and date ranges for year-to-date comparison
-
-    Args:
-        today: Viewer-local current date
-
-    Returns:
-        Month labels, current-year month ranges, and previous-year month ranges
-    """
-    labels = list(_MONTH_ABBREVIATIONS)
-    current_ranges = []
-    for month in range(1, today.month + 1):
-        start = date(today.year, month, 1)
-        end = (
-            today
-            if month == today.month
-            else date(today.year, month, calendar.monthrange(today.year, month)[1])
-        )
-        current_ranges.append((start, end))
-    previous_year = today.year - 1
-    previous_ranges = [
-        (
-            date(previous_year, month, 1),
-            date(previous_year, month, calendar.monthrange(previous_year, month)[1]),
-        )
-        for month in range(1, 13)
-    ]
-    return labels, current_ranges, previous_ranges
+    return response
 
 
 async def _query_daily_expense(
@@ -285,6 +122,8 @@ async def _query_daily_expense(
     Returns:
         Positive expense totals keyed by transaction date
     """
+    account_ids = list(accounts_by_id)
+
     # Aggregate daily expense totals across readable accounts for one comparison window
     result = await db.execute(
         select(
@@ -294,7 +133,7 @@ async def _query_daily_expense(
         )
         .join(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.account_id.in_(list(accounts_by_id)),
+            Transaction.account_id.in_(account_ids),
             Category.kind == CategoryKind.EXPENSE,
             Transaction.dt >= start,
             Transaction.dt <= end,
@@ -315,8 +154,9 @@ async def _query_daily_expense(
         )
 
     daily_expenses: dict[date, int] = {}
+
+    # Transaction.amount uses the account currency, while Transaction.currency is receipt metadata
     for row in rows:
-        # Transaction.amount uses the account currency, while Transaction.currency is receipt metadata
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
             base=accounts_by_id[row.account_id].currency,
@@ -379,8 +219,10 @@ async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dic
     Returns:
         Mapping from currency code to minor-unit exponent
     """
+    currency_codes = sorted(currencies)
+
     # Load exponent metadata for every currency needed by spending comparison conversions
     currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
+        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currency_codes)),
     )
     return {row.id: row.minor_unit_exponent for row in currency_result}
