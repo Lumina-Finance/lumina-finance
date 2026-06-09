@@ -8,10 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import TaxAdvantagedPlan, TaxAdvantagedPlanLimit
+from app.models.account import TaxAdvantagedPlan
 from app.models.base import TaxTreatment
 from app.models.currency import Currency
 from app.models.user import User
+from app.routes.tax_advantaged_plans.tac_limit_helpers import (
+    apply_tac_limit_updates,
+    build_tac_limit,
+    get_tac_limit_or_404,
+    get_tac_limits_for_plan,
+    validate_tac_limit_year_available,
+)
 from app.routes.tax_advantaged_plans.tac_plan_helpers import (
     get_owned_tax_advantaged_plan_or_404,
     validate_tax_advantaged_plan_group_scope,
@@ -221,14 +228,8 @@ async def list_tax_advantaged_plan_limits(
         HTTPException: Plan does not exist or belongs to another user
     """
     await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-
-    # Fetch every yearly limit row for the owned plan in chronological order
-    result = await db.execute(
-        select(TaxAdvantagedPlanLimit)
-        .where(TaxAdvantagedPlanLimit.plan_id == plan_id)
-        .order_by(TaxAdvantagedPlanLimit.year),
-    )
-    return result.scalars().all()
+    limit_rows = await get_tac_limits_for_plan(db, plan_id)
+    return limit_rows
 
 
 @router.post("/{plan_id}/limits", response_model=TaxAdvantagedPlanLimitResponse, status_code=status.HTTP_201_CREATED)
@@ -253,20 +254,8 @@ async def create_tax_advantaged_plan_limit(
         HTTPException: Plan is inaccessible or the year already has a limit row
     """
     plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-
-    # Check the composite key before creating a yearly limit for this plan
-    existing = await db.get(TaxAdvantagedPlanLimit, (plan_id, data.year))
-    if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A limit for this year already exists")
-
-    row = TaxAdvantagedPlanLimit(
-        plan_id=plan_id,
-        year=data.year,
-        contribution_limit=data.contribution_limit,
-        withdrawal_limit=data.withdrawal_limit,
-        accrued_contributions=data.accrued_contributions,
-        accrued_withdrawals=data.accrued_withdrawals,
-    )
+    await validate_tac_limit_year_available(db, plan_id, data.year)
+    row = build_tac_limit(plan_id, data)
     db.add(row)
     await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
@@ -298,24 +287,12 @@ async def update_tax_advantaged_plan_limit(
         HTTPException: Plan or limit row is inaccessible, missing, or invalid
     """
     plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-
-    # Fetch the limit row by plan and year after ownership has been verified
-    row = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax-advantaged plan limit not found")
-
+    row = await get_tac_limit_or_404(db, plan_id, year)
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return row
-    if "contribution_limit" in updates and updates["contribution_limit"] is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="contribution_limit cannot be cleared; delete the limit row instead",
-        )
 
-    for field, value in updates.items():
-        setattr(row, field, value)
-
+    apply_tac_limit_updates(row, updates)
     await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
     await db.refresh(row)
@@ -341,12 +318,7 @@ async def delete_tax_advantaged_plan_limit(
         HTTPException: Plan or limit row is inaccessible or missing
     """
     plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-
-    # Fetch the limit row by plan and year after ownership has been verified
-    row = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax-advantaged plan limit not found")
-
+    row = await get_tac_limit_or_404(db, plan_id, year)
     await db.delete(row)
     await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
     await db.commit()
