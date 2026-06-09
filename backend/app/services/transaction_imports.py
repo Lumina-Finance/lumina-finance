@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.category import Category
 from app.models.currency import Currency
-from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -19,6 +18,10 @@ from app.services.snapshots import recompute_snapshots_from
 from app.services.transactions.imports.accounts import get_or_create_import_accounts_by_source
 from app.services.transactions.imports.amounts import parse_import_amount_to_minor_units
 from app.services.transactions.imports.categories import get_or_create_import_categories_by_source
+from app.services.transactions.imports.merchants import (
+    get_or_create_import_merchant,
+    get_personal_import_merchants_by_name,
+)
 from app.services.transactions.imports.stats import ImportStats
 from app.services.transactions.imports.validation import strip_import_text_or_raise
 
@@ -42,7 +45,7 @@ async def import_transactions(
     accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
     categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
     currencies = await _load_currencies(db, {account.currency for account in accounts_by_source.values()})
-    merchant_cache = await _load_personal_merchants(db, user.id)
+    merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
     tag_cache = await _load_personal_tags(db, user.id)
     affected_from: dict[uuid.UUID, date] = {}
 
@@ -53,7 +56,7 @@ async def import_transactions(
 
         currency = currencies[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
-        merchant = await _get_or_create_merchant(db, user.id, row.merchant_name, merchant_cache, stats)
+        merchant = await get_or_create_import_merchant(db, user.id, row.merchant_name, merchants_by_name, stats)
         tags = await _get_or_create_tags(db, user.id, row.tag_names, tag_cache, stats)
 
         txn = Transaction(
@@ -131,63 +134,6 @@ async def _load_currencies(db: AsyncSession, currency_ids: set[str]) -> dict[str
             detail=f"Invalid currency code: {sorted(missing)[0]}",
         )
     return currencies
-
-
-async def _load_personal_merchants(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Merchant]:
-    """Return personal merchant rows keyed by merchant name
-
-    Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-
-    Returns:
-        Personal merchant rows keyed by merchant name
-    """
-    # Load existing personal merchants once so repeated import rows can reuse them by name
-    result = await db.execute(select(Merchant).where(Merchant.owner_id == user_id, Merchant.group_id.is_(None)))
-    return {merchant.name: merchant for merchant in result.scalars().all()}
-
-
-async def _get_or_create_merchant(
-    db: AsyncSession,
-    user_id: uuid.UUID,
-    raw_name: str | None,
-    cache: dict[str, Merchant],
-    stats: ImportStats,
-) -> Merchant | None:
-    """Return an existing merchant by name or create a personal merchant
-
-    Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-        raw_name: Raw merchant name from an import row
-        cache: Request-local merchant lookup keyed by merchant name
-        stats: Import summary counters updated when a merchant is reused or created
-
-    Returns:
-        Existing or newly created merchant row, or None when the name is blank
-
-    Raises:
-        HTTPException: Raised with 422 when the merchant name is too long
-    """
-    name = raw_name.strip() if raw_name else ""
-    if not name:
-        return None
-    if len(name) > 256:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Merchant name is too long: {name[:28]}")
-
-    existing = cache.get(name)
-    if existing is not None:
-        stats.merchants_reused += 1
-        return existing
-
-    merchant = Merchant(owner_id=user_id, group_id=None, name=name, default_category_id=None)
-    db.add(merchant)
-    await db.flush()
-    cache[name] = merchant
-    stats.merchants_created += 1
-    stats.created_merchant_ids.append(merchant.id)
-    return merchant
 
 
 async def _load_personal_tags(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Tag]:
