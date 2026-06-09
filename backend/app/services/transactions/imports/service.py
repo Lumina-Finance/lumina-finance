@@ -11,9 +11,9 @@ from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cac
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transactions.imports.imported_transaction_helpers import create_imported_transactions
 from app.services.transactions.imports.lookup_helpers import (
-    TransactionImportLookups,
     load_transaction_import_lookups,
 )
+from app.services.transactions.imports.response_helpers import build_transaction_import_response
 from app.services.transactions.imports.stats import ImportStats
 
 
@@ -52,7 +52,7 @@ async def import_transactions(
     )
     await db.commit()
 
-    transaction_import_response = _build_transaction_import_response(
+    transaction_import_response = build_transaction_import_response(
         data,
         stats,
         import_lookups,
@@ -103,44 +103,3 @@ async def _mark_caches_changed_for_imported_accounts(
     for account_id in first_import_date_by_account_id:
         account = affected_accounts[account_id]
         await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-
-
-def _build_transaction_import_response(
-    data: TransactionImportRequest,
-    stats: ImportStats,
-    import_lookups: TransactionImportLookups,
-    first_import_date_by_account_id: dict[uuid.UUID, date],
-) -> TransactionImportResponse:
-    """Build the API summary returned after importing transactions
-
-    Args:
-        data: Prepared import payload from the frontend compiler
-        stats: Import summary counters updated during the import
-        import_lookups: Lookup maps used while creating imported transactions
-        first_import_date_by_account_id: Earliest imported transaction date by affected account ID
-
-    Returns:
-        Import response with created, reused, and affected account details
-    """
-    # Sort affected account IDs for deterministic API responses
-    affected_account_ids = sorted(first_import_date_by_account_id, key=str)
-
-    transaction_import_response = TransactionImportResponse(
-        transactions_created=len(data.rows),
-        accounts_created=stats.accounts_created,
-        accounts_reused=stats.accounts_reused,
-        categories_created=stats.categories_created,
-        categories_reused=stats.categories_reused,
-        merchants_created=stats.merchants_created,
-        merchants_reused=stats.merchants_reused,
-        tags_created=stats.tags_created,
-        tags_reused=stats.tags_reused,
-        affected_account_ids=affected_account_ids,
-        account_source_ids={source: account.id for source, account in import_lookups.accounts_by_source.items()},
-        category_source_ids={source: category.id for source, category in import_lookups.categories_by_source.items()},
-        created_account_ids=stats.created_account_ids,
-        created_category_ids=stats.created_category_ids,
-        created_merchant_ids=stats.created_merchant_ids,
-        created_tag_ids=stats.created_tag_ids,
-    )
-    return transaction_import_response
