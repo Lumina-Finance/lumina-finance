@@ -51,7 +51,7 @@ async def import_transactions(
     currencies_by_code = await get_import_currencies_by_code(db, {account.currency for account in accounts_by_source.values()})
     merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
     tags_by_name = await get_personal_import_tags_by_name(db, user.id)
-    affected_from: dict[uuid.UUID, date] = {}
+    first_import_date_by_account_id: dict[uuid.UUID, date] = {}
 
     for row in data.rows:
         account = get_import_row_account(accounts_by_source, row.account_source)
@@ -74,22 +74,61 @@ async def import_transactions(
             tags=tags,
         )
 
-        current_from = affected_from.get(account.id)
-        affected_from[account.id] = row.dt if current_from is None else min(current_from, row.dt)
+        current_first_import_date = first_import_date_by_account_id.get(account.id)
+        first_import_date_by_account_id[account.id] = (
+            row.dt if current_first_import_date is None else min(current_first_import_date, row.dt)
+        )
 
     await db.flush()
-    for account_id, from_dt in affected_from.items():
-        await recompute_snapshots_from(db, account_id, from_dt)
-
-    await mark_user_cache_changed(db, user.id)
-    affected_accounts = {account.id: account for account in accounts_by_source.values()}
-    for account_id in affected_from:
-        account = affected_accounts[account_id]
-        await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-
+    await _recompute_snapshots_for_imported_accounts(db, first_import_date_by_account_id)
+    await _mark_caches_changed_for_imported_accounts(db, user.id, accounts_by_source, first_import_date_by_account_id)
     await db.commit()
 
-    return _build_transaction_import_response(data, stats, accounts_by_source, categories_by_source, affected_from)
+    return _build_transaction_import_response(data, stats, accounts_by_source, categories_by_source, first_import_date_by_account_id)
+
+
+async def _recompute_snapshots_for_imported_accounts(
+    db: AsyncSession,
+    first_import_date_by_account_id: dict[uuid.UUID, date],
+) -> None:
+    """Recompute balance snapshots for accounts touched by imported transactions
+
+    Args:
+        db: Active database session
+        first_import_date_by_account_id: Earliest imported transaction date by affected account ID
+
+    Returns:
+        None
+    """
+    # Recompute each account from its earliest imported date to keep later balances aligned
+    for account_id, first_import_date in first_import_date_by_account_id.items():
+        await recompute_snapshots_from(db, account_id, first_import_date)
+
+
+async def _mark_caches_changed_for_imported_accounts(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    accounts_by_source: dict[str, Account],
+    first_import_date_by_account_id: dict[uuid.UUID, date],
+) -> None:
+    """Mark user and account-scope caches changed after importing transactions
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        accounts_by_source: Account rows keyed by import source
+        first_import_date_by_account_id: Earliest imported transaction date by affected account ID
+
+    Returns:
+        None
+    """
+    await mark_user_cache_changed(db, user_id)
+    affected_accounts = {account.id: account for account in accounts_by_source.values()}
+
+    # Mark each affected account scope so personal and group cache entries refresh
+    for account_id in first_import_date_by_account_id:
+        account = affected_accounts[account_id]
+        await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
 
 
 def _build_transaction_import_response(
@@ -97,7 +136,7 @@ def _build_transaction_import_response(
     stats: ImportStats,
     accounts_by_source: dict[str, Account],
     categories_by_source: dict[str, Category],
-    affected_from: dict[uuid.UUID, date],
+    first_import_date_by_account_id: dict[uuid.UUID, date],
 ) -> TransactionImportResponse:
     """Build the API summary returned after importing transactions
 
@@ -106,13 +145,13 @@ def _build_transaction_import_response(
         stats: Import summary counters updated during the import
         accounts_by_source: Account rows keyed by import source
         categories_by_source: Category rows keyed by import source
-        affected_from: Earliest imported transaction date by affected account ID
+        first_import_date_by_account_id: Earliest imported transaction date by affected account ID
 
     Returns:
         Import response with created, reused, and affected account details
     """
     # Sort affected account IDs for deterministic API responses
-    affected_account_ids = sorted(affected_from, key=str)
+    affected_account_ids = sorted(first_import_date_by_account_id, key=str)
 
     return TransactionImportResponse(
         transactions_created=len(data.rows),
