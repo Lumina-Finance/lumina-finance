@@ -10,7 +10,7 @@ from app.routes.budget import router as budget_router
 from app.routes.categories import router as category_router
 from app.routes.currency import router as currency_router
 from app.routes.dashboard import router as dashboard_router
-from app.routes.group import router as group_router
+from app.routes.groups import router as group_router
 from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
 from app.routes.merchants import router as merchant_router
