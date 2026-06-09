@@ -4,10 +4,13 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.tag import TransactionTag
+from app.models.account import Account
+from app.models.category import Category
+from app.models.merchant import Merchant
+from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
+from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse, TransactionImportRow
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transactions.imports.accounts import get_or_create_import_accounts_by_source
@@ -40,7 +43,7 @@ async def import_transactions(
         data: Prepared import payload from the frontend compiler
 
     Returns:
-        Import summary containing created rows, reused records, and affected account IDs
+        Import summary containing transaction, account, category, merchant, tag, and affected account counts
     """
     stats = ImportStats()
     accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
@@ -60,22 +63,16 @@ async def import_transactions(
         merchant = await get_or_create_import_merchant(db, user.id, row.merchant_name, merchants_by_name, stats)
         tags = await get_or_create_import_tags(db, user.id, row.tag_names, tags_by_name, stats)
 
-        txn = Transaction(
-            created_by_user_id=user.id,
-            account_id=account.id,
-            dt=row.dt,
-            merchant_id=merchant.id if merchant else None,
-            category_id=category.id,
+        await _insert_imported_transaction_with_tag_links(
+            db,
+            user_id=user.id,
+            account=account,
+            category=category,
+            row=row,
             amount=amount,
-            currency=account.currency,
-            fx_rate=None,
-            notes=row.notes,
+            merchant=merchant,
+            tags=tags,
         )
-        db.add(txn)
-        await db.flush()
-
-        for tag in tags:
-            db.add(TransactionTag(transaction_id=txn.id, tag_id=tag.id))
 
         current_from = affected_from.get(account.id)
         affected_from[account.id] = row.dt if current_from is None else min(current_from, row.dt)
@@ -110,3 +107,48 @@ async def import_transactions(
         created_merchant_ids=stats.created_merchant_ids,
         created_tag_ids=stats.created_tag_ids,
     )
+
+
+async def _insert_imported_transaction_with_tag_links(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    account: Account,
+    category: Category,
+    row: TransactionImportRow,
+    amount: int,
+    merchant: Merchant | None,
+    tags: list[Tag],
+) -> None:
+    """Insert an imported transaction and its tag links into the database session
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        account: Account selected for the import row
+        category: Category selected for the import row
+        row: Import row being written
+        amount: Parsed transaction amount in account-currency minor units
+        merchant: Optional merchant selected for the import row
+        tags: Tag rows selected for the import row
+
+    Returns:
+        None
+    """
+    transaction = Transaction(
+        created_by_user_id=user_id,
+        account_id=account.id,
+        dt=row.dt,
+        merchant_id=merchant.id if merchant else None,
+        category_id=category.id,
+        amount=amount,
+        currency=account.currency,
+        fx_rate=None,
+        notes=row.notes,
+    )
+    db.add(transaction)
+    await db.flush()
+
+    # Add tag links after the transaction id is available from the flush
+    for tag in tags:
+        db.add(TransactionTag(transaction_id=transaction.id, tag_id=tag.id))

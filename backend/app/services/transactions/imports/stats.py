@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ImportStats:
-    """Track created and reused records during a transaction import"""
+    """Track created and reused accounts, categories, merchants, and tags during a transaction import"""
 
     accounts_created: int = 0
     accounts_reused: int = 0
