@@ -1,3 +1,5 @@
+"""Authentication identity and credential models"""
+
 import uuid
 from datetime import datetime
 

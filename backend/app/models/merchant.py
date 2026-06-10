@@ -1,3 +1,5 @@
+"""Merchant model"""
+
 import uuid
 from datetime import datetime
 

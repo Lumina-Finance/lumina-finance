@@ -1,10 +1,12 @@
+"""Shared model enums and base mappings"""
+
 import enum
 
 from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy models."""
+    """Base class for all SQLAlchemy models"""
 
     pass
 
@@ -12,12 +14,16 @@ class Base(DeclarativeBase):
 # --- Auth ---
 
 class AuthProvider(enum.StrEnum):
+    """Authentication provider identifiers"""
+
     PASSWORD = "password"  # noqa: S105 — enum value, not a hardcoded secret
 
 
 # --- Institutions ---
 
 class InstitutionStatus(enum.StrEnum):
+    """Institution curation states"""
+
     CANONICAL = "canonical"
     PENDING = "pending"
 
@@ -25,6 +31,8 @@ class InstitutionStatus(enum.StrEnum):
 # --- Accounts ---
 
 class TaxTreatment(enum.StrEnum):
+    """Tax treatment categories for account reporting"""
+
     TAXABLE = "taxable"          # e.g., checking, savings, investment
     TAX_FREE = "tax_free"        # e.g., TFSA, Roth IRA, FHSA
     TAX_DEFERRED = "tax_deferred"  # e.g., RRSP, 401k, traditional IRA
@@ -32,6 +40,8 @@ class TaxTreatment(enum.StrEnum):
 
 
 class AccountKind(enum.StrEnum):
+    """High-level account groups for balance and debt behaviour"""
+
     # Split liabilities into revolving (credit cards, lines of credit, HELOCs —
     # purchases already expensed at time of swipe) vs amortizing (loans,
     # mortgages — payments represent real ongoing cash outflow). The
@@ -43,6 +53,8 @@ class AccountKind(enum.StrEnum):
 
 
 class AccountType(enum.StrEnum):
+    """Detailed account type identifiers"""
+
     # Asset subtypes
     CHECKING = "checking"
     SAVINGS = "savings"
@@ -59,7 +71,7 @@ class AccountType(enum.StrEnum):
 
 
 # Source of truth for which AccountType belongs to which AccountKind. The Account.account_kind
-# column on each row is validated against this mapping at create/update time so the two stay in sync.
+# column on each row is validated against this mapping at create/update time so the two stay in sync
 ACCOUNT_KIND_BY_TYPE: dict[AccountType, AccountKind] = {
     AccountType.CHECKING: AccountKind.ASSET,
     AccountType.SAVINGS: AccountKind.ASSET,
@@ -82,6 +94,8 @@ if set(ACCOUNT_KIND_BY_TYPE.keys()) != set(AccountType):
 # --- Categories ---
 
 class CategoryKind(enum.StrEnum):
+    """Category direction used for transaction classification"""
+
     EXPENSE = "expense"
     INCOME = "income"
     TRANSFER = "transfer"
@@ -90,6 +104,8 @@ class CategoryKind(enum.StrEnum):
 # --- Budgets ---
 
 class RecurrenceFreq(enum.StrEnum):
+    """Budget recurrence frequency values"""
+
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     YEARLY = "yearly"
@@ -98,6 +114,8 @@ class RecurrenceFreq(enum.StrEnum):
 # --- Permissions ---
 
 class PermissionLevel(enum.StrEnum):
+    """Shared access level values"""
+
     READ = "read"
     WRITE = "write"
     ADMIN = "admin"

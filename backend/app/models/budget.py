@@ -1,3 +1,5 @@
+"""Budget and tracked category models"""
+
 import uuid
 from datetime import date, datetime
 

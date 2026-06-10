@@ -1,3 +1,5 @@
+"""Group and membership models"""
+
 import uuid
 from datetime import datetime
 
