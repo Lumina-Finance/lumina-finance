@@ -2,7 +2,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -15,11 +15,7 @@ from app.routes.groups.listing_helpers import get_groups_for_user
 from app.routes.groups.member_addition_helpers import add_group_member_and_get_membership
 from app.routes.groups.member_admin_status_helpers import update_group_member_admin_status_and_get_membership
 from app.routes.groups.member_listing_helpers import get_group_members_for_user
-from app.routes.groups.membership_helpers import (
-    get_group_member_or_404,
-    get_group_membership_or_404,
-    get_group_owner_id,
-)
+from app.routes.groups.member_removal_helpers import remove_group_member
 from app.routes.groups.update_helpers import update_group_and_get_response
 from app.schemas.group import (
     AddGroupMemberRequest,
@@ -29,7 +25,6 @@ from app.schemas.group import (
     UpdateGroupMemberAdminRequest,
     UpdateGroupRequest,
 )
-from app.services.cache_state import mark_group_cache_changed, mark_user_cache_changed
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -195,26 +190,7 @@ async def remove_member(
         user: Authenticated user removing the member
         db: Active database session
     """
-    caller = await get_group_membership_or_404(db, group_id, user.id)
-
-    is_self = member_id == user.id
-    if not is_self and not caller.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
-
-    owner_id = await get_group_owner_id(db, group_id)
-    if member_id == owner_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot remove the owner")
-
-    if is_self:
-        target = caller
-    else:
-        target = await get_group_member_or_404(db, group_id, member_id)
-
-    # Delete the membership after authorisation and owner protection checks pass
-    await db.delete(target)
-    await mark_group_cache_changed(db, group_id)
-    await mark_user_cache_changed(db, member_id)
-    await db.commit()
+    await remove_group_member(db, group_id, member_id, user.id)
 
 
 @router.post("", response_model=GroupResponse, status_code=status.HTTP_201_CREATED)
