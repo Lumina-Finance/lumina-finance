@@ -11,7 +11,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_snapshots_from
 
 # --- Fixtures ---
 
