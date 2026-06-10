@@ -1,3 +1,5 @@
+"""FastAPI dependency helpers"""
+
 import uuid
 from contextvars import ContextVar
 from typing import Annotated

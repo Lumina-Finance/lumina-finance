@@ -1,3 +1,5 @@
+"""Application configuration loading and validation"""
+
 import os
 from pathlib import Path
 
