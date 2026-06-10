@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import AccountKind
 from app.schemas.fx import FxStatus
+from app.services.accounts.snapshots import get_current_balances
 from app.services.fx import FxConverter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
-from app.services.snapshots import get_current_balances
 
 
 async def get_credit_widget(

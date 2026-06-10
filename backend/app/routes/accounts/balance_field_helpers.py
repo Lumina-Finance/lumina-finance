@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.user import User
 from app.services.accounts import attach_base_currency_current_balances
-from app.services.snapshots import attach_current_balances
+from app.services.accounts.snapshots import attach_current_balances
 
 
 async def attach_account_balance_fields(

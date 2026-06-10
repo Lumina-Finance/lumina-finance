@@ -6,7 +6,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
-from app.services.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_snapshots_from
 
 _SNAPSHOT_AFFECTING_UPDATE_FIELDS = frozenset({"account_id", "dt", "amount"})
 

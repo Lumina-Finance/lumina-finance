@@ -11,7 +11,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services.snapshots import get_current_balances, recompute_snapshots_from
+from app.services.accounts.snapshots import get_current_balances, recompute_snapshots_from
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"

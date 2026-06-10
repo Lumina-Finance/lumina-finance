@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.user import User
 from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
+from app.services.accounts.snapshots import recompute_snapshots_from
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
-from app.services.snapshots import recompute_snapshots_from
 from app.services.transactions.imports.imported_transaction_helpers import create_imported_transactions
 from app.services.transactions.imports.lookup_helpers import (
     load_transaction_import_lookups,
