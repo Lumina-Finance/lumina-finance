@@ -1,13 +1,12 @@
 """Account balance conversion service"""
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.currency import Currency
 from app.schemas.fx import FxRateIssue, FxStatus
 from app.services.fx import FxConverter, FxRateKey
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
 async def attach_base_currency_current_balances(
@@ -28,7 +27,7 @@ async def attach_base_currency_current_balances(
         return
 
     converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
+        currency_exponents=await get_currency_exponents(
             db,
             {base_currency, *(account.currency for account in accounts)},
         ),
@@ -89,20 +88,3 @@ def _get_current_balance_fx_status(
         state=state,
         missing_pairs=[FxRateIssue(base=base, quote=quote)],
     )
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Load minor-unit exponents for currency codes
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Mapping from currency code to minor-unit exponent
-    """
-    # Load exponent metadata for every currency needed by account balance conversion
-    currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in currency_result}
