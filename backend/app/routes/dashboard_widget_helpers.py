@@ -11,6 +11,7 @@ from app.schemas.dashboard import (
     RangeKind,
     RecentActivityWidgetResponse,
     SavingsRateWidgetResponse,
+    SpendingBreakdownResponse,
     SpendingComparisonResponse,
 )
 from app.services.dashboard import get_accessible_accounts
@@ -18,6 +19,7 @@ from app.services.dashboard_widgets.credit import get_credit_widget
 from app.services.dashboard_widgets.net_worth import get_net_worth_history
 from app.services.dashboard_widgets.recent_activity import get_recent_transactions
 from app.services.dashboard_widgets.savings_rate import get_savings_rate_history
+from app.services.dashboard_widgets.spending_breakdown import get_spending_breakdown
 from app.services.dashboard_widgets.spending_comparison import get_spending_comparison
 
 
@@ -160,4 +162,26 @@ async def get_spending_comparison_for_user(
     """
     accounts = await get_accessible_accounts(db, user)
     response = await get_spending_comparison(db, accounts, user.base_currency, range_, now)
+    return response
+
+
+async def get_spending_breakdown_for_user(
+    db: AsyncSession,
+    user: User,
+    range_: RangeKind,
+    now: datetime,
+) -> SpendingBreakdownResponse:
+    """Return spending breakdown dashboard data for a user
+
+    Args:
+        db: Active database session
+        user: Authenticated user requesting spending breakdown data
+        range_: Calendar range used for current-period breakdown totals
+        now: Viewer-local datetime used to anchor the current period
+
+    Returns:
+        Spending breakdown widget response
+    """
+    accounts = await get_accessible_accounts(db, user)
+    response = await get_spending_breakdown(db, accounts, user.base_currency, range_, now)
     return response
