@@ -9,9 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.base import PermissionLevel
 from app.models.user import User
-from app.permissions import check_account_access
+from app.routes.accounts.account_cash_flow_helpers import get_account_cash_flow_for_user
 from app.routes.accounts.account_creation_helpers import create_account_for_user
 from app.routes.accounts.account_deletion_helpers import delete_account_for_user
 from app.routes.accounts.account_listing_helpers import get_account_overviews_for_user
@@ -28,7 +27,6 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
-from app.services.accounts import get_account_cash_flow_history
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
@@ -134,8 +132,9 @@ async def get_account_cash_flow_route(
     Raises:
         HTTPException: User does not have read access
     """
-    await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-    return await get_account_cash_flow_history(db, account_id, months, datetime.now(ZoneInfo(user.tz)))
+    as_of_dt = datetime.now(ZoneInfo(user.tz))
+    cash_flow = await get_account_cash_flow_for_user(db, account_id, user.id, months, as_of_dt)
+    return cash_flow
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
