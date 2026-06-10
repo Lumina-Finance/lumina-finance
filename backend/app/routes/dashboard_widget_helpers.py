@@ -8,14 +8,17 @@ from app.models.user import User
 from app.schemas.dashboard import (
     CreditWidgetResponse,
     NetWorthWidgetResponse,
+    RangeKind,
     RecentActivityWidgetResponse,
     SavingsRateWidgetResponse,
+    SpendingComparisonResponse,
 )
 from app.services.dashboard import get_accessible_accounts
 from app.services.dashboard_widgets.credit import get_credit_widget
 from app.services.dashboard_widgets.net_worth import get_net_worth_history
 from app.services.dashboard_widgets.recent_activity import get_recent_transactions
 from app.services.dashboard_widgets.savings_rate import get_savings_rate_history
+from app.services.dashboard_widgets.spending_comparison import get_spending_comparison
 
 
 async def get_recent_activity_widget_for_user(
@@ -135,4 +138,26 @@ async def get_credit_widget_for_user(
         credit_used=credit_used,
         fx_status=fx_status,
     )
+    return response
+
+
+async def get_spending_comparison_for_user(
+    db: AsyncSession,
+    user: User,
+    range_: RangeKind,
+    now: datetime,
+) -> SpendingComparisonResponse:
+    """Return spending comparison dashboard data for a user
+
+    Args:
+        db: Active database session
+        user: Authenticated user requesting spending comparison data
+        range_: Calendar range used for current and previous comparison slots
+        now: Viewer-local datetime used to anchor the current period
+
+    Returns:
+        Spending comparison widget response
+    """
+    accounts = await get_accessible_accounts(db, user)
+    response = await get_spending_comparison(db, accounts, user.base_currency, range_, now)
     return response
