@@ -12,10 +12,10 @@ from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
-from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
 from app.routes.accounts.account_creation_helpers import create_account_for_user
 from app.routes.accounts.account_deletion_helpers import delete_account_for_user
 from app.routes.accounts.account_listing_helpers import get_account_overviews_for_user
+from app.routes.accounts.account_response_loading_helpers import get_account_response_for_user
 from app.routes.accounts.account_update_helpers import update_account_for_user
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
@@ -72,8 +72,8 @@ async def get_account(
     Raises:
         HTTPException: User does not have read access
     """
-    account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-    await attach_account_balance_fields(db, [account], user, datetime.now(ZoneInfo(user.tz)).date())
+    response_date = datetime.now(ZoneInfo(user.tz)).date()
+    account = await get_account_response_for_user(db, account_id, user, response_date)
     return account
 
 

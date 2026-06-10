@@ -7,8 +7,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.account import Account
+from app.models.base import PermissionLevel
 from app.models.user import User
+from app.permissions import check_account_access
 from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
+
+
+async def get_account_response_for_user(
+    db: AsyncSession,
+    account_id: uuid.UUID,
+    user: User,
+    as_of_date: date,
+) -> Account:
+    """Return an account response after checking read access
+
+    Args:
+        db: Active database session
+        account_id: Account identifier from the route path
+        user: Authenticated user requesting the account
+        as_of_date: Date used for current balance fields
+
+    Returns:
+        Account with derived balance fields
+
+    Raises:
+        HTTPException: User does not have read access
+    """
+    account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    await attach_account_balance_fields(db, [account], user, as_of_date)
+    return account
 
 
 async def get_account_for_response(
