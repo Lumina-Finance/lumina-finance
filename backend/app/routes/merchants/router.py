@@ -8,15 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.merchant import Merchant
 from app.models.user import User
 from app.routes.merchants.access_helpers import (
     get_accessible_merchant_or_404,
     require_default_category_available,
-    require_group_member,
     require_group_merchant_admin,
-    require_merchant_name_available,
 )
+from app.routes.merchants.merchant_creation_helpers import create_merchant_for_user
 from app.routes.merchants.merchant_listing_helpers import get_merchants_for_user
 from app.routes.merchants.merge_helpers import get_merge_replacement_merchant, move_merchant_references
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
@@ -87,23 +85,7 @@ async def create_merchant(
     Returns:
         Newly created merchant
     """
-    group_id = data.group_id
-    if group_id:
-        await require_group_member(db, group_id, user.id)
-
-    await require_merchant_name_available(db, data.name, user.id, group_id)
-    await require_default_category_available(db, user.id, group_id, data.default_category_id)
-
-    merchant = Merchant(
-        owner_id=user.id,
-        group_id=group_id,
-        name=data.name,
-        default_category_id=data.default_category_id,
-    )
-    db.add(merchant)
-    await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
-    await db.commit()
-    await db.refresh(merchant)
+    merchant = await create_merchant_for_user(db, user.id, data)
     return merchant
 
 
