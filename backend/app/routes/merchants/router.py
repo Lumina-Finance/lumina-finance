@@ -3,7 +3,6 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,14 +11,13 @@ from app.dependencies import get_current_user
 from app.models.merchant import Merchant
 from app.models.user import User
 from app.routes.merchants.access_helpers import (
-    escape_like_search_text,
     get_accessible_merchant_or_404,
-    get_merchant_list_scope_filter,
     require_default_category_available,
     require_group_member,
     require_group_merchant_admin,
     require_merchant_name_available,
 )
+from app.routes.merchants.merchant_listing_helpers import get_merchants_for_user
 from app.routes.merchants.merge_helpers import get_merge_replacement_merchant, move_merchant_references
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
 from app.services.cache_state import mark_cache_changed_for_scope
@@ -49,23 +47,7 @@ async def list_merchants(
     Returns:
         Merchants ordered by name
     """
-    if group_id:
-        await require_group_member(db, group_id, user.id)
-
-    query = select(Merchant).where(get_merchant_list_scope_filter(user.id, group_id))
-
-    search = q.strip() if q else ""
-    if search:
-        escaped_search = escape_like_search_text(search)
-        query = query.where(Merchant.name.ilike(f"%{escaped_search}%", escape="\\"))
-
-    query = query.order_by(Merchant.name)
-    if limit is not None:
-        query = query.limit(limit).offset(offset)
-
-    # Fetch personal merchants and optionally merchants from the requested group, with optional name search
-    result = await db.execute(query)
-    merchants = result.scalars().all()
+    merchants = await get_merchants_for_user(db, user.id, group_id, q, limit, offset)
     return merchants
 
 
