@@ -4,7 +4,7 @@ Thin orchestrator that composes per-widget service helpers into dashboard
 response payloads. The heavy SQL, date math, and widget-specific computation
 live in service modules, while this file wires the results together
 """
-from datetime import datetime
+from datetime import datetime as DateTime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.routes.dashboard_widget_helpers import (
+from app.routes.dashboard.widget_helpers import (
     get_credit_widget_for_user,
     get_net_worth_widget_for_user,
     get_recent_activity_widget_for_user,
@@ -33,6 +33,21 @@ from app.schemas.dashboard import (
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+def _get_viewer_local_now(user: User) -> DateTime:
+    """Return the viewer-local datetime used by dashboard routes
+
+    Args:
+        user: Authenticated user whose timezone anchors dashboard windows
+
+    Returns:
+        Viewer-local datetime for the user's timezone
+    """
+    from app.routes import dashboard as dashboard_routes
+
+    now = dashboard_routes.datetime.now(ZoneInfo(user.tz))
+    return now
 
 
 @router.get("/recent-activity", response_model=RecentActivityWidgetResponse)
@@ -55,7 +70,7 @@ async def get_recent_activity_widget_route(
     Returns:
         Recent activity widget response
     """
-    now = datetime.now(ZoneInfo(user.tz))
+    now = _get_viewer_local_now(user)
     response = await get_recent_activity_widget_for_user(db, user, window_days, now)
     return response
 
@@ -78,7 +93,7 @@ async def get_savings_rate_widget_route(
     Returns:
         Savings-rate widget response
     """
-    now = datetime.now(ZoneInfo(user.tz))
+    now = _get_viewer_local_now(user)
     response = await get_savings_rate_widget_for_user(db, user, now)
     return response
 
@@ -103,7 +118,7 @@ async def get_net_worth_widget_route(
     Returns:
         Net-worth widget response
     """
-    now = datetime.now(ZoneInfo(user.tz))
+    now = _get_viewer_local_now(user)
     response = await get_net_worth_widget_for_user(db, user, window_days, now)
     return response
 
@@ -125,7 +140,7 @@ async def get_credit_widget_route(
     Returns:
         Credit widget response
     """
-    now = datetime.now(ZoneInfo(user.tz))
+    now = _get_viewer_local_now(user)
     response = await get_credit_widget_for_user(db, user, now)
     return response
 
@@ -151,7 +166,7 @@ async def get_spending_comparison_route(
     Returns:
         Spending comparison widget response
     """
-    now = datetime.now(ZoneInfo(user.tz))
+    now = _get_viewer_local_now(user)
     response = await get_spending_comparison_for_user(db, user, range_, now)
     return response
 
@@ -177,6 +192,6 @@ async def get_spending_breakdown_route(
     Returns:
         Spending breakdown widget response
     """
-    now = datetime.now(ZoneInfo(user.tz))
+    now = _get_viewer_local_now(user)
     response = await get_spending_breakdown_for_user(db, user, range_, now)
     return response
