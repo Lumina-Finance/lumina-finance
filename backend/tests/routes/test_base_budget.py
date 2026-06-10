@@ -1,3 +1,4 @@
+import importlib
 import uuid
 from datetime import UTC, datetime
 
@@ -122,7 +123,7 @@ async def test_create_base_budget_with_system_category(client):
 
 async def test_create_base_budget_materializes_recurring_periods_through_today(client, monkeypatch):
     """Initial recurring budget creation creates historical periods through local today."""
-    from app.routes import base_budget as base_budget_routes
+    base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
 
     class FixedDateTime(datetime):
         @classmethod
@@ -1179,7 +1180,7 @@ async def test_update_base_budget_add_categories(client):
 
 async def test_create_base_budget_sets_tracked_category_added_at_from_user_timezone(client, monkeypatch):
     """At Jan 1 01:00 UTC, Toronto-created category links are added on Dec 31."""
-    from app.routes import base_budget as base_budget_routes
+    base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
 
     class FixedDateTime(datetime):
         @classmethod
@@ -1227,7 +1228,7 @@ async def test_update_base_budget_remove_categories(client):
 
 async def test_update_base_budget_sets_removed_at_from_user_timezone(client, monkeypatch):
     """At Jan 1 01:00 UTC, Toronto removals are stamped Dec 31."""
-    from app.routes import base_budget as base_budget_routes
+    base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
 
     class FixedDateTime(datetime):
         @classmethod
