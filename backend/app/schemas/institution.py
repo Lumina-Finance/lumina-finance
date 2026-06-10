@@ -1,3 +1,5 @@
+"""Institution schemas"""
+
 import uuid
 
 from pydantic import BaseModel, Field

@@ -1,3 +1,5 @@
+"""Tax-advantaged plan schemas"""
+
 import uuid
 from datetime import datetime
 

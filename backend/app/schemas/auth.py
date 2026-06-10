@@ -1,3 +1,5 @@
+"""Authentication schemas"""
+
 import uuid
 from datetime import datetime
 from zoneinfo import available_timezones
@@ -8,7 +10,7 @@ _VALID_TIMEZONES = available_timezones()
 
 
 def validate_iana_timezone(value: str) -> str:
-    """Reject values that are not recognized IANA timezone names."""
+    """Reject values that are not recognized IANA timezone names"""
     if value not in _VALID_TIMEZONES:
         msg = "Invalid IANA timezone"
         raise ValueError(msg)
@@ -16,6 +18,8 @@ def validate_iana_timezone(value: str) -> str:
 
 
 class SignupRequest(BaseModel):
+    """Signup request payload"""
+
     email: EmailStr
     password: str
     first_name: str
@@ -26,28 +30,32 @@ class SignupRequest(BaseModel):
     @field_validator("tz")
     @classmethod
     def validate_tz(cls, v: str) -> str:
-        """Validate timezone names at the API boundary."""
+        """Validate timezone names at the API boundary"""
         return validate_iana_timezone(v)
 
 
 class LoginRequest(BaseModel):
+    """Login request payload"""
+
     email: EmailStr
     password: str
 
 
 class TokenResponse(BaseModel):
+    """Access token response payload"""
+
     access_token: str
     token_type: str = "bearer"
 
 
 class UserInfo(BaseModel):
-    """Minimal user info returned alongside auth responses."""
+    """Minimal user info returned alongside auth responses"""
 
     id: uuid.UUID
     email: str
     first_name: str
     last_name: str | None
-    tz: str  # IANA timezone; needed client-side so settings pages can pre-select
+    tz: str  # IANA timezone needed client-side so settings pages can pre-select
     base_currency: str
     created_at: datetime
 
@@ -55,7 +63,7 @@ class UserInfo(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    """Response for signup and login — access token in body, refresh token in cookie."""
+    """Response for signup and login with tokens returned through body and cookie"""
 
     user: UserInfo
     access_token: str

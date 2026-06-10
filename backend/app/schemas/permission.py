@@ -1,3 +1,5 @@
+"""Permission schemas"""
+
 import uuid
 from datetime import datetime
 

@@ -1,3 +1,5 @@
+"""Currency schemas"""
+
 from pydantic import BaseModel
 
 
