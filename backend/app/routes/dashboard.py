@@ -14,7 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.routes.dashboard_widget_helpers import get_recent_activity_widget_for_user, get_savings_rate_widget_for_user
+from app.routes.dashboard_widget_helpers import (
+    get_net_worth_widget_for_user,
+    get_recent_activity_widget_for_user,
+    get_savings_rate_widget_for_user,
+)
 from app.schemas.dashboard import (
     CreditWidgetResponse,
     NetWorthWidgetResponse,
@@ -26,7 +30,6 @@ from app.schemas.dashboard import (
 )
 from app.services.dashboard import get_accessible_accounts
 from app.services.dashboard_widgets.credit import get_credit_widget
-from app.services.dashboard_widgets.net_worth import get_net_worth_history
 from app.services.dashboard_widgets.spending_breakdown import get_spending_breakdown
 from app.services.dashboard_widgets.spending_comparison import get_spending_comparison
 
@@ -102,20 +105,8 @@ async def get_net_worth_widget_route(
         Net-worth widget response
     """
     now = datetime.now(ZoneInfo(user.tz))
-    accounts = await get_accessible_accounts(db, user)
-    current_net_worth, net_worth_history, fx_status = await get_net_worth_history(
-        db,
-        accounts,
-        user.base_currency,
-        window_days,
-        now,
-    )
-    return NetWorthWidgetResponse(
-        current_net_worth=current_net_worth,
-        net_worth_history=net_worth_history,
-        net_worth_window_days=window_days,
-        fx_status=fx_status,
-    )
+    response = await get_net_worth_widget_for_user(db, user, window_days, now)
+    return response
 
 
 @router.get("/credit", response_model=CreditWidgetResponse)
