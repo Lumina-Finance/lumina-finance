@@ -2,10 +2,11 @@
 
 import asyncio
 
+from app.services.category_defaults import SYSTEM_CATEGORY_DEFAULTS, seed_system_categories
+
 from app.database import async_session
 from app.models import group as _group  # noqa: F401
 from app.models import user as _user  # noqa: F401
-from app.services.category_defaults import SYSTEM_CATEGORY_DEFAULTS, seed_system_categories
 
 
 async def seed_categories() -> None:
