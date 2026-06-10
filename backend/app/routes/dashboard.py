@@ -15,6 +15,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.routes.dashboard_widget_helpers import (
+    get_credit_widget_for_user,
     get_net_worth_widget_for_user,
     get_recent_activity_widget_for_user,
     get_savings_rate_widget_for_user,
@@ -29,7 +30,6 @@ from app.schemas.dashboard import (
     SpendingComparisonResponse,
 )
 from app.services.dashboard import get_accessible_accounts
-from app.services.dashboard_widgets.credit import get_credit_widget
 from app.services.dashboard_widgets.spending_breakdown import get_spending_breakdown
 from app.services.dashboard_widgets.spending_comparison import get_spending_comparison
 
@@ -127,18 +127,8 @@ async def get_credit_widget_route(
         Credit widget response
     """
     now = datetime.now(ZoneInfo(user.tz))
-    accounts = await get_accessible_accounts(db, user)
-    credit_limit_total, credit_used, fx_status = await get_credit_widget(
-        db,
-        accounts,
-        user.base_currency,
-        now.date(),
-    )
-    return CreditWidgetResponse(
-        credit_limit_total=credit_limit_total,
-        credit_used=credit_used,
-        fx_status=fx_status,
-    )
+    response = await get_credit_widget_for_user(db, user, now)
+    return response
 
 
 @router.get("/spending-comparison", response_model=SpendingComparisonResponse)

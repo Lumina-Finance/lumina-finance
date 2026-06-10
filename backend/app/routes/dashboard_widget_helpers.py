@@ -5,8 +5,14 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.schemas.dashboard import NetWorthWidgetResponse, RecentActivityWidgetResponse, SavingsRateWidgetResponse
+from app.schemas.dashboard import (
+    CreditWidgetResponse,
+    NetWorthWidgetResponse,
+    RecentActivityWidgetResponse,
+    SavingsRateWidgetResponse,
+)
 from app.services.dashboard import get_accessible_accounts
+from app.services.dashboard_widgets.credit import get_credit_widget
 from app.services.dashboard_widgets.net_worth import get_net_worth_history
 from app.services.dashboard_widgets.recent_activity import get_recent_transactions
 from app.services.dashboard_widgets.savings_rate import get_savings_rate_history
@@ -97,6 +103,36 @@ async def get_net_worth_widget_for_user(
         current_net_worth=current_net_worth,
         net_worth_history=net_worth_history,
         net_worth_window_days=window_days,
+        fx_status=fx_status,
+    )
+    return response
+
+
+async def get_credit_widget_for_user(
+    db: AsyncSession,
+    user: User,
+    now: datetime,
+) -> CreditWidgetResponse:
+    """Return credit dashboard data for a user
+
+    Args:
+        db: Active database session
+        user: Authenticated user requesting credit totals
+        now: Viewer-local datetime used to anchor balance conversion
+
+    Returns:
+        Credit widget response
+    """
+    accounts = await get_accessible_accounts(db, user)
+    credit_limit_total, credit_used, fx_status = await get_credit_widget(
+        db,
+        accounts,
+        user.base_currency,
+        now.date(),
+    )
+    response = CreditWidgetResponse(
+        credit_limit_total=credit_limit_total,
+        credit_used=credit_used,
         fx_status=fx_status,
     )
     return response
