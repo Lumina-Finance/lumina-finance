@@ -262,8 +262,8 @@ async def test_get_runway_includes_threshold_settings(client):
     assert resp.json()["thresholds"] == {"risky_below_months": 2, "healthy_at_months": 8}
 
 
-async def test_archived_runway_selection_is_inactive_but_restorable(client, monkeypatch):
-    """Archived selected accounts are omitted from runway responses without deleting the stored pick."""
+async def test_archived_runway_selection_excludes_current_balance_but_keeps_history(client, monkeypatch):
+    """Archived selected accounts keep historical expenses while their current balance stays inactive"""
     from app.routes.users import date_helpers as user_routes
 
     class FixedDateTime(datetime):
@@ -339,7 +339,8 @@ async def test_archived_runway_selection_is_inactive_but_restorable(client, monk
     assert archived_runway["liquid_balance"] == 120_000
     assert archived_runway["account_balances"] == [{"account_id": visible_account_id, "balance": 120_000}]
     assert archived_runway["months_covered"] == 1
-    assert archived_runway["avg_monthly_expense"] == 12_000
+    assert archived_runway["avg_monthly_expense"] == 36_000
+    assert archived_runway["months"] == pytest.approx(120_000 / 36_000)
 
     await client.patch(f"/accounts/{archived_account_id}", json={"is_archived": False}, headers=headers)
 

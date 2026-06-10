@@ -27,22 +27,21 @@ def get_runway_thresholds_from_user(user: User) -> RunwayThresholds:
     return thresholds
 
 
-async def get_readable_non_archived_accounts_for_runway(
+async def get_readable_accounts_for_runway(
     db: AsyncSession,
     user: User,
 ) -> list[Account]:
-    """Return readable non-archived accounts for runway calculations
+    """Return readable accounts for runway calculations
 
     Args:
         db: Active database session
         user: Authenticated user
 
     Returns:
-        Readable non-archived accounts
+        Readable accounts
     """
     readable_accounts = await get_accessible_accounts(db, user, include_archived=True)
-    non_archived_accounts = [account for account in readable_accounts if not account.is_archived]
-    return non_archived_accounts
+    return readable_accounts
 
 
 async def get_runway_account_ids_by_archive_state(
