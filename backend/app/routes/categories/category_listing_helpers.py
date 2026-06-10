@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
-from app.routes.categories.access_helpers import get_system_or_personal_category_filter, require_group_member
+from app.routes.categories.access_helpers import require_group_member
+from app.routes.categories.category_scope_filter_helpers import get_system_or_personal_category_filter
 
 
 async def get_categories_for_user(

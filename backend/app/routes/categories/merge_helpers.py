@@ -13,9 +13,9 @@ from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.routes.categories.access_helpers import (
     get_accessible_category_or_404,
-    get_system_or_personal_category_filter,
     require_group_category_admin,
 )
+from app.routes.categories.category_scope_filter_helpers import get_system_or_personal_category_filter
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
