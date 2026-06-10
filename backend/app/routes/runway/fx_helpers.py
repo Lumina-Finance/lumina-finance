@@ -3,14 +3,13 @@ import uuid
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.user import RunwayAccountBalance
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.snapshots import get_current_balances
 
 
@@ -38,24 +37,6 @@ async def get_runway_fx_converter(
     currency_exponents = await get_currency_exponents(db, {user.base_currency, *expense_currencies, *selected_currencies})
     converter = FxConverter(currency_exponents=currency_exponents)
     return converter
-
-
-async def get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents for currency codes
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to fetch
-
-    Returns:
-        Minor-unit exponent keyed by currency code
-    """
-    requested_currencies = currencies
-
-    # Fetch currency exponents so balance and transaction amounts can be converted correctly
-    currency_result = await db.execute(select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(requested_currencies)))
-    currency_exponents = {row.id: row.minor_unit_exponent for row in currency_result}
-    return currency_exponents
 
 
 async def prefetch_runway_fx_rates(
