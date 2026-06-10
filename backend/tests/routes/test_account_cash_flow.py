@@ -1,4 +1,5 @@
 """Route tests for GET /accounts/{account_id}/cash-flow."""
+import importlib
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -178,7 +179,7 @@ async def test_months_param_one_returns_single_current_month_entry(client):
 
 async def test_cash_flow_current_month_uses_viewer_timezone_at_utc_boundary(client, monkeypatch):
     """At Jan 1 01:00 UTC, a Toronto user's current cash-flow month is December."""
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
 
     class FixedDateTime(datetime):
         @classmethod

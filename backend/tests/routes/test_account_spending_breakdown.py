@@ -1,4 +1,5 @@
 """Route tests for GET /accounts/{account_id}/spending-breakdown."""
+import importlib
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -175,7 +176,7 @@ async def test_mtd_includes_transactions_since_first_of_month_and_excludes_earli
 
 async def test_mtd_uses_viewer_timezone_at_utc_year_boundary(client, monkeypatch):
     """At Jan 1 01:00 UTC, a Toronto user is still in Dec 31 MTD."""
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
 
     class FixedDateTime(datetime):
         @classmethod

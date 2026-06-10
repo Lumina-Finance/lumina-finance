@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.user import User
 from app.schemas.insights import InsightsComparisonPeriod
-from app.services.dashboard import get_accessible_accounts
+from app.services.accounts.access import get_accessible_accounts
 
 
 def previous_period_bounds(from_date: date, to_date: date) -> tuple[date, date]:

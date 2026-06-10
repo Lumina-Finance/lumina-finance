@@ -1,4 +1,5 @@
 """Route tests for budget utilization endpoints."""
+import importlib
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -254,7 +255,7 @@ async def test_list_latest_budget_utilizations_excludes_inaccessible_budgets(cli
 
 async def test_created_recurring_budget_counts_existing_historical_transactions(client, monkeypatch):
     """Atomic budget creation backfills periods that can use existing transaction history."""
-    from app.routes import base_budget as base_budget_routes
+    base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
 
     class FixedDateTime(datetime):
         @classmethod

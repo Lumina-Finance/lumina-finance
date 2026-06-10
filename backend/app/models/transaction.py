@@ -1,3 +1,5 @@
+"""Transaction model"""
+
 import uuid
 from datetime import date, datetime
 

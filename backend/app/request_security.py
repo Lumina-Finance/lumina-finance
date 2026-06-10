@@ -1,3 +1,5 @@
+"""Request body size guard middleware"""
+
 from fastapi import Request
 
 

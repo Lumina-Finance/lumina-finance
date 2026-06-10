@@ -1,3 +1,5 @@
+"""Financial institution model"""
+
 import uuid
 
 from sqlalchemy import VARCHAR, Text, UniqueConstraint

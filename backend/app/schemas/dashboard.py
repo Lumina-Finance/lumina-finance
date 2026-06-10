@@ -1,3 +1,5 @@
+"""Dashboard schemas"""
+
 import uuid
 from datetime import date
 from typing import Literal

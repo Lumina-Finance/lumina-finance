@@ -1,3 +1,5 @@
+"""Budget schemas"""
+
 import uuid
 from datetime import date, datetime
 

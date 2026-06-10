@@ -1,3 +1,5 @@
+"""Tag and transaction tag models"""
+
 import uuid
 from datetime import datetime
 

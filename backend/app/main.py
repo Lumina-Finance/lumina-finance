@@ -1,22 +1,24 @@
+"""Application entrypoint"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import ALLOWED_ORIGINS, RUNTIME
-from app.routes.account import router as account_router
+from app.routes.accounts import router as account_router
 from app.routes.auth import router as auth_router
-from app.routes.base_budget import router as base_budget_router
-from app.routes.budget import router as budget_router
-from app.routes.category import router as category_router
+from app.routes.base_budgets import router as base_budget_router
+from app.routes.budgets import router as budget_router
+from app.routes.categories import router as category_router
 from app.routes.currency import router as currency_router
 from app.routes.dashboard import router as dashboard_router
-from app.routes.group import router as group_router
+from app.routes.groups import router as group_router
 from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
-from app.routes.merchant import router as merchant_router
-from app.routes.tag import router as tag_router
-from app.routes.tax_advantaged_plan import router as tax_advantaged_plan_router
-from app.routes.transaction import router as transaction_router
-from app.routes.user import router as user_router
+from app.routes.merchants import router as merchant_router
+from app.routes.runway import router as runway_router
+from app.routes.tags import router as tag_router
+from app.routes.tax_advantaged_categories import router as tax_advantaged_category_router
+from app.routes.transactions import router as transaction_router
+from app.routes.users import router as user_router
 
 app = FastAPI(title="Lumina Finance API")
 
@@ -34,10 +36,11 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(user_router)
+app.include_router(runway_router)
 app.include_router(currency_router)
 app.include_router(institution_router)
 app.include_router(account_router)
-app.include_router(tax_advantaged_plan_router)
+app.include_router(tax_advantaged_category_router)
 app.include_router(category_router)
 app.include_router(merchant_router)
 app.include_router(tag_router)
@@ -51,7 +54,14 @@ app.include_router(insights_router)
 
 @app.get("/health")
 async def health():
-    """Return a simple health check response."""
+    """Return API process health
+
+    The endpoint intentionally avoids database or dependency checks so load
+    balancers can verify that the application process is responding
+
+    Returns:
+        Static health status payload
+    """
     return {"status": "ok"}
 
 

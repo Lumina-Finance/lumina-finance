@@ -1,3 +1,5 @@
+"""Group schemas"""
+
 import uuid
 from datetime import datetime
 

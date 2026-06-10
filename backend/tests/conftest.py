@@ -24,7 +24,7 @@ from app.models import (  # noqa: F401
     user,
 )
 from app.models.base import Base
-from app.services.category_defaults import seed_system_categories
+from app.services.categories.defaults import seed_system_categories
 
 # Test database credentials — separate user/db from development
 TEST_DB_HOST = _require("TEST_DB_HOST")

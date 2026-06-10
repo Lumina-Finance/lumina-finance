@@ -42,19 +42,15 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py314"
 line-length = 144
-exclude = ["alembic/versions"]
+exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = ["B", "D", "E", "F", "I", "RUF", "S", "UP", "W"]
-ignore = [
-    "D100",  # Module docstrings — unnecessary for most modules
-    "D104",  # Package __init__ docstrings — unnecessary
-    "D101",  # Class docstrings — models/schemas are self-documenting with field names
-]
+ignore = ["D415"]  # House style omits trailing punctuation in docstrings
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]  # assert and test credentials are expected in tests
-"app/schemas/auth.py" = ["S105"]  # token_type = "bearer" is not a hardcoded password
+"tests/**" = ["D100", "D104", "S101", "S105", "S106"]  # tests can omit package docstrings and use assert with sample credentials
+"app/schemas/auth.py" = ["S105"]  # bearer token type is response metadata, not a hardcoded password

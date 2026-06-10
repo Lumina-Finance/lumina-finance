@@ -1,3 +1,5 @@
+"""Institution route handlers"""
+
 import uuid
 from typing import Annotated
 

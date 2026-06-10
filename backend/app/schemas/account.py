@@ -1,3 +1,5 @@
+"""Account schemas"""
+
 import uuid
 from datetime import date, datetime
 
@@ -19,7 +21,7 @@ class AccountsOverview(BaseModel):
     group_id: uuid.UUID | None
     account_kind: str
     account_type: str
-    tax_advantaged_plan_id: uuid.UUID | None
+    tax_advantaged_category_id: uuid.UUID | None
     name: str
     institution: InstitutionResponse | None
     currency: str
@@ -41,7 +43,7 @@ class AccountResponse(BaseModel):
     group_id: uuid.UUID | None
     account_kind: str
     account_type: str
-    tax_advantaged_plan_id: uuid.UUID | None
+    tax_advantaged_category_id: uuid.UUID | None
     name: str
     institution: InstitutionResponse | None
     currency: str
@@ -61,7 +63,7 @@ class CreateAccountRequest(BaseModel):
 
     account_kind: str  # AccountKind enum value — must be consistent with account_type
     account_type: str  # AccountType enum value
-    tax_advantaged_plan_id: uuid.UUID | None = None
+    tax_advantaged_category_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     currency: str = Field(min_length=3, max_length=3)
@@ -74,7 +76,7 @@ class CreateAccountRequest(BaseModel):
 class UpdateAccountRequest(BaseModel):
     """Partial update for an account. Only provided fields are changed."""
 
-    tax_advantaged_plan_id: uuid.UUID | None = None
+    tax_advantaged_category_id: uuid.UUID | None = None
     name: str | None = Field(None, min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     credit_limit: int | None = None  # Only valid on liability accounts

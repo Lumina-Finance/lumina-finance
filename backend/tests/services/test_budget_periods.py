@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 
 from app.models.base import RecurrenceFreq
-from app.services.budget_periods import compute_period_end, validate_period_start
+from app.services.budgets.periods import compute_period_end, validate_period_start
 
 # --- validate_period_start: weekly ---
 

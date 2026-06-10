@@ -1,3 +1,5 @@
+"""Schemas for insights endpoint responses"""
+
 from datetime import date
 from typing import Literal
 
@@ -9,8 +11,8 @@ NetWorthGroupKind = Literal["asset", "debt"]
 InsightsComparisonPeriod = Literal["same_length", "previous_month", "previous_year"]
 
 
-class InsightsPeriodGlanceResponse(BaseModel):
-    """Compact payload for the insights period-glance card."""
+class InsightsPeriodAtAGlanceResponse(BaseModel):
+    """Compact payload for the insights Period At A Glance card"""
 
     income: int
     expenses: int

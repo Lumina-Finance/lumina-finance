@@ -1,3 +1,5 @@
+"""Cache state timestamp models"""
+
 import uuid
 from datetime import datetime
 
