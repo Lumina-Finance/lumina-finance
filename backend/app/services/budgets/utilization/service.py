@@ -13,11 +13,11 @@ from app.services.budgets.utilization.conversion_helpers import (
 )
 from app.services.budgets.utilization.query_helpers import (
     get_budget_spend_rows,
-    get_currency_exponents,
     get_latest_budget_rows,
     get_tracked_category_ids_by_budget,
 )
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
 async def get_budget_utilization_responses(

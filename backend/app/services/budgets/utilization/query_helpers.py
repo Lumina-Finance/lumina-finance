@@ -8,31 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
-from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.transaction import Transaction
-
-
-async def get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents keyed by currency code
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Minor-unit exponents keyed by currency code
-    """
-    if not currencies:
-        currency_exponents: dict[str, int] = {}
-        return currency_exponents
-
-    # Fetch each currency's decimal precision so converted minor-unit amounts stay correctly scaled
-    currency_query = select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies))
-
-    result = await db.execute(currency_query)
-    currency_exponents = {row.id: row.minor_unit_exponent for row in result}
-    return currency_exponents
 
 
 async def get_tracked_category_ids_by_budget(
