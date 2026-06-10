@@ -9,11 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.insights.period_at_a_glance.biggest_category_change_helpers import (
     get_period_at_a_glance_biggest_category_change,
 )
 from app.services.insights.period_at_a_glance.category_total_helpers import CategoryNetTotals, get_period_at_a_glance_category_net_totals
-from app.services.insights.period_at_a_glance.conversion_helpers import get_period_at_a_glance_currency_exponents
 
 ExpenseCategoryTotals = dict[uuid.UUID, tuple[str, int]]
 
@@ -58,7 +58,7 @@ async def get_period_at_a_glance_category_highlights(
     Returns:
         Category highlights and their FX conversion statuses
     """
-    currency_exponents = await get_period_at_a_glance_currency_exponents(
+    currency_exponents = await get_currency_exponents(
         db,
         {base_currency, *(account.currency for account in accounts)},
     )

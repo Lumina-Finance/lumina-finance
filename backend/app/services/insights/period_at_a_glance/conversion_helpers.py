@@ -4,31 +4,7 @@ from collections.abc import Iterable
 from datetime import date
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.currency import Currency
 from app.services.fx import FxConverter
-
-
-async def get_period_at_a_glance_currency_exponents(
-    db: AsyncSession,
-    currencies: set[str],
-) -> dict[str, int]:
-    """Return minor-unit exponents keyed by currency code
-
-    Args:
-        db: Active database session
-        currencies: Currency codes needed for conversion
-
-    Returns:
-        Minor-unit exponent keyed by currency code
-    """
-    # Load currency precision so FX conversion can convert minor units correctly
-    result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in result}
 
 
 async def prefetch_period_at_a_glance_rates(
