@@ -9,11 +9,11 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.routes.merchants.access_helpers import get_accessible_merchant_or_404
-from app.routes.merchants.merchant_creation_helpers import create_merchant_for_user
-from app.routes.merchants.merchant_deletion_helpers import delete_merchant_for_user
-from app.routes.merchants.merchant_listing_helpers import get_merchants_for_user
-from app.routes.merchants.merchant_update_helpers import update_merchant_for_user
+from app.routes.merchants.creation_helpers import create_merchant_for_user
+from app.routes.merchants.deletion_helpers import delete_merchant_for_user
+from app.routes.merchants.listing_helpers import get_merchants_for_user
 from app.routes.merchants.merge_helpers import merge_merchant_into_replacement_for_user
+from app.routes.merchants.update_helpers import update_merchant_for_user
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
 
 router = APIRouter(prefix="/merchants", tags=["merchants"])

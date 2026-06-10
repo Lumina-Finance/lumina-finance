@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.merchant import Merchant
-from app.routes.merchants.merchant_scope_filter_helpers import (
+from app.routes.merchants.scope_filter_helpers import (
     get_accessible_merchant_filter,
     get_default_category_scope_filter,
 )
