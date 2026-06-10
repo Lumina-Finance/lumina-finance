@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.routes.groups.member_addition_helpers import add_group_member_and_get_membership
-from app.routes.groups.member_admin_status_helpers import update_group_member_admin_status_and_get_membership
-from app.routes.groups.member_listing_helpers import get_group_members_for_user
-from app.routes.groups.member_removal_helpers import remove_group_member
+from app.routes.groups.members.addition_helpers import add_group_member_and_get_membership
+from app.routes.groups.members.admin_status_helpers import update_group_member_admin_status_and_get_membership
+from app.routes.groups.members.listing_helpers import get_group_members_for_user
+from app.routes.groups.members.removal_helpers import remove_group_member
 from app.schemas.group import (
     AddGroupMemberRequest,
     GroupMemberResponse,

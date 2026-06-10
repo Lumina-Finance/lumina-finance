@@ -12,7 +12,7 @@ from app.routes.groups.creation_helpers import create_group_and_get_response
 from app.routes.groups.deletion_helpers import delete_group_for_owner
 from app.routes.groups.group_detail_helpers import get_group_for_user
 from app.routes.groups.listing_helpers import get_groups_for_user
-from app.routes.groups.member_router import router as member_router
+from app.routes.groups.members import router as member_router
 from app.routes.groups.update_helpers import update_group_and_get_response
 from app.schemas.group import (
     CreateGroupRequest,
