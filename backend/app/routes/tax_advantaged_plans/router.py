@@ -12,9 +12,9 @@ from app.routes.tax_advantaged_plans.tac_limit_helpers import (
     apply_tac_limit_updates,
     build_tac_limit,
     get_tac_limit_or_404,
-    get_tac_limits_for_plan,
     validate_tac_limit_year_available,
 )
+from app.routes.tax_advantaged_plans.tac_limit_listing_helpers import get_tac_limits_for_owned_plan
 from app.routes.tax_advantaged_plans.tac_plan_creation_helpers import create_tax_advantaged_plan_with_metrics
 from app.routes.tax_advantaged_plans.tac_plan_deletion_helpers import delete_tax_advantaged_plan_for_owner
 from app.routes.tax_advantaged_plans.tac_plan_detail_helpers import get_tax_advantaged_plan_with_metrics_for_owner
@@ -161,8 +161,7 @@ async def list_tax_advantaged_plan_limits(
     Raises:
         HTTPException: Plan does not exist or belongs to another user
     """
-    await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-    limit_rows = await get_tac_limits_for_plan(db, plan_id)
+    limit_rows = await get_tac_limits_for_owned_plan(db, plan_id, user.id)
     return limit_rows
 
 
