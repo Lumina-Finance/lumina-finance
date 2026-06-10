@@ -17,7 +17,7 @@ from app.routes.merchants import router as merchant_router
 from app.routes.runway import router as runway_router
 from app.routes.tags import router as tag_router
 from app.routes.tax_advantaged_plans import router as tax_advantaged_plan_router
-from app.routes.transaction import router as transaction_router
+from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 
 app = FastAPI(title="Lumina Finance API")
