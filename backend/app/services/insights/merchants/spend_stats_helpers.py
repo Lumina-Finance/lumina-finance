@@ -10,11 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,7 @@ async def get_merchant_spend_stats(
     )
     rows = result.all()
     converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
+        currency_exponents=await get_currency_exponents(
             db,
             {base_currency, *(account.currency for account in accounts)},
         ),
@@ -122,24 +122,6 @@ async def get_merchant_spend_stats(
     }
     fx_status = converter.get_status()
     return positive_stats_by_id, fx_status
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents keyed by currency code
-
-    Args:
-        db: Active database session
-        currencies: Currency codes needed for conversion
-
-    Returns:
-        Minor-unit exponent keyed by currency code
-    """
-    # Load currency precision so FX conversion can convert minor units correctly
-    result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    exponents_by_currency = {row.id: row.minor_unit_exponent for row in result}
-    return exponents_by_currency
 
 
 async def _prefetch_merchant_rates(
