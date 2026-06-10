@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.tag import Tag, TransactionTag
-from app.routes.tags.access_helpers import get_accessible_tag_or_404, get_personal_tag_filter, require_group_tag_admin
+from app.routes.tags.access_helpers import get_accessible_tag_or_404, require_group_tag_admin
+from app.routes.tags.tag_scope_filter_helpers import get_personal_tag_filter
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
