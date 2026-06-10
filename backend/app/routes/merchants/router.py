@@ -11,11 +11,11 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.routes.merchants.access_helpers import (
     get_accessible_merchant_or_404,
-    require_default_category_available,
     require_group_merchant_admin,
 )
 from app.routes.merchants.merchant_creation_helpers import create_merchant_for_user
 from app.routes.merchants.merchant_listing_helpers import get_merchants_for_user
+from app.routes.merchants.merchant_update_helpers import update_merchant_for_user
 from app.routes.merchants.merge_helpers import get_merge_replacement_merchant, move_merchant_references
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
 from app.services.cache_state import mark_cache_changed_for_scope
@@ -109,29 +109,7 @@ async def update_merchant(
     Returns:
         Updated merchant
     """
-    merchant = await get_accessible_merchant_or_404(db, merchant_id, user.id)
-    await require_group_merchant_admin(db, merchant, user.id)
-
-    updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        return merchant
-
-    if "default_category_id" in updates and updates["default_category_id"] is not None:
-        await require_default_category_available(db, user.id, merchant.group_id, updates["default_category_id"])
-
-    for field, value in updates.items():
-        setattr(merchant, field, value)
-
-    try:
-        await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Merchant with this name already exists",
-        ) from e
-    await db.refresh(merchant)
+    merchant = await update_merchant_for_user(db, merchant_id, user.id, data)
     return merchant
 
 
