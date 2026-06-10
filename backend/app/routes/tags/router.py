@@ -16,6 +16,7 @@ from app.routes.tags.access_helpers import (
 from app.routes.tags.merge_helpers import get_merge_replacement_tag, move_tag_references
 from app.routes.tags.tag_creation_helpers import create_tag_for_user
 from app.routes.tags.tag_listing_helpers import get_tags_for_user
+from app.routes.tags.tag_update_helpers import update_tag_for_user
 from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -108,26 +109,7 @@ async def update_tag(
     Returns:
         Updated tag
     """
-    tag = await get_accessible_tag_or_404(db, tag_id, user.id)
-    await require_group_tag_admin(db, tag, user.id)
-
-    updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        return tag
-
-    for field, value in updates.items():
-        setattr(tag, field, value)
-
-    try:
-        await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Tag with this name already exists",
-        ) from e
-    await db.refresh(tag)
+    tag = await update_tag_for_user(db, tag_id, user.id, data)
     return tag
 
 
