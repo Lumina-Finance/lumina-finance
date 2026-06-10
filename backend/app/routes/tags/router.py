@@ -2,23 +2,19 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.routes.tags.access_helpers import (
-    get_accessible_tag_or_404,
-    require_group_tag_admin,
-)
+from app.routes.tags.access_helpers import get_accessible_tag_or_404
 from app.routes.tags.merge_helpers import merge_tag_into_replacement_for_user
 from app.routes.tags.tag_creation_helpers import create_tag_for_user
+from app.routes.tags.tag_deletion_helpers import delete_tag_for_user
 from app.routes.tags.tag_listing_helpers import get_tags_for_user
 from app.routes.tags.tag_update_helpers import update_tag_for_user
 from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
-from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
@@ -146,19 +142,4 @@ async def delete_tag(
         user: Authenticated user deleting the tag
         db: Active database session
     """
-    tag = await get_accessible_tag_or_404(db, tag_id, user.id)
-    await require_group_tag_admin(db, tag, user.id)
-
-    # Delete the tag and let the database reject existing transaction references
-    await db.delete(tag)
-
-    # Surface tag reference conflicts as a domain response instead of a raw integrity error
-    try:
-        await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Tag is referenced by existing transactions",
-        ) from e
+    await delete_tag_for_user(db, tag_id, user.id)
