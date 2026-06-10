@@ -36,7 +36,8 @@ async def get_visible_budget_responses(db: AsyncSession, user_id: uuid.UUID) -> 
         )
         .order_by(Budget.period_end.desc(), BaseBudget.name),
     )
-    # The visibility joins can match the same budget more than once, so collapse duplicates before building responses
+
+    # The group and permission joins can match the same budget more than once, so collapse duplicates before building responses
     budget_rows = result.unique().all()
 
     # Fetch active tracked categories for all returned base budgets in one batch instead of one query per response

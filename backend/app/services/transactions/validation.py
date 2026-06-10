@@ -115,7 +115,7 @@ async def validate_transaction_merchant_access(
 ) -> None:
     """Ensure a transaction can use the requested merchant
 
-    Personal-account transactions may use only the user's personal merchants.
+    Personal-account transactions may use only the user's personal merchants
     Group-account transactions may also use merchants owned by the account's
     group. Merchants from another user's personal scope or an unrelated group
     are rejected
@@ -168,7 +168,7 @@ async def get_valid_transaction_tag_ids(
     Raises:
         HTTPException: At least one tag is missing or outside the transaction account scope
     """
-    # Deduplicate to avoid inserting duplicate transaction-tag links
+    # Deduplicate to avoid attaching the same tag more than once
     unique_tag_ids = list(dict.fromkeys(tag_ids))
     tag_filter = (Tag.owner_id == user_id) & (Tag.group_id.is_(None))
     if group_id is not None:

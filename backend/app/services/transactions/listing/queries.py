@@ -169,6 +169,7 @@ def _date_sort_order(sort_order: str, tag_names):
     """
     date_order = Transaction.dt.desc() if sort_order == "desc" else Transaction.dt.asc()
     created_order = Transaction.created_at.desc() if sort_order == "desc" else Transaction.created_at.asc()
+
     # These tie-breakers keep pagination stable when many transactions share the same date
     return (
         date_order,

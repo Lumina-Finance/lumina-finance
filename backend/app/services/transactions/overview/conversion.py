@@ -23,6 +23,7 @@ async def get_overview_accounts_by_id(db: AsyncSession, conversion_rows) -> dict
         Account rows keyed by account ID
     """
     account_ids = {row.account_id for row in conversion_rows}
+
     # Fetch accounts referenced by aggregate rows so conversion uses the account currency
     accounts = (
         (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()

@@ -125,12 +125,14 @@ async def _get_account_snapshot_rows(
     """
     if granularity == "day":
         query = snapshot_query.order_by(AccountBalanceSnapshot.dt)
+
         # Fetch every daily snapshot in the requested account and date range
         result = await db.execute(query)
         return list(result.scalars().all())
 
     bucket = sa.func.date_trunc(granularity, AccountBalanceSnapshot.dt)
     query = snapshot_query.distinct(bucket).order_by(bucket, AccountBalanceSnapshot.dt.desc())
+
     # Fetch one latest snapshot per requested week or month bucket
     result = await db.execute(query)
     return sorted(result.scalars().all(), key=lambda row: row.dt)
@@ -160,5 +162,6 @@ async def _get_anchor_snapshot(
         .order_by(AccountBalanceSnapshot.dt.desc())
         .limit(1)
     )
+
     # Fetch the latest snapshot before the visible range to anchor chart continuity
     return (await db.execute(anchor_query)).scalar_one_or_none()

@@ -38,7 +38,7 @@ async def list_transaction_responses(
 ) -> list[TransactionResponse]:
     """Return paginated transaction responses with sorting and filtering
 
-    The service builds a visibility-scoped transaction query, batch-loads
+    The service builds a transaction query limited to readable accounts, batch-loads
     related response data, and converts each transaction into account and user
     base-currency amounts without issuing per-transaction lookup queries
 

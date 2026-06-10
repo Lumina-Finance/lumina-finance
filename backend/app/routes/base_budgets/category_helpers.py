@@ -43,19 +43,21 @@ async def get_valid_tracked_category_ids(
     # Deduplicate before querying so repeated IDs are not treated as missing
     unique_category_ids = list(set(category_ids))
     query = select(Category.id).where(Category.id.in_(unique_category_ids))
+
+    # Match categories allowed by the budget scope before checking for missing IDs
+    system_category_filter = Category.is_system.is_(True)
     if group_id is not None:
-        # Group budgets can track shared system categories or categories owned by the group
-        query = query.where(Category.is_system.is_(True) | (Category.group_id == group_id))
+        query = query.where(system_category_filter | (Category.group_id == group_id))
     else:
-        # Personal budgets can track shared system categories or the user's personal categories
+        personal_category_filter = (Category.owner_id == user_id) & (Category.group_id.is_(None))
         query = query.where(
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
+            system_category_filter | personal_category_filter,
         )
 
     # Fetch categories that are valid for the base budget scope
     result = await db.execute(query)
     found_category_ids = set(result.scalars().all())
+
     # Missing and out-of-scope categories use the same client-facing validation error
     if found_category_ids != set(unique_category_ids):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
@@ -84,6 +86,7 @@ async def update_tracked_category_links(
         HTTPException: A category is missing or outside the base budget scope
     """
     valid_category_ids = set(await get_valid_tracked_category_ids(db, category_ids, user_id, group_id))
+
     # Fetch currently active tracked categories so changes can be reconciled without deleting history
     current_result = await db.execute(
         select(BudgetTrackedCategory.category_id).where(

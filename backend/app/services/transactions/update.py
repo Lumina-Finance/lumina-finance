@@ -14,7 +14,7 @@ from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
 )
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
-from app.services.transactions.tags import replace_transaction_tag_links
+from app.services.transactions.tags import replace_transaction_tag_assignments
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
@@ -32,8 +32,8 @@ async def update_transaction_and_get_response(
     """Update a transaction and return its API response
 
     The service checks write access, validates account and related entity
-    changes, applies requested field updates, replaces tag links when supplied,
-    recalculates affected snapshots, marks changed cache scopes, and returns
+    changes, applies requested field updates, replaces tag assignments when
+    supplied, recalculates affected snapshots, marks changed cache scopes, and returns
     the enriched transaction response
 
     Args:
@@ -53,8 +53,9 @@ async def update_transaction_and_get_response(
     validate_transaction_account_is_not_archived(current_account)
 
     changed_fields = data.model_dump(exclude_unset=True)
+
+    # Load related response data without writing when the request contains no changes
     if not changed_fields:
-        # Load related response data without writing when the request contains no changes
         return await get_transaction_response(db, txn)
 
     previous_account_id = txn.account_id
@@ -62,8 +63,9 @@ async def update_transaction_and_get_response(
     new_account = None
 
     account_group_id = current_account.group_id
+
+    # Load the target account and verify it can receive transaction history when the transaction is moved
     if "account_id" in changed_fields:
-        # Load the target account and verify it can receive transaction history
         new_account = await check_account_access(
             db,
             changed_fields["account_id"],
@@ -97,7 +99,7 @@ async def update_transaction_and_get_response(
         validated_tag_ids = (
             await get_valid_transaction_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
         )
-        await replace_transaction_tag_links(db, txn.id, validated_tag_ids)
+        await replace_transaction_tag_assignments(db, txn.id, validated_tag_ids)
 
     # Flush row and tag changes before rebuilding any affected balance snapshots
     await recompute_snapshots_after_transaction_update(

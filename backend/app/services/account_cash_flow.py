@@ -35,6 +35,7 @@ async def get_account_cash_flow_history(
     window_end = _get_next_month_start_date(now)
 
     month_start_expr = func.date_trunc("month", Transaction.dt).label("month_start")
+
     # Aggregate eligible cash-flow transactions into monthly income and expense totals
     query_result = await db.execute(
         select(

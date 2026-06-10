@@ -47,9 +47,9 @@ async def update_tax_advantaged_plan_with_metrics(
 
     # Mark the previous scope stale because updates can affect plan metrics there
     await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=previous_group_id)
-    if plan.group_id != previous_group_id:
 
-        # Mark the new scope stale when the plan moves into a different group
+    # Mark the new scope stale when the plan moves into a different group
+    if plan.group_id != previous_group_id:
         await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
 
     await db.commit()

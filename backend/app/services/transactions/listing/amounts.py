@@ -149,6 +149,7 @@ async def _prefetch_transaction_listing_amount_rates(
 
     start_date = min(transaction.dt for transaction in transactions)
     end_date = max(transaction.dt for transaction in transactions)
+
     # Collapse repeated conversions into distinct currency pairs before prefetching rates
     conversion_pairs = {
         (transaction.currency, quote_currency)

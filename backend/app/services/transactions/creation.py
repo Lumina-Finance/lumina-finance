@@ -10,7 +10,7 @@ from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.snapshots import recompute_snapshots_from
 from app.services.transaction_response_helpers import get_transaction_response
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
-from app.services.transactions.tags import replace_transaction_tag_links
+from app.services.transactions.tags import replace_transaction_tag_assignments
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
@@ -61,7 +61,7 @@ async def create_transaction_and_get_response(
     if data.tag_ids:
         validated_tag_ids = await get_valid_transaction_tag_ids(db, user.id, data.tag_ids, account.group_id)
 
-    # Insert the transaction first so optional tag links can reference its id
+    # Insert the transaction first so optional tag assignments can reference its id
     txn = Transaction(
         created_by_user_id=user.id,
         account_id=data.account_id,
@@ -76,9 +76,9 @@ async def create_transaction_and_get_response(
     db.add(txn)
     await db.flush()
 
-    # Write optional tag links after the transaction id and tag ids are known
+    # Write optional tag assignments after the transaction id and tag ids are known
     if validated_tag_ids:
-        await replace_transaction_tag_links(db, txn.id, validated_tag_ids)
+        await replace_transaction_tag_assignments(db, txn.id, validated_tag_ids)
 
     # Rebuild balance snapshots from this transaction's day forward
     await recompute_snapshots_from(db, data.account_id, data.dt)

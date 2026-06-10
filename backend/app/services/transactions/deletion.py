@@ -12,7 +12,7 @@ from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
     validate_transaction_account_is_not_archived,
 )
-from app.services.transactions.tags import delete_transaction_tag_links
+from app.services.transactions.tags import delete_transaction_tag_assignments
 
 
 async def delete_transaction_for_user(
@@ -23,7 +23,7 @@ async def delete_transaction_for_user(
     """Delete one transaction after checking write access
 
     The service loads the writable transaction, validates its parent account,
-    removes attached tag records, deletes the transaction row, rebuilds
+    removes attached tag assignments, deletes the transaction row, rebuilds
     affected account snapshots, and marks the cache scope changed
 
     Args:
@@ -44,8 +44,8 @@ async def delete_transaction_for_user(
     account_id = txn.account_id
     deleted_dt = txn.dt
 
-    # Remove tag records before deleting the transaction row in the same commit
-    await delete_transaction_tag_links(db, transaction_id)
+    # Remove tag assignments before deleting the transaction row in the same commit
+    await delete_transaction_tag_assignments(db, transaction_id)
 
     # Delete the transaction row and flush before rebuilding dependent snapshots
     await db.delete(txn)

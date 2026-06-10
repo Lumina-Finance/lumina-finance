@@ -70,6 +70,7 @@ async def get_overview_cash_flow_rows(db: AsyncSession, transaction_filters):
             )
             .join(Category, Transaction.category_id == Category.id)
             .where(transaction_filters)
+
             # Real transfers affect cash flow, but synthetic balance adjustments should not
             .where(
                 sa.or_(

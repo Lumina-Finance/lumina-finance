@@ -23,12 +23,12 @@ async def get_tag_ids(db: AsyncSession, transaction_id: uuid.UUID) -> list[uuid.
 
     Args:
         db: Active database session
-        transaction_id: Transaction identifier whose tag links should be loaded
+        transaction_id: Transaction identifier whose tag identifiers should be loaded
 
     Returns:
         Tag identifiers attached to the transaction
     """
-    # Fetch tag links for one transaction when a route returns a single response
+    # Fetch tag identifiers for one transaction when a route returns a single response
     result = await db.execute(
         select(TransactionTag.tag_id).where(TransactionTag.transaction_id == transaction_id),
     )
@@ -42,14 +42,15 @@ async def get_tag_ids_batch(
 
     Args:
         db: Active database session
-        transaction_ids: Transaction identifiers whose tag links should be loaded
+        transaction_ids: Transaction identifiers whose tag identifiers should be loaded
 
     Returns:
         Tag identifiers keyed by transaction identifier
     """
     if not transaction_ids:
         return {}
-    # Fetch tag links for a transaction page in one query to avoid per-row lookups
+
+    # Fetch tag identifiers for a transaction page in one query to avoid per-row lookups
     result = await db.execute(
         select(TransactionTag).where(TransactionTag.transaction_id.in_(transaction_ids)),
     )
