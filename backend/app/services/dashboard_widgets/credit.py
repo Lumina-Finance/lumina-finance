@@ -1,14 +1,13 @@
 """Credit dashboard widget service"""
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.base import AccountKind
-from app.models.currency import Currency
 from app.schemas.fx import FxStatus
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.snapshots import get_current_balances
 
 
@@ -34,11 +33,12 @@ async def get_credit_widget(
         if account.account_kind == AccountKind.REVOLVING and account.credit_limit is not None
     ]
     if not credit_accounts:
-        return 0, 0, FxStatus()
+        fx_status = FxStatus()
+        return 0, 0, fx_status
 
     balances = await get_current_balances(db, [account.id for account in credit_accounts])
     converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
+        currency_exponents=await get_currency_exponents(
             db,
             {base_currency, *(account.currency for account in credit_accounts)},
         ),
@@ -70,24 +70,5 @@ async def get_credit_widget(
             credit_limit_total += converted_limit
         if converted_used is not None:
             credit_used += converted_used
-    return credit_limit_total, credit_used, converter.get_status()
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Load minor-unit exponents for currency codes
-
-    Credit limit and balance conversion uses this metadata to interpret each
-    account amount in that currency's minor unit
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Mapping from currency code to minor-unit exponent
-    """
-    # Load exponent metadata for every currency needed by credit widget conversions
-    currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in currency_result}
+    fx_status = converter.get_status()
+    return credit_limit_total, credit_used, fx_status
