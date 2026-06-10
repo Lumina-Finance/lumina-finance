@@ -2,18 +2,15 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.routes.categories.access_helpers import (
-    get_accessible_category_or_404,
-    require_group_category_admin,
-)
+from app.routes.categories.access_helpers import get_accessible_category_or_404
 from app.routes.categories.category_creation_helpers import create_category_for_user
+from app.routes.categories.category_deletion_helpers import delete_category_for_user
 from app.routes.categories.category_listing_helpers import get_categories_for_user
 from app.routes.categories.category_update_helpers import update_category_for_user
 from app.routes.categories.merge_helpers import merge_category_into_replacement_for_user
@@ -23,7 +20,6 @@ from app.schemas.category import (
     MergeCategoryRequest,
     UpdateCategoryRequest,
 )
-from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -145,23 +141,4 @@ async def delete_category(
         user: Authenticated user deleting the category
         db: Active database session
     """
-    category = await get_accessible_category_or_404(db, category_id, user.id)
-
-    if category.is_system:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="System categories cannot be deleted")
-
-    await require_group_category_admin(db, category, user.id)
-
-    # Delete the category and let the database reject existing transaction references
-    await db.delete(category)
-
-    # Surface category reference conflicts as a domain response instead of a raw integrity error
-    try:
-        await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Category is referenced by existing transactions",
-        ) from e
+    await delete_category_for_user(db, category_id, user.id)
