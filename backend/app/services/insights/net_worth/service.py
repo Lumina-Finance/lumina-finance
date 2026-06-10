@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.insights import InsightsNetWorthResponse
-from app.services.dashboard import get_accessible_accounts
+from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.net_worth.chart_series_helpers import get_net_worth_chart_series
 from app.services.insights.net_worth.response_helpers import build_net_worth_response
 

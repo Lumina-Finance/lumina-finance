@@ -14,7 +14,7 @@ from app.schemas.dashboard import (
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
 )
-from app.services.dashboard import get_accessible_accounts
+from app.services.accounts.access import get_accessible_accounts
 from app.services.dashboard_widgets.credit import get_credit_widget
 from app.services.dashboard_widgets.net_worth import get_net_worth_history
 from app.services.dashboard_widgets.recent_activity import get_recent_transactions

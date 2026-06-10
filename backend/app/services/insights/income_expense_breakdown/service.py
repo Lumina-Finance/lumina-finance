@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import CategoryKind
 from app.models.user import User
 from app.schemas.insights import InsightsComparisonPeriod, InsightsIncomeExpenseBreakdownResponse
-from app.services.dashboard import get_accessible_accounts
+from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
 from app.services.insights.income_expense_breakdown.breakdown_row_helpers import (
     get_income_expense_breakdown_stats_by_side,

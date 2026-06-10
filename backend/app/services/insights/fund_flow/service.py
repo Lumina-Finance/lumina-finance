@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.insights import InsightsFundFlowResponse
-from app.services.dashboard import get_accessible_accounts
+from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.fund_flow.response_field_helpers import get_fund_flow_response_fields
 from app.services.insights.fund_flow.response_helpers import build_empty_fund_flow_response, build_fund_flow_response
 

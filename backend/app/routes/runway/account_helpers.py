@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.user import User, UserRunwayAccount
 from app.schemas.user import RunwayThresholds
-from app.services.dashboard import get_accessible_accounts
+from app.services.accounts.access import get_accessible_accounts
 
 
 def get_runway_thresholds_from_user(user: User) -> RunwayThresholds:

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.insights import InsightsComparisonPeriod, InsightsPeriodAtAGlanceResponse
-from app.services.dashboard import get_accessible_accounts
+from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
 from app.services.insights.period_at_a_glance.category_highlight_helpers import get_period_at_a_glance_category_highlights
 from app.services.insights.period_at_a_glance.net_worth_change_helpers import get_period_at_a_glance_net_worth_change
