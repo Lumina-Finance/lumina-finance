@@ -7,7 +7,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.conftest import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 

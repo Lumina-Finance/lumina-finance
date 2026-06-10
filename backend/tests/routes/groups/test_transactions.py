@@ -4,7 +4,7 @@ Verifies cross-user isolation holds even when users share a group,
 and documents current limitations around group account transactions.
 """
 
-from tests.routes.conftest import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header
 
 # --- Helpers ---
 

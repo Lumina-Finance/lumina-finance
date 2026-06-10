@@ -1,4 +1,4 @@
-"""Route tests for insights merchant distribution endpoint."""
+"""Route tests for insights merchant ranking endpoint."""
 
 from datetime import date
 from uuid import UUID, uuid4
@@ -8,7 +8,7 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.conftest import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 def _category(user_id: UUID, name: str, kind: CategoryKind) -> tuple[UUID, Category]:
@@ -44,8 +44,8 @@ def _transaction(
     )
 
 
-async def test_merchant_distribution_returns_top_merchants_and_other_with_changes(client):
-    """The card receives only current-period expense merchants, capped to top eight plus Other."""
+async def test_merchant_ranking_returns_ranked_rows_with_counts_and_changes(client):
+    """The card receives only current-period expense merchants with transaction counts."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
@@ -65,9 +65,6 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             "Fitness Foxtrot",
             "Gas Gamma",
             "Hotel Indigo",
-            "Market Juliet",
-            "Omega Pharmacy",
-            "Zeta Books",
             "Refund Only",
             "Income Merchant",
             "Transfer Merchant",
@@ -90,9 +87,6 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -60_000, merchant_ids["Fitness Foxtrot"]),
             _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -50_000, merchant_ids["Gas Gamma"]),
             _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -40_000, merchant_ids["Hotel Indigo"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -30_000, merchant_ids["Market Juliet"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -20_000, merchant_ids["Omega Pharmacy"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -10_000, merchant_ids["Zeta Books"]),
             _transaction(user_id, account_id, expense_id, date(2026, 4, 10), 30_000, merchant_ids["Refund Only"]),
             _transaction(user_id, account_id, income_id, date(2026, 4, 10), -999_999, merchant_ids["Income Merchant"]),
             _transaction(user_id, account_id, transfer_id, date(2026, 4, 10), -999_999, merchant_ids["Transfer Merchant"]),
@@ -101,13 +95,12 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -50_000, merchant_ids["Alpha Market"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -100_000, merchant_ids["Beta Grocer"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -90_000, merchant_ids["Diner Echo"]),
-            _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -30_000, merchant_ids["Omega Pharmacy"]),
             _transaction(user_id, account_id, expense_id, date(2026, 3, 1), -999_999, merchant_ids["Alpha Market"]),
         ])
         await session.commit()
 
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-04-01", "to_date": "2026-04-30"},
         headers=headers,
     )
@@ -115,27 +108,26 @@ async def test_merchant_distribution_returns_top_merchants_and_other_with_change
     assert resp.status_code == 200
     assert resp.json() == {
         "merchants": [
-            [str(merchant_ids["Archived Merchant"]), "Archived Merchant", 999_999, None, 999_999],
-            [str(merchant_ids["Alpha Market"]), "Alpha Market", 100_000, 100, 50_000],
-            [str(merchant_ids["Beta Grocer"]), "Beta Grocer", 90_000, -10, -10_000],
-            [str(merchant_ids["Cafe Delta"]), "Cafe Delta", 80_000, None, 80_000],
-            [str(merchant_ids["Diner Echo"]), "Diner Echo", 70_000, -22, -20_000],
-            [str(merchant_ids["Fitness Foxtrot"]), "Fitness Foxtrot", 60_000, None, 60_000],
-            [str(merchant_ids["Gas Gamma"]), "Gas Gamma", 50_000, None, 50_000],
-            [str(merchant_ids["Hotel Indigo"]), "Hotel Indigo", 40_000, None, 40_000],
-            ["other-merchants", "Other", 60_000, None, None],
+            [str(merchant_ids["Archived Merchant"]), "Archived Merchant", 999_999, 1, None],
+            [str(merchant_ids["Alpha Market"]), "Alpha Market", 100_000, 2, 100],
+            [str(merchant_ids["Beta Grocer"]), "Beta Grocer", 90_000, 1, -10],
+            [str(merchant_ids["Cafe Delta"]), "Cafe Delta", 80_000, 1, None],
+            [str(merchant_ids["Diner Echo"]), "Diner Echo", 70_000, 1, -22],
+            [str(merchant_ids["Fitness Foxtrot"]), "Fitness Foxtrot", 60_000, 1, None],
+            [str(merchant_ids["Gas Gamma"]), "Gas Gamma", 50_000, 1, None],
+            [str(merchant_ids["Hotel Indigo"]), "Hotel Indigo", 40_000, 1, None],
         ],
     }
 
 
-async def test_merchant_distribution_does_not_emit_other_for_exact_limit(client):
-    """Exactly eight merchants fit without an Other bucket."""
+async def test_merchant_ranking_does_not_emit_more_than_ten_rows(client):
+    """Exactly ten rows are returned even when more merchants have spend."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
     headers = _get_auth_header(signup_resp)
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
     expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
-    merchant_rows = [_merchant(user_id, f"Merchant {index}") for index in range(1, 9)]
+    merchant_rows = [_merchant(user_id, f"Merchant {index}") for index in range(1, 12)]
 
     async with TestSession() as session:
         session.add_all([
@@ -149,21 +141,19 @@ async def test_merchant_distribution_does_not_emit_other_for_exact_limit(client)
         await session.commit()
 
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-05-01", "to_date": "2026-05-31"},
         headers=headers,
     )
 
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["merchants"] == [
-        [str(merchant_id), f"Merchant {index}", 10_000 * index, None, 10_000 * index]
-        for index, (merchant_id, _merchant_row) in reversed(list(enumerate(merchant_rows, start=1)))
+    assert resp.json()["merchants"] == [
+        [str(merchant_id), f"Merchant {index}", 10_000 * index, 1, None]
+        for index, (merchant_id, _merchant_row) in list(reversed(list(enumerate(merchant_rows, start=1))))[:10]
     ]
-    assert all(entry[1] != "Other" for entry in data["merchants"])
 
 
-async def test_merchant_distribution_uses_stable_tie_breakers(client):
+async def test_merchant_ranking_uses_stable_tie_breakers(client):
     """Equal merchant totals are ordered by merchant name."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -184,19 +174,19 @@ async def test_merchant_distribution_uses_stable_tie_breakers(client):
         await session.commit()
 
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
         headers=headers,
     )
 
     assert resp.status_code == 200
     assert resp.json()["merchants"] == [
-        [str(alpha_id), "Alpha Store", 50_000, None, 50_000],
-        [str(beta_id), "Beta Store", 50_000, None, 50_000],
+        [str(alpha_id), "Alpha Store", 50_000, 1, None],
+        [str(beta_id), "Beta Store", 50_000, 1, None],
     ]
 
 
-async def test_merchant_distribution_one_day_range_compares_previous_one_day(client):
+async def test_merchant_ranking_one_day_range_compares_previous_one_day(client):
     """A one-day range compares against only the immediately preceding day."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -216,18 +206,18 @@ async def test_merchant_distribution_one_day_range_compares_previous_one_day(cli
         await session.commit()
 
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-07-15", "to_date": "2026-07-15"},
         headers=headers,
     )
 
     assert resp.status_code == 200
     assert resp.json()["merchants"] == [
-        [str(merchant_id), "Cafe Delta", 50_000, 150, 30_000],
+        [str(merchant_id), "Cafe Delta", 50_000, 1, 150],
     ]
 
 
-async def test_merchant_distribution_omits_zero_net_current_merchants(client):
+async def test_merchant_ranking_omits_zero_net_current_merchants(client):
     """Merchants with no net current spend are omitted even if they had prior spend."""
     signup_resp = await _create_user(client)
     user_id = UUID(signup_resp.json()["user"]["id"])
@@ -247,7 +237,7 @@ async def test_merchant_distribution_omits_zero_net_current_merchants(client):
         await session.commit()
 
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-08-01", "to_date": "2026-08-31"},
         headers=headers,
     )
@@ -256,13 +246,13 @@ async def test_merchant_distribution_omits_zero_net_current_merchants(client):
     assert resp.json() == {"merchants": []}
 
 
-async def test_merchant_distribution_returns_empty_payload_without_accounts(client):
+async def test_merchant_ranking_returns_empty_payload_without_accounts(client):
     """Users without base-currency accounts get an empty card payload."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-04-01", "to_date": "2026-04-30"},
         headers=headers,
     )
@@ -271,13 +261,13 @@ async def test_merchant_distribution_returns_empty_payload_without_accounts(clie
     assert resp.json() == {"merchants": []}
 
 
-async def test_merchant_distribution_rejects_invalid_date_range(client):
+async def test_merchant_ranking_rejects_invalid_date_range(client):
     """The endpoint rejects a start date after the end date."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-04-30", "to_date": "2026-04-01"},
         headers=headers,
     )
@@ -285,20 +275,20 @@ async def test_merchant_distribution_rejects_invalid_date_range(client):
     assert resp.status_code == 422
 
 
-async def test_merchant_distribution_requires_date_params(client):
+async def test_merchant_ranking_requires_date_params(client):
     """Both date bounds are required for a cacheable card-specific query."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.get("/insights/merchant-distribution", headers=headers)
+    resp = await client.get("/insights/merchant-ranking", headers=headers)
 
     assert resp.status_code == 422
 
 
-async def test_merchant_distribution_requires_auth(client):
+async def test_merchant_ranking_requires_auth(client):
     """Insights endpoints require an authenticated user."""
     resp = await client.get(
-        "/insights/merchant-distribution",
+        "/insights/merchant-ranking",
         params={"from_date": "2026-04-01", "to_date": "2026-04-30"},
     )
 

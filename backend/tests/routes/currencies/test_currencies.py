@@ -1,6 +1,6 @@
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.routes.conftest import _seed_currency
+from tests.routes.support import _seed_currency
 
 # --- Helpers ---
 

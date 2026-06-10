@@ -1,0 +1,1 @@
+"""Institution route tests"""

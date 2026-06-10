@@ -12,7 +12,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.conftest import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 def _category(user_id: UUID, name: str, kind: CategoryKind) -> tuple[UUID, Category]:

@@ -8,7 +8,7 @@ from app.main import app
 from app.models.active_token import ActiveToken
 from app.models.user import User
 from tests.conftest import TestSession
-from tests.routes.conftest import SIGNUP_PAYLOAD, _create_user, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _seed_currency
 
 # --- Helpers ---
 
