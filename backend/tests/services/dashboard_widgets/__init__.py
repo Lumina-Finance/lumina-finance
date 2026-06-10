@@ -1,0 +1,1 @@
+"""Dashboard widget service tests"""

@@ -1,0 +1,1 @@
+"""Base budget route tests"""

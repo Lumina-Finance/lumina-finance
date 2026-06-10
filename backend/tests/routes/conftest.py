@@ -7,7 +7,6 @@ from httpx import ASGITransport, AsyncClient
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.main import app
-from app.models.currency import Currency
 from app.models.user import User
 from tests.conftest import TestSession
 
@@ -28,80 +27,15 @@ app.dependency_overrides[get_db] = _override_get_db
 # Test-only route to exercise the get_current_user dependency
 @app.get("/test/me")
 async def _test_me(user: Annotated[User, Depends(get_current_user)]):
+    """Return the current user payload for auth dependency tests
+
+    Args:
+        user: Current authenticated user resolved by the dependency
+
+    Returns:
+        Minimal user identity payload
+    """
     return {"id": str(user.id), "email": user.email}
-
-
-# --- Shared test helpers ---
-
-SIGNUP_PAYLOAD = {
-    "email": "test@example.com",
-    "password": "securepassword123",
-    "first_name": "Test",
-    "tz": "America/Toronto",
-    "base_currency": "CAD",
-}
-
-
-async def _seed_currency():
-    """Insert the CAD currency row required by the user's base_currency FK.
-
-    Inserts via raw session (not the API) because currencies are seeded data,
-    not user-created resources.
-    """
-    async with TestSession() as session:
-        session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-        await session.commit()
-
-
-async def _create_user(client):
-    """Seed currency and sign up a test user.
-
-    Args:
-        client: The async test client.
-
-    Returns:
-        The HTTP response from the signup endpoint.
-    """
-    await _seed_currency()
-    return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
-
-
-ACCOUNT_PAYLOAD = {
-    "account_kind": "asset",
-    "account_type": "checking",
-    "name": "Main Chequing",
-    "currency": "CAD",
-}
-
-
-async def _create_account(client, headers, **overrides):
-    """Create an account via POST /accounts.
-
-    Defaults: account_type="checking", name="Main Chequing", currency="CAD".
-
-    Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
-
-    Returns:
-        The HTTP response from the API.
-    """
-    payload = {**ACCOUNT_PAYLOAD, **overrides}
-    return await client.post("/accounts", json=payload, headers=headers)
-
-
-def _get_auth_header(resp):
-    """Extract a Bearer Authorization header dict from a signup/login response.
-
-    Args:
-        resp: The HTTP response containing an access_token.
-
-    Returns:
-        A dict with the Authorization header set to the Bearer token.
-    """
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
