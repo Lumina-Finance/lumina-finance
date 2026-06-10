@@ -19,12 +19,12 @@ from app.routes.tax_advantaged_plans.tac_plan_helpers import (
     apply_tac_plan_updates,
     build_tac_plan,
     get_owned_tax_advantaged_plan_or_404,
-    get_tax_advantaged_plans_for_owner,
     validate_tac_plan_updates,
     validate_tax_advantaged_plan_currency,
     validate_tax_advantaged_plan_group_scope,
     validate_tax_advantaged_plan_tax_treatment,
 )
+from app.routes.tax_advantaged_plans.tac_plan_listing_helpers import get_tax_advantaged_plans_with_metrics_for_owner
 from app.schemas.tax_advantaged_plan import (
     CreateTaxAdvantagedPlanLimitRequest,
     CreateTaxAdvantagedPlanRequest,
@@ -53,8 +53,7 @@ async def list_tax_advantaged_plans(
     Returns:
         Plans owned by the authenticated user with current-year limits attached
     """
-    plans = await get_tax_advantaged_plans_for_owner(db, user.id)
-    await attach_tax_advantaged_plan_metrics(db, plans)
+    plans = await get_tax_advantaged_plans_with_metrics_for_owner(db, user.id)
     return plans
 
 
