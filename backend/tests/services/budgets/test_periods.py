@@ -2,12 +2,37 @@
 
 Pure functions — no DB, no fixtures, just stdlib date math.
 """
-from datetime import date
+import calendar
+from datetime import date, timedelta
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from app.models.base import RecurrenceFreq
 from app.services.budgets.periods import compute_period_end, validate_period_start
+
+_PERIOD_YEARS = st.integers(min_value=2001, max_value=2090)
+_MONTHS = st.integers(min_value=1, max_value=12)
+_DAYS_OF_MONTH = st.integers(min_value=1, max_value=31)
+_WEEKLY_LENGTHS = st.integers(min_value=1, max_value=52)
+_MONTHLY_LENGTHS = st.integers(min_value=1, max_value=36)
+_YEARLY_LENGTHS = st.integers(min_value=1, max_value=10)
+_PERIOD_START_DATES = st.dates(min_value=date(2001, 1, 1), max_value=date(2090, 12, 31))
+
+
+def _get_anchor_date(year, month, dom):
+    """Return the valid anchor date for a configured day of month"""
+    anchor_day = min(dom, calendar.monthrange(year, month)[1])
+    return date(year, month, anchor_day)
+
+
+def _add_months(year, month, months):
+    """Return the year and month after adding calendar months"""
+    total_months = (year * 12 + month - 1) + months
+    next_year = total_months // 12
+    next_month = total_months % 12 + 1
+    return next_year, next_month
 
 # --- validate_period_start: weekly ---
 
@@ -150,6 +175,18 @@ class TestComputeWeekly:
         result = compute_period_end(date(2026, 3, 30), RecurrenceFreq.WEEKLY, 1)
         assert result == date(2026, 4, 5)
 
+    @given(
+        period_start=_PERIOD_START_DATES,
+        instance_length=_WEEKLY_LENGTHS,
+    )
+    def test_generated_weekly_period_end_lands_before_next_anchor(self, period_start, instance_length):
+        """Generated weekly period ends land before the next weekly anchor"""
+        period_end = compute_period_end(period_start, RecurrenceFreq.WEEKLY, instance_length)
+        next_period_start = period_start + timedelta(days=7 * instance_length)
+
+        assert period_end == next_period_start - timedelta(days=1)
+        assert period_end >= period_start
+
 
 # --- compute_period_end: monthly ---
 
@@ -202,6 +239,24 @@ class TestComputeMonthly:
         result = compute_period_end(date(2026, 3, 1), RecurrenceFreq.MONTHLY, 2, dom=1)
         assert result == date(2026, 4, 30)
 
+    @given(
+        year=_PERIOD_YEARS,
+        month=_MONTHS,
+        dom=_DAYS_OF_MONTH,
+        instance_length=_MONTHLY_LENGTHS,
+    )
+    def test_generated_monthly_period_end_lands_before_next_anchor(self, year, month, dom, instance_length):
+        """Generated monthly period ends land before the next monthly anchor"""
+        period_start = _get_anchor_date(year, month, dom)
+        next_year, next_month = _add_months(year, month, instance_length)
+        next_period_start = _get_anchor_date(next_year, next_month, dom)
+
+        period_end = compute_period_end(period_start, RecurrenceFreq.MONTHLY, instance_length, dom=dom)
+
+        assert validate_period_start(period_start, RecurrenceFreq.MONTHLY, dom=dom) is None
+        assert period_end == next_period_start - timedelta(days=1)
+        assert period_end >= period_start
+
 
 # --- compute_period_end: yearly ---
 
@@ -233,3 +288,20 @@ class TestComputeYearly:
         """Feb 28 in 2023 (non-leap, dom=29 fallback) → Feb 28, 2024 (next anchor = Feb 29)."""
         result = compute_period_end(date(2023, 2, 28), RecurrenceFreq.YEARLY, 1, dom=29, month=2)
         assert result == date(2024, 2, 28)
+
+    @given(
+        year=_PERIOD_YEARS,
+        month=_MONTHS,
+        dom=_DAYS_OF_MONTH,
+        instance_length=_YEARLY_LENGTHS,
+    )
+    def test_generated_yearly_period_end_lands_before_next_anchor(self, year, month, dom, instance_length):
+        """Generated yearly period ends land before the next yearly anchor"""
+        period_start = _get_anchor_date(year, month, dom)
+        next_period_start = _get_anchor_date(year + instance_length, month, dom)
+
+        period_end = compute_period_end(period_start, RecurrenceFreq.YEARLY, instance_length, dom=dom, month=month)
+
+        assert validate_period_start(period_start, RecurrenceFreq.YEARLY, dom=dom, month=month) is None
+        assert period_end == next_period_start - timedelta(days=1)
+        assert period_end >= period_start
