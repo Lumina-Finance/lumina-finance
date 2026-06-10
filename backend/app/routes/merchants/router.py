@@ -2,23 +2,19 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.routes.merchants.access_helpers import (
-    get_accessible_merchant_or_404,
-    require_group_merchant_admin,
-)
+from app.routes.merchants.access_helpers import get_accessible_merchant_or_404
 from app.routes.merchants.merchant_creation_helpers import create_merchant_for_user
+from app.routes.merchants.merchant_deletion_helpers import delete_merchant_for_user
 from app.routes.merchants.merchant_listing_helpers import get_merchants_for_user
 from app.routes.merchants.merchant_update_helpers import update_merchant_for_user
 from app.routes.merchants.merge_helpers import merge_merchant_into_replacement_for_user
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
-from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/merchants", tags=["merchants"])
 
@@ -146,19 +142,4 @@ async def delete_merchant(
         user: Authenticated user deleting the merchant
         db: Active database session
     """
-    merchant = await get_accessible_merchant_or_404(db, merchant_id, user.id)
-    await require_group_merchant_admin(db, merchant, user.id)
-
-    # Delete the merchant and let the database reject existing transaction references
-    await db.delete(merchant)
-
-    # Surface merchant reference conflicts as a domain response instead of a raw integrity error
-    try:
-        await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Merchant is referenced by existing transactions",
-        ) from e
+    await delete_merchant_for_user(db, merchant_id, user.id)
