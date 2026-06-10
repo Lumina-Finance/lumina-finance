@@ -1,4 +1,5 @@
 """Account creation helpers"""
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,8 +7,45 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account, AccountBalanceSnapshot
 from app.models.user import User
 from app.routes.accounts.account_balance_adjustment_helpers import add_account_starting_balance_adjustment
-from app.routes.accounts.account_creation_scope_helpers import AccountCreationScope
+from app.routes.accounts.account_creation_scope_helpers import AccountCreationScope, resolve_account_creation_scope
+from app.routes.accounts.account_request_validation_helpers import validate_create_account_request
+from app.routes.accounts.account_response_loading_helpers import get_account_for_response
+from app.routes.accounts.account_tax_advantaged_plan_link_helpers import validate_create_account_tax_advantaged_plan_link
 from app.schemas.account import CreateAccountRequest
+from app.services.cache_state import mark_cache_changed_for_scope
+
+
+async def create_account_for_user(
+    db: AsyncSession,
+    user: User,
+    data: CreateAccountRequest,
+) -> Account:
+    """Create a personal or group account for a user
+
+    Args:
+        db: Active database session
+        user: Authenticated user creating the account
+        data: Account creation request body
+
+    Returns:
+        Created account with derived balance fields
+
+    Raises:
+        HTTPException: Account details, ownership, or linked plan are invalid
+    """
+    await validate_create_account_request(db, data)
+    creation_scope = await resolve_account_creation_scope(db, user, data.group_id)
+    await validate_create_account_tax_advantaged_plan_link(db, data, creation_scope, user.id)
+
+    account = await create_account_with_initial_balance_history(db, data, creation_scope, user)
+
+    # Mark the account scope stale before returning the account with derived fields
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+    await db.commit()
+
+    response_date = datetime.now(ZoneInfo(user.tz)).date()
+    response_account = await get_account_for_response(db, user, account.id, response_date)
+    return response_account
 
 
 async def create_account_with_initial_balance_history(
