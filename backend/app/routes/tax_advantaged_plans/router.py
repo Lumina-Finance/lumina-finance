@@ -16,6 +16,7 @@ from app.routes.tax_advantaged_plans.tac_limit_helpers import (
     validate_tac_limit_year_available,
 )
 from app.routes.tax_advantaged_plans.tac_plan_creation_helpers import create_tax_advantaged_plan_with_metrics
+from app.routes.tax_advantaged_plans.tac_plan_deletion_helpers import delete_tax_advantaged_plan_for_owner
 from app.routes.tax_advantaged_plans.tac_plan_detail_helpers import get_tax_advantaged_plan_with_metrics_for_owner
 from app.routes.tax_advantaged_plans.tac_plan_helpers import get_owned_tax_advantaged_plan_or_404
 from app.routes.tax_advantaged_plans.tac_plan_listing_helpers import get_tax_advantaged_plans_with_metrics_for_owner
@@ -138,10 +139,7 @@ async def delete_tax_advantaged_plan(
     Raises:
         HTTPException: Plan does not exist or belongs to another user
     """
-    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
-    await db.delete(plan)
-    await db.commit()
+    await delete_tax_advantaged_plan_for_owner(db, plan_id, user.id)
 
 
 @router.get("/{plan_id}/limits", response_model=list[TaxAdvantagedPlanLimitResponse])
