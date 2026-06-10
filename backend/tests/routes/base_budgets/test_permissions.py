@@ -1,4 +1,4 @@
-from tests.routes.conftest import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header
 
 # --- Helpers ---
 
