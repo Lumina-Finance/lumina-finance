@@ -11,6 +11,7 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_budget_access
 from app.routes.budgets.budget_detail_helpers import get_budget_response_for_user
+from app.routes.budgets.budget_update_helpers import update_budget_for_user
 from app.routes.budgets.budget_utilization_helpers import get_budget_utilization_for_user
 from app.schemas.budget import (
     BudgetResponse,
@@ -20,7 +21,6 @@ from app.schemas.budget import (
 )
 from app.services.budgets.deletion import delete_budget_instance
 from app.services.budgets.listing import get_visible_budget_responses
-from app.services.budgets.updates import update_budget_instance
 from app.services.budgets.utilization import (
     get_latest_budget_utilization_responses,
 )
@@ -141,8 +141,8 @@ async def update_budget(
     Raises:
         HTTPException: User does not have admin access or update fields are invalid
     """
-    budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
-    return await update_budget_instance(db, budget, base_budget, data.model_dump(exclude_unset=True))
+    budget = await update_budget_for_user(db, budget_id, user.id, data)
+    return budget
 
 
 @router.get("", response_model=list[BudgetResponse])
