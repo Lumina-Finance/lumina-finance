@@ -6,7 +6,7 @@ from app.config import ALLOWED_ORIGINS, RUNTIME
 from app.routes.accounts import router as account_router
 from app.routes.auth import router as auth_router
 from app.routes.base_budgets import router as base_budget_router
-from app.routes.budget import router as budget_router
+from app.routes.budgets import router as budget_router
 from app.routes.categories import router as category_router
 from app.routes.currency import router as currency_router
 from app.routes.dashboard import router as dashboard_router
