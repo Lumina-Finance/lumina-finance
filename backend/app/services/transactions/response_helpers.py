@@ -1,11 +1,7 @@
-"""Shared response-building helpers for transaction routes and aggregations
+"""Transaction response builders and batch-loading helpers
 
-Mirrors ``services/budget_responses.py``: pure builders and batched loaders
-that assemble a :class:`TransactionResponse` from a ``Transaction`` row plus
-its associated tag IDs. Both the transaction route and the dashboard
-aggregation call these, so keeping them in a service module avoids a layer
-inversion (a service importing from a route) and makes the "how do we shape
-a transaction response" surface easy to find
+Transaction routes and dashboard activity share these helpers so response
+assembly uses the same tag, merchant, and converted amount shape
 """
 import uuid
 
