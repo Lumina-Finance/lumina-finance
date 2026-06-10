@@ -8,15 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.category import Category
 from app.models.user import User
 from app.routes.categories.access_helpers import (
     get_accessible_category_or_404,
-    is_valid_category_kind,
     require_category_name_available,
     require_group_category_admin,
-    require_group_member,
 )
+from app.routes.categories.category_creation_helpers import create_category_for_user
 from app.routes.categories.category_listing_helpers import get_categories_for_user
 from app.routes.categories.merge_helpers import get_merge_replacement_category, move_category_references
 from app.schemas.category import (
@@ -86,33 +84,7 @@ async def create_category(
     Returns:
         Newly created category
     """
-    if not is_valid_category_kind(data.kind):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid category kind")
-
-    group_id = data.group_id
-    if group_id:
-        await require_group_member(db, group_id, user.id)
-
-    await require_category_name_available(db, data.name, user.id, group_id)
-
-    category = Category(
-        owner_id=None if group_id else user.id,
-        group_id=group_id,
-        name=data.name,
-        kind=data.kind,
-        icon=data.icon,
-    )
-    db.add(category)
-    try:
-        await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Category with this name already exists",
-        ) from e
-    await db.refresh(category)
+    category = await create_category_for_user(db, user.id, data)
     return category
 
 
