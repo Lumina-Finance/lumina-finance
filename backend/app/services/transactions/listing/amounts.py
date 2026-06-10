@@ -5,9 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 TransactionAmountMap = dict[uuid.UUID, int | None]
 
@@ -64,26 +64,6 @@ async def get_transaction_listing_converted_amounts(
         )
 
     return account_amounts_by_transaction_id, base_amounts_by_transaction_id
-
-
-async def _get_listing_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents for listing conversion currencies
-
-    The returned mapping lets the FX converter interpret each amount in the
-    smallest unit used by that currency before converting response amounts
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Mapping from currency code to minor-unit exponent
-    """
-    # Load exponent metadata for every currency needed by response conversions
-    currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in currency_result}
 
 
 async def _get_listing_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UUID]) -> dict[uuid.UUID, Account]:
@@ -143,7 +123,7 @@ async def _get_transaction_listing_conversion_data(
     if extra_currencies:
         currencies.update(extra_currencies)
 
-    return accounts_by_id, await _get_listing_currency_exponents(db, currencies)
+    return accounts_by_id, await get_currency_exponents(db, currencies)
 
 
 async def _prefetch_transaction_listing_amount_rates(
