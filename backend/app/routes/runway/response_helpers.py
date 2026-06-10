@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.routes.runway.account_helpers import (
     get_active_runway_account_ids,
-    get_readable_non_archived_accounts_for_runway,
+    get_readable_accounts_for_runway,
     get_runway_thresholds_from_user,
 )
 from app.routes.runway.expense_helpers import (
@@ -43,7 +43,7 @@ async def get_runway_response(
     Returns:
         Cash runway response for the user
     """
-    readable_accounts = await get_readable_non_archived_accounts_for_runway(db, user)
+    readable_accounts = await get_readable_accounts_for_runway(db, user)
     account_by_id = {account.id: account for account in readable_accounts}
     readable_account_ids = set(account_by_id)
     active_runway_account_ids = await get_active_runway_account_ids(db, user)
