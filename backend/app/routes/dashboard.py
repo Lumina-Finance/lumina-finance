@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.routes.dashboard_widget_helpers import get_recent_activity_widget_for_user
 from app.schemas.dashboard import (
     CreditWidgetResponse,
     NetWorthWidgetResponse,
@@ -26,7 +27,6 @@ from app.schemas.dashboard import (
 from app.services.dashboard import get_accessible_accounts
 from app.services.dashboard_widgets.credit import get_credit_widget
 from app.services.dashboard_widgets.net_worth import get_net_worth_history
-from app.services.dashboard_widgets.recent_activity import get_recent_transactions
 from app.services.dashboard_widgets.savings_rate import get_savings_rate_history
 from app.services.dashboard_widgets.spending_breakdown import get_spending_breakdown
 from app.services.dashboard_widgets.spending_comparison import get_spending_comparison
@@ -55,13 +55,8 @@ async def get_recent_activity_widget_route(
         Recent activity widget response
     """
     now = datetime.now(ZoneInfo(user.tz))
-    accounts = await get_accessible_accounts(db, user)
-    all_account_ids = [a.id for a in accounts]
-    recent_transactions = await get_recent_transactions(db, all_account_ids, window_days, now)
-    return RecentActivityWidgetResponse(
-        recent_transactions=recent_transactions,
-        transaction_window_days=window_days,
-    )
+    response = await get_recent_activity_widget_for_user(db, user, window_days, now)
+    return response
 
 
 @router.get("/savings-rate", response_model=SavingsRateWidgetResponse)
