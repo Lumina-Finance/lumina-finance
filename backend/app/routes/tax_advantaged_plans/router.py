@@ -8,11 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.routes.tax_advantaged_plans.tac_limit_creation_helpers import create_tac_limit_for_owned_plan
 from app.routes.tax_advantaged_plans.tac_limit_helpers import (
     apply_tac_limit_updates,
-    build_tac_limit,
     get_tac_limit_or_404,
-    validate_tac_limit_year_available,
 )
 from app.routes.tax_advantaged_plans.tac_limit_listing_helpers import get_tac_limits_for_owned_plan
 from app.routes.tax_advantaged_plans.tac_plan_creation_helpers import create_tax_advantaged_plan_with_metrics
@@ -186,14 +185,8 @@ async def create_tax_advantaged_plan_limit(
     Raises:
         HTTPException: Plan is inaccessible or the year already has a limit row
     """
-    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-    await validate_tac_limit_year_available(db, plan_id, data.year)
-    row = build_tac_limit(plan_id, data)
-    db.add(row)
-    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
-    await db.commit()
-    await db.refresh(row)
-    return row
+    limit_row = await create_tac_limit_for_owned_plan(db, plan_id, user.id, data)
+    return limit_row
 
 
 @router.patch("/{plan_id}/limits/{year}", response_model=TaxAdvantagedPlanLimitResponse)
