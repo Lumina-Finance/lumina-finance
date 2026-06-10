@@ -59,19 +59,6 @@ def get_accessible_tag_filter(user_id: uuid.UUID):
     return tag_filter
 
 
-def escape_like_search_text(value: str) -> str:
-    """Return search text escaped for a literal SQL LIKE match
-
-    Args:
-        value: User-provided search text
-
-    Returns:
-        Text with SQL LIKE wildcard characters escaped
-    """
-    escaped_value = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return escaped_value
-
-
 async def get_accessible_tag_or_404(db: AsyncSession, tag_id: uuid.UUID, user_id: uuid.UUID) -> Tag:
     """Return a tag visible to the user or raise not found
 

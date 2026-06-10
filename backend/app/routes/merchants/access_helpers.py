@@ -14,19 +14,6 @@ from app.routes.merchants.merchant_scope_filter_helpers import (
 )
 
 
-def escape_like_search_text(value: str) -> str:
-    """Return search text escaped for a literal SQL LIKE match
-
-    Args:
-        value: User-provided search text
-
-    Returns:
-        Text with SQL LIKE wildcard characters escaped
-    """
-    escaped_value = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return escaped_value
-
-
 async def get_accessible_merchant_or_404(db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID) -> Merchant:
     """Return a merchant visible to the user or raise not found
 
