@@ -3,12 +3,11 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.currency import Currency
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.insights.net_worth.groups import NET_WORTH_GROUPS
 
 
@@ -25,7 +24,7 @@ async def build_net_worth_fx_converter(
     Returns:
         FX converter with minor-unit exponents loaded
     """
-    currency_exponents = await _get_currency_exponents(db, currencies)
+    currency_exponents = await get_currency_exponents(db, currencies)
     converter = FxConverter(currency_exponents=currency_exponents)
     return converter
 
@@ -104,21 +103,3 @@ async def get_grouped_net_worth_balance_values(
         group_index = group_index_by_account_id[account.id]
         values[group_index] += converted_balance
     return values
-
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents keyed by currency code
-
-    Args:
-        db: Active database session
-        currencies: Currency codes needed for conversion
-
-    Returns:
-        Minor-unit exponent keyed by currency code
-    """
-    # Load currency precision so FX conversion can convert minor units correctly
-    result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    exponents_by_currency = {row.id: row.minor_unit_exponent for row in result}
-    return exponents_by_currency
