@@ -5,28 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.currency import Currency
 from app.services.fx import FxConverter
-
-
-async def get_overview_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Return minor-unit exponents for overview conversion currencies
-
-    Overview conversion uses these exponents to interpret aggregate values in
-    minor units before converting them to the user's base currency
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Mapping from currency code to minor-unit exponent
-    """
-    # Load exponent metadata for every currency needed by overview conversions
-    currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currencies)),
-    )
-    return {row.id: row.minor_unit_exponent for row in currency_result}
 
 
 async def get_overview_accounts_by_id(db: AsyncSession, conversion_rows) -> dict[uuid.UUID, Account]:
