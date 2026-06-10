@@ -7,9 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.base import PermissionLevel
 from app.models.user import User
-from app.permissions import check_budget_access
+from app.routes.budgets.budget_deletion_helpers import delete_budget_for_user
 from app.routes.budgets.budget_detail_helpers import get_budget_response_for_user
 from app.routes.budgets.budget_update_helpers import update_budget_for_user
 from app.routes.budgets.budget_utilization_helpers import get_budget_utilization_for_user
@@ -19,7 +18,6 @@ from app.schemas.budget import (
     LatestBudgetUtilizationResponse,
     UpdateBudgetRequest,
 )
-from app.services.budgets.deletion import delete_budget_instance
 from app.services.budgets.listing import get_visible_budget_responses
 from app.services.budgets.utilization import (
     get_latest_budget_utilization_responses,
@@ -113,8 +111,7 @@ async def delete_budget(
     Raises:
         HTTPException: User does not have admin access
     """
-    budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.ADMIN)
-    await delete_budget_instance(db, budget, base_budget)
+    await delete_budget_for_user(db, budget_id, user.id)
 
 
 @router.patch("/{budget_id}", response_model=BudgetResponse)
