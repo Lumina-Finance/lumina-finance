@@ -11,7 +11,12 @@ from app.models.budget import BudgetTrackedCategory
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
-from app.routes.categories.access_helpers import get_system_or_personal_category_filter
+from app.routes.categories.access_helpers import (
+    get_accessible_category_or_404,
+    get_system_or_personal_category_filter,
+    require_group_category_admin,
+)
+from app.services.cache_state import mark_cache_changed_for_scope
 
 
 async def get_merge_replacement_category(
@@ -111,3 +116,34 @@ async def move_category_references(
         .where(BudgetTrackedCategory.category_id == source_category_id)
         .values(category_id=replacement_category_id),
     )
+
+
+async def merge_category_into_replacement_for_user(
+    db: AsyncSession,
+    category_id: uuid.UUID,
+    replacement_category_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> None:
+    """Merge a category into a replacement category for a user
+
+    Args:
+        db: Active database session
+        category_id: Category identifier from the route path
+        replacement_category_id: Replacement category identifier from the payload
+        user_id: Authenticated user identifier
+
+    Raises:
+        HTTPException: Category is inaccessible, immutable, or has an invalid replacement
+    """
+    category = await get_accessible_category_or_404(db, category_id, user_id)
+    if category.is_system:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="System categories cannot be deleted")
+
+    await require_group_category_admin(db, category, user_id)
+    replacement = await get_merge_replacement_category(db, category, replacement_category_id, user_id)
+    await move_category_references(db, category.id, replacement.id)
+    await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
+
+    # Delete the source category after all category references point to the replacement
+    await db.delete(category)
+    await db.commit()

@@ -16,7 +16,7 @@ from app.routes.categories.access_helpers import (
 from app.routes.categories.category_creation_helpers import create_category_for_user
 from app.routes.categories.category_listing_helpers import get_categories_for_user
 from app.routes.categories.category_update_helpers import update_category_for_user
-from app.routes.categories.merge_helpers import get_merge_replacement_category, move_category_references
+from app.routes.categories.merge_helpers import merge_category_into_replacement_for_user
 from app.schemas.category import (
     CategoryResponse,
     CreateCategoryRequest,
@@ -127,18 +127,7 @@ async def merge_category(
         user: Authenticated user merging the category
         db: Active database session
     """
-    category = await get_accessible_category_or_404(db, category_id, user.id)
-    if category.is_system:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="System categories cannot be deleted")
-
-    await require_group_category_admin(db, category, user.id)
-    replacement = await get_merge_replacement_category(db, category, data.replacement_category_id, user.id)
-    await move_category_references(db, category.id, replacement.id)
-    await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
-
-    # Delete the source category after all category references point to the replacement
-    await db.delete(category)
-    await db.commit()
+    await merge_category_into_replacement_for_user(db, category_id, data.replacement_category_id, user.id)
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
