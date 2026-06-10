@@ -13,6 +13,7 @@ from app.routes.groups.deletion_helpers import delete_group_for_owner
 from app.routes.groups.group_detail_helpers import get_group_for_user
 from app.routes.groups.listing_helpers import get_groups_for_user
 from app.routes.groups.member_addition_helpers import add_group_member_and_get_membership
+from app.routes.groups.member_admin_status_helpers import update_group_member_admin_status_and_get_membership
 from app.routes.groups.member_listing_helpers import get_group_members_for_user
 from app.routes.groups.membership_helpers import (
     get_group_member_or_404,
@@ -172,21 +173,8 @@ async def update_member_admin(
     Returns:
         Updated group membership
     """
-    await get_group_membership_or_404(db, group_id, user.id)
-    owner_id = await get_group_owner_id(db, group_id)
-    if user.id != owner_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can change admin status")
-
-    target = await get_group_member_or_404(db, group_id, member_id)
-
-    if member_id == owner_id and not data.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot demote the owner")
-
-    target.is_admin = data.is_admin
-    await mark_group_cache_changed(db, group_id)
-    await db.commit()
-    await db.refresh(target)
-    return target
+    group_member = await update_group_member_admin_status_and_get_membership(db, group_id, member_id, user.id, data)
+    return group_member
 
 
 @router.delete("/{group_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
