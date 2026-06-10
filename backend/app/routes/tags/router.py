@@ -3,7 +3,6 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,14 +11,13 @@ from app.dependencies import get_current_user
 from app.models.tag import Tag
 from app.models.user import User
 from app.routes.tags.access_helpers import (
-    escape_like_search_text,
     get_accessible_tag_or_404,
-    get_tag_list_scope_filter,
     require_group_member,
     require_group_tag_admin,
     require_tag_name_available,
 )
 from app.routes.tags.merge_helpers import get_merge_replacement_tag, move_tag_references
+from app.routes.tags.tag_listing_helpers import get_tags_for_user
 from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -48,23 +46,7 @@ async def list_tags(
     Returns:
         Tags ordered by name
     """
-    query = select(Tag).where(get_tag_list_scope_filter(user.id, group_id))
-
-    if group_id:
-        await require_group_member(db, group_id, user.id)
-
-    search = q.strip() if q else ""
-    if search:
-        escaped_search = escape_like_search_text(search)
-        query = query.where(Tag.name.ilike(f"%{escaped_search}%", escape="\\"))
-
-    query = query.order_by(Tag.name)
-    if limit is not None:
-        query = query.limit(limit).offset(offset)
-
-    # Fetch personal tags and optionally tags from the requested group, with optional name search
-    result = await db.execute(query)
-    tags = result.scalars().all()
+    tags = await get_tags_for_user(db, user.id, group_id, q, limit, offset)
     return tags
 
 
