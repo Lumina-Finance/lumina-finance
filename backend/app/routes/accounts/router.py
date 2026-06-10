@@ -14,6 +14,7 @@ from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
 from app.routes.accounts.account_creation_helpers import create_account_for_user
+from app.routes.accounts.account_deletion_helpers import delete_account_for_user
 from app.routes.accounts.account_listing_helpers import get_accounts_visible_to_user
 from app.routes.accounts.account_update_helpers import update_account_for_user
 from app.routes.accounts.permissions import router as permissions_router
@@ -27,7 +28,6 @@ from app.schemas.account import (
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
 from app.services.accounts import get_account_cash_flow_history, get_account_spending_breakdown
-from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
@@ -200,7 +200,4 @@ async def delete_account(
     Raises:
         HTTPException: User does not have admin access
     """
-    account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-    await db.delete(account)
-    await db.commit()
+    await delete_account_for_user(db, account_id, user.id)
