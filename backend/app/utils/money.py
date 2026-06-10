@@ -1,6 +1,6 @@
 """Money amount utilities"""
 import re
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 _RAW_DECIMAL_AMOUNT_RE = re.compile(r"^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$")
 
@@ -48,3 +48,28 @@ def parse_decimal_amount_to_minor_units(
         raise DecimalAmountPrecisionError(f"Amount has too many decimal places for {currency_code}: {raw_amount}")
 
     return int(minor_units)
+
+
+def convert_minor_units_between_currencies(
+    amount: int,
+    *,
+    rate: Decimal,
+    base_exponent: int,
+    quote_exponent: int,
+) -> int:
+    """Convert minor units using a currency rate and minor-unit exponents
+
+    Args:
+        amount: Source amount in base currency minor units
+        rate: Quote currency units per one base currency unit
+        base_exponent: Minor-unit exponent for the source currency
+        quote_exponent: Minor-unit exponent for the target currency
+
+    Returns:
+        Converted amount in quote currency minor units
+    """
+    base_units = Decimal(10) ** base_exponent
+    quote_units = Decimal(10) ** quote_exponent
+    converted_amount = (Decimal(amount) / base_units) * rate * quote_units
+    rounded_minor_units = int(converted_amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return rounded_minor_units

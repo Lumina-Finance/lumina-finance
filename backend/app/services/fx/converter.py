@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Protocol
 
 from app.schemas.fx import FxIssueReason, FxRateIssue, FxStatus
 from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundError
 from app.services.fx.frankfurter_provider import FrankfurterProvider
+from app.utils.money import convert_minor_units_between_currencies as convert_minor_units
 
 
 class _FxRateProvider(Protocol):
@@ -208,31 +209,6 @@ class FxConverter:
             quote=key.quote,
         )
         self.missing_pairs.append(issue)
-
-
-def convert_minor_units(
-    amount: int,
-    *,
-    rate: Decimal,
-    base_exponent: int,
-    quote_exponent: int,
-) -> int:
-    """Convert minor units using currency exponents and round to the quote minor unit
-
-    Args:
-        amount: Source amount in base currency minor units
-        rate: Quote currency units per one base currency unit
-        base_exponent: Minor-unit exponent for the source currency
-        quote_exponent: Minor-unit exponent for the target currency
-
-    Returns:
-        Converted amount in quote currency minor units
-    """
-    base_units = Decimal(10) ** base_exponent
-    quote_units = Decimal(10) ** quote_exponent
-    converted = (Decimal(amount) / base_units) * rate * quote_units
-    rounded_minor_units = int(converted.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-    return rounded_minor_units
 
 
 def _get_dates_in_range(start_date: date, end_date: date) -> list[date]:
