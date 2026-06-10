@@ -4,11 +4,11 @@ from datetime import date
 
 from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsCashFlowResponse
-from app.services.insights.cash_flow.bucket_helpers import (
+from app.services.insights.cash_flow.daily_totals_helpers import DailyCashFlowTotalsByDate
+from app.utils.cash_flow_bucket_helpers import (
     get_cash_flow_bucket_rows,
     get_cash_flow_buckets,
 )
-from app.services.insights.cash_flow.daily_totals_helpers import DailyCashFlowTotalsByDate
 
 
 def build_cash_flow_response(

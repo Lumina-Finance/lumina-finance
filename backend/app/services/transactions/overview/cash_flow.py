@@ -1,16 +1,12 @@
 """Transaction overview cash-flow conversion"""
 import uuid
-from datetime import date, timedelta
-from typing import Literal
+from datetime import date
 
 from app.models.account import Account
 from app.schemas.fx import FxStatus
 from app.schemas.transaction import DailyCashFlow
 from app.services.fx import FxConverter
-
-OverviewCashFlowGranularity = Literal["day", "week", "month"]
-_MONTHLY_RANGE_DAY_COUNT = 31
-_HALF_YEAR_DAY_COUNT = 183
+from app.utils.cash_flow_bucket_helpers import get_cash_flow_bucket_rows, get_cash_flow_buckets
 
 
 async def convert_overview_daily_cash_flow(
@@ -99,74 +95,6 @@ def sum_overview_net_flow(daily_cash_flow: list[DailyCashFlow]) -> tuple[int, in
     )
 
 
-def _get_overview_cash_flow_granularity(from_date: date, to_date: date) -> OverviewCashFlowGranularity:
-    """Choose the cash-flow bucket granularity for a date range
-
-    Args:
-        from_date: Inclusive start date for the overview window
-        to_date: Inclusive end date for the overview window
-
-    Returns:
-        Bucket granularity used for cash-flow chart rows
-    """
-    day_count = (to_date - from_date).days + 1
-    if day_count <= _MONTHLY_RANGE_DAY_COUNT:
-        return "day"
-    if day_count <= _HALF_YEAR_DAY_COUNT:
-        return "week"
-    return "month"
-
-
-def _get_overview_cash_flow_bucket_key(
-    target: date,
-    granularity: OverviewCashFlowGranularity,
-) -> tuple[int, ...]:
-    """Return a comparable bucket key for a cash-flow date
-
-    Args:
-        target: Date being assigned to a cash-flow bucket
-        granularity: Bucket granularity selected for the overview range
-
-    Returns:
-        Tuple key identifying the date's day, week, or month bucket
-    """
-    if granularity == "day":
-        return (target.year, target.month, target.day)
-    if granularity == "week":
-        iso_year, iso_week, _weekday = target.isocalendar()
-        return (iso_year, iso_week)
-    return (target.year, target.month)
-
-
-def _build_overview_cash_flow_buckets(from_date: date, to_date: date) -> list[tuple[date, date]]:
-    """Build contiguous cash-flow buckets for an overview range
-
-    Args:
-        from_date: Inclusive start date for the overview window
-        to_date: Inclusive end date for the overview window
-
-    Returns:
-        Ordered list of inclusive bucket start and end dates
-    """
-    granularity = _get_overview_cash_flow_granularity(from_date, to_date)
-    buckets: list[tuple[date, date]] = []
-    bucket_start = from_date
-    current_key = _get_overview_cash_flow_bucket_key(from_date, granularity)
-    current_date = from_date
-
-    # Walk by day so partial first and last weeks/months stay inside the requested range
-    while current_date <= to_date:
-        bucket_key = _get_overview_cash_flow_bucket_key(current_date, granularity)
-        if bucket_key != current_key:
-            buckets.append((bucket_start, current_date - timedelta(days=1)))
-            bucket_start = current_date
-            current_key = bucket_key
-        current_date += timedelta(days=1)
-
-    buckets.append((bucket_start, to_date))
-    return buckets
-
-
 def _bucket_overview_daily_cash_flow(
     daily_totals: dict[date, tuple[int, int]],
     *,
@@ -183,20 +111,17 @@ def _bucket_overview_daily_cash_flow(
     Returns:
         Cash-flow rows grouped into the selected bucket size
     """
+    buckets = get_cash_flow_buckets(from_date, to_date)
+    cash_flow_rows = get_cash_flow_bucket_rows(buckets, daily_totals)
     daily_cash_flow: list[DailyCashFlow] = []
-    for bucket_start, bucket_end in _build_overview_cash_flow_buckets(from_date, to_date):
-        inflow = 0
-        outflow = 0
-        current_date = bucket_start
-        while current_date <= bucket_end:
-            day_inflow, day_outflow = daily_totals.get(current_date, (0, 0))
-            inflow += day_inflow
-            outflow += day_outflow
-            current_date += timedelta(days=1)
-        daily_cash_flow.append(DailyCashFlow(
+
+    # Convert shared bucket rows into transaction overview response objects
+    for bucket_start, bucket_end, inflow, outflow in cash_flow_rows:
+        cash_flow = DailyCashFlow(
             date=bucket_start,
             end_date=bucket_end,
             inflow=inflow,
             outflow=outflow,
-        ))
+        )
+        daily_cash_flow.append(cash_flow)
     return daily_cash_flow
