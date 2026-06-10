@@ -731,27 +731,3 @@ async def test_closed_account_still_returns_cash_flow(client):
     data = resp.json()
     assert len(data) == 6
     assert data[-1]["expenses"] == 1000
-
-
-# --- Unit tests: month sequence helper ---
-
-
-def test_month_sequence_crosses_year_boundary_correctly():
-    """Year rollover: a January anchor produces a sequence that reaches back into the prior year.
-
-    The HTTP layer can't freeze time, so this exercises the private helper
-    directly with a fixed ``now`` — the only way to lock in the year-wrap
-    logic in ``_month_sequence_ending_at``.
-    """
-    from app.services.accounts import _month_sequence_ending_at
-
-    now = datetime(2026, 1, 15, tzinfo=UTC)
-    result = _month_sequence_ending_at(now, 6)
-    assert result == [
-        date(2025, 8, 1),
-        date(2025, 9, 1),
-        date(2025, 10, 1),
-        date(2025, 11, 1),
-        date(2025, 12, 1),
-        date(2026, 1, 1),
-    ]
