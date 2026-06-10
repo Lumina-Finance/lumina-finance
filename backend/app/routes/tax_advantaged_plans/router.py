@@ -16,6 +16,7 @@ from app.routes.tax_advantaged_plans.tac_limit_helpers import (
     validate_tac_limit_year_available,
 )
 from app.routes.tax_advantaged_plans.tac_plan_creation_helpers import create_tax_advantaged_plan_with_metrics
+from app.routes.tax_advantaged_plans.tac_plan_detail_helpers import get_tax_advantaged_plan_with_metrics_for_owner
 from app.routes.tax_advantaged_plans.tac_plan_helpers import (
     apply_tac_plan_updates,
     get_owned_tax_advantaged_plan_or_404,
@@ -96,8 +97,7 @@ async def get_tax_advantaged_plan(
     Raises:
         HTTPException: Plan does not exist or belongs to another user
     """
-    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-    await attach_tax_advantaged_plan_metrics(db, [plan])
+    plan = await get_tax_advantaged_plan_with_metrics_for_owner(db, plan_id, user.id)
     return plan
 
 
