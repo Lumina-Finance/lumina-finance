@@ -11,11 +11,11 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.routes.categories.access_helpers import (
     get_accessible_category_or_404,
-    require_category_name_available,
     require_group_category_admin,
 )
 from app.routes.categories.category_creation_helpers import create_category_for_user
 from app.routes.categories.category_listing_helpers import get_categories_for_user
+from app.routes.categories.category_update_helpers import update_category_for_user
 from app.routes.categories.merge_helpers import get_merge_replacement_category, move_category_references
 from app.schemas.category import (
     CategoryResponse,
@@ -108,33 +108,7 @@ async def update_category(
     Returns:
         Updated category
     """
-    category = await get_accessible_category_or_404(db, category_id, user.id)
-
-    if category.is_system:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="System categories cannot be modified")
-
-    await require_group_category_admin(db, category, user.id)
-
-    updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        return category
-
-    if "name" in updates and updates["name"] is not None:
-        await require_category_name_available(db, updates["name"], user.id, category.group_id, category.id)
-
-    for field, value in updates.items():
-        setattr(category, field, value)
-
-    try:
-        await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Category with this name already exists",
-        ) from e
-    await db.refresh(category)
+    category = await update_category_for_user(db, category_id, user.id, data)
     return category
 
 
