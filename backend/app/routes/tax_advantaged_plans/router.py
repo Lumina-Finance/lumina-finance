@@ -9,13 +9,12 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.routes.tax_advantaged_plans.tac_limit_creation_helpers import create_tac_limit_for_owned_plan
-from app.routes.tax_advantaged_plans.tac_limit_helpers import get_tac_limit_or_404
+from app.routes.tax_advantaged_plans.tac_limit_deletion_helpers import delete_tac_limit_for_owned_plan
 from app.routes.tax_advantaged_plans.tac_limit_listing_helpers import get_tac_limits_for_owned_plan
 from app.routes.tax_advantaged_plans.tac_limit_update_helpers import update_tac_limit_for_owned_plan
 from app.routes.tax_advantaged_plans.tac_plan_creation_helpers import create_tax_advantaged_plan_with_metrics
 from app.routes.tax_advantaged_plans.tac_plan_deletion_helpers import delete_tax_advantaged_plan_for_owner
 from app.routes.tax_advantaged_plans.tac_plan_detail_helpers import get_tax_advantaged_plan_with_metrics_for_owner
-from app.routes.tax_advantaged_plans.tac_plan_helpers import get_owned_tax_advantaged_plan_or_404
 from app.routes.tax_advantaged_plans.tac_plan_listing_helpers import get_tax_advantaged_plans_with_metrics_for_owner
 from app.routes.tax_advantaged_plans.tac_plan_update_helpers import update_tax_advantaged_plan_with_metrics
 from app.schemas.tax_advantaged_plan import (
@@ -26,7 +25,6 @@ from app.schemas.tax_advantaged_plan import (
     UpdateTaxAdvantagedPlanLimitRequest,
     UpdateTaxAdvantagedPlanRequest,
 )
-from app.services.cache_state import mark_cache_changed_for_scope
 
 router = APIRouter(prefix="/tax-advantaged-plans", tags=["tax-advantaged-plans"])
 
@@ -232,8 +230,4 @@ async def delete_tax_advantaged_plan_limit(
     Raises:
         HTTPException: Plan or limit row is inaccessible or missing
     """
-    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-    row = await get_tac_limit_or_404(db, plan_id, year)
-    await db.delete(row)
-    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
-    await db.commit()
+    await delete_tac_limit_for_owned_plan(db, plan_id, year, user.id)
