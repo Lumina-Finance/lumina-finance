@@ -1,19 +1,15 @@
 """Auth routes"""
-import uuid
 from typing import Annotated
 
-import jwt
 from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.routes.auth.cookie_helpers import clear_refresh_cookie
 from app.routes.auth.jwks_helpers import build_jwks_response
+from app.routes.auth.logout_helpers import logout_auth_session
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
-    decode_access_token,
-    delete_session_tokens,
     issue_and_store_tokens,
 )
 from app.schemas.auth import AuthResponse, LoginRequest, SignupRequest
@@ -120,17 +116,7 @@ async def logout_route(
     Returns:
         Logout confirmation
     """
-    try:
-        access_payload = decode_access_token(credentials.credentials)
-        sid = access_payload.get("sid")
-        if sid:
-            await delete_session_tokens(db, uuid.UUID(sid))
-    except jwt.PyJWTError:
-        pass
-
-    await db.commit()
-    clear_refresh_cookie(response)
-    logout_response = {"detail": "Logged out"}
+    logout_response = await logout_auth_session(db, response, credentials.credentials)
     return logout_response
 
 
