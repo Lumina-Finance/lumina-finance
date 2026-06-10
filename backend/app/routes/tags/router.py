@@ -13,7 +13,7 @@ from app.routes.tags.access_helpers import (
     get_accessible_tag_or_404,
     require_group_tag_admin,
 )
-from app.routes.tags.merge_helpers import get_merge_replacement_tag, move_tag_references
+from app.routes.tags.merge_helpers import merge_tag_into_replacement_for_user
 from app.routes.tags.tag_creation_helpers import create_tag_for_user
 from app.routes.tags.tag_listing_helpers import get_tags_for_user
 from app.routes.tags.tag_update_helpers import update_tag_for_user
@@ -128,15 +128,7 @@ async def merge_tag(
         user: Authenticated user merging the tag
         db: Active database session
     """
-    tag = await get_accessible_tag_or_404(db, tag_id, user.id)
-    await require_group_tag_admin(db, tag, user.id)
-    replacement = await get_merge_replacement_tag(db, tag, data.replacement_tag_id, user.id)
-    await move_tag_references(db, tag.id, replacement.id)
-    await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
-
-    # Delete the source tag after all transaction references point to the replacement
-    await db.delete(tag)
-    await db.commit()
+    await merge_tag_into_replacement_for_user(db, tag_id, data.replacement_tag_id, user.id)
 
 
 @router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)

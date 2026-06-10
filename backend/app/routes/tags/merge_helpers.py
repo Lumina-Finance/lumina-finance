@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.tag import Tag, TransactionTag
-from app.routes.tags.access_helpers import get_personal_tag_filter
+from app.routes.tags.access_helpers import get_accessible_tag_or_404, get_personal_tag_filter, require_group_tag_admin
+from app.services.cache_state import mark_cache_changed_for_scope
 
 
 async def get_merge_replacement_tag(
@@ -85,3 +86,31 @@ async def move_tag_references(
         .where(TransactionTag.tag_id == source_tag_id)
         .values(tag_id=replacement_tag_id),
     )
+
+
+async def merge_tag_into_replacement_for_user(
+    db: AsyncSession,
+    tag_id: uuid.UUID,
+    replacement_tag_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> None:
+    """Merge a tag into a replacement tag for a user
+
+    Args:
+        db: Active database session
+        tag_id: Tag identifier from the route path
+        replacement_tag_id: Replacement tag identifier from the payload
+        user_id: Authenticated user identifier
+
+    Raises:
+        HTTPException: Tag is inaccessible, admin access is missing, or replacement is invalid
+    """
+    tag = await get_accessible_tag_or_404(db, tag_id, user_id)
+    await require_group_tag_admin(db, tag, user_id)
+    replacement = await get_merge_replacement_tag(db, tag, replacement_tag_id, user_id)
+    await move_tag_references(db, tag.id, replacement.id)
+    await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
+
+    # Delete the source tag after all transaction references point to the replacement
+    await db.delete(tag)
+    await db.commit()
