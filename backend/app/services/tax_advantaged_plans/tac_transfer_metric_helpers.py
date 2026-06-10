@@ -10,7 +10,7 @@ from app.models.account import Account, TaxAdvantagedPlan
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
-from app.services.tac_limit_metric_helpers import TacLimitMetrics
+from app.services.tax_advantaged_plans.tac_limit_metric_helpers import TacLimitMetrics
 
 _TAC_TRANSFER_CATEGORY_NAME = "Transfer"
 
