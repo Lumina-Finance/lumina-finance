@@ -8,15 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.tag import Tag
 from app.models.user import User
 from app.routes.tags.access_helpers import (
     get_accessible_tag_or_404,
-    require_group_member,
     require_group_tag_admin,
-    require_tag_name_available,
 )
 from app.routes.tags.merge_helpers import get_merge_replacement_tag, move_tag_references
+from app.routes.tags.tag_creation_helpers import create_tag_for_user
 from app.routes.tags.tag_listing_helpers import get_tags_for_user
 from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
 from app.services.cache_state import mark_cache_changed_for_scope
@@ -86,16 +84,7 @@ async def create_tag(
     Returns:
         Newly created tag
     """
-    group_id = data.group_id
-    if group_id:
-        await require_group_member(db, group_id, user.id)
-
-    await require_tag_name_available(db, data.name, user.id, group_id)
-    tag = Tag(owner_id=user.id, group_id=group_id, name=data.name)
-    db.add(tag)
-    await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
-    await db.commit()
-    await db.refresh(tag)
+    tag = await create_tag_for_user(db, user.id, data)
     return tag
 
 
