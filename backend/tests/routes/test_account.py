@@ -1,3 +1,4 @@
+import importlib
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -227,7 +228,7 @@ async def test_list_accounts_converts_current_balance_to_user_base_currency(clie
     """List rows expose a converted current balance for overview stats."""
     from datetime import UTC
 
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
     from app.services.fx import FrankfurterProvider
 
     calls = []
@@ -278,7 +279,7 @@ async def test_list_accounts_reports_current_balance_fx_failure(client, monkeypa
     """Rows with unconverted foreign balances report the missing pair."""
     from datetime import UTC
 
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
     from app.services.fx import FrankfurterProvider, FxRateNotFoundError
 
     async def fake_get_rate(self, base, quote, rate_date):
@@ -920,7 +921,7 @@ async def test_patch_account_updates_is_archived(client):
 
 async def test_patch_account_archiving_non_zero_balance_creates_balance_adjustment(client, monkeypatch):
     """Archiving a non-zero account records a balance adjustment to zero it out."""
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -950,7 +951,7 @@ async def test_patch_account_archiving_non_zero_balance_creates_balance_adjustme
 
 async def test_patch_account_archiving_zero_balance_skips_balance_adjustment(client, monkeypatch):
     """Archiving an already-zero account does not create a balance adjustment."""
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -969,7 +970,7 @@ async def test_patch_account_archiving_zero_balance_skips_balance_adjustment(cli
 
 async def test_patch_account_archiving_is_idempotent(client, monkeypatch):
     """Archiving an already-archived account does not create another adjustment."""
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -991,7 +992,7 @@ async def test_patch_account_archiving_is_idempotent(client, monkeypatch):
 
 async def test_patch_account_unarchiving_keeps_zeroed_balance(client, monkeypatch):
     """Unarchiving does not reverse the archive balance adjustment."""
-    from app.routes import account as account_routes
+    account_routes = importlib.import_module("app.routes.accounts.router")
 
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
