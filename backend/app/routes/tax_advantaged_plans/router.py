@@ -17,12 +17,9 @@ from app.routes.tax_advantaged_plans.tac_limit_helpers import (
 )
 from app.routes.tax_advantaged_plans.tac_plan_creation_helpers import create_tax_advantaged_plan_with_metrics
 from app.routes.tax_advantaged_plans.tac_plan_detail_helpers import get_tax_advantaged_plan_with_metrics_for_owner
-from app.routes.tax_advantaged_plans.tac_plan_helpers import (
-    apply_tac_plan_updates,
-    get_owned_tax_advantaged_plan_or_404,
-    validate_tac_plan_updates,
-)
+from app.routes.tax_advantaged_plans.tac_plan_helpers import get_owned_tax_advantaged_plan_or_404
 from app.routes.tax_advantaged_plans.tac_plan_listing_helpers import get_tax_advantaged_plans_with_metrics_for_owner
+from app.routes.tax_advantaged_plans.tac_plan_update_helpers import update_tax_advantaged_plan_with_metrics
 from app.schemas.tax_advantaged_plan import (
     CreateTaxAdvantagedPlanLimitRequest,
     CreateTaxAdvantagedPlanRequest,
@@ -32,7 +29,6 @@ from app.schemas.tax_advantaged_plan import (
     UpdateTaxAdvantagedPlanRequest,
 )
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.tax_advantaged_plans import attach_tax_advantaged_plan_metrics
 
 router = APIRouter(prefix="/tax-advantaged-plans", tags=["tax-advantaged-plans"])
 
@@ -122,21 +118,7 @@ async def update_tax_advantaged_plan(
     Raises:
         HTTPException: Plan is inaccessible or a supplied field is invalid
     """
-    plan = await get_owned_tax_advantaged_plan_or_404(db, plan_id, user.id)
-    previous_group_id = plan.group_id
-    updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        await attach_tax_advantaged_plan_metrics(db, [plan])
-        return plan
-
-    await validate_tac_plan_updates(db, updates, user.id)
-    apply_tac_plan_updates(plan, updates)
-    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=previous_group_id)
-    if plan.group_id != previous_group_id:
-        await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
-    await db.commit()
-    await db.refresh(plan)
-    await attach_tax_advantaged_plan_metrics(db, [plan])
+    plan = await update_tax_advantaged_plan_with_metrics(db, plan_id, user.id, data)
     return plan
 
 
