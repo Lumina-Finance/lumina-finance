@@ -4,14 +4,14 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import CategoryKind
-from app.models.category import Category
-from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
+from app.services.dashboard_widgets.spending_comparison.daily_expense_query_helpers import (
+    SpendingComparisonDailyExpenseTotal,
+    query_spending_comparison_daily_expense_totals,
+)
 from app.services.dashboard_widgets.spending_comparison.range_helpers import DateSlotRange
 from app.services.fx import FxConverter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
@@ -30,21 +30,6 @@ class ConvertedSpendingComparisonDailyExpenses:
     current_daily_expenses: dict[date, int]
     previous_daily_expenses: dict[date, int]
     fx_status: FxStatus
-
-
-@dataclass(frozen=True, slots=True)
-class _DailyExpenseTotal:
-    """Daily aggregate total for one account
-
-    Attributes:
-        transaction_date: Date represented by the aggregate total
-        account_id: Account that owns the aggregated transactions
-        amount: Signed total amount in the account currency
-    """
-
-    transaction_date: date
-    account_id: uuid.UUID
-    amount: int
 
 
 async def get_converted_spending_comparison_daily_expenses(
@@ -119,7 +104,7 @@ async def _get_daily_expenses_for_slot_ranges(
 
     start = slot_ranges[0][0]
     end = slot_ranges[-1][1]
-    daily_expenses = await _query_daily_expenses(
+    daily_expenses = await _get_converted_daily_expenses(
         db,
         accounts_by_id,
         base_currency,
@@ -130,7 +115,7 @@ async def _get_daily_expenses_for_slot_ranges(
     return daily_expenses
 
 
-async def _query_daily_expenses(
+async def _get_converted_daily_expenses(
     db: AsyncSession,
     accounts_by_id: dict[uuid.UUID, Account],
     base_currency: str,
@@ -139,9 +124,6 @@ async def _query_daily_expenses(
     converter: FxConverter,
 ) -> dict[date, int]:
     """Return converted positive daily expenses for a date range
-
-    The query groups account-currency expense totals by transaction date and
-    account so conversion happens before same-date totals are merged
 
     Args:
         db: Active database session
@@ -155,31 +137,12 @@ async def _query_daily_expenses(
         Converted positive expense totals keyed by transaction date
     """
     account_ids = list(accounts_by_id)
-
-    # Aggregate daily expense totals across readable accounts for one comparison window
-    result = await db.execute(
-        select(
-            Transaction.dt,
-            Transaction.account_id,
-            func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.account_id.in_(account_ids),
-            Category.kind == CategoryKind.EXPENSE,
-            Transaction.dt >= start,
-            Transaction.dt <= end,
-        )
-        .group_by(Transaction.dt, Transaction.account_id),
+    daily_expense_totals = await query_spending_comparison_daily_expense_totals(
+        db,
+        account_ids,
+        start,
+        end,
     )
-    daily_expense_totals = [
-        _DailyExpenseTotal(
-            transaction_date=row.dt,
-            account_id=row.account_id,
-            amount=int(row.total or 0),
-        )
-        for row in result
-    ]
     await _prefetch_conversion_rates(
         converter,
         daily_expense_totals,
@@ -210,7 +173,7 @@ async def _query_daily_expenses(
 
 async def _prefetch_conversion_rates(
     converter: FxConverter,
-    daily_expense_totals: list[_DailyExpenseTotal],
+    daily_expense_totals: list[SpendingComparisonDailyExpenseTotal],
     accounts_by_id: dict[uuid.UUID, Account],
     base_currency: str,
     start: date,
@@ -238,4 +201,3 @@ async def _prefetch_conversion_rates(
             start_date=start,
             end_date=end,
         )
-
