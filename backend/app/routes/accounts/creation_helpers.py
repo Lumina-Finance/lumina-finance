@@ -10,7 +10,7 @@ from app.routes.accounts.balance_adjustment_helpers import add_account_starting_
 from app.routes.accounts.creation_scope_helpers import AccountCreationScope, resolve_account_creation_scope
 from app.routes.accounts.request_validation_helpers import validate_create_account_request
 from app.routes.accounts.response_loading_helpers import get_account_for_response
-from app.routes.accounts.tax_advantaged_plan_link_helpers import validate_create_account_tax_advantaged_plan_link
+from app.routes.accounts.tax_advantaged_category_link_helpers import validate_create_account_tax_advantaged_category_link
 from app.schemas.account import CreateAccountRequest
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -31,11 +31,11 @@ async def create_account_for_user(
         Created account with derived balance fields
 
     Raises:
-        HTTPException: Account details, ownership, or linked plan are invalid
+        HTTPException: Account details, ownership, or linked tax-advantaged category are invalid
     """
     await validate_create_account_request(db, data)
     creation_scope = await resolve_account_creation_scope(db, user, data.group_id)
-    await validate_create_account_tax_advantaged_plan_link(db, data, creation_scope, user.id)
+    await validate_create_account_tax_advantaged_category_link(db, data, creation_scope, user.id)
 
     account = await create_account_with_initial_balance_history(db, data, creation_scope, user)
 
@@ -70,7 +70,7 @@ async def create_account_with_initial_balance_history(
         group_id=creation_scope.group_id,
         account_kind=data.account_kind,
         account_type=data.account_type,
-        tax_advantaged_plan_id=data.tax_advantaged_plan_id,
+        tax_advantaged_category_id=data.tax_advantaged_category_id,
         name=data.name,
         institution_id=data.institution_id,
         currency=data.currency,

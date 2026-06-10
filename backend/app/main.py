@@ -16,7 +16,7 @@ from app.routes.institution import router as institution_router
 from app.routes.merchants import router as merchant_router
 from app.routes.runway import router as runway_router
 from app.routes.tags import router as tag_router
-from app.routes.tax_advantaged_plans import router as tax_advantaged_plan_router
+from app.routes.tax_advantaged_categories import router as tax_advantaged_category_router
 from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 
@@ -40,7 +40,7 @@ app.include_router(runway_router)
 app.include_router(currency_router)
 app.include_router(institution_router)
 app.include_router(account_router)
-app.include_router(tax_advantaged_plan_router)
+app.include_router(tax_advantaged_category_router)
 app.include_router(category_router)
 app.include_router(merchant_router)
 app.include_router(tag_router)

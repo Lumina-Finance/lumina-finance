@@ -41,7 +41,7 @@ async def create_import_account(
         group_id=None,
         account_kind=ACCOUNT_KIND_BY_TYPE[account_type],
         account_type=account_type,
-        tax_advantaged_plan_id=None,
+        tax_advantaged_category_id=None,
         name=strip_import_text_or_raise(create.name, "Account name"),
         institution_id=create.institution_id,
         currency=currency,

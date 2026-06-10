@@ -155,7 +155,7 @@ async def test_list_accounts_returns_overview_shape(client):
 
     assert resp.status_code == 200
     row = resp.json()[0]
-    # Detail-only and plan-level tax fields are excluded from the overview shape
+    # Detail-only and tax-advantaged-category-level tax fields are excluded from the overview shape
     assert "created_at" not in row
     for field in (
         "tax_treatment",
@@ -173,7 +173,7 @@ async def test_list_accounts_returns_overview_shape(client):
     # Overview fields are present
     for field in (
         "id", "owner_id", "group_id", "account_kind", "account_type", "name",
-        "tax_advantaged_plan_id", "currency", "institution", "current_balance",
+        "tax_advantaged_category_id", "currency", "institution", "current_balance",
         "base_currency_current_balance", "current_balance_fx_status", "credit_limit",
         "is_archived", "closed_at",
     ):

@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 
-import app.services.tax_advantaged_plans as plan_services
+import app.services.tax_advantaged_categories as tax_advantaged_category_services
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
@@ -28,15 +28,15 @@ async def _create_group(client, headers, **overrides):
     return await client.post("/groups", json={"name": "Household", **overrides}, headers=headers)
 
 
-async def _create_plan(client, headers, **overrides):
-    """Create a tax-advantaged plan."""
+async def _create_tax_advantaged_category(client, headers, **overrides):
+    """Create a tax-advantaged category."""
     payload = {
         "name": "TFSA",
         "tax_treatment": "tax_free",
         "currency": "CAD",
         **overrides,
     }
-    return await client.post("/tax-advantaged-plans", json=payload, headers=headers)
+    return await client.post("/tax-advantaged-categories", json=payload, headers=headers)
 
 
 async def _seed_category(owner_id, kind: CategoryKind, name: str):
@@ -90,17 +90,17 @@ async def _seed_transaction(account_id, category_id, created_by_user_id, amount:
         await session.commit()
 
 
-async def test_create_plan_returns_201_with_shape(client):
-    """Owner can create a personal plan."""
+async def test_create_tax_advantaged_category_returns_201_with_shape(client):
+    """Owner can create a personal tax-advantaged category."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
 
-    resp = await _create_plan(client, headers, lifetime_contribution_limit=9_500_000)
+    resp = await _create_tax_advantaged_category(client, headers, lifetime_contribution_limit=9_500_000)
 
     assert resp.status_code == 201
     data = resp.json()
-    assert data["plan_owner_user_id"] == user_id
+    assert data["category_owner_user_id"] == user_id
     assert data["group_id"] is None
     assert data["name"] == "TFSA"
     assert data["tax_treatment"] == "tax_free"
@@ -117,67 +117,67 @@ async def test_create_plan_returns_201_with_shape(client):
     assert data["created_at"] is not None
 
 
-async def test_create_plan_rejects_taxable_treatment(client):
-    """Taxable is not a plan treatment."""
+async def test_create_tax_advantaged_category_rejects_taxable_treatment(client):
+    """Taxable is not a tax-advantaged category treatment."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_plan(client, headers, tax_treatment="taxable")
+    resp = await _create_tax_advantaged_category(client, headers, tax_treatment="taxable")
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Tax-advantaged plans require a non-taxable tax treatment"
+    assert resp.json()["detail"] == "Tax-advantaged categories require a non-taxable tax treatment"
 
 
-async def test_create_group_scoped_plan_requires_membership(client):
-    """Only group members can create a plan in that group context."""
+async def test_create_group_scoped_tax_advantaged_category_requires_membership(client):
+    """Only group members can create a tax-advantaged category in that group context."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     group_id = (await _create_group(client, headers)).json()["id"]
     other_headers = _get_auth_header(await _create_second_user(client))
 
-    resp = await _create_plan(client, other_headers, group_id=group_id)
+    resp = await _create_tax_advantaged_category(client, other_headers, group_id=group_id)
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Group not found"
 
 
-async def test_list_plans_only_returns_owned_plans(client):
-    """Users only list plans they own."""
+async def test_list_tax_advantaged_categories_only_returns_owned_tax_advantaged_categories(client):
+    """Users only list tax-advantaged categories they own."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    await _create_plan(client, headers, name="Mine")
+    await _create_tax_advantaged_category(client, headers, name="Mine")
 
     other_headers = _get_auth_header(await _create_second_user(client))
-    await _create_plan(client, other_headers, name="Theirs")
+    await _create_tax_advantaged_category(client, other_headers, name="Theirs")
 
-    resp = await client.get("/tax-advantaged-plans", headers=headers)
+    resp = await client.get("/tax-advantaged-categories", headers=headers)
 
     assert resp.status_code == 200
     assert [row["name"] for row in resp.json()] == ["Mine"]
 
 
-async def test_other_user_cannot_read_or_update_plan(client):
-    """Plan owner is the only manager."""
+async def test_other_user_cannot_read_or_update_tax_advantaged_category(client):
+    """Category owner is the only manager."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
     other_headers = _get_auth_header(await _create_second_user(client))
 
-    get_resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=other_headers)
-    patch_resp = await client.patch(f"/tax-advantaged-plans/{plan_id}", json={"name": "Nope"}, headers=other_headers)
+    get_resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=other_headers)
+    patch_resp = await client.patch(f"/tax-advantaged-categories/{tax_advantaged_category_id}", json={"name": "Nope"}, headers=other_headers)
 
     assert get_resp.status_code == 404
     assert patch_resp.status_code == 404
 
 
-async def test_owner_can_update_and_delete_plan(client):
-    """Owner can update mutable plan fields and delete the plan."""
+async def test_owner_can_update_and_delete_tax_advantaged_category(client):
+    """Owner can update mutable category fields and delete the tax-advantaged category"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
 
     patch = await client.patch(
-        f"/tax-advantaged-plans/{plan_id}",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}",
         json={
             "name": "RRSP",
             "tax_treatment": "tax_deferred",
@@ -186,8 +186,8 @@ async def test_owner_can_update_and_delete_plan(client):
         },
         headers=headers,
     )
-    delete = await client.delete(f"/tax-advantaged-plans/{plan_id}", headers=headers)
-    get_after_delete = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    delete = await client.delete(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
+    get_after_delete = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert patch.status_code == 200
     assert patch.json()["name"] == "RRSP"
@@ -198,14 +198,14 @@ async def test_owner_can_update_and_delete_plan(client):
     assert get_after_delete.status_code == 404
 
 
-async def test_plan_limits_crud(client):
-    """Owner can manage yearly plan limits."""
+async def test_tax_advantaged_category_limits_crud(client):
+    """Owner can manage yearly TAC limits."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
 
     create = await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={
             "year": 2026,
             "contribution_limit": 700_000,
@@ -216,18 +216,18 @@ async def test_plan_limits_crud(client):
         headers=headers,
     )
     duplicate = await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={"year": 2026, "contribution_limit": 800_000},
         headers=headers,
     )
     patch = await client.patch(
-        f"/tax-advantaged-plans/{plan_id}/limits/2026",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits/2026",
         json={"withdrawal_limit": None, "accrued_contributions": 120_000, "accrued_withdrawals": 30_000},
         headers=headers,
     )
-    listed = await client.get(f"/tax-advantaged-plans/{plan_id}/limits", headers=headers)
-    delete = await client.delete(f"/tax-advantaged-plans/{plan_id}/limits/2026", headers=headers)
-    empty = await client.get(f"/tax-advantaged-plans/{plan_id}/limits", headers=headers)
+    listed = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits", headers=headers)
+    delete = await client.delete(f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits/2026", headers=headers)
+    empty = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits", headers=headers)
 
     assert create.status_code == 201
     assert create.json()["contribution_limit"] == 700_000
@@ -244,57 +244,57 @@ async def test_plan_limits_crud(client):
     assert empty.json() == []
 
 
-async def test_plan_detail_surfaces_current_year_limits(client):
-    """Current-year limits are exposed on plan detail."""
+async def test_tax_advantaged_category_detail_surfaces_current_year_limits(client):
+    """Current-year limits are exposed on tax-advantaged category detail."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
     current_year = datetime.now(UTC).year
     await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={"year": current_year, "contribution_limit": 700_000},
         headers=headers,
     )
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["current_year_contribution_limit"] == 700_000
     assert resp.json()["current_year_withdrawal_limit"] is None
 
 
-async def test_plan_detail_surfaces_accrued_lifetime_limit(client):
+async def test_tax_advantaged_category_detail_surfaces_accrued_lifetime_limit(client):
     """Accrued lifetime contribution room is summed through the owner's current year."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers, lifetime_contribution_limit=1_200_000)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers, lifetime_contribution_limit=1_200_000)).json()["id"]
     current_year = datetime.now(UTC).year
 
     await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={"year": current_year - 1, "contribution_limit": 700_000},
         headers=headers,
     )
     await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={"year": current_year, "contribution_limit": 800_000},
         headers=headers,
     )
     await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={"year": current_year + 1, "contribution_limit": 900_000},
         headers=headers,
     )
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["current_year_contribution_limit"] == 800_000
     assert resp.json()["accrued_lifetime_contribution_limit"] == 1_200_000
 
 
-async def test_plan_metrics_use_plan_owner_timezone_for_current_year(client, monkeypatch):
-    """Current-year limits and YTD activity follow the plan owner's timezone."""
+async def test_tax_advantaged_category_metrics_use_tax_advantaged_category_owner_timezone_for_current_year(client, monkeypatch):
+    """Current-year limits and YTD activity follow the category owner's timezone."""
 
     class FrozenDateTime:
         """Clock fixed at Jan 1 UTC while Toronto is still Dec 31."""
@@ -312,28 +312,28 @@ async def test_plan_metrics_use_plan_owner_timezone_for_current_year(client, mon
             instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
             return instant.astimezone(tz) if tz else instant
 
-    monkeypatch.setattr(plan_services, "datetime", FrozenDateTime)
+    monkeypatch.setattr(tax_advantaged_category_services, "datetime", FrozenDateTime)
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    plan_id = (await _create_plan(client, headers)).json()["id"]
-    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_category_id=tax_advantaged_category_id)).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
 
     await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={"year": 2025, "contribution_limit": 700_000},
         headers=headers,
     )
     await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={"year": 2026, "contribution_limit": 800_000},
         headers=headers,
     )
     await _seed_transaction(account_id, transfer_id, user_id, 25_000, date(2025, 12, 31))
     await _seed_transaction(account_id, transfer_id, user_id, 26_000, date(2026, 1, 1))
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["current_year_contribution_limit"] == 700_000
@@ -341,14 +341,18 @@ async def test_plan_metrics_use_plan_owner_timezone_for_current_year(client, mon
     assert resp.json()["lifetime_contributions"] == 51_000
 
 
-async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(client):
-    """Plan detail aggregates transfer activity from all linked accounts."""
+async def test_tax_advantaged_category_detail_aggregates_transfer_activity_across_linked_accounts(client):
+    """Tax-advantaged category detail aggregates transfer activity from all linked accounts."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    plan_id = (await _create_plan(client, headers)).json()["id"]
-    first_account_id = (await _create_account(client, headers, name="TFSA A", tax_advantaged_plan_id=plan_id)).json()["id"]
-    second_account_id = (await _create_account(client, headers, name="TFSA B", tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    first_account_id = (
+        await _create_account(client, headers, name="TFSA A", tax_advantaged_category_id=tax_advantaged_category_id)
+    ).json()["id"]
+    second_account_id = (
+        await _create_account(client, headers, name="TFSA B", tax_advantaged_category_id=tax_advantaged_category_id)
+    ).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
     expense_id = await _seed_category(user_id, CategoryKind.EXPENSE, "Plan Groceries")
     income_id = await _seed_category(user_id, CategoryKind.INCOME, "Plan Salary")
@@ -362,7 +366,7 @@ async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(c
     await _seed_transaction(first_account_id, expense_id, user_id, -99_000, date(current_year, 7, 1))
     await _seed_transaction(first_account_id, income_id, user_id, 88_000, date(current_year, 8, 1))
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["ytd_contributions"] == 80_000
@@ -371,17 +375,17 @@ async def test_plan_detail_aggregates_transfer_activity_across_linked_accounts(c
     assert resp.json()["lifetime_withdrawals"] == 15_000
 
 
-async def test_plan_metrics_include_accrued_activity(client):
-    """Plan metrics include user-entered activity from before Lumina tracking."""
+async def test_tax_advantaged_category_metrics_include_accrued_activity(client):
+    """Tax-advantaged category metrics include user-entered activity from before Lumina tracking."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    plan_id = (await _create_plan(client, headers, accrued_contributions=90_000)).json()["id"]
-    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers, accrued_contributions=90_000)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_category_id=tax_advantaged_category_id)).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
     await client.post(
-        f"/tax-advantaged-plans/{plan_id}/limits",
+        f"/tax-advantaged-categories/{tax_advantaged_category_id}/limits",
         json={
             "year": current_year,
             "contribution_limit": 700_000,
@@ -395,7 +399,7 @@ async def test_plan_metrics_include_accrued_activity(client):
     await _seed_transaction(account_id, transfer_id, user_id, -4_000, date(current_year, 3, 1))
     await _seed_transaction(account_id, transfer_id, user_id, 30_000, date(current_year - 1, 4, 1))
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["ytd_contributions"] == 30_000
@@ -403,13 +407,15 @@ async def test_plan_metrics_include_accrued_activity(client):
     assert resp.json()["lifetime_contributions"] == 140_000
 
 
-async def test_plan_detail_includes_archived_linked_account_activity(client):
+async def test_tax_advantaged_category_detail_includes_archived_linked_account_activity(client):
     """Archived linked accounts still count historical transfer activity."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    plan_id = (await _create_plan(client, headers)).json()["id"]
-    account_id = (await _create_account(client, headers, name="Archived TFSA", tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    account_id = (
+        await _create_account(client, headers, name="Archived TFSA", tax_advantaged_category_id=tax_advantaged_category_id)
+    ).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
 
@@ -418,7 +424,7 @@ async def test_plan_detail_includes_archived_linked_account_activity(client):
     archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
     assert archive_resp.status_code == 200
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["ytd_contributions"] == 40_000
@@ -427,13 +433,13 @@ async def test_plan_detail_includes_archived_linked_account_activity(client):
     assert resp.json()["lifetime_withdrawals"] == 5_000
 
 
-async def test_plan_metrics_only_count_transfer_category(client):
+async def test_tax_advantaged_category_metrics_only_count_transfer_category(client):
     """Only the seeded Transfer category counts as TAC activity."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
-    plan_id = (await _create_plan(client, headers)).json()["id"]
-    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_category_id=tax_advantaged_category_id)).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
     balance_adjustment_id = await _get_system_category_id("Balance Adjustment")
     credit_card_payment_id = await _get_system_category_id("Credit Card Payment")
@@ -445,7 +451,7 @@ async def test_plan_metrics_only_count_transfer_category(client):
     await _seed_transaction(account_id, balance_adjustment_id, user_id, -888_000, date(current_year, 5, 1))
     await _seed_transaction(account_id, credit_card_payment_id, user_id, 777_000, date(current_year - 1, 6, 1))
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["ytd_contributions"] == 50_000
@@ -454,8 +460,8 @@ async def test_plan_metrics_only_count_transfer_category(client):
     assert resp.json()["lifetime_withdrawals"] == 10_000
 
 
-async def test_group_plan_counts_transaction_created_by_non_owner(client):
-    """Group account activity tallies to the linked plan owner, not transaction creator."""
+async def test_group_tax_advantaged_category_counts_transaction_created_by_non_owner(client):
+    """Group account activity tallies to the linked category owner, not transaction creator."""
     owner_resp = await _create_user(client)
     owner_headers = _get_auth_header(owner_resp)
     owner_id = owner_resp.json()["user"]["id"]
@@ -466,16 +472,18 @@ async def test_group_plan_counts_transaction_created_by_non_owner(client):
     add_member = await client.post(f"/groups/{group_id}/members", json={"user_id": member_user_id}, headers=owner_headers)
     assert add_member.status_code == 201
 
-    plan_id = (await _create_plan(client, owner_headers, group_id=group_id)).json()["id"]
-    account_id = (await _create_account(client, owner_headers, group_id=group_id, tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, owner_headers, group_id=group_id)).json()["id"]
+    account_id = (
+        await _create_account(client, owner_headers, group_id=group_id, tax_advantaged_category_id=tax_advantaged_category_id)
+    ).json()["id"]
     transfer_id = await _get_system_category_id("Transfer")
     current_year = datetime.now(UTC).year
     await _seed_transaction(account_id, transfer_id, member_user_id, 123_000, date(current_year, 2, 1))
 
-    resp = await client.get(f"/tax-advantaged-plans/{plan_id}", headers=owner_headers)
+    resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=owner_headers)
 
     assert resp.status_code == 200
-    assert resp.json()["plan_owner_user_id"] == owner_id
+    assert resp.json()["category_owner_user_id"] == owner_id
     assert resp.json()["ytd_contributions"] == 123_000
     assert resp.json()["lifetime_contributions"] == 123_000
     assert resp.json()["ytd_withdrawals"] == 0

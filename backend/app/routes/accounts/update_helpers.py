@@ -14,7 +14,7 @@ from app.routes.accounts.balance_adjustment_helpers import zero_account_balance_
 from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
 from app.routes.accounts.request_validation_helpers import validate_update_account_request
 from app.routes.accounts.response_loading_helpers import get_account_for_response
-from app.routes.accounts.tax_advantaged_plan_link_helpers import validate_update_account_tax_advantaged_plan_link
+from app.routes.accounts.tax_advantaged_category_link_helpers import validate_update_account_tax_advantaged_category_link
 from app.schemas.account import UpdateAccountRequest
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -49,7 +49,7 @@ async def update_account_for_user(
         return account
 
     await validate_update_account_request(db, account, updates)
-    await validate_update_account_tax_advantaged_plan_link(db, account, updates, user.id)
+    await validate_update_account_tax_advantaged_category_link(db, account, updates, user.id)
     await apply_account_updates(db, account, updates, user, response_date)
 
     # Mark the account scope stale before returning the account with derived fields

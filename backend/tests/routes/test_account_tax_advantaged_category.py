@@ -30,8 +30,8 @@ async def _create_second_user(client):
     })
 
 
-async def _create_plan(client, headers, **overrides):
-    """Create a tax-advantaged plan.
+async def _create_tax_advantaged_category(client, headers, **overrides):
+    """Create a tax-advantaged category.
 
     Args:
         client: The async test client.
@@ -47,7 +47,7 @@ async def _create_plan(client, headers, **overrides):
         "currency": "CAD",
         **overrides,
     }
-    return await client.post("/tax-advantaged-plans", json=payload, headers=headers)
+    return await client.post("/tax-advantaged-categories", json=payload, headers=headers)
 
 
 async def _create_group(client, headers):
@@ -65,24 +65,24 @@ async def _create_group(client, headers):
     return resp.json()["id"]
 
 
-async def test_create_personal_account_can_link_owned_plan(client):
-    """Personal account can link a personal plan owned by the same user."""
+async def test_create_personal_account_can_link_owned_tax_advantaged_category(client):
+    """Personal account can link a personal tax-advantaged category owned by the same user."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
 
-    resp = await _create_account(client, headers, tax_advantaged_plan_id=plan_id)
+    resp = await _create_account(client, headers, tax_advantaged_category_id=tax_advantaged_category_id)
 
     assert resp.status_code == 201
-    assert resp.json()["tax_advantaged_plan_id"] == plan_id
+    assert resp.json()["tax_advantaged_category_id"] == tax_advantaged_category_id
 
 
-async def test_list_accounts_includes_tax_advantaged_plan_id(client):
-    """Account overviews include the linked plan id."""
+async def test_list_accounts_includes_tax_advantaged_category_id(client):
+    """Account overviews include the linked tax-advantaged category id."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
-    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_category_id=tax_advantaged_category_id)).json()["id"]
 
     resp = await client.get("/accounts", headers=headers)
 
@@ -94,7 +94,7 @@ async def test_list_accounts_includes_tax_advantaged_plan_id(client):
             "group_id": None,
             "account_kind": "asset",
             "account_type": "checking",
-            "tax_advantaged_plan_id": plan_id,
+            "tax_advantaged_category_id": tax_advantaged_category_id,
             "name": "Main Chequing",
             "institution": None,
             "currency": "CAD",
@@ -108,146 +108,146 @@ async def test_list_accounts_includes_tax_advantaged_plan_id(client):
     ]
 
 
-async def test_update_personal_account_can_link_and_unlink_owned_plan(client):
-    """Personal account owner can link and unlink an owned plan."""
+async def test_update_personal_account_can_link_and_unlink_owned_tax_advantaged_category(client):
+    """Personal account owner can link and unlink an owned tax-advantaged category."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
     account_id = (await _create_account(client, headers)).json()["id"]
 
     link_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_advantaged_plan_id": plan_id},
+        json={"tax_advantaged_category_id": tax_advantaged_category_id},
         headers=headers,
     )
     unlink_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_advantaged_plan_id": None},
+        json={"tax_advantaged_category_id": None},
         headers=headers,
     )
 
     assert link_resp.status_code == 200
-    assert link_resp.json()["tax_advantaged_plan_id"] == plan_id
+    assert link_resp.json()["tax_advantaged_category_id"] == tax_advantaged_category_id
     assert unlink_resp.status_code == 200
-    assert unlink_resp.json()["tax_advantaged_plan_id"] is None
+    assert unlink_resp.json()["tax_advantaged_category_id"] is None
 
 
-async def test_delete_linked_plan_nulls_account_link(client):
-    """Deleting a linked plan leaves the account and clears its FK."""
+async def test_delete_linked_tax_advantaged_category_nulls_account_link(client):
+    """Deleting a linked tax-advantaged category leaves the account and clears its FK."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
-    account_id = (await _create_account(client, headers, tax_advantaged_plan_id=plan_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    account_id = (await _create_account(client, headers, tax_advantaged_category_id=tax_advantaged_category_id)).json()["id"]
 
-    delete_resp = await client.delete(f"/tax-advantaged-plans/{plan_id}", headers=headers)
+    delete_resp = await client.delete(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
     account_resp = await client.get(f"/accounts/{account_id}", headers=headers)
 
     assert delete_resp.status_code == 204
     assert account_resp.status_code == 200
-    assert account_resp.json()["tax_advantaged_plan_id"] is None
+    assert account_resp.json()["tax_advantaged_category_id"] is None
 
 
-async def test_create_account_rejects_nonexistent_plan_link(client):
-    """Account creation rejects a missing tax-advantaged plan id."""
+async def test_create_account_rejects_nonexistent_tax_advantaged_category_link(client):
+    """Account creation rejects a missing tax-advantaged category id."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_account(client, headers, tax_advantaged_plan_id=NONEXISTENT_ID)
+    resp = await _create_account(client, headers, tax_advantaged_category_id=NONEXISTENT_ID)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Invalid tax-advantaged plan"
+    assert resp.json()["detail"] == "Invalid tax-advantaged category"
 
 
-async def test_create_account_rejects_plan_link_for_liability_account(client):
-    """Only asset accounts can link tax-advantaged plans."""
+async def test_create_account_rejects_tax_advantaged_category_link_for_liability_account(client):
+    """Only asset accounts can link tax-advantaged categories."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
 
     resp = await _create_account(
         client,
         headers,
         account_kind="revolving",
         account_type="credit_card",
-        tax_advantaged_plan_id=plan_id,
+        tax_advantaged_category_id=tax_advantaged_category_id,
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Tax-advantaged plans can only be linked to asset accounts"
+    assert resp.json()["detail"] == "Tax-advantaged categories can only be linked to asset accounts"
 
 
-async def test_create_account_rejects_plan_currency_mismatch(client):
-    """Account and linked plan must use the same currency."""
+async def test_create_account_rejects_tax_advantaged_category_currency_mismatch(client):
+    """Account and linked tax-advantaged category must use the same currency."""
     await _seed_usd_currency()
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    usd_plan_id = (await _create_plan(client, headers, currency="USD")).json()["id"]
+    usd_tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers, currency="USD")).json()["id"]
 
-    resp = await _create_account(client, headers, tax_advantaged_plan_id=usd_plan_id)
+    resp = await _create_account(client, headers, tax_advantaged_category_id=usd_tax_advantaged_category_id)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Tax-advantaged plan currency must match account currency"
+    assert resp.json()["detail"] == "Tax-advantaged category currency must match account currency"
 
 
-async def test_create_personal_account_rejects_other_users_plan(client):
-    """Personal accounts can only link plans owned by the account owner."""
+async def test_create_personal_account_rejects_other_users_tax_advantaged_category(client):
+    """Personal accounts can only link tax-advantaged categories owned by the account owner."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     other_headers = _get_auth_header(await _create_second_user(client))
-    other_plan_id = (await _create_plan(client, other_headers)).json()["id"]
+    other_tax_advantaged_category_id = (await _create_tax_advantaged_category(client, other_headers)).json()["id"]
 
-    resp = await _create_account(client, headers, tax_advantaged_plan_id=other_plan_id)
+    resp = await _create_account(client, headers, tax_advantaged_category_id=other_tax_advantaged_category_id)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Invalid tax-advantaged plan"
+    assert resp.json()["detail"] == "Invalid tax-advantaged category"
 
 
-async def test_create_personal_account_rejects_group_scoped_plan(client):
-    """Personal accounts cannot link plans scoped to a group."""
+async def test_create_personal_account_rejects_group_scoped_tax_advantaged_category(client):
+    """Personal accounts cannot link tax-advantaged categories scoped to a group."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     group_id = await _create_group(client, headers)
-    group_plan_id = (await _create_plan(client, headers, group_id=group_id)).json()["id"]
+    group_tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers, group_id=group_id)).json()["id"]
 
-    resp = await _create_account(client, headers, tax_advantaged_plan_id=group_plan_id)
+    resp = await _create_account(client, headers, tax_advantaged_category_id=group_tax_advantaged_category_id)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Invalid tax-advantaged plan"
+    assert resp.json()["detail"] == "Invalid tax-advantaged category"
 
 
-async def test_create_group_account_can_link_same_group_plan(client):
-    """Group account can link a same-group plan at creation time."""
+async def test_create_group_account_can_link_same_group_tax_advantaged_category(client):
+    """Group account can link a same-group tax-advantaged category at creation time."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     group_id = await _create_group(client, headers)
-    plan_id = (await _create_plan(client, headers, group_id=group_id)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers, group_id=group_id)).json()["id"]
 
-    resp = await _create_account(client, headers, group_id=group_id, tax_advantaged_plan_id=plan_id)
+    resp = await _create_account(client, headers, group_id=group_id, tax_advantaged_category_id=tax_advantaged_category_id)
 
     assert resp.status_code == 201
-    assert resp.json()["tax_advantaged_plan_id"] == plan_id
+    assert resp.json()["tax_advantaged_category_id"] == tax_advantaged_category_id
 
 
-async def test_group_account_rejects_personal_plan(client):
-    """Group accounts cannot link personal plans."""
+async def test_group_account_rejects_personal_tax_advantaged_category(client):
+    """Group accounts cannot link personal tax-advantaged categorys."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     group_id = await _create_group(client, headers)
-    personal_plan_id = (await _create_plan(client, headers)).json()["id"]
+    personal_tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
     account_id = (await _create_account(client, headers, group_id=group_id)).json()["id"]
 
     resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_advantaged_plan_id": personal_plan_id},
+        json={"tax_advantaged_category_id": personal_tax_advantaged_category_id},
         headers=headers,
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Invalid tax-advantaged plan"
+    assert resp.json()["detail"] == "Invalid tax-advantaged category"
 
 
-async def test_group_account_link_requires_acting_plan_owner_admin(client):
-    """Group account plans can only be linked by the plan owner when they are an account admin."""
+async def test_group_account_link_requires_acting_tax_advantaged_category_owner_admin(client):
+    """Group account tax-advantaged categories can only be linked by the category owner when they are an account admin."""
     owner_resp = await _create_user(client)
     owner_headers = _get_auth_header(owner_resp)
     group_id = await _create_group(client, owner_headers)
@@ -264,28 +264,28 @@ async def test_group_account_link_requires_acting_plan_owner_admin(client):
     assert add_member.status_code == 201
     assert promote.status_code == 200
 
-    member_plan_id = (await _create_plan(client, member_headers, group_id=group_id)).json()["id"]
+    member_tax_advantaged_category_id = (await _create_tax_advantaged_category(client, member_headers, group_id=group_id)).json()["id"]
     account_id = (await _create_account(client, owner_headers, group_id=group_id)).json()["id"]
 
     owner_link_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_advantaged_plan_id": member_plan_id},
+        json={"tax_advantaged_category_id": member_tax_advantaged_category_id},
         headers=owner_headers,
     )
     member_link_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_advantaged_plan_id": member_plan_id},
+        json={"tax_advantaged_category_id": member_tax_advantaged_category_id},
         headers=member_headers,
     )
 
     assert owner_link_resp.status_code == 422
-    assert owner_link_resp.json()["detail"] == "Only the plan owner can link this plan to a group account"
+    assert owner_link_resp.json()["detail"] == "Only the category owner can link this tax-advantaged category to a group account"
     assert member_link_resp.status_code == 200
-    assert member_link_resp.json()["tax_advantaged_plan_id"] == member_plan_id
+    assert member_link_resp.json()["tax_advantaged_category_id"] == member_tax_advantaged_category_id
 
 
-async def test_group_account_rejects_plan_owner_without_account_admin_access(client):
-    """A group plan owner still needs account admin access to link their plan."""
+async def test_group_account_rejects_tax_advantaged_category_owner_without_account_admin_access(client):
+    """A group category owner still needs account admin access to link their tax-advantaged category"""
     owner_resp = await _create_user(client)
     owner_headers = _get_auth_header(owner_resp)
     group_id = await _create_group(client, owner_headers)
@@ -296,34 +296,36 @@ async def test_group_account_rejects_plan_owner_without_account_admin_access(cli
     add_member = await client.post(f"/groups/{group_id}/members", json={"user_id": member_user_id}, headers=owner_headers)
     assert add_member.status_code == 201
 
-    member_plan_id = (await _create_plan(client, member_headers, group_id=group_id)).json()["id"]
+    member_tax_advantaged_category_id = (await _create_tax_advantaged_category(client, member_headers, group_id=group_id)).json()["id"]
     account_id = (await _create_account(client, owner_headers, group_id=group_id)).json()["id"]
 
     resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_advantaged_plan_id": member_plan_id},
+        json={"tax_advantaged_category_id": member_tax_advantaged_category_id},
         headers=member_headers,
     )
     account_resp = await client.get(f"/accounts/{account_id}", headers=owner_headers)
 
     assert resp.status_code == 404
-    assert account_resp.json()["tax_advantaged_plan_id"] is None
+    assert account_resp.json()["tax_advantaged_category_id"] is None
 
 
-async def test_group_account_rejects_plan_from_different_group(client):
-    """Group account can only link plans scoped to the same group."""
+async def test_group_account_rejects_tax_advantaged_category_from_different_group(client):
+    """Group account can only link tax-advantaged categories scoped to the same group."""
     owner_resp = await _create_user(client)
     owner_headers = _get_auth_header(owner_resp)
     first_group_id = await _create_group(client, owner_headers)
     second_group_id = (await client.post("/groups", json={"name": "Other Household"}, headers=owner_headers)).json()["id"]
-    other_group_plan_id = (await _create_plan(client, owner_headers, group_id=second_group_id)).json()["id"]
+    other_group_tax_advantaged_category_id = (
+        await _create_tax_advantaged_category(client, owner_headers, group_id=second_group_id)
+    ).json()["id"]
     account_id = (await _create_account(client, owner_headers, group_id=first_group_id)).json()["id"]
 
     resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"tax_advantaged_plan_id": other_group_plan_id},
+        json={"tax_advantaged_category_id": other_group_tax_advantaged_category_id},
         headers=owner_headers,
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Invalid tax-advantaged plan"
+    assert resp.json()["detail"] == "Invalid tax-advantaged category"

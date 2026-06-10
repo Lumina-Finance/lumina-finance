@@ -1,4 +1,4 @@
-"""Account and tax-advantaged plan models"""
+"""Account and tax-advantaged category models"""
 
 import uuid
 from datetime import date, datetime
@@ -23,7 +23,7 @@ from app.models.institution import Institution
 
 
 class Account(Base):
-    """Represents a real-world financial account. Owned by either a user or a group, never both."""
+    """Represent a real-world financial account owned by either a user or a group"""
 
     __tablename__ = "accounts"
     __table_args__ = (
@@ -38,8 +38,8 @@ class Account(Base):
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     account_kind: Mapped[AccountKind] = mapped_column(nullable=False)
     account_type: Mapped[AccountType] = mapped_column(nullable=False)
-    tax_advantaged_plan_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("tax_advantaged_plans.id", ondelete="SET NULL"),
+    tax_advantaged_category_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tax_advantaged_categories.id", ondelete="SET NULL"),
     )
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("institutions.id"))
@@ -52,7 +52,7 @@ class Account(Base):
 
 
 class AccountPermission(Base):
-    """Per-account permission for a group member. Admins have implicit full access."""
+    """Represent per-account permission for a group member"""
 
     __tablename__ = "account_permissions"
     __table_args__ = (
@@ -87,13 +87,13 @@ class AccountBalanceSnapshot(Base):
     dt: Mapped[date] = mapped_column(Date, primary_key=True, nullable=False)
 
 
-class TaxAdvantagedPlan(Base):
-    """Individual-owned tax-advantaged limit tracker."""
+class TaxAdvantagedCategory(Base):
+    """Represent an individual-owned tax-advantaged category"""
 
-    __tablename__ = "tax_advantaged_plans"
+    __tablename__ = "tax_advantaged_categories"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    plan_owner_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category_owner_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False)
@@ -108,13 +108,13 @@ class TaxAdvantagedPlan(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
-class TaxAdvantagedPlanLimit(Base):
-    """Per-plan, per-year contribution and withdrawal limits."""
+class TaxAdvantagedCategoryLimit(Base):
+    """Represent per-category, per-year contribution and withdrawal limits"""
 
-    __tablename__ = "tax_advantaged_plan_limits"
+    __tablename__ = "tax_advantaged_category_limits"
 
-    plan_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("tax_advantaged_plans.id", ondelete="CASCADE"), primary_key=True, nullable=False
+    tax_advantaged_category_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tax_advantaged_categories.id", ondelete="CASCADE"), primary_key=True, nullable=False
     )
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True, nullable=False)
     contribution_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Annual limit in currency base units

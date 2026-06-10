@@ -24,15 +24,15 @@ async def _seed_currency(currency_id: str, name: str, symbol: str, minor_unit_ex
         await session.commit()
 
 
-async def _create_plan(client, headers, **overrides):
-    """Create a tax-advantaged plan."""
+async def _create_tax_advantaged_category(client, headers, **overrides):
+    """Create a tax-advantaged category."""
     payload = {
         "name": "TFSA",
         "tax_treatment": "tax_free",
         "currency": "CAD",
         **overrides,
     }
-    return await client.post("/tax-advantaged-plans", json=payload, headers=headers)
+    return await client.post("/tax-advantaged-categories", json=payload, headers=headers)
 
 
 async def test_net_worth_returns_compact_daily_signed_group_series(client):
@@ -93,20 +93,20 @@ async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
     """Tax wrappers do not override the underlying asset composition."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    plan_id = (await _create_plan(client, headers)).json()["id"]
+    tax_advantaged_category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
     savings_account = (await _create_account(
         client,
         headers,
         account_type="savings",
         name="TFSA Savings",
-        tax_advantaged_plan_id=plan_id,
+        tax_advantaged_category_id=tax_advantaged_category_id,
     )).json()
     investment_account = (await _create_account(
         client,
         headers,
         account_type="investment",
         name="TFSA Investment",
-        tax_advantaged_plan_id=plan_id,
+        tax_advantaged_category_id=tax_advantaged_category_id,
     )).json()
 
     async with TestSession() as session:

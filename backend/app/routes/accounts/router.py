@@ -154,7 +154,7 @@ async def create_account(
         Created account with derived balance fields
 
     Raises:
-        HTTPException: Account details, ownership, or linked plan are invalid
+        HTTPException: Account details, ownership, or linked tax-advantaged category are invalid
     """
     account = await create_account_for_user(db, user, data)
     return account

@@ -7,28 +7,28 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import TaxAdvantagedPlanLimit
-from app.schemas.tax_advantaged_plan import CreateTaxAdvantagedPlanLimitRequest
+from app.models.account import TaxAdvantagedCategoryLimit
+from app.schemas.tax_advantaged_category import CreateTaxAdvantagedCategoryLimitRequest
 
 
-async def get_tac_limits_for_plan(
+async def get_tac_limits_for_tax_advantaged_category(
     db: AsyncSession,
-    plan_id: uuid.UUID,
-) -> Sequence[TaxAdvantagedPlanLimit]:
-    """Return TAC limit rows for a tax-advantaged plan
+    tax_advantaged_category_id: uuid.UUID,
+) -> Sequence[TaxAdvantagedCategoryLimit]:
+    """Return TAC limit rows for a tax-advantaged category
 
     Args:
         db: Active database session
-        plan_id: Plan identifier whose limits should be listed
+        tax_advantaged_category_id: Tax-advantaged category identifier whose limits should be listed
 
     Returns:
         TAC limit rows ordered by year
     """
-    # Fetch every yearly limit row for the owned plan in chronological order
+    # Fetch every yearly limit row for the owned tax-advantaged category in chronological order
     result = await db.execute(
-        select(TaxAdvantagedPlanLimit)
-        .where(TaxAdvantagedPlanLimit.plan_id == plan_id)
-        .order_by(TaxAdvantagedPlanLimit.year),
+        select(TaxAdvantagedCategoryLimit)
+        .where(TaxAdvantagedCategoryLimit.tax_advantaged_category_id == tax_advantaged_category_id)
+        .order_by(TaxAdvantagedCategoryLimit.year),
     )
     limit_rows = result.scalars().all()
     return limit_rows
@@ -36,40 +36,40 @@ async def get_tac_limits_for_plan(
 
 async def validate_tac_limit_year_available(
     db: AsyncSession,
-    plan_id: uuid.UUID,
+    tax_advantaged_category_id: uuid.UUID,
     year: int,
 ) -> None:
-    """Validate that a TAC limit year is available for a plan
+    """Validate that a TAC limit year is available for a tax-advantaged category
 
     Args:
         db: Active database session
-        plan_id: Plan identifier that owns the limit row
+        tax_advantaged_category_id: Tax-advantaged category identifier that owns the limit row
         year: Year requested for the new TAC limit
 
     Raises:
-        HTTPException: Plan already has a limit row for the year
+        HTTPException: Tax-advantaged category already has a limit row for the year
     """
-    # Check the composite key before creating a yearly limit for this plan
-    existing_limit = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
+    # Check the composite key before creating a yearly limit for this tax-advantaged category
+    existing_limit = await db.get(TaxAdvantagedCategoryLimit, (tax_advantaged_category_id, year))
     if existing_limit:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A limit for this year already exists")
 
 
 def build_tac_limit(
-    plan_id: uuid.UUID,
-    data: CreateTaxAdvantagedPlanLimitRequest,
-) -> TaxAdvantagedPlanLimit:
+    tax_advantaged_category_id: uuid.UUID,
+    data: CreateTaxAdvantagedCategoryLimitRequest,
+) -> TaxAdvantagedCategoryLimit:
     """Build a TAC limit row from a creation request
 
     Args:
-        plan_id: Plan identifier that owns the limit row
+        tax_advantaged_category_id: Tax-advantaged category identifier that owns the limit row
         data: Yearly limit creation payload
 
     Returns:
         TAC limit row ready to add to the session
     """
-    limit_row = TaxAdvantagedPlanLimit(
-        plan_id=plan_id,
+    limit_row = TaxAdvantagedCategoryLimit(
+        tax_advantaged_category_id=tax_advantaged_category_id,
         year=data.year,
         contribution_limit=data.contribution_limit,
         withdrawal_limit=data.withdrawal_limit,
@@ -81,33 +81,33 @@ def build_tac_limit(
 
 async def get_tac_limit_or_404(
     db: AsyncSession,
-    plan_id: uuid.UUID,
+    tax_advantaged_category_id: uuid.UUID,
     year: int,
-) -> TaxAdvantagedPlanLimit:
-    """Return a TAC limit row for a plan and year
+) -> TaxAdvantagedCategoryLimit:
+    """Return a TAC limit row for a tax-advantaged category and year
 
     Args:
         db: Active database session
-        plan_id: Plan identifier that owns the limit row
+        tax_advantaged_category_id: Tax-advantaged category identifier that owns the limit row
         year: Year to fetch
 
     Returns:
-        TAC limit row for the requested plan and year
+        TAC limit row for the requested tax-advantaged category and year
 
     Raises:
         HTTPException: TAC limit row does not exist
     """
-    not_found_detail = "Tax-advantaged plan limit not found"
+    not_found_detail = "Tax-advantaged category limit not found"
 
-    # Fetch the limit row by plan and year after ownership has been verified
-    limit_row = await db.get(TaxAdvantagedPlanLimit, (plan_id, year))
+    # Fetch the limit row by category and year after ownership has been verified
+    limit_row = await db.get(TaxAdvantagedCategoryLimit, (tax_advantaged_category_id, year))
     if not limit_row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
     return limit_row
 
 
 def apply_tac_limit_updates(
-    limit_row: TaxAdvantagedPlanLimit,
+    limit_row: TaxAdvantagedCategoryLimit,
     updates: Mapping[str, Any],
 ) -> None:
     """Apply explicit update fields to a TAC limit row
@@ -122,7 +122,7 @@ def apply_tac_limit_updates(
     if "contribution_limit" in updates and updates["contribution_limit"] is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="contribution_limit cannot be cleared; delete the limit row instead",
+            detail="Delete the limit row instead of clearing contribution_limit",
         )
 
     for field, value in updates.items():
