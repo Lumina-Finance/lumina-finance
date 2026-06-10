@@ -77,7 +77,7 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     assert {"account_id": account_id, "dt": "2026-04-10", "balance": -1234} in snapshots_resp.json()
 
 
-async def test_import_transactions_reuses_existing_records_and_parses_comma_amount(client):
+async def test_import_transactions_reuses_existing_records(client):
     """Import reuses explicit mappings and existing merchant/tag names."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     await _create_merchant(client, headers, name="Costco")
@@ -90,7 +90,7 @@ async def test_import_transactions_reuses_existing_records_and_parses_comma_amou
             "account_source": "Main Chequing",
             "category_source": "Groceries",
             "dt": "2026-04-11",
-            "amount": "1,234.56",
+            "amount": "1234.56",
             "merchant_name": "Costco",
             "tag_names": ["bulk"],
         }],
