@@ -16,7 +16,7 @@ from app.routes.merchants.access_helpers import (
 from app.routes.merchants.merchant_creation_helpers import create_merchant_for_user
 from app.routes.merchants.merchant_listing_helpers import get_merchants_for_user
 from app.routes.merchants.merchant_update_helpers import update_merchant_for_user
-from app.routes.merchants.merge_helpers import get_merge_replacement_merchant, move_merchant_references
+from app.routes.merchants.merge_helpers import merge_merchant_into_replacement_for_user
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -128,15 +128,7 @@ async def merge_merchant(
         user: Authenticated user merging the merchant
         db: Active database session
     """
-    merchant = await get_accessible_merchant_or_404(db, merchant_id, user.id)
-    await require_group_merchant_admin(db, merchant, user.id)
-    replacement = await get_merge_replacement_merchant(db, merchant, data.replacement_merchant_id, user.id)
-    await move_merchant_references(db, merchant.id, replacement.id)
-    await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
-
-    # Delete the source merchant after all transaction references point to the replacement
-    await db.delete(merchant)
-    await db.commit()
+    await merge_merchant_into_replacement_for_user(db, merchant_id, data.replacement_merchant_id, user.id)
 
 
 @router.delete("/{merchant_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -8,7 +8,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
-from app.routes.merchants.access_helpers import get_personal_merchant_filter
+from app.routes.merchants.access_helpers import (
+    get_accessible_merchant_or_404,
+    get_personal_merchant_filter,
+    require_group_merchant_admin,
+)
+from app.services.cache_state import mark_cache_changed_for_scope
+
+
+async def merge_merchant_into_replacement_for_user(
+    db: AsyncSession,
+    merchant_id: uuid.UUID,
+    replacement_merchant_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> None:
+    """Merge a merchant into a replacement merchant for a user
+
+    Args:
+        db: Active database session
+        merchant_id: Merchant identifier from the route path
+        replacement_merchant_id: Merchant receiving the transaction references
+        user_id: Authenticated user identifier
+
+    Raises:
+        HTTPException: Merchant is inaccessible, replacement is invalid, or group admin access is missing
+    """
+    merchant = await get_accessible_merchant_or_404(db, merchant_id, user_id)
+    await require_group_merchant_admin(db, merchant, user_id)
+    replacement = await get_merge_replacement_merchant(db, merchant, replacement_merchant_id, user_id)
+    await move_merchant_references(db, merchant.id, replacement.id)
+    await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
+
+    # Delete the source merchant after all transaction references point to the replacement
+    await db.delete(merchant)
+    await db.commit()
 
 
 async def get_merge_replacement_merchant(
