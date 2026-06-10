@@ -1,9 +1,10 @@
+"""Cache state status query service"""
+
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
@@ -14,7 +15,7 @@ from app.models.group import GroupMember
 
 @dataclass(frozen=True)
 class ScopeCacheStatus:
-    """Cache timestamp for one visible scope."""
+    """Cache timestamp for one visible scope"""
 
     changed_at: datetime | None
     last_change_from_current_session: bool
@@ -22,48 +23,43 @@ class ScopeCacheStatus:
 
 @dataclass(frozen=True)
 class VisibleCacheStatus:
-    """Cache status visible to one user."""
+    """Cache status visible to one user"""
 
     changed_at: datetime | None
     personal: ScopeCacheStatus
     groups: dict[uuid.UUID, ScopeCacheStatus]
 
 
-async def mark_user_cache_changed(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Record a personal-scope app-data change."""
-    await _upsert_cache_state(db, UserCacheState, "user_id", user_id)
-
-
-async def mark_group_cache_changed(db: AsyncSession, group_id: uuid.UUID) -> None:
-    """Record a group-scope app-data change."""
-    await _upsert_cache_state(db, GroupCacheState, "group_id", group_id)
-
-
-async def mark_cache_changed_for_scope(
-    db: AsyncSession,
-    *,
-    user_id: uuid.UUID | None,
-    group_id: uuid.UUID | None,
-) -> None:
-    """Record a change for a personal or group-owned resource."""
-    if group_id is not None:
-        await mark_group_cache_changed(db, group_id)
-        return
-    if user_id is not None:
-        await mark_user_cache_changed(db, user_id)
-
-
 async def get_visible_cache_changed_at(db: AsyncSession, user_id: uuid.UUID) -> datetime | None:
-    """Return the latest change timestamp visible to a user."""
+    """Return the latest change timestamp visible to a user
+
+    Args:
+        db: Active database session
+        user_id: User whose visible cache timestamp should be loaded
+
+    Returns:
+        Latest visible cache timestamp, or None when no visible scope changed
+    """
     return (await get_visible_cache_status(db, user_id)).changed_at
 
 
 async def get_visible_cache_status(db: AsyncSession, user_id: uuid.UUID) -> VisibleCacheStatus:
-    """Return personal and group cache status visible to a user."""
+    """Return personal and group cache status visible to a user
+
+    Args:
+        db: Active database session
+        user_id: User whose visible cache status should be loaded
+
+    Returns:
+        Personal, group, and combined cache status visible to the user
+    """
     current_session_id = get_current_session_id()
+
+    # Fetch the user's personal cache state for the top-level personal scope
     personal_state = await db.get(UserCacheState, user_id)
     personal = _scope_status(personal_state, current_session_id)
 
+    # Fetch cache states for every group the user belongs to
     group_result = await db.execute(
         sa.select(GroupCacheState).where(GroupCacheState.group_id.in_(select_user_group_ids(user_id))),
     )
@@ -79,12 +75,26 @@ async def get_visible_cache_status(db: AsyncSession, user_id: uuid.UUID) -> Visi
 
 
 def select_user_group_ids(user_id: uuid.UUID) -> Select[tuple[uuid.UUID]]:
-    """Build the group ID query for all groups a user belongs to."""
+    """Build the group ID query for all groups a user belongs to
+
+    Args:
+        user_id: User whose group memberships should be selected
+
+    Returns:
+        SQLAlchemy query selecting group identifiers for the user
+    """
     return sa.select(GroupMember.group_id).where(GroupMember.user_id == user_id)
 
 
 def _as_utc(value: datetime) -> datetime:
-    """Normalize a timestamp to an explicit UTC-aware datetime."""
+    """Return a timestamp normalized to UTC
+
+    Args:
+        value: Timestamp to normalize
+
+    Returns:
+        UTC-aware timestamp
+    """
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
@@ -94,6 +104,15 @@ def _scope_status(
     state: UserCacheState | GroupCacheState | None,
     current_session_id: uuid.UUID | None,
 ) -> ScopeCacheStatus:
+    """Return cache status for one personal or group scope
+
+    Args:
+        state: Persisted cache state row for the scope
+        current_session_id: Request session identifier used to classify local changes
+
+    Returns:
+        Cache status for the scope
+    """
     if state is None:
         return ScopeCacheStatus(changed_at=None, last_change_from_current_session=False)
 
@@ -103,29 +122,5 @@ def _scope_status(
             current_session_id is not None
             and state.last_changed_session_id is not None
             and state.last_changed_session_id == current_session_id
-        ),
-    )
-
-
-async def _upsert_cache_state(
-    db: AsyncSession,
-    model: type[UserCacheState] | type[GroupCacheState],
-    id_column_name: str,
-    id_value: uuid.UUID,
-) -> None:
-    changed_at = sa.func.clock_timestamp()
-    session_id = get_current_session_id()
-    stmt = insert(model).values({
-        id_column_name: id_value,
-        "changed_at": changed_at,
-        "last_changed_session_id": session_id,
-    })
-    await db.execute(
-        stmt.on_conflict_do_update(
-            index_elements=[getattr(model, id_column_name)],
-            set_={
-                "changed_at": changed_at,
-                "last_changed_session_id": session_id,
-            },
         ),
     )
