@@ -12,7 +12,7 @@ from app.services.insights.savings_rate_trend.response_helpers import (
     build_empty_savings_rate_trend_response,
     build_savings_rate_trend_response,
 )
-from app.services.savings_rate_monthly_category_total_helpers import get_converted_savings_rate_monthly_category_totals
+from app.services.savings_rate.monthly_category_total_helpers import get_converted_savings_rate_monthly_category_totals
 from app.utils.dates import (
     get_month_start_date,
     get_month_start_dates,

@@ -7,7 +7,7 @@ from app.config import DASHBOARD_SAVINGS_HISTORY_MONTHS
 from app.models.account import Account
 from app.schemas.dashboard import MonthlyIncomeExpense
 from app.schemas.fx import FxStatus
-from app.services.savings_rate_monthly_category_total_helpers import (
+from app.services.savings_rate.monthly_category_total_helpers import (
     SavingsRateMonthlyCategoryTotalsByKey,
     get_converted_savings_rate_monthly_category_totals,
 )

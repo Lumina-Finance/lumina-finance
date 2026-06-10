@@ -4,7 +4,7 @@ from datetime import date
 
 from app.schemas.fx import FxStatus
 from app.schemas.insights import InsightsSavingsRateTrendResponse
-from app.services.savings_rate_monthly_category_total_helpers import SavingsRateMonthlyCategoryTotalsByKey
+from app.services.savings_rate.monthly_category_total_helpers import SavingsRateMonthlyCategoryTotalsByKey
 
 MonthlySavingsRateTotals = dict[date, dict[str, int]]
 
