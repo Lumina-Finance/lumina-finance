@@ -15,14 +15,11 @@ from app.routes.tax_advantaged_plans.tac_limit_helpers import (
     get_tac_limits_for_plan,
     validate_tac_limit_year_available,
 )
+from app.routes.tax_advantaged_plans.tac_plan_creation_helpers import create_tax_advantaged_plan_with_metrics
 from app.routes.tax_advantaged_plans.tac_plan_helpers import (
     apply_tac_plan_updates,
-    build_tac_plan,
     get_owned_tax_advantaged_plan_or_404,
     validate_tac_plan_updates,
-    validate_tax_advantaged_plan_currency,
-    validate_tax_advantaged_plan_group_scope,
-    validate_tax_advantaged_plan_tax_treatment,
 )
 from app.routes.tax_advantaged_plans.tac_plan_listing_helpers import get_tax_advantaged_plans_with_metrics_for_owner
 from app.schemas.tax_advantaged_plan import (
@@ -76,15 +73,7 @@ async def create_tax_advantaged_plan(
     Raises:
         HTTPException: Tax treatment, group scope, or currency is invalid
     """
-    validate_tax_advantaged_plan_tax_treatment(data.tax_treatment)
-    await validate_tax_advantaged_plan_group_scope(db, data.group_id, user.id)
-    await validate_tax_advantaged_plan_currency(db, data.currency)
-    plan = build_tac_plan(user.id, data)
-    db.add(plan)
-    await mark_cache_changed_for_scope(db, user_id=plan.plan_owner_user_id, group_id=plan.group_id)
-    await db.commit()
-    await db.refresh(plan)
-    await attach_tax_advantaged_plan_metrics(db, [plan])
+    plan = await create_tax_advantaged_plan_with_metrics(db, user.id, data)
     return plan
 
 
