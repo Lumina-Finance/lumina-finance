@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import PermissionLevel
 from app.permissions import check_budget_access
 from app.schemas.budget import BudgetResponse
-from app.services.budget_response_helpers import get_budget_response
+from app.services.budgets.response_helpers import get_budget_response
 
 
 async def get_budget_response_for_user(

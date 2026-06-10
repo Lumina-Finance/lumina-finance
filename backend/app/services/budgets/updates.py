@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget
 from app.schemas.budget import BudgetResponse
-from app.services.budget_response_helpers import get_budget_response
+from app.services.budgets.response_helpers import get_budget_response
 from app.services.cache_state import mark_cache_changed_for_scope
 
 

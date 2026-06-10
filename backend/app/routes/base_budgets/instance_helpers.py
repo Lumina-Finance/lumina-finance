@@ -11,7 +11,7 @@ from app.models.budget import BaseBudget, Budget
 from app.permissions import check_base_budget_access
 from app.routes.base_budgets.response_helpers import get_budget_instance_response
 from app.schemas.budget import BudgetResponse, CreateBudgetRequest
-from app.services.budget_periods import compute_period_end, validate_period_start
+from app.services.budgets.periods import compute_period_end, validate_period_start
 from app.services.cache_state import mark_cache_changed_for_scope
 
 

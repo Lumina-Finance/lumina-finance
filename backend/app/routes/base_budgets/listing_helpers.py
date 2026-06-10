@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.budget import BaseBudget, BudgetPermission
 from app.models.group import GroupMember
 from app.schemas.budget import BaseBudgetResponse
-from app.services.budget_response_helpers import build_base_budget_response, load_tracked_categories
+from app.services.budgets.response_helpers import build_base_budget_response, load_tracked_categories
 
 
 async def get_visible_base_budget_responses(db: AsyncSession, user_id: uuid.UUID) -> list[BaseBudgetResponse]:

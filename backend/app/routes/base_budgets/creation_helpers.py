@@ -15,7 +15,7 @@ from app.routes.base_budgets.category_helpers import get_valid_tracked_category_
 from app.routes.base_budgets.instance_helpers import add_initial_budget_instances
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest
-from app.services.budget_periods import validate_period_start
+from app.services.budgets.periods import validate_period_start
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
