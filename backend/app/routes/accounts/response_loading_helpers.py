@@ -10,7 +10,7 @@ from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
-from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
+from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
 
 
 async def get_account_response_for_user(
