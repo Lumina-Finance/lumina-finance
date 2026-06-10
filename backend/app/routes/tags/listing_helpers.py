@@ -10,7 +10,7 @@ from app.models.tag import Tag
 from app.routes.tags.access_helpers import (
     require_group_member,
 )
-from app.routes.tags.tag_scope_filter_helpers import get_tag_list_scope_filter
+from app.routes.tags.scope_filter_helpers import get_tag_list_scope_filter
 from app.utils.sql_search_helpers import escape_like_search_text
 
 

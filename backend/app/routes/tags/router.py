@@ -9,11 +9,11 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.routes.tags.access_helpers import get_accessible_tag_or_404
+from app.routes.tags.creation_helpers import create_tag_for_user
+from app.routes.tags.deletion_helpers import delete_tag_for_user
+from app.routes.tags.listing_helpers import get_tags_for_user
 from app.routes.tags.merge_helpers import merge_tag_into_replacement_for_user
-from app.routes.tags.tag_creation_helpers import create_tag_for_user
-from app.routes.tags.tag_deletion_helpers import delete_tag_for_user
-from app.routes.tags.tag_listing_helpers import get_tags_for_user
-from app.routes.tags.tag_update_helpers import update_tag_for_user
+from app.routes.tags.update_helpers import update_tag_for_user
 from app.schemas.tag import CreateTagRequest, MergeTagRequest, TagResponse, UpdateTagRequest
 
 router = APIRouter(prefix="/tags", tags=["tags"])

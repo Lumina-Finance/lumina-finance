@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.group import GroupMember
 from app.models.tag import Tag
-from app.routes.tags.tag_scope_filter_helpers import get_accessible_tag_filter
+from app.routes.tags.scope_filter_helpers import get_accessible_tag_filter
 
 
 async def get_accessible_tag_or_404(db: AsyncSession, tag_id: uuid.UUID, user_id: uuid.UUID) -> Tag:
