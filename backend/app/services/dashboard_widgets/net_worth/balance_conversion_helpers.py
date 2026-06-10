@@ -3,12 +3,11 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.currency import Currency
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
 async def get_dashboard_net_worth_fx_converter(
@@ -24,7 +23,7 @@ async def get_dashboard_net_worth_fx_converter(
     Returns:
         FX converter with minor-unit exponents loaded
     """
-    currency_exponents = await _get_currency_exponents(db, currencies)
+    currency_exponents = await get_currency_exponents(db, currencies)
     converter = FxConverter(currency_exponents=currency_exponents)
     return converter
 
@@ -90,25 +89,3 @@ async def get_converted_net_worth_balance_total(
             total += converted_balance
     return total
 
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Load minor-unit exponents for currency codes
-
-    Net-worth conversion uses this metadata to interpret snapshot balances
-    before converting them to the user's base currency
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Mapping from currency code to minor-unit exponent
-    """
-    currency_codes = sorted(currencies)
-
-    # Load exponent metadata for every currency needed by dashboard net worth conversions
-    currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currency_codes)),
-    )
-    currency_exponents = {row.id: row.minor_unit_exponent for row in currency_result}
-    return currency_exponents
