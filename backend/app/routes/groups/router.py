@@ -10,13 +10,13 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.routes.groups.creation_helpers import create_group_and_get_response
 from app.routes.groups.deletion_helpers import delete_group_for_owner
+from app.routes.groups.group_detail_helpers import get_group_for_user
 from app.routes.groups.listing_helpers import get_groups_for_user
 from app.routes.groups.member_addition_helpers import add_group_member_and_get_membership
 from app.routes.groups.member_listing_helpers import get_group_members_for_user
 from app.routes.groups.membership_helpers import (
     get_group_member_or_404,
     get_group_membership_or_404,
-    get_group_or_404,
     get_group_owner_id,
 )
 from app.routes.groups.update_helpers import update_group_and_get_response
@@ -69,8 +69,7 @@ async def get_group(
     Returns:
         Group visible to the user
     """
-    await get_group_membership_or_404(db, group_id, user.id)
-    group = await get_group_or_404(db, group_id)
+    group = await get_group_for_user(db, group_id, user.id)
     return group
 
 
