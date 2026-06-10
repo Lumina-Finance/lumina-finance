@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.group import GroupMember
-from app.routes.categories.category_scope_filter_helpers import (
+from app.routes.categories.scope_filter_helpers import (
     get_accessible_category_filter,
     get_category_name_conflict_filter,
 )
