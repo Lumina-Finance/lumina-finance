@@ -3,7 +3,6 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,12 +12,12 @@ from app.models.category import Category
 from app.models.user import User
 from app.routes.categories.access_helpers import (
     get_accessible_category_or_404,
-    get_system_or_personal_category_filter,
     is_valid_category_kind,
     require_category_name_available,
     require_group_category_admin,
     require_group_member,
 )
+from app.routes.categories.category_listing_helpers import get_categories_for_user
 from app.routes.categories.merge_helpers import get_merge_replacement_category, move_category_references
 from app.schemas.category import (
     CategoryResponse,
@@ -47,17 +46,7 @@ async def list_categories(
     Returns:
         Categories ordered by name
     """
-    category_filter = get_system_or_personal_category_filter(user.id)
-
-    if group_id:
-        await require_group_member(db, group_id, user.id)
-        category_filter = category_filter | (Category.group_id == group_id)
-
-    query = select(Category).where(category_filter)
-
-    # Fetch system and personal categories, plus categories from the requested group when provided
-    result = await db.execute(query.order_by(Category.name))
-    categories = result.scalars().all()
+    categories = await get_categories_for_user(db, user.id, group_id)
     return categories
 
 
