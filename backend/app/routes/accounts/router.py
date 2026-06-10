@@ -15,7 +15,7 @@ from app.permissions import check_account_access
 from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
 from app.routes.accounts.account_creation_helpers import create_account_for_user
 from app.routes.accounts.account_deletion_helpers import delete_account_for_user
-from app.routes.accounts.account_listing_helpers import get_accounts_visible_to_user
+from app.routes.accounts.account_listing_helpers import get_account_overviews_for_user
 from app.routes.accounts.account_update_helpers import update_account_for_user
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
@@ -33,6 +33,7 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
 router.include_router(snapshots_router)
 
+
 @router.get("", response_model=list[AccountsOverview])
 async def list_accounts(
     user: Annotated[User, Depends(get_current_user)],
@@ -47,8 +48,8 @@ async def list_accounts(
     Returns:
         Accounts the user can access
     """
-    accounts = await get_accounts_visible_to_user(db, user.id)
-    await attach_account_balance_fields(db, accounts, user, datetime.now(ZoneInfo(user.tz)).date())
+    response_date = datetime.now(ZoneInfo(user.tz)).date()
+    accounts = await get_account_overviews_for_user(db, user, response_date)
     return accounts
 
 
