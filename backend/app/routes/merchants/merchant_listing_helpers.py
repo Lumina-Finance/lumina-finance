@@ -9,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.merchant import Merchant
 from app.routes.merchants.access_helpers import (
     escape_like_search_text,
-    get_merchant_list_scope_filter,
     require_group_member,
 )
+from app.routes.merchants.merchant_scope_filter_helpers import get_merchant_list_scope_filter
 
 
 async def get_merchants_for_user(

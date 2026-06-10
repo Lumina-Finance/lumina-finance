@@ -10,9 +10,9 @@ from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.routes.merchants.access_helpers import (
     get_accessible_merchant_or_404,
-    get_personal_merchant_filter,
     require_group_merchant_admin,
 )
+from app.routes.merchants.merchant_scope_filter_helpers import get_personal_merchant_filter
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
