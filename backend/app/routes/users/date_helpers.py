@@ -1,4 +1,4 @@
-"""User route compatibility helpers"""
+"""User date helpers"""
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 

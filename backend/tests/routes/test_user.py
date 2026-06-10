@@ -513,7 +513,7 @@ async def test_get_runway_includes_threshold_settings(client):
 
 async def test_archived_runway_selection_is_inactive_but_restorable(client, monkeypatch):
     """Archived selected accounts are omitted from runway responses without deleting the stored pick."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
 
     class FixedDateTime(datetime):
         @classmethod
@@ -613,7 +613,7 @@ async def test_archived_runway_selection_is_inactive_but_restorable(client, monk
 
 async def test_get_runway_excludes_current_partial_month_from_average(client, monkeypatch):
     """Runway averages over completed months with expenses, not the current partial month."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
 
     class FixedDateTime(datetime):
         @classmethod
@@ -687,7 +687,7 @@ async def test_get_runway_excludes_current_partial_month_from_average(client, mo
 
 async def test_get_runway_handles_refunds_and_excludes_income_losses_and_transfers(client, monkeypatch):
     """Runway uses net expense category totals and excludes income/transfers."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
 
     class FixedDateTime(datetime):
         @classmethod
@@ -792,7 +792,7 @@ async def test_get_runway_handles_refunds_and_excludes_income_losses_and_transfe
 
 async def test_get_runway_converts_foreign_currency_balances_and_daily_expenses(client, monkeypatch):
     """Runway converts selected balances and historical expense rows to the user's base currency."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
     from app.services.fx import FrankfurterProvider
 
     class FixedDateTime(datetime):
@@ -886,7 +886,7 @@ async def test_get_runway_converts_foreign_currency_balances_and_daily_expenses(
 
 async def test_get_runway_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
     """Runway skips unconverted foreign expense rows and reports the missing pair."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
     from app.services.fx import FrankfurterProvider, FxRateNotFoundError
 
     class FixedDateTime(datetime):
@@ -971,7 +971,7 @@ async def test_get_runway_reports_incomplete_fx_with_missing_pairs(client, monke
 
 async def test_get_runway_reports_unavailable_fx(client, monkeypatch):
     """Runway reports unavailable FX when every provider lookup fails."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
     from app.services.fx import FrankfurterProvider, FxProviderUnavailableError
 
     class FixedDateTime(datetime):
@@ -1040,7 +1040,7 @@ async def test_get_runway_reports_unavailable_fx(client, monkeypatch):
 
 async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypatch):
     """A Toronto viewer still treats Jan 1 01:00 UTC as Dec 31 for runway history."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
 
     class FixedDateTime(datetime):
         @classmethod
@@ -1082,7 +1082,7 @@ async def test_get_runway_uses_viewer_timezone_for_window_start(client, monkeypa
 
 async def test_get_runway_uses_calendar_months_for_window_start(client, monkeypatch):
     """A leap-day expense stays inside the trailing 12-month runway window."""
-    from app.routes import user as user_routes
+    from app.routes.users import date_helpers as user_routes
 
     class FixedDateTime(datetime):
         @classmethod

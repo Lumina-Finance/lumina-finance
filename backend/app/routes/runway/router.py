@@ -15,7 +15,7 @@ from app.routes.runway.account_helpers import (
     replace_runway_account_ids,
 )
 from app.routes.runway.response_helpers import get_runway_response
-from app.routes.user import get_current_user_date
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.user import (
     RunwayAccountsRequest,
     RunwayResponse,
