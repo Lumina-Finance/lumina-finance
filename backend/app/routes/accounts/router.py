@@ -15,12 +15,7 @@ from app.permissions import check_account_access
 from app.routes.accounts.account_balance_field_helpers import attach_account_balance_fields
 from app.routes.accounts.account_creation_helpers import create_account_for_user
 from app.routes.accounts.account_listing_helpers import get_accounts_visible_to_user
-from app.routes.accounts.account_request_validation_helpers import validate_update_account_request
-from app.routes.accounts.account_response_loading_helpers import get_account_for_response
-from app.routes.accounts.account_tax_advantaged_plan_link_helpers import (
-    validate_update_account_tax_advantaged_plan_link,
-)
-from app.routes.accounts.account_update_helpers import apply_account_updates
+from app.routes.accounts.account_update_helpers import update_account_for_user
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
 from app.schemas.account import (
@@ -184,28 +179,9 @@ async def update_account(
     Raises:
         HTTPException: User lacks admin access or update fields are invalid
     """
-    account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
-
-    updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        await attach_account_balance_fields(db, [account], user, datetime.now(ZoneInfo(user.tz)).date())
-        return account
-
-    await validate_update_account_request(db, account, updates)
-
-    await validate_update_account_tax_advantaged_plan_link(db, account, updates, user.id)
-
-    await apply_account_updates(db, account, updates, user, datetime.now(ZoneInfo(user.tz)).date())
-
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-    await db.commit()
-    return await get_account_for_response(
-        db,
-        user,
-        account_id,
-        datetime.now(ZoneInfo(user.tz)).date(),
-        refresh_cached_account=True,
-    )
+    response_date = datetime.now(ZoneInfo(user.tz)).date()
+    account = await update_account_for_user(db, account_id, data, user, response_date)
+    return account
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
