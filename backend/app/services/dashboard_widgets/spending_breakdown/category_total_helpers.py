@@ -4,14 +4,14 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import CategoryKind
-from app.models.category import Category
-from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
+from app.services.dashboard_widgets.spending_breakdown.category_total_query_helpers import (
+    SpendingBreakdownCategoryDailyTotal,
+    query_spending_breakdown_category_daily_totals,
+)
 from app.services.dashboard_widgets.spending_breakdown.response_helpers import (
     SpendingBreakdownCategoryTotal,
     SpendingBreakdownCategoryTotalsById,
@@ -33,27 +33,6 @@ class ConvertedSpendingBreakdownCategoryTotals:
     fx_status: FxStatus
 
 
-@dataclass(frozen=True, slots=True)
-class _CategoryDailyTotal:
-    """Daily aggregate row for one account and category
-
-    Attributes:
-        transaction_date: Date represented by the aggregate row
-        account_id: Account that owns the aggregated transactions
-        category_id: Category represented by the aggregate row
-        category_name: Display name for the category
-        category_kind: Category classification used to split income and expense
-        amount: Signed total amount in the account currency
-    """
-
-    transaction_date: date
-    account_id: uuid.UUID
-    category_id: uuid.UUID
-    category_name: str
-    category_kind: CategoryKind
-    amount: int
-
-
 async def get_converted_spending_breakdown_category_totals(
     db: AsyncSession,
     accounts_by_id: dict[uuid.UUID, Account],
@@ -73,7 +52,8 @@ async def get_converted_spending_breakdown_category_totals(
     Returns:
         Converted category totals plus FX conversion status
     """
-    category_daily_totals = await _query_category_daily_totals(db, accounts_by_id, start, end)
+    account_ids = list(accounts_by_id)
+    category_daily_totals = await query_spending_breakdown_category_daily_totals(db, account_ids, start, end)
     converter = FxConverter(
         currency_exponents=await get_currency_exponents(
             db,
@@ -101,64 +81,9 @@ async def get_converted_spending_breakdown_category_totals(
     return converted_category_totals
 
 
-async def _query_category_daily_totals(
-    db: AsyncSession,
-    accounts_by_id: dict[uuid.UUID, Account],
-    start: date,
-    end: date,
-) -> list[_CategoryDailyTotal]:
-    """Return daily transaction totals grouped by account and category
-
-    The query keeps account, date, and category on each aggregate row so
-    foreign-currency totals can be converted before categories are merged
-
-    Args:
-        db: Active database session
-        accounts_by_id: Account rows keyed by account ID
-        start: Inclusive start date
-        end: Inclusive end date
-
-    Returns:
-        Grouped transaction totals for income and expense categories
-    """
-    account_ids = list(accounts_by_id)
-
-    # Aggregate daily income and expense totals across readable dashboard accounts
-    query_result = await db.execute(
-        select(
-            Transaction.dt,
-            Transaction.account_id,
-            Category.id,
-            Category.name,
-            Category.kind,
-            func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .where(
-            Transaction.account_id.in_(account_ids),
-            Category.kind.in_([CategoryKind.INCOME, CategoryKind.EXPENSE]),
-            Transaction.dt >= start,
-            Transaction.dt <= end,
-        )
-        .group_by(Transaction.dt, Transaction.account_id, Category.id, Category.name, Category.kind),
-    )
-    category_daily_totals = [
-        _CategoryDailyTotal(
-            transaction_date=row.dt,
-            account_id=row.account_id,
-            category_id=row.id,
-            category_name=row.name,
-            category_kind=row.kind,
-            amount=int(row.total or 0),
-        )
-        for row in query_result
-    ]
-    return category_daily_totals
-
-
 async def _prefetch_conversion_rates(
     converter: FxConverter,
-    category_daily_totals: list[_CategoryDailyTotal],
+    category_daily_totals: list[SpendingBreakdownCategoryDailyTotal],
     accounts_by_id: dict[uuid.UUID, Account],
     base_currency: str,
     start: date,
@@ -185,7 +110,7 @@ async def _prefetch_conversion_rates(
 
 
 async def _convert_category_totals(
-    category_daily_totals: list[_CategoryDailyTotal],
+    category_daily_totals: list[SpendingBreakdownCategoryDailyTotal],
     accounts_by_id: dict[uuid.UUID, Account],
     base_currency: str,
     converter: FxConverter,
@@ -223,4 +148,3 @@ async def _convert_category_totals(
         )
         category_totals[row.category_id] = category_total
     return category_totals
-
