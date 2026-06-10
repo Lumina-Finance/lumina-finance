@@ -10,11 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
 from app.services.dashboard_widgets.spending_comparison.range_helpers import DateSlotRange
 from app.services.fx import FxConverter
+from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +67,7 @@ async def get_converted_spending_comparison_daily_expenses(
         Converted current and previous daily expenses plus FX conversion status
     """
     converter = FxConverter(
-        currency_exponents=await _get_currency_exponents(
+        currency_exponents=await get_currency_exponents(
             db,
             {base_currency, *(account.currency for account in accounts_by_id.values())},
         ),
@@ -239,25 +239,3 @@ async def _prefetch_conversion_rates(
             end_date=end,
         )
 
-
-async def _get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict[str, int]:
-    """Load minor-unit exponents for currency codes
-
-    Spending comparison conversion uses this metadata to interpret daily
-    account totals before converting them to the user's base currency
-
-    Args:
-        db: Active database session
-        currencies: Currency codes to load
-
-    Returns:
-        Mapping from currency code to minor-unit exponent
-    """
-    currency_codes = sorted(currencies)
-
-    # Load exponent metadata for every currency needed by spending comparison conversions
-    currency_result = await db.execute(
-        select(Currency.id, Currency.minor_unit_exponent).where(Currency.id.in_(currency_codes)),
-    )
-    currency_exponents = {row.id: row.minor_unit_exponent for row in currency_result}
-    return currency_exponents
