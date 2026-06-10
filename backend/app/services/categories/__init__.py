@@ -1,4 +1,4 @@
-"""Compatibility exports for category default services"""
+"""Category service exports"""
 
 from app.services.categories.defaults import seed_system_categories
 
