@@ -16,6 +16,7 @@ from app.routes.accounts.account_creation_helpers import create_account_for_user
 from app.routes.accounts.account_deletion_helpers import delete_account_for_user
 from app.routes.accounts.account_listing_helpers import get_account_overviews_for_user
 from app.routes.accounts.account_response_loading_helpers import get_account_response_for_user
+from app.routes.accounts.account_spending_breakdown_helpers import get_account_spending_breakdown_for_user
 from app.routes.accounts.account_update_helpers import update_account_for_user
 from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.snapshots import router as snapshots_router
@@ -27,7 +28,7 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
-from app.services.accounts import get_account_cash_flow_history, get_account_spending_breakdown
+from app.services.accounts import get_account_cash_flow_history
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
@@ -102,8 +103,9 @@ async def get_account_spending_breakdown_route(
     Raises:
         HTTPException: User does not have read access
     """
-    await check_account_access(db, account_id, user.id, PermissionLevel.READ)
-    return await get_account_spending_breakdown(db, account_id, range_, datetime.now(ZoneInfo(user.tz)))
+    as_of_dt = datetime.now(ZoneInfo(user.tz))
+    breakdown = await get_account_spending_breakdown_for_user(db, account_id, user.id, range_, as_of_dt)
+    return breakdown
 
 
 @router.get("/{account_id}/cash-flow", response_model=list[MonthlyIncomeExpense])
