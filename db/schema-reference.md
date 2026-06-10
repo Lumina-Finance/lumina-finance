@@ -159,7 +159,7 @@ A real-world financial account. Owned by either a user (personal) or a group (sh
 | `group_id`                    | uuid         | FK → `groups.id` ON DELETE CASCADE | Group accounts; null for personal                                |
 | `account_kind`                | enum         | NOT NULL                           | `asset`, `liability` — validated against `account_type`          |
 | `account_type`                | enum         | NOT NULL                           | Assets: `checking`, `savings`, `term_deposit`, `cash`, `investment`; Liabilities: `credit_card`, `line_of_credit`, `heloc`, `loan`, `mortgage` |
-| `tax_advantaged_plan_id`      | uuid         | FK → `tax_advantaged_plans.id` ON DELETE SET NULL | Optional plan whose limits this account activity counts against |
+| `tax_advantaged_category_id`  | uuid         | FK → `tax_advantaged_categories.id` ON DELETE SET NULL | Optional category whose limits this account activity counts against |
 | `name`                        | varchar(256) | NOT NULL                           |                                                                  |
 | `institution_id`              | uuid         | FK → `institutions.id`             | Null for cash or unlinked accounts                               |
 | `currency`                    | char(3)      | NOT NULL, FK → `currencies.id`     | Account's native currency                                        |
@@ -184,31 +184,34 @@ End-of-day balance records for historical charts and net worth tracking. Backend
 | `balance`    | bigint      | NOT NULL                                 | End-of-day balance in minor units    |
 | `ts`         | timestamptz | PK, NOT NULL                             | Midnight UTC of the snapshot day     |
 
-### `tax_advantaged_plans`
+### `tax_advantaged_categories`
 
 Individual-owned contribution/withdrawal limit trackers. `group_id` provides household visibility/context only; limits are not pooled.
 
 | Column                        | Type         | Constraints                        | Description                                                      |
 | ----------------------------- | ------------ | ---------------------------------- | ---------------------------------------------------------------- |
 | `id`                          | uuid         | PK                                 |                                                                  |
-| `plan_owner_user_id`          | uuid         | NOT NULL, FK → `users.id` ON DELETE CASCADE | User whose limits this plan tracks                      |
+| `category_owner_user_id`      | uuid         | NOT NULL, FK → `users.id` ON DELETE CASCADE | User whose limits this category tracks                  |
 | `group_id`                    | uuid         | FK → `groups.id` ON DELETE CASCADE | Optional group context                                           |
-| `name`                        | varchar(256) | NOT NULL                           | User-facing plan type/name, e.g. TFSA or RRSP                    |
+| `name`                        | varchar(256) | NOT NULL                           | User-facing category name, e.g. TFSA or RRSP                     |
 | `tax_treatment`               | enum         | NOT NULL                           | Must be non-`taxable`                                            |
-| `currency`                    | char(3)      | NOT NULL, FK → `currencies.id`     | Plan currency; linked accounts must match                        |
+| `currency`                    | char(3)      | NOT NULL, FK → `currencies.id`     | Category currency; linked accounts must match                    |
 | `lifetime_contribution_limit` | bigint       |                                    | Lifetime cap in minor units; null if N/A                         |
+| `accrued_contributions`       | bigint       | NOT NULL, default `0`              | Starting lifetime contribution total in minor units              |
 | `created_at`                  | timestamptz  | NOT NULL                           |                                                                  |
 
-### `tax_advantaged_plan_limits`
+### `tax_advantaged_category_limits`
 
-Per-plan, per-year contribution/withdrawal limits.
+Per-category, per-year contribution/withdrawal limits.
 
-| Column               | Type     | Constraints                                        | Description                 |
-| -------------------- | -------- | -------------------------------------------------- | --------------------------- |
-| `plan_id`            | uuid     | PK, NOT NULL, FK → `tax_advantaged_plans.id` ON DELETE CASCADE |                             |
-| `year`               | smallint | PK, NOT NULL                                       | Calendar year               |
-| `contribution_limit` | bigint   | NOT NULL                                           | Annual limit in minor units |
-| `withdrawal_limit`   | bigint   |                                                    | Null = no limit             |
+| Column                         | Type     | Constraints                                        | Description                 |
+| ------------------------------ | -------- | -------------------------------------------------- | --------------------------- |
+| `tax_advantaged_category_id`    | uuid     | PK, NOT NULL, FK → `tax_advantaged_categories.id` ON DELETE CASCADE |                             |
+| `year`                         | smallint | PK, NOT NULL                                       | Calendar year               |
+| `contribution_limit`           | bigint   | NOT NULL                                           | Annual limit in minor units |
+| `withdrawal_limit`             | bigint   |                                                    | Null = no limit             |
+| `accrued_contributions`        | bigint   | NOT NULL, default `0`                              | Starting contribution total for the year in minor units |
+| `accrued_withdrawals`          | bigint   | NOT NULL, default `0`                              | Starting withdrawal total for the year in minor units   |
 
 
 ---
