@@ -10,13 +10,13 @@ from app.dependencies import get_current_user
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_budget_access
+from app.routes.budgets.budget_detail_helpers import get_budget_response_for_user
 from app.schemas.budget import (
     BudgetResponse,
     BudgetUtilizationResponse,
     LatestBudgetUtilizationResponse,
     UpdateBudgetRequest,
 )
-from app.services.budget_response_helpers import get_budget_response
 from app.services.budgets.deletion import delete_budget_instance
 from app.services.budgets.listing import get_visible_budget_responses
 from app.services.budgets.updates import update_budget_instance
@@ -64,8 +64,8 @@ async def get_budget(
     Raises:
         HTTPException: User does not have read access
     """
-    budget, base_budget = await check_budget_access(db, budget_id, user.id, PermissionLevel.READ)
-    return await get_budget_response(db, budget, base_budget)
+    budget = await get_budget_response_for_user(db, budget_id, user.id)
+    return budget
 
 
 @router.get("/{budget_id}/utilization", response_model=BudgetUtilizationResponse)
