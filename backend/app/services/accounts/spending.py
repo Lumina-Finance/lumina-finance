@@ -9,7 +9,7 @@ from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.account import AccountSpendingBreakdown
 from app.schemas.dashboard import RangeKind
-from app.services.account_spending_query_helpers import (
+from app.services.accounts.spending_query_helpers import (
     get_account_grand_total_spend,
     get_account_top_categories,
     get_account_top_merchants,
