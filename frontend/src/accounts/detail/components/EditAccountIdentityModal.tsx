@@ -430,14 +430,14 @@ export default function EditAccountIdentityModal({
 
                             {canLinkTaxAdvantagedCategory && (
                               <div>
-                                <FieldLabelRow label="Tax-Advantaged Plan" />
+                                <FieldLabelRow label="Tax-Advantaged Category" />
                                 <Dropdown
                                   options={taxAdvantagedCategoryOptions}
                                   value={form.tax_advantaged_category_id}
                                   onChange={(value) => setField('tax_advantaged_category_id', value)}
-                                  placeholder="Select plan..."
+                                  placeholder="Select category..."
                                   searchable
-                                  searchPlaceholder="Search plans..."
+                                  searchPlaceholder="Search categories..."
                                 />
                               </div>
                             )}

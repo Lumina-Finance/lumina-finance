@@ -356,7 +356,7 @@ export default function TaxAdvantagedCategoryModal({
     } catch (error) {
       await minimumLoading
       setPlanSaveStatus('idle')
-      setPlanError(error instanceof Error ? error.message : 'Failed to update plan.')
+      setPlanError(error instanceof Error ? error.message : 'Failed to update category.')
     }
   }
 
@@ -366,7 +366,7 @@ export default function TaxAdvantagedCategoryModal({
       onSuccess: onClose,
       onError: (error) => {
         setConfirmingPlanDelete(false)
-        setPlanError(error instanceof Error ? error.message : 'Failed to delete plan.')
+        setPlanError(error instanceof Error ? error.message : 'Failed to delete category.')
       },
     })
   }

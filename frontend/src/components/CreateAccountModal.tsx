@@ -526,14 +526,14 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                                 >
                                   {conditionalAccountField === 'tax-plan' ? (
                                     <div>
-                                      <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Tax-Advantaged Plan</label>
+                                      <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Tax-Advantaged Category</label>
                                       <Dropdown
                                         options={taxPlanOptions}
                                         value={form.tax_advantaged_category_id}
                                         onChange={(v) => handleChange('tax_advantaged_category_id', v)}
-                                        placeholder="Select plan..."
+                                        placeholder="Select category..."
                                         searchable
-                                        searchPlaceholder="Search plans..."
+                                        searchPlaceholder="Search categories..."
                                       />
                                     </div>
                                   ) : (
