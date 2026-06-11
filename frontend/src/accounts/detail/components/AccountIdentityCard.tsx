@@ -191,7 +191,7 @@ export default function AccountIdentityCard({
   linkedTaxAdvantagedPlanError: unknown
   onEdit: () => void
 }) {
-  const linkedTaxAdvantagedPlanId = account.group_id === null ? account.tax_advantaged_plan_id : null
+  const linkedTaxAdvantagedPlanId = account.group_id === null ? account.tax_advantaged_category_id : null
   const closedLabel = account.closed_at
     ? ' · Closed ' + new Date(account.closed_at).toLocaleDateString()
     : ''

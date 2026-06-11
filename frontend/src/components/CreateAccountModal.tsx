@@ -39,7 +39,7 @@ const INITIAL_FORM = {
   name: '',
   currency: '',
   institution_id: '',
-  tax_advantaged_plan_id: '',
+  tax_advantaged_category_id: '',
   credit_limit: '',
   starting_balance: '',
 };
@@ -212,10 +212,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       if (field === 'account_type') {
         const nextKind = value ? ACCOUNT_KIND_BY_TYPE[value as AccountType] : undefined;
         if (nextKind !== 'revolving') next.credit_limit = '';
-        if (nextKind !== 'asset') next.tax_advantaged_plan_id = '';
+        if (nextKind !== 'asset') next.tax_advantaged_category_id = '';
       }
       if (field === 'currency') {
-        next.tax_advantaged_plan_id = '';
+        next.tax_advantaged_category_id = '';
       }
       return next;
     });
@@ -269,7 +269,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     const payload: CreateAccountPayload = {
       account_kind: ACCOUNT_KIND_BY_TYPE[form.account_type as AccountType],
       account_type: form.account_type as AccountType,
-      tax_advantaged_plan_id: form.tax_advantaged_plan_id || null,
+      tax_advantaged_category_id: form.tax_advantaged_category_id || null,
       name: form.name.trim(),
       institution_id: form.institution_id || null,
       currency: form.currency,
@@ -526,14 +526,14 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                                 >
                                   {conditionalAccountField === 'tax-plan' ? (
                                     <div>
-                                      <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Tax-Advantaged Plan</label>
+                                      <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Tax-Advantaged Category</label>
                                       <Dropdown
                                         options={taxPlanOptions}
-                                        value={form.tax_advantaged_plan_id}
-                                        onChange={(v) => handleChange('tax_advantaged_plan_id', v)}
-                                        placeholder="Select plan..."
+                                        value={form.tax_advantaged_category_id}
+                                        onChange={(v) => handleChange('tax_advantaged_category_id', v)}
+                                        placeholder="Select category..."
                                         searchable
-                                        searchPlaceholder="Search plans..."
+                                        searchPlaceholder="Search categories..."
                                       />
                                     </div>
                                   ) : (

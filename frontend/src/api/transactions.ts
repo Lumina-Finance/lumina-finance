@@ -323,10 +323,10 @@ function getCachedAccountPlanId(
   accountId: string,
 ): string | null | undefined {
   const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
-  if (detail) return detail.tax_advantaged_plan_id;
+  if (detail) return detail.tax_advantaged_category_id;
 
   const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
-  return accounts?.find((account) => account.id === accountId)?.tax_advantaged_plan_id;
+  return accounts?.find((account) => account.id === accountId)?.tax_advantaged_category_id;
 }
 
 function getCachedAccountKind(

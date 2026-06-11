@@ -183,12 +183,12 @@ End-of-day balance records for historical charts and net worth tracking. Backend
 
 ### `tax_advantaged_categories`
 
-Individual-owned contribution/withdrawal limit trackers. `group_id` provides household visibility/context only; limits are not pooled.
+Individual-owned contribution/withdrawal limit trackers. `category_owner_user_id` is the person whose limits are tracked; `group_id` provides household context only, and limits are not pooled.
 
 | Column                        | Type         | Constraints                                 | Description                                         |
 | ----------------------------- | ------------ | ------------------------------------------- | --------------------------------------------------- |
 | `id`                          | uuid         | PK                                          |                                                     |
-| `category_owner_user_id`      | uuid         | NOT NULL, FK → `users.id` ON DELETE CASCADE | User whose limits this category tracks              |
+| `category_owner_user_id`      | uuid         | NOT NULL, FK → `users.id` ON DELETE CASCADE | Individual owner whose limits this category tracks  |
 | `group_id`                    | uuid         | FK → `groups.id` ON DELETE CASCADE          | Optional group context                              |
 | `name`                        | varchar(256) | NOT NULL                                    | User-facing category name, e.g. TFSA or RRSP        |
 | `tax_treatment`               | enum         | NOT NULL                                    | Must be non-`taxable`                               |

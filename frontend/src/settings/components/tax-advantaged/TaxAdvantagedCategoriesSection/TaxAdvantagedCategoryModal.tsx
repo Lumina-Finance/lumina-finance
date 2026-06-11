@@ -356,7 +356,7 @@ export default function TaxAdvantagedCategoryModal({
     } catch (error) {
       await minimumLoading
       setPlanSaveStatus('idle')
-      setPlanError(error instanceof Error ? error.message : 'Failed to update plan.')
+      setPlanError(error instanceof Error ? error.message : 'Failed to update category.')
     }
   }
 
@@ -366,7 +366,7 @@ export default function TaxAdvantagedCategoryModal({
       onSuccess: onClose,
       onError: (error) => {
         setConfirmingPlanDelete(false)
-        setPlanError(error instanceof Error ? error.message : 'Failed to delete plan.')
+        setPlanError(error instanceof Error ? error.message : 'Failed to delete category.')
       },
     })
   }
@@ -387,7 +387,7 @@ export default function TaxAdvantagedCategoryModal({
       && account.account_kind === 'asset'
       && account.currency === plan.currency,
   )
-  const linkedAccountsCount = bindableAccounts.filter((account) => account.tax_advantaged_plan_id === plan.id).length
+  const linkedAccountsCount = bindableAccounts.filter((account) => account.tax_advantaged_category_id === plan.id).length
   const linkedAccountsSummary = `${linkedAccountsCount} linked`
   const linkedAccountsMobileSummary = `${linkedAccountsCount} ${linkedAccountsCount === 1 ? 'acct' : 'accts'} linked`
 
@@ -575,7 +575,7 @@ export default function TaxAdvantagedCategoryModal({
   const handleToggleAccount = async (account: AccountsOverview) => {
     if (account.is_archived) return
 
-    const isLinked = account.tax_advantaged_plan_id === plan.id
+    const isLinked = account.tax_advantaged_category_id === plan.id
     let savingNoticeShown = false
     const savingNoticeTimer = window.setTimeout(() => {
       savingNoticeShown = true
@@ -585,7 +585,7 @@ export default function TaxAdvantagedCategoryModal({
     try {
       await updateAccount.mutateAsync({
         accountId: account.id,
-        payload: { tax_advantaged_plan_id: isLinked ? null : plan.id },
+        payload: { tax_advantaged_category_id: isLinked ? null : plan.id },
       })
       window.clearTimeout(savingNoticeTimer)
 
@@ -1163,8 +1163,8 @@ export default function TaxAdvantagedCategoryModal({
                         style={{ borderColor: 'var(--app-border)' }}
                       >
                         {bindableAccounts.map((account, index) => {
-                          const linked = account.tax_advantaged_plan_id === plan.id
-                          const linkedElsewhere = account.tax_advantaged_plan_id !== null && !linked
+                          const linked = account.tax_advantaged_category_id === plan.id
+                          const linkedElsewhere = account.tax_advantaged_category_id !== null && !linked
                           const pending = updateAccount.isPending && updateAccount.variables?.accountId === account.id
                           const disabled = account.is_archived || linkedElsewhere || pending
                           const statusParts = [

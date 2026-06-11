@@ -156,9 +156,9 @@ Table account_balance_snapshots [note: "end-of-day balance records; backend-main
   ts timestamptz pk [not null, note: "midnight UTC of the snapshot's day"]
 }
 
-Table tax_advantaged_categories [note: "individual-owned limit trackers; group_id is household context, not pooled ownership"] {
+Table tax_advantaged_categories [note: "individual-owned limit trackers; group_id adds household context, not pooled ownership"] {
   id uuid pk
-  category_owner_user_id uuid [not null, ref: > users.id, note: "ON DELETE CASCADE"]
+  category_owner_user_id uuid [not null, ref: > users.id, note: "individual owner whose limits this category tracks; ON DELETE CASCADE"]
   group_id uuid [ref: > groups.id, note: "ON DELETE CASCADE"]
   name varchar(256) [not null]
   tax_treatment tax_treatment [not null, note: "must be non-taxable"]
