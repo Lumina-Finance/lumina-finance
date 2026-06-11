@@ -21,8 +21,8 @@ export function useTaxAdvantagedCategoryList({
   const linkedAccountCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const account of accounts) {
-      if (!account.tax_advantaged_plan_id) continue
-      counts.set(account.tax_advantaged_plan_id, (counts.get(account.tax_advantaged_plan_id) ?? 0) + 1)
+      if (!account.tax_advantaged_category_id) continue
+      counts.set(account.tax_advantaged_category_id, (counts.get(account.tax_advantaged_category_id) ?? 0) + 1)
     }
     return counts
   }, [accounts])

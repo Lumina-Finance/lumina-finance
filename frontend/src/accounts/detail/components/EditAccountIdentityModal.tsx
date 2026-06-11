@@ -59,7 +59,7 @@ function FieldLabelRow({
 interface AccountIdentityForm {
   name: string
   institution_id: string
-  tax_advantaged_plan_id: string
+  tax_advantaged_category_id: string
   credit_limit: string
   is_archived: boolean
 }
@@ -133,7 +133,7 @@ export default function EditAccountIdentityModal({
   const [form, setForm] = useState<AccountIdentityForm>({
     name: account.name,
     institution_id: account.institution?.id ?? '',
-    tax_advantaged_plan_id: account.tax_advantaged_plan_id ?? '',
+    tax_advantaged_category_id: account.tax_advantaged_category_id ?? '',
     credit_limit: fromMinorUnits(account.credit_limit, currencies, account.currency),
     is_archived: account.is_archived,
   })
@@ -218,7 +218,7 @@ export default function EditAccountIdentityModal({
             ? { credit_limit: toMinorUnits(form.credit_limit, currencies, account.currency) }
             : {}),
           ...(canLinkTaxAdvantagedCategory
-            ? { tax_advantaged_plan_id: form.tax_advantaged_plan_id || null }
+            ? { tax_advantaged_category_id: form.tax_advantaged_category_id || null }
             : {}),
         },
       })
@@ -433,8 +433,8 @@ export default function EditAccountIdentityModal({
                                 <FieldLabelRow label="Tax-Advantaged Plan" />
                                 <Dropdown
                                   options={taxAdvantagedCategoryOptions}
-                                  value={form.tax_advantaged_plan_id}
-                                  onChange={(value) => setField('tax_advantaged_plan_id', value)}
+                                  value={form.tax_advantaged_category_id}
+                                  onChange={(value) => setField('tax_advantaged_category_id', value)}
                                   placeholder="Select plan..."
                                   searchable
                                   searchPlaceholder="Search plans..."

@@ -20,11 +20,11 @@ export function useTaxAdvantagedLimitSummaries({
   const linkedAccountCountByPlanId = useMemo(() => {
     const counts = new Map<string, number>()
     for (const account of rows) {
-      if (account.group_id !== null || !account.tax_advantaged_plan_id) continue
-      if (!taxAdvantagedPlanById.has(account.tax_advantaged_plan_id)) continue
+      if (account.group_id !== null || !account.tax_advantaged_category_id) continue
+      if (!taxAdvantagedPlanById.has(account.tax_advantaged_category_id)) continue
       counts.set(
-        account.tax_advantaged_plan_id,
-        (counts.get(account.tax_advantaged_plan_id) ?? 0) + 1,
+        account.tax_advantaged_category_id,
+        (counts.get(account.tax_advantaged_category_id) ?? 0) + 1,
       )
     }
     return counts
@@ -33,8 +33,8 @@ export function useTaxAdvantagedLimitSummaries({
   const taxAdvantagedLimitSummaries = useMemo<TaxAdvantagedLimitSummary[]>(() => {
     const visiblePlanIds = new Set<string>()
     for (const account of filteredRows) {
-      if (account.group_id !== null || !account.tax_advantaged_plan_id) continue
-      visiblePlanIds.add(account.tax_advantaged_plan_id)
+      if (account.group_id !== null || !account.tax_advantaged_category_id) continue
+      visiblePlanIds.add(account.tax_advantaged_category_id)
     }
 
     return (taxAdvantagedPlans ?? [])

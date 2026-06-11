@@ -58,7 +58,7 @@ export interface AccountsOverview {
   group_id: string | null;
   account_kind: AccountKind;
   account_type: AccountType;
-  tax_advantaged_plan_id: string | null;
+  tax_advantaged_category_id: string | null;
   name: string;
   institution: Institution | null;
   currency: string;
@@ -103,7 +103,7 @@ export interface Account extends AccountsOverview {
 export interface CreateAccountPayload {
   account_kind: AccountKind;
   account_type: AccountType;
-  tax_advantaged_plan_id: string | null;
+  tax_advantaged_category_id: string | null;
   name: string;
   institution_id: string | null;
   currency: string;
@@ -113,7 +113,7 @@ export interface CreateAccountPayload {
 }
 
 export interface UpdateAccountPayload {
-  tax_advantaged_plan_id?: string | null;
+  tax_advantaged_category_id?: string | null;
   name?: string;
   institution_id?: string | null;
   credit_limit?: number | null;
@@ -190,7 +190,7 @@ function invalidateAccountTaxPlanData(
 function invalidateAccountAggregateData(
   queryClient: QueryClient,
   accountId: string,
-  account: Pick<AccountsOverview, 'account_kind' | 'tax_advantaged_plan_id'> | undefined,
+  account: Pick<AccountsOverview, 'account_kind' | 'tax_advantaged_category_id'> | undefined,
 ) {
   invalidateAccountData(queryClient, [accountId]);
   invalidateTransactions(queryClient);
@@ -205,7 +205,7 @@ function invalidateAccountAggregateData(
   invalidateBudgets(queryClient);
   invalidateDashboardBudgets(queryClient);
   invalidateRunwaySettings(queryClient);
-  invalidateAccountTaxPlanData(queryClient, [account?.tax_advantaged_plan_id]);
+  invalidateAccountTaxPlanData(queryClient, [account?.tax_advantaged_category_id]);
 }
 
 export function useCreateAccount() {
@@ -226,8 +226,8 @@ export function useCreateAccount() {
       if (!account.is_archived && payload.credit_limit !== null) {
         invalidateAccountCreditData(queryClient, account);
       }
-      if (account.tax_advantaged_plan_id) {
-        invalidateAccountTaxPlanData(queryClient, [account.tax_advantaged_plan_id]);
+      if (account.tax_advantaged_category_id) {
+        invalidateAccountTaxPlanData(queryClient, [account.tax_advantaged_category_id]);
       }
     },
   });
@@ -239,7 +239,7 @@ export function useUpdateAccount() {
     mutationFn: updateAccount,
     onSuccess: (account, variables) => {
       const previousAccount = getCachedAccount(queryClient, account.id);
-      const previousPlanId = previousAccount?.tax_advantaged_plan_id;
+      const previousPlanId = previousAccount?.tax_advantaged_category_id;
       const previousIsArchived = previousAccount?.is_archived;
       const previousCreditLimit = previousAccount?.credit_limit;
 
@@ -258,12 +258,12 @@ export function useUpdateAccount() {
       }
 
       if (
-        'tax_advantaged_plan_id' in variables.payload
-        && previousPlanId !== account.tax_advantaged_plan_id
+        'tax_advantaged_category_id' in variables.payload
+        && previousPlanId !== account.tax_advantaged_category_id
       ) {
         invalidateAccountTaxPlanData(queryClient, [
           previousPlanId,
-          account.tax_advantaged_plan_id,
+          account.tax_advantaged_category_id,
         ]);
       }
     },

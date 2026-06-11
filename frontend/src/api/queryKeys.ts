@@ -58,10 +58,10 @@ export const transactionOverviewKeys = {
 };
 
 export const taxAdvantagedPlanKeys = {
-  all: ['tax-advantaged-plans'] as const,
-  list: () => ['tax-advantaged-plans'] as const,
-  detail: (planId: string | null | undefined) => ['tax-advantaged-plans', planId] as const,
-  limits: (planId: string | undefined) => ['tax-advantaged-plans', planId, 'limits'] as const,
+  all: ['tax-advantaged-categories'] as const,
+  list: () => ['tax-advantaged-categories'] as const,
+  detail: (planId: string | null | undefined) => ['tax-advantaged-categories', planId] as const,
+  limits: (planId: string | undefined) => ['tax-advantaged-categories', planId, 'limits'] as const,
 };
 
 export const dashboardKeys = {

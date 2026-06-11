@@ -29,7 +29,7 @@ export default function AccountDetailPage() {
   const [deletedAccountSnapshot, setDeletedAccountSnapshot] = useState<Account | null>(null)
 
   const visibleAccount = account ?? (deleteExitPhase !== 'idle' ? deletedAccountSnapshot : null)
-  const linkedTaxAdvantagedPlanId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_plan_id : null
+  const linkedTaxAdvantagedPlanId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
   const {
     data: linkedTaxAdvantagedPlan,
     error: linkedTaxAdvantagedPlanError,

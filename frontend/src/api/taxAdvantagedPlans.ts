@@ -12,7 +12,7 @@ export type TaxTreatment = 'tax_free' | 'tax_deferred' | 'tax_assisted';
 
 export interface TaxAdvantagedPlan {
   id: string;
-  plan_owner_user_id: string;
+  category_owner_user_id: string;
   group_id: string | null;
   name: string;
   tax_treatment: TaxTreatment;
@@ -30,7 +30,7 @@ export interface TaxAdvantagedPlan {
 }
 
 export interface TaxAdvantagedPlanLimit {
-  plan_id: string;
+  tax_advantaged_category_id: string;
   year: number;
   contribution_limit: number;
   withdrawal_limit: number | null;
@@ -99,7 +99,7 @@ function upsertTaxAdvantagedPlanLimit(
   limit: TaxAdvantagedPlanLimit,
 ) {
   queryClient.setQueryData<TaxAdvantagedPlanLimit[]>(
-    taxAdvantagedPlanKeys.limits(limit.plan_id),
+    taxAdvantagedPlanKeys.limits(limit.tax_advantaged_category_id),
     (limits) => {
       if (!limits) return [limit];
       const index = limits.findIndex((item) => item.year === limit.year);
@@ -128,23 +128,23 @@ function removeTaxAdvantagedPlanLimit(
 function clearLinkedAccountPlanCaches(queryClient: QueryClient, planId: string) {
   const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list()) ?? [];
   const linkedAccountIds = accounts
-    .filter((account) => account.tax_advantaged_plan_id === planId)
+    .filter((account) => account.tax_advantaged_category_id === planId)
     .map((account) => account.id);
 
   queryClient.setQueryData<AccountsOverview[]>(
     accountKeys.list(),
     (currentAccounts) =>
       currentAccounts?.map((account) =>
-        account.tax_advantaged_plan_id === planId
-          ? { ...account, tax_advantaged_plan_id: null }
+        account.tax_advantaged_category_id === planId
+          ? { ...account, tax_advantaged_category_id: null }
           : account,
       ),
   );
 
   for (const accountId of linkedAccountIds) {
     queryClient.setQueryData<Account>(accountKeys.detail(accountId), (account) =>
-      account?.tax_advantaged_plan_id === planId
-        ? { ...account, tax_advantaged_plan_id: null }
+      account?.tax_advantaged_category_id === planId
+        ? { ...account, tax_advantaged_category_id: null }
         : account,
     );
   }
@@ -157,7 +157,7 @@ export function useTaxAdvantagedPlans() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: taxAdvantagedPlanKeys.list(),
-    queryFn: () => authenticatedFetch<TaxAdvantagedPlan[]>('/tax-advantaged-plans'),
+    queryFn: () => authenticatedFetch<TaxAdvantagedPlan[]>('/tax-advantaged-categories'),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -167,7 +167,7 @@ export function useCreateTaxAdvantagedPlan() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateTaxAdvantagedPlanPayload) =>
-      authenticatedFetch<TaxAdvantagedPlan>('/tax-advantaged-plans', {
+      authenticatedFetch<TaxAdvantagedPlan>('/tax-advantaged-categories', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
@@ -182,7 +182,7 @@ export function useUpdateTaxAdvantagedPlan(planId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateTaxAdvantagedPlanPayload) =>
-      authenticatedFetch<TaxAdvantagedPlan>(`/tax-advantaged-plans/${planId}`, {
+      authenticatedFetch<TaxAdvantagedPlan>(`/tax-advantaged-categories/${planId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
@@ -199,7 +199,7 @@ export function useDeleteTaxAdvantagedPlan({ minimumPendingMs = 0 }: { minimumPe
     mutationFn: async (planId: string) => {
       const minimumPending = delay(minimumPendingMs);
       try {
-        const result = await authenticatedFetch<void>(`/tax-advantaged-plans/${planId}`, {
+        const result = await authenticatedFetch<void>(`/tax-advantaged-categories/${planId}`, {
           method: 'DELETE',
         });
         await minimumPending;
@@ -225,7 +225,7 @@ export function useTaxAdvantagedPlanLimits(planId: string | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: taxAdvantagedPlanKeys.limits(planId),
-    queryFn: () => authenticatedFetch<TaxAdvantagedPlanLimit[]>(`/tax-advantaged-plans/${planId}/limits`),
+    queryFn: () => authenticatedFetch<TaxAdvantagedPlanLimit[]>(`/tax-advantaged-categories/${planId}/limits`),
     enabled: !!accessToken && !!planId,
     staleTime: 5 * 60 * 1000,
   });
@@ -235,7 +235,7 @@ export function useCreateTaxAdvantagedPlanLimit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ planId, ...payload }: CreateTaxAdvantagedPlanLimitPayload) =>
-      authenticatedFetch<TaxAdvantagedPlanLimit>(`/tax-advantaged-plans/${planId}/limits`, {
+      authenticatedFetch<TaxAdvantagedPlanLimit>(`/tax-advantaged-categories/${planId}/limits`, {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
@@ -250,7 +250,7 @@ export function useUpdateTaxAdvantagedPlanLimit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ planId, year, ...payload }: UpdateTaxAdvantagedPlanLimitPayload) =>
-      authenticatedFetch<TaxAdvantagedPlanLimit>(`/tax-advantaged-plans/${planId}/limits/${year}`, {
+      authenticatedFetch<TaxAdvantagedPlanLimit>(`/tax-advantaged-categories/${planId}/limits/${year}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
@@ -265,7 +265,7 @@ export function useDeleteTaxAdvantagedPlanLimit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ planId, year }: { planId: string; year: number }) =>
-      authenticatedFetch<void>(`/tax-advantaged-plans/${planId}/limits/${year}`, {
+      authenticatedFetch<void>(`/tax-advantaged-categories/${planId}/limits/${year}`, {
         method: 'DELETE',
       }),
     onSuccess: (_data, variables) => {
@@ -279,7 +279,7 @@ export function useTaxAdvantagedPlan(planId: string | null | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: taxAdvantagedPlanKeys.detail(planId),
-    queryFn: () => authenticatedFetch<TaxAdvantagedPlan>(`/tax-advantaged-plans/${planId}`),
+    queryFn: () => authenticatedFetch<TaxAdvantagedPlan>(`/tax-advantaged-categories/${planId}`),
     enabled: !!accessToken && !!planId,
     staleTime: 5 * 60 * 1000,
   });

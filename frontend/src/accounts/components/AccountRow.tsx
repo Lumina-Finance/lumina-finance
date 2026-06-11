@@ -80,8 +80,8 @@ export default function AccountRow({
         : account.current_balance < 0
           ? 'var(--app-negative)'
           : 'var(--app-text)'
-  const linkedPlan = account.group_id === null && account.tax_advantaged_plan_id
-    ? taxAdvantagedPlanById.get(account.tax_advantaged_plan_id)
+  const linkedPlan = account.group_id === null && account.tax_advantaged_category_id
+    ? taxAdvantagedPlanById.get(account.tax_advantaged_category_id)
     : undefined
   const metadataLabel = `${humanizeAccountType(account.account_type)}${account.institution ? ` · ${account.institution.name}` : ''}`
   const fxStatus = account.current_balance_fx_status
