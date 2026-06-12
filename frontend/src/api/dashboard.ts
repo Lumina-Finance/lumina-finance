@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import { dashboardKeys } from '@/api/queryKeys';
+import { buildQueryString } from '@/api/queryString';
 import type { Transaction } from '@/api/transactions';
 
 // ── Types (mirror backend schemas) ──
@@ -99,7 +100,7 @@ export function useDashboardNetWorth(windowDays = 90) {
     queryKey: dashboardKeys.netWorth(windowDays),
     queryFn: () =>
       authenticatedFetch<NetWorthWidgetResponse>(
-        `/dashboard/net-worth?window_days=${windowDays}`,
+        `/dashboard/net-worth${buildQueryString({ window_days: windowDays })}`,
       ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
@@ -122,7 +123,7 @@ export function useDashboardRecentActivity(windowDays = 90) {
     queryKey: dashboardKeys.recentActivity(windowDays),
     queryFn: () =>
       authenticatedFetch<RecentActivityWidgetResponse>(
-        `/dashboard/recent-activity?window_days=${windowDays}`,
+        `/dashboard/recent-activity${buildQueryString({ window_days: windowDays })}`,
       ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
@@ -135,7 +136,7 @@ export function useSpendingComparison(range: SpendingRange) {
     queryKey: dashboardKeys.spendingComparison(range),
     queryFn: () =>
       authenticatedFetch<SpendingComparisonResponse>(
-        `/dashboard/spending-comparison?range=${range}`,
+        `/dashboard/spending-comparison${buildQueryString({ range })}`,
       ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
@@ -148,7 +149,7 @@ export function useSpendingBreakdown(range: SpendingRange) {
     queryKey: dashboardKeys.spendingBreakdown(range),
     queryFn: () =>
       authenticatedFetch<SpendingBreakdownResponse>(
-        `/dashboard/spending-breakdown?range=${range}`,
+        `/dashboard/spending-breakdown${buildQueryString({ range })}`,
       ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,

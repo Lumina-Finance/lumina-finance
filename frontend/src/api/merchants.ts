@@ -19,6 +19,7 @@ import {
 import {
   merchantKeys,
 } from '@/api/queryKeys';
+import { buildQueryString, type QueryStringValue } from '@/api/queryString';
 
 export interface Merchant {
   id: string;
@@ -47,14 +48,6 @@ export interface MergeMerchantPayload {
 export interface MerchantFilters {
   group_id?: string;
   q?: string;
-}
-
-function buildQueryString(params: Record<string, string | number | undefined>): string {
-  const entries = Object.entries(params).filter(
-    (entry): entry is [string, string | number] => entry[1] !== undefined,
-  );
-  if (entries.length === 0) return '';
-  return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
 }
 
 function isMerchantInfiniteQueryKey(
@@ -144,7 +137,7 @@ export function useInfiniteMerchants(filters: MerchantFilters = {}, pageSize = 2
       authenticatedFetch<Merchant[]>(
         '/merchants' +
           buildQueryString({
-            ...(filters as Record<string, string | number | undefined>),
+            ...(filters as Record<string, QueryStringValue>),
             limit: pageSize,
             offset: pageParam,
           }),

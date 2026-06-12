@@ -22,6 +22,7 @@ import {
 } from '@/api/cacheInvalidation';
 import type { FxStatus } from '@/api/dashboard';
 import { accountKeys } from '@/api/queryKeys';
+import { buildQueryString } from '@/api/queryString';
 
 // Split liabilities into revolving (credit cards, lines of credit, HELOCs —
 // purchases already expensed at time of swipe) vs amortizing (loans,
@@ -340,14 +341,13 @@ export function useAccountSnapshots(
       includeAnchor,
     }),
     queryFn: () => {
-      const params = new URLSearchParams();
-      if (fromDate) params.set('from_date', fromDate);
-      if (toDate) params.set('to_date', toDate);
-      if (granularity !== 'day') params.set('granularity', granularity);
-      if (includeAnchor) params.set('include_anchor', 'true');
-      const qs = params.toString();
       return authenticatedFetch<AccountBalanceSnapshot[]>(
-        `/accounts/${accountId}/snapshots${qs ? `?${qs}` : ''}`,
+        `/accounts/${accountId}/snapshots${buildQueryString({
+          from_date: fromDate,
+          to_date: toDate,
+          granularity: granularity === 'day' ? undefined : granularity,
+          include_anchor: includeAnchor || undefined,
+        })}`,
       );
     },
     enabled: !!accessToken && !!accountId,
@@ -394,7 +394,7 @@ export function useAccountSpendingBreakdown(
     queryKey: accountKeys.spendingBreakdown(accountId, range),
     queryFn: () =>
       authenticatedFetch<AccountSpendingBreakdown>(
-        `/accounts/${accountId}/spending-breakdown?range=${range}`,
+        `/accounts/${accountId}/spending-breakdown${buildQueryString({ range })}`,
       ),
     enabled: !!accessToken && !!accountId,
     placeholderData: (previousData, previousQuery) =>
@@ -418,7 +418,7 @@ export function useAccountCashFlow(accountId: string | undefined, months: number
     queryKey: accountKeys.cashFlow(accountId, months),
     queryFn: () =>
       authenticatedFetch<AccountMonthlyCashFlow[]>(
-        `/accounts/${accountId}/cash-flow?months=${months}`,
+        `/accounts/${accountId}/cash-flow${buildQueryString({ months })}`,
       ),
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,

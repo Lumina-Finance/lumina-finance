@@ -9,6 +9,7 @@ import {
 import { authenticatedFetch } from '@/api/client';
 import { invalidateTags, invalidateTransactions } from '@/api/cacheInvalidation';
 import { tagKeys } from '@/api/queryKeys';
+import { buildQueryString, type QueryStringValue } from '@/api/queryString';
 import { useAuth } from '@/hooks/useAuth';
 
 export interface Tag {
@@ -35,14 +36,6 @@ export interface UpdateTagPayload {
 
 export interface MergeTagPayload {
   replacement_tag_id: string;
-}
-
-function buildQueryString(params: Record<string, string | number | undefined>): string {
-  const entries = Object.entries(params).filter(
-    (entry): entry is [string, string | number] => entry[1] !== undefined,
-  );
-  if (entries.length === 0) return '';
-  return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
 }
 
 function isTagInfiniteQueryKey(queryKey: QueryKey): queryKey is readonly ['tags', 'infinite', Record<string, unknown>, number] {
@@ -107,7 +100,7 @@ export function useInfiniteTags(filters: TagFilters = {}, pageSize = 20, enabled
       authenticatedFetch<Tag[]>(
         '/tags' +
           buildQueryString({
-            ...(filters as Record<string, string | number | undefined>),
+            ...(filters as Record<string, QueryStringValue>),
             limit: pageSize,
             offset: pageParam,
           }),

@@ -32,6 +32,7 @@ import {
   transactionKeys,
   transactionOverviewKeys,
 } from '@/api/queryKeys';
+import { buildQueryString, type QueryStringValue } from '@/api/queryString';
 import type { Account, AccountKind, AccountsOverview } from '@/api/accounts';
 import type { FxStatus } from '@/api/dashboard';
 
@@ -265,14 +266,6 @@ const TARGET_IMPORT_BATCH_BYTES = 650 * 1024;
 const IMPORT_BATCH_YIELD_INTERVAL = 250;
 const IMPORT_PAYLOAD_ENCODER = new TextEncoder();
 
-function buildQueryString(params: Record<string, string | number | undefined>): string {
-  const entries = Object.entries(params).filter(
-    (entry): entry is [string, string | number] => entry[1] !== undefined,
-  );
-  if (entries.length === 0) return '';
-  return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
-}
-
 function delay(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -455,7 +448,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
     queryKey: transactionKeys.list(filters as Record<string, unknown>),
     queryFn: () =>
       authenticatedFetch<Transaction[]>(
-        '/transactions' + buildQueryString(filters as Record<string, string | number | undefined>),
+        '/transactions' + buildQueryString(filters as Record<string, QueryStringValue>),
       ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
@@ -470,7 +463,7 @@ export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit
       authenticatedFetch<Transaction[]>(
         '/transactions' +
           buildQueryString({
-            ...(filters as Record<string, string | number | undefined>),
+            ...(filters as Record<string, QueryStringValue>),
             limit: pageSize,
             offset: pageParam,
           }),
@@ -490,7 +483,7 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
     queryKey: transactionOverviewKeys.detail(filters as Record<string, unknown>),
     queryFn: () =>
       authenticatedFetch<TransactionsOverview>(
-        '/transactions/overview' + buildQueryString(filters as Record<string, string | number | undefined>),
+        '/transactions/overview' + buildQueryString(filters as Record<string, QueryStringValue>),
       ),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,

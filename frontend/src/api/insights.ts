@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
 import type { FxStatus } from '@/api/dashboard';
 import { insightsKeys } from '@/api/queryKeys';
+import { buildQueryString } from '@/api/queryString';
 import type { InsightsComparisonPeriod } from '@/insights/types/range';
 
 export interface InsightsPeriodGlanceResponse {
@@ -83,14 +84,11 @@ export interface InsightsMerchantsResponse {
 }
 
 function rangeQueryString(fromDate: string, toDate: string, comparisonPeriod?: InsightsComparisonPeriod) {
-  const params = new URLSearchParams({
+  return buildQueryString({
     from_date: fromDate,
     to_date: toDate,
+    comparison_period: comparisonPeriod,
   });
-  if (comparisonPeriod) {
-    params.set('comparison_period', comparisonPeriod);
-  }
-  return params.toString();
 }
 
 export function useInsightsPeriodGlance(
@@ -104,7 +102,7 @@ export function useInsightsPeriodGlance(
     queryKey: insightsKeys.periodGlance(fromDate, toDate, comparisonPeriod),
     queryFn: () =>
       authenticatedFetch<InsightsPeriodGlanceResponse>(
-        `/insights/period-glance?${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
+        `/insights/period-glance${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -117,7 +115,7 @@ export function useInsightsNetWorth(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.netWorth(fromDate, toDate),
     queryFn: () =>
       authenticatedFetch<InsightsNetWorthResponse>(
-        `/insights/net-worth?${rangeQueryString(fromDate, toDate)}`,
+        `/insights/net-worth${rangeQueryString(fromDate, toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -146,7 +144,7 @@ export function useInsightsIncomeExpenseBreakdown(
     queryKey: insightsKeys.incomeExpenseBreakdown(fromDate, toDate, comparisonPeriod),
     queryFn: () =>
       authenticatedFetch<InsightsIncomeExpenseBreakdownResponse>(
-        `/insights/income-expense-breakdown?${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
+        `/insights/income-expense-breakdown${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -159,7 +157,7 @@ export function useInsightsCashFlow(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.cashFlow(fromDate, toDate),
     queryFn: () =>
       authenticatedFetch<InsightsCashFlowResponse>(
-        `/insights/cash-flow?${rangeQueryString(fromDate, toDate)}`,
+        `/insights/cash-flow${rangeQueryString(fromDate, toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -172,7 +170,7 @@ export function useInsightsFundFlow(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.fundFlow(fromDate, toDate),
     queryFn: () =>
       authenticatedFetch<InsightsFundFlowResponse>(
-        `/insights/fund-flow?${rangeQueryString(fromDate, toDate)}`,
+        `/insights/fund-flow${rangeQueryString(fromDate, toDate)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
@@ -190,7 +188,7 @@ export function useInsightsMerchants(
     queryKey: insightsKeys.merchants(fromDate, toDate, comparisonPeriod),
     queryFn: () =>
       authenticatedFetch<InsightsMerchantsResponse>(
-        `/insights/merchants?${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
+        `/insights/merchants${rangeQueryString(fromDate, toDate, comparisonPeriod)}`,
       ),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: 5 * 60 * 1000,
