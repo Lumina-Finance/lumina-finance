@@ -101,7 +101,7 @@ These pages are now also fully mobile and tablet optimized!
 
 ### Docker
 
-If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL` and `FRANKFURTER_URL` values.
+If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL`, `UPDATE_CHECKS_ENABLED`, and `FRANKFURTER_URL` values.
 
 ### Bare Metal
 
