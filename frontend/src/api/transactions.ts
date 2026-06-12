@@ -442,14 +442,44 @@ export function fetchTransaction(transactionId: string) {
   return authenticatedFetch<Transaction>(`/transactions/${transactionId}`);
 }
 
+/**
+ * Fetches transactions for a filter set used by transaction lists and selectors
+ */
+export function fetchTransactions(filters: TransactionFilters = {}) {
+  return authenticatedFetch<Transaction[]>(
+    '/transactions' + buildQueryString(filters as Record<string, QueryStringValue>),
+  );
+}
+
+/**
+ * Fetches one paginated transaction page while preserving the list filter contract
+ */
+export function fetchTransactionPage(
+  filters: Omit<TransactionFilters, 'limit' | 'offset'> = {},
+  pageSize = 15,
+  offset = 0,
+) {
+  return fetchTransactions({
+    ...filters,
+    limit: pageSize,
+    offset,
+  });
+}
+
+/**
+ * Fetches transaction summary data for dashboard and transaction overview cards
+ */
+export function fetchTransactionsOverview(filters: OverviewFilters = {}) {
+  return authenticatedFetch<TransactionsOverview>(
+    '/transactions/overview' + buildQueryString(filters as Record<string, QueryStringValue>),
+  );
+}
+
 export function useTransactions(filters: TransactionFilters = {}) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: transactionKeys.list(filters as Record<string, unknown>),
-    queryFn: () =>
-      authenticatedFetch<Transaction[]>(
-        '/transactions' + buildQueryString(filters as Record<string, QueryStringValue>),
-      ),
+    queryFn: () => fetchTransactions(filters),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -459,15 +489,7 @@ export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit
   const { accessToken } = useAuth();
   return useInfiniteQuery({
     queryKey: transactionKeys.infinite(filters as Record<string, unknown>, pageSize),
-    queryFn: ({ pageParam }) =>
-      authenticatedFetch<Transaction[]>(
-        '/transactions' +
-          buildQueryString({
-            ...(filters as Record<string, QueryStringValue>),
-            limit: pageSize,
-            offset: pageParam,
-          }),
-      ),
+    queryFn: ({ pageParam }) => fetchTransactionPage(filters, pageSize, pageParam),
     initialPageParam: 0,
     // A short page = end of data
     getNextPageParam: (lastPage, allPages) =>
@@ -481,10 +503,7 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: transactionOverviewKeys.detail(filters as Record<string, unknown>),
-    queryFn: () =>
-      authenticatedFetch<TransactionsOverview>(
-        '/transactions/overview' + buildQueryString(filters as Record<string, QueryStringValue>),
-      ),
+    queryFn: () => fetchTransactionsOverview(filters),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
