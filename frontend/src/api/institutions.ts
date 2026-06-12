@@ -4,6 +4,9 @@ import { authenticatedFetch } from '@/api/client';
 import { institutionKeys } from '@/api/queryKeys';
 import type { Institution } from '@/api/accounts';
 
+/**
+ * Reads institutions available for account creation and account identity edits
+ */
 export function useInstitutions() {
   const { accessToken } = useAuth();
   return useQuery({
@@ -21,6 +24,9 @@ interface CreateInstitutionPayload {
   website: string;
 }
 
+/**
+ * Creates an institution record from the account creation flow
+ */
 function createInstitution(payload: CreateInstitutionPayload) {
   return authenticatedFetch<Institution>('/institutions', {
     method: 'POST',
@@ -28,6 +34,9 @@ function createInstitution(payload: CreateInstitutionPayload) {
   });
 }
 
+/**
+ * Creates institutions and keeps the cached selector list in sync
+ */
 export function useCreateInstitution() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -39,7 +48,7 @@ export function useCreateInstitution() {
       ]);
     },
     onError: () => {
-      // On 409 (duplicate), refetch so the existing institution appears in the dropdown
+      // Duplicate creates can return 409 before the existing institution is present locally
       queryClient.invalidateQueries({ queryKey: institutionKeys.list(), exact: true });
     },
   });

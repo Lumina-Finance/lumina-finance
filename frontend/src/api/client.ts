@@ -10,15 +10,18 @@ interface AuthBindings {
 
 let bindings: AuthBindings | null = null;
 
-// Called once by AuthProvider on mount so authenticatedFetch can read the
-// current token and push refreshed sessions back into React state.
+/**
+ * Registers auth callbacks used by authenticatedFetch outside React state
+ */
 export function registerAuthBindings(b: AuthBindings): void {
   bindings = b;
 }
 
-// Shared in-flight refresh so parallel 401s only trigger one /auth/refresh.
 let pendingRefresh: Promise<AuthResponse> | null = null;
 
+/**
+ * Shares one in-flight refresh request so parallel 401 responses do not refresh twice
+ */
 function refreshOnce(): Promise<AuthResponse> {
   if (!pendingRefresh) {
     pendingRefresh = authApi.refresh().finally(() => {
@@ -28,8 +31,9 @@ function refreshOnce(): Promise<AuthResponse> {
   return pendingRefresh;
 }
 
-// Drop-in fetch for endpoints that require a Bearer token. On 401 it refreshes
-// the access token once and retries the original request before giving up.
+/**
+ * Fetches authenticated API endpoints and retries once after refreshing expired tokens
+ */
 export async function authenticatedFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!bindings) {
     throw new Error('authenticatedFetch called before auth bindings were registered');
@@ -70,7 +74,7 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
     throw new ApiError(message, res.status);
   }
 
-  // 204 No Content responses have an empty body, so calling res.json() would cause an error.
+  // 204 No Content responses have an empty body, so res.json would fail
   if (res.status === 204) return undefined as T;
 
   return res.json() as Promise<T>;

@@ -28,6 +28,9 @@ export interface AppVersionInfo {
   update: AppUpdateNotice | null;
 }
 
+/**
+ * Fetches app version metadata and maps release URLs to frontend field names
+ */
 export async function fetchAppVersion(): Promise<AppVersionInfo> {
   const response = await fetch(`${API_BASE}/version`, { cache: 'no-store' });
   if (!response.ok) {
@@ -46,6 +49,9 @@ export async function fetchAppVersion(): Promise<AppVersionInfo> {
   };
 }
 
+/**
+ * Polls the backend version endpoint for app update notices
+ */
 export function useAppVersion() {
   return useQuery({
     queryKey: appVersionKeys.version(),

@@ -9,6 +9,9 @@ export interface Currency {
   minor_unit_exponent: number;
 }
 
+/**
+ * Fetches static ISO currency metadata used by money inputs and displays
+ */
 async function fetchCurrencies(): Promise<Currency[]> {
   const res = await fetch(`${API_BASE}/currencies`);
   if (!res.ok) {
@@ -17,8 +20,9 @@ async function fetchCurrencies(): Promise<Currency[]> {
   return res.json();
 }
 
-// ISO 4217 is effectively static, so the query never goes stale or gets
-// garbage collected within a session — the persistent cache handles TTL.
+/**
+ * Reads currencies with session-long caching because ISO 4217 metadata is effectively static
+ */
 export function useCurrencies() {
   return useQuery({
     queryKey: currencyKeys.list(),
