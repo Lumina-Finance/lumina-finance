@@ -152,9 +152,12 @@ function AnimatedRoutes() {
     let exitTimer: number | undefined;
 
     const transitionTimer = window.setTimeout(() => {
-      if (!isProtectedPath(location.pathname) || !isProtectedPath(displayLocation.pathname)) {
+      const nextPathIsProtected = isProtectedPath(location.pathname);
+      const displayedPathIsProtected = isProtectedPath(displayLocation.pathname);
+
+      if (!nextPathIsProtected || !displayedPathIsProtected) {
         setDisplayLocation(location);
-        setPageTransitionPhase('idle');
+        setPageTransitionPhase(nextPathIsProtected ? 'entering' : 'idle');
         return;
       }
 
