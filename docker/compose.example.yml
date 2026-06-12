@@ -14,6 +14,7 @@ services:
       DB_USER: "${DB_USER}"
       DB_PASSWORD: "${DB_PASSWORD}"
       APP_URL: "${APP_URL:-}"
+      UPDATE_CHECKS_ENABLED: "${UPDATE_CHECKS_ENABLED:-true}"
       FRANKFURTER_URL: "${FRANKFURTER_URL:-https://api.frankfurter.dev/v2}"
     volumes:
       - lumina_data:/data
