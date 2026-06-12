@@ -38,10 +38,18 @@ export interface MergeTagPayload {
   replacement_tag_id: string;
 }
 
-function isTagInfiniteQueryKey(queryKey: QueryKey): queryKey is readonly ['tags', 'infinite', Record<string, unknown>, number] {
+/**
+ * Checks whether a query key belongs to a paginated tag list
+ */
+function isTagInfiniteQueryKey(
+  queryKey: QueryKey,
+): queryKey is readonly ['tags', 'infinite', Record<string, unknown>, number] {
   return Array.isArray(queryKey) && queryKey[0] === 'tags' && queryKey[1] === 'infinite';
 }
 
+/**
+ * Checks whether a tag belongs in a cached page for the active filters
+ */
 function tagMatchesFilters(tag: Tag, filters: Record<string, unknown>) {
   const groupId = typeof filters.group_id === 'string' ? filters.group_id : undefined;
   const q = typeof filters.q === 'string' ? filters.q.trim().toLowerCase() : '';
@@ -54,11 +62,21 @@ function tagMatchesFilters(tag: Tag, filters: Record<string, unknown>) {
   return inScope && matchesSearch;
 }
 
-function upsertTagIntoInfiniteData(data: InfiniteData<Tag[]> | undefined, tag: Tag): InfiniteData<Tag[]> | undefined {
+/**
+ * Inserts or replaces a tag while preserving existing infinite-query page sizes
+ */
+function upsertTagIntoInfiniteData(
+  data: InfiniteData<Tag[]> | undefined,
+  tag: Tag,
+): InfiniteData<Tag[]> | undefined {
   if (!data) return data;
 
   if (data.pages.length === 0) {
-    return { ...data, pages: [[tag]], pageParams: data.pageParams.length > 0 ? data.pageParams : [0] };
+    return {
+      ...data,
+      pages: [[tag]],
+      pageParams: data.pageParams.length > 0 ? data.pageParams : [0],
+    };
   }
 
   const pageLengths = data.pages.map((page) => page.length);
@@ -68,6 +86,8 @@ function upsertTagIntoInfiniteData(data: InfiniteData<Tag[]> | undefined, tag: T
     .concat(tag)
     .sort((a, b) => a.name.localeCompare(b.name));
   let cursor = 0;
+
+  // Existing page sizes keep scroll position and fetch boundaries stable after cache updates
   const pages = pageLengths.map((length) => {
     const page = sortedTags.slice(cursor, cursor + length);
     cursor += length;
@@ -79,6 +99,20 @@ function upsertTagIntoInfiniteData(data: InfiniteData<Tag[]> | undefined, tag: T
   }
 
   return { ...data, pages };
+}
+
+/**
+ * Fetches one filtered tag page for settings and transaction tag selectors
+ */
+export function fetchTagsPage(filters: TagFilters = {}, pageSize = 20, offset = 0) {
+  return authenticatedFetch<Tag[]>(
+    '/tags' +
+      buildQueryString({
+        ...(filters as Record<string, QueryStringValue>),
+        limit: pageSize,
+        offset,
+      }),
+  );
 }
 
 export function useTag(tagId: string | null | undefined, enabled = true) {
@@ -96,15 +130,7 @@ export function useInfiniteTags(filters: TagFilters = {}, pageSize = 20, enabled
   const { accessToken } = useAuth();
   return useInfiniteQuery({
     queryKey: tagKeys.infinite(filters as Record<string, unknown>, pageSize),
-    queryFn: ({ pageParam }) =>
-      authenticatedFetch<Tag[]>(
-        '/tags' +
-          buildQueryString({
-            ...(filters as Record<string, QueryStringValue>),
-            limit: pageSize,
-            offset: pageParam,
-          }),
-      ),
+    queryFn: ({ pageParam }) => fetchTagsPage(filters, pageSize, pageParam),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < pageSize ? undefined : allPages.length * pageSize,

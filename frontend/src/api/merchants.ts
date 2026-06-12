@@ -56,6 +56,9 @@ function isMerchantInfiniteQueryKey(
   return Array.isArray(queryKey) && queryKey[0] === 'merchants' && queryKey[1] === 'infinite';
 }
 
+/**
+ * Checks whether a merchant belongs in a cached page for the active filters
+ */
 function merchantMatchesFilters(merchant: Merchant, filters: Record<string, unknown>) {
   const groupId = typeof filters.group_id === 'string' ? filters.group_id : undefined;
   const q = typeof filters.q === 'string' ? filters.q.trim().toLowerCase() : '';
@@ -68,6 +71,9 @@ function merchantMatchesFilters(merchant: Merchant, filters: Record<string, unkn
   return inScope && matchesSearch;
 }
 
+/**
+ * Inserts or replaces a merchant while preserving existing infinite-query page sizes
+ */
 function upsertMerchantIntoInfiniteData(
   data: InfiniteData<Merchant[]> | undefined,
   merchant: Merchant,
@@ -75,7 +81,11 @@ function upsertMerchantIntoInfiniteData(
   if (!data) return data;
 
   if (data.pages.length === 0) {
-    return { ...data, pages: [[merchant]], pageParams: data.pageParams.length > 0 ? data.pageParams : [0] };
+    return {
+      ...data,
+      pages: [[merchant]],
+      pageParams: data.pageParams.length > 0 ? data.pageParams : [0],
+    };
   }
 
   const pageLengths = data.pages.map((page) => page.length);
@@ -85,6 +95,8 @@ function upsertMerchantIntoInfiniteData(
     .concat(merchant)
     .sort((a, b) => a.name.localeCompare(b.name));
   let cursor = 0;
+
+  // Existing page sizes keep scroll position and fetch boundaries stable after cache updates
   const pages = pageLengths.map((length) => {
     const page = sortedMerchants.slice(cursor, cursor + length);
     cursor += length;
@@ -98,6 +110,9 @@ function upsertMerchantIntoInfiniteData(
   return { ...data, pages };
 }
 
+/**
+ * Removes a merchant from every cached infinite-query page
+ */
 function removeMerchantFromInfiniteData(
   data: InfiniteData<Merchant[]> | undefined,
   merchantId: string,
@@ -110,12 +125,29 @@ function removeMerchantFromInfiniteData(
   };
 }
 
+/**
+ * Invalidates views whose rendered transaction labels or rollups depend on merchants
+ */
 function invalidateMerchantUsageQueries(qc: QueryClient) {
   invalidateMerchants(qc);
   invalidateTransactions(qc);
   invalidateTransactionOverview(qc);
   invalidateDashboardRecent(qc);
   invalidateInsightsMerchants(qc);
+}
+
+/**
+ * Fetches one filtered merchant page for settings and transaction merchant selectors
+ */
+export function fetchMerchantsPage(filters: MerchantFilters = {}, pageSize = 20, offset = 0) {
+  return authenticatedFetch<Merchant[]>(
+    '/merchants' +
+      buildQueryString({
+        ...(filters as Record<string, QueryStringValue>),
+        limit: pageSize,
+        offset,
+      }),
+  );
 }
 
 export function useMerchant(merchantId: string | null | undefined, enabled = true) {
@@ -133,15 +165,7 @@ export function useInfiniteMerchants(filters: MerchantFilters = {}, pageSize = 2
   const { accessToken } = useAuth();
   return useInfiniteQuery({
     queryKey: merchantKeys.infinite(filters as Record<string, unknown>, pageSize),
-    queryFn: ({ pageParam }) =>
-      authenticatedFetch<Merchant[]>(
-        '/merchants' +
-          buildQueryString({
-            ...(filters as Record<string, QueryStringValue>),
-            limit: pageSize,
-            offset: pageParam,
-          }),
-      ),
+    queryFn: ({ pageParam }) => fetchMerchantsPage(filters, pageSize, pageParam),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < pageSize ? undefined : allPages.length * pageSize,
