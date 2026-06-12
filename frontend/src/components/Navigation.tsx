@@ -128,6 +128,7 @@ function ThemeToggle({
       <motion.span
         className="app-navigation-theme-toggle-indicator"
         aria-hidden
+        initial={false}
         style={{ width: `calc((100% - 0.5rem) / ${themeOptions.length})` }}
         animate={{ x: `${activeIndex * 100}%` }}
         transition={shouldReduceMotion ? { duration: 0 } : themeToggleSpring}
