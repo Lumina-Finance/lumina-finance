@@ -506,6 +506,37 @@
     background: transparent;
   }
 
+  .app-navigation-theme-toggle-indicator {
+    @apply pointer-events-none absolute rounded-md;
+    top: 0.25rem;
+    bottom: 0.25rem;
+    left: 0.25rem;
+    z-index: 0;
+    background: var(--app-accent-soft);
+    border: 1px solid var(--app-accent-border);
+  }
+
+  .app-navigation-theme-toggle .app-segmented-option {
+    background: transparent;
+    box-shadow: none;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+  }
+
+  .app-navigation-theme-toggle .app-segmented-option:hover {
+    color: var(--app-text);
+    background: var(--app-accent-soft);
+  }
+
+  .app-navigation-theme-toggle .app-segmented-option:active {
+    transform: scale(0.96);
+  }
+
+  .app-navigation-theme-toggle .app-segmented-option-active,
+  .app-navigation-theme-toggle .app-segmented-option-active:hover {
+    color: var(--app-accent);
+    background: transparent;
+  }
+
   .app-balance-chart-mode-selector {
     position: relative;
     overflow: hidden;
@@ -577,6 +608,14 @@
     }
 
     .app-time-selector .app-segmented-option:active {
+      transform: none;
+    }
+
+    .app-navigation-theme-toggle .app-segmented-option {
+      transition: none;
+    }
+
+    .app-navigation-theme-toggle .app-segmented-option:active {
       transform: none;
     }
 
