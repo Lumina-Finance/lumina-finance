@@ -84,11 +84,61 @@ export interface SpendingComparisonResponse {
 
 // ── Hooks ──
 
+/**
+ * Fetches dashboard credit utilization data
+ */
+export function fetchDashboardCredit() {
+  return authenticatedFetch<CreditWidgetResponse>('/dashboard/credit');
+}
+
+/**
+ * Fetches dashboard net worth history for a rolling day window
+ */
+export function fetchDashboardNetWorth(windowDays = 90) {
+  return authenticatedFetch<NetWorthWidgetResponse>(
+    `/dashboard/net-worth${buildQueryString({ window_days: windowDays })}`,
+  );
+}
+
+/**
+ * Fetches dashboard savings-rate history
+ */
+export function fetchDashboardSavingsRate() {
+  return authenticatedFetch<SavingsRateWidgetResponse>('/dashboard/savings-rate');
+}
+
+/**
+ * Fetches recent dashboard transactions for a rolling day window
+ */
+export function fetchDashboardRecentActivity(windowDays = 90) {
+  return authenticatedFetch<RecentActivityWidgetResponse>(
+    `/dashboard/recent-activity${buildQueryString({ window_days: windowDays })}`,
+  );
+}
+
+/**
+ * Fetches cumulative spending comparison data for a calendar range
+ */
+export function fetchSpendingComparison(range: SpendingRange) {
+  return authenticatedFetch<SpendingComparisonResponse>(
+    `/dashboard/spending-comparison${buildQueryString({ range })}`,
+  );
+}
+
+/**
+ * Fetches category-level dashboard spending breakdown for a calendar range
+ */
+export function fetchSpendingBreakdown(range: SpendingRange) {
+  return authenticatedFetch<SpendingBreakdownResponse>(
+    `/dashboard/spending-breakdown${buildQueryString({ range })}`,
+  );
+}
+
 export function useDashboardCredit() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.credit(),
-    queryFn: () => authenticatedFetch<CreditWidgetResponse>('/dashboard/credit'),
+    queryFn: fetchDashboardCredit,
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -98,10 +148,7 @@ export function useDashboardNetWorth(windowDays = 90) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.netWorth(windowDays),
-    queryFn: () =>
-      authenticatedFetch<NetWorthWidgetResponse>(
-        `/dashboard/net-worth${buildQueryString({ window_days: windowDays })}`,
-      ),
+    queryFn: () => fetchDashboardNetWorth(windowDays),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -111,7 +158,7 @@ export function useDashboardSavingsRate() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.savingsRate(),
-    queryFn: () => authenticatedFetch<SavingsRateWidgetResponse>('/dashboard/savings-rate'),
+    queryFn: fetchDashboardSavingsRate,
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -121,10 +168,7 @@ export function useDashboardRecentActivity(windowDays = 90) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.recentActivity(windowDays),
-    queryFn: () =>
-      authenticatedFetch<RecentActivityWidgetResponse>(
-        `/dashboard/recent-activity${buildQueryString({ window_days: windowDays })}`,
-      ),
+    queryFn: () => fetchDashboardRecentActivity(windowDays),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -134,10 +178,7 @@ export function useSpendingComparison(range: SpendingRange) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.spendingComparison(range),
-    queryFn: () =>
-      authenticatedFetch<SpendingComparisonResponse>(
-        `/dashboard/spending-comparison${buildQueryString({ range })}`,
-      ),
+    queryFn: () => fetchSpendingComparison(range),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -147,10 +188,7 @@ export function useSpendingBreakdown(range: SpendingRange) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.spendingBreakdown(range),
-    queryFn: () =>
-      authenticatedFetch<SpendingBreakdownResponse>(
-        `/dashboard/spending-breakdown${buildQueryString({ range })}`,
-      ),
+    queryFn: () => fetchSpendingBreakdown(range),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
