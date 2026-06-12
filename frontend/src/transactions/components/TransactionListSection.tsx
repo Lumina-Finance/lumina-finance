@@ -216,7 +216,7 @@ export default function TransactionListSection({
   })
 
   return (
-    <>
+    <section className="transaction-list-section">
       <TransactionListToolbar
         search={search}
         onSearchChange={setSearch}
@@ -307,6 +307,6 @@ export default function TransactionListSection({
           ) : null}
         </AnimatePresence>
       </div>
-    </>
+    </section>
   )
 }

@@ -265,6 +265,10 @@
     opacity: 1;
   }
 
+  .transaction-list-section > :not(:first-child) {
+    margin-top: 1.5rem;
+  }
+
   .app-input:hover {
     border-color: var(--app-border-strong);
     background: var(--app-input-bg);

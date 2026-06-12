@@ -143,7 +143,7 @@ export default function TransactionsPage() {
         <p className="app-page-description">Every transaction, all in one place.</p>
       </header>
 
-      <div className="space-y-6">
+      <div>
         <div className="space-y-3">
           <TransactionsTopBand
             overview={overview}
