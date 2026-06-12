@@ -8,7 +8,7 @@ import {
   institutionKeys,
   merchantKeys,
   tagKeys,
-  taxAdvantagedPlanKeys,
+  taxAdvantagedCategoryKeys,
   transactionKeys,
   transactionOverviewKeys,
   userKeys,
@@ -82,7 +82,7 @@ const aggregateTargets: InvalidationTarget[] = [
   { queryKey: accountKeys.all },
   { queryKey: transactionKeys.all },
   { queryKey: transactionOverviewKeys.all },
-  { queryKey: taxAdvantagedPlanKeys.all },
+  { queryKey: taxAdvantagedCategoryKeys.all },
   { queryKey: budgetKeys.all },
   ...dashboardTargets,
   ...insightsTargets,
@@ -101,7 +101,7 @@ const fxTargets: InvalidationTarget[] = [
   { queryKey: accountKeys.all },
   { queryKey: transactionKeys.all },
   { queryKey: transactionOverviewKeys.all },
-  { queryKey: taxAdvantagedPlanKeys.all },
+  { queryKey: taxAdvantagedCategoryKeys.all },
   { queryKey: budgetKeys.all },
   ...dashboardTargets,
   ...insightsTargets,
@@ -205,23 +205,23 @@ export function invalidateRunwaySettings(queryClient: QueryClient) {
   invalidateTargets(queryClient, runwayTargets)
 }
 
-export function invalidateTaxPlans(
+export function invalidateTaxAdvantagedCategories(
   queryClient: QueryClient,
-  planIds: Array<string | null | undefined> = [],
+  categoryIds: Array<string | null | undefined> = [],
 ) {
-  const uniquePlanIds = uniqueIds(planIds)
+  const uniqueCategoryIds = uniqueIds(categoryIds)
   invalidateTargets(queryClient, [
-    { queryKey: taxAdvantagedPlanKeys.list(), exact: true },
-    ...uniquePlanIds.map((planId) => ({
-      queryKey: taxAdvantagedPlanKeys.detail(planId),
+    { queryKey: taxAdvantagedCategoryKeys.list(), exact: true },
+    ...uniqueCategoryIds.map((categoryId) => ({
+      queryKey: taxAdvantagedCategoryKeys.detail(categoryId),
       exact: true,
     })),
   ])
 }
 
-export function invalidateTaxPlanOverview(queryClient: QueryClient) {
+export function invalidateTaxAdvantagedCategoryOverview(queryClient: QueryClient) {
   invalidateTargets(queryClient, [
-    { queryKey: taxAdvantagedPlanKeys.list(), exact: true },
+    { queryKey: taxAdvantagedCategoryKeys.list(), exact: true },
     { queryKey: accountKeys.list(), exact: true },
   ])
 }

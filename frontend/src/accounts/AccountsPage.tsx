@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
-import { useTaxAdvantagedPlans } from '@/api/taxAdvantagedPlans'
+import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import CreateAccountModal from '@/components/CreateAccountModal'
 import AccountFilters from '@/accounts/components/AccountFilters'
 import AccountListSection from '@/accounts/components/AccountListSection'
@@ -19,7 +19,7 @@ export default function AccountsPage() {
   const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
   const { data: accounts, isFetching: accountsLoading, error } = useAccounts()
-  const { data: taxAdvantagedPlans } = useTaxAdvantagedPlans()
+  const { data: taxAdvantagedCategories } = useTaxAdvantagedCategories()
 
   const allRows = useMemo(() => accounts ?? [], [accounts])
   const rows = useMemo(() => allRows.filter((account) => !account.is_archived), [allRows])
@@ -36,11 +36,11 @@ export default function AccountsPage() {
   } = useAccountFilters(rows)
   const accountSections = useAccountSections({ rows, filteredRows })
   const accountMetrics = useAccountsMetrics(rows, displayCurrency)
-  const { taxAdvantagedPlanById, taxAdvantagedLimitSummaries } =
+  const { taxAdvantagedCategoryById, taxAdvantagedLimitSummaries } =
     useTaxAdvantagedLimitSummaries({
       rows,
       filteredRows,
-      taxAdvantagedPlans,
+      taxAdvantagedCategories,
     })
 
   return (
@@ -89,7 +89,7 @@ export default function AccountsPage() {
           subtotal={accountSections.totalAssets}
           emptyLabel="No asset accounts"
           displayCurrency={displayCurrency}
-          taxAdvantagedPlanById={taxAdvantagedPlanById}
+          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
           loading={accountsLoading}
         />
 
@@ -100,7 +100,7 @@ export default function AccountsPage() {
           subtotal={accountSections.revolvingSubtotal}
           emptyLabel="No revolving credit accounts"
           displayCurrency={displayCurrency}
-          taxAdvantagedPlanById={taxAdvantagedPlanById}
+          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
           showCreditLimit
           loading={accountsLoading}
         />
@@ -112,13 +112,13 @@ export default function AccountsPage() {
           subtotal={accountSections.amortizingSubtotal}
           emptyLabel="No amortizing debt accounts"
           displayCurrency={displayCurrency}
-          taxAdvantagedPlanById={taxAdvantagedPlanById}
+          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
           loading={accountsLoading}
         />
 
         <ArchivedAccountsSection
           accounts={archivedRows}
-          taxAdvantagedPlanById={taxAdvantagedPlanById}
+          taxAdvantagedCategoryById={taxAdvantagedCategoryById}
           displayCurrency={displayCurrency}
         />
       </div>

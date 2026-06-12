@@ -13,7 +13,7 @@ import {
   invalidateInsightsIncomeExpense,
   invalidateInsightsMerchants,
   invalidateRunway,
-  invalidateTaxPlans,
+  invalidateTaxAdvantagedCategories,
   invalidateTransactionOverview as invalidateTransactionOverviewQueries,
   invalidateTransactions,
 } from '@/api/cacheInvalidation';
@@ -128,7 +128,7 @@ export function findCachedTransaction(
 /**
  * Reads cached account plan links without triggering a network request during invalidation
  */
-function getCachedAccountPlanId(
+function getCachedAccountTaxAdvantagedCategoryId(
   queryClient: QueryClient,
   accountId: string,
 ): string | null | undefined {
@@ -198,10 +198,10 @@ function invalidateCreditActivity(queryClient: QueryClient, accountIds: string[]
  * Invalidates contribution data for tax-advantaged plans linked to changed accounts
  */
 function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: string[]) {
-  const planIds = uniqueIds(
-    accountIds.map((accountId) => getCachedAccountPlanId(queryClient, accountId)),
+  const categoryIds = uniqueIds(
+    accountIds.map((accountId) => getCachedAccountTaxAdvantagedCategoryId(queryClient, accountId)),
   );
-  invalidateTaxPlans(queryClient, planIds);
+  invalidateTaxAdvantagedCategories(queryClient, categoryIds);
 }
 
 /**

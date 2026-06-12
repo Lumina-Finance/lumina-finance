@@ -57,11 +57,13 @@ export const transactionOverviewKeys = {
   detail: (filters: Record<string, unknown>) => ['transactions-overview', filters] as const,
 };
 
-export const taxAdvantagedPlanKeys = {
+export const taxAdvantagedCategoryKeys = {
   all: ['tax-advantaged-categories'] as const,
   list: () => ['tax-advantaged-categories'] as const,
-  detail: (planId: string | null | undefined) => ['tax-advantaged-categories', planId] as const,
-  limits: (planId: string | undefined) => ['tax-advantaged-categories', planId, 'limits'] as const,
+  detail: (categoryId: string | null | undefined) =>
+    ['tax-advantaged-categories', categoryId] as const,
+  limits: (categoryId: string | undefined) =>
+    ['tax-advantaged-categories', categoryId, 'limits'] as const,
 };
 
 export const dashboardKeys = {

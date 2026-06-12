@@ -13,8 +13,8 @@ import {
   invalidateInsightsMerchants,
   invalidateRunway,
   invalidateRunwaySettings,
-  invalidateTaxPlanOverview,
-  invalidateTaxPlans,
+  invalidateTaxAdvantagedCategoryOverview,
+  invalidateTaxAdvantagedCategories,
   invalidateTransactionOverview,
   invalidateTransactions,
 } from '@/api/cacheInvalidation';
@@ -61,16 +61,16 @@ export function invalidateAccountCreditData(
 /**
  * Invalidates tax-plan rollups for known plan IDs or all plans when the previous link is unknown
  */
-export function invalidateAccountTaxPlanData(
+export function invalidateAccountTaxAdvantagedCategoryData(
   queryClient: QueryClient,
-  planIds: Array<string | null | undefined>,
+  categoryIds: Array<string | null | undefined>,
 ) {
-  const knownPlanIds = planIds.filter((planId): planId is string => !!planId);
-  const hasUnknownPlan = planIds.some((planId) => planId === undefined);
-  if (knownPlanIds.length === 0 && !hasUnknownPlan) return;
+  const knownCategoryIds = categoryIds.filter((categoryId): categoryId is string => !!categoryId);
+  const hasUnknownCategory = categoryIds.some((categoryId) => categoryId === undefined);
+  if (knownCategoryIds.length === 0 && !hasUnknownCategory) return;
 
-  invalidateTaxPlans(queryClient, knownPlanIds);
-  invalidateTaxPlanOverview(queryClient);
+  invalidateTaxAdvantagedCategories(queryClient, knownCategoryIds);
+  invalidateTaxAdvantagedCategoryOverview(queryClient);
 }
 
 /**
@@ -94,7 +94,7 @@ export function invalidateAccountAggregateData(
   invalidateBudgets(queryClient);
   invalidateDashboardBudgets(queryClient);
   invalidateRunwaySettings(queryClient);
-  invalidateAccountTaxPlanData(queryClient, [account?.tax_advantaged_category_id]);
+  invalidateAccountTaxAdvantagedCategoryData(queryClient, [account?.tax_advantaged_category_id]);
 }
 
 /**
@@ -118,6 +118,6 @@ export function invalidateCreatedAccountData(
     invalidateAccountCreditData(queryClient, account);
   }
   if (account.tax_advantaged_category_id) {
-    invalidateAccountTaxPlanData(queryClient, [account.tax_advantaged_category_id]);
+    invalidateAccountTaxAdvantagedCategoryData(queryClient, [account.tax_advantaged_category_id]);
   }
 }

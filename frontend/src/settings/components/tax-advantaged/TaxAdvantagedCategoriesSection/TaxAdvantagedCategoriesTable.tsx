@@ -1,4 +1,4 @@
-import { useTaxAdvantagedPlanLimits, type TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import { useTaxAdvantagedCategoryLimits, type TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import {
   formatLimitYears,
   formatTaxTreatment,
@@ -12,8 +12,8 @@ export default function TaxAdvantagedCategoriesTable({
 }: {
   currentYear: number
   linkedAccountCounts: Map<string, number>
-  onSelect: (planId: string) => void
-  plans: TaxAdvantagedPlan[]
+  onSelect: (categoryId: string) => void
+  plans: TaxAdvantagedCategory[]
 }) {
   return (
     <div className="min-w-0">
@@ -59,10 +59,10 @@ function TaxAdvantagedCategoryRow({
   accountCount: number
   currentYear: number
   isLast: boolean
-  onSelect: (planId: string) => void
-  plan: TaxAdvantagedPlan
+  onSelect: (categoryId: string) => void
+  plan: TaxAdvantagedCategory
 }) {
-  const { data: limits = [], isLoading } = useTaxAdvantagedPlanLimits(plan.id)
+  const { data: limits = [], isLoading } = useTaxAdvantagedCategoryLimits(plan.id)
   const hasCurrentYearLimit = limits.some((limit) => limit.year === currentYear)
   const limitYearsLabel = formatLimitYears(limits.map((limit) => limit.year))
   const statusLabel = isLoading

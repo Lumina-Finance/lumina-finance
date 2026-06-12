@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { ChevronDown, EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
-import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import AccountRow from '@/accounts/components/AccountRow'
 
 export default function ArchivedAccountsSection({
   accounts,
-  taxAdvantagedPlanById,
+  taxAdvantagedCategoryById,
   displayCurrency,
 }: {
   accounts: AccountsOverview[]
-  taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
+  taxAdvantagedCategoryById: Map<string, TaxAdvantagedCategory>
   displayCurrency: string
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -52,7 +52,7 @@ export default function ArchivedAccountsSection({
               account={account}
               accent={account.account_kind === 'asset' ? 'positive' : 'negative'}
               showCreditLimit={account.account_kind === 'revolving'}
-              taxAdvantagedPlanById={taxAdvantagedPlanById}
+              taxAdvantagedCategoryById={taxAdvantagedCategoryById}
               displayCurrency={displayCurrency}
               isArchived
             />

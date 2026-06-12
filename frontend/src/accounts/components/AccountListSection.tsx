@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { AccountsOverview } from '@/api/accounts'
-import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import AccountRow from '@/accounts/components/AccountRow'
 import type { AccountAccent } from '@/accounts/types/accounts'
@@ -14,7 +14,7 @@ export default function AccountListSection({
   subtotal,
   emptyLabel,
   displayCurrency,
-  taxAdvantagedPlanById,
+  taxAdvantagedCategoryById,
   showCreditLimit = false,
   loading = false,
 }: {
@@ -24,7 +24,7 @@ export default function AccountListSection({
   subtotal: number
   emptyLabel: string
   displayCurrency: string
-  taxAdvantagedPlanById: Map<string, TaxAdvantagedPlan>
+  taxAdvantagedCategoryById: Map<string, TaxAdvantagedCategory>
   showCreditLimit?: boolean
   loading?: boolean
 }) {
@@ -104,7 +104,7 @@ export default function AccountListSection({
               account={account}
               accent={accent}
               showCreditLimit={showCreditLimit}
-              taxAdvantagedPlanById={taxAdvantagedPlanById}
+              taxAdvantagedCategoryById={taxAdvantagedCategoryById}
               displayCurrency={displayCurrency}
             />
           </motion.div>

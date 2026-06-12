@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAccount, type Account } from '@/api/accounts'
-import { useTaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import { useTaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { Transaction } from '@/api/transactions'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
 import AccountIdentityCard from '@/accounts/detail/components/AccountIdentityCard'
@@ -29,11 +29,11 @@ export default function AccountDetailPage() {
   const [deletedAccountSnapshot, setDeletedAccountSnapshot] = useState<Account | null>(null)
 
   const visibleAccount = account ?? (deleteExitPhase !== 'idle' ? deletedAccountSnapshot : null)
-  const linkedTaxAdvantagedPlanId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
+  const linkedTaxAdvantagedCategoryId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
   const {
-    data: linkedTaxAdvantagedPlan,
-    error: linkedTaxAdvantagedPlanError,
-  } = useTaxAdvantagedPlan(linkedTaxAdvantagedPlanId)
+    data: linkedTaxAdvantagedCategory,
+    error: linkedTaxAdvantagedCategoryError,
+  } = useTaxAdvantagedCategory(linkedTaxAdvantagedCategoryId)
 
   const openCreateTransaction = () => {
     if (visibleAccount?.is_archived) return
@@ -113,8 +113,8 @@ export default function AccountDetailPage() {
           <div className="grid grid-cols-1 gap-5 min-[750px]:grid-cols-[320px_minmax(0,1fr)]">
             <AccountIdentityCard
               account={visibleAccount}
-              linkedTaxAdvantagedPlan={linkedTaxAdvantagedPlan}
-              linkedTaxAdvantagedPlanError={linkedTaxAdvantagedPlanError}
+              linkedTaxAdvantagedCategory={linkedTaxAdvantagedCategory}
+              linkedTaxAdvantagedCategoryError={linkedTaxAdvantagedCategoryError}
               onEdit={openAccountEditModal}
             />
 

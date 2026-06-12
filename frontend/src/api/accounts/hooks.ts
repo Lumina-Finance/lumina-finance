@@ -3,7 +3,7 @@ import {
   getCachedAccount,
   invalidateAccountAggregateData,
   invalidateAccountCreditData,
-  invalidateAccountTaxPlanData,
+  invalidateAccountTaxAdvantagedCategoryData,
   invalidateCreatedAccountData,
   updateCachedAccountList,
 } from '@/api/accounts/cache';
@@ -71,7 +71,7 @@ export function useUpdateAccount() {
         'tax_advantaged_category_id' in variables.payload
         && previousPlanId !== account.tax_advantaged_category_id
       ) {
-        invalidateAccountTaxPlanData(queryClient, [
+        invalidateAccountTaxAdvantagedCategoryData(queryClient, [
           previousPlanId,
           account.tax_advantaged_category_id,
         ]);

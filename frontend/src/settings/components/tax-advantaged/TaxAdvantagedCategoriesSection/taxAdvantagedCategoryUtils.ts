@@ -1,8 +1,8 @@
 import type { Currency } from '@/api/currency'
-import type { TaxAdvantagedPlanLimit, TaxTreatment } from '@/api/taxAdvantagedPlans'
+import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/taxAdvantagedCategories'
 import { DEFAULT_NEW_LIMIT_YEAR, TAX_TREATMENT_OPTIONS } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 
-export function nextAvailableLimitYear(limits: TaxAdvantagedPlanLimit[]) {
+export function nextAvailableLimitYear(limits: TaxAdvantagedCategoryLimit[]) {
   const existingYears = new Set(limits.map((limit) => limit.year))
   for (let year = DEFAULT_NEW_LIMIT_YEAR; year >= 1900; year -= 1) {
     if (!existingYears.has(year)) return year

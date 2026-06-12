@@ -1,4 +1,4 @@
-import type { TaxTreatment } from '@/api/taxAdvantagedPlans'
+import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
 
 export const CATEGORY_SUMMARY_LABEL_CLASS = 'app-label mb-1 block h-5 truncate leading-5'
 export const CATEGORY_SUMMARY_VALUE_CLASS = 'flex h-6 items-center truncate text-[0.9375rem] font-medium leading-6'

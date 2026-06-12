@@ -1,5 +1,5 @@
 import type { AccountKind, AccountType } from '@/api/accounts'
-import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 
 export interface AccountFilterValues {
   institution_id?: string
@@ -8,7 +8,7 @@ export interface AccountFilterValues {
 }
 
 export interface TaxAdvantagedLimitSummary {
-  plan: TaxAdvantagedPlan
+  plan: TaxAdvantagedCategory
   linkedAccountCount: number
 }
 

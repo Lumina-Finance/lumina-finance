@@ -4,15 +4,15 @@ import { Check, ChevronRight, LoaderCircle, Pencil, Plus, Trash2, X } from 'luci
 import { useUpdateAccount, type AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
-  useCreateTaxAdvantagedPlanLimit,
-  useDeleteTaxAdvantagedPlan,
-  useDeleteTaxAdvantagedPlanLimit,
-  useTaxAdvantagedPlanLimits,
-  useUpdateTaxAdvantagedPlan,
-  useUpdateTaxAdvantagedPlanLimit,
-  type TaxAdvantagedPlan,
-  type TaxAdvantagedPlanLimit,
-} from '@/api/taxAdvantagedPlans'
+  useCreateTaxAdvantagedCategoryLimit,
+  useDeleteTaxAdvantagedCategory,
+  useDeleteTaxAdvantagedCategoryLimit,
+  useTaxAdvantagedCategoryLimits,
+  useUpdateTaxAdvantagedCategory,
+  useUpdateTaxAdvantagedCategoryLimit,
+  type TaxAdvantagedCategory,
+  type TaxAdvantagedCategoryLimit,
+} from '@/api/taxAdvantagedCategories'
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
 import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
@@ -88,16 +88,16 @@ export default function TaxAdvantagedCategoryModal({
 }: {
   accounts: AccountsOverview[]
   onClose: () => void
-  plan: TaxAdvantagedPlan
+  plan: TaxAdvantagedCategory
   currencies: Currency[]
 }) {
-  const updatePlan = useUpdateTaxAdvantagedPlan(plan.id)
-  const deletePlan = useDeleteTaxAdvantagedPlan({ minimumPendingMs: DELETE_TAX_CATEGORY_MIN_LOADING_MS })
+  const updatePlan = useUpdateTaxAdvantagedCategory(plan.id)
+  const deletePlan = useDeleteTaxAdvantagedCategory({ minimumPendingMs: DELETE_TAX_CATEGORY_MIN_LOADING_MS })
   const updateAccount = useUpdateAccount()
-  const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedPlanLimits(plan.id)
-  const createLimit = useCreateTaxAdvantagedPlanLimit()
-  const updateLimit = useUpdateTaxAdvantagedPlanLimit()
-  const deleteLimit = useDeleteTaxAdvantagedPlanLimit()
+  const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedCategoryLimits(plan.id)
+  const createLimit = useCreateTaxAdvantagedCategoryLimit()
+  const updateLimit = useUpdateTaxAdvantagedCategoryLimit()
+  const deleteLimit = useDeleteTaxAdvantagedCategoryLimit()
   const [activeTab, setActiveTab] = useState<CategoryModalTab>('limits')
   const [categoryEditOpen, setCategoryEditOpen] = useState(false)
   const [showAddTaxYear, setShowAddTaxYear] = useState(false)
@@ -132,7 +132,7 @@ export default function TaxAdvantagedCategoryModal({
   const [pendingCreateLimitYear, setPendingCreateLimitYear] = useState<number | null>(null)
   const [deleteConfirmYear, setDeleteConfirmYear] = useState<number | null>(null)
   const [pendingDeleteLimitYear, setPendingDeleteLimitYear] = useState<number | null>(null)
-  const [pendingDeletedLimit, setPendingDeletedLimit] = useState<TaxAdvantagedPlanLimit | null>(null)
+  const [pendingDeletedLimit, setPendingDeletedLimit] = useState<TaxAdvantagedCategoryLimit | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
   const [limitError, setLimitError] = useState<string | null>(null)
   const [planSaveStatus, setPlanSaveStatus] = useState<'idle' | 'loading' | 'success'>('idle')
@@ -443,7 +443,7 @@ export default function TaxAdvantagedCategoryModal({
     showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
     updateLimit.mutate(
       {
-        planId: plan.id,
+        categoryId: plan.id,
         year,
         contribution_limit: toMinorUnits(draft.contribution_limit, currencies, plan.currency) ?? 0,
         withdrawal_limit: toMinorUnits(draft.withdrawal_limit, currencies, plan.currency),
@@ -512,7 +512,7 @@ export default function TaxAdvantagedCategoryModal({
     let createError: unknown = null
     try {
       const createdLimit = await createLimit.mutateAsync({
-        planId: plan.id,
+        categoryId: plan.id,
         year,
         contribution_limit: toMinorUnits(newLimitForm.contribution_limit, currencies, plan.currency) ?? 0,
         withdrawal_limit: toMinorUnits(newLimitForm.withdrawal_limit, currencies, plan.currency),
@@ -539,7 +539,7 @@ export default function TaxAdvantagedCategoryModal({
     showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
   }
 
-  const handleDeleteLimit = async (limit: TaxAdvantagedPlanLimit) => {
+  const handleDeleteLimit = async (limit: TaxAdvantagedCategoryLimit) => {
     if (deleteConfirmYear !== limit.year) {
       setDeleteConfirmYear(limit.year)
       return
@@ -553,7 +553,7 @@ export default function TaxAdvantagedCategoryModal({
 
     let deleteError: unknown = null
     try {
-      await deleteLimit.mutateAsync({ planId: plan.id, year: limit.year })
+      await deleteLimit.mutateAsync({ categoryId: plan.id, year: limit.year })
     } catch (error) {
       deleteError = error
     }

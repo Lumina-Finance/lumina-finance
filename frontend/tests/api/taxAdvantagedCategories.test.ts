@@ -1,7 +1,7 @@
 /**
- * Covers tax-advantaged plan API functions that build nested plan and yearly-limit paths
+ * Covers tax-advantaged category API functions that build nested category and yearly-limit paths
  *
- * These tests catch regressions where plan IDs, years,
+ * These tests catch regressions where category IDs, years,
  * or payload fields are sent to the wrong endpoint or HTTP method
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,40 +15,40 @@ vi.mock('@/api/client', () => ({
 }));
 
 import {
-  createTaxAdvantagedPlan,
-  createTaxAdvantagedPlanLimit,
-  deleteTaxAdvantagedPlan,
-  deleteTaxAdvantagedPlanLimit,
-  fetchTaxAdvantagedPlan,
-  fetchTaxAdvantagedPlanLimits,
-  fetchTaxAdvantagedPlans,
-  updateTaxAdvantagedPlan,
-  updateTaxAdvantagedPlanLimit,
-} from '@/api/taxAdvantagedPlans';
+  createTaxAdvantagedCategory,
+  createTaxAdvantagedCategoryLimit,
+  deleteTaxAdvantagedCategory,
+  deleteTaxAdvantagedCategoryLimit,
+  fetchTaxAdvantagedCategory,
+  fetchTaxAdvantagedCategoryLimits,
+  fetchTaxAdvantagedCategories,
+  updateTaxAdvantagedCategory,
+  updateTaxAdvantagedCategoryLimit,
+} from '@/api/taxAdvantagedCategories';
 
 beforeEach(() => {
   authenticatedFetchMock.mockReset();
   authenticatedFetchMock.mockResolvedValue({});
 });
 
-describe('tax-advantaged plan API functions', () => {
-  it('requests plan list, detail, and yearly limit endpoints', async () => {
-    await fetchTaxAdvantagedPlans();
-    await fetchTaxAdvantagedPlan('plan_123');
-    await fetchTaxAdvantagedPlanLimits('plan_123');
+describe('tax-advantaged category API functions', () => {
+  it('requests category list, detail, and yearly limit endpoints', async () => {
+    await fetchTaxAdvantagedCategories();
+    await fetchTaxAdvantagedCategory('category_123');
+    await fetchTaxAdvantagedCategoryLimits('category_123');
 
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/tax-advantaged-categories');
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
-      '/tax-advantaged-categories/plan_123',
+      '/tax-advantaged-categories/category_123',
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       3,
-      '/tax-advantaged-categories/plan_123/limits',
+      '/tax-advantaged-categories/category_123/limits',
     );
   });
 
-  it('creates and updates plans with JSON payloads', async () => {
+  it('creates and updates categories with JSON payloads', async () => {
     const createPayload = {
       name: 'TFSA',
       tax_treatment: 'tax_free' as const,
@@ -62,8 +62,8 @@ describe('tax-advantaged plan API functions', () => {
       lifetime_contribution_limit: 10200000,
     };
 
-    await createTaxAdvantagedPlan(createPayload);
-    await updateTaxAdvantagedPlan('plan_123', updatePayload);
+    await createTaxAdvantagedCategory(createPayload);
+    await updateTaxAdvantagedCategory('category_123', updatePayload);
 
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/tax-advantaged-categories', {
       method: 'POST',
@@ -71,7 +71,7 @@ describe('tax-advantaged plan API functions', () => {
     });
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
-      '/tax-advantaged-categories/plan_123',
+      '/tax-advantaged-categories/category_123',
       {
         method: 'PATCH',
         body: JSON.stringify(updatePayload),
@@ -79,17 +79,17 @@ describe('tax-advantaged plan API functions', () => {
     );
   });
 
-  it('deletes plans by ID', async () => {
-    await deleteTaxAdvantagedPlan('plan_123');
+  it('deletes categories by ID', async () => {
+    await deleteTaxAdvantagedCategory('category_123');
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/tax-advantaged-categories/plan_123', {
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/tax-advantaged-categories/category_123', {
       method: 'DELETE',
     });
   });
 
-  it('creates yearly limits without sending the plan ID in the body', async () => {
-    await createTaxAdvantagedPlanLimit({
-      planId: 'plan_123',
+  it('creates yearly limits without sending the category ID in the body', async () => {
+    await createTaxAdvantagedCategoryLimit({
+      categoryId: 'category_123',
       year: 2026,
       contribution_limit: 700000,
       withdrawal_limit: null,
@@ -97,7 +97,7 @@ describe('tax-advantaged plan API functions', () => {
     });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
-      '/tax-advantaged-categories/plan_123/limits',
+      '/tax-advantaged-categories/category_123/limits',
       {
         method: 'POST',
         body: JSON.stringify({
@@ -111,15 +111,15 @@ describe('tax-advantaged plan API functions', () => {
   });
 
   it('updates yearly limits without sending route fields in the body', async () => {
-    await updateTaxAdvantagedPlanLimit({
-      planId: 'plan_123',
+    await updateTaxAdvantagedCategoryLimit({
+      categoryId: 'category_123',
       year: 2026,
       contribution_limit: 750000,
       accrued_withdrawals: 25000,
     });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
-      '/tax-advantaged-categories/plan_123/limits/2026',
+      '/tax-advantaged-categories/category_123/limits/2026',
       {
         method: 'PATCH',
         body: JSON.stringify({
@@ -130,11 +130,11 @@ describe('tax-advantaged plan API functions', () => {
     );
   });
 
-  it('deletes yearly limits by plan and year', async () => {
-    await deleteTaxAdvantagedPlanLimit({ planId: 'plan_123', year: 2026 });
+  it('deletes yearly limits by category and year', async () => {
+    await deleteTaxAdvantagedCategoryLimit({ categoryId: 'category_123', year: 2026 });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
-      '/tax-advantaged-categories/plan_123/limits/2026',
+      '/tax-advantaged-categories/category_123/limits/2026',
       {
         method: 'DELETE',
       },
