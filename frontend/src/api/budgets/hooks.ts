@@ -11,17 +11,9 @@ import {
   updateBaseBudget,
   updateBudget,
 } from '@/api/budgets/requests';
+import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
 import { budgetKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
-
-/**
- * Keeps delete mutations pending long enough for views to show feedback
- */
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
 
 /**
  * Reads base budget definitions
@@ -109,17 +101,8 @@ export function useCreateBudgetInstance() {
 export function useDeleteBaseBudget({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (baseBudgetId: string) => {
-      const minimumPending = delay(minimumPendingMs);
-      try {
-        const result = await deleteBaseBudget(baseBudgetId);
-        await minimumPending;
-        return result;
-      } catch (error) {
-        await minimumPending;
-        throw error;
-      }
-    },
+    mutationFn: (baseBudgetId: string) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => deleteBaseBudget(baseBudgetId)),
     onSuccess: () => {
       invalidateBudgetActivity(queryClient);
     },

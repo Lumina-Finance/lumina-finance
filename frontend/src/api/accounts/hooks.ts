@@ -22,17 +22,9 @@ import type {
   AccountsOverview,
   SpendingRange,
 } from '@/api/accounts/types';
+import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
 import { accountKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
-
-/**
- * Keeps delete mutations pending long enough for views to show feedback
- */
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
 
 /**
  * Creates accounts and refreshes account-dependent rollups
@@ -94,17 +86,8 @@ export function useUpdateAccount() {
 export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (accountId: string) => {
-      const minimumPending = delay(minimumPendingMs);
-      try {
-        const result = await deleteAccount(accountId);
-        await minimumPending;
-        return result;
-      } catch (error) {
-        await minimumPending;
-        throw error;
-      }
-    },
+    mutationFn: (accountId: string) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => deleteAccount(accountId)),
     onMutate: (accountId) => ({
       deletedAccount: getCachedAccount(queryClient, accountId),
     }),

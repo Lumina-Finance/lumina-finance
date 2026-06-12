@@ -7,6 +7,7 @@ import {
 } from '@/api/cacheInvalidation';
 import { accountKeys, taxAdvantagedPlanKeys } from '@/api/queryKeys';
 import type { Account, AccountsOverview } from '@/api/accounts';
+import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
 
 export type TaxTreatment = 'tax_free' | 'tax_deferred' | 'tax_assisted';
 
@@ -71,12 +72,6 @@ export interface UpdateTaxAdvantagedPlanLimitPayload {
   withdrawal_limit?: number | null;
   accrued_contributions?: number;
   accrued_withdrawals?: number;
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
 }
 
 /**
@@ -243,17 +238,8 @@ export function deleteTaxAdvantagedPlan(planId: string) {
 export function useDeleteTaxAdvantagedPlan({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (planId: string) => {
-      const minimumPending = delay(minimumPendingMs);
-      try {
-        const result = await deleteTaxAdvantagedPlan(planId);
-        await minimumPending;
-        return result;
-      } catch (error) {
-        await minimumPending;
-        throw error;
-      }
-    },
+    mutationFn: (planId: string) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => deleteTaxAdvantagedPlan(planId)),
     onSuccess: (_data, planId) => {
       queryClient.setQueryData<TaxAdvantagedPlan[]>(
         taxAdvantagedPlanKeys.list(),

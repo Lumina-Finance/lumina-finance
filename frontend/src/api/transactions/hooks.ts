@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { invalidateInsightsMerchants, invalidateTransactions } from '@/api/cacheInvalidation';
+import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
 import { transactionKeys, transactionOverviewKeys } from '@/api/queryKeys';
 import {
   findCachedTransaction,
@@ -26,15 +27,6 @@ import type {
   UpdateTransactionPayload,
 } from '@/api/transactions/types';
 import { useAuth } from '@/hooks/useAuth';
-
-/**
- * Keeps delete mutations pending long enough for views to show feedback
- */
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
 
 /**
  * Reads transactions for non-infinite consumers such as selectors
@@ -131,17 +123,8 @@ export function useUpdateTransaction() {
 export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const minimumPending = delay(minimumPendingMs);
-      try {
-        const result = await deleteTransaction(id);
-        await minimumPending;
-        return result;
-      } catch (error) {
-        await minimumPending;
-        throw error;
-      }
-    },
+    mutationFn: (id: string) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => deleteTransaction(id)),
     onMutate: (id) => ({
       deletedTransaction: findCachedTransaction(queryClient, id),
     }),
