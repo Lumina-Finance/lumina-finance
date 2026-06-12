@@ -1,6 +1,5 @@
-@import "tailwindcss/base";
-@import "tailwindcss/components";
-@import "tailwindcss/utilities";
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
   :root {
@@ -264,6 +263,10 @@
   .app-date-input-balanced[type="date"]:hover::-webkit-calendar-picker-indicator,
   .app-date-input-balanced[type="date"]:focus::-webkit-calendar-picker-indicator {
     opacity: 1;
+  }
+
+  .transaction-list-section > :not(:first-child) {
+    margin-top: 1.5rem;
   }
 
   .app-input:hover {
