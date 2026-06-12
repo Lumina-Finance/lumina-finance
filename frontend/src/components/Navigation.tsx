@@ -15,7 +15,7 @@ import {
   Sun,
   type LucideIcon,
 } from 'lucide-react';
-import { APP_UPDATE_NOTICE, CURRENT_APP_VERSION } from '@/api/version';
+import { CURRENT_APP_VERSION, fetchAppVersion, type AppUpdateNotice } from '@/api/version';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import type { Theme } from '@/types';
@@ -191,16 +191,34 @@ function getCurrentVersionLabel(version: string) {
 }
 
 function VersionIndicator() {
-  const currentVersionLabel = getCurrentVersionLabel(CURRENT_APP_VERSION);
+  const [version, setVersion] = useState(CURRENT_APP_VERSION);
+  const [updateNotice, setUpdateNotice] = useState<AppUpdateNotice | null>(null);
+  const currentVersionLabel = getCurrentVersionLabel(version);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchAppVersion()
+      .then((appVersion) => {
+        if (!isMounted) return;
+        setVersion(appVersion.version.trim() || CURRENT_APP_VERSION);
+        setUpdateNotice(appVersion.update);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div className="mt-2 px-2 text-center" aria-label={currentVersionLabel}>
       <p className="m-0 truncate text-center text-xs font-normal" style={{ color: 'var(--app-text-subtle)' }}>
         {currentVersionLabel}
       </p>
-      {APP_UPDATE_NOTICE.isAvailable && (
+      {updateNotice && (
         <a
-          href={APP_UPDATE_NOTICE.releaseUrl}
+          href={updateNotice.releaseUrl}
           target="_blank"
           rel="noreferrer"
           className="mt-1 flex min-h-5 items-center justify-center gap-1.5 text-[0.6875rem] font-medium no-underline transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
