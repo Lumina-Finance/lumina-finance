@@ -302,34 +302,66 @@ export function useAccounts() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.list(),
-    queryFn: () => authenticatedFetch<AccountsOverview[]>('/accounts'),
+    queryFn: fetchAccounts,
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
+}
+
+/**
+ * Fetches account overview rows for account lists and selectors
+ */
+export function fetchAccounts() {
+  return authenticatedFetch<AccountsOverview[]>('/accounts');
 }
 
 export function useAccount(accountId: string | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.detail(accountId),
-    queryFn: () => authenticatedFetch<Account>(`/accounts/${accountId}`),
+    queryFn: () => fetchAccount(accountId),
     enabled: !!accessToken && !!accountId,
     staleTime: 10 * 60 * 1000,
   });
 }
 
+/**
+ * Fetches one account detail record by ID
+ */
+export function fetchAccount(accountId: string | undefined) {
+  return authenticatedFetch<Account>(`/accounts/${accountId}`);
+}
+
 export type SnapshotGranularity = 'day' | 'week' | 'month' | 'quarter';
 
-interface SnapshotRange {
+export interface AccountSnapshotRange {
   fromDate?: string; // ISO date (YYYY-MM-DD)
   toDate?: string;
   granularity?: SnapshotGranularity;
   includeAnchor?: boolean;
 }
 
+/**
+ * Fetches account balance snapshots with optional range and granularity controls
+ */
+export function fetchAccountSnapshots(
+  accountId: string | undefined,
+  range: AccountSnapshotRange = {},
+) {
+  const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range;
+  return authenticatedFetch<AccountBalanceSnapshot[]>(
+    `/accounts/${accountId}/snapshots${buildQueryString({
+      from_date: fromDate,
+      to_date: toDate,
+      granularity: granularity === 'day' ? undefined : granularity,
+      include_anchor: includeAnchor || undefined,
+    })}`,
+  );
+}
+
 export function useAccountSnapshots(
   accountId: string | undefined,
-  range: SnapshotRange = {},
+  range: AccountSnapshotRange = {},
 ) {
   const { accessToken } = useAuth();
   const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range;
@@ -340,16 +372,7 @@ export function useAccountSnapshots(
       granularity,
       includeAnchor,
     }),
-    queryFn: () => {
-      return authenticatedFetch<AccountBalanceSnapshot[]>(
-        `/accounts/${accountId}/snapshots${buildQueryString({
-          from_date: fromDate,
-          to_date: toDate,
-          granularity: granularity === 'day' ? undefined : granularity,
-          include_anchor: includeAnchor || undefined,
-        })}`,
-      );
-    },
+    queryFn: () => fetchAccountSnapshots(accountId, range),
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,
   });
@@ -385,6 +408,18 @@ export interface AccountSpendingBreakdown {
   other_merchants_count: number;
 }
 
+/**
+ * Fetches account spending breakdown for a backend-defined calendar range
+ */
+export function fetchAccountSpendingBreakdown(
+  accountId: string | undefined,
+  range: SpendingRange,
+) {
+  return authenticatedFetch<AccountSpendingBreakdown>(
+    `/accounts/${accountId}/spending-breakdown${buildQueryString({ range })}`,
+  );
+}
+
 export function useAccountSpendingBreakdown(
   accountId: string | undefined,
   range: SpendingRange,
@@ -392,10 +427,7 @@ export function useAccountSpendingBreakdown(
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.spendingBreakdown(accountId, range),
-    queryFn: () =>
-      authenticatedFetch<AccountSpendingBreakdown>(
-        `/accounts/${accountId}/spending-breakdown${buildQueryString({ range })}`,
-      ),
+    queryFn: () => fetchAccountSpendingBreakdown(accountId, range),
     enabled: !!accessToken && !!accountId,
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.queryKey[1] === accountId ? previousData : undefined,
@@ -412,14 +444,20 @@ export interface AccountMonthlyCashFlow {
   expenses: number;
 }
 
+/**
+ * Fetches account monthly income and expense totals
+ */
+export function fetchAccountCashFlow(accountId: string | undefined, months: number = 6) {
+  return authenticatedFetch<AccountMonthlyCashFlow[]>(
+    `/accounts/${accountId}/cash-flow${buildQueryString({ months })}`,
+  );
+}
+
 export function useAccountCashFlow(accountId: string | undefined, months: number = 6) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.cashFlow(accountId, months),
-    queryFn: () =>
-      authenticatedFetch<AccountMonthlyCashFlow[]>(
-        `/accounts/${accountId}/cash-flow${buildQueryString({ months })}`,
-      ),
+    queryFn: () => fetchAccountCashFlow(accountId, months),
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,
   });
