@@ -26,6 +26,12 @@ interface NavigationItem {
   label: string;
 }
 
+interface ThemeOption {
+  value: Theme;
+  icon: LucideIcon;
+  label: string;
+}
+
 const navItems: NavigationItem[] = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/accounts', icon: CreditCard, label: 'Accounts' },
@@ -37,6 +43,12 @@ const navItems: NavigationItem[] = [
 const primaryNavItems = [...navItems, { to: '/settings', icon: Settings, label: 'Settings' }];
 
 const mobileMenuFadeMs = 260;
+const themeToggleSpring = { type: 'spring', stiffness: 500, damping: 38 } as const;
+const themeOptions: ThemeOption[] = [
+  { value: 'light', icon: Sun, label: 'Light theme' },
+  { value: 'system', icon: Monitor, label: 'System theme' },
+  { value: 'dark', icon: Moon, label: 'Dark theme' },
+];
 
 function NavigationBrand() {
   return (
@@ -104,17 +116,23 @@ function ThemeToggle({
   setTheme: (theme: Theme) => void;
   onThemeChange?: () => void;
 }) {
+  const shouldReduceMotion = useReducedMotion();
+  const activeIndex = Math.max(themeOptions.findIndex((option) => option.value === theme), 0);
+
   return (
     <div
-      className="app-segmented-control w-full"
+      className="app-segmented-control app-navigation-theme-toggle relative isolate w-full overflow-hidden"
       role="group"
       aria-label="Theme selection"
     >
-      {([
-        { value: 'light' as Theme, icon: Sun, label: 'Light theme' },
-        { value: 'system' as Theme, icon: Monitor, label: 'System theme' },
-        { value: 'dark' as Theme, icon: Moon, label: 'Dark theme' },
-      ]).map(({ value, icon: Icon, label }) => {
+      <motion.span
+        className="app-navigation-theme-toggle-indicator"
+        aria-hidden
+        style={{ width: `calc((100% - 0.5rem) / ${themeOptions.length})` }}
+        animate={{ x: `${activeIndex * 100}%` }}
+        transition={shouldReduceMotion ? { duration: 0 } : themeToggleSpring}
+      />
+      {themeOptions.map(({ value, icon: Icon, label }) => {
         const isActive = theme === value;
         return (
           <button
@@ -127,7 +145,7 @@ function ThemeToggle({
             }}
             aria-pressed={isActive}
             aria-label={label}
-            className={`app-segmented-option flex-1 px-0 ${isActive ? 'app-segmented-option-active' : ''}`}
+            className={`app-segmented-option relative z-10 flex-1 px-0 ${isActive ? 'app-segmented-option-active' : ''}`}
           >
             <Icon size={16} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
           </button>
