@@ -1,0 +1,153 @@
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { invalidateBudgetActivity } from '@/api/budgets/cache';
+import {
+  createBaseBudget,
+  createBudgetInstance,
+  deleteBaseBudget,
+  fetchBaseBudgets,
+  fetchBudgetUtilization,
+  fetchBudgets,
+  fetchLatestBudgetUtilizations,
+  updateBaseBudget,
+  updateBudget,
+} from '@/api/budgets/requests';
+import { budgetKeys } from '@/api/queryKeys';
+import { useAuth } from '@/hooks/useAuth';
+
+/**
+ * Keeps delete mutations pending long enough for views to show feedback
+ */
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Reads base budget definitions
+ */
+export function useBaseBudgets() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: budgetKeys.baseBudgets(),
+    queryFn: fetchBaseBudgets,
+    enabled: !!accessToken,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Reads budget periods
+ */
+export function useBudgets() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: budgetKeys.periods(),
+    queryFn: fetchBudgets,
+    enabled: !!accessToken,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Reads latest utilization for each active base budget
+ */
+export function useLatestBudgetUtilizations() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: budgetKeys.latestUtilizations(),
+    queryFn: fetchLatestBudgetUtilizations,
+    enabled: !!accessToken,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Reads utilization for every requested budget period
+ */
+export function useBudgetUtilizations(budgetIds: string[]) {
+  const { accessToken } = useAuth();
+  return useQueries({
+    queries: budgetIds.map((budgetId) => ({
+      queryKey: budgetKeys.utilization(budgetId),
+      queryFn: () => fetchBudgetUtilization(budgetId),
+      enabled: !!accessToken,
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+}
+
+/**
+ * Creates base budgets and refreshes budget rollups
+ */
+export function useCreateBaseBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createBaseBudget,
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
+  });
+}
+
+/**
+ * Creates budget periods and refreshes budget rollups
+ */
+export function useCreateBudgetInstance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createBudgetInstance,
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
+  });
+}
+
+/**
+ * Deletes base budgets and refreshes budget rollups after feedback has displayed
+ */
+export function useDeleteBaseBudget({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (baseBudgetId: string) => {
+      const minimumPending = delay(minimumPendingMs);
+      try {
+        const result = await deleteBaseBudget(baseBudgetId);
+        await minimumPending;
+        return result;
+      } catch (error) {
+        await minimumPending;
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
+  });
+}
+
+/**
+ * Updates base budgets and refreshes budget rollups
+ */
+export function useUpdateBaseBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateBaseBudget,
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
+  });
+}
+
+/**
+ * Updates budget periods and refreshes budget rollups
+ */
+export function useUpdateBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateBudget,
+    onSuccess: () => {
+      invalidateBudgetActivity(queryClient);
+    },
+  });
+}
