@@ -1,6 +1,7 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import type { Transaction, TransactionImportPayload } from '@/api/transactions'
+import type { Transaction } from '@/api/transactions'
+import type { TransactionImportPayload } from '@/api/transactionImports'
 
 export type ColumnTarget =
   | 'account_id'

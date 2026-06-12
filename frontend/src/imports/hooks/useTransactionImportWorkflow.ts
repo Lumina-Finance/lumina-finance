@@ -3,7 +3,7 @@ import { useCategories } from '@/api/categories'
 import { useAccounts } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
-import { useImportTransactions, type TransactionImportResponse } from '@/api/transactions'
+import { useImportTransactions, type TransactionImportResponse } from '@/api/transactionImports'
 import type { DropdownOption } from '@/components/Dropdown'
 import {
   ACCOUNT_KIND_LABELS,
