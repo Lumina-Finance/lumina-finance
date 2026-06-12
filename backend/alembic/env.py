@@ -1,3 +1,5 @@
+"""Alembic migration environment"""
+
 import asyncio
 from logging.config import fileConfig
 
@@ -12,6 +14,7 @@ from app.models import (  # noqa: F401
     account,
     active_token,
     auth,
+    auth_session,
     budget,
     cache_state,
     category,

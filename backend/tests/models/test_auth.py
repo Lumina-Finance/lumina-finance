@@ -1,9 +1,10 @@
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.auth import AuthIdentity, PasswordCredential
+from app.models.auth_session import AuthSession
 from app.models.base import AuthProvider
 from app.models.currency import Currency
 from app.models.user import User
@@ -45,6 +46,18 @@ async def password_credential(db, user):
     db.add(pc)
     await db.flush()
     return pc
+
+
+@pytest.fixture
+async def auth_session(db, user):
+    """Seed an auth session"""
+    session = AuthSession(
+        user_id=user.id,
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    db.add(session)
+    await db.flush()
+    return session
 
 
 # --- AuthIdentity: Basic CRUD ---
@@ -186,5 +199,38 @@ async def test_null_password_hash_rejected(db, user):
 async def test_null_password_algo_rejected(db, user):
     """password_algo is NOT NULL."""
     db.add(PasswordCredential(user_id=user.id, password_hash="hashed", password_algo=None))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- AuthSession: Basic CRUD ---
+
+
+async def test_create_auth_session(db, auth_session):
+    """Insert an auth session and verify fields"""
+    result = await db.get(AuthSession, auth_session.id)
+
+    assert result is not None
+    assert result.user_id == auth_session.user_id
+    assert result.expires_at is not None
+
+
+async def test_auth_session_created_at_auto_set(db, auth_session):
+    """created_at should be set automatically by the database"""
+    await db.refresh(auth_session)
+
+    assert auth_session.created_at is not None
+
+
+async def test_auth_session_invalid_user_rejected(db):
+    """user_id must reference a valid user"""
+    import uuid
+
+    db.add(
+        AuthSession(
+            user_id=uuid.uuid4(),
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        ),
+    )
     with pytest.raises(IntegrityError):
         await db.flush()
