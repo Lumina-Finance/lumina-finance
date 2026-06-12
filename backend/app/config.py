@@ -32,9 +32,48 @@ def _optional_csv_env(key: str) -> list[str]:
     return [value.strip() for value in os.getenv(key, "").split(",") if value.strip()]
 
 
+def _optional_bool_env(key: str, default: bool) -> bool:
+    """Return an optional boolean environment variable value
+
+    Args:
+        key: The environment variable name
+        default: The fallback value when the variable is not set or blank
+
+    Returns:
+        The parsed boolean value
+
+    Raises:
+        RuntimeError: If the environment variable is not a supported boolean value
+    """
+    value = os.getenv(key)
+    if value is None or not value.strip():
+        return default
+
+    normalized_value = value.strip().lower()
+    if normalized_value == "true":
+        return True
+    if normalized_value == "false":
+        return False
+
+    raise RuntimeError(f"Invalid {key}={value!r}. Must be true or false")
+
+
 def _unique_values(values: list[str]) -> list[str]:
     """Return values with duplicates removed while preserving order."""
     return list(dict.fromkeys(values))
+
+
+def is_update_check_enabled(runtime: str, configured_enabled: bool) -> bool:
+    """Return whether update checks are allowed for the current runtime
+
+    Args:
+        runtime: Application runtime mode
+        configured_enabled: Public update check setting
+
+    Returns:
+        Whether update checks may run
+    """
+    return runtime == "server" and configured_enabled
 
 
 # --- Database ---
@@ -47,9 +86,15 @@ DB_PASSWORD = _require("DB_PASSWORD")
 
 RUNTIME = os.getenv("RUNTIME", "server").strip() or "server"
 if RUNTIME not in ("server", "lambda"):
-    raise RuntimeError(
-        f"Invalid RUNTIME={RUNTIME!r}. Must be one of: server, lambda"
-    )
+    raise RuntimeError(f"Invalid RUNTIME={RUNTIME!r}. Must be one of: server, lambda")
+
+# --- Version checks ---
+
+APP_VERSION = os.getenv("APP_VERSION", "").strip()
+UPDATE_CHECKS_ENABLED = is_update_check_enabled(
+    RUNTIME,
+    _optional_bool_env("UPDATE_CHECKS_ENABLED", default=False),
+)
 
 # --- CORS ---
 
@@ -97,8 +142,7 @@ def _load_key(env_var: str, default_path: Path) -> str:
     key_path = Path(os.getenv(env_var) or default_path)
     if not key_path.exists():
         raise RuntimeError(
-            f"JWT key not found at {key_path}. "
-            f"Run: openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out {key_path}"
+            f"JWT key not found at {key_path}. Run: openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out {key_path}"
         )
     return key_path.read_text()
 

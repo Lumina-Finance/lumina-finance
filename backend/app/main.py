@@ -1,9 +1,11 @@
 """Application entrypoint"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import ALLOWED_ORIGINS, RUNTIME
 from app.routes.accounts import router as account_router
+from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
 from app.routes.base_budgets import router as base_budget_router
 from app.routes.budgets import router as budget_router
@@ -35,6 +37,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(app_version_router)
 app.include_router(user_router)
 app.include_router(runway_router)
 app.include_router(currency_router)

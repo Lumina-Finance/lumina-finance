@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
+  ArrowUpRight,
   BarChart2,
   CreditCard,
   LayoutDashboard,
@@ -14,6 +15,7 @@ import {
   Sun,
   type LucideIcon,
 } from 'lucide-react';
+import { CURRENT_APP_VERSION, fetchAppVersion, type AppUpdateNotice } from '@/api/version';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import type { Theme } from '@/types';
@@ -178,6 +180,68 @@ function UserProfile({
   );
 }
 
+function formatVersionLabel(version: string) {
+  const trimmedVersion = version.trim();
+  return trimmedVersion.toLowerCase().startsWith('v') ? trimmedVersion : `v${trimmedVersion}`;
+}
+
+function getCurrentVersionLabel(version: string) {
+  const trimmedVersion = version.trim();
+  return trimmedVersion ? `Lumina Finance ${formatVersionLabel(trimmedVersion)}` : 'Lumina Finance';
+}
+
+function VersionIndicator() {
+  const [version, setVersion] = useState(CURRENT_APP_VERSION);
+  const [updateNotice, setUpdateNotice] = useState<AppUpdateNotice | null>(null);
+  const currentVersionLabel = getCurrentVersionLabel(version);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchAppVersion()
+      .then((appVersion) => {
+        if (!isMounted) return;
+        setVersion(appVersion.version.trim());
+        setUpdateNotice(appVersion.update);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return (
+    <div className="mt-2 px-2 text-center" aria-label={currentVersionLabel}>
+      <p className="m-0 truncate text-center text-xs font-normal" style={{ color: 'var(--app-text-subtle)' }}>
+        {currentVersionLabel}
+      </p>
+      {updateNotice && (
+        <a
+          href={updateNotice.releaseUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 flex min-h-5 items-center justify-center gap-1.5 text-[0.6875rem] font-medium no-underline transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
+          style={{ color: 'var(--app-accent)' }}
+        >
+          <span className="relative flex h-3 w-3 shrink-0 items-center justify-center" aria-hidden>
+            <span
+              className="absolute inline-flex h-3 w-3 animate-ping rounded-full opacity-40 motion-reduce:animate-none"
+              style={{ background: 'var(--app-accent)' }}
+            />
+            <span
+              className="relative inline-flex h-2.5 w-2.5 rounded-full"
+              style={{ background: 'var(--app-accent)' }}
+            />
+          </span>
+          <span className="min-w-0 truncate">New version available</span>
+          <ArrowUpRight size={12} strokeWidth={2.25} className="shrink-0" aria-hidden />
+        </a>
+      )}
+    </div>
+  );
+}
+
 function AnimatedMobileMenuIcon({
   isOpen,
   shouldReduceMotion,
@@ -236,7 +300,7 @@ function DesktopNavigation({
   return (
     <nav
       aria-label="Primary"
-      className="app-desktop-nav fixed left-5 z-30 hidden w-60 flex-col rounded-2xl px-4 py-7 min-[1050px]:flex"
+      className="app-desktop-nav fixed left-5 z-30 hidden w-60 flex-col rounded-2xl px-4 pb-4 pt-7 min-[1050px]:flex"
       style={{
         background: 'var(--app-nav-bg)',
         border: '1px solid var(--app-border)',
@@ -256,6 +320,8 @@ function DesktopNavigation({
       <div className="pt-3">
         <UserProfile displayName={displayName} initials={initials} logout={logout} />
       </div>
+
+      <VersionIndicator />
     </nav>
   );
 }
@@ -372,7 +438,7 @@ function MobileNavigation({
             transition={{ duration: shouldReduceMotion ? 0.16 : mobileMenuFadeMs / 1000, ease: 'easeOut' }}
           >
             <motion.div
-              className="flex min-h-[100dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]"
+              className="flex min-h-[100dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+2rem)]"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4 }}
@@ -397,6 +463,8 @@ function MobileNavigation({
               <div className="pt-3">
                 <UserProfile displayName={displayName} initials={initials} logout={logout} />
               </div>
+
+              <VersionIndicator />
             </motion.div>
           </motion.nav>
         )}

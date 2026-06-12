@@ -1,7 +1,11 @@
 # Build the Vite frontend into static assets.
 FROM dhi.io/node:26-debian13-sfw-dev AS frontend-builder
 
+ARG APP_VERSION
+
 WORKDIR /app/frontend
+
+ENV VITE_APP_VERSION="$APP_VERSION"
 
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -38,10 +42,14 @@ FROM dhi.io/caddy:2-debian13-dev AS caddy
 # Assemble the final one-image runtime.
 FROM dhi.io/python:3-debian13-dev AS runtime
 
+ARG APP_VERSION
+
 ENV PATH="/app/backend/.venv/bin:$PATH"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV RUNTIME=server
+ENV APP_VERSION="$APP_VERSION"
+ENV UPDATE_CHECKS_ENABLED=true
 
 WORKDIR /app/backend
 
