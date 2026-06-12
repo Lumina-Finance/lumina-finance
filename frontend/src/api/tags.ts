@@ -4,12 +4,16 @@ import {
   useQuery,
   useQueryClient,
   type InfiniteData,
-  type QueryKey,
 } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/api/client';
 import { invalidateTags, invalidateTransactions } from '@/api/cacheInvalidation';
 import { tagKeys } from '@/api/queryKeys';
 import { buildQueryString, type QueryStringValue } from '@/api/queryString';
+import {
+  isInfiniteReferenceLookupQueryKey,
+  referenceLookupMatchesFilters,
+  upsertReferenceLookupIntoInfiniteData,
+} from '@/api/referenceLookupCache';
 import { useAuth } from '@/hooks/useAuth';
 
 export interface Tag {
@@ -36,69 +40,6 @@ export interface UpdateTagPayload {
 
 export interface MergeTagPayload {
   replacement_tag_id: string;
-}
-
-/**
- * Checks whether a query key belongs to a paginated tag list
- */
-function isTagInfiniteQueryKey(
-  queryKey: QueryKey,
-): queryKey is readonly ['tags', 'infinite', Record<string, unknown>, number] {
-  return Array.isArray(queryKey) && queryKey[0] === 'tags' && queryKey[1] === 'infinite';
-}
-
-/**
- * Checks whether a tag belongs in a cached page for the active filters
- */
-function tagMatchesFilters(tag: Tag, filters: Record<string, unknown>) {
-  const groupId = typeof filters.group_id === 'string' ? filters.group_id : undefined;
-  const q = typeof filters.q === 'string' ? filters.q.trim().toLowerCase() : '';
-
-  const inScope = groupId
-    ? tag.group_id === null || tag.group_id === groupId
-    : tag.group_id === null;
-  const matchesSearch = !q || tag.name.toLowerCase().includes(q);
-
-  return inScope && matchesSearch;
-}
-
-/**
- * Inserts or replaces a tag while preserving existing infinite-query page sizes
- */
-function upsertTagIntoInfiniteData(
-  data: InfiniteData<Tag[]> | undefined,
-  tag: Tag,
-): InfiniteData<Tag[]> | undefined {
-  if (!data) return data;
-
-  if (data.pages.length === 0) {
-    return {
-      ...data,
-      pages: [[tag]],
-      pageParams: data.pageParams.length > 0 ? data.pageParams : [0],
-    };
-  }
-
-  const pageLengths = data.pages.map((page) => page.length);
-  const sortedTags = data.pages
-    .flat()
-    .filter((item) => item.id !== tag.id)
-    .concat(tag)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  let cursor = 0;
-
-  // Existing page sizes keep scroll position and fetch boundaries stable after cache updates
-  const pages = pageLengths.map((length) => {
-    const page = sortedTags.slice(cursor, cursor + length);
-    cursor += length;
-    return page;
-  });
-  const remainingTags = sortedTags.slice(cursor);
-  if (remainingTags.length > 0) {
-    pages[pages.length - 1] = [...pages[pages.length - 1], ...remainingTags];
-  }
-
-  return { ...data, pages };
 }
 
 /**
@@ -154,11 +95,14 @@ export function useCreateTag() {
         .findAll({ queryKey: tagKeys.all, exact: false })
         .forEach((query) => {
           const queryKey = query.queryKey;
-          if (!isTagInfiniteQueryKey(queryKey) || !tagMatchesFilters(created, queryKey[2])) return;
+          if (
+            !isInfiniteReferenceLookupQueryKey(queryKey, 'tags') ||
+            !referenceLookupMatchesFilters(created, queryKey[2])
+          ) return;
 
           qc.setQueryData<InfiniteData<Tag[]>>(
             queryKey,
-            (data) => upsertTagIntoInfiniteData(data, created),
+            (data) => upsertReferenceLookupIntoInfiniteData(data, created),
           );
         });
     },

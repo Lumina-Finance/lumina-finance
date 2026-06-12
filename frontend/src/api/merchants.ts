@@ -5,7 +5,6 @@ import {
   useQueryClient,
   type InfiniteData,
   type QueryClient,
-  type QueryKey,
 } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedFetch } from '@/api/client';
@@ -20,6 +19,12 @@ import {
   merchantKeys,
 } from '@/api/queryKeys';
 import { buildQueryString, type QueryStringValue } from '@/api/queryString';
+import {
+  isInfiniteReferenceLookupQueryKey,
+  referenceLookupMatchesFilters,
+  removeReferenceLookupFromInfiniteData,
+  upsertReferenceLookupIntoInfiniteData,
+} from '@/api/referenceLookupCache';
 
 export interface Merchant {
   id: string;
@@ -48,81 +53,6 @@ export interface MergeMerchantPayload {
 export interface MerchantFilters {
   group_id?: string;
   q?: string;
-}
-
-function isMerchantInfiniteQueryKey(
-  queryKey: QueryKey,
-): queryKey is readonly ['merchants', 'infinite', Record<string, unknown>, number] {
-  return Array.isArray(queryKey) && queryKey[0] === 'merchants' && queryKey[1] === 'infinite';
-}
-
-/**
- * Checks whether a merchant belongs in a cached page for the active filters
- */
-function merchantMatchesFilters(merchant: Merchant, filters: Record<string, unknown>) {
-  const groupId = typeof filters.group_id === 'string' ? filters.group_id : undefined;
-  const q = typeof filters.q === 'string' ? filters.q.trim().toLowerCase() : '';
-
-  const inScope = groupId
-    ? merchant.group_id === null || merchant.group_id === groupId
-    : merchant.group_id === null;
-  const matchesSearch = !q || merchant.name.toLowerCase().includes(q);
-
-  return inScope && matchesSearch;
-}
-
-/**
- * Inserts or replaces a merchant while preserving existing infinite-query page sizes
- */
-function upsertMerchantIntoInfiniteData(
-  data: InfiniteData<Merchant[]> | undefined,
-  merchant: Merchant,
-): InfiniteData<Merchant[]> | undefined {
-  if (!data) return data;
-
-  if (data.pages.length === 0) {
-    return {
-      ...data,
-      pages: [[merchant]],
-      pageParams: data.pageParams.length > 0 ? data.pageParams : [0],
-    };
-  }
-
-  const pageLengths = data.pages.map((page) => page.length);
-  const sortedMerchants = data.pages
-    .flat()
-    .filter((item) => item.id !== merchant.id)
-    .concat(merchant)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  let cursor = 0;
-
-  // Existing page sizes keep scroll position and fetch boundaries stable after cache updates
-  const pages = pageLengths.map((length) => {
-    const page = sortedMerchants.slice(cursor, cursor + length);
-    cursor += length;
-    return page;
-  });
-  const remainingMerchants = sortedMerchants.slice(cursor);
-  if (remainingMerchants.length > 0) {
-    pages[pages.length - 1] = [...pages[pages.length - 1], ...remainingMerchants];
-  }
-
-  return { ...data, pages };
-}
-
-/**
- * Removes a merchant from every cached infinite-query page
- */
-function removeMerchantFromInfiniteData(
-  data: InfiniteData<Merchant[]> | undefined,
-  merchantId: string,
-): InfiniteData<Merchant[]> | undefined {
-  if (!data) return data;
-
-  return {
-    ...data,
-    pages: data.pages.map((page) => page.filter((merchant) => merchant.id !== merchantId)),
-  };
 }
 
 /**
@@ -189,11 +119,14 @@ export function useCreateMerchant() {
         .findAll({ queryKey: merchantKeys.all, exact: false })
         .forEach((query) => {
           const queryKey = query.queryKey;
-          if (!isMerchantInfiniteQueryKey(queryKey) || !merchantMatchesFilters(created, queryKey[2])) return;
+          if (
+            !isInfiniteReferenceLookupQueryKey(queryKey, 'merchants') ||
+            !referenceLookupMatchesFilters(created, queryKey[2])
+          ) return;
 
           qc.setQueryData<InfiniteData<Merchant[]>>(
             queryKey,
-            (data) => upsertMerchantIntoInfiniteData(data, created),
+            (data) => upsertReferenceLookupIntoInfiniteData(data, created),
           );
         });
     },
@@ -214,13 +147,13 @@ export function useUpdateMerchant() {
         .findAll({ queryKey: merchantKeys.all, exact: false })
         .forEach((query) => {
           const queryKey = query.queryKey;
-          if (!isMerchantInfiniteQueryKey(queryKey)) return;
+          if (!isInfiniteReferenceLookupQueryKey(queryKey, 'merchants')) return;
 
           qc.setQueryData<InfiniteData<Merchant[]>>(
             queryKey,
-            (data) => merchantMatchesFilters(updated, queryKey[2])
-              ? upsertMerchantIntoInfiniteData(data, updated)
-              : removeMerchantFromInfiniteData(data, updated.id),
+            (data) => referenceLookupMatchesFilters(updated, queryKey[2])
+              ? upsertReferenceLookupIntoInfiniteData(data, updated)
+              : removeReferenceLookupFromInfiniteData(data, updated.id),
           );
         });
       if ('name' in payload) invalidateMerchantUsageQueries(qc);
