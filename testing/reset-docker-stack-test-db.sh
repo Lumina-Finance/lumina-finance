@@ -10,7 +10,7 @@ source "$script_dir/.env"
 
 # Recreate the Docker-stack test database and image from scratch.
 docker compose --env-file "$script_dir/.env" -p "$TEST_INSTANCE_PROJECT" -f "$script_dir/compose.yml" down -v --remove-orphans
-docker build -f docker/Dockerfile -t "$TEST_INSTANCE_IMAGE" .
+docker build --build-arg APP_VERSION=0.1.0 -f docker/Dockerfile -t "$TEST_INSTANCE_IMAGE" .
 
 # Start only Postgres so the remote dump can be restored before app migrations run.
 docker logout docker.io
