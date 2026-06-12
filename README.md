@@ -124,6 +124,7 @@ Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfur
 | `DB_USER` | Yes | Database user | None | PostgreSQL username |
 | `DB_PASSWORD` | Yes | Database password | None | PostgreSQL password |
 | `FRANKFURTER_URL` | No | URL including API version path | `https://api.frankfurter.dev/v2` | Frankfurter-compatible FX rate API URL; set this to a self-hosted Frankfurter instance to keep FX lookups private |
+| `UPDATE_CHECKS_ENABLED` | No | `true` or `false` | `true` in official Docker images | Enables update checks against GitHub releases and matching Docker image tags |
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
