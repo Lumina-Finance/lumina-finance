@@ -51,24 +51,34 @@ export function useUpdateProfile() {
 
 // Accounts the user has picked to feed the runway calculation.
 // The backend returns the raw UUID list.
+export function fetchRunwayAccounts() {
+  return authenticatedFetch<string[]>('/me/runway-accounts');
+}
+
 export function useRunwayAccounts() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: userKeys.runwayAccounts(),
-    queryFn: () => authenticatedFetch<string[]>('/me/runway-accounts'),
+    queryFn: fetchRunwayAccounts,
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
+  });
+}
+
+/**
+ * Updates the accounts selected for runway calculations
+ */
+export function updateRunwayAccounts(accountIds: string[]) {
+  return authenticatedFetch<string[]>('/me/runway-accounts', {
+    method: 'PUT',
+    body: JSON.stringify({ account_ids: accountIds }),
   });
 }
 
 export function useUpdateRunwayAccounts() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (accountIds: string[]) =>
-      authenticatedFetch<string[]>('/me/runway-accounts', {
-        method: 'PUT',
-        body: JSON.stringify({ account_ids: accountIds }),
-      }),
+    mutationFn: updateRunwayAccounts,
     onSuccess: (data) => {
       queryClient.setQueryData(userKeys.runwayAccounts(), data);
       queryClient.setQueryData<RunwaySettings | undefined>(
@@ -109,6 +119,9 @@ export interface RunwaySettingsUpdate {
   thresholds: RunwayThresholds;
 }
 
+/**
+ * Converts backend runway thresholds into frontend threshold state
+ */
 function fromRunwayThresholdsResponse(thresholds: RunwayThresholdsResponse): RunwayThresholds {
   return normalizeRunwayThresholds({
     riskyBelowMonths: thresholds.risky_below_months,
@@ -116,6 +129,9 @@ function fromRunwayThresholdsResponse(thresholds: RunwayThresholdsResponse): Run
   });
 }
 
+/**
+ * Converts frontend runway thresholds into the backend payload shape
+ */
 function toRunwayThresholdsPayload(thresholds: RunwayThresholds): RunwayThresholdsResponse {
   const safeThresholds = normalizeRunwayThresholds(thresholds);
   return {
@@ -124,6 +140,9 @@ function toRunwayThresholdsPayload(thresholds: RunwayThresholds): RunwayThreshol
   };
 }
 
+/**
+ * Converts backend runway settings into frontend settings state
+ */
 function fromRunwaySettingsResponse(settings: RunwaySettingsResponse): RunwaySettings {
   return {
     accountIds: settings.account_ids,
@@ -132,6 +151,9 @@ function fromRunwaySettingsResponse(settings: RunwaySettingsResponse): RunwaySet
   };
 }
 
+/**
+ * Converts frontend runway settings into the backend payload shape
+ */
 function toRunwaySettingsPayload(settings: RunwaySettingsUpdate): RunwaySettingsPayload {
   return {
     account_ids: settings.accountIds,
@@ -139,27 +161,41 @@ function toRunwaySettingsPayload(settings: RunwaySettingsUpdate): RunwaySettings
   };
 }
 
+/**
+ * Fetches runway settings and normalizes backend threshold fields
+ */
+export async function fetchRunwaySettings() {
+  return fromRunwaySettingsResponse(
+    await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings'),
+  );
+}
+
 export function useRunwaySettings() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: userKeys.runwaySettings(),
-    queryFn: async () => fromRunwaySettingsResponse(
-      await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings'),
-    ),
+    queryFn: fetchRunwaySettings,
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
 }
 
+/**
+ * Updates runway settings after converting frontend threshold fields for the backend
+ */
+export async function updateRunwaySettings(settings: RunwaySettingsUpdate) {
+  return fromRunwaySettingsResponse(
+    await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings', {
+      method: 'PUT',
+      body: JSON.stringify(toRunwaySettingsPayload(settings)),
+    }),
+  );
+}
+
 export function useUpdateRunwaySettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (settings: RunwaySettingsUpdate) => fromRunwaySettingsResponse(
-      await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings', {
-        method: 'PUT',
-        body: JSON.stringify(toRunwaySettingsPayload(settings)),
-      }),
-    ),
+    mutationFn: updateRunwaySettings,
     onSuccess: (data) => {
       queryClient.setQueryData(userKeys.runwaySettings(), data);
       queryClient.setQueryData(userKeys.runwayAccounts(), data.accountIds);
@@ -201,6 +237,9 @@ export interface RunwayResult {
   fx_status: FxStatus;
 }
 
+/**
+ * Converts backend runway results into frontend result state
+ */
 function fromRunwayResultResponse(result: RunwayResultResponse): RunwayResult {
   return {
     ...result,
@@ -208,13 +247,20 @@ function fromRunwayResultResponse(result: RunwayResultResponse): RunwayResult {
   };
 }
 
+/**
+ * Fetches runway results and normalizes backend threshold fields
+ */
+export async function fetchRunway() {
+  return fromRunwayResultResponse(
+    await authenticatedFetch<RunwayResultResponse>('/me/runway'),
+  );
+}
+
 export function useRunway() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: userKeys.runway(),
-    queryFn: async () => fromRunwayResultResponse(
-      await authenticatedFetch<RunwayResultResponse>('/me/runway'),
-    ),
+    queryFn: fetchRunway,
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
