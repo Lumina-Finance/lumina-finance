@@ -88,7 +88,8 @@ async def _fetch_latest_github_release(client: httpx.AsyncClient | None) -> dict
         # GitHub is the source for the latest release candidate
         github_response = await http_client.get(GITHUB_LATEST_RELEASE_URL)
         github_response.raise_for_status()
-        return github_response.json()
+        github_release_payload = github_response.json()
+        return github_release_payload if isinstance(github_release_payload, dict) else None
     except Exception:
         return None
     finally:
