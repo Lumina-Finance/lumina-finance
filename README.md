@@ -27,7 +27,8 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 
 - **Accounts** - Track cash, credit, savings, and other account types with balance history, detail views, and hide archived accounts
 - **Multi-currency** - Track accounts and activity in different currencies with FX conversions across dashboards, budgets, runway, and insights
-- **Transactions** - Add or import transactions, then organize them with merchants, categories, tags, and notes
+- **Transactions** - Add transactions, then organise them with merchants, categories, tags, and notes
+- **Imports** - Upload CSV transaction files, map columns to accounts and categories, preview rows, and create missing accounts or categories during import
 - **Budgets** - Create recurring or one-off budgets, attach them to categories, and see current and historical utilization at a glance
 - **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
 - **Runway** - Choose the accounts that make up your cash cushion and see how many months they could cover based on your recent average spending in the worst case scenario
