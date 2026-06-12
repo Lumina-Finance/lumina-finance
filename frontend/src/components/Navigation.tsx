@@ -15,7 +15,7 @@ import {
   Sun,
   type LucideIcon,
 } from 'lucide-react';
-import { CURRENT_APP_VERSION, fetchAppVersion, type AppUpdateNotice } from '@/api/version';
+import { CURRENT_APP_VERSION, useAppVersion } from '@/api/version';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import type { Theme } from '@/types';
@@ -210,25 +210,10 @@ function getCurrentVersionLabel(version: string) {
 }
 
 function VersionIndicator() {
-  const [version, setVersion] = useState(CURRENT_APP_VERSION);
-  const [updateNotice, setUpdateNotice] = useState<AppUpdateNotice | null>(null);
+  const { data: appVersion } = useAppVersion();
+  const version = appVersion?.version ?? CURRENT_APP_VERSION;
+  const updateNotice = appVersion?.update ?? null;
   const currentVersionLabel = getCurrentVersionLabel(version);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    fetchAppVersion()
-      .then((appVersion) => {
-        if (!isMounted) return;
-        setVersion(appVersion.version.trim());
-        setUpdateNotice(appVersion.update);
-      })
-      .catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   return (
     <div className="mt-2 px-2 text-center" aria-label={currentVersionLabel}>
