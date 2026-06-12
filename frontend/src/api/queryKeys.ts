@@ -112,6 +112,10 @@ export const userKeys = {
   runway: () => ['me', 'runway'] as const,
 };
 
+export const appVersionKeys = {
+  version: () => ['app-version'] as const,
+};
+
 export const categoryKeys = {
   list: () => ['categories'] as const,
 };

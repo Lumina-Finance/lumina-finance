@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from './config';
+import { appVersionKeys } from './queryKeys';
 
 function getBuildValue(value: string | undefined) {
   return value?.trim() ?? '';
@@ -42,4 +44,13 @@ export async function fetchAppVersion(): Promise<AppVersionInfo> {
         }
       : null,
   };
+}
+
+export function useAppVersion() {
+  return useQuery({
+    queryKey: appVersionKeys.version(),
+    queryFn: fetchAppVersion,
+    staleTime: 15 * 60 * 1000,
+    gcTime: Infinity,
+  });
 }
