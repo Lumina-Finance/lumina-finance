@@ -96,6 +96,11 @@ These pages are now also fully mobile and tablet optimized!
   <img src="docs/screenshots/budget_details_dark.png" alt="Screenshot of budget details in dark mode" width="49%">
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/transaction_import_light.png" alt="Screenshot of transaction import in light mode" width="49%">
+  <img src="docs/screenshots/transaction_import_dark.png" alt="Screenshot of transaction import in dark mode" width="49%">
+</p>
+
 <!-- markdownlint-enable MD033 -->
 
 ## Deployment
