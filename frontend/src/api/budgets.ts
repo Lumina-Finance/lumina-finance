@@ -90,37 +90,58 @@ export interface UpdateBudgetPayload {
   };
 }
 
-function createBaseBudget(payload: CreateBaseBudgetPayload) {
+/**
+ * Creates a base budget and optional first budget period
+ */
+export function createBaseBudget(payload: CreateBaseBudgetPayload) {
   return authenticatedFetch<BaseBudget>('/base-budgets', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-function createBudgetInstance({ baseBudgetId, ...payload }: CreateBudgetPayload) {
+/**
+ * Creates a budget period under a base budget
+ */
+export function createBudgetInstance({ baseBudgetId, ...payload }: CreateBudgetPayload) {
   return authenticatedFetch<Budget>(`/base-budgets/${baseBudgetId}/budgets`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-function listBaseBudgets() {
+/**
+ * Fetches base budget definitions
+ */
+export function fetchBaseBudgets() {
   return authenticatedFetch<BaseBudget[]>('/base-budgets');
 }
 
-function listBudgets() {
+/**
+ * Fetches budget periods
+ */
+export function fetchBudgets() {
   return authenticatedFetch<Budget[]>('/budgets');
 }
 
-function getBudgetUtilization(budgetId: string) {
+/**
+ * Fetches utilization for one budget period
+ */
+export function fetchBudgetUtilization(budgetId: string) {
   return authenticatedFetch<BudgetUtilization>(`/budgets/${budgetId}/utilization`);
 }
 
-function listLatestBudgetUtilizations() {
+/**
+ * Fetches latest utilization for each active base budget
+ */
+export function fetchLatestBudgetUtilizations() {
   return authenticatedFetch<LatestBudgetUtilization[]>('/budgets/latest-utilizations');
 }
 
-function deleteBaseBudget(baseBudgetId: string) {
+/**
+ * Deletes a base budget and its periods
+ */
+export function deleteBaseBudget(baseBudgetId: string) {
   return authenticatedFetch<void>(`/base-budgets/${baseBudgetId}`, {
     method: 'DELETE',
   });
@@ -132,20 +153,29 @@ function delay(ms: number) {
   });
 }
 
-function updateBaseBudget({ id, patch }: UpdateBaseBudgetPayload) {
+/**
+ * Updates mutable base budget fields
+ */
+export function updateBaseBudget({ id, patch }: UpdateBaseBudgetPayload) {
   return authenticatedFetch<BaseBudget>(`/base-budgets/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
 }
 
-function updateBudget({ id, patch }: UpdateBudgetPayload) {
+/**
+ * Updates mutable budget period fields
+ */
+export function updateBudget({ id, patch }: UpdateBudgetPayload) {
   return authenticatedFetch<Budget>(`/budgets/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
 }
 
+/**
+ * Invalidates budget views after budget mutations change dashboard rollups
+ */
 function invalidateBudgetActivity(queryClient: QueryClient) {
   invalidateBudgets(queryClient);
   invalidateDashboardBudgets(queryClient);
@@ -155,7 +185,7 @@ export function useBaseBudgets() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: budgetKeys.baseBudgets(),
-    queryFn: listBaseBudgets,
+    queryFn: fetchBaseBudgets,
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   });
@@ -165,7 +195,7 @@ export function useBudgets() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: budgetKeys.periods(),
-    queryFn: listBudgets,
+    queryFn: fetchBudgets,
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   });
@@ -175,7 +205,7 @@ export function useLatestBudgetUtilizations() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: budgetKeys.latestUtilizations(),
-    queryFn: listLatestBudgetUtilizations,
+    queryFn: fetchLatestBudgetUtilizations,
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   });
@@ -186,7 +216,7 @@ export function useBudgetUtilizations(budgetIds: string[]) {
   return useQueries({
     queries: budgetIds.map((budgetId) => ({
       queryKey: budgetKeys.utilization(budgetId),
-      queryFn: () => getBudgetUtilization(budgetId),
+      queryFn: () => fetchBudgetUtilization(budgetId),
       enabled: !!accessToken,
       staleTime: 5 * 60 * 1000,
     })),
