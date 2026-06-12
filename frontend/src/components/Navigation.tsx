@@ -201,7 +201,7 @@ function VersionIndicator() {
     fetchAppVersion()
       .then((appVersion) => {
         if (!isMounted) return;
-        setVersion(appVersion.version.trim() || CURRENT_APP_VERSION);
+        setVersion(appVersion.version.trim());
         setUpdateNotice(appVersion.update);
       })
       .catch(() => undefined);
