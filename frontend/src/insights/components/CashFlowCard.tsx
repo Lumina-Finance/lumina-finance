@@ -31,16 +31,7 @@ import {
 import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-
-export type CashFlowGranularity = 'day' | 'week' | 'month'
-
-export type CashFlowBarBucket = {
-  label: string
-  rangeLabel: string
-  inflow: number
-  outflow: number
-  net: number
-}
+import type { CashFlowBarBucket, CashFlowGranularity } from '@/insights/types/cashFlow'
 
 type CashFlowCardProps = {
   granularity: CashFlowGranularity
