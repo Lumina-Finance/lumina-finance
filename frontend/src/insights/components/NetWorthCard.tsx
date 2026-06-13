@@ -17,6 +17,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { FxStatus } from '@/api/shared/fx'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
 import IconTooltip from '@/components/IconTooltip'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { getInsightsNetWorthFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
@@ -184,20 +185,18 @@ function NetWorthChartTooltipContent({
 
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Net Worth</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(displayedNetWorth, displayCurrency)}
-        </span>
-      </div>
+      <ChartTooltipTitle>{point.tooltipLabel}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label="Net Worth"
+        value={formatCurrency(displayedNetWorth, displayCurrency)}
+        financialValue
+      />
       {mode === 'overview' && (
-        <div className="mt-1 flex justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">Change</span>
-          <span className="app-chart-tooltip-default-value font-financial">
-            {formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}
-          </span>
-        </div>
+        <ChartTooltipRow
+          label="Change"
+          value={formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}
+          financialValue
+        />
       )}
       <div className="mt-2 space-y-1 border-t border-[var(--app-border)] pt-2">
         {detailItems.map(({ item, index }) => {
@@ -205,18 +204,23 @@ function NetWorthChartTooltipContent({
           const change = Number(point[getChangeKey(index)] ?? 0)
           const displayValue = item.kind === 'debt' ? Math.abs(value) : value
           return (
-            <div key={item.id} className="flex justify-between gap-4">
-              <span className="app-chart-tooltip-default-value">{item.name}</span>
-              <span className="app-chart-tooltip-default-value font-financial">
-                {formatCurrency(displayValue, displayCurrency)}
-                {mode === 'overview' && (
-                  <>
-                    {' '}
-                    ({formatSignedNetWorthCurrency(change, displayCurrency)})
-                  </>
-                )}
-              </span>
-            </div>
+            <ChartTooltipRow
+              key={item.id}
+              className="mt-0"
+              label={item.name}
+              value={(
+                <>
+                  {formatCurrency(displayValue, displayCurrency)}
+                  {mode === 'overview' && (
+                    <>
+                      {' '}
+                      ({formatSignedNetWorthCurrency(change, displayCurrency)})
+                    </>
+                  )}
+                </>
+              )}
+              financialValue
+            />
           )
         })}
       </div>

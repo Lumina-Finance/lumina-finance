@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { Store } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
@@ -330,23 +331,25 @@ function MerchantMarketMap({
       >
         {hoveredTile && (
           <>
-            <p className="app-chart-tooltip-default-title">{hoveredTile.merchant.name}</p>
-            <div className="mt-1 flex justify-between gap-4">
-              <span className="app-chart-tooltip-default-value">Total Spend</span>
-              <span className="app-chart-tooltip-default-value font-financial">
-                {formatCurrency(hoveredTile.merchant.totalAmount, currency)}
-              </span>
-            </div>
+            <ChartTooltipTitle>{hoveredTile.merchant.name}</ChartTooltipTitle>
+            <ChartTooltipRow
+              label="Total Spend"
+              value={formatCurrency(hoveredTile.merchant.totalAmount, currency)}
+              financialValue
+            />
             {hoveredTile.merchant.changeAmount !== null && (
-              <div className="mt-1 flex justify-between gap-4">
-                <span className="app-chart-tooltip-default-value">Change</span>
-                <span className="app-chart-tooltip-default-value font-financial">
-                  {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
-                  {hoveredTile.merchant.changePct === null
-                    ? ''
-                    : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
-                </span>
-              </div>
+              <ChartTooltipRow
+                label="Change"
+                value={(
+                  <>
+                    {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
+                    {hoveredTile.merchant.changePct === null
+                      ? ''
+                      : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
+                  </>
+                )}
+                financialValue
+              />
             )}
           </>
         )}

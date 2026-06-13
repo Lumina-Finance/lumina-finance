@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { FxStatus } from '@/api/shared/fx'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
 import IconTooltip from '@/components/IconTooltip'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import { getInsightsCashFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
@@ -114,25 +115,25 @@ function CashFlowBarTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{bucket.rangeLabel}</p>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Net</span>
-        <span className="font-financial" style={{ color: getSignedAmountColor(bucket.net) }}>
-          {formatSignedCurrency(bucket.net, displayCurrency)}
-        </span>
-      </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Inflow</span>
-        <span className="font-financial" style={{ color: 'var(--app-positive)' }}>
-          {formatCurrency(bucket.inflow, displayCurrency)}
-        </span>
-      </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Outflow</span>
-        <span className="font-financial" style={{ color: 'var(--app-negative)' }}>
-          {formatCurrency(bucket.outflow, displayCurrency)}
-        </span>
-      </div>
+      <ChartTooltipTitle>{bucket.rangeLabel}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label="Net"
+        value={formatSignedCurrency(bucket.net, displayCurrency)}
+        valueStyle={{ color: getSignedAmountColor(bucket.net) }}
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Inflow"
+        value={formatCurrency(bucket.inflow, displayCurrency)}
+        valueStyle={{ color: 'var(--app-positive)' }}
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Outflow"
+        value={formatCurrency(bucket.outflow, displayCurrency)}
+        valueStyle={{ color: 'var(--app-negative)' }}
+        financialValue
+      />
     </>
   )
 }

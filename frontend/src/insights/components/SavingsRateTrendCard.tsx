@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { FxStatus } from '@/api/shared/fx'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
 import IconTooltip from '@/components/IconTooltip'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
@@ -147,25 +148,22 @@ function SavingsRateHistoryTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.fullLabel}</p>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Savings Rate</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatSavingsRateValue(point.rate)}
-        </span>
-      </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Income</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(point.income, displayCurrency)}
-        </span>
-      </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Expenses</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(point.expenses, displayCurrency)}
-        </span>
-      </div>
+      <ChartTooltipTitle>{point.fullLabel}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label="Savings Rate"
+        value={formatSavingsRateValue(point.rate)}
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Income"
+        value={formatCurrency(point.income, displayCurrency)}
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Expenses"
+        value={formatCurrency(point.expenses, displayCurrency)}
+        financialValue
+      />
     </>
   )
 }

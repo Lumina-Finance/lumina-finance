@@ -16,6 +16,7 @@ import {
   type SankeyNodeProps,
 } from 'recharts'
 import type { FxStatus } from '@/api/shared/fx'
+import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
@@ -209,10 +210,10 @@ function SankeyFlowTooltipContent({
   return (
     <div className="min-w-44 max-w-64">
       <div className="flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-title">{tooltip.name}</span>
-        <span className="app-chart-tooltip-default-value font-financial">
+        <ChartTooltipTitle>{tooltip.name}</ChartTooltipTitle>
+        <ChartTooltipValue financial>
           {formatCurrency(tooltip.amount, displayCurrency)}
-        </span>
+        </ChartTooltipValue>
       </div>
     </div>
   )

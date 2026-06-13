@@ -17,6 +17,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -357,14 +358,12 @@ export function IncomeExpenseBreakdownCard({
                   {hoveredBreakdownEntry && (
                     <>
                       <div className="flex items-center gap-2">
-                        <span className="app-chart-tooltip-default-title">
-                          {hoveredBreakdownEntry.name}
-                        </span>
+                        <ChartTooltipTitle>{hoveredBreakdownEntry.name}</ChartTooltipTitle>
                         {renderCrossoverBadge(hoveredBreakdownEntry, displaySnapshot.mode)}
                       </div>
-                      <div className="app-chart-tooltip-default-value">
+                      <ChartTooltipValue financial>
                         {formatCurrency(hoveredBreakdownEntry.amount, displaySnapshot.displayCurrency)}
-                      </div>
+                      </ChartTooltipValue>
                     </>
                   )}
                 </CursorTooltipPortal>
