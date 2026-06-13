@@ -13,7 +13,7 @@ import {
   getBudgetUtilizationByBudgetId,
   getLatestBudgetCategories,
   getSortedBudgetPeriods,
-} from '@/budgets/utils/budgetDetails'
+} from '@/pages/budgets/utils/budgetDetails'
 
 /**
  * Creates a base budget fixture with valid recurring monthly defaults

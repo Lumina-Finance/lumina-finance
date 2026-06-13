@@ -17,26 +17,26 @@ import type {
 import type { FxStatus } from '@/api/shared/fx'
 import type { Transaction } from '@/api/transactions'
 import type { RunwayResult } from '@/api/user'
-import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
-import { formatDashboardShortDate } from '@/dashboard/utils/formatDashboardShortDate'
-import { getCreditUsageSummary } from '@/dashboard/utils/getCreditUsageSummary'
-import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
-import { getRecentActivityRows } from '@/dashboard/utils/getRecentActivityRows'
-import { getRunwayCaption } from '@/dashboard/utils/getRunwayCaption'
-import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
+import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
+import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
+import { getCreditUsageSummary } from '@/pages/dashboard/utils/getCreditUsageSummary'
+import { getNetWorthSeries } from '@/pages/dashboard/utils/getNetWorthSeries'
+import { getRecentActivityRows } from '@/pages/dashboard/utils/getRecentActivityRows'
+import { getRunwayCaption } from '@/pages/dashboard/utils/getRunwayCaption'
+import { getRunwaySegments } from '@/pages/dashboard/utils/getRunwaySegments'
 import {
   getSavingsRateChartData,
   getSavingsRateDisplay,
-} from '@/dashboard/utils/getSavingsRateChartData'
+} from '@/pages/dashboard/utils/getSavingsRateChartData'
 import {
   getSpendingBreakdownEntryColor,
   getSpendingBreakdownSummary,
-} from '@/dashboard/utils/getSpendingBreakdownSummary'
-import { getSpendingComparisonSeries } from '@/dashboard/utils/getSpendingComparisonSeries'
-import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
-import { getTopBudgetAttentionState } from '@/dashboard/utils/getTopBudgetAttentionState'
-import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
-import type { SavingsRateSeriesPoint } from '@/dashboard/types/dashboard'
+} from '@/pages/dashboard/utils/getSpendingBreakdownSummary'
+import { getSpendingComparisonSeries } from '@/pages/dashboard/utils/getSpendingComparisonSeries'
+import { getSpendingComparisonSummary } from '@/pages/dashboard/utils/getSpendingComparisonSummary'
+import { getTopBudgetAttentionState } from '@/pages/dashboard/utils/getTopBudgetAttentionState'
+import { getTopBudgets } from '@/pages/dashboard/utils/getTopBudgets'
+import type { SavingsRateSeriesPoint } from '@/pages/dashboard/types/dashboard'
 
 const fxStatus: FxStatus = { state: 'none', missing_pairs: [] }
 

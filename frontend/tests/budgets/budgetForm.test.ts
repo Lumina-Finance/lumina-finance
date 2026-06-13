@@ -4,13 +4,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import type { BudgetFormState } from '@/budgets/types'
-import { validateBudgetCreateForm } from '@/budgets/utils/budgetCreateValidation'
-import { sameStringSet } from '@/budgets/utils/form'
+import type { BudgetFormState } from '@/pages/budgets/types'
+import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
+import { sameStringSet } from '@/pages/budgets/utils/form'
 import {
   formatMinorUnitsInput,
   toMinorUnits,
-} from '@/budgets/utils/money'
+} from '@/pages/budgets/utils/money'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },

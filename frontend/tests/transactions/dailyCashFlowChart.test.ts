@@ -9,7 +9,7 @@ import {
   getDailyCashFlowXAxisTickCount,
   getDailyCashFlowXAxisTicks,
   type DailyCashFlowPoint,
-} from '@/transactions/utils/dailyCashFlowChart'
+} from '@/pages/transactions/utils/dailyCashFlowChart'
 
 describe('daily cash-flow chart helpers', () => {
   it('selects day, week, and month granularity from the selected date span', () => {

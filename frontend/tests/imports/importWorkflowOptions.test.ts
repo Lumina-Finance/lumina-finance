@@ -6,8 +6,8 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/imports/constants'
-import type { ImportFileDraft } from '@/imports/types'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   buildImportAccountMappingSources,
   buildImportAccountOptions,
@@ -19,7 +19,7 @@ import {
   getImportedTags,
   getImportHeaders,
   getMissingRequiredColumnLabels,
-} from '@/imports/utils'
+} from '@/pages/imports/utils'
 
 /**
  * Creates an account overview fixture for option grouping

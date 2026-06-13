@@ -6,8 +6,8 @@ import type { Transaction } from '@/api/transactions'
 import {
   getTransactionDateGroupTotal,
   groupTransactionsByDate,
-} from '@/transactions/utils/transactionDateGroups'
-import type { TransactionListAccount } from '@/transactions/types/transactionList'
+} from '@/pages/transactions/utils/transactionDateGroups'
+import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 
 /**
  * Builds the transaction fields needed by date-group helper tests
