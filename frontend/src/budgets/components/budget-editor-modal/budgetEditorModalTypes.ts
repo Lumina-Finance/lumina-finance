@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/budgets/types'
 
-export interface BudgetFormViewState {
+export interface BudgetEditorModalViewState {
   form: BudgetFormState
   formError: string | null
   fieldErrors: BudgetFormFieldErrors
@@ -11,13 +11,13 @@ export interface BudgetFormViewState {
   categorySearch: string
 }
 
-export interface BudgetFormOptions {
+export interface BudgetEditorModalOptions {
   categories: Category[]
   filteredCategories: Category[]
   currencies: Currency[]
 }
 
-export interface BudgetFormHandlers {
+export interface BudgetEditorModalHandlers {
   onClose: () => void
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
   setField: <K extends keyof BudgetFormState>(field: K, value: BudgetFormState[K]) => void
@@ -27,7 +27,7 @@ export interface BudgetFormHandlers {
   onBlur: (field: keyof BudgetFormFieldErrors) => void
 }
 
-export interface BudgetFormFieldIds {
+export interface BudgetEditorModalFieldIds {
   name: string
   currency: string
   limit: string
@@ -36,4 +36,4 @@ export interface BudgetFormFieldIds {
   categoryError: string
 }
 
-export type BudgetFormErrorGetter = (field: keyof BudgetFormFieldErrors) => string | undefined
+export type BudgetEditorModalErrorGetter = (field: keyof BudgetFormFieldErrors) => string | undefined

@@ -1,22 +1,22 @@
-import type { BudgetFormErrorGetter, BudgetFormFieldIds, BudgetFormHandlers, BudgetFormViewState } from '@/budgets/components/budget-form/budgetFormTypes'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalViewState } from '@/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import FieldLabelRow from '@/budgets/components/shared/FieldLabelRow'
 import { RECURRENCE_OPTIONS } from '@/budgets/constants'
 import { cadenceSummary } from '@/budgets/utils/budgetPeriods'
 
-interface BudgetFormCadenceSectionProps {
-  state: BudgetFormViewState
-  ids: BudgetFormFieldIds
+interface BudgetEditorModalCadenceSectionProps {
+  state: BudgetEditorModalViewState
+  ids: BudgetEditorModalFieldIds
   periodStartLabel: string
   cadenceSummaryText?: string
   recurrenceControlsLocked: boolean
-  showError: BudgetFormErrorGetter
-  handlers: BudgetFormHandlers
+  showError: BudgetEditorModalErrorGetter
+  handlers: BudgetEditorModalHandlers
 }
 
 /**
- * Renders recurrence type, frequency, period length, and start-date controls for budget forms
+ * Renders recurrence type, frequency, period length, and start-date controls for budget editing
  */
-export default function BudgetFormCadenceSection({
+export default function BudgetEditorModalCadenceSection({
   state,
   ids,
   periodStartLabel,
@@ -24,7 +24,7 @@ export default function BudgetFormCadenceSection({
   recurrenceControlsLocked,
   showError,
   handlers,
-}: BudgetFormCadenceSectionProps) {
+}: BudgetEditorModalCadenceSectionProps) {
   const { form } = state
   const { setField, onBlur, onRecursChange } = handlers
 

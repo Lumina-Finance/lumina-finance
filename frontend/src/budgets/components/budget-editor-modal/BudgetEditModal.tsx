@@ -3,18 +3,18 @@ import type React from 'react'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import BudgetFormCadenceSection from '@/budgets/components/budget-form/BudgetFormCadenceSection'
-import BudgetFormCategorySection from '@/budgets/components/budget-form/BudgetFormCategorySection'
-import BudgetFormFooter from '@/budgets/components/budget-form/BudgetFormFooter'
-import BudgetFormScopeSection from '@/budgets/components/budget-form/BudgetFormScopeSection'
-import BudgetFormShell, { type BudgetFormShellAppearance } from '@/budgets/components/budget-form/BudgetFormShell'
-import type { BudgetFormErrorGetter, BudgetFormFieldIds, BudgetFormHandlers, BudgetFormOptions, BudgetFormViewState } from '@/budgets/components/budget-form/budgetFormTypes'
+import BudgetEditorModalCadenceSection from '@/budgets/components/budget-editor-modal/BudgetEditorModalCadenceSection'
+import BudgetEditorModalCategorySection from '@/budgets/components/budget-editor-modal/BudgetEditorModalCategorySection'
+import BudgetEditorModalFooter from '@/budgets/components/budget-editor-modal/BudgetEditorModalFooter'
+import BudgetEditorModalScopeSection from '@/budgets/components/budget-editor-modal/BudgetEditorModalScopeSection'
+import BudgetEditorModalShell, { type BudgetEditorModalShellAppearance } from '@/budgets/components/budget-editor-modal/BudgetEditorModalShell'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { sameStringSet } from '@/budgets/utils/form'
 import { currencySymbol, formatMinorUnitsInput, toMinorUnits } from '@/budgets/utils/money'
 
-const EDIT_FIELD_IDS: BudgetFormFieldIds = {
+const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   name: 'budget-edit-name',
   currency: 'budget-edit-currency',
   limit: 'budget-edit-limit',
@@ -23,7 +23,7 @@ const EDIT_FIELD_IDS: BudgetFormFieldIds = {
   categoryError: 'budget-edit-category-error',
 }
 
-const EDIT_SHELL_APPEARANCE: BudgetFormShellAppearance = {
+const EDIT_SHELL_APPEARANCE: BudgetEditorModalShellAppearance = {
   backdropClassName: 'fixed inset-0 z-[100]',
   backdropStyle: { background: 'rgba(0, 0, 0, 0.22)', backdropFilter: 'blur(6px)' },
   backdropDuration: 0.15,
@@ -139,9 +139,9 @@ export default function BudgetEditModal({
     && hasCategory
     && (!latestPeriod || limitMinorUnits !== null)
     && (baseChanged || periodChanged)
-  const state: BudgetFormViewState = { form, formError, fieldErrors, touched, categorySearch }
-  const options: BudgetFormOptions = { categories: categoryOptions, filteredCategories, currencies }
-  const showError: BudgetFormErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
+  const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
+  const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
+  const showError: BudgetEditorModalErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
 
   /**
    * Restores edit state from the latest budget snapshot after save or close
@@ -279,7 +279,7 @@ export default function BudgetEditModal({
     }
   }
 
-  const handlers: BudgetFormHandlers = {
+  const handlers: BudgetEditorModalHandlers = {
     onClose: closeAndReset,
     onSubmit: handleSubmit,
     setField,
@@ -290,7 +290,7 @@ export default function BudgetEditModal({
   }
 
   return (
-    <BudgetFormShell
+    <BudgetEditorModalShell
       open={open}
       title="Edit Budget"
       titleId="budget-edit-title"
@@ -302,7 +302,7 @@ export default function BudgetEditModal({
       onClose={closeAndReset}
       onSubmit={handleSubmit}
       footer={(
-        <BudgetFormFooter
+        <BudgetEditorModalFooter
           className={EDIT_FOOTER_CLASS_NAME}
           isPending={isPending}
           submitDisabled={!canSave}
@@ -313,7 +313,7 @@ export default function BudgetEditModal({
     >
       <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-h-0 flex-col gap-5">
-          <BudgetFormScopeSection
+          <BudgetEditorModalScopeSection
             state={state}
             options={options}
             ids={EDIT_FIELD_IDS}
@@ -326,7 +326,7 @@ export default function BudgetEditModal({
             handlers={handlers}
           />
 
-          <BudgetFormCadenceSection
+          <BudgetEditorModalCadenceSection
             state={state}
             ids={EDIT_FIELD_IDS}
             periodStartLabel="Period start"
@@ -337,7 +337,7 @@ export default function BudgetEditModal({
           />
         </div>
 
-        <BudgetFormCategorySection
+        <BudgetEditorModalCategorySection
           state={state}
           options={options}
           ids={EDIT_FIELD_IDS}
@@ -347,6 +347,6 @@ export default function BudgetEditModal({
           handlers={handlers}
         />
       </div>
-    </BudgetFormShell>
+    </BudgetEditorModalShell>
   )
 }

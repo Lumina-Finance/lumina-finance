@@ -4,12 +4,12 @@ import { useCreateBaseBudget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
-import BudgetFormCadenceSection from '@/budgets/components/budget-form/BudgetFormCadenceSection'
-import BudgetFormCategorySection from '@/budgets/components/budget-form/BudgetFormCategorySection'
-import BudgetFormFooter from '@/budgets/components/budget-form/BudgetFormFooter'
-import BudgetFormScopeSection from '@/budgets/components/budget-form/BudgetFormScopeSection'
-import BudgetFormShell, { type BudgetFormShellAppearance } from '@/budgets/components/budget-form/BudgetFormShell'
-import type { BudgetFormErrorGetter, BudgetFormFieldIds, BudgetFormHandlers, BudgetFormOptions, BudgetFormViewState } from '@/budgets/components/budget-form/budgetFormTypes'
+import BudgetEditorModalCadenceSection from '@/budgets/components/budget-editor-modal/BudgetEditorModalCadenceSection'
+import BudgetEditorModalCategorySection from '@/budgets/components/budget-editor-modal/BudgetEditorModalCategorySection'
+import BudgetEditorModalFooter from '@/budgets/components/budget-editor-modal/BudgetEditorModalFooter'
+import BudgetEditorModalScopeSection from '@/budgets/components/budget-editor-modal/BudgetEditorModalScopeSection'
+import BudgetEditorModalShell, { type BudgetEditorModalShellAppearance } from '@/budgets/components/budget-editor-modal/BudgetEditorModalShell'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFACE_TRANSITION_SECONDS } from '@/budgets/constants'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/budgets/types'
 import { recurrenceAnchorsFromStart } from '@/budgets/utils/budgetPeriods'
@@ -17,7 +17,7 @@ import { validateBudgetCreateForm } from '@/budgets/utils/budgetCreateValidation
 import { todayYmd } from '@/budgets/utils/date'
 import { currencySymbol, toMinorUnits } from '@/budgets/utils/money'
 
-const CREATE_FIELD_IDS: BudgetFormFieldIds = {
+const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   name: 'budget-name',
   currency: 'budget-currency',
   limit: 'budget-limit',
@@ -26,7 +26,7 @@ const CREATE_FIELD_IDS: BudgetFormFieldIds = {
   categoryError: 'categoryIds-error',
 }
 
-const CREATE_SHELL_APPEARANCE: BudgetFormShellAppearance = {
+const CREATE_SHELL_APPEARANCE: BudgetEditorModalShellAppearance = {
   backdropClassName: 'fixed inset-0 z-50',
   backdropStyle: { background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' },
   backdropDuration: 0.2,
@@ -49,7 +49,7 @@ const CREATE_SHELL_APPEARANCE: BudgetFormShellAppearance = {
 const CREATE_FOOTER_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5'
 
 /**
- * Manages create-budget form state, validation, and submission through the shared form shell
+ * Manages create-budget form state, validation, and submission through the shared editor modal shell
  */
 export default function BudgetCreateModal({
   open,
@@ -105,13 +105,13 @@ export default function BudgetCreateModal({
   const hasSelectedExpenseCategory = form.categoryIds.some((categoryId) =>
     expenseCategories.some((category) => category.id === categoryId),
   )
-  const state: BudgetFormViewState = { form, formError, fieldErrors, touched, categorySearch }
-  const options: BudgetFormOptions = {
+  const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
+  const options: BudgetEditorModalOptions = {
     categories: expenseCategories,
     filteredCategories: filteredExpenseCategories,
     currencies,
   }
-  const showError: BudgetFormErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
+  const showError: BudgetEditorModalErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
 
   /**
    * Restores the create form to the latest default currency and local start date
@@ -253,7 +253,7 @@ export default function BudgetCreateModal({
     }
   }
 
-  const handlers: BudgetFormHandlers = {
+  const handlers: BudgetEditorModalHandlers = {
     onClose: closeAndReset,
     onSubmit: handleSubmit,
     setField,
@@ -264,7 +264,7 @@ export default function BudgetCreateModal({
   }
 
   return (
-    <BudgetFormShell
+    <BudgetEditorModalShell
       open={open}
       title="Add Budget"
       titleId="budget-create-title"
@@ -275,7 +275,7 @@ export default function BudgetCreateModal({
       onClose={closeAndReset}
       onSubmit={handleSubmit}
       footer={(
-        <BudgetFormFooter
+        <BudgetEditorModalFooter
           className={CREATE_FOOTER_CLASS_NAME}
           isPending={isPending}
           submitDisabled={isPending}
@@ -286,7 +286,7 @@ export default function BudgetCreateModal({
     >
       <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-h-0 flex-col gap-5">
-          <BudgetFormScopeSection
+          <BudgetEditorModalScopeSection
             state={state}
             options={options}
             ids={CREATE_FIELD_IDS}
@@ -300,7 +300,7 @@ export default function BudgetCreateModal({
             handlers={handlers}
           />
 
-          <BudgetFormCadenceSection
+          <BudgetEditorModalCadenceSection
             state={state}
             ids={CREATE_FIELD_IDS}
             periodStartLabel="First period start"
@@ -310,7 +310,7 @@ export default function BudgetCreateModal({
           />
         </div>
 
-        <BudgetFormCategorySection
+        <BudgetEditorModalCategorySection
           state={state}
           options={options}
           ids={CREATE_FIELD_IDS}
@@ -320,6 +320,6 @@ export default function BudgetCreateModal({
           handlers={handlers}
         />
       </div>
-    </BudgetFormShell>
+    </BudgetEditorModalShell>
   )
 }
