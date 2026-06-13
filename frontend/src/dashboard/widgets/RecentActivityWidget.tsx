@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Activity } from 'lucide-react'
 import { useCategories } from '@/api/categories'
 import { useDashboardRecentActivity } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
+import { RecentActivityHeader } from '@/dashboard/components/RecentActivityHeader'
 import { getRecentActivityRows } from '@/dashboard/utils/getRecentActivityRows'
 import { formatCurrency } from '@/utils/formatCurrency'
 
@@ -39,12 +39,7 @@ export function RecentActivityWidget() {
 
   return (
     <div className="app-card h-[410px] flex flex-col">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
-          <Activity size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
-        </div>
-        <span className="app-label">Recent Activity</span>
-      </div>
+      <RecentActivityHeader />
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
