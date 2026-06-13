@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
+import type {
+  PeriodGlancePrimaryMetric,
+  PeriodGlanceSupportItem,
+  PeriodGlanceTone,
+} from '@/insights/types/periodGlance'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { getPeriodIncomeExpenseFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from './FxStatusBadge'
@@ -15,26 +20,6 @@ import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 const PRIMARY_AMOUNT_MAX_REM = 3
 const PRIMARY_AMOUNT_MIN_REM = 1.875
 const PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS = 'inline-flex w-[1.375rem] shrink-0 items-center'
-
-type PeriodGlanceTone = 'positive' | 'neutral' | 'negative'
-
-export type PeriodGlancePrimaryMetric = {
-  label: string
-  value: string
-  detail: string
-  calculation?: string
-  tone: PeriodGlanceTone
-}
-
-export type PeriodGlanceSupportItem = {
-  label: string
-  value: string
-  detail: string
-  calculation?: string
-  tone: PeriodGlanceTone
-  fxStatus?: FxStatus
-  getFxStatusMessage?: (fxStatus: FxStatus) => string
-}
 
 type PeriodGlanceSnapshot = {
   primaryMetric: PeriodGlancePrimaryMetric
