@@ -1,0 +1,184 @@
+/**
+ * Tests account list helper behaviour so filtering, section totals, and FX rollups cannot drift while the page components are split apart
+ */
+import { describe, expect, it } from 'vitest'
+import type { AccountsOverview } from '@/api/accounts'
+import {
+  getAccountKindOptions,
+  getAccountTypeOptions,
+  getActiveAccountFilters,
+  getFilteredAccounts,
+  getInstitutionOptions,
+} from '@/accounts/utils/accountFilters'
+import {
+  getAccountSections,
+  getCombinedAccountFxStatus,
+} from '@/accounts/utils/accountSections'
+
+function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
+  return {
+    id: overrides.id ?? 'account',
+    owner_id: null,
+    group_id: null,
+    account_kind: overrides.account_kind ?? 'asset',
+    account_type: overrides.account_type ?? 'checking',
+    tax_advantaged_category_id: null,
+    name: overrides.name ?? 'Account',
+    institution: overrides.institution ?? null,
+    currency: overrides.currency ?? 'USD',
+    current_balance: overrides.current_balance ?? 0,
+    base_currency_current_balance: overrides.base_currency_current_balance ?? null,
+    current_balance_fx_status: overrides.current_balance_fx_status ?? { state: 'none', missing_pairs: [] },
+    credit_limit: overrides.credit_limit ?? null,
+    is_archived: overrides.is_archived ?? false,
+    closed_at: null,
+    ...overrides,
+  }
+}
+
+describe('account filter helpers', () => {
+  it('removes empty filters before filtering accounts', () => {
+    expect(getActiveAccountFilters({
+      institution_id: '',
+      account_kind: 'asset',
+      account_type: undefined,
+    })).toEqual({ account_kind: 'asset' })
+  })
+
+  it('derives sorted and present-only filter options', () => {
+    const rows = [
+      createAccount({
+        id: 'checking',
+        account_kind: 'asset',
+        account_type: 'checking',
+        institution: { id: 'z', name: 'Zeta Bank', website: null },
+      }),
+      createAccount({
+        id: 'card',
+        account_kind: 'revolving',
+        account_type: 'credit_card',
+        institution: { id: 'a', name: 'Alpha Bank', website: null },
+      }),
+      createAccount({
+        id: 'cash',
+        account_kind: 'asset',
+        account_type: 'cash',
+        institution: { id: 'z', name: 'Zeta Bank', website: null },
+      }),
+    ]
+
+    expect(getInstitutionOptions(rows).map((option) => option.label)).toEqual([
+      'Alpha Bank',
+      'Zeta Bank',
+    ])
+    expect(getAccountKindOptions(rows).map((option) => option.value)).toEqual([
+      'asset',
+      'revolving',
+    ])
+    expect(getAccountTypeOptions(rows).map((option) => option.value)).toEqual([
+      'checking',
+      'cash',
+      'credit_card',
+    ])
+  })
+
+  it('applies institution, kind, and type filters together', () => {
+    const rows = [
+      createAccount({
+        id: 'checking',
+        account_kind: 'asset',
+        account_type: 'checking',
+        institution: { id: 'bank', name: 'Bank', website: null },
+      }),
+      createAccount({
+        id: 'card',
+        account_kind: 'revolving',
+        account_type: 'credit_card',
+        institution: { id: 'bank', name: 'Bank', website: null },
+      }),
+      createAccount({
+        id: 'cash',
+        account_kind: 'asset',
+        account_type: 'cash',
+        institution: null,
+      }),
+    ]
+
+    expect(getFilteredAccounts(rows, {
+      institution_id: 'bank',
+      account_kind: 'asset',
+      account_type: 'checking',
+    }).map((account) => account.id)).toEqual(['checking'])
+  })
+})
+
+describe('account section helpers', () => {
+  it('uses base-currency balances for totals and sorts visible rows by section rules', () => {
+    const rows = [
+      createAccount({
+        id: 'savings',
+        account_kind: 'asset',
+        account_type: 'savings',
+        current_balance: 300,
+        base_currency_current_balance: 900,
+      }),
+      createAccount({
+        id: 'checking',
+        account_kind: 'asset',
+        account_type: 'checking',
+        current_balance: 700,
+      }),
+      createAccount({
+        id: 'card',
+        account_kind: 'revolving',
+        account_type: 'credit_card',
+        current_balance: -500,
+      }),
+      createAccount({
+        id: 'loan',
+        account_kind: 'amortizing',
+        account_type: 'loan',
+        current_balance: -4_000,
+      }),
+    ]
+    const sections = getAccountSections({ rows, filteredRows: rows })
+
+    expect(sections.totalAssets).toBe(1_600)
+    expect(sections.totalDebts).toBe(-4_500)
+    expect(sections.netWorth).toBe(-2_900)
+    expect(sections.assetRows.map((account) => account.id)).toEqual(['savings', 'checking'])
+    expect(sections.revolvingRows.map((account) => account.id)).toEqual(['card'])
+    expect(sections.amortizingRows.map((account) => account.id)).toEqual(['loan'])
+  })
+
+  it('combines duplicate missing FX pairs once and keeps incomplete status when some conversions are unavailable', () => {
+    const rows = [
+      createAccount({
+        id: 'cad',
+        current_balance_fx_status: {
+          state: 'incomplete',
+          missing_pairs: [{ base: 'USD', quote: 'CAD' }],
+        },
+      }),
+      createAccount({
+        id: 'eur',
+        current_balance_fx_status: {
+          state: 'unavailable',
+          missing_pairs: [
+            { base: 'USD', quote: 'CAD' },
+            { base: 'USD', quote: 'EUR' },
+          ],
+        },
+      }),
+      createAccount({ id: 'usd' }),
+    ]
+
+    expect(getCombinedAccountFxStatus(rows)).toEqual({
+      state: 'incomplete',
+      missing_pairs: [
+        { base: 'USD', quote: 'CAD' },
+        { base: 'USD', quote: 'EUR' },
+      ],
+    })
+  })
+})
