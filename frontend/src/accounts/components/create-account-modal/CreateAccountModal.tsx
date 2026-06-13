@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Landmark, X } from 'lucide-react';
 import Dropdown from '@/components/Dropdown';
 import IconTooltip from '@/components/IconTooltip';
+import CreateModalFieldLabelRow from '@/components/create-modal/CreateModalFieldLabelRow';
 import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
@@ -45,41 +46,6 @@ const conditionalField = {
   exit: { height: 0, opacity: 0 },
   transition: { duration: 0.25, ease: CREATE_ACCOUNT_EASE },
 };
-
-interface FieldLabelRowProps {
-  label: React.ReactNode;
-  htmlFor?: string;
-  error?: string;
-  accessory?: React.ReactNode;
-}
-
-function FieldLabelRow({ label, htmlFor, error, accessory }: FieldLabelRowProps) {
-  return (
-    <div className="mb-1.5 flex items-start justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
-          {label}
-        </label>
-        {accessory}
-      </div>
-      <AnimatePresence initial={false}>
-        {error && (
-          <motion.p
-            key={error}
-            className="text-right text-xs font-medium leading-5"
-            style={{ color: 'var(--app-negative)' }}
-            initial={{ opacity: 0, x: 4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 4 }}
-            transition={{ duration: 0.15 }}
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
 interface CreateAccountModalProps {
   open: boolean;
@@ -272,7 +238,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
                             <div>
-                              <FieldLabelRow label="Account Type" error={showError('account_type') || undefined} />
+                              <CreateModalFieldLabelRow label="Account Type" error={showError('account_type') || undefined} />
                               <Dropdown
                                 options={CREATE_ACCOUNT_TYPE_OPTIONS}
                                 value={form.account_type}
@@ -288,7 +254,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                             </div>
 
                             <div>
-                              <FieldLabelRow htmlFor="account-name" label="Account Name" error={showError('name') || undefined} />
+                              <CreateModalFieldLabelRow htmlFor="account-name" label="Account Name" error={showError('name') || undefined} />
                               <input
                                 id="account-name"
                                 type="text"
@@ -302,7 +268,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                             </div>
 
                             <div>
-                              <FieldLabelRow label="Currency" error={showError('currency') || undefined} />
+                              <CreateModalFieldLabelRow label="Currency" error={showError('currency') || undefined} />
                               <Dropdown
                                 options={currencyOptions}
                                 value={form.currency}
@@ -338,7 +304,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                             </div>
 
                             <div>
-                              <FieldLabelRow
+                              <CreateModalFieldLabelRow
                                 htmlFor="starting-balance"
                                 label={startingBalanceLabel}
                                 error={showError('starting_balance') || undefined}
@@ -399,7 +365,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                                     </div>
                                   ) : (
                                     <div>
-                                      <FieldLabelRow
+                                      <CreateModalFieldLabelRow
                                         htmlFor="credit-limit"
                                         label="Credit Limit"
                                         error={showError('credit_limit') || undefined}

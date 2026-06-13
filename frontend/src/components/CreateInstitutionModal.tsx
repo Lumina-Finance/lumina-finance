@@ -1,8 +1,9 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ApiError } from '@/api/auth'
 import { useCreateInstitution, type Institution } from '@/api/institutions'
 import Dropdown from '@/components/Dropdown'
+import CreateModalFieldLabelRow from '@/components/create-modal/CreateModalFieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
 import CreateReferenceModalShell from '@/components/create-modal/CreateReferenceModalShell'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
@@ -19,12 +20,6 @@ type CreateInstitutionForm = typeof INITIAL_FORM
 type CreateInstitutionField = keyof CreateInstitutionForm
 type CreateInstitutionFieldErrors = Partial<Record<CreateInstitutionField, string>>
 
-interface FieldLabelRowProps {
-  label: ReactNode
-  htmlFor?: string
-  error?: string
-}
-
 interface CreateInstitutionModalProps {
   open: boolean
   initialName: string
@@ -36,34 +31,6 @@ const ALL_INSTITUTION_FIELDS_TOUCHED: Record<CreateInstitutionField, boolean> = 
   name: true,
   country_code: true,
   website: true,
-}
-
-/**
- * Displays a modal field label with the matching animated validation message
- */
-function FieldLabelRow({ label, htmlFor, error }: FieldLabelRowProps) {
-  return (
-    <div className="mb-1.5 flex items-start justify-between gap-3">
-      <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
-        {label}
-      </label>
-      <AnimatePresence initial={false}>
-        {error && (
-          <motion.p
-            key={error}
-            className="text-right text-xs font-medium leading-5"
-            style={{ color: 'var(--app-negative)' }}
-            initial={{ opacity: 0, x: 4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 4 }}
-            transition={{ duration: 0.15 }}
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
-    </div>
-  )
 }
 
 /**
@@ -170,7 +137,7 @@ export default function CreateInstitutionModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
             <div>
-              <FieldLabelRow htmlFor="inst-name" label="Name" error={showError('name') || undefined} />
+              <CreateModalFieldLabelRow htmlFor="inst-name" label="Name" error={showError('name') || undefined} />
               <input
                 id="inst-name"
                 type="text"
@@ -183,7 +150,7 @@ export default function CreateInstitutionModal({
             </div>
 
             <div>
-              <FieldLabelRow label="Country" error={showError('country_code') || undefined} />
+              <CreateModalFieldLabelRow label="Country" error={showError('country_code') || undefined} />
               <Dropdown
                 options={COUNTRY_OPTIONS}
                 value={form.country_code}
@@ -202,7 +169,7 @@ export default function CreateInstitutionModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Reference</p>
 
             <div>
-              <FieldLabelRow htmlFor="inst-website" label="Website" error={showError('website') || undefined} />
+              <CreateModalFieldLabelRow htmlFor="inst-website" label="Website" error={showError('website') || undefined} />
               <input
                 id="inst-website"
                 type="url"
