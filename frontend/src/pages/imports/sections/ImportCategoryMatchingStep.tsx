@@ -1,5 +1,5 @@
 import { CREATE_CATEGORY_VALUE } from '../constants'
-import { EmptyState, ImportStep, ValueMatchTable } from '../components'
+import { EmptyState, ImportStep, ImportValueMatchTable } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
 import { getCategoryMatchKind, isExistingCategoryMatch } from '../utils'
 
@@ -41,7 +41,7 @@ export function ImportCategoryMatchingStep({
           description="Map a category column first."
         />
       ) : (
-        <ValueMatchTable
+        <ImportValueMatchTable
           sourceLabel="Category From File"
           detailLabel="Type"
           targetLabel="Existing Category"

@@ -2,7 +2,7 @@ import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '../constants'
 import { ImportCheckbox } from './ImportPrimitives'
 
-export function AccountMappingTable({
+export function ImportAccountMappingTable({
   rows,
   options,
   accountTypeOptions,

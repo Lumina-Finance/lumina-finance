@@ -2,7 +2,7 @@ import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import type { ImportCategoryKind } from '../types'
 import { ImportCategoryTypeToggle } from './ImportCategoryTypeToggle'
 
-export function ValueMatchTable({
+export function ImportValueMatchTable({
   sourceLabel,
   detailLabel,
   targetLabel,

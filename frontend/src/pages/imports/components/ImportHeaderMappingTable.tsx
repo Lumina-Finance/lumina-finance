@@ -3,7 +3,7 @@ import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '../types'
 import { getColumnSamples, getTargetForHeader } from '../utils'
 
-export function HeaderMappingTable({
+export function ImportHeaderMappingTable({
   headers,
   files,
   options,
