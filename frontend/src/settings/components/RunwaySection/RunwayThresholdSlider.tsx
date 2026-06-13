@@ -80,12 +80,20 @@ export function RunwayThresholdSlider({
   const healthySegmentPct = Math.max(100 - healthyPct, 0)
   const healthyMidPct = healthyPct + healthySegmentPct / 2
   const trackGradient = getRunwayThresholdGradient(riskyPct, healthyPct)
+
+  /**
+   * Keeps the risky threshold below the healthy threshold by the configured separation
+   */
   const updateRiskyThreshold = (value: number) => {
     onThresholdChange(
       'riskyBelowMonths',
       clampThreshold(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax),
     )
   }
+
+  /**
+   * Keeps the healthy threshold above the risky threshold by the configured separation
+   */
   const updateHealthyThreshold = (value: number) => {
     onThresholdChange(
       'healthyAtMonths',
@@ -96,11 +104,19 @@ export function RunwayThresholdSlider({
     if (field === 'riskyBelowMonths') updateRiskyThreshold(value)
     else updateHealthyThreshold(value)
   }
+
+  /**
+   * Applies the active opposing threshold as a dynamic boundary for drag updates
+   */
   const clampThresholdForField = (field: keyof RunwayThresholds, value: number) => {
     if (field === 'riskyBelowMonths') return clampThreshold(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax)
 
     return clampThreshold(value, healthyMin, RUNWAY_THRESHOLD_MAX_MONTHS)
   }
+
+  /**
+   * Converts pointer movement into a rounded threshold value while keeping drag preview smooth
+   */
   const updateThresholdFromPointer = (field: keyof RunwayThresholds, clientX: number) => {
     const nextValue = thresholdFromRailPoint(clientX, railRef.current)
     if (nextValue === null) return
@@ -109,6 +125,10 @@ export function RunwayThresholdSlider({
     setDragPreview({ field, value: clampedValue })
     updateThreshold(field, roundThresholdValue(clampedValue))
   }
+
+  /**
+   * Captures pointer movement so dragging remains stable when the cursor leaves the handle
+   */
   const startDragging = (
     field: keyof RunwayThresholds,
     event: PointerEvent<HTMLButtonElement>,
@@ -118,6 +138,10 @@ export function RunwayThresholdSlider({
     setDraggingField(field)
     updateThresholdFromPointer(field, event.clientX)
   }
+
+  /**
+   * Ignores pointer movement from the inactive handle during a drag interaction
+   */
   const moveDragging = (
     field: keyof RunwayThresholds,
     event: PointerEvent<HTMLButtonElement>,
@@ -125,6 +149,10 @@ export function RunwayThresholdSlider({
     if (draggingField !== field) return
     updateThresholdFromPointer(field, event.clientX)
   }
+
+  /**
+   * Commits the final drag position before clearing pointer capture and preview state
+   */
   const stopDragging = (event: PointerEvent<HTMLButtonElement>) => {
     if (draggingField !== null) updateThresholdFromPointer(draggingField, event.clientX)
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -133,6 +161,10 @@ export function RunwayThresholdSlider({
     setDraggingField(null)
     setDragPreview(null)
   }
+
+  /**
+   * Supports keyboard slider controls using the same threshold boundaries as pointer input
+   */
   const handleThresholdKeyDown = (
     field: keyof RunwayThresholds,
     event: KeyboardEvent<HTMLButtonElement>,

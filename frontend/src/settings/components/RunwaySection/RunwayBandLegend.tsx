@@ -43,6 +43,9 @@ export function RunwayBandLegend(props: RunwayBandLegendProps) {
   const [inputDraft, setInputDraft] = useState<string | null>(null)
   const inputText = inputDraft ?? formattedInputValue
 
+  /**
+   * Allows partial decimal input while still updating valid threshold values immediately
+   */
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (!props.onInputChange) return
     const nextText = event.currentTarget.value
@@ -52,6 +55,10 @@ export function RunwayBandLegend(props: RunwayBandLegendProps) {
     const nextValue = Number(nextText)
     if (Number.isFinite(nextValue)) props.onInputChange(nextValue)
   }
+
+  /**
+   * Restores invalid or out-of-range text to a valid threshold when editing ends
+   */
   const handleInputBlur = () => {
     if (!props.onInputChange) return
 
