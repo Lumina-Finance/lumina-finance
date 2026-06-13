@@ -1,44 +1,23 @@
-import {
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
-} from 'react'
+import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
-import {
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-} from 'recharts'
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
-import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { FxStatusBadge } from './FxStatusBadge'
 import { InsightActionButton } from './InsightActionButton'
+import { IncomeExpensePieChart } from './income-expense/IncomeExpensePieChart'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
-import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import {
   formatSignedBreakdownCurrency,
   getBreakdownCalculation,
-  getBreakdownCrossoverKind,
-  getBreakdownLegendEntries,
-  getBreakdownLegendMinHeight,
-  getBreakdownPercent,
-  getBreakdownTotal,
   getCategoryDriverColor,
   getCategoryDriverDescriptor,
   getTransactionCountLabel,
@@ -75,12 +54,6 @@ type IncomeExpenseBreakdownSnapshot = {
   animationKey: string
 }
 
-const pieLegendContainerVariants = {
-  initial: { transition: { staggerChildren: 0.035 } },
-  enter: { transition: { staggerChildren: 0.045, staggerDirection: -1, delayChildren: 0.03 } },
-  exit: { transition: { staggerChildren: 0.035, staggerDirection: 1 } },
-} as const
-
 const pieLegendItemVariants = {
   initial: { opacity: 0, y: 8, filter: 'blur(2px)' },
   enter: { opacity: 1, y: 0, filter: 'blur(0px)' },
@@ -95,11 +68,9 @@ const categoryTrendListVariants = {
   exit: { transition: { staggerChildren: 0.035, staggerDirection: -1 } },
 } as const
 
-function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
-  const kind = getBreakdownCrossoverKind(entry, mode)
-  return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
-}
-
+/**
+ * Renders the income and expense breakdown card with chart and trend sections
+ */
 export function IncomeExpenseBreakdownCard({
   mode,
   onModeToggle,
@@ -112,10 +83,6 @@ export function IncomeExpenseBreakdownCard({
   loading = false,
   transitionKey,
 }: IncomeExpenseBreakdownCardProps) {
-  const breakdownChartRef = useRef<HTMLDivElement>(null)
-  const breakdownTooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredBreakdownEntry, setHoveredBreakdownEntry] = useState<BreakdownEntry | null>(null)
-  const [breakdownTooltipVisible, setBreakdownTooltipVisible] = useState(false)
   const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
     mode,
     entries,
@@ -135,61 +102,6 @@ export function IncomeExpenseBreakdownCard({
     loading,
     transitionKey,
   })
-  const sliceTotal = getBreakdownTotal(displaySnapshot.entries)
-  const breakdownColors = useMemo(() => getCategoryColorMap(displaySnapshot.entries.map((entry) => ({
-    id: entry.id,
-    name: entry.name,
-    kind: entry.categoryKind,
-  }))), [displaySnapshot.entries])
-  const getBreakdownColor = (entry: BreakdownEntry) => getCategoryColor({
-    id: entry.id,
-    name: entry.name,
-    kind: entry.categoryKind,
-  })
-  const getSpacedBreakdownColor = (entry: BreakdownEntry) => breakdownColors.get(entry.id || entry.name)
-    ?? getBreakdownColor(entry)
-  const updateBreakdownTooltipPosition = (clientX: number, clientY: number) => {
-    const chart = breakdownChartRef.current
-    const tooltip = breakdownTooltipRef.current
-    if (!chart || !tooltip) return
-
-    applyCursorTooltipPosition({
-      origin: chart,
-      tooltip,
-      clientX,
-      clientY,
-      xProperty: '--breakdown-tooltip-x',
-      yProperty: '--breakdown-tooltip-y',
-    })
-  }
-  const showBreakdownTooltip = (
-    entry: BreakdownEntry | undefined,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
-    if (!entry) {
-      setBreakdownTooltipVisible(false)
-      return
-    }
-
-    updateBreakdownTooltipPosition(event.clientX, event.clientY)
-    setHoveredBreakdownEntry((current) => (
-      current?.id === entry.id ? current : entry
-    ))
-    setBreakdownTooltipVisible(true)
-    requestAnimationFrame(() => updateBreakdownTooltipPosition(event.clientX, event.clientY))
-  }
-  const hideBreakdownTooltip = () => {
-    setBreakdownTooltipVisible(false)
-  }
-  const handleBreakdownTooltipTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || breakdownTooltipVisible) return
-    setHoveredBreakdownEntry(null)
-  }
-  const legendEntries = useMemo(
-    () => getBreakdownLegendEntries(displaySnapshot.entries, displaySnapshot.mode),
-    [displaySnapshot.entries, displaySnapshot.mode],
-  )
-  const legendMinHeight = getBreakdownLegendMinHeight(legendEntries.length)
 
   return (
     <section className="app-card">
@@ -232,107 +144,14 @@ export function IncomeExpenseBreakdownCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
-            <div className="flex flex-col min-[1350px]:min-h-[620px]">
-              <div
-                ref={breakdownChartRef}
-                className="relative aspect-square max-h-[450px] w-full shrink-0"
-                onMouseLeave={hideBreakdownTooltip}
-              >
-                <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
-                  <span className="app-label app-label-compact">
-                    Total {displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'}
-                  </span>
-                  <span className="font-financial text-3xl leading-none tracking-tight">
-                    {formatCurrency(displaySnapshot.total, displaySnapshot.displayCurrency)}
-                  </span>
-                </div>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={displaySnapshot.entries}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="62%"
-                      outerRadius="90%"
-                      paddingAngle={3}
-                      dataKey="amount"
-                      nameKey="name"
-                      stroke="none"
-                      onMouseEnter={(_sector, index, event) => {
-                        showBreakdownTooltip(displaySnapshot.entries[index], event)
-                      }}
-                      onMouseMove={(_sector, index, event) => {
-                        showBreakdownTooltip(displaySnapshot.entries[index], event)
-                      }}
-                      onMouseLeave={hideBreakdownTooltip}
-                    >
-                      {displaySnapshot.entries.map((entry) => (
-                        <Cell key={entry.id} fill={getSpacedBreakdownColor(entry)} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <CursorTooltipPortal
-                  ref={breakdownTooltipRef}
-                  className="min-w-40"
-                  onTransitionEnd={handleBreakdownTooltipTransitionEnd}
-                  style={{
-                    opacity: breakdownTooltipVisible ? 1 : 0,
-                    transform: 'translate3d(var(--breakdown-tooltip-x, 0px), var(--breakdown-tooltip-y, 0px), 0)',
-                  }}
-                >
-                  {hoveredBreakdownEntry && (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <ChartTooltipTitle>{hoveredBreakdownEntry.name}</ChartTooltipTitle>
-                        {renderCrossoverBadge(hoveredBreakdownEntry, displaySnapshot.mode)}
-                      </div>
-                      <ChartTooltipValue financial>
-                        {formatCurrency(hoveredBreakdownEntry.amount, displaySnapshot.displayCurrency)}
-                      </ChartTooltipValue>
-                    </>
-                  )}
-                </CursorTooltipPortal>
-              </div>
-              <div
-                className="relative mt-auto overflow-hidden"
-                style={{ minHeight: legendMinHeight }}
-              >
-                <AnimatePresence initial={false} mode="wait">
-                  <motion.div
-                    key={displaySnapshot.animationKey}
-                    className="absolute inset-x-5 bottom-0 space-y-2"
-                    variants={shouldReduceMotion ? undefined : pieLegendContainerVariants}
-                    initial={shouldReduceMotion ? false : 'initial'}
-                    animate={shouldReduceMotion ? { opacity: 1 } : 'enter'}
-                    exit={shouldReduceMotion ? undefined : 'exit'}
-                  >
-                    {legendEntries.map((entry) => (
-                      <motion.div
-                        key={entry.id}
-                        className="flex items-center gap-3 text-sm"
-                        variants={shouldReduceMotion ? undefined : pieLegendItemVariants}
-                        transition={shouldReduceMotion ? { duration: 0 } : pieLegendItemTransition}
-                      >
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ background: getSpacedBreakdownColor(entry) }}
-                        />
-                        <span className="flex min-w-0 flex-1 items-center gap-2">
-                          <span className="min-w-0 truncate" style={{ color: 'var(--app-text-muted)' }}>
-                            {entry.name}
-                          </span>
-                          {renderCrossoverBadge(entry, displaySnapshot.mode)}
-                        </span>
-                        <span className="font-financial">
-                          {getBreakdownPercent(entry.amount, sliceTotal)}%
-                        </span>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </div>
+            <IncomeExpensePieChart
+              mode={displaySnapshot.mode}
+              entries={displaySnapshot.entries}
+              total={displaySnapshot.total}
+              displayCurrency={displaySnapshot.displayCurrency}
+              animationKey={displaySnapshot.animationKey}
+              shouldReduceMotion={shouldReduceMotion}
+            />
 
             <div className="flex flex-col border-t border-[var(--app-border)] pt-4 min-[1350px]:min-h-[620px] min-[1350px]:border-t-0 min-[1350px]:pt-0">
               <div className="grid gap-5 min-[1350px]:min-h-0 min-[1350px]:flex-1 min-[1350px]:grid-rows-2 min-[1350px]:gap-4">
