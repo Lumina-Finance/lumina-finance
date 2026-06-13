@@ -4,43 +4,41 @@ import { useAccounts } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transactionImports'
-import type { DropdownOption } from '@/components/Dropdown'
 import {
-  ACCOUNT_KIND_LABELS,
-  COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
-  CREATE_CATEGORY_VALUE,
-  DEFAULT_CATEGORY_ICON,
   EMPTY_COLUMN_MAP,
-  KIND_LABELS,
 } from '../constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAccountSource, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
 import {
+  buildColumnTargetOptions,
+  buildImportAccountMappingSources,
+  buildImportAccountOptions,
+  buildImportCategoryMatchOptions,
+  buildImportCurrencyOptions,
+  buildImportInstitutionOptions,
   buildTransactionImportPayload,
+  buildImportPreviewRows,
   formatImportSummary,
   getErrorMessage,
-  getImportAccountName,
   getImportedCategoryTypes,
-  getMappedValue,
-  getPreviewCategory,
-  getPreviewCurrency,
-  getPreviewDateLabel,
+  getImportedCategories,
+  getImportedMerchants,
+  getImportedTags,
+  getImportHeaders,
+  getMissingRequiredColumnLabels,
+  getNextAutoFilledColumnHeaders,
+  getNextColumnMap,
+  getNextColumnValidationErrors,
   inferAccountMappings,
   inferCategoryMappings,
-  getResolvedAccountChoice,
-  getResolvedAccountCreateCurrency,
-  getResolvedAccountCreateInstitution,
+  isColumnMappingComplete,
   groupPreviewRowsByDate,
   inferColumnMap,
   keepCurrentMatchMap,
-  normalizeImportDate,
-  parseImportNumber,
   readCsvFile,
   removeRecordKey,
   removeSetValue,
-  splitImportedValues,
-  toMinorUnits,
-  unique,
+  sleep,
   validateColumnValues,
 } from '../utils'
 
@@ -82,55 +80,23 @@ export function useTransactionImportWorkflow() {
     [accounts],
   )
 
-  const accountOptions = useMemo<DropdownOption[]>(
-    () => [
-      { value: CREATE_ACCOUNT_VALUE, label: 'Create New Account', group: 'Import Action' },
-      ...selectableAccounts.map((account) => ({
-        value: account.id,
-        label: account.name,
-        group: ACCOUNT_KIND_LABELS[account.account_kind],
-      })),
-    ],
+  const accountOptions = useMemo(
+    () => buildImportAccountOptions(selectableAccounts),
     [selectableAccounts],
   )
 
-  const currencyOptions = useMemo<DropdownOption[]>(
-    () =>
-      currencies.map((currency) => ({
-        value: currency.id,
-        label: currency.id,
-      })),
+  const currencyOptions = useMemo(
+    () => buildImportCurrencyOptions(currencies),
     [currencies],
   )
 
-  const institutionOptions = useMemo<DropdownOption[]>(
-    () => [
-      { value: '', label: 'None' },
-      ...institutions.map((institution) => ({
-        value: institution.id,
-        label: institution.name,
-      })),
-    ],
+  const institutionOptions = useMemo(
+    () => buildImportInstitutionOptions(institutions),
     [institutions],
   )
 
-  const categoryMatchOptions = useMemo<DropdownOption[]>(
-    () => [
-      {
-        value: CREATE_CATEGORY_VALUE,
-        label: 'Create new category',
-        group: 'Import action',
-      },
-      ...(categories ?? [])
-        .slice()
-        .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
-        .map((category) => ({
-          value: category.id,
-          label: category.name,
-          group: KIND_LABELS[category.kind],
-          icon: category.icon ?? DEFAULT_CATEGORY_ICON,
-        })),
-    ],
+  const categoryMatchOptions = useMemo(
+    () => buildImportCategoryMatchOptions(categories),
     [categories],
   )
 
@@ -150,56 +116,23 @@ export function useTransactionImportWorkflow() {
   )
 
   const headers = useMemo(
-    () => unique(files.flatMap((file) => file.headers)),
+    () => getImportHeaders(files),
     [files],
   )
 
   const missingRequiredColumnLabels = useMemo(
-    () =>
-      COLUMN_TARGETS
-        .filter((target) => target.required && !columnMap[target.id])
-        .map((target) => target.label),
+    () => getMissingRequiredColumnLabels(columnMap),
     [columnMap],
   )
 
-  const columnTargetOptions = useMemo<DropdownOption[]>(
-    () => [
-      { value: '', label: 'Do not import' },
-      ...COLUMN_TARGETS.map((target) => ({
-        value: target.id,
-        label: target.label,
-        group: target.required ? 'Required fields' : 'Optional fields',
-      })),
-    ],
+  const columnTargetOptions = useMemo(
+    () => buildColumnTargetOptions(),
     [],
   )
 
-  const sourceAccounts = useMemo(() => {
-    if (!columnMap.account_id) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.map((row) => row[columnMap.account_id]?.trim()).filter(Boolean),
-      ),
-    )
-  }, [columnMap.account_id, files])
-
-  const accountMappingSources = useMemo<ImportAccountSource[]>(
-    () => {
-      if (columnMap.account_id) {
-        return sourceAccounts.map((source) => ({
-          id: source,
-          label: source,
-          matchText: source,
-        }))
-      }
-
-      return files.map((file) => ({
-        id: file.id,
-        label: getImportAccountName(file.name),
-        matchText: file.name,
-      }))
-    },
-    [columnMap.account_id, files, sourceAccounts],
+  const accountMappingSources = useMemo(
+    () => buildImportAccountMappingSources(files, columnMap.account_id),
+    [columnMap.account_id, files],
   )
 
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
@@ -223,37 +156,25 @@ export function useTransactionImportWorkflow() {
     [accountMappingSources, accountMappings, resolvedAccountMappings],
   )
 
-  const importedCategories = useMemo(() => {
-    if (!columnMap.category_id) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.map((row) => row[columnMap.category_id]?.trim()).filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b))
-  }, [columnMap.category_id, files])
+  const importedCategories = useMemo(
+    () => getImportedCategories(files, columnMap.category_id),
+    [columnMap.category_id, files],
+  )
 
-  const importedMerchants = useMemo(() => {
-    if (!columnMap.merchant_id) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.map((row) => row[columnMap.merchant_id]?.trim()).filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b))
-  }, [columnMap.merchant_id, files])
+  const importedMerchants = useMemo(
+    () => getImportedMerchants(files, columnMap.merchant_id),
+    [columnMap.merchant_id, files],
+  )
 
   const categoryTypesBySource = useMemo(
     () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
     [columnMap.amount, columnMap.category_id, files, importedCategories],
   )
 
-  const importedTags = useMemo(() => {
-    if (!columnMap.tag_ids) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.flatMap((row) => splitImportedValues(row[columnMap.tag_ids] ?? '')),
-      ),
-    ).sort((a, b) => a.localeCompare(b))
-  }, [columnMap.tag_ids, files])
+  const importedTags = useMemo(
+    () => getImportedTags(files, columnMap.tag_ids),
+    [columnMap.tag_ids, files],
+  )
 
   const canInferCategoryMappings = Boolean(columnMap.category_id)
     && categoryAutoMatchKey === columnMap.category_id
@@ -274,88 +195,24 @@ export function useTransactionImportWorkflow() {
     [categoryMappings, importedCategories, resolvedCategoryMappings],
   )
 
-  const previewRows = useMemo<PreviewTransactionRow[]>(() => {
-    if (missingRequiredColumnLabels.length > 0) return []
-
-    const rows: PreviewTransactionRow[] = []
-    const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
-    const timestamp = new Date().toISOString()
-
-    for (const file of files) {
-      for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
-        const row = file.rows[rowIndex]
-        const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
-        const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)
-        const accountChoice = getResolvedAccountChoice(resolvedAccountMappings[accountSource])
-        const account = accountChoice === CREATE_ACCOUNT_VALUE ? undefined : accountById.get(accountChoice)
-        const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
-          ? getResolvedAccountCreateCurrency(accountSource, accountCreateCurrencies)
-          : ''
-        const createAccountInstitution = accountChoice === CREATE_ACCOUNT_VALUE
-          ? institutionById.get(getResolvedAccountCreateInstitution(accountSource, accountCreateInstitutions))
-          : undefined
-        const importedDate = getMappedValue(row, columnMap.dt)
-        const dt = normalizeImportDate(importedDate)
-        const merchant = getMappedValue(row, columnMap.merchant_id)
-        const notes = getMappedValue(row, columnMap.notes)
-        const currency = getPreviewCurrency(
-          getMappedValue(row, columnMap.currency),
-          account?.currency,
-          createAccountCurrency,
-          fallbackCurrency,
-        )
-        const amountValue = parseImportNumber(getMappedValue(row, columnMap.amount)) ?? 0
-        const amount = toMinorUnits(amountValue, currency)
-        const importedCategory = getMappedValue(row, columnMap.category_id)
-        const importedTagValues = splitImportedValues(getMappedValue(row, columnMap.tag_ids))
-        const category = getPreviewCategory(
-          importedCategory,
-          resolvedCategoryMappings,
-          categoryById,
-          categoryCreateKinds,
-          categoryTypesBySource,
-          amountValue,
-        )
-        const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
-
-        rows.push({
-          id: `${file.id}-${rowIndex}`,
-          accountInstitution: account?.institution ?? createAccountInstitution ?? null,
-          accountName: account?.name ?? (accountLabel || 'Unmapped account'),
-          category,
-          currency,
-          dateLabel: getPreviewDateLabel(dt),
-          transaction: {
-            id: `import-preview-${file.id}-${rowIndex}`,
-            created_by_user_id: 'import-preview',
-            account_id: account?.id ?? accountChoice,
-            dt,
-            merchant_id: merchant ? `import-preview-merchant-${file.id}-${rowIndex}` : null,
-            merchant_name: merchant || null,
-            category_id: category?.id ?? '',
-            amount,
-            account_amount: amount,
-            base_currency_amount: amount,
-            currency,
-            fx_rate: null,
-            notes: notes || null,
-            created_at: timestamp,
-            updated_at: timestamp,
-            tag_ids: tagIds,
-            tags: importedTagValues.map((tag, tagIndex) => ({
-              id: tagIds[tagIndex],
-              group_id: null,
-              name: tag,
-            })),
-          },
-        })
-
-        if (rows.length >= 5) return rows
-      }
-    }
-
-    return rows
-  }, [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings])
+  const previewRows = useMemo<PreviewTransactionRow[]>(
+    () => buildImportPreviewRows({
+      files,
+      columnMap,
+      missingRequiredColumnLabels,
+      currencies,
+      accountById,
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      categoryById,
+      categoryCreateKinds,
+      categoryTypesBySource,
+      institutionById,
+      resolvedAccountMappings,
+      resolvedCategoryMappings,
+    }),
+    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
+  )
 
   const previewGroups = useMemo(
     () => groupPreviewRowsByDate(previewRows),
@@ -636,70 +493,3 @@ export function useTransactionImportWorkflow() {
 }
 
 export type TransactionImportWorkflow = ReturnType<typeof useTransactionImportWorkflow>
-
-function getNextColumnMap(columnMap: ColumnMap, header: string, targetValue: string) {
-  const next = { ...columnMap }
-
-  for (const target of COLUMN_TARGETS) {
-    if (next[target.id] === header) next[target.id] = ''
-  }
-  if (targetValue) next[targetValue as ColumnTarget] = header
-
-  return next
-}
-
-function getNextAutoFilledColumnHeaders(
-  current: Set<string>,
-  previousColumnMap: ColumnMap,
-  nextColumnMap: ColumnMap,
-) {
-  const mappedHeaders = new Set(Object.values(nextColumnMap).filter(Boolean))
-  const next = new Set([...current].filter((header) => mappedHeaders.has(header)))
-
-  for (const target of COLUMN_TARGETS) {
-    const header = nextColumnMap[target.id]
-    if (header && previousColumnMap[target.id] !== header) next.add(header)
-  }
-
-  return next
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, ms))
-}
-
-function getNextColumnValidationErrors(
-  columnValidationErrors: ColumnValidationErrors,
-  header: string,
-  displacedHeader: string,
-  targetValue: string,
-  validation: { valid: boolean; message: string },
-) {
-  if (!targetValue) return removeRecordKey(columnValidationErrors, header)
-
-  let next = displacedHeader && displacedHeader !== header
-    ? removeRecordKey(columnValidationErrors, displacedHeader)
-    : columnValidationErrors
-
-  next = validation.valid
-    ? removeRecordKey(next, header)
-    : { ...next, [header]: validation.message }
-
-  return next
-}
-
-function isColumnMappingComplete(
-  columnMap: ColumnMap,
-  columnValidationErrors: ColumnValidationErrors,
-  files: ImportFileDraft[],
-) {
-  if (files.length === 0) return false
-
-  const missingRequired = COLUMN_TARGETS.some(
-    (target) => target.required && !columnMap[target.id],
-  )
-  if (missingRequired) return false
-
-  const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
-  return !Object.keys(columnValidationErrors).some((header) => mappedHeaders.has(header))
-}
