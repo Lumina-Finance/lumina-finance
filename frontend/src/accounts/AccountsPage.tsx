@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import CreateAccountModal from '@/components/CreateAccountModal'
-import AccountFilters from '@/accounts/components/AccountFilters'
+import Filters from '@/accounts/components/filters/Filters'
 import AccountListSection from '@/accounts/components/AccountListSection'
 import AccountSummaryStatement from '@/accounts/components/AccountSummaryStatement'
 import AccountsMetricsBand from '@/accounts/components/AccountsMetricsBand'
@@ -70,7 +70,7 @@ export default function AccountsPage() {
           <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
         </div>
 
-        <AccountFilters
+        <Filters
           filters={filters}
           setFilter={setFilter}
           institutionOptions={institutionOptions}
