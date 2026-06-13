@@ -14,7 +14,7 @@ import { useTransactionFilterLoadingState } from '@/transactions/hooks/useTransa
 import { useInfiniteScrollTrigger } from '@/transactions/hooks/useInfiniteScrollTrigger'
 import { useTransactionSearch } from '@/transactions/hooks/useTransactionSearch'
 import type { TransactionListAccount, TransactionListFilters } from '@/transactions/types/transactionList'
-import { groupTransactionsByDate } from '@/transactions/utils/groupTransactionsByDate'
+import { groupTransactionsByDate } from '@/transactions/utils/transactionDateGroups'
 import { normalizeTransactionFilters } from '@/transactions/utils/normalizeTransactionFilters'
 
 const DEFAULT_DATE_HEADER_STICKY_TOP = 72

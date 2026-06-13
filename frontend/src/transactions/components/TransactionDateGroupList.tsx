@@ -5,7 +5,11 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import TransactionRow from '@/components/TransactionRow'
 import { TRANSACTION_LIST_EASE } from '@/transactions/constants/transactionList'
 import type { TransactionDateGroup, TransactionListAccount } from '@/transactions/types/transactionList'
+import { getTransactionDateGroupTotal } from '@/transactions/utils/transactionDateGroups'
 
+/**
+ * Renders grouped transaction rows with sticky date totals
+ */
 export default function TransactionDateGroupList({
   dateGroups,
   categoryMap,
@@ -30,10 +34,7 @@ export default function TransactionDateGroupList({
   return (
     <>
       {dateGroups.map(({ dateLabel, transactions }, groupIndex) => {
-        const dailyTotal = transactions.reduce((sum, transaction) => {
-          const displayAmount = fixedAccount ? transaction.account_amount : transaction.base_currency_amount
-          return sum + (displayAmount ?? 0)
-        }, 0)
+        const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
         const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
         return (
           <motion.div
