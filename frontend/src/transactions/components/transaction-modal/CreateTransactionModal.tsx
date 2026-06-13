@@ -18,9 +18,6 @@ import {
   useCreateTransaction,
   useDeleteTransaction,
   useUpdateTransaction,
-  type CreateTransactionPayload,
-  type Transaction,
-  type UpdateTransactionPayload,
 } from '@/api/transactions'
 import { ApiError } from '@/api/auth'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
@@ -29,93 +26,43 @@ import {
   formatMoneyInputLive,
   sanitizeMoneyInput,
 } from '@/utils/moneyInput'
-
-/* ── Constants ── */
-
-const EASE = [0.25, 0.1, 0.25, 1] as const
-const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
-const DEFAULT_CATEGORY_ICON = '🏷️'
-const MIN_ADD_TRANSACTION_LOADING_MS = 800
-const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
-const MIN_DELETE_TRANSACTION_LOADING_MS = 800
-const MERCHANT_DROPDOWN_PAGE_SIZE = 10
-const MERCHANT_SEARCH_LOADING_TEXT_MIN_MS = 300
-const MERCHANT_SEARCH_DEBOUNCE_MS = 300
-const MERCHANT_FETCHING_MORE_TEXT_MIN_MS = 800
-const TAG_DROPDOWN_PAGE_SIZE = 10
-const TAG_SEARCH_LOADING_TEXT_MIN_MS = 300
-const TAG_SEARCH_DEBOUNCE_MS = 300
-const TAG_FETCHING_MORE_TEXT_MIN_MS = 800
-const SEGMENTED_OPTION_GAP_REM = 0.35
-
-type Kind = 'expense' | 'income' | 'transfer'
-
-const KIND_OPTIONS: { value: Kind; label: string }[] = [
-  { value: 'expense', label: 'Expense' },
-  { value: 'income', label: 'Income' },
-  { value: 'transfer', label: 'Transfer' },
-]
-
-type TransactionDirection = 'debit' | 'credit'
-
-const DIRECTION_OPTIONS: { value: TransactionDirection; label: string }[] = [
-  { value: 'debit', label: 'Debit' },
-  { value: 'credit', label: 'Credit' },
-]
-
-const DEFAULT_DIRECTION_BY_KIND: Record<Kind, TransactionDirection> = {
-  expense: 'debit',
-  income: 'credit',
-  transfer: 'debit',
-}
-
-const INITIAL_FORM = {
-  kind: 'expense' as Kind,
-  direction: DEFAULT_DIRECTION_BY_KIND.expense,
-  account_id: '',
-  category_id: '',
-  merchant_id: '',
-  amount: '',
-  currency: '',
-  notes: '',
-  date: '',
-  tag_ids: [] as string[],
-}
-
-type TransactionForm = typeof INITIAL_FORM
-
-/* ── Helpers ── */
-
-// date input expects "YYYY-MM-DD" in the user's local timezone.
-function todayLocalString(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-// Convert minor units (signed) to a fixed-decimal positive string for the amount input.
-function amountToInputString(amountMinor: number, exponent: number): string {
-  return (Math.abs(amountMinor) / Math.pow(10, exponent)).toFixed(exponent)
-}
-
-function directionFromAmountInputSign(value: string): TransactionDirection | null {
-  let direction: TransactionDirection | null = null
-  for (const char of value) {
-    if (char === '+') direction = 'credit'
-    if (char === '-') direction = 'debit'
-  }
-  return direction
-}
-
-function amountInputToMinorUnits(value: string, exponent: number): number | null {
-  const numericValue = Number.parseFloat(value)
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return null
-  return Math.round(numericValue * Math.pow(10, exponent))
-}
-
-function applyDirection(amountMinor: number, direction: TransactionDirection): number {
-  return direction === 'credit' ? amountMinor : -amountMinor
-}
+import {
+  DIRECTION_OPTIONS,
+  EASE,
+  INITIAL_TRANSACTION_FORM,
+  KIND_LABELS,
+  KIND_OPTIONS,
+  MERCHANT_DROPDOWN_PAGE_SIZE,
+  MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
+  MERCHANT_SEARCH_DEBOUNCE_MS,
+  MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
+  MIN_ADD_TRANSACTION_LOADING_MS,
+  MIN_BATCH_ADD_TRANSACTION_LOADING_MS,
+  MIN_DELETE_TRANSACTION_LOADING_MS,
+  SEGMENTED_OPTION_GAP_REM,
+  SELECTOR_SPRING,
+  TAG_DROPDOWN_PAGE_SIZE,
+  TAG_FETCHING_MORE_TEXT_MIN_MS,
+  TAG_SEARCH_DEBOUNCE_MS,
+  TAG_SEARCH_LOADING_TEXT_MIN_MS,
+} from '@/transactions/components/transaction-modal/transactionModalConstants'
+import {
+  buildCategoryOptions,
+  getDefaultDirectionForKind,
+} from '@/transactions/components/transaction-modal/transactionModalCategories'
+import { buildInitialTransactionForm } from '@/transactions/components/transaction-modal/transactionModalInitialForm'
+import { getDirectionFromAmountInputSign } from '@/transactions/components/transaction-modal/transactionModalMoney'
+import {
+  buildCreateTransactionPayload,
+  buildUpdateTransactionPatch,
+} from '@/transactions/components/transaction-modal/transactionModalPayloads'
+import type {
+  CreateTransactionModalProps,
+  TransactionFormFieldErrors,
+  TransactionFormValues,
+  TransactionModalKind,
+} from '@/transactions/components/transaction-modal/transactionModalTypes'
+import { validateTransactionForm } from '@/transactions/components/transaction-modal/transactionModalValidation'
 
 function delay(ms: number) {
   return new Promise((resolve) => {
@@ -170,41 +117,6 @@ function FieldLabelRow({
       </AnimatePresence>
     </div>
   )
-}
-
-const KIND_LABELS: Record<string, string> = {
-  expense: 'Expense',
-  income: 'Income',
-  transfer: 'Transfer',
-}
-
-// Build options for a single kind. Categories are flat, so each kind maps
-// to a single section labelled with its kind name.
-function buildOptionsForKind(categories: Category[], kind: string) {
-  const kindLabel = KIND_LABELS[kind] ?? kind
-  return categories
-    .filter((c) => c.kind === kind)
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((c) => ({ value: c.id, label: c.name, group: kindLabel, icon: c.icon ?? DEFAULT_CATEGORY_ICON }))
-}
-
-// Build the full category options list with the selected kind's options
-// on top, followed by the other kinds in their natural order.
-function buildCategoryOptions(categories: Category[], selectedKind: string) {
-  const order = ['expense', 'income', 'transfer']
-  const sorted = [selectedKind, ...order.filter((k) => k !== selectedKind)]
-  return sorted.flatMap((kind) => buildOptionsForKind(categories, kind))
-}
-
-function sameStringSet(a: string[], b: string[]) {
-  if (a.length !== b.length) return false
-  const left = [...a].sort()
-  const right = [...b].sort()
-  return left.every((value, index) => value === right[index])
-}
-
-function defaultDirectionForKind(kind: Kind): TransactionDirection {
-  return DEFAULT_DIRECTION_BY_KIND[kind]
 }
 
 function joinClassNames(...classNames: Array<string | undefined | false>) {
@@ -270,45 +182,6 @@ function SlidingPillSelector<T extends string>({
   )
 }
 
-/* ── Validation ── */
-
-interface FieldErrors {
-  account_id?: string
-  category_id?: string
-  merchant_id?: string
-  amount?: string
-  currency?: string
-  date?: string
-}
-
-function validate(form: TransactionForm): FieldErrors {
-  const errors: FieldErrors = {}
-  if (!form.account_id) errors.account_id = 'Select an account'
-  if (!form.category_id) errors.category_id = 'Select a category'
-  if (!form.merchant_id) errors.merchant_id = 'Select or create a merchant'
-  if (!form.amount) errors.amount = 'Enter an amount'
-  else {
-    const n = parseFloat(form.amount)
-    if (isNaN(n) || n <= 0) errors.amount = 'Amount must be greater than zero'
-  }
-  if (!form.currency) errors.currency = 'Select a currency'
-  if (!form.date) errors.date = 'Select a date'
-  return errors
-}
-
-/* ── Component ── */
-
-interface CreateTransactionModalProps {
-  open: boolean
-  onClose: () => void
-  /** When set, the modal opens in edit mode for this transaction. */
-  transaction?: Transaction
-  /** Pre-select this account in create mode (e.g., opened from an account page). */
-  defaultAccountId?: string
-  /** Pre-select this currency in create mode; typically matches the default account. */
-  defaultCurrency?: string
-}
-
 export default function CreateTransactionModal({
   open,
   onClose,
@@ -331,37 +204,19 @@ export default function CreateTransactionModal({
   )
 
   // Build the initial form from the existing transaction (edit) or sensible defaults (create).
-  const initialForm = useMemo<TransactionForm>(() => {
-    if (!transaction) {
-      const defaultAccount = defaultAccountId
-        ? selectableAccounts.find((account) => account.id === defaultAccountId)
-        : undefined
-      return {
-        ...INITIAL_FORM,
-        account_id: defaultAccount?.id ?? INITIAL_FORM.account_id,
-        currency: defaultAccount?.currency ?? defaultCurrency ?? INITIAL_FORM.currency,
-        date: todayLocalString(),
-      }
-    }
-    const category = categories.find((c) => c.id === transaction.category_id)
-    const exp = currencies.find((c) => c.id === transaction.currency)?.minor_unit_exponent ?? 2
-    return {
-      kind: (category?.kind as Kind) ?? 'expense',
-      // Recover direction from the stored sign so the toggle reflects reality.
-      direction: transaction.amount >= 0 ? 'credit' : 'debit',
-      account_id: transaction.account_id,
-      category_id: transaction.category_id,
-      merchant_id: transaction.merchant_id ?? '',
-      amount: amountToInputString(transaction.amount, exp),
-      currency: transaction.currency,
-      notes: transaction.notes ?? '',
-      date: transaction.dt,
-      tag_ids: transaction.tags?.map((tag) => tag.id) ?? transaction.tag_ids,
-    }
+  const initialForm = useMemo<TransactionFormValues>(() => {
+    return buildInitialTransactionForm({
+      transaction,
+      categories,
+      currencies,
+      selectableAccounts,
+      defaultAccountId,
+      defaultCurrency,
+    })
   }, [transaction, categories, currencies, defaultAccountId, defaultCurrency, selectableAccounts])
 
   const [form, setForm] = useState(initialForm)
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [fieldErrors, setFieldErrors] = useState<TransactionFormFieldErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitError, setSubmitError] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -800,31 +655,31 @@ export default function CreateTransactionModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [handleClose, open])
 
-  const clearError = (field: keyof FieldErrors) => {
+  const clearError = (field: keyof TransactionFormFieldErrors) => {
     if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: undefined }))
     setSubmitError('')
   }
 
-  const handleKindChange = (kind: Kind) => {
+  const handleKindChange = (kind: TransactionModalKind) => {
     const kindChanged = kind !== form.kind
     setForm((f) => ({
       ...f,
       kind,
-      direction: kind === f.kind ? f.direction : defaultDirectionForKind(kind),
+      direction: kind === f.kind ? f.direction : getDefaultDirectionForKind(kind),
     }))
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
   }
 
   const handleCategoryChange = (categoryId: string) => {
     const category = categoryById.get(categoryId)
-    const nextKind = (category?.kind as Kind | undefined) ?? form.kind
+    const nextKind = (category?.kind as TransactionModalKind | undefined) ?? form.kind
     const kindChanged = nextKind !== form.kind
     setForm((f) => ({
       ...f,
       category_id: categoryId,
       // Auto-switch the kind toggle to match the chosen category
       kind: nextKind,
-      direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
+      direction: nextKind === f.kind ? f.direction : getDefaultDirectionForKind(nextKind),
     }))
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
@@ -837,13 +692,13 @@ export default function CreateTransactionModal({
   }
 
   const handleCategoryCreated = (category: Category) => {
-    const nextKind = category.kind as Kind
+    const nextKind = category.kind as TransactionModalKind
     const kindChanged = nextKind !== form.kind
     setForm((f) => ({
       ...f,
       category_id: category.id,
       kind: nextKind,
-      direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
+      direction: nextKind === f.kind ? f.direction : getDefaultDirectionForKind(nextKind),
     }))
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
@@ -874,7 +729,7 @@ export default function CreateTransactionModal({
     const merchant = merchantCandidates.find((m) => m.id === merchantId)
     const defaultCategoryId = merchant?.default_category_id
     const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
-    const nextKind = (defaultCategory?.kind as Kind | undefined) ?? form.kind
+    const nextKind = (defaultCategory?.kind as TransactionModalKind | undefined) ?? form.kind
     const kindChanged = !!defaultCategoryId && nextKind !== form.kind
     setForm((f) => ({
       ...f,
@@ -883,7 +738,7 @@ export default function CreateTransactionModal({
         ? {
             category_id: defaultCategoryId,
             kind: nextKind,
-            direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
+            direction: nextKind === f.kind ? f.direction : getDefaultDirectionForKind(nextKind),
           }
         : {}),
     }))
@@ -902,7 +757,7 @@ export default function CreateTransactionModal({
     setCreatedMerchant(merchant)
     const defaultCategoryId = merchant.default_category_id
     const defaultCategory = defaultCategoryId ? categoryById.get(defaultCategoryId) : undefined
-    const nextKind = (defaultCategory?.kind as Kind | undefined) ?? form.kind
+    const nextKind = (defaultCategory?.kind as TransactionModalKind | undefined) ?? form.kind
     const kindChanged = !!defaultCategoryId && nextKind !== form.kind
     setForm((f) => ({
       ...f,
@@ -911,7 +766,7 @@ export default function CreateTransactionModal({
         ? {
             category_id: defaultCategoryId,
             kind: nextKind,
-            direction: nextKind === f.kind ? f.direction : defaultDirectionForKind(nextKind),
+            direction: nextKind === f.kind ? f.direction : getDefaultDirectionForKind(nextKind),
           }
         : {}),
     }))
@@ -964,13 +819,13 @@ export default function CreateTransactionModal({
     clearError('currency')
   }
 
-  const handleField = <K extends keyof TransactionForm>(field: K, value: TransactionForm[K]) => {
+  const handleField = <K extends keyof TransactionFormValues>(field: K, value: TransactionFormValues[K]) => {
     setForm((f) => ({ ...f, [field]: value }))
-    if (field in fieldErrors) clearError(field as keyof FieldErrors)
+    if (field in fieldErrors) clearError(field as keyof TransactionFormFieldErrors)
   }
 
   const handleAmountChange = (value: string) => {
-    const signDirection = directionFromAmountInputSign(value)
+    const signDirection = getDirectionFromAmountInputSign(value)
     setForm((f) => ({
       ...f,
       amount: sanitizeMoneyInput(value),
@@ -980,36 +835,24 @@ export default function CreateTransactionModal({
     if ('amount' in fieldErrors) clearError('amount')
   }
 
-  const handleBlur = (field: keyof FieldErrors) => {
+  const handleBlur = (field: keyof TransactionFormFieldErrors) => {
     setTouched((t) => ({ ...t, [field]: true }))
-    const errors = validate(form)
+    const errors = validateTransactionForm(form)
     setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isPending) return
-    const errors = validate(form)
+    const errors = validateTransactionForm(form)
     setFieldErrors(errors)
     setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true })
     if (Object.keys(errors).length > 0) return
 
-    const magnitude = amountInputToMinorUnits(form.amount, selectedCurrencyExponent) ?? 0
-    const signedAmount = applyDirection(magnitude, form.direction)
-    const notes = form.notes.trim() || null
-
     if (editing && transaction) {
-      // Build a minimal patch from fields that actually changed
-      const patch: UpdateTransactionPayload = {}
-      if (form.account_id !== transaction.account_id) patch.account_id = form.account_id
-      if (form.category_id !== transaction.category_id) patch.category_id = form.category_id
-      if (form.merchant_id !== (transaction.merchant_id ?? '')) patch.merchant_id = form.merchant_id || null
-      if (signedAmount !== transaction.amount) patch.amount = signedAmount
-      if (form.date !== initialForm.date) patch.dt = form.date
-      if (notes !== (transaction.notes ?? null)) patch.notes = notes
-      if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids
+      const patch = buildUpdateTransactionPatch(form, transaction, selectedCurrencyExponent)
 
-      if (Object.keys(patch).length === 0) {
+      if (!patch) {
         handleClose()
         return
       }
@@ -1026,16 +869,7 @@ export default function CreateTransactionModal({
       return
     }
 
-    const payload: CreateTransactionPayload = {
-      account_id: form.account_id,
-      dt: form.date,
-      category_id: form.category_id,
-      merchant_id: form.merchant_id,
-      amount: signedAmount,
-      currency: form.currency,
-      notes,
-    }
-    if (form.tag_ids.length > 0) payload.tag_ids = form.tag_ids
+    const payload = buildCreateTransactionPayload(form, selectedCurrencyExponent)
 
     setSubmitError('')
     setCreateDelayPending(true)
@@ -1062,7 +896,7 @@ export default function CreateTransactionModal({
       }
 
       setForm({
-        ...INITIAL_FORM,
+        ...INITIAL_TRANSACTION_FORM,
         kind: form.kind,
         direction: form.direction,
         account_id: form.account_id,
@@ -1096,7 +930,7 @@ export default function CreateTransactionModal({
     }
   }
 
-  const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field]
+  const showError = (field: keyof TransactionFormFieldErrors) => touched[field] && fieldErrors[field]
 
   return (
     <>
