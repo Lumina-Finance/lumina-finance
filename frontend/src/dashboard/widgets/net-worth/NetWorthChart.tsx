@@ -24,7 +24,7 @@ import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
   type RechartsTooltipState,
-} from '@/dashboard/utils/rechartsTooltip'
+} from '@/components/charts/rechartsTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type NetWorthChartProps = {

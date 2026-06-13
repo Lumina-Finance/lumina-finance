@@ -27,7 +27,7 @@ import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
   type RechartsTooltipState,
-} from '@/dashboard/utils/rechartsTooltip'
+} from '@/components/charts/rechartsTooltip'
 
 type SavingsRateChartProps = {
   data: SavingsRateChartPoint[]
