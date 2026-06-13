@@ -2,20 +2,22 @@ import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 
-type DashboardFxStatusTooltipProps = {
+type FxStatusTooltipProps = {
   label: string
   fxStatus: FxStatus | undefined
   getMessage: (fxStatus: FxStatus) => string
+  placement?: 'top' | 'bottom'
 }
 
 /**
- * Renders the shared dashboard FX tooltip including missing currency pair details
+ * Renders shared FX tooltip content including missing currency pair details
  */
-export function DashboardFxStatusTooltip({
+export function FxStatusTooltip({
   label,
   fxStatus,
   getMessage,
-}: DashboardFxStatusTooltipProps) {
+  placement = 'top',
+}: FxStatusTooltipProps) {
   if (!fxStatus) return null
 
   return (
@@ -23,7 +25,7 @@ export function DashboardFxStatusTooltip({
       label={label}
       icon="fx"
       fxTone={getFxStatusTone(fxStatus)}
-      placement="top"
+      placement={placement}
     >
       <span className="block">{getMessage(fxStatus)}</span>
       {fxStatus.missing_pairs.length > 0 && (

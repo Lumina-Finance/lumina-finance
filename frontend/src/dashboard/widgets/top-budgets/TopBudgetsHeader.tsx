@@ -1,6 +1,6 @@
 import { PieChart as PieChartIcon } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
+import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
 import { getTopBudgetsFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 
@@ -16,7 +16,7 @@ export function TopBudgetsHeader({ fxStatus }: TopBudgetsHeaderProps) {
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={PieChartIcon} />
       <span className="app-label">Top Budgets</span>
-      <BudgetFxStatusTooltip
+      <FxStatusTooltip
         fxStatus={fxStatus}
         label="Top budgets FX status"
         placement="bottom"

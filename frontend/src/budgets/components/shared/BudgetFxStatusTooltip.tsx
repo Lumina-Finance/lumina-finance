@@ -1,9 +1,11 @@
 import type { SyntheticEvent } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
+import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { getBudgetUtilizationFxStatusMessage } from '@/budgets/utils/fxTooltipMessages'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 
+/**
+ * Renders the budget FX tooltip while preserving optional card event boundaries
+ */
 export default function BudgetFxStatusTooltip({
   fxStatus,
   label,
@@ -27,19 +29,12 @@ export default function BudgetFxStatusTooltip({
       onClick={stopPropagation ? stopEvent : undefined}
       onKeyDown={stopPropagation ? stopEvent : undefined}
     >
-      <IconTooltip
+      <FxStatusTooltip
+        fxStatus={fxStatus}
         label={label}
-        icon="fx"
-        fxTone={getFxStatusTone(fxStatus)}
         placement={placement}
-      >
-        <span className="block">{getMessage(fxStatus)}</span>
-        {fxStatus.missing_pairs.length > 0 && (
-          <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-          </span>
-        )}
-      </IconTooltip>
+        getMessage={getMessage}
+      />
     </span>
   )
 }
