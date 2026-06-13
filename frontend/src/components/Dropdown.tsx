@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, type UIEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, Plus } from 'lucide-react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
+import { DropdownOptionList } from './dropdown/DropdownOptionList';
+import { DropdownSearchControls } from './dropdown/DropdownSearchControls';
+import { DropdownTrigger } from './dropdown/DropdownTrigger';
 import {
   getCreateNewLabel,
   getEffectiveHighlightedIndex,
@@ -45,6 +47,9 @@ interface DropdownProps {
 
 const LOADING_TEXT_MIN_MS = 300;
 
+/**
+ * Coordinates dropdown selection, search, keyboard navigation, and floating menu state
+ */
 const Dropdown = ({
   id,
   options,
@@ -110,19 +115,25 @@ const Dropdown = ({
     [visibleFiltered],
   );
 
+  /**
+   * Updates controlled or local search text and resets keyboard focus to the first option
+   */
   const setSearchText = useCallback((nextSearch: string) => {
     if (searchValue === undefined) setSearch(nextSearch);
     onSearchChange?.(nextSearch);
     setHighlightedIndex(0);
   }, [onSearchChange, searchValue]);
 
+  /**
+   * Resets transient menu state whenever the floating list closes
+   */
   const close = useCallback(() => {
     setOpen(false);
     setSearchText('');
     setHighlightedIndex(-1);
   }, [setSearchText]);
 
-  // Close on outside click
+  // The dropdown closes on outside mouse interactions so stale menus do not remain open
   useEffect(() => {
     if (!open) return;
 
@@ -136,14 +147,14 @@ const Dropdown = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open, close]);
 
-  // Scroll highlighted option into view
+  // The highlighted option scrolls into view after keyboard movement so focus stays visible
   useEffect(() => {
     if (!open || effectiveHighlightedIndex < 0 || !listRef.current) return;
     const item = listRef.current.querySelector(`[data-option-index="${effectiveHighlightedIndex}"]`) as HTMLElement;
     item?.scrollIntoView({ block: 'nearest' });
   }, [effectiveHighlightedIndex, open]);
 
-  // Focus search input when dropdown opens
+  // The search input receives focus only after the floating menu mounts
   useEffect(() => {
     if (open && searchable) {
       requestAnimationFrame(() => searchRef.current?.focus());
@@ -164,7 +175,10 @@ const Dropdown = ({
     close();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  /**
+   * Handles shared keyboard navigation from the trigger and search field
+   */
+  const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
@@ -196,7 +210,43 @@ const Dropdown = ({
     }
   };
 
-  const handleListScroll = (e: React.UIEvent<HTMLUListElement>) => {
+  /**
+   * Gives search-specific Enter behaviour priority before falling back to menu navigation
+   */
+  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    const canSelectHighlighted = effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length;
+    if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
+      e.preventDefault();
+      handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
+      return;
+    }
+    if (e.key === 'Enter' && onSearchCommit) {
+      e.preventDefault();
+      onSearchCommit(searchText);
+      setHighlightedIndex(0);
+      return;
+    }
+    handleKeyDown(e);
+  };
+
+  /**
+   * Opens the menu from the trigger and seeds keyboard focus from the current selected value
+   */
+  const handleTriggerClick = () => {
+    if (disabled) return;
+    if (!open) {
+      updateListPosition();
+      setHighlightedIndex(options.findIndex((o) => o.value === value));
+      setOpen(true);
+      return;
+    }
+    close();
+  };
+
+  /**
+   * Requests the next page when the user scrolls close to the end of an incremental dropdown list
+   */
+  const handleListScroll = (e: UIEvent<HTMLUListElement>) => {
     if (!hasMore || isLoading || !onLoadMore) return;
     const target = e.currentTarget;
     const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
@@ -205,49 +255,18 @@ const Dropdown = ({
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        ref={triggerRef}
+      <DropdownTrigger
+        triggerRef={triggerRef}
         id={id}
-        type="button"
-        role="combobox"
-        aria-expanded={open}
-        aria-haspopup="listbox"
+        className={className}
         disabled={disabled}
-        className={`${className} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60`}
-        onClick={() => {
-          if (disabled) return;
-          if (!open) {
-            updateListPosition();
-            setHighlightedIndex(options.findIndex((o) => o.value === value));
-          } else {
-            close();
-            return;
-          }
-          setOpen(true);
-        }}
+        emptySelectionIsBlank={emptySelectionIsBlank}
+        open={open}
+        placeholder={placeholder}
+        selected={selected}
+        onClick={handleTriggerClick}
         onKeyDown={handleKeyDown}
-      >
-        <span
-          className="flex min-w-0 flex-1 items-center gap-2"
-          style={{ color: selected && !emptySelectionIsBlank ? 'var(--app-text)' : 'var(--app-text-subtle)' }}
-        >
-          {selected?.icon && !emptySelectionIsBlank && (
-            <span className="shrink-0 text-base leading-none" aria-hidden>
-              {selected.icon}
-            </span>
-          )}
-          <span className="min-w-0 flex-1 truncate">{emptySelectionIsBlank ? '' : selected?.label ?? placeholder}</span>
-        </span>
-        <ChevronDown
-          size={16}
-          className="shrink-0 transition-transform duration-200"
-          style={{
-            color: 'var(--app-text-subtle)',
-            transform: open ? 'rotate(180deg)' : 'rotate(0)',
-          }}
-          aria-hidden
-        />
-      </button>
+      />
 
       <AnimatePresence>
         {open && (
@@ -269,134 +288,30 @@ const Dropdown = ({
             transition={{ duration: 0.15 }}
           >
             {searchable && (
-              <div className="flex gap-2 px-2 pb-2 pt-2">
-                <input
-                  ref={searchRef}
-                  type="text"
-                  className="app-input min-w-0 flex-1"
-                  style={{ fontSize: '0.8125rem' }}
-                  placeholder={searchPlaceholder}
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  onKeyDown={(e) => {
-                    const canSelectHighlighted = effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length;
-                    if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
-                      e.preventDefault();
-                      handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
-                      return;
-                    }
-                    if (e.key === 'Enter' && onSearchCommit) {
-                      e.preventDefault();
-                      onSearchCommit(searchText);
-                      setHighlightedIndex(0);
-                      return;
-                    }
-                    handleKeyDown(e);
-                  }}
-                />
-                {onCreateNew && (
-                  <button
-                    type="button"
-                    className="app-icon-button h-10 w-10 shrink-0"
-                    style={{ color: 'var(--app-accent)' }}
-                    aria-label={resolvedCreateNewLabel}
-                    title={resolvedCreateNewLabel}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={handleCreateNew}
-                  >
-                    <Plus size={18} aria-hidden />
-                  </button>
-                )}
-              </div>
+              <DropdownSearchControls
+                createNewLabel={resolvedCreateNewLabel}
+                searchPlaceholder={searchPlaceholder}
+                searchRef={searchRef}
+                searchText={searchText}
+                showCreateAction={Boolean(onCreateNew)}
+                onCreateNew={handleCreateNew}
+                onKeyDown={handleSearchKeyDown}
+                onSearchChange={setSearchText}
+              />
             )}
-            <ul
-              ref={listRef}
-              role="listbox"
-              className="overflow-auto"
-              style={{ maxHeight: listPosition.listMaxHeight }}
+            <DropdownOptionList
+              effectiveHighlightedIndex={effectiveHighlightedIndex}
+              groupedOptions={groupedFiltered}
+              listMaxHeight={listPosition.listMaxHeight}
+              listRef={listRef}
+              loadingText={loadingText}
+              options={visibleFiltered}
+              selectedValue={value}
+              showLoading={showLoading}
+              onHighlight={setHighlightedIndex}
               onScroll={handleListScroll}
-            >
-              {visibleFiltered.length === 0 && !showLoading ? (
-                <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  No results
-                </li>
-              ) : groupedFiltered ? (
-                groupedFiltered.map((group, groupIndex) => (
-                  <li key={`${group.label}-${groupIndex}`}>
-                    <div
-                      className="sticky top-0 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide z-10"
-                      style={{
-                        color: 'var(--app-text-subtle)',
-                        background: 'var(--app-input-bg)',
-                        borderBottom: '1px solid var(--app-border)',
-                      }}
-                    >
-                      {group.label}
-                    </div>
-                    {group.items.map(({ option, flatIndex }) => {
-                      const isSelected = option.value === value;
-                      const isHighlighted = flatIndex === effectiveHighlightedIndex;
-                      return (
-                        <div
-                          key={option.value}
-                          role="option"
-                          aria-selected={isSelected}
-                          data-option-index={flatIndex}
-                          className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm transition-colors duration-100"
-                          style={{
-                            background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
-                            color: isSelected ? 'var(--app-accent)' : 'var(--app-text)',
-                          }}
-                          onMouseEnter={() => setHighlightedIndex(flatIndex)}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleSelect(option.value)}
-                        >
-                          {option.icon && (
-                            <span className="shrink-0 text-base leading-none" aria-hidden>
-                              {option.icon}
-                            </span>
-                          )}
-                          <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                        </div>
-                      );
-                    })}
-                  </li>
-                ))
-              ) : (
-                visibleFiltered.map((option, i) => {
-                  const isSelected = option.value === value;
-                  const isHighlighted = i === effectiveHighlightedIndex;
-                  return (
-                    <li
-                      key={option.value}
-                      role="option"
-                      aria-selected={isSelected}
-                      data-option-index={i}
-                      className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm transition-colors duration-100"
-                      style={{
-                        background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
-                        color: isSelected ? 'var(--app-accent)' : 'var(--app-text)',
-                      }}
-                      onMouseEnter={() => setHighlightedIndex(i)}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSelect(option.value)}
-                    >
-                      {option.icon && (
-                        <span className="shrink-0 text-base leading-none" aria-hidden>
-                          {option.icon}
-                        </span>
-                      )}
-                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                    </li>
-                  );
-                })
-              )}
-              {showLoading && (
-                <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  {loadingText}
-                </li>
-              )}
-            </ul>
+              onSelect={handleSelect}
+            />
           </motion.div>
         )}
       </AnimatePresence>
