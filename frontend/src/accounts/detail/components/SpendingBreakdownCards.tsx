@@ -8,10 +8,10 @@ import {
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from '@/insights/components/InsightLoadingTransition'
-import { useInsightLoadingSnapshot } from '@/insights/components/useInsightLoadingSnapshot'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   getCategoryColor,
   getCategoryColorMap,
@@ -93,7 +93,7 @@ function BreakdownCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<BreakdownSnapshot>({
+  } = useLoadingSnapshot<BreakdownSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -125,7 +125,7 @@ function BreakdownCard({
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <InsightLoadingContent
+        <LoadingContent
           concealed={contentConcealed}
           shouldReduceMotion={shouldReduceMotion}
           className="flex min-h-0 flex-1 flex-col"
@@ -193,9 +193,9 @@ function BreakdownCard({
               </div>
             </>
           )}
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label={`Loading ${title.toLowerCase()}`}

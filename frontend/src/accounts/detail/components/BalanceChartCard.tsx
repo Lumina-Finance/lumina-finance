@@ -25,10 +25,10 @@ import {
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from '@/insights/components/InsightLoadingTransition'
-import { useInsightLoadingSnapshot } from '@/insights/components/useInsightLoadingSnapshot'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   BalanceChartModeSelector,
   type BalanceChartMode,
@@ -256,7 +256,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<BalanceChartSnapshot>({
+  } = useLoadingSnapshot<BalanceChartSnapshot>({
     snapshot: incomingSnapshot,
     loading: isFetching,
     transitionKey: range,
@@ -322,7 +322,7 @@ export default function BalanceChartCard({ account }: { account: Account }) {
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <InsightLoadingContent
+        <LoadingContent
           concealed={contentConcealed}
           shouldReduceMotion={shouldReduceMotion}
           className="flex min-h-0 flex-1 flex-col"
@@ -451,9 +451,9 @@ export default function BalanceChartCard({ account }: { account: Account }) {
               />
             )}
           </div>
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading current balance"
