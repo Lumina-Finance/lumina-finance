@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { joinClassNames } from '@/utils/classNames'
 
 export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
@@ -63,10 +64,6 @@ const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }>
 }
 const TOOLTIP_WRAPPER_CLASS = 'pointer-events-none absolute left-1/2 z-20 p-2 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100'
 const TOOLTIP_OPEN_CLASS = 'pointer-events-auto opacity-100'
-
-function joinClassNames(...classNames: Array<string | false | undefined>) {
-  return classNames.filter(Boolean).join(' ')
-}
 
 function getAvailablePlacement({
   preferredPlacement,

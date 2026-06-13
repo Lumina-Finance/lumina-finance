@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { CalendarRange, Check, ChevronDown } from 'lucide-react'
+import { joinClassNames } from '@/utils/classNames'
 
 export type TimeRangeSelectorOption<T extends string> = {
   value: T
@@ -22,10 +23,6 @@ type TimeRangeSelectorProps<T extends string> = {
 
 const selectorSpring = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 const mobileDropdownTransition = { duration: 0.16, ease: [0.22, 1, 0.36, 1] } as const
-
-function joinClassNames(...classNames: Array<string | undefined | false>) {
-  return classNames.filter(Boolean).join(' ')
-}
 
 /**
  * Resolves whether the compact shortcut label adds information beyond the main label

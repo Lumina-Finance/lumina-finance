@@ -26,6 +26,7 @@ import {
   formatMoneyInputLive,
   sanitizeMoneyInput,
 } from '@/utils/moneyInput'
+import { joinClassNames } from '@/utils/classNames'
 import {
   DIRECTION_OPTIONS,
   EASE,
@@ -117,10 +118,6 @@ function FieldLabelRow({
       </AnimatePresence>
     </div>
   )
-}
-
-function joinClassNames(...classNames: Array<string | undefined | false>) {
-  return classNames.filter(Boolean).join(' ')
 }
 
 function SlidingPillSelector<T extends string>({
