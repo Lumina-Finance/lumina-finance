@@ -6,7 +6,9 @@ export function getSavingsRate(income: number, expenses: number) {
 }
 
 export function formatSavingsRateValue(rate: number | null) {
-  return rate === null ? 'N/A' : `${rate}%`
+  if (rate === null) return 'N/A'
+  if (!Number.isFinite(rate)) return rate < 0 ? '−∞%' : '∞%'
+  return `${rate}%`
 }
 
 export function formatSignedCurrency(amount: number, currency: string) {

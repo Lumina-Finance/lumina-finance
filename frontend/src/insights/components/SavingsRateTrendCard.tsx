@@ -19,7 +19,9 @@ import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartToo
 import IconTooltip from '@/components/IconTooltip'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import type { SavingsRateHistoryPoint } from '@/insights/types/savingsRate'
 import { getSavingsRateTrendFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
+import { formatSavingsRateValue } from '@/insights/utils/money'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   InsightLoadingContent,
@@ -34,17 +36,6 @@ import { FxStatusBadge } from './FxStatusBadge'
 import { InsightActionButton } from './InsightActionButton'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-
-export type SavingsRateHistoryPoint = {
-  monthKey: string
-  monthLabel: string
-  tickLabel: string
-  fullLabel: string
-  rate: number | null
-  income: number
-  expenses: number
-  isCurrent: boolean
-}
 
 type SavingsRateYAxisTickProps = {
   x?: number
@@ -116,12 +107,6 @@ function getSavingsTierColor(tier: ReturnType<typeof getSavingsTier>) {
   if (tier === 'positive') return 'var(--app-chart-positive)'
   if (tier === 'negative') return 'var(--app-chart-negative)'
   return 'var(--app-accent)'
-}
-
-function formatSavingsRateValue(rate: number | null) {
-  if (rate === null) return 'N/A'
-  if (!Number.isFinite(rate)) return rate < 0 ? '−∞%' : '∞%'
-  return `${rate}%`
 }
 
 function clampSavingsRate(rate: number | null) {
