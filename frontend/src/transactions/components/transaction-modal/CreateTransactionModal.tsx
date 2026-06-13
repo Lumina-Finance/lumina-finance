@@ -1,8 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence } from 'motion/react'
-import { ReceiptText, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import CreateTagModal from '@/components/CreateTagModal'
@@ -20,7 +17,6 @@ import {
 import { ApiError } from '@/api/auth'
 import { sanitizeMoneyInput } from '@/utils/moneyInput'
 import {
-  EASE,
   INITIAL_TRANSACTION_FORM,
   KIND_LABELS,
   MERCHANT_DROPDOWN_PAGE_SIZE,
@@ -54,6 +50,8 @@ import type {
 import { validateTransactionForm } from '@/transactions/components/transaction-modal/transactionModalValidation'
 import TransactionDetailsSection from '@/transactions/components/transaction-modal/TransactionDetailsSection'
 import TransactionModalFooter from '@/transactions/components/transaction-modal/TransactionModalFooter'
+import TransactionModalShell from '@/transactions/components/transaction-modal/TransactionModalShell'
+import TransactionModalSubmitError from '@/transactions/components/transaction-modal/TransactionModalSubmitError'
 import TransactionReferencesSection from '@/transactions/components/transaction-modal/TransactionReferencesSection'
 import TransactionTypeDirectionSection from '@/transactions/components/transaction-modal/TransactionTypeDirectionSection'
 import { useDebouncedReferenceSearch } from '@/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
@@ -572,205 +570,104 @@ export default function CreateTransactionModal({
 
   return (
     <>
-      {createPortal(
-        <AnimatePresence>
-          {open && (
-            <>
-              {/* Backdrop */}
-              <motion.div
-            className="fixed inset-0 z-50"
-            style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={handleClose}
-            aria-hidden
-              />
+      <TransactionModalShell
+        open={open}
+        editing={editing}
+        transactionKindLabel={KIND_LABELS[form.kind]}
+        onClose={handleClose}
+        onSubmit={handleSubmit}
+        footer={(
+          <TransactionModalFooter
+            editing={editing}
+            isPending={isPending}
+            submitLoading={submitLoading}
+            deleteLoading={deleteLoading}
+            keepOpenAfterCreate={keepOpenAfterCreate}
+            onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
+            onCancel={handleClose}
+            onDelete={handleDelete}
+          />
+        )}
+      >
+        <div className="space-y-5">
+          <TransactionTypeDirectionSection
+            kind={form.kind}
+            direction={form.direction}
+            editing={editing}
+            directionHighlightKey={directionHighlightKey}
+            onKindChange={handleKindChange}
+            onDirectionChange={(value) => handleField('direction', value)}
+          />
 
-              {/* Panel */}
-              <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            transition={{ duration: 0.25, ease: EASE }}
-            onClick={handleClose}
-              >
-                <motion.div
-              layout
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="create-txn-title"
-              className="app-modal-panel flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
-              transition={{ layout: { duration: 0.22, ease: EASE } }}
-              style={{
-                background: 'var(--app-bg)',
-                border: '1px solid var(--app-border-strong)',
-                boxShadow: 'var(--app-shadow-soft)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-                >
-                  <div
-                className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"
-                style={{
-                  background: 'var(--app-button-primary-bg)',
-                  color: 'var(--app-button-primary-text)',
-                }}
-                aria-hidden
-                  >
-                    <ReceiptText size={20} strokeWidth={2} />
-                    <span className="rotate-180 text-xs font-semibold uppercase" style={{ writingMode: 'vertical-rl' }}>
-                      Transaction
-                    </span>
-                  </div>
+          <TransactionReferencesSection
+            accountOptions={accountOptions}
+            selectedArchivedAccountOption={selectedArchivedAccountOption}
+            accountValue={form.account_id}
+            accountError={showError('account_id')}
+            accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
+            runningBalance={showRunningBalance && selectedAccount
+              ? { amount: runningBalance, currency: selectedAccount.currency }
+              : undefined}
+            merchantOptions={merchantOptions}
+            selectedMerchantOption={selectedMerchantOption}
+            merchantValue={form.merchant_id}
+            merchantError={showError('merchant_id')}
+            merchantSearch={merchantReferenceSearch.search}
+            merchantLoading={merchantReference.showLoading}
+            merchantLoadingText={merchantReference.loadingText}
+            merchantHideOptionsWhileLoading={merchantReference.showInitialLoading}
+            merchantHasMore={!!merchantQuery.hasNextPage}
+            categoryOptions={categoryOptions}
+            categoryValue={form.category_id}
+            categoryError={showError('category_id')}
+            showMerchantDefaultCategoryAction={showMerchantDefaultCategoryAction}
+            merchantDefaultCategoryActionLabel={merchantDefaultCategoryActionLabel}
+            merchantDefaultCategoryPending={updateMerchantMutation.isPending}
+            tagOptions={tagOptions}
+            tagsDisabled={!form.account_id}
+            tagSearch={tagReferenceSearch.search}
+            tagLoading={tagReference.showLoading}
+            tagLoadingText={tagReference.loadingText}
+            tagHideOptionsWhileLoading={tagReference.showInitialLoading}
+            tagHasMore={!!tagQuery.hasNextPage}
+            selectedTags={selectedTags}
+            onAccountChange={handleAccountChange}
+            onMerchantChange={handleMerchantChange}
+            onMerchantSearchChange={merchantReferenceSearch.setSearch}
+            onMerchantSearchCommit={merchantReferenceSearch.setActiveSearch}
+            onMerchantLoadMore={merchantReference.loadMore}
+            onCreateMerchant={handleCreateMerchant}
+            onMakeMerchantDefaultCategory={handleMakeMerchantDefaultCategory}
+            onCategoryChange={handleCategoryChange}
+            onCreateCategory={handleCreateCategory}
+            onTagChange={handleTagChange}
+            onTagSearchChange={tagReferenceSearch.setSearch}
+            onTagSearchCommit={tagReferenceSearch.setActiveSearch}
+            onTagLoadMore={tagReference.loadMore}
+            onCreateTag={handleCreateTag}
+            onRemoveTag={handleRemoveTag}
+          />
 
-                  {/* Form */}
-                  <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
-                {/* Header */}
-                <div
-                  className="shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8"
-                  style={{ borderBottom: '1px solid var(--app-border)' }}
-                >
-                  <div className="flex items-start justify-between gap-6">
-                    <div className="min-w-0">
-                      <p
-                        className="mb-2 text-xs font-semibold uppercase"
-                        style={{ color: 'var(--app-accent)' }}
-                      >
-                        {editing ? 'Existing transaction' : `${KIND_LABELS[form.kind]} transaction`}
-                      </p>
-                      <h2
-                        id="create-txn-title"
-                        className="font-serif text-3xl font-light"
-                      >
-                        {editing ? 'Edit Transaction' : 'Add Transaction'}
-                      </h2>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="app-icon-button shrink-0"
-                      aria-label="Close"
-                    >
-                      <X size={20} aria-hidden />
-                    </button>
-                  </div>
-                </div>
+          <TransactionDetailsSection
+            date={form.date}
+            dateError={showError('date')}
+            currencyOptions={currencyOptions}
+            currencyValue={form.currency}
+            currencyPlaceholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
+            selectedCurrencySymbol={selectedCurrencySymbol}
+            amount={form.amount}
+            amountError={showError('amount')}
+            notes={form.notes}
+            onDateChange={(value) => handleField('date', value)}
+            onDateBlur={() => handleBlur('date')}
+            onAmountChange={handleAmountChange}
+            onAmountBlur={() => handleBlur('amount')}
+            onNotesChange={(value) => handleField('notes', value)}
+          />
 
-                <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8">
-                  <div className="space-y-5">
-                    <TransactionTypeDirectionSection
-                      kind={form.kind}
-                      direction={form.direction}
-                      editing={editing}
-                      directionHighlightKey={directionHighlightKey}
-                      onKindChange={handleKindChange}
-                      onDirectionChange={(value) => handleField('direction', value)}
-                    />
-
-                    <TransactionReferencesSection
-                      accountOptions={accountOptions}
-                      selectedArchivedAccountOption={selectedArchivedAccountOption}
-                      accountValue={form.account_id}
-                      accountError={showError('account_id')}
-                      accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
-                      runningBalance={showRunningBalance && selectedAccount
-                        ? { amount: runningBalance, currency: selectedAccount.currency }
-                        : undefined}
-                      merchantOptions={merchantOptions}
-                      selectedMerchantOption={selectedMerchantOption}
-                      merchantValue={form.merchant_id}
-                      merchantError={showError('merchant_id')}
-                      merchantSearch={merchantReferenceSearch.search}
-                      merchantLoading={merchantReference.showLoading}
-                      merchantLoadingText={merchantReference.loadingText}
-                      merchantHideOptionsWhileLoading={merchantReference.showInitialLoading}
-                      merchantHasMore={!!merchantQuery.hasNextPage}
-                      categoryOptions={categoryOptions}
-                      categoryValue={form.category_id}
-                      categoryError={showError('category_id')}
-                      showMerchantDefaultCategoryAction={showMerchantDefaultCategoryAction}
-                      merchantDefaultCategoryActionLabel={merchantDefaultCategoryActionLabel}
-                      merchantDefaultCategoryPending={updateMerchantMutation.isPending}
-                      tagOptions={tagOptions}
-                      tagsDisabled={!form.account_id}
-                      tagSearch={tagReferenceSearch.search}
-                      tagLoading={tagReference.showLoading}
-                      tagLoadingText={tagReference.loadingText}
-                      tagHideOptionsWhileLoading={tagReference.showInitialLoading}
-                      tagHasMore={!!tagQuery.hasNextPage}
-                      selectedTags={selectedTags}
-                      onAccountChange={handleAccountChange}
-                      onMerchantChange={handleMerchantChange}
-                      onMerchantSearchChange={merchantReferenceSearch.setSearch}
-                      onMerchantSearchCommit={merchantReferenceSearch.setActiveSearch}
-                      onMerchantLoadMore={merchantReference.loadMore}
-                      onCreateMerchant={handleCreateMerchant}
-                      onMakeMerchantDefaultCategory={handleMakeMerchantDefaultCategory}
-                      onCategoryChange={handleCategoryChange}
-                      onCreateCategory={handleCreateCategory}
-                      onTagChange={handleTagChange}
-                      onTagSearchChange={tagReferenceSearch.setSearch}
-                      onTagSearchCommit={tagReferenceSearch.setActiveSearch}
-                      onTagLoadMore={tagReference.loadMore}
-                      onCreateTag={handleCreateTag}
-                      onRemoveTag={handleRemoveTag}
-                    />
-
-                    <TransactionDetailsSection
-                      date={form.date}
-                      dateError={showError('date')}
-                      currencyOptions={currencyOptions}
-                      currencyValue={form.currency}
-                      currencyPlaceholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
-                      selectedCurrencySymbol={selectedCurrencySymbol}
-                      amount={form.amount}
-                      amountError={showError('amount')}
-                      notes={form.notes}
-                      onDateChange={(value) => handleField('date', value)}
-                      onDateBlur={() => handleBlur('date')}
-                      onAmountChange={handleAmountChange}
-                      onAmountBlur={() => handleBlur('amount')}
-                      onNotesChange={(value) => handleField('notes', value)}
-                    />
-
-                    {/* Submit error */}
-                    <AnimatePresence>
-                      {submitError && (
-                        <motion.p
-                          className="text-sm font-medium"
-                          style={{ color: 'var(--app-negative)' }}
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          {submitError}
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-                <TransactionModalFooter
-                  editing={editing}
-                  isPending={isPending}
-                  submitLoading={submitLoading}
-                  deleteLoading={deleteLoading}
-                  keepOpenAfterCreate={keepOpenAfterCreate}
-                  onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
-                  onCancel={handleClose}
-                  onDelete={handleDelete}
-                />
-                  </form>
-                </motion.div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+          <TransactionModalSubmitError error={submitError} />
+        </div>
+      </TransactionModalShell>
       <CreateMerchantModal
         key={merchantModalKey}
         open={open && showMerchantModal}
