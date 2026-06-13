@@ -2,8 +2,8 @@ import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
+import { DashboardRangeSelector } from '@/dashboard/components/DashboardRangeSelector'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { getBreakdownFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import type { BreakdownMode } from '@/dashboard/utils/getSpendingBreakdownSummary'
@@ -51,21 +51,13 @@ export function SpendingBreakdownHeader({
       >
         <Repeat size={12} />
       </button>
-      <TimeRangeSelector
+      <DashboardRangeSelector
         value={breakdownRange}
         options={DASHBOARD_RANGE_SELECT_OPTIONS}
         onChange={onRangeChange}
         ariaLabel="Breakdown range"
-        className="hidden min-[730px]:inline-flex"
-      />
-      <TimeRangeSelector
-        value={breakdownRange}
-        options={DASHBOARD_RANGE_SELECT_OPTIONS}
-        onChange={onRangeChange}
-        ariaLabel="Breakdown range"
-        variant="mobile"
-        className="w-full min-[730px]:hidden"
         sheetTitle="Breakdown range"
+        desktopClassName="hidden min-[730px]:inline-flex"
       />
     </div>
   )

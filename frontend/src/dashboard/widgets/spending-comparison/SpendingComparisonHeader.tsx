@@ -2,8 +2,8 @@ import { BarChart3 } from 'lucide-react'
 import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
+import { DashboardRangeSelector } from '@/dashboard/components/DashboardRangeSelector'
 import {
   DASHBOARD_RANGE_SELECT_OPTIONS,
   PREVIOUS_PERIOD_LABEL_BY_RANGE,
@@ -38,20 +38,11 @@ export function SpendingComparisonHeader({
         fxStatus={fxStatus}
         getMessage={getSpendingComparisonFxStatusMessage}
       />
-      <TimeRangeSelector
+      <DashboardRangeSelector
         value={spendingRange}
         options={DASHBOARD_RANGE_SELECT_OPTIONS}
         onChange={onRangeChange}
         ariaLabel="Spending range"
-        className="ml-auto hidden min-[730px]:inline-flex"
-      />
-      <TimeRangeSelector
-        value={spendingRange}
-        options={DASHBOARD_RANGE_SELECT_OPTIONS}
-        onChange={onRangeChange}
-        ariaLabel="Spending range"
-        variant="mobile"
-        className="w-full min-[730px]:hidden"
         sheetTitle="Spending range"
       />
     </div>
