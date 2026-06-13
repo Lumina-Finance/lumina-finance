@@ -13,7 +13,7 @@ import {
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { LimitMeterTooltipContent } from './LimitMeterTooltipContent'
+import { TaxAdvantagedLimitMeterTooltipContent } from './TaxAdvantagedLimitMeterTooltipContent'
 
 type LimitMeterTooltipData = {
   key: string
@@ -23,7 +23,7 @@ type LimitMeterTooltipData = {
   currency: string
 }
 
-type CompactLimitMeterProps = {
+type TaxAdvantagedCompactLimitMeterProps = {
   label: string
   used: number
   limit: number | null
@@ -36,7 +36,7 @@ type CompactLimitMeterProps = {
 /**
  * Renders one compact tax-advantaged limit meter and owns its tooltip state
  */
-export function CompactLimitMeter({
+export function TaxAdvantagedCompactLimitMeter({
   label,
   used,
   limit,
@@ -44,7 +44,7 @@ export function CompactLimitMeter({
   emptyLabel = 'Not set',
   availableBoundary = null,
   valueMode = 'usage',
-}: CompactLimitMeterProps) {
+}: TaxAdvantagedCompactLimitMeterProps) {
   const meterRef = useRef<HTMLDivElement | null>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<LimitMeterTooltipData>>(null)
 
@@ -142,7 +142,7 @@ export function CompactLimitMeter({
         tooltipTransition="opacity 150ms ease-out"
         getKey={(item) => item.key}
         renderContent={(item) => (
-          <LimitMeterTooltipContent
+          <TaxAdvantagedLimitMeterTooltipContent
             label={item.label}
             used={item.used}
             remaining={item.remaining}

@@ -20,13 +20,13 @@ import {
   type IdentityFieldErrors,
   type IdentityFormValues,
 } from '@/pages/accounts/detail/utils/identityForm'
-import { ArchiveSection } from './ArchiveSection'
+import { AccountArchiveSection } from './AccountArchiveSection'
 import { DeleteAccountPanel } from './DeleteAccountPanel'
-import { DetailsSection } from './DetailsSection'
+import { AccountDetailsSection } from './AccountDetailsSection'
 import { EditModalFooter } from './EditModalFooter'
 import { EditModalHeader } from './EditModalHeader'
 import { EditModalSideRail } from './EditModalSideRail'
-import { IdentitySection } from './IdentitySection'
+import { AccountIdentitySection } from './AccountIdentitySection'
 import type { DeleteStage } from './types'
 
 type EditAccountIdentityModalProps = {
@@ -281,7 +281,7 @@ export default function EditAccountIdentityModal({
 
                 <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7">
                   <div className="space-y-5">
-                    <IdentitySection
+                    <AccountIdentitySection
                       form={form}
                       fieldErrors={fieldErrors}
                       institutionOptions={institutionOptions}
@@ -290,7 +290,7 @@ export default function EditAccountIdentityModal({
                     />
 
                     {hasEditableAccountContext && (
-                      <DetailsSection
+                      <AccountDetailsSection
                         form={form}
                         fieldErrors={fieldErrors}
                         canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
@@ -301,7 +301,7 @@ export default function EditAccountIdentityModal({
                       />
                     )}
 
-                    <ArchiveSection
+                    <AccountArchiveSection
                       sectionNumber={visibilitySectionNumber}
                       isArchived={form.is_archived}
                       isArchiving={isArchiving}

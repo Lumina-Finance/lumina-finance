@@ -10,9 +10,9 @@ import type {
 } from '@/pages/accounts/detail/utils/identityForm'
 import type { SetIdentityFormField } from './types'
 import { EditModalSection } from './EditModalSection'
-import { FieldLabelRow } from './FieldLabelRow'
+import { AccountIdentityFieldLabelRow } from './AccountIdentityFieldLabelRow'
 
-type DetailsSectionProps = {
+type AccountDetailsSectionProps = {
   form: IdentityFormValues
   fieldErrors: IdentityFieldErrors
   canLinkTaxAdvantagedCategory: boolean
@@ -25,7 +25,7 @@ type DetailsSectionProps = {
 /**
  * Renders optional account details that only apply to specific account kinds
  */
-export function DetailsSection({
+export function AccountDetailsSection({
   form,
   fieldErrors,
   canLinkTaxAdvantagedCategory,
@@ -33,12 +33,12 @@ export function DetailsSection({
   selectedCurrencySymbol,
   taxAdvantagedCategoryOptions,
   setField,
-}: DetailsSectionProps) {
+}: AccountDetailsSectionProps) {
   return (
     <EditModalSection number="02" title="Details">
       {canLinkTaxAdvantagedCategory && (
         <div>
-          <FieldLabelRow label="Tax-Advantaged Category" />
+          <AccountIdentityFieldLabelRow label="Tax-Advantaged Category" />
           <Dropdown
             options={taxAdvantagedCategoryOptions}
             value={form.tax_advantaged_category_id}
@@ -52,7 +52,7 @@ export function DetailsSection({
 
       {isRevolving && (
         <div>
-          <FieldLabelRow htmlFor="edit-credit-limit" label="Credit Limit" error={fieldErrors.credit_limit} />
+          <AccountIdentityFieldLabelRow htmlFor="edit-credit-limit" label="Credit Limit" error={fieldErrors.credit_limit} />
           <div className="relative">
             {selectedCurrencySymbol && (
               <span

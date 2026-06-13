@@ -4,7 +4,7 @@ import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import { ArchiveBalanceWarning } from './ArchiveBalanceWarning'
 import { EditModalSection } from './EditModalSection'
 
-type ArchiveSectionProps = {
+type AccountArchiveSectionProps = {
   sectionNumber: string
   isArchived: boolean
   isArchiving: boolean
@@ -16,14 +16,14 @@ type ArchiveSectionProps = {
 /**
  * Renders archive controls and warns when archiving will create a balance adjustment
  */
-export function ArchiveSection({
+export function AccountArchiveSection({
   sectionNumber,
   isArchived,
   isArchiving,
   currentBalance,
   currency,
   onToggle,
-}: ArchiveSectionProps) {
+}: AccountArchiveSectionProps) {
   return (
     <EditModalSection number={sectionNumber} title="Archive">
       <label

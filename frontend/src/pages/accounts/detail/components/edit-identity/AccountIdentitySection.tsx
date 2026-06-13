@@ -6,9 +6,9 @@ import type {
 } from '@/pages/accounts/detail/utils/identityForm'
 import type { SetIdentityFormField } from './types'
 import { EditModalSection } from './EditModalSection'
-import { FieldLabelRow } from './FieldLabelRow'
+import { AccountIdentityFieldLabelRow } from './AccountIdentityFieldLabelRow'
 
-type IdentitySectionProps = {
+type AccountIdentitySectionProps = {
   form: IdentityFormValues
   fieldErrors: IdentityFieldErrors
   institutionOptions: DropdownOption[]
@@ -19,17 +19,17 @@ type IdentitySectionProps = {
 /**
  * Renders account name and institution controls for the identity section
  */
-export function IdentitySection({
+export function AccountIdentitySection({
   form,
   fieldErrors,
   institutionOptions,
   setField,
   onCreateInstitution,
-}: IdentitySectionProps) {
+}: AccountIdentitySectionProps) {
   return (
     <EditModalSection number="01" title="Identity">
       <div>
-        <FieldLabelRow htmlFor="edit-account-name" label="Account Name" error={fieldErrors.name} />
+        <AccountIdentityFieldLabelRow htmlFor="edit-account-name" label="Account Name" error={fieldErrors.name} />
         <input
           id="edit-account-name"
           className={`app-input ${fieldErrors.name ? 'app-input-error' : ''}`}
@@ -40,7 +40,7 @@ export function IdentitySection({
       </div>
 
       <div>
-        <FieldLabelRow label="Institution" />
+        <AccountIdentityFieldLabelRow label="Institution" />
         <Dropdown
           options={institutionOptions}
           value={form.institution_id}

@@ -1,6 +1,6 @@
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { getLifetimeAvailableBoundary } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { CompactLimitMeter } from './CompactLimitMeter'
+import { TaxAdvantagedCompactLimitMeter } from './TaxAdvantagedCompactLimitMeter'
 
 /**
  * Renders annual, lifetime, and withdrawal meters for one tax-advantaged category
@@ -12,7 +12,7 @@ export function TaxAdvantagedLimitMeterStack({
 }) {
   const showLifetimeMeter = plan.lifetime_contribution_limit !== null
   const annualMeter = (
-    <CompactLimitMeter
+    <TaxAdvantagedCompactLimitMeter
       label="Annual"
       used={plan.ytd_contributions}
       limit={plan.current_year_contribution_limit}
@@ -21,7 +21,7 @@ export function TaxAdvantagedLimitMeterStack({
     />
   )
   const lifetimeMeter = showLifetimeMeter ? (
-    <CompactLimitMeter
+    <TaxAdvantagedCompactLimitMeter
       label="Lifetime"
       used={plan.lifetime_contributions}
       limit={plan.lifetime_contribution_limit}
@@ -30,7 +30,7 @@ export function TaxAdvantagedLimitMeterStack({
     />
   ) : null
   const withdrawalMeter = (
-    <CompactLimitMeter
+    <TaxAdvantagedCompactLimitMeter
       label="Withdrawals"
       used={plan.ytd_withdrawals}
       limit={plan.current_year_withdrawal_limit}

@@ -4,7 +4,7 @@ import {
 } from '@/components/charts/ChartTooltipContent'
 import { formatTaxAdvantagedRawMoney } from '@/pages/accounts/utils/taxAdvantagedLimits'
 
-type LimitMeterTooltipContentProps = {
+type TaxAdvantagedLimitMeterTooltipContentProps = {
   label: string
   used: number
   remaining: number
@@ -14,12 +14,12 @@ type LimitMeterTooltipContentProps = {
 /**
  * Renders used and remaining limit values inside a tax-advantaged meter tooltip
  */
-export function LimitMeterTooltipContent({
+export function TaxAdvantagedLimitMeterTooltipContent({
   label,
   used,
   remaining,
   currency,
-}: LimitMeterTooltipContentProps) {
+}: TaxAdvantagedLimitMeterTooltipContentProps) {
   return (
     <>
       <ChartTooltipTitle className="font-medium">{label}</ChartTooltipTitle>

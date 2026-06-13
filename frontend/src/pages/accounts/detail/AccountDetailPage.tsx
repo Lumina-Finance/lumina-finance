@@ -5,7 +5,7 @@ import { useAccount, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { Transaction } from '@/api/transactions'
 import AccountIdentityCard from '@/pages/accounts/detail/components/identity/AccountIdentityCard'
-import BackLink from '@/pages/accounts/detail/components/BackLink'
+import AccountDetailBackLink from '@/pages/accounts/detail/components/AccountDetailBackLink'
 import BalanceChartCard from '@/pages/accounts/detail/components/balance-chart/BalanceChartCard'
 import EditAccountIdentityModal from '@/pages/accounts/detail/components/edit-identity/EditAccountIdentityModal'
 import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash-flow/MonthlyCashFlowCard'
@@ -84,7 +84,7 @@ export default function AccountDetailPage() {
   if (!visibleAccount && !error) {
     return (
       <div>
-        <BackLink />
+        <AccountDetailBackLink />
       </div>
     )
   }
@@ -92,7 +92,7 @@ export default function AccountDetailPage() {
   if ((error && deleteExitPhase === 'idle') || !visibleAccount) {
     return (
       <div>
-        <BackLink />
+        <AccountDetailBackLink />
         <h1 className="app-page-title">Account not found</h1>
         <p className="app-page-description">We couldn't load this account. It may have been deleted.</p>
       </div>
@@ -109,7 +109,7 @@ export default function AccountDetailPage() {
           exit={{ opacity: 0, y: 10, filter: 'blur(2px)' }}
           transition={{ duration: 0.22, ease: EASE }}
         >
-          <BackLink />
+          <AccountDetailBackLink />
 
           <div className="grid grid-cols-1 gap-5 min-[750px]:grid-cols-[320px_minmax(0,1fr)]">
             <AccountIdentityCard
