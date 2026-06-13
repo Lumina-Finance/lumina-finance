@@ -1,4 +1,5 @@
 import type { FxStatus } from '@/api/shared/fx';
+import type { Institution } from '@/api/institutions/types';
 
 /**
  * Splits liabilities into revolving balances and amortizing debt because cash-flow treatment differs
@@ -16,15 +17,6 @@ export type AccountType =
   | 'heloc'
   | 'loan'
   | 'mortgage';
-
-export interface Institution {
-  id: string;
-  status: string;
-  name: string;
-  country_code: string;
-  website: string;
-  logo_url: string | null;
-}
 
 /**
  * Mirrors backend AccountsOverview for account lists and selectors

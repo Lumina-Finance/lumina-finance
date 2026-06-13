@@ -14,7 +14,6 @@ export type {
   AccountType,
   AccountsOverview,
   CreateAccountPayload,
-  Institution,
   SnapshotGranularity,
   SpendingRange,
   UpdateAccountPayload,

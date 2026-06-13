@@ -6,7 +6,7 @@ import Dropdown from '@/components/Dropdown';
 import { useCreateInstitution } from '@/api/institutions';
 import { ApiError } from '@/api/auth';
 import { COUNTRY_OPTIONS } from '@/constants/countries';
-import type { Institution } from '@/api/accounts';
+import type { Institution } from '@/api/institutions';
 
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 const CREATE_INSTITUTION_MIN_LOADING_MS = 800;
