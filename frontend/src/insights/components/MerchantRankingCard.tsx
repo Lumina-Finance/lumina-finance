@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
+import type { MerchantRankingRow } from '@/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -11,15 +12,6 @@ import {
 import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-
-export type MerchantRankingRow = {
-  id: string
-  name: string
-  totalAmount: number
-  transactionCount: number
-  averageAmount: number
-  changePct: number | null
-}
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]
