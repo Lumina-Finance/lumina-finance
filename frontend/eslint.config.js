@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
-const apiEndpointBarrelImports = [
+// API internals must depend on concrete files so public index exports remain a feature boundary
+const restrictedApiIndexImports = [
   '@/api/accounts',
   '@/api/auth',
   '@/api/budgets',
@@ -44,9 +45,9 @@ export default defineConfig([
       'no-restricted-imports': [
         'error',
         {
-          paths: apiEndpointBarrelImports.map((name) => ({
+          paths: restrictedApiIndexImports.map((name) => ({
             name,
-            message: 'Import the owning API module file directly inside frontend/src/api',
+            message: 'Import the specific API source file instead of the domain folder index',
           })),
         },
       ],
