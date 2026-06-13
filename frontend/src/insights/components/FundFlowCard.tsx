@@ -19,6 +19,12 @@ import type { FxStatus } from '@/api/shared/fx'
 import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
+import type {
+  FundFlowData,
+  FundFlowEntry,
+  FundFlowNode,
+  FundFlowNodeKind,
+} from '@/insights/types/fundFlow'
 import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
@@ -29,25 +35,6 @@ import {
 } from './InsightLoadingTransition'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-
-type FundFlowNodeKind = 'income' | 'expense' | 'summary' | 'retained'
-
-export type FundFlowNode = {
-  name: string
-  kind: FundFlowNodeKind
-  labelSide?: 'left' | 'right'
-}
-
-type FundFlowLink = {
-  source: number
-  target: number
-  value: number
-}
-
-export type FundFlowData = {
-  nodes: FundFlowNode[]
-  links: FundFlowLink[]
-}
 
 type FlowTooltipPayload = Partial<FundFlowNode> & {
   value?: number | string
@@ -67,14 +54,12 @@ type SankeyFlowTooltipData = {
   amount: number
 }
 
-type SignAdjustedFlowEntry = [string, number]
-
 type FundFlowSnapshot = {
   flowData: FundFlowData
-  incomeSources: SignAdjustedFlowEntry[]
-  expenseCategories: SignAdjustedFlowEntry[]
-  incomeOutflows: SignAdjustedFlowEntry[]
-  expenseInflows: SignAdjustedFlowEntry[]
+  incomeSources: FundFlowEntry[]
+  expenseCategories: FundFlowEntry[]
+  incomeOutflows: FundFlowEntry[]
+  expenseInflows: FundFlowEntry[]
   incomeSourceCount: number
   expenseCategoryCount: number
   fxStatus: FxStatus | undefined
@@ -85,10 +70,10 @@ type FundFlowSnapshot = {
 
 type FundFlowCardProps = {
   flowData: FundFlowData
-  incomeSources: SignAdjustedFlowEntry[]
-  expenseCategories: SignAdjustedFlowEntry[]
-  incomeOutflows: SignAdjustedFlowEntry[]
-  expenseInflows: SignAdjustedFlowEntry[]
+  incomeSources: FundFlowEntry[]
+  expenseCategories: FundFlowEntry[]
+  incomeOutflows: FundFlowEntry[]
+  expenseInflows: FundFlowEntry[]
   incomeSourceCount: number
   expenseCategoryCount: number
   fxStatus: FxStatus | undefined
@@ -219,11 +204,11 @@ function SankeyFlowTooltipContent({
   )
 }
 
-function getEntryKey([name, amount]: SignAdjustedFlowEntry) {
+function getEntryKey([name, amount]: FundFlowEntry) {
   return `${name}\u0000${amount}`
 }
 
-function withoutMatchingEntries(entries: SignAdjustedFlowEntry[], exclusions: SignAdjustedFlowEntry[]) {
+function withoutMatchingEntries(entries: FundFlowEntry[], exclusions: FundFlowEntry[]) {
   const remainingExclusions = new Map<string, number>()
   for (const entry of exclusions) {
     const key = getEntryKey(entry)
@@ -251,8 +236,8 @@ function FlowCategoryList({
   onToggle,
 }: {
   title: string
-  normalEntries: SignAdjustedFlowEntry[]
-  flippedEntries: SignAdjustedFlowEntry[]
+  normalEntries: FundFlowEntry[]
+  flippedEntries: FundFlowEntry[]
   flippedLabel: string
   normalLabel: string
   calculation: string
