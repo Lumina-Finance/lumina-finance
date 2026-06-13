@@ -5,21 +5,13 @@ import IconTooltip from '@/components/IconTooltip'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { NetWorthChart } from '@/dashboard/components/NetWorthChart'
-import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
+import { NetWorthMetric } from '@/dashboard/components/NetWorthMetric'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getNetWorthFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
 
 type NetWorthWidgetProps = {
   displayCurrency: string
-}
-
-/**
- * Formats dashboard net worth movement with an explicit positive or negative sign
- */
-function formatNetWorthChange(amount: number, currency: string) {
-  if (amount === 0) return formatDashboardMoney(0, currency, 'netWorth')
-  return `${amount > 0 ? '+' : '-'}${formatDashboardMoney(Math.abs(amount), currency, 'netWorth')}`
 }
 
 /**
@@ -50,13 +42,6 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const netWorthChange = netWorthData.length >= 2 ? netWorth - netWorthData[0].value : null
   const fxStatus = dashboardNetWorth?.fx_status
   const fxTone = getFxStatusTone(fxStatus)
-  const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
-  const netWorthChangeColor =
-    netWorthChange == null || netWorthChange === 0
-      ? 'var(--app-text-muted)'
-      : netWorthChange > 0
-        ? 'var(--app-positive)'
-        : 'var(--app-negative)'
 
   return (
     <div className="app-card h-[14rem] pb-2 flex flex-col">
@@ -89,23 +74,11 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
         className="flex-1"
         contentClassName="flex h-full min-h-0 flex-col"
       >
-        <div className="inline-flex max-w-full items-end gap-2">
-          <p
-            className="min-w-0 font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
-            style={{ color: netWorthColor }}
-          >
-            {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
-          </p>
-          {netWorthChange != null && (
-            <p
-              className="shrink-0 pb-0.5 font-financial text-sm font-medium leading-none max-[1000px]:text-xs"
-              style={{ color: netWorthChangeColor }}
-              aria-label={`Net worth change ${formatNetWorthChange(netWorthChange, displayCurrency)}`}
-            >
-              {formatNetWorthChange(netWorthChange, displayCurrency)}
-            </p>
-          )}
-        </div>
+        <NetWorthMetric
+          netWorth={netWorth}
+          netWorthChange={netWorthChange}
+          displayCurrency={displayCurrency}
+        />
         {netWorthData.length >= 2 && (
           <NetWorthChart
             data={netWorthData}
