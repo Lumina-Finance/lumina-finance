@@ -2,10 +2,9 @@ import { useMemo, useState } from 'react'
 import {
   useAccountSpendingBreakdown,
   type Account,
-  type AccountSpendingBreakdown,
   type SpendingRange,
 } from '@/api/accounts'
-import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
+import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   LoadingContent,
@@ -18,42 +17,15 @@ import {
   getDeterministicChartColor,
   getDeterministicChartColorMap,
 } from '@/utils/chartColor'
-
-// Spending range tabs. `SpendingRange` is imported from the API layer so
-// the select options stay in lockstep with the backend's accepted values.
-const SPENDING_RANGE_OPTIONS: TimeRangeSelectorOption<SpendingRange>[] = [
-  { value: 'WTD', label: 'WTD', description: 'Week to date' },
-  { value: 'MTD', label: 'MTD', description: 'Month to date' },
-  { value: 'QTD', label: 'QTD', description: 'Quarter to date' },
-  { value: 'YTD', label: 'YTD', description: 'Year to date' },
-]
-
-interface BreakdownRow {
-  key: string
-  name: string
-  total: number
-  isOther: boolean
-  color?: string
-}
-
-const BREAKDOWN_CARD_LIST_MIN_HEIGHT = 270
-
-type BreakdownSnapshot = {
-  rows: BreakdownRow[]
-  grandTotal: number
-  currency: string
-  emptyLabel: string
-}
-
-// Append an "Other (N)" row when the backend signals more entries exist
-// beyond the top 5. Its total = grand_total - sum(top 5), which the card
-// also uses to size the row's proportional fill.
-function withOtherRow(rows: BreakdownRow[], otherCount: number, grandTotal: number): BreakdownRow[] {
-  if (otherCount <= 0) return rows
-  const topSum = rows.reduce((sum, r) => sum + r.total, 0)
-  const otherTotal = Math.max(grandTotal - topSum, 0)
-  return [...rows, { key: 'other', name: `Other (${otherCount})`, total: otherTotal, isOther: true }]
-}
+import {
+  BREAKDOWN_CARD_LIST_MIN_HEIGHT,
+  BREAKDOWN_OTHER_COLOR,
+  SPENDING_RANGE_OPTIONS,
+  getBreakdownRowFillPercent,
+  getBreakdownRows,
+  type BreakdownRow,
+  type BreakdownSnapshot,
+} from '@/accounts/detail/utils/spendingBreakdownViewModel'
 
 // Shared presentation for the spending-by-category and top-merchants cards.
 // Each row has a colored fill proportional to its share of grandTotal,
@@ -141,11 +113,8 @@ function BreakdownCard({
             <>
               <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
                 {displaySnapshot.rows.map((item) => {
-                  // Width is based on share of total spend. A 4% minimum keeps
-                  // tiny rows visible, and abs() handles signed spend totals.
-                  const totalAbs = Math.abs(displaySnapshot.grandTotal)
-                  const barPct = totalAbs > 0 ? Math.max((Math.abs(item.total) / totalAbs) * 100, 4) : 0
-                  const color = item.isOther ? '#8C8074' : item.color ?? getDeterministicChartColor(item.key || item.name)
+                  const barPct = getBreakdownRowFillPercent(item.total, displaySnapshot.grandTotal)
+                  const color = item.isOther ? BREAKDOWN_OTHER_COLOR : item.color ?? getDeterministicChartColor(item.key || item.name)
                   return (
                     <div
                       key={item.key}
@@ -220,7 +189,7 @@ export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
     setRange(nextRange)
   }
 
-  const rows = breakdownToRows(
+  const rows = getBreakdownRows(
     data,
     (b) => b.top_categories.map((c) => ({
       key: c.category_id,
@@ -269,7 +238,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
     setRange(nextRange)
   }
 
-  const rows = breakdownToRows(
+  const rows = getBreakdownRows(
     data,
     (b) => b.top_merchants.map((m) => {
       const key = m.merchant_id || m.name
@@ -299,16 +268,4 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       transitionKey={range}
     />
   )
-}
-
-// Project the breakdown payload into BreakdownRow[] + the "Other (N)" row
-// when one is needed. Each caller supplies the top-N extractor and the
-// matching other-count accessor so categories and merchants share the shape.
-function breakdownToRows(
-  data: AccountSpendingBreakdown | undefined,
-  toRows: (b: AccountSpendingBreakdown) => BreakdownRow[],
-  otherCount: (b: AccountSpendingBreakdown) => number,
-): BreakdownRow[] {
-  if (!data) return []
-  return withOtherRow(toRows(data), otherCount(data), data.grand_total_spend)
 }

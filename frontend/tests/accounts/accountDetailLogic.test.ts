@@ -2,7 +2,11 @@
  * Tests account detail helper behaviour so balance chart range, delta, and snapshot rules stay stable while the chart JSX is split apart
  */
 import { describe, expect, it } from 'vitest'
-import type { AccountBalanceSnapshot, AccountMonthlyCashFlow } from '@/api/accounts'
+import type {
+  AccountBalanceSnapshot,
+  AccountMonthlyCashFlow,
+  AccountSpendingBreakdown,
+} from '@/api/accounts'
 import { calendarDateMs } from '@/accounts/detail/utils/balanceChartAxis'
 import {
   getBalanceChartSnapshot,
@@ -15,6 +19,11 @@ import {
   getCompletedCashFlowAverage,
   getMonthlyCashFlowBars,
 } from '@/accounts/detail/utils/cashFlowChartViewModel'
+import {
+  appendOtherBreakdownRow,
+  getBreakdownRowFillPercent,
+  getBreakdownRows,
+} from '@/accounts/detail/utils/spendingBreakdownViewModel'
 import { toISODate } from '@/accounts/detail/utils/date'
 
 describe('balance chart view model helpers', () => {
@@ -127,5 +136,51 @@ describe('monthly cash flow view model helpers', () => {
   it('keeps chart domain above zero and shared across monthly and average bars', () => {
     expect(getCashFlowDomainMax([], { avgIn: 0, avgOut: 0 })).toBe(1)
     expect(getCashFlowDomainMax(getMonthlyCashFlowBars(rows), { avgIn: 1_500, avgOut: 2_500 })).toBe(2_500)
+  })
+})
+
+describe('spending breakdown view model helpers', () => {
+  it('adds an Other row using the remaining grand total', () => {
+    expect(appendOtherBreakdownRow([
+      { key: 'groceries', name: 'Groceries', total: 6_000, isOther: false },
+      { key: 'travel', name: 'Travel', total: 3_000, isOther: false },
+    ], 3, 10_000)).toEqual([
+      { key: 'groceries', name: 'Groceries', total: 6_000, isOther: false },
+      { key: 'travel', name: 'Travel', total: 3_000, isOther: false },
+      { key: 'other', name: 'Other (3)', total: 1_000, isOther: true },
+    ])
+  })
+
+  it('keeps tiny non-zero breakdown rows visible and handles signed totals', () => {
+    expect(getBreakdownRowFillPercent(10, 10_000)).toBe(4)
+    expect(getBreakdownRowFillPercent(-2_500, -10_000)).toBe(25)
+    expect(getBreakdownRowFillPercent(0, 0)).toBe(0)
+  })
+
+  it('projects backend spending breakdown payloads into visible rows', () => {
+    const payload: AccountSpendingBreakdown = {
+      range: 'MTD',
+      top_categories: [
+        { category_id: 'food', name: 'Food', total: 7_000 },
+      ],
+      top_merchants: [],
+      grand_total_spend: 10_000,
+      other_categories_count: 2,
+      other_merchants_count: 0,
+    }
+
+    expect(getBreakdownRows(
+      payload,
+      (breakdown) => breakdown.top_categories.map((category) => ({
+        key: category.category_id,
+        name: category.name,
+        total: category.total,
+        isOther: false,
+      })),
+      (breakdown) => breakdown.other_categories_count,
+    )).toEqual([
+      { key: 'food', name: 'Food', total: 7_000, isOther: false },
+      { key: 'other', name: 'Other (2)', total: 3_000, isOther: true },
+    ])
   })
 })
