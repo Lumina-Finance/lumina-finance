@@ -1,7 +1,7 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import { Calendar, Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
@@ -26,7 +26,6 @@ import {
   formatMoneyInputLive,
   sanitizeMoneyInput,
 } from '@/utils/moneyInput'
-import { joinClassNames } from '@/utils/classNames'
 import {
   DIRECTION_OPTIONS,
   EASE,
@@ -40,8 +39,6 @@ import {
   MIN_ADD_TRANSACTION_LOADING_MS,
   MIN_BATCH_ADD_TRANSACTION_LOADING_MS,
   MIN_DELETE_TRANSACTION_LOADING_MS,
-  SEGMENTED_OPTION_GAP_REM,
-  SELECTOR_SPRING,
   TAG_DROPDOWN_PAGE_SIZE,
   TAG_FETCHING_MORE_TEXT_MIN_MS,
   TAG_SEARCH_DEBOUNCE_MS,
@@ -64,119 +61,13 @@ import type {
   TransactionModalKind,
 } from '@/transactions/components/transaction-modal/transactionModalTypes'
 import { validateTransactionForm } from '@/transactions/components/transaction-modal/transactionModalValidation'
+import TransactionModalFieldLabelRow from '@/transactions/components/transaction-modal/TransactionModalFieldLabelRow'
+import TransactionModalPillSelector from '@/transactions/components/transaction-modal/TransactionModalPillSelector'
 
 function delay(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
-}
-
-function FieldLabelRow({
-  label,
-  htmlFor,
-  error,
-  action,
-}: {
-  label: string
-  htmlFor?: string
-  error?: string | false
-  action?: ReactNode
-}) {
-  const hasActionSlot = action !== undefined
-
-  return (
-    <div className={joinClassNames('mb-1.5 flex items-start justify-between gap-3', hasActionSlot && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3')}>
-      <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">{label}</label>
-      <AnimatePresence initial={false}>
-        {error && (
-          <motion.p
-            key={error}
-            className="text-right text-xs font-medium leading-5"
-            style={{ color: 'var(--app-negative)' }}
-            initial={{ opacity: 0, x: 4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 4 }}
-            transition={{ duration: 0.15 }}
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
-      <AnimatePresence initial={false}>
-        {!error && action && (
-          <motion.div
-            key="field-action"
-            className="min-w-0 max-w-full overflow-hidden sm:ml-auto"
-            initial={{ height: 0, opacity: 0, y: 4 }}
-            animate={{ height: 'auto', opacity: 1, y: 0 }}
-            exit={{ height: 0, opacity: 0, y: 4 }}
-            transition={{ duration: 0.18, ease: EASE }}
-          >
-            {action}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-function SlidingPillSelector<T extends string>({
-  value,
-  options,
-  ariaLabel,
-  onChange,
-  disabled = false,
-}: {
-  value: T
-  options: readonly { value: T; label: string }[]
-  ariaLabel: string
-  onChange: (value: T) => void
-  disabled?: boolean
-}) {
-  const shouldReduceMotion = useReducedMotion()
-  const activeIndex = Math.max(options.findIndex((option) => option.value === value), 0)
-  const optionGap = options.length > 1 ? SEGMENTED_OPTION_GAP_REM : 0
-  const indicatorWidth = `calc((100% - 0.5rem - ${(options.length - 1) * optionGap}rem) / ${options.length})`
-  const indicatorX = `calc(${activeIndex * 100}% + ${activeIndex * optionGap}rem)`
-
-  return (
-    <div
-      className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
-      role="tablist"
-      aria-label={ariaLabel}
-      style={{ gap: `${optionGap}rem` }}
-    >
-      <motion.span
-        className="app-create-transaction-pill-selector-indicator"
-        aria-hidden
-        style={{ width: indicatorWidth }}
-        animate={{ x: indicatorX }}
-        transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
-      />
-      {options.map((option) => {
-        const active = option.value === value
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            aria-disabled={disabled}
-            disabled={disabled}
-            onClick={() => onChange(option.value)}
-            className={joinClassNames(
-              'app-segmented-option relative z-10 flex-1 bg-transparent text-sm',
-              active && 'app-segmented-option-active',
-              disabled && 'cursor-not-allowed',
-              disabled && !active && 'opacity-40',
-            )}
-          >
-            {option.label}
-          </button>
-        )
-      })}
-    </div>
-  )
 }
 
 export default function CreateTransactionModal({
@@ -1036,7 +927,7 @@ export default function CreateTransactionModal({
 
                         <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                           {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                          <SlidingPillSelector
+                          <TransactionModalPillSelector
                             value={form.kind}
                             options={KIND_OPTIONS}
                             ariaLabel="Transaction type"
@@ -1057,7 +948,7 @@ export default function CreateTransactionModal({
                                 />
                               )}
                             </AnimatePresence>
-                            <SlidingPillSelector
+                            <TransactionModalPillSelector
                               value={form.direction}
                               options={DIRECTION_OPTIONS}
                               ariaLabel="Transaction direction"
@@ -1086,7 +977,7 @@ export default function CreateTransactionModal({
 
                         {/* Account */}
                         <div>
-                          <FieldLabelRow label="Account" error={showError('account_id')} />
+                          <TransactionModalFieldLabelRow label="Account" error={showError('account_id')} />
                           <Dropdown
                             options={accountOptions}
                             selectedOption={selectedArchivedAccountOption}
@@ -1126,7 +1017,7 @@ export default function CreateTransactionModal({
 
                         {/* Merchant */}
                         <div>
-                          <FieldLabelRow label="Merchant" error={showError('merchant_id')} />
+                          <TransactionModalFieldLabelRow label="Merchant" error={showError('merchant_id')} />
                           <Dropdown
                             options={merchantOptions}
                             selectedOption={selectedMerchantOption}
@@ -1163,7 +1054,7 @@ export default function CreateTransactionModal({
 
                         {/* Category */}
                         <div>
-                          <FieldLabelRow
+                          <TransactionModalFieldLabelRow
                             label="Category"
                             error={showError('category_id')}
                             action={showMerchantDefaultCategoryAction && (
@@ -1194,7 +1085,7 @@ export default function CreateTransactionModal({
 
                         {/* Tags */}
                         <div>
-                          <FieldLabelRow label="Tags" />
+                          <TransactionModalFieldLabelRow label="Tags" />
                           <Dropdown
                             options={tagOptions}
                             value=""
@@ -1291,7 +1182,7 @@ export default function CreateTransactionModal({
                         {/* Date + Currency + Amount */}
                         <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
                           <div>
-                            <FieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
+                            <TransactionModalFieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
                             <div
                               className={`app-input relative flex items-center justify-between gap-2 overflow-hidden pr-3 text-sm min-[1050px]:hidden ${
                                 showError('date')
@@ -1340,7 +1231,7 @@ export default function CreateTransactionModal({
                             />
                           </div>
                           <div>
-                            <FieldLabelRow htmlFor="txn-amount" label="Amount" error={showError('amount')} />
+                            <TransactionModalFieldLabelRow htmlFor="txn-amount" label="Amount" error={showError('amount')} />
                             <div className="relative">
                               {selectedCurrencySymbol && (
                                 <span
