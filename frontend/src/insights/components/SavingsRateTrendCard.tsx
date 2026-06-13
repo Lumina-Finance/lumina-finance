@@ -1,50 +1,21 @@
-import {
-  useMemo,
-  useRef,
-  type MouseEvent as ReactMouseEvent,
-} from 'react'
+import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUpToLine, Repeat } from 'lucide-react'
-import {
-  Bar,
-  BarChart,
-  Cell,
-  ReferenceLine,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import type { FxStatus } from '@/api/shared/fx'
-import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
 import IconTooltip from '@/components/IconTooltip'
-import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import type { SavingsRateHistoryPoint } from '@/insights/types/savingsRate'
 import { getSavingsRateTrendFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatSavingsRateValue } from '@/insights/utils/money'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { getSavingsRateSummary } from '@/insights/utils/savingsRateChart'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
 } from './InsightLoadingTransition'
-import {
-  DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
-  type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
 import { FxStatusBadge } from './FxStatusBadge'
 import { InsightActionButton } from './InsightActionButton'
+import { SavingsRateChart } from './savings-rate/SavingsRateChart'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-
-type SavingsRateYAxisTickProps = {
-  x?: number
-  y?: number
-  payload?: {
-    value?: number | string
-  }
-  maximum: number
-}
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]
@@ -64,15 +35,6 @@ type SavingsRateTrendSnapshot = {
   emptyLabel: string
 }
 
-type SavingsRateTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-}
-
-const savingsRateChartMargin = { top: 8, right: 8, bottom: 0, left: 4 } as const
 const savingsRateCalculation = 'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
 const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
 const averageSavingsRateCalculation = 'Average savings rate across completed months with income. The current month and no-income months are excluded'
@@ -81,102 +43,9 @@ const worstSavingsRateCalculation = 'Lowest savings rate across completed months
 const savingsRateStatLabelClass = 'app-label inline-flex items-center gap-2 text-sm leading-5'
 const savingsRateStatCaptionClass = 'truncate text-right text-xs leading-4 min-[750px]:mt-2 min-[750px]:text-left'
 
-function getSavingsRateTooltipKey(point: SavingsRateHistoryPoint) {
-  return point.monthKey
-}
-
-function getSavingsRateTooltipPointer(
-  state: SavingsRateTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getSavingsTier(rate: number | null) {
-  if (rate === null) return 'negative'
-  if (rate >= 20) return 'positive'
-  if (rate > 0) return 'accent'
-  return 'negative'
-}
-
-function getSavingsTierColor(tier: ReturnType<typeof getSavingsTier>) {
-  if (tier === 'positive') return 'var(--app-chart-positive)'
-  if (tier === 'negative') return 'var(--app-chart-negative)'
-  return 'var(--app-accent)'
-}
-
-function clampSavingsRate(rate: number | null) {
-  if (rate === null) return null
-  return Math.max(-100, Math.min(100, rate))
-}
-
-function getSavingsRateChartRate(rate: number | null, capRates: boolean) {
-  if (rate === null) return null
-  if (!Number.isFinite(rate)) return rate < 0 ? -100 : 100
-  return capRates ? clampSavingsRate(rate) : rate
-}
-
-function hasFiniteSavingsRate(point: SavingsRateHistoryPoint): point is SavingsRateHistoryPoint & { rate: number } {
-  return point.rate !== null && Number.isFinite(point.rate)
-}
-
-function SavingsRateHistoryTooltipContent({
-  point,
-  displayCurrency,
-}: {
-  point: SavingsRateHistoryPoint
-  displayCurrency: string
-}) {
-  return (
-    <>
-      <ChartTooltipTitle>{point.fullLabel}</ChartTooltipTitle>
-      <ChartTooltipRow
-        label="Savings Rate"
-        value={formatSavingsRateValue(point.rate)}
-        financialValue
-      />
-      <ChartTooltipRow
-        label="Income"
-        value={formatCurrency(point.income, displayCurrency)}
-        financialValue
-      />
-      <ChartTooltipRow
-        label="Expenses"
-        value={formatCurrency(point.expenses, displayCurrency)}
-        financialValue
-      />
-    </>
-  )
-}
-
-function SavingsRateYAxisTick({
-  x = 0,
-  y = 0,
-  payload,
-  maximum,
-}: SavingsRateYAxisTickProps) {
-  const value = Number(payload?.value)
-  const isMaximum = value === maximum
-
-  return (
-    <text
-      x={x}
-      y={y}
-      dy={4}
-      textAnchor="end"
-      fontSize={isMaximum ? 13 : 11}
-      fontWeight={isMaximum ? 700 : 500}
-      fill={isMaximum ? 'var(--app-text)' : 'var(--app-text-subtle)'}
-    >
-      {Number.isFinite(value) ? `${value}%` : ''}
-    </text>
-  )
-}
-
+/**
+ * Renders savings-rate summary metrics and the monthly savings-rate chart
+ */
 export function SavingsRateTrendCard({
   series,
   fxStatus,
@@ -186,8 +55,6 @@ export function SavingsRateTrendCard({
   loading = false,
   transitionKey,
 }: SavingsRateTrendCardProps) {
-  const savingsRateChartRef = useRef<HTMLDivElement>(null)
-  const savingsRateTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateHistoryPoint>>(null)
   const incomingSnapshot = useMemo<SavingsRateTrendSnapshot>(() => ({
     series,
     fxStatus,
@@ -205,72 +72,12 @@ export function SavingsRateTrendCard({
     loading,
     transitionKey,
   })
-  const hasActivity = displaySnapshot.series.some((point) => point.income > 0 || point.expenses > 0)
-  const currentPoint = displaySnapshot.series.find((point) => point.isCurrent)
-  const tickLabels = new Map(displaySnapshot.series.map((point) => [point.monthKey, point.tickLabel]))
-  const ratedPoints = displaySnapshot.series.filter((point) => point.rate !== null)
-  const completedRatedPoints = ratedPoints.filter((point) => !point.isCurrent)
-  const completedAveragePoints = completedRatedPoints.filter(hasFiniteSavingsRate)
-  const averageRate = completedAveragePoints.length > 0
-    ? Math.round(completedAveragePoints.reduce((sum, point) => sum + point.rate, 0) / completedAveragePoints.length)
-    : null
-  const latestPoint = displaySnapshot.series.at(-1)
-  const bestPoint = completedRatedPoints.reduce<SavingsRateHistoryPoint | null>(
-    (best, point) => (best === null || (point.rate ?? -Infinity) > (best.rate ?? -Infinity) ? point : best),
-    null,
-  )
-  const worstPoint = completedRatedPoints.reduce<SavingsRateHistoryPoint | null>(
-    (worst, point) => (worst === null || (point.rate ?? Infinity) < (worst.rate ?? Infinity) ? point : worst),
-    null,
-  )
-  const chartSeries = displaySnapshot.series.map((point) => ({
-    ...point,
-    chartRate: getSavingsRateChartRate(point.rate, displaySnapshot.capRates),
-  }))
-  const chartRates = chartSeries
-    .map((point) => point.chartRate)
-    .filter((rate): rate is number => rate !== null)
-  const averageChartRate = getSavingsRateChartRate(averageRate, displaySnapshot.capRates)
-  const highestRate = chartRates.length > 0 ? Math.max(...chartRates) : 100
-  const lowestRate = chartRates.length > 0 ? Math.min(...chartRates) : -100
-  const hasPositiveRate = chartRates.some((rate) => rate > 0)
-  const hasNegativeRate = chartRates.some((rate) => rate < 0)
-  const hasFullRate = chartRates.some((rate) => rate >= 100)
-  const showCappedPositiveSection = displaySnapshot.capRates && (hasPositiveRate || !hasNegativeRate)
-  const showCappedNegativeSection = displaySnapshot.capRates && hasNegativeRate
-  const yAxisDomain = displaySnapshot.capRates
-    ? [showCappedNegativeSection ? -100 : 0, showCappedPositiveSection ? 100 : 0]
-    : [hasNegativeRate ? Math.min(-100, lowestRate) : 0, Math.max(highestRate, 0)]
-  const yAxisTicks = Array.from(new Set(displaySnapshot.capRates ? [
-    ...(showCappedNegativeSection ? [-100] : []),
-    0,
-    ...(showCappedPositiveSection ? [100] : []),
-  ] : [
-    ...(hasNegativeRate ? [-100] : []),
-    lowestRate,
-    ...(averageChartRate !== null ? [averageChartRate] : []),
-    0,
-    ...(hasFullRate ? [100] : []),
-  ]))
-    .filter((tick) => tick >= yAxisDomain[0] && tick <= yAxisDomain[1])
-    .sort((a, b) => a - b)
-  const showSavingsRateTooltip = (
-    state: SavingsRateTooltipState,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
-    const activeIndex = Number(state.activeTooltipIndex)
-    const point = Number.isInteger(activeIndex)
-      ? displaySnapshot.series[activeIndex]
-      : displaySnapshot.series.find((item) => item.monthKey === String(state.activeLabel))
-    const pointer = getSavingsRateTooltipPointer(state, event)
-    if (!point) {
-      savingsRateTooltipRef.current?.show(null, pointer)
-      return
-    }
-
-    savingsRateTooltipRef.current?.show(point, pointer)
-  }
-  const hideSavingsRateTooltip = () => savingsRateTooltipRef.current?.hide()
+  const {
+    latestPoint,
+    averageRate,
+    bestPoint,
+    worstPoint,
+  } = getSavingsRateSummary(displaySnapshot.series)
 
   return (
     <section className="app-card">
@@ -403,141 +210,46 @@ export function SavingsRateTrendCard({
                 </div>
               </div>
             </div>
-            <div className="h-[300px] shrink-0 min-[750px]:h-auto min-[750px]:min-h-0 min-[750px]:flex-1 min-[750px]:shrink">
-              {!hasActivity ? (
-                <div
-                  className="flex h-full w-full items-center justify-center text-sm"
-                  style={{ color: 'var(--app-text-subtle)' }}
-                >
-                  {displaySnapshot.emptyLabel}
-                </div>
-              ) : (
-                <div
-                  ref={savingsRateChartRef}
-                  className="relative h-full"
-                  onMouseLeave={hideSavingsRateTooltip}
-                >
-              <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
-                <defs>
-                  {(['positive', 'accent', 'negative'] as const).map((tier) => (
-                    <pattern
-                      key={tier}
-                      id={`insights-savings-stripes-${tier}`}
-                      patternUnits="userSpaceOnUse"
-                      width={6}
-                      height={6}
-                      patternTransform="rotate(45)"
+            <SavingsRateChart
+              series={displaySnapshot.series}
+              averageRate={averageRate}
+              displayCurrency={displaySnapshot.displayCurrency}
+              capRates={displaySnapshot.capRates}
+              emptyLabel={displaySnapshot.emptyLabel}
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
+              <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                <span>Latest 12 months, up to available data</span>
+                {' '}
+                <AnimatePresence initial={false}>
+                  {displaySnapshot.capRates && (
+                    <motion.span
+                      className="inline-block font-semibold"
+                      initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={shouldReduceMotion ? undefined : { opacity: 0, y: -4 }}
+                      transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <rect
-                        width={3}
-                        height={6}
-                        style={{ fill: getSavingsTierColor(tier) }}
-                      />
-                    </pattern>
-                  ))}
-                </defs>
-              </svg>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartSeries}
-                  margin={savingsRateChartMargin}
-                  onMouseMove={(state, event) => showSavingsRateTooltip(state, event)}
-                  onMouseLeave={hideSavingsRateTooltip}
-                >
-                  <XAxis
-                    dataKey="monthKey"
-                    axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                    minTickGap={28}
-                    tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
-                    tickFormatter={(value) => tickLabels.get(String(value)) ?? String(value)}
-                    tickMargin={4}
-                  />
-                  <YAxis
-                    width={52}
-                    axisLine={false}
-                    tickLine={false}
-                    domain={yAxisDomain}
-                    ticks={yAxisTicks}
-                    tick={<SavingsRateYAxisTick maximum={Number.NaN} />}
-                  />
-                  <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
-                  {averageChartRate !== null && (
-                    <ReferenceLine
-                      y={averageChartRate}
-                      stroke="var(--app-accent)"
-                      strokeDasharray="4 4"
-                      strokeOpacity={0.72}
-                      strokeWidth={1}
-                    />
+                      Chart scale is capped at 100%
+                    </motion.span>
                   )}
-                  {currentPoint && <SavingsCurrentBoundary currentLabel={currentPoint.monthKey} />}
-                  <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={30}>
-                    {chartSeries.map((entry) => {
-                      const tier = getSavingsTier(entry.rate)
-                      return (
-                        <Cell
-                          key={entry.monthKey}
-                          fill={
-                            entry.isCurrent
-                              ? `url(#insights-savings-stripes-${tier})`
-                              : getSavingsTierColor(tier)
-                          }
-                        />
-                      )
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-              <DeferredChartTooltipOverlay
-                ref={savingsRateTooltipRef}
-                chartRef={savingsRateChartRef}
-                className="min-w-48"
-                getKey={getSavingsRateTooltipKey}
-                renderContent={(point) => (
-                  <SavingsRateHistoryTooltipContent
-                    point={point}
-                    displayCurrency={displaySnapshot.displayCurrency}
-                  />
-                )}
-              />
+                </AnimatePresence>
+              </p>
+              <div className="flex w-full items-center justify-center gap-4 text-xs min-[750px]:w-auto" style={{ color: 'var(--app-text-muted)' }}>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
+                  20%+
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-accent)' }} />
+                  1-19%
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
+                  0% or less
+                </span>
+              </div>
             </div>
-          )}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
-          <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            <span>Latest 12 months, up to available data</span>
-            {' '}
-            <AnimatePresence initial={false}>
-              {displaySnapshot.capRates && (
-                <motion.span
-                  className="inline-block font-semibold"
-                  initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={shouldReduceMotion ? undefined : { opacity: 0, y: -4 }}
-                  transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  Chart scale is capped at 100%
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </p>
-          <div className="flex w-full items-center justify-center gap-4 text-xs min-[750px]:w-auto" style={{ color: 'var(--app-text-muted)' }}>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
-              20%+
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-accent)' }} />
-              1-19%
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
-              0% or less
-            </span>
-          </div>
-        </div>
           </div>
         </InsightLoadingContent>
 
