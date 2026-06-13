@@ -23,6 +23,9 @@ export type InsightsRangeState = {
   cardQueriesEnabled: boolean
 }
 
+/**
+ * Owns insight range presets, custom date drafts, query enablement, and card transition keys
+ */
 export function useInsightsRange(): InsightsRangeState {
   const defaultCustomRange = useMemo(() => getDefaultCustomRange(), [])
   const initialRangeInputDates = useMemo(
@@ -48,6 +51,9 @@ export function useInsightsRange(): InsightsRangeState {
   const cardTransitionKey = `${rangeInputDates.from}:${rangeInputDates.to}:${comparisonPeriod}`
   const cardQueriesEnabled = rangeInputDates.from !== '' && rangeInputDates.to !== ''
 
+  /**
+   * Updates preset dates while preserving the committed custom range for later reuse
+   */
   function setRangePreset(value: InsightsRangePreset) {
     setRangePresetState(value)
 
@@ -78,6 +84,9 @@ export function useInsightsRange(): InsightsRangeState {
     setCustomToState(value)
   }
 
+  /**
+   * Commits custom dates only after both inputs form a valid range
+   */
   function commitCustomRange() {
     if (rangePreset !== 'CUSTOM' || customFrom === '' || customTo === '' || getCustomRangeDays(customFrom, customTo) === null) {
       return
