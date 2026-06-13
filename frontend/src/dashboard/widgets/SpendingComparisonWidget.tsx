@@ -1,18 +1,13 @@
 import { useMemo, useState } from 'react'
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-} from 'lucide-react'
-import {
   type SpendingRange,
   useSpendingComparison,
 } from '@/api/dashboard'
-import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
-import { formatCurrency } from '@/utils/formatCurrency'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { SpendingComparisonChart } from '@/dashboard/components/SpendingComparisonChart'
 import { SpendingComparisonHeader } from '@/dashboard/components/SpendingComparisonHeader'
+import { SpendingComparisonMetric } from '@/dashboard/components/SpendingComparisonMetric'
 import {
   CURRENT_LABEL_BY_RANGE,
   PREVIOUS_LABEL_BY_RANGE,
@@ -75,24 +70,12 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
         className="flex-1"
         contentClassName="flex h-full min-h-0 flex-col"
       >
-        <div className="flex items-baseline gap-2">
-          <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
-            <AppScrambledNumber text={formatCurrency(spentToDate, displayCurrency)} />
-          </p>
-          {spendingDeltaPct != null && (
-            <div
-              className="flex items-center text-sm font-medium max-[1000px]:text-[0.7875rem]"
-              style={{ color: spendingDeltaPct <= 0 ? 'var(--app-positive)' : 'var(--app-negative)' }}
-            >
-              {spendingDeltaPct <= 0 ? (
-                <ArrowDownRight size={14} aria-hidden />
-              ) : (
-                <ArrowUpRight size={14} aria-hidden />
-              )}
-              <AppScrambledNumber text={spendingDeltaText} />
-            </div>
-          )}
-        </div>
+        <SpendingComparisonMetric
+          spentToDate={spentToDate}
+          spendingDeltaPct={spendingDeltaPct}
+          spendingDeltaText={spendingDeltaText}
+          displayCurrency={displayCurrency}
+        />
         <div className="mb-2 mt-2 flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span
