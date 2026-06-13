@@ -1,5 +1,5 @@
-import type { DropdownOption } from '@/components/Dropdown'
-import Dropdown from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import Dropdown from '@/components/dropdown/Dropdown'
 import {
   formatMoneyInputLive,
   sanitizeMoneyInput,

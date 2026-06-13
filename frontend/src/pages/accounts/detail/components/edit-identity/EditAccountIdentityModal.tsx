@@ -9,8 +9,8 @@ import {
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
-import CreateInstitutionModal from '@/components/CreateInstitutionModal'
-import type { DropdownOption } from '@/components/Dropdown'
+import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { waitForMilliseconds } from '@/utils/timing'
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import {

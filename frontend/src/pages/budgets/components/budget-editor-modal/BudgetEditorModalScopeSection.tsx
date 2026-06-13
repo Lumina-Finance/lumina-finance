@@ -1,5 +1,5 @@
-import Dropdown from '@/components/Dropdown'
-import IconTooltip from '@/components/IconTooltip'
+import Dropdown from '@/components/dropdown/Dropdown'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/BudgetEditorFieldLabelRow'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'

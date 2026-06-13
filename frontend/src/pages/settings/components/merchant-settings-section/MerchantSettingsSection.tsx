@@ -10,7 +10,7 @@ import {
   type Merchant,
 } from '@/api/merchants'
 import { merchantKeys } from '@/api/cache/queryKeys'
-import CreateMerchantModal from '@/components/CreateMerchantModal'
+import CreateMerchantModal from '@/components/reference-modals/CreateMerchantModal'
 import MerchantSettingsList from '@/pages/settings/components/merchant-settings-section/MerchantSettingsList'
 import MergeDeleteMerchantModal from '@/pages/settings/components/merchant-settings-section/MergeDeleteMerchantModal'
 import { DELETE_SPINNER_MS } from '@/pages/settings/components/merchant-settings-section/merchantSettingsConstants'

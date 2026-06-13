@@ -1,6 +1,6 @@
 import type { SyntheticEvent } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
-import { FxStatusTooltip } from '@/components/FxStatusTooltip'
+import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
 import { getBudgetUtilizationFxStatusMessage } from '@/pages/budgets/utils/fxTooltipMessages'
 
 /**

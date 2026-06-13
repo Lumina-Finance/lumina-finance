@@ -1,5 +1,5 @@
 import type { AccountKind, AccountType, AccountsOverview } from '@/api/accounts'
-import type { OptionItem } from '@/components/FilterOptionList'
+import type { OptionItem } from '@/components/filters/FilterOptionList'
 import type { FilterValues } from '@/pages/accounts/types/accounts'
 
 const KIND_OPTIONS: OptionItem[] = [

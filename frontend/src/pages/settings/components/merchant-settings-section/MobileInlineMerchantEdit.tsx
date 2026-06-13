@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateMerchant, type Merchant } from '@/api/merchants'
-import Dropdown, { type DropdownOption } from '@/components/Dropdown'
+import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { NO_CATEGORY_VALUE } from '@/pages/settings/components/merchant-settings-section/merchantSettingsConstants'
 import { scopeLabel } from '@/pages/settings/components/merchant-settings-section/merchantSettingsUtils'
 

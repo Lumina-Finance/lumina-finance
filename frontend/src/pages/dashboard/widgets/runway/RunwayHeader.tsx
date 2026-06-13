@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
 import { CircleHelp, LifeBuoy } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import { FxStatusTooltip } from '@/components/FxStatusTooltip'
+import IconTooltip from '@/components/tooltips/IconTooltip'
+import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/DashboardWidgetHeaderIcon'
 import { getRunwayFxStatusMessage } from '@/utils/fxTooltipMessages'
 

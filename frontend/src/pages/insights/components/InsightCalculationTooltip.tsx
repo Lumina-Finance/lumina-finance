@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import IconTooltip from '@/components/IconTooltip'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 
 type InsightCalculationTooltipProps = {
   label: string

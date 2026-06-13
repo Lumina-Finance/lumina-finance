@@ -8,7 +8,7 @@ import type {
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
+} from '@/components/loading/LoadingTransition'
 import { PeriodGlancePrimaryPanel } from './PeriodGlancePrimaryPanel'
 import { PeriodGlanceSupportGrid } from './PeriodGlanceSupportGrid'
 import { InsightSectionHeader } from '../InsightSectionHeader'

@@ -1,5 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
-import type { OptionItem } from '@/components/FilterOptionList'
+import type { OptionItem } from '@/components/filters/FilterOptionList'
 import { MobileOptionRow } from '@/components/filters/MobileOptionRow'
 
 type MobileFilterSectionProps = {

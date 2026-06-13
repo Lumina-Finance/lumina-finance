@@ -1,4 +1,4 @@
-import DateRangeFilterPanel from '@/components/DateRangeFilterPanel'
+import DateRangeFilterPanel from '@/components/filters/DateRangeFilterPanel'
 
 type MobileDateRangeSectionProps = {
   selectedLabel: string | null

@@ -1,14 +1,14 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import Dropdown from '@/components/Dropdown';
-import IconTooltip from '@/components/IconTooltip';
+import Dropdown from '@/components/dropdown/Dropdown';
+import IconTooltip from '@/components/tooltips/IconTooltip';
 import CreateModalFieldLabelRow from '@/components/create-modal/CreateModalFieldLabelRow';
 import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame';
 import CreateAccountModalShell from '@/pages/accounts/components/create-account-modal/CreateAccountModalShell';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories';
-import CreateInstitutionModal from '@/components/CreateInstitutionModal';
+import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal';
 import { useCreateAccount } from '@/api/accounts';
 import { ApiError } from '@/api/auth';
 import { useAuth } from '@/hooks/useAuth';

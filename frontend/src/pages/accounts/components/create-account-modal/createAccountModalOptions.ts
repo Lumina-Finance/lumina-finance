@@ -1,7 +1,7 @@
 import type { Institution } from '@/api/institutions'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
-import type { DropdownOption } from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
 /**
  * Builds the currency selector labels without leaking formatting details into the modal component

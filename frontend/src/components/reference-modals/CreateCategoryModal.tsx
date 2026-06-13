@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Tag } from 'lucide-react'
 import { useCreateCategory, type Category } from '@/api/categories'
-import Dropdown from '@/components/Dropdown'
+import Dropdown from '@/components/dropdown/Dropdown'
 import CategoryIconSelector from '@/components/category-icon-selector/CategoryIconSelector'
 import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
 import CreateReferenceModalShell, {

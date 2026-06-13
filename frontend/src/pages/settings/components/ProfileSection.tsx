@@ -1,6 +1,6 @@
 import type React from 'react'
 import { useCurrencies } from '@/api/currency'
-import Dropdown from '@/components/Dropdown'
+import Dropdown from '@/components/dropdown/Dropdown'
 import SettingsField from '@/pages/settings/components/SettingsField'
 import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'

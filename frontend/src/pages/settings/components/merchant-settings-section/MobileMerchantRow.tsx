@@ -2,8 +2,8 @@ import { Check, Pencil, Trash2, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
-import type { DropdownOption } from '@/components/Dropdown'
-import MarqueeText from '@/components/MarqueeText'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import MarqueeText from '@/components/display/MarqueeText'
 import MobileInlineMerchantEdit from '@/pages/settings/components/merchant-settings-section/MobileInlineMerchantEdit'
 import {
   MERCHANT_ROW_EXIT,

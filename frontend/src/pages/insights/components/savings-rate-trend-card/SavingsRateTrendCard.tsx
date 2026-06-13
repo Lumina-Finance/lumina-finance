@@ -5,7 +5,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
+} from '@/components/loading/LoadingTransition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'

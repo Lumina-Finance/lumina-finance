@@ -1,6 +1,6 @@
 import { Archive, Check } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
-import MarqueeText from '@/components/MarqueeText'
+import MarqueeText from '@/components/display/MarqueeText'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 interface ArchivedRunwayAccountTileProps {

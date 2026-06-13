@@ -1,5 +1,5 @@
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/utils/fxStatus'
 
 type InsightFxStatusBadgeProps = {

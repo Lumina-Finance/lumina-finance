@@ -1,10 +1,10 @@
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { Tag } from '@/api/tags'
-import CreateCategoryModal from '@/components/CreateCategoryModal'
-import CreateMerchantModal from '@/components/CreateMerchantModal'
-import CreateTagModal from '@/components/CreateTagModal'
-import type { DropdownOption } from '@/components/Dropdown'
+import CreateCategoryModal from '@/components/reference-modals/CreateCategoryModal'
+import CreateMerchantModal from '@/components/reference-modals/CreateMerchantModal'
+import CreateTagModal from '@/components/reference-modals/CreateTagModal'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import type { TransactionModalKind } from '@/pages/transactions/components/transaction-modal/types'
 
 interface TransactionReferenceCreationModalsProps {

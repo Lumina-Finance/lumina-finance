@@ -9,7 +9,7 @@ import {
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
 } from '@/components/dropdown/dropdownOptions'
-import type { DropdownOption } from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
 const options: DropdownOption[] = [
   { value: 'chequing', label: 'Chequing', group: 'Assets' },

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { Tag, X } from 'lucide-react'
 import type { Category } from '@/api/categories'
-import Dropdown from '@/components/Dropdown'
+import Dropdown from '@/components/dropdown/Dropdown'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import {
   DELETE_SPINNER_MS,

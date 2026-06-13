@@ -2,7 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import type { DropdownOption } from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   ACCOUNT_KIND_LABELS,
   COLUMN_TARGETS,

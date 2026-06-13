@@ -1,4 +1,4 @@
-import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
+import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/time-range/TimeRangeSelector'
 import { BalanceChartModeSelector } from '@/pages/accounts/detail/components/BalanceChartModeSelector'
 import type {
   BalanceChartMode,

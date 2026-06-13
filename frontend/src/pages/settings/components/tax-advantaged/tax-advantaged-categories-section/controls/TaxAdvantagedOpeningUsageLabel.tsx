@@ -1,4 +1,4 @@
-import IconTooltip from '@/components/IconTooltip'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 
 const OPENING_USAGE_TOOLTIP = 'Opening usage is the amount already contributed or withdrawn before Lumina started tracking this TAC. Add it when setting up an existing limit so remaining room starts from the correct baseline.'
 

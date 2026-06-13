@@ -1,6 +1,6 @@
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
-import type { DropdownOption } from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   CATEGORY_KIND_LABELS,
   CATEGORY_KIND_ORDER,

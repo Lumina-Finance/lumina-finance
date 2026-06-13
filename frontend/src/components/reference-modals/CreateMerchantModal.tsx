@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Store } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateMerchant, type Merchant } from '@/api/merchants'
-import Dropdown, { type DropdownOption } from '@/components/Dropdown'
+import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,

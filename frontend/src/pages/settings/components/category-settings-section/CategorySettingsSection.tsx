@@ -10,7 +10,7 @@ import {
   type Category,
 } from '@/api/categories'
 import { categoryKeys } from '@/api/cache/queryKeys'
-import CreateCategoryModal from '@/components/CreateCategoryModal'
+import CreateCategoryModal from '@/components/reference-modals/CreateCategoryModal'
 import CategorySettingsGroup from '@/pages/settings/components/category-settings-section/CategorySettingsGroup'
 import MergeDeleteCategoryModal from '@/pages/settings/components/category-settings-section/MergeDeleteCategoryModal'
 import { DELETE_SPINNER_MS } from '@/pages/settings/components/category-settings-section/categorySettingsConstants'

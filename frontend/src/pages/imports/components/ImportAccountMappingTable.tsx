@@ -1,4 +1,4 @@
-import Dropdown, { type DropdownOption } from '@/components/Dropdown'
+import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '../constants'
 import { ImportCheckbox } from './ImportPrimitives'
 

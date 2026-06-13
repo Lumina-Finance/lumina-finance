@@ -18,7 +18,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
+} from '@/components/loading/LoadingTransition'
 
 type FlowTooltipPayload = Partial<FundFlowNode> & {
   value?: number | string

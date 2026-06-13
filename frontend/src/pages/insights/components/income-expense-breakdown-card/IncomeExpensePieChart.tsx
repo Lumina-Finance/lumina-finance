@@ -9,7 +9,7 @@ import {
   PieChart,
   ResponsiveContainer,
 } from 'recharts'
-import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
+import { BreakdownCrossoverBadge } from '@/components/display/BreakdownCrossoverBadge'
 import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'

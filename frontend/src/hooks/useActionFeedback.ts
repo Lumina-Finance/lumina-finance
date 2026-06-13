@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
+import type { ActionFeedbackStatus } from '@/components/feedback/ActionFeedbackButton'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const DEFAULT_MINIMUM_LOADING_MS = 1000

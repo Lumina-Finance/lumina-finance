@@ -1,4 +1,4 @@
-import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
+import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/feedback/ActionFeedbackButton'
 
 type SettingsPaneActionsProps = {
   canSave: boolean

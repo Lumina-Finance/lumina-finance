@@ -1,8 +1,8 @@
 import { BarChart3 } from 'lucide-react'
 import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
-import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import { FxStatusTooltip } from '@/components/FxStatusTooltip'
+import { AppSlotMachineText } from '@/components/display/AppSlotMachineText'
+import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
 import { DashboardRangeSelector } from '@/pages/dashboard/components/DashboardRangeSelector'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/DashboardWidgetHeaderIcon'
 import {

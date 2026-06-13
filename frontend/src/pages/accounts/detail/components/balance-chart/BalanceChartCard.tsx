@@ -3,7 +3,7 @@ import { useAccountSnapshots, type Account } from '@/api/accounts'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
+} from '@/components/loading/LoadingTransition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type {
   BalanceChartMode,

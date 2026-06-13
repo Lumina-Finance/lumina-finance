@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, X } from 'lucide-react'
 import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
-import Dropdown from '@/components/Dropdown'
+import Dropdown from '@/components/dropdown/Dropdown'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { useCreateTaxAdvantagedCategoryForm } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCreateTaxAdvantagedCategoryForm'
 import {

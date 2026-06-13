@@ -1,5 +1,5 @@
 import type { Tag } from '@/api/tags'
-import type { DropdownOption } from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
 export function scopeLabel(tag: Tag) {
   return tag.group_id ? 'Group' : 'Personal'

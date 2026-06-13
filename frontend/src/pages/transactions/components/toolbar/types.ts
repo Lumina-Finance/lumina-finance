@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { Category } from '@/api/categories'
-import type { OptionItem } from '@/components/FilterOptionList'
+import type { OptionItem } from '@/components/filters/FilterOptionList'
 import type { TransactionListAccount, TransactionListFilters } from '@/pages/transactions/types/transactionList'
 
 export type TransactionFilterSetter = (patch: Partial<TransactionListFilters>) => void

@@ -6,7 +6,7 @@ import {
   useInfiniteMerchants,
   type Merchant,
 } from '@/api/merchants'
-import Dropdown from '@/components/Dropdown'
+import Dropdown from '@/components/dropdown/Dropdown'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import {
   DELETE_SPINNER_MS,
