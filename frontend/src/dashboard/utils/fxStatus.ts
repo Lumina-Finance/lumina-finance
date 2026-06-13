@@ -1,5 +1,8 @@
 import type { FxRateIssue, FxStatus } from '@/api/shared/fx'
 
+/**
+ * Formats distinct missing currency pairs for compact FX tooltips
+ */
 export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
   const distinctPairs = Array.from(new Set(missingPairs.map((pair) => `${pair.base}/${pair.quote}`)))
   const visiblePairs = distinctPairs.slice(0, 3)
@@ -9,6 +12,9 @@ export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
     : visiblePairs.join(', ')
 }
 
+/**
+ * Combines multiple widget FX states into one status while deduplicating missing pairs
+ */
 export function combineFxStatuses(statuses: Array<FxStatus | undefined | null>): FxStatus {
   const activeStatuses = statuses.filter((status): status is FxStatus => status != null && status.state !== 'none')
 
@@ -29,6 +35,9 @@ export function combineFxStatuses(statuses: Array<FxStatus | undefined | null>):
   }
 }
 
+/**
+ * Returns the generic tooltip message for a foreign exchange status
+ */
 export function getFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -42,6 +51,9 @@ export function getFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Maps a foreign exchange status to the tooltip icon tone
+ */
 export function getFxStatusTone(fxStatus: FxStatus | undefined) {
   if (fxStatus?.state === 'complete') return 'blue'
   if (fxStatus?.state === 'none') return 'gray'

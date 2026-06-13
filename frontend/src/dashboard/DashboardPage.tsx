@@ -9,6 +9,9 @@ import { SpendingComparisonWidget } from '@/dashboard/widgets/SpendingComparison
 import { TopBudgetsWidget } from '@/dashboard/widgets/TopBudgetsWidget'
 import { useDashboardGreeting } from '@/dashboard/hooks/useDashboardGreeting'
 
+/**
+ * Composes the dashboard greeting and financial overview widgets
+ */
 export default function DashboardPage() {
   const { greeting, subtitle } = useDashboardGreeting()
   const { user } = useAuth()

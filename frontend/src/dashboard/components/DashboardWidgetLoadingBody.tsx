@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 import { LoadingContent, LoadingOverlay } from '@/components/LoadingTransition'
 
+/**
+ * Wraps dashboard widget content with the shared loading conceal and overlay behaviour
+ */
 export function DashboardWidgetLoadingBody({
   children,
   contentConcealed,
