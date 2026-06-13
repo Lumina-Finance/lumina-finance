@@ -7,44 +7,14 @@ import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
 import { getTopBudgetsFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatDashboardShortDate } from '@/dashboard/utils/formatDashboardShortDate'
+import { getTopBudgetAttentionState } from '@/dashboard/utils/getTopBudgetAttentionState'
 import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
+import { formatCurrency } from '@/utils/formatCurrency'
 
-function formatDashboardShortDate(value: string) {
-  const [datePart] = value.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  if (!year || !month || !day) return 'Unknown'
-
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function getBudgetAttentionState(usagePct: number) {
-  if (usagePct >= 100) {
-    return {
-      label: 'Needs attention',
-      textColor: 'var(--app-negative)',
-      indicatorColor: 'var(--app-negative)',
-    }
-  }
-
-  if (usagePct >= 80) {
-    return {
-      label: 'Watch',
-      textColor: 'var(--app-warning-text)',
-      indicatorColor: 'var(--app-warning)',
-    }
-  }
-
-  return {
-    label: 'On track',
-    textColor: 'var(--app-positive)',
-    indicatorColor: 'var(--app-positive)',
-  }
-}
-
+/**
+ * Loads recent budget utilization data and composes the dashboard top budgets list
+ */
 export function TopBudgetsWidget() {
   const { data: incomingLatestBudgetUtilizations, isFetching: loading } = useLatestBudgetUtilizations()
   const loadingSnapshot = useMemo(
@@ -105,7 +75,7 @@ export function TopBudgetsWidget() {
           <>
             <div className="min-h-0 flex-1">
               {budgets.map((budget, index) => {
-                const attention = getBudgetAttentionState(budget.usagePct)
+                const attention = getTopBudgetAttentionState(budget.usagePct)
                 const barPct = Math.min(Math.max(budget.usagePct, 0), 100)
                 return (
                   <Link
