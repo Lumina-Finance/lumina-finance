@@ -35,14 +35,16 @@ import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getBreakdownFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
-import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
+import {
+  getSpendingBreakdownEntryColor,
+  getSpendingBreakdownSummary,
+  type BreakdownMode,
+} from '@/dashboard/utils/getSpendingBreakdownSummary'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 type SpendingBreakdownWidgetProps = {
   displayCurrency: string
 }
-
-type BreakdownMode = 'spending' | 'income'
 
 function getCrossoverKind(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
   if (mode === 'spending' && entry.category_kind === 'income') return 'income-loss'
@@ -53,19 +55,6 @@ function getCrossoverKind(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
 function renderCrossoverBadge(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
   const kind = getCrossoverKind(entry, mode)
   return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
-}
-
-function getBreakdownCategoryColorId(
-  entry: CategoryBreakdownEntry,
-  fallbackKind: CategoryBreakdownEntry['category_kind'],
-) {
-  return entry.name === 'Other'
-    ? `${entry.category_kind || fallbackKind}-other`
-    : entry.category_id
-}
-
-function getEntryTotal(entries: CategoryBreakdownEntry[]) {
-  return entries.reduce((sum, entry) => sum + entry.amount, 0)
 }
 
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
@@ -92,32 +81,15 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   })
   const spendingBreakdown = displaySnapshot.spendingBreakdown
   const fxStatus = spendingBreakdown?.fx_status
-  const breakdownEntries = useMemo(() => {
-    if (!spendingBreakdown) return []
-    return breakdownMode === 'spending' ? spendingBreakdown.expense : spendingBreakdown.income
-  }, [spendingBreakdown, breakdownMode])
-  const fallbackBreakdownTotal = getEntryTotal(breakdownEntries)
-  const breakdownTotal = spendingBreakdown
-    ? breakdownMode === 'spending'
-      ? spendingBreakdown.expense_total
-      : spendingBreakdown.income_total
-    : fallbackBreakdownTotal
-  const breakdownChartKey = `${breakdownMode}-${breakdownRange}`
-  const breakdownCategoryKind = breakdownMode === 'spending' ? 'expense' : 'income'
-  const breakdownColors = useMemo(() => getCategoryColorMap(breakdownEntries.map((entry) => ({
-    id: getBreakdownCategoryColorId(entry, breakdownCategoryKind),
-    name: entry.name,
-    kind: entry.category_kind || breakdownCategoryKind,
-  }))), [breakdownEntries, breakdownCategoryKind])
-  const getBreakdownColor = (entry: CategoryBreakdownEntry) => getCategoryColor({
-    id: getBreakdownCategoryColorId(entry, breakdownCategoryKind),
-    name: entry.name,
-    kind: entry.category_kind || breakdownCategoryKind,
-  })
-  const getSpacedBreakdownColor = (entry: CategoryBreakdownEntry) => (
-    breakdownColors.get(getBreakdownCategoryColorId(entry, breakdownCategoryKind) || entry.name)
-      ?? getBreakdownColor(entry)
+  const breakdownSummary = useMemo(
+    () => getSpendingBreakdownSummary(spendingBreakdown, breakdownMode, breakdownRange),
+    [breakdownMode, breakdownRange, spendingBreakdown],
   )
+  const {
+    entries: breakdownEntries,
+    total: breakdownTotal,
+    chartKey: breakdownChartKey,
+  } = breakdownSummary
   const updateBreakdownTooltipPosition = (clientX: number, clientY: number) => {
     const chart = breakdownChartRef.current
     const tooltip = breakdownTooltipRef.current
@@ -271,7 +243,10 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                         onMouseLeave={hideBreakdownTooltip}
                       >
                         {breakdownEntries.map((entry) => (
-                          <Cell key={entry.category_id} fill={getSpacedBreakdownColor(entry)} />
+                          <Cell
+                            key={entry.category_id}
+                            fill={getSpendingBreakdownEntryColor(entry, breakdownSummary)}
+                          />
                         ))}
                       </Pie>
                     </PieChart>
@@ -307,7 +282,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                 <div key={entry.category_id} className="flex items-center gap-1.5">
                   <span
                     className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: getSpacedBreakdownColor(entry) }}
+                    style={{ background: getSpendingBreakdownEntryColor(entry, breakdownSummary) }}
                   />
                   <span
                     className="whitespace-nowrap text-xs font-medium max-[1000px]:text-[0.675rem]"
