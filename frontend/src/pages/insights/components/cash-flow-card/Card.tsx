@@ -10,7 +10,7 @@ import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
-import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '../CalculationTooltip'
 import { InsightSectionHeader } from '../SectionHeader'
 
@@ -77,9 +77,9 @@ export function CashFlowCard({
               calculation={cashFlowCalculation}
             />
             {displaySnapshot.fxStatus && (
-              <InsightFxStatusBadge
+              <FxStatusBadge
                 label="Cash Flow FX status"
-                status={displaySnapshot.fxStatus}
+                fxStatus={displaySnapshot.fxStatus}
                 getMessage={getInsightsCashFlowFxStatusMessage}
               />
             )}

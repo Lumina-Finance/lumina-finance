@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
-import { InsightFxStatusBadge } from '@/pages/insights/components/FxStatusBadge'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import type { PeriodGlancePrimaryMetric } from '@/pages/insights/types/periodGlance'
 import { getPeriodIncomeExpenseFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -40,9 +40,9 @@ export function PeriodGlancePrimaryPanel({
             calculation={primaryMetric.calculation}
           />
           {incomeExpenseFxStatus && (
-            <InsightFxStatusBadge
+            <FxStatusBadge
               label="Income and expense FX status"
-              status={incomeExpenseFxStatus}
+              fxStatus={incomeExpenseFxStatus}
               getMessage={getPeriodIncomeExpenseFxStatusMessage}
             />
           )}

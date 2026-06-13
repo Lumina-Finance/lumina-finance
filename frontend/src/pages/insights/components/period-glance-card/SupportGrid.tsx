@@ -1,4 +1,4 @@
-import { InsightFxStatusBadge } from '@/pages/insights/components/FxStatusBadge'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type { PeriodGlanceSupportItem } from '@/pages/insights/types/periodGlance'
 import {
@@ -34,9 +34,9 @@ export function PeriodGlanceSupportGrid({ supportItems }: PeriodGlanceSupportGri
             <p className="app-label inline-flex items-center justify-center gap-2">
               <span className={`${PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS} justify-end`}>
                 {item.fxStatus && (
-                  <InsightFxStatusBadge
+                  <FxStatusBadge
                     label={`${item.label} FX status`}
-                    status={item.fxStatus}
+                    fxStatus={item.fxStatus}
                     getMessage={item.getFxStatusMessage}
                   />
                 )}

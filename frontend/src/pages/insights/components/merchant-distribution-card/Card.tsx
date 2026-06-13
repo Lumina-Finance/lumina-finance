@@ -8,7 +8,7 @@ import {
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantMarketMerchant } from '@/pages/insights/types/merchantDistribution'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '../CalculationTooltip'
 import { MerchantDistributionLegend } from './Legend'
 import { MerchantMarketMap } from './MarketMap'
@@ -68,9 +68,9 @@ export function MerchantDistributionCard({
               calculation="Shows merchant spending after refunds. Income losses are not included"
             />
             {displaySnapshot.fxStatus && (
-              <InsightFxStatusBadge
+              <FxStatusBadge
                 label="Merchant Distribution FX status"
-                status={displaySnapshot.fxStatus}
+                fxStatus={displaySnapshot.fxStatus}
                 getMessage={getMerchantSpendingFxStatusMessage}
               />
             )}

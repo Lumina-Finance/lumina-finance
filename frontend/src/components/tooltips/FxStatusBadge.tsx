@@ -1,11 +1,11 @@
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/utils/fxStatus'
 
 type FxStatusBadgeProps = {
   label: string
   fxStatus: FxStatus | undefined
-  getMessage: (fxStatus: FxStatus) => string
+  getMessage?: (fxStatus: FxStatus) => string
   placement?: 'top' | 'bottom'
 }
 
@@ -15,7 +15,7 @@ type FxStatusBadgeProps = {
 export function FxStatusBadge({
   label,
   fxStatus,
-  getMessage,
+  getMessage = getFxStatusMessage,
   placement = 'top',
 }: FxStatusBadgeProps) {
   if (!fxStatus) return null
