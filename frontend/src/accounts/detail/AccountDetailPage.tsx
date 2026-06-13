@@ -9,7 +9,7 @@ import AccountIdentityCard from '@/accounts/detail/components/AccountIdentityCar
 import BackLink from '@/accounts/detail/components/BackLink'
 import BalanceChartCard from '@/accounts/detail/components/balance-chart/BalanceChartCard'
 import EditAccountIdentityModal from '@/accounts/detail/components/EditAccountIdentityModal'
-import MonthlyCashFlowCard from '@/accounts/detail/components/MonthlyCashFlowCard'
+import MonthlyCashFlowCard from '@/accounts/detail/components/monthly-cash-flow/MonthlyCashFlowCard'
 import { TopCategoriesBySpendingCard, TopMerchantsBySpendingCard } from '@/accounts/detail/components/SpendingBreakdownCards'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
