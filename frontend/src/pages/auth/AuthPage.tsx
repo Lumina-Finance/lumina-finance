@@ -3,12 +3,12 @@ import { useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AuthAnimatedTitle';
-import { AuthConfirmPasswordField } from '@/pages/auth/components/AuthConfirmPasswordField';
-import { AuthErrorBanner } from '@/pages/auth/components/AuthErrorBanner';
-import { AuthSignupNameFields } from '@/pages/auth/components/AuthSignupNameFields';
-import { AuthSignupReferenceFields } from '@/pages/auth/components/AuthSignupReferenceFields';
-import { AuthTextField } from '@/pages/auth/components/AuthTextField';
-import { PasswordRequirements } from '@/pages/auth/components/PasswordRequirements';
+import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/AuthConfirmPasswordField';
+import { AuthErrorBanner } from '@/pages/auth/components/feedback/AuthErrorBanner';
+import { AuthSignupNameFields } from '@/pages/auth/components/fields/AuthSignupNameFields';
+import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/AuthSignupReferenceFields';
+import { AuthTextField } from '@/pages/auth/components/fields/AuthTextField';
+import { PasswordRequirements } from '@/pages/auth/components/feedback/PasswordRequirements';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode } from '@/pages/auth/utils/authForm';
 
