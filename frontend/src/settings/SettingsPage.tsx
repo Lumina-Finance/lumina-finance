@@ -2,13 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import {
   useRunwaySettings,
-  useUpdateProfile,
   useUpdateRunwaySettings,
-  type UpdateProfilePayload,
 } from '@/api/user'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import {
@@ -23,7 +20,7 @@ import ProfileSection from '@/settings/components/ProfileSection'
 import RunwaySection from '@/settings/components/RunwaySection'
 import { SettingsPaneActions } from '@/settings/components/SettingsPaneActions'
 import TaxAdvantagedCategoriesSection from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection'
-import { profileFormFromUser, type ProfileFormState } from '@/settings/profileForm'
+import { useProfileSettingsForm } from '@/settings/hooks/useProfileSettingsForm'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/settings/settingsNavigation'
 
 function runwayThresholdsEqual(a: RunwayThresholds, b: RunwayThresholds) {
@@ -36,32 +33,22 @@ function runwayThresholdsEqual(a: RunwayThresholds, b: RunwayThresholds) {
 export default function SettingsPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, setUser } = useAuth()
+  const {
+    user,
+    profileForm,
+    setProfileField,
+    firstNameValid,
+    isProfileDirty,
+    isProfilePending,
+    canSaveProfile,
+    profileSaveError,
+    profileSaveStatus,
+    handleSaveProfile,
+    handleDiscardProfile,
+  } = useProfileSettingsForm()
   const { data: accounts, isLoading: accountsLoading } = useAccounts()
   const { data: runwaySettings, isLoading: runwaySettingsLoading } = useRunwaySettings()
-  const updateProfile = useUpdateProfile()
   const updateRunway = useUpdateRunwaySettings()
-
-  // ── Profile draft ──
-  // Effective form value = base (from user) + overrides. Derived on every
-  // render so when `user` updates after save, the form auto-resets with no
-  // effect-based sync.
-  const [profileOverrides, setProfileOverrides] = useState<Partial<ProfileFormState>>({})
-  const profileBase: ProfileFormState = user
-    ? profileFormFromUser(user)
-    : { first_name: '', last_name: '', tz: '' }
-  const profileForm: ProfileFormState = { ...profileBase, ...profileOverrides }
-  const setProfileField = <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) =>
-    setProfileOverrides((o) => ({ ...o, [key]: value }))
-
-  const isProfileDirty = user
-    ? profileForm.first_name !== user.first_name
-      || (profileForm.last_name === '' ? null : profileForm.last_name) !== user.last_name
-      || profileForm.tz !== user.tz
-    : false
-  // first_name is required on the backend (min_length=1) — block a blank save
-  // client-side so the Save button disables instead of round-tripping a 422.
-  const firstNameValid = profileForm.first_name.trim().length > 0
 
   // ── Runway selection ──
   // `null` means "use the persisted server selection"; once the user flips any
@@ -121,42 +108,13 @@ export default function SettingsPage() {
   const isRunwayPaneDirty = isRunwayDirty || isRunwayThresholdDirty
 
   // ── Pane-level save/discard ──
-  const profileSaveFeedback = useActionFeedback()
   const runwaySaveFeedback = useActionFeedback()
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [settingsMenuStuck, setSettingsMenuStuck] = useState(false)
   const mobileSettingsStickySentinelRef = useRef<HTMLDivElement>(null)
   const mobileSettingsMenuRef = useRef<HTMLDivElement>(null)
-  const isProfilePending = profileSaveFeedback.isPending || updateProfile.isPending
   const isRunwayPending = runwaySaveFeedback.isPending || updateRunway.isPending
-  const canSaveProfile = isProfileDirty && !isProfilePending && firstNameValid
   const canSaveRunway = runwaySettings !== undefined && isRunwayPaneDirty && !isRunwayPending
-
-  const handleSaveProfile = async () => {
-    if (!canSaveProfile || !user) return
-
-    try {
-      await profileSaveFeedback.run(async () => {
-        // Patch only the fields that actually changed. last_name translates ""
-        // → null so the backend clears the column instead of storing "".
-        const patch: UpdateProfilePayload = {}
-        if (profileForm.first_name !== user.first_name) patch.first_name = profileForm.first_name.trim()
-        const nextLast = profileForm.last_name === '' ? null : profileForm.last_name
-        if (nextLast !== user.last_name) patch.last_name = nextLast
-        if (profileForm.tz !== user.tz) patch.tz = profileForm.tz
-
-        const updated = await updateProfile.mutateAsync(patch)
-        setUser(updated)
-        setProfileOverrides({})
-      })
-    } catch {
-      // Mutation errors surface through the pane-level save error text.
-    }
-  }
-
-  const handleDiscardProfile = () => {
-    setProfileOverrides({})
-  }
 
   const handleSaveRunway = async () => {
     if (!canSaveRunway) return
@@ -309,9 +267,6 @@ export default function SettingsPage() {
     return () => observer.disconnect()
   }, [])
 
-  const profileSaveError = updateProfile.isError
-    ? ((updateProfile.error as Error)?.message ?? 'Failed to save profile.')
-    : null
   const runwaySaveError = updateRunway.isError
     ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway settings.')
     : null
@@ -323,7 +278,7 @@ export default function SettingsPage() {
       onDiscard={handleDiscardProfile}
       onSave={handleSaveProfile}
       pending={isProfilePending}
-      status={profileSaveFeedback.status}
+      status={profileSaveStatus}
     />
   )
   const emailPasswordActions = (
