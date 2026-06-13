@@ -8,12 +8,12 @@ import {
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
-import { FxStatusBadge } from './FxStatusBadge'
-import { InsightCalculationTooltip } from './InsightCalculationTooltip'
-import { InsightActionButton } from './InsightActionButton'
-import { IncomeExpensePieChart } from './income-expense/IncomeExpensePieChart'
-import { IncomeExpenseTrendSections } from './income-expense/IncomeExpenseTrendSections'
-import { SectionHeader } from './SectionHeader'
+import { FxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
+import { InsightActionButton } from '../InsightActionButton'
+import { IncomeExpensePieChart } from './IncomeExpensePieChart'
+import { IncomeExpenseTrendSections } from './IncomeExpenseTrendSections'
+import { SectionHeader } from '../SectionHeader'
 import {
   getBreakdownCalculation,
 } from '@/insights/utils/incomeExpenseBreakdownDisplay'

@@ -8,11 +8,11 @@ import {
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import type { MerchantMarketMerchant } from '@/insights/types/merchantDistribution'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
-import { FxStatusBadge } from './FxStatusBadge'
-import { InsightCalculationTooltip } from './InsightCalculationTooltip'
-import { MerchantDistributionLegend } from './merchant-distribution/MerchantDistributionLegend'
-import { MerchantMarketMap } from './merchant-distribution/MerchantMarketMap'
-import { SectionHeader } from './SectionHeader'
+import { FxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
+import { MerchantDistributionLegend } from './MerchantDistributionLegend'
+import { MerchantMarketMap } from './MerchantMarketMap'
+import { SectionHeader } from '../SectionHeader'
 
 type MerchantDistributionCardProps = {
   merchants: MerchantMarketMerchant[]

@@ -9,11 +9,11 @@ import type {
 import { getFundFlowChartHeight } from '@/insights/utils/fundFlowChart'
 import { withoutMatchingEntries } from '@/insights/utils/fundFlowEntries'
 import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
-import { FundFlowCategoryList } from './fund-flow/FundFlowCategoryList'
-import { FundFlowChart } from './fund-flow/FundFlowChart'
-import { FxStatusBadge } from './FxStatusBadge'
-import { InsightCalculationTooltip } from './InsightCalculationTooltip'
-import { SectionHeader } from './SectionHeader'
+import { FundFlowCategoryList } from './FundFlowCategoryList'
+import { FundFlowChart } from './FundFlowChart'
+import { FxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
+import { SectionHeader } from '../SectionHeader'
 
 type FundFlowSnapshot = {
   flowData: FundFlowData
