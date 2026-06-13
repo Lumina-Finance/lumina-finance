@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
-import IconTooltip from '@/components/IconTooltip'
+import { InsightCalculationTooltip } from '@/insights/components/InsightCalculationTooltip'
 import type { FundFlowEntry } from '@/insights/types/fundFlow'
 import { formatCurrency } from '@/utils/formatCurrency'
 
@@ -67,15 +67,10 @@ export function FundFlowCategoryList({
           <span className="app-label inline-flex items-center gap-2">
             {title}
             <span className="pointer-events-auto">
-              <IconTooltip
-                label={`${title} calculation`}
-                placement="top"
-                widthClassName="w-72"
-                size={14}
-                strokeWidth={2.25}
-              >
-                {calculation}
-              </IconTooltip>
+              <InsightCalculationTooltip
+                label={title}
+                calculation={calculation}
+              />
             </span>
           </span>
           <span className="mt-1 block font-financial text-xl leading-none">

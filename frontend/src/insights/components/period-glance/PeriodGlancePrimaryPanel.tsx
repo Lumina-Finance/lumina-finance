@@ -4,7 +4,7 @@ import { FxStatusBadge } from '@/insights/components/FxStatusBadge'
 import type { PeriodGlancePrimaryMetric } from '@/insights/types/periodGlance'
 import { getPeriodIncomeExpenseFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { PeriodGlanceMetricTooltip } from './PeriodGlanceMetricTooltip'
+import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
 import { getPeriodGlanceToneClass } from './periodGlanceDisplay'
 import { useFittedPrimaryAmount } from './useFittedPrimaryAmount'
 
@@ -35,7 +35,7 @@ export function PeriodGlancePrimaryPanel({
       <div className="min-w-0 [container-type:inline-size]">
         <p className="app-label inline-flex items-center gap-2">
           {primaryMetric.label}
-          <PeriodGlanceMetricTooltip
+          <InsightCalculationTooltip
             label={primaryMetric.label}
             calculation={primaryMetric.calculation}
           />
@@ -66,7 +66,7 @@ export function PeriodGlancePrimaryPanel({
         <div>
           <p className="app-label app-label-compact inline-flex items-center gap-2">
             Income
-            <PeriodGlanceMetricTooltip
+            <InsightCalculationTooltip
               label="Income"
               calculation="Total money in for this range after refunds and reversals are netted. Transfers are excluded"
             />
@@ -76,7 +76,7 @@ export function PeriodGlancePrimaryPanel({
         <div>
           <p className="app-label app-label-compact inline-flex items-center gap-2">
             Expenses
-            <PeriodGlanceMetricTooltip
+            <InsightCalculationTooltip
               label="Expenses"
               calculation="Total money out for this range after refunds and reversals are netted. Shown as a positive amount. Transfers are excluded"
             />

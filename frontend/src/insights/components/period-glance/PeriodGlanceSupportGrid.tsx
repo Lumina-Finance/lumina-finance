@@ -1,6 +1,6 @@
 import { FxStatusBadge } from '@/insights/components/FxStatusBadge'
+import { InsightCalculationTooltip } from '@/insights/components/InsightCalculationTooltip'
 import type { PeriodGlanceSupportItem } from '@/insights/types/periodGlance'
-import { PeriodGlanceMetricTooltip } from './PeriodGlanceMetricTooltip'
 import {
   getPeriodGlanceToneClass,
   PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS,
@@ -43,7 +43,7 @@ export function PeriodGlanceSupportGrid({ supportItems }: PeriodGlanceSupportGri
               </span>
               {item.label}
               <span className={`${PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS} justify-start`}>
-                <PeriodGlanceMetricTooltip
+                <InsightCalculationTooltip
                   label={item.label}
                   calculation={item.calculation}
                 />

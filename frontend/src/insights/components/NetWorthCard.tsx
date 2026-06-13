@@ -1,18 +1,18 @@
 import { useMemo } from 'react'
 import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import { getInsightsNetWorthFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
-import { formatCurrency } from '@/utils/formatCurrency'
-import { FxStatusBadge } from './FxStatusBadge'
 import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { getInsightsNetWorthFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
+import { formatCurrency } from '@/utils/formatCurrency'
+import { FxStatusBadge } from './FxStatusBadge'
+import { InsightCalculationTooltip } from './InsightCalculationTooltip'
 import { InsightActionButton } from './InsightActionButton'
 import { NetWorthChart } from './net-worth/NetWorthChart'
 import { SectionHeader } from './SectionHeader'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   formatSignedNetWorthCurrency,
   getNetWorthChartData,
@@ -112,15 +112,10 @@ export function NetWorthCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Net Worth
-            <IconTooltip
-              label="Net Worth calculation"
-              placement="top"
-              widthClassName="w-72"
-              size={14}
-              strokeWidth={2.25}
-            >
-              {getNetWorthCalculation(displaySnapshot.mode)}
-            </IconTooltip>
+            <InsightCalculationTooltip
+              label="Net Worth"
+              calculation={getNetWorthCalculation(displaySnapshot.mode)}
+            />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Net Worth FX status"
@@ -147,15 +142,10 @@ export function NetWorthCard({
               <div>
                 <p className="app-label app-label-compact inline-flex items-center gap-2">
                   Ending Net Worth
-                  <IconTooltip
-                    label="Ending Net Worth calculation"
-                    placement="top"
-                    widthClassName="w-72"
-                    size={14}
-                    strokeWidth={2.25}
-                  >
-                    Ending net worth value as of the last date in the chosen time period
-                  </IconTooltip>
+                  <InsightCalculationTooltip
+                    label="Ending Net Worth"
+                    calculation="Ending net worth value as of the last date in the chosen time period"
+                  />
                 </p>
                 <div className="mt-1 flex flex-wrap items-end gap-x-2 gap-y-1">
                   <p className="font-financial text-3xl leading-none tracking-tight">

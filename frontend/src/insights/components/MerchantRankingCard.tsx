@@ -1,17 +1,17 @@
 import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import type { MerchantRankingRow } from '@/insights/types/merchantRanking'
-import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
-import { formatCurrency } from '@/utils/formatCurrency'
 import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
-import { FxStatusBadge } from './FxStatusBadge'
-import { SectionHeader } from './SectionHeader'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import type { MerchantRankingRow } from '@/insights/types/merchantRanking'
+import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
+import { formatCurrency } from '@/utils/formatCurrency'
+import { FxStatusBadge } from './FxStatusBadge'
+import { InsightCalculationTooltip } from './InsightCalculationTooltip'
+import { SectionHeader } from './SectionHeader'
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]
@@ -71,13 +71,10 @@ export function MerchantRankingCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Merchant Ranking
-            <IconTooltip
-              label="How merchant ranking is calculated"
-              placement="bottom"
-              widthClassName="w-64"
-            >
-              Ranks merchants by spending after refunds. Income losses are not included
-            </IconTooltip>
+            <InsightCalculationTooltip
+              label="Merchant Ranking"
+              calculation="Ranks merchants by spending after refunds. Income losses are not included"
+            />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Merchant Ranking FX status"

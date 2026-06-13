@@ -1,19 +1,19 @@
 import { useMemo } from 'react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
+import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from './FxStatusBadge'
+import { InsightCalculationTooltip } from './InsightCalculationTooltip'
 import { InsightActionButton } from './InsightActionButton'
 import { IncomeExpensePieChart } from './income-expense/IncomeExpensePieChart'
 import { IncomeExpenseTrendSections } from './income-expense/IncomeExpenseTrendSections'
 import { SectionHeader } from './SectionHeader'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   getBreakdownCalculation,
 } from '@/insights/utils/incomeExpenseBreakdownDisplay'
@@ -93,15 +93,10 @@ export function IncomeExpenseBreakdownCard({
               <AppSlotMachineText text={displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} />
               <span className="ml-[0.25em]">Breakdown</span>
             </span>
-            <IconTooltip
-              label={`${displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} breakdown calculation`}
-              placement="top"
-              widthClassName="w-72"
-              size={14}
-              strokeWidth={2.25}
-            >
-              {getBreakdownCalculation(displaySnapshot.mode)}
-            </IconTooltip>
+            <InsightCalculationTooltip
+              label={`${displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} Breakdown`}
+              calculation={getBreakdownCalculation(displaySnapshot.mode)}
+            />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Income and expense breakdown FX status"

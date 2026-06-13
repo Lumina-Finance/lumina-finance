@@ -1,14 +1,15 @@
+import type { ReactNode } from 'react'
 import IconTooltip from '@/components/IconTooltip'
 
-type PeriodGlanceMetricTooltipProps = {
+type InsightCalculationTooltipProps = {
   label: string
-  calculation?: string
+  calculation?: ReactNode
 }
 
 /**
- * Renders the calculation tooltip used by period-glance metrics
+ * Renders insight calculation details with the shared tooltip sizing and icon treatment
  */
-export function PeriodGlanceMetricTooltip({ label, calculation }: PeriodGlanceMetricTooltipProps) {
+export function InsightCalculationTooltip({ label, calculation }: InsightCalculationTooltipProps) {
   if (!calculation) return null
 
   return (

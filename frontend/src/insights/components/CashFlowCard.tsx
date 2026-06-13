@@ -1,18 +1,18 @@
 import { useMemo } from 'react'
 import { CalendarDays } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import { CashFlowBarChart } from '@/insights/components/cash-flow/CashFlowBarChart'
-import type { CashFlowBarBucket, CashFlowGranularity } from '@/insights/types/cashFlow'
-import { getInsightsCashFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
-import { formatSignedCurrency, getSignedAmountColor } from '@/insights/utils/money'
 import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
-import { FxStatusBadge } from './FxStatusBadge'
-import { SectionHeader } from './SectionHeader'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { CashFlowBarChart } from '@/insights/components/cash-flow/CashFlowBarChart'
+import type { CashFlowBarBucket, CashFlowGranularity } from '@/insights/types/cashFlow'
+import { getInsightsCashFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
+import { formatSignedCurrency, getSignedAmountColor } from '@/insights/utils/money'
+import { FxStatusBadge } from './FxStatusBadge'
+import { InsightCalculationTooltip } from './InsightCalculationTooltip'
+import { SectionHeader } from './SectionHeader'
 
 type CashFlowCardProps = {
   granularity: CashFlowGranularity
@@ -72,15 +72,10 @@ export function CashFlowCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Cash Flow
-            <IconTooltip
-              label="Cash Flow calculation"
-              placement="top"
-              widthClassName="w-72"
-              size={14}
-              strokeWidth={2.25}
-            >
-              {cashFlowCalculation}
-            </IconTooltip>
+            <InsightCalculationTooltip
+              label="Cash Flow"
+              calculation={cashFlowCalculation}
+            />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Cash Flow FX status"
@@ -97,15 +92,10 @@ export function CashFlowCard({
             <div className="mb-3">
               <p className="app-label app-label-compact inline-flex items-center gap-2">
                 Net Cash Flow
-                <IconTooltip
-                  label="Net Cash Flow calculation"
-                  placement="top"
-                  widthClassName="w-72"
-                  size={14}
-                  strokeWidth={2.25}
-                >
-                  {netCashFlowCalculation}
-                </IconTooltip>
+                <InsightCalculationTooltip
+                  label="Net Cash Flow"
+                  calculation={netCashFlowCalculation}
+                />
               </p>
               <p
                 className="mt-1 font-financial text-3xl leading-none tracking-tight"

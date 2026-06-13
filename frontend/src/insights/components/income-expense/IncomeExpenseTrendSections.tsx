@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import IconTooltip from '@/components/IconTooltip'
+import { InsightCalculationTooltip } from '@/insights/components/InsightCalculationTooltip'
 import type {
   BreakdownMode,
   CategoryTrendSection,
@@ -55,15 +55,10 @@ export function IncomeExpenseTrendSections({
           >
             <p className="app-label mb-3 inline-flex items-center gap-2 min-[1350px]:mb-2">
               {section.label}
-              <IconTooltip
-                label={`${section.label} calculation`}
-                placement="top"
-                widthClassName="w-72"
-                size={14}
-                strokeWidth={2.25}
-              >
-                {getTrendSectionCalculation(section.id)}
-              </IconTooltip>
+              <InsightCalculationTooltip
+                label={section.label}
+                calculation={getTrendSectionCalculation(section.id)}
+              />
             </p>
             <div className="min-h-0 flex-1 overflow-hidden">
               <AnimatePresence initial={false} mode="wait">

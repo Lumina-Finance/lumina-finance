@@ -1,18 +1,18 @@
 import { useMemo } from 'react'
 import { Store } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import type { MerchantMarketMerchant } from '@/insights/types/merchantDistribution'
-import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import type { MerchantMarketMerchant } from '@/insights/types/merchantDistribution'
+import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from './FxStatusBadge'
+import { InsightCalculationTooltip } from './InsightCalculationTooltip'
 import { MerchantDistributionLegend } from './merchant-distribution/MerchantDistributionLegend'
 import { MerchantMarketMap } from './merchant-distribution/MerchantMarketMap'
 import { SectionHeader } from './SectionHeader'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type MerchantDistributionCardProps = {
   merchants: MerchantMarketMerchant[]
@@ -63,13 +63,10 @@ export function MerchantDistributionCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Spending Distribution by Merchant
-            <IconTooltip
-              label="How merchant distribution is calculated"
-              placement="bottom"
-              widthClassName="w-64"
-            >
-              Shows merchant spending after refunds. Income losses are not included
-            </IconTooltip>
+            <InsightCalculationTooltip
+              label="Merchant Distribution"
+              calculation="Shows merchant spending after refunds. Income losses are not included"
+            />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Merchant Distribution FX status"

@@ -2,20 +2,20 @@ import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUpToLine, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import type { SavingsRateHistoryPoint } from '@/insights/types/savingsRate'
-import { getSavingsRateTrendFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
-import { formatSavingsRateValue } from '@/insights/utils/money'
-import { getSavingsRateSummary } from '@/insights/utils/savingsRateChart'
 import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import type { SavingsRateHistoryPoint } from '@/insights/types/savingsRate'
+import { getSavingsRateTrendFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
+import { formatSavingsRateValue } from '@/insights/utils/money'
+import { getSavingsRateSummary } from '@/insights/utils/savingsRateChart'
 import { FxStatusBadge } from './FxStatusBadge'
+import { InsightCalculationTooltip } from './InsightCalculationTooltip'
 import { InsightActionButton } from './InsightActionButton'
 import { SavingsRateChart } from './savings-rate/SavingsRateChart'
 import { SectionHeader } from './SectionHeader'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]
@@ -86,15 +86,10 @@ export function SavingsRateTrendCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Savings Rate Trend
-            <IconTooltip
-              label="Savings Rate Trend calculation"
-              placement="top"
-              widthClassName="w-72"
-              size={14}
-              strokeWidth={2.25}
-            >
-              {savingsRateCalculation}
-            </IconTooltip>
+            <InsightCalculationTooltip
+              label="Savings Rate Trend"
+              calculation={savingsRateCalculation}
+            />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Savings Rate Trend FX status"
@@ -124,15 +119,10 @@ export function SavingsRateTrendCard({
               <div className="min-w-0">
                 <p className="app-label inline-flex items-center gap-2">
                   Latest Savings Rate
-                  <IconTooltip
-                    label="Latest Savings Rate calculation"
-                    placement="top"
-                    widthClassName="w-72"
-                    size={14}
-                    strokeWidth={2.25}
-                  >
-                    {latestSavingsRateCalculation}
-                  </IconTooltip>
+                  <InsightCalculationTooltip
+                    label="Latest Savings Rate"
+                    calculation={latestSavingsRateCalculation}
+                  />
                 </p>
                 <p className="mt-1 font-financial text-4xl leading-none tracking-tight">
                   {formatSavingsRateValue(latestPoint?.rate ?? null)}
@@ -145,15 +135,10 @@ export function SavingsRateTrendCard({
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className={savingsRateStatLabelClass}>
                     Average
-                    <IconTooltip
-                      label="Average savings rate calculation"
-                      placement="top"
-                      widthClassName="w-72"
-                      size={14}
-                      strokeWidth={2.25}
-                    >
-                      {averageSavingsRateCalculation}
-                    </IconTooltip>
+                    <InsightCalculationTooltip
+                      label="Average Savings Rate"
+                      calculation={averageSavingsRateCalculation}
+                    />
                   </p>
                   <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
@@ -167,15 +152,10 @@ export function SavingsRateTrendCard({
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className={savingsRateStatLabelClass}>
                     Best
-                    <IconTooltip
-                      label="Best savings rate calculation"
-                      placement="top"
-                      widthClassName="w-72"
-                      size={14}
-                      strokeWidth={2.25}
-                    >
-                      {bestSavingsRateCalculation}
-                    </IconTooltip>
+                    <InsightCalculationTooltip
+                      label="Best Savings Rate"
+                      calculation={bestSavingsRateCalculation}
+                    />
                   </p>
                   <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
@@ -189,15 +169,10 @@ export function SavingsRateTrendCard({
                 <div className="min-w-0 rounded-md border border-[var(--app-border)] px-2.5 py-2 min-[750px]:px-3 min-[750px]:py-2.5">
                   <p className={savingsRateStatLabelClass}>
                     Worst
-                    <IconTooltip
-                      label="Worst savings rate calculation"
-                      placement="top"
-                      widthClassName="w-72"
-                      size={14}
-                      strokeWidth={2.25}
-                    >
-                      {worstSavingsRateCalculation}
-                    </IconTooltip>
+                    <InsightCalculationTooltip
+                      label="Worst Savings Rate"
+                      calculation={worstSavingsRateCalculation}
+                    />
                   </p>
                   <div className="mt-1 flex items-baseline justify-between gap-3 min-[750px]:block">
                     <p className="font-financial text-xl leading-none tracking-tight min-[750px]:text-2xl">
