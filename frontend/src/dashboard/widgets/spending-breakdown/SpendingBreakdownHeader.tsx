@@ -2,10 +2,9 @@ import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import IconTooltip from '@/components/IconTooltip'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
+import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getBreakdownFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import type { BreakdownMode } from '@/dashboard/utils/getSpendingBreakdownSummary'
 
@@ -38,21 +37,11 @@ export function SpendingBreakdownHeader({
         <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
         <span className="ml-[0.25em]">Breakdown</span>
       </span>
-      {fxStatus && (
-        <IconTooltip
-          label="Spending breakdown FX status"
-          icon="fx"
-          fxTone={getFxStatusTone(fxStatus)}
-          placement="top"
-        >
-          <span className="block">{getBreakdownFxStatusMessage(fxStatus, breakdownMode)}</span>
-          {fxStatus.missing_pairs.length > 0 && (
-            <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-            </span>
-          )}
-        </IconTooltip>
-      )}
+      <DashboardFxStatusTooltip
+        label="Spending breakdown FX status"
+        fxStatus={fxStatus}
+        getMessage={(status) => getBreakdownFxStatusMessage(status, breakdownMode)}
+      />
       <button
         type="button"
         onClick={onModeToggle}

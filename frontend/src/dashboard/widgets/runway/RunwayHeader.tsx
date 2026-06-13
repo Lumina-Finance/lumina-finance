@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { CircleHelp, LifeBuoy } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
 import { getRunwayFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 
 type RunwayStyle = {
@@ -46,21 +46,11 @@ export function RunwayHeader({
           Runway settings
         </Link>
       </IconTooltip>
-      {fxStatus && (
-        <IconTooltip
-          label="Runway FX status"
-          icon="fx"
-          fxTone={getFxStatusTone(fxStatus)}
-          placement="top"
-        >
-          <span className="block">{getRunwayFxStatusMessage(fxStatus)}</span>
-          {fxStatus.missing_pairs.length > 0 && (
-            <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-            </span>
-          )}
-        </IconTooltip>
-      )}
+      <DashboardFxStatusTooltip
+        label="Runway FX status"
+        fxStatus={fxStatus}
+        getMessage={getRunwayFxStatusMessage}
+      />
       {runwayStyle && (
         <span
           className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold max-[1000px]:text-[0.675rem]"

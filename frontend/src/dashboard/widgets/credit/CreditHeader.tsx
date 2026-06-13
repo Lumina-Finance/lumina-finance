@@ -1,8 +1,7 @@
 import { CreditCard, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
 import type { CreditMode } from '@/dashboard/utils/getCreditUsageSummary'
 import { getCreditFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 
@@ -35,21 +34,11 @@ export function CreditHeader({
         <span className="app-label">
           Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} />
         </span>
-        {fxStatus && (
-          <IconTooltip
-            label="Credit FX status"
-            icon="fx"
-            fxTone={getFxStatusTone(fxStatus)}
-            placement="top"
-          >
-            <span className="block">{getCreditFxStatusMessage(fxStatus)}</span>
-            {fxStatus.missing_pairs.length > 0 && (
-              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-              </span>
-            )}
-          </IconTooltip>
-        )}
+        <DashboardFxStatusTooltip
+          label="Credit FX status"
+          fxStatus={fxStatus}
+          getMessage={getCreditFxStatusMessage}
+        />
       </span>
       {hasCredit && (
         <button

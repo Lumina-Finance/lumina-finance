@@ -1,7 +1,6 @@
 import { ArrowUpToLine, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
 import { getSavingsRateFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 
 type SavingsRateHeaderProps = {
@@ -24,21 +23,11 @@ export function SavingsRateHeader({
         <Repeat size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
       </div>
       <span className="app-label">Savings Rate</span>
-      {fxStatus && (
-        <IconTooltip
-          label="Savings rate FX status"
-          icon="fx"
-          fxTone={getFxStatusTone(fxStatus)}
-          placement="top"
-        >
-          <span className="block">{getSavingsRateFxStatusMessage(fxStatus)}</span>
-          {fxStatus.missing_pairs.length > 0 && (
-            <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-            </span>
-          )}
-        </IconTooltip>
-      )}
+      <DashboardFxStatusTooltip
+        label="Savings rate FX status"
+        fxStatus={fxStatus}
+        getMessage={getSavingsRateFxStatusMessage}
+      />
       <button
         type="button"
         onClick={onCapToggle}
