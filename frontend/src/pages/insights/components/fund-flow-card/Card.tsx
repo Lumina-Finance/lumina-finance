@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Network } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type {
   FundFlowData,
   FundFlowEntry,

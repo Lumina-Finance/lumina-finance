@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useCategories } from '@/api/categories'
 import { useDashboardRecentActivity } from '@/api/dashboard'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
 import { RecentActivityHeader } from './RecentActivityHeader'
 import { RecentActivityList } from './RecentActivityList'

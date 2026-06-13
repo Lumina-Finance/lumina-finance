@@ -3,7 +3,7 @@ import {
   type SpendingRange,
   useSpendingBreakdown,
 } from '@/api/dashboard'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { SpendingBreakdownChart } from './SpendingBreakdownChart'
 import { SpendingBreakdownHeader } from './SpendingBreakdownHeader'
 import { SpendingBreakdownLegend } from './SpendingBreakdownLegend'

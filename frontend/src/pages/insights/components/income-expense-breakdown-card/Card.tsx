@@ -5,7 +5,7 @@ import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from '../FxStatusBadge'

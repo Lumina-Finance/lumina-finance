@@ -6,7 +6,7 @@ import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'

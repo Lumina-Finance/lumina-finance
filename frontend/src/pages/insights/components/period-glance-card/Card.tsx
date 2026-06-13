@@ -12,7 +12,7 @@ import {
 import { PeriodGlancePrimaryPanel } from './PrimaryPanel'
 import { PeriodGlanceSupportGrid } from './SupportGrid'
 import { SectionHeader } from '../SectionHeader'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 type PeriodGlanceSnapshot = {
   primaryMetric: PeriodGlancePrimaryMetric

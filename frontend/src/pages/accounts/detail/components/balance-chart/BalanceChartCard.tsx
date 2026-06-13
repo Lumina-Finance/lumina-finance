@@ -4,7 +4,7 @@ import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type {
   BalanceChartMode,
   BalanceRange,

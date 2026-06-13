@@ -3,7 +3,7 @@ import {
   type SpendingRange,
   useSpendingComparison,
 } from '@/api/dashboard'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
 import { SpendingComparisonChart } from './SpendingComparisonChart'
 import { SpendingComparisonHeader } from './SpendingComparisonHeader'

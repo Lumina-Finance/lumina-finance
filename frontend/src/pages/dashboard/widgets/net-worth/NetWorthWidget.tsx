@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useDashboardNetWorth } from '@/api/dashboard'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
 import { NetWorthChart } from './NetWorthChart'
 import { NetWorthHeader } from './NetWorthHeader'

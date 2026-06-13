@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useRunway, useRunwayAccounts } from '@/api/user'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import {
   RUNWAY_BAND_STYLE,
   formatCompactRunway,

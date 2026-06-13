@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useDashboardSavingsRate } from '@/api/dashboard'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
 import { SavingsRateChart } from './SavingsRateChart'
 import { SavingsRateHeader } from './SavingsRateHeader'

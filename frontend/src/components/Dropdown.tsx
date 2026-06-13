@@ -12,7 +12,7 @@ import {
   getVisibleDropdownOptions,
 } from './dropdown/dropdownOptions';
 import type { DropdownCreateLabel, DropdownOption } from './dropdown/types';
-import { useDropdownPosition } from './dropdown/useDropdownPosition';
+import { useDropdownPosition } from './dropdown/hooks/useDropdownPosition';
 
 export type { DropdownOption } from './dropdown/types';
 

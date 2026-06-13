@@ -5,7 +5,7 @@ import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantMarketMerchant } from '@/pages/insights/types/merchantDistribution'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from '../FxStatusBadge'

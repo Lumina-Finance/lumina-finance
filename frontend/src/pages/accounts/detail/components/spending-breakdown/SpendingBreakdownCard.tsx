@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { SpendingRange } from '@/api/accounts'
 import { LoadingContent, LoadingOverlay } from '@/components/LoadingTransition'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { getDeterministicChartColor } from '@/utils/chartColor'
 import {

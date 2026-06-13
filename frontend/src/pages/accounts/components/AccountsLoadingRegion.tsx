@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { LoadingContent, LoadingOverlay } from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 export default function AccountsLoadingRegion({
   children,
