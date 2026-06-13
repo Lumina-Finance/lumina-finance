@@ -11,6 +11,10 @@ import type { FxStatus } from '@/api/shared/fx'
 import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
+import type {
+  MerchantMarketMerchant,
+  MerchantMarketTile,
+} from '@/insights/types/merchantDistribution'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
@@ -21,21 +25,6 @@ import {
 import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-
-export type MerchantMarketMerchant = {
-  id: string
-  name: string
-  totalAmount: number
-  changePct: number | null
-  changeAmount: number | null
-}
-
-export type MerchantMarketTile = MerchantMarketMerchant & {
-  x: number
-  y: number
-  width: number
-  height: number
-}
 
 type MerchantMarketHover = {
   merchant: MerchantMarketTile
