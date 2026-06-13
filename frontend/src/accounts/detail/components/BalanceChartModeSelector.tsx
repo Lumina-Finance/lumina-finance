@@ -1,7 +1,8 @@
 import { motion, useReducedMotion } from 'motion/react'
-import { TIME_SELECTOR_SPRING } from '@/accounts/detail/constants/accountDetail'
-
-export type BalanceChartMode = 'balance' | 'change'
+import {
+  TIME_SELECTOR_SPRING,
+  type BalanceChartMode,
+} from '@/accounts/detail/constants/accountDetail'
 
 const BALANCE_CHART_MODE_OPTIONS: Array<{ value: BalanceChartMode; label: string }> = [
   { value: 'balance', label: 'Balance' },

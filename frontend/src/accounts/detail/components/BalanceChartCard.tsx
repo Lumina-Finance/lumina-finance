@@ -31,23 +31,24 @@ import {
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   BalanceChartModeSelector,
-  type BalanceChartMode,
 } from '@/accounts/detail/components/BalanceChartModeSelector'
 import {
-  RANGE_CONFIG,
+  type BalanceChartMode,
   type BalanceRange,
 } from '@/accounts/detail/constants/accountDetail'
 import {
-  calendarDateMs,
   formatSignedBalanceCurrency,
   formatUtcAxisDate,
-  getBalanceXAxisTicks,
 } from '@/accounts/detail/utils/balanceChartAxis'
 import {
-  buildChartSeries,
-  rezeroSeriesToPeriod,
   type BalanceChartPoint,
 } from '@/accounts/detail/utils/balanceChartSeries'
+import {
+  getBalanceChartSnapshot,
+  getBalanceRangeWindow,
+  type BalanceChartDataPoint,
+  type BalanceChartSnapshot,
+} from '@/accounts/detail/utils/balanceChartViewModel'
 import { toISODate } from '@/accounts/detail/utils/date'
 
 const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
@@ -57,34 +58,6 @@ const BALANCE_RANGE_OPTIONS: TimeRangeSelectorOption<BalanceRange>[] = [
   { value: '1Y', label: '1Y', description: 'Last year' },
 ]
 const BALANCE_AXIS_EDGE_PADDING_PX = 4
-
-type BalanceChartDataPoint = BalanceChartPoint & {
-  periodBalance?: number
-}
-
-type BalanceChartSnapshot = {
-  range: BalanceRange
-  chartMode: BalanceChartMode
-  currentBalance: number
-  currency: string
-  periodDelta: {
-    absolute: number
-    pct: number | null
-  } | null
-  trendUp: boolean
-  deltaColor: string
-  chartLineColor: string
-  chartSeries: BalanceChartDataPoint[]
-  chartDataKey: 'balance' | 'periodBalance'
-  axisStartMs: number
-  axisEndMs: number
-  xAxisTicks: number[]
-  seriesByDateMs: Map<number, BalanceChartPoint>
-  yearBoundary: {
-    dateMs: number
-    year: string
-  } | null
-}
 
 type AxisTickProps = {
   x?: number | string
@@ -157,15 +130,10 @@ export default function BalanceChartCard({ account }: { account: Account }) {
   const [range, setRange] = useState<BalanceRange>('30D')
   const [chartMode, setChartMode] = useState<BalanceChartMode>('balance')
 
-  // Derive the snapshot query window from the selected range.
-  const { fromDate, toDate, granularity } = useMemo(() => {
-    const cfg = RANGE_CONFIG[range]
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const from = new Date(today)
-    from.setDate(from.getDate() - (cfg.days - 1))
-    return { fromDate: from, toDate: today, granularity: cfg.granularity }
-  }, [range])
+  const { fromDate, toDate, granularity } = useMemo(
+    () => getBalanceRangeWindow(range),
+    [range],
+  )
 
   const { data: snapshots, isFetching } = useAccountSnapshots(account.id, {
     fromDate: toISODate(fromDate),
@@ -174,82 +142,26 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     includeAnchor: true,
   })
 
-  const series = useMemo(
-    () => buildChartSeries(snapshots ?? [], fromDate, toDate, granularity),
-    [snapshots, fromDate, toDate, granularity],
-  )
-  const periodSeries = useMemo(() => rezeroSeriesToPeriod(series), [series])
-  const chartSeries = chartMode === 'balance' ? series : periodSeries
-  const chartDataKey = chartMode === 'balance' ? 'balance' : 'periodBalance'
-  const axisStartMs = calendarDateMs(fromDate)
-  const axisEndMs = calendarDateMs(toDate)
-  const xAxisTicks = useMemo(
-    () => getBalanceXAxisTicks(fromDate, toDate, range),
-    [fromDate, toDate, range],
-  )
-  const seriesByDateMs = useMemo(
-    () => new Map(series.map((point) => [point.dateMs, point])),
-    [series],
-  )
-
-  // First point in a new year, used for the dashed year-boundary marker.
-  const yearBoundary = useMemo(() => {
-    const yearStart = new Date(toDate.getFullYear(), 0, 1)
-    return fromDate < yearStart && yearStart <= toDate
-      ? { dateMs: calendarDateMs(yearStart), year: String(toDate.getFullYear()) }
-      : null
-  }, [fromDate, toDate])
-
-  // First-to-last delta for the selected window.
-  const periodDelta = useMemo(() => {
-    if (series.length < 2) return null
-    const start = series[0].balance
-    const end = series[series.length - 1].balance
-    const absolute = end - start
-    const pct = start === 0 ? null : (absolute / Math.abs(start)) * 100
-    return { absolute, pct }
-  }, [series])
-
-  const trendUp = periodDelta !== null && periodDelta.absolute >= 0
-  const lineColor = account.current_balance < 0 ? 'var(--app-negative)' : 'var(--app-accent)'
-  const deltaColor = periodDelta === null
-    ? 'var(--app-text-muted)'
-    : trendUp
-      ? 'var(--app-positive)'
-      : 'var(--app-negative)'
-  const chartLineColor = chartMode === 'change' && periodDelta !== null ? deltaColor : lineColor
   const incomingSnapshot = useMemo<BalanceChartSnapshot>(() => ({
-    range,
-    chartMode,
-    currentBalance: account.current_balance,
-    currency: account.currency,
-    periodDelta,
-    trendUp,
-    deltaColor,
-    chartLineColor,
-    chartSeries,
-    chartDataKey,
-    axisStartMs,
-    axisEndMs,
-    xAxisTicks,
-    seriesByDateMs,
-    yearBoundary,
+    ...getBalanceChartSnapshot({
+      snapshots: snapshots ?? [],
+      range,
+      chartMode,
+      currentBalance: account.current_balance,
+      currency: account.currency,
+      fromDate,
+      toDate,
+      granularity,
+    }),
   }), [
     account.currency,
     account.current_balance,
-    axisEndMs,
-    axisStartMs,
-    chartDataKey,
-    chartLineColor,
     chartMode,
-    chartSeries,
-    deltaColor,
-    periodDelta,
+    fromDate,
+    granularity,
     range,
-    seriesByDateMs,
-    trendUp,
-    xAxisTicks,
-    yearBoundary,
+    snapshots,
+    toDate,
   ])
   const {
     displaySnapshot,
