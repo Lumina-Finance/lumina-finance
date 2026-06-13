@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { CashFlowCard } from './components/CashFlowCard'
 import {
@@ -12,100 +12,45 @@ import { FundFlowCard } from './components/FundFlowCard'
 import { NetWorthCard } from './components/NetWorthCard'
 import { PeriodGlanceCard } from './components/PeriodGlanceCard'
 import { SavingsRateTrendCard } from './components/SavingsRateTrendCard'
+import { useInsightsCardData } from './hooks/useInsightsCardData'
 import { useInsightsCardQueries } from './hooks/useInsightsCardQueries'
-import { useInsightCardVisibility } from './hooks/useInsightCardVisibility'
+import { useInsightsCardVisibilityMap } from './hooks/useInsightsCardVisibilityMap'
 import { useInsightsRange } from './hooks/useInsightsRange'
-import { getCashFlowBarData } from './utils/cashFlow'
-import {
-  getBreakdownEntriesForMode,
-  getBreakdownTotalForMode,
-  getCategoryTrendSections,
-} from './utils/incomeExpenseBreakdown'
-import { getFundFlowCardData } from './utils/fundFlow'
-import { getMerchantDistributionMerchants } from './utils/merchantDistribution'
-import { getMerchantRankingRows } from './utils/merchantRanking'
-import { getNetWorthCardData, type NetWorthViewMode } from './utils/netWorth'
-import { getPeriodGlanceCardData } from './utils/periodGlance'
-import { getSavingsRateHistory } from './utils/savingsRateTrend'
+import type { NetWorthViewMode } from './utils/netWorth'
 
+/**
+ * Coordinates insight range controls, card modes, query state, and the insights card layout
+ */
 export default function InsightsPage() {
   const { user } = useAuth()
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('expense')
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const range = useInsightsRange()
-  const [periodGlanceCardRef, periodGlanceCardVisible] = useInsightCardVisibility()
-  const [fundFlowCardRef, fundFlowCardVisible] = useInsightCardVisibility()
-  const [breakdownCardRef, breakdownCardVisible] = useInsightCardVisibility()
-  const [netWorthCardRef, netWorthCardVisible] = useInsightCardVisibility()
-  const [cashFlowCardRef, cashFlowCardVisible] = useInsightCardVisibility()
-  const [savingsRateCardRef, savingsRateCardVisible] = useInsightCardVisibility()
-  const [merchantDistributionCardRef, merchantDistributionCardVisible] = useInsightCardVisibility()
-  const [merchantRankingCardRef, merchantRankingCardVisible] = useInsightCardVisibility()
+  const {
+    periodGlanceRef,
+    fundFlowRef,
+    breakdownRef,
+    netWorthRef,
+    cashFlowRef,
+    savingsRateRef,
+    merchantDistributionRef,
+    merchantRankingRef,
+    visibility,
+  } = useInsightsCardVisibilityMap()
   const queries = useInsightsCardQueries({
     rangeInputDates: range.rangeInputDates,
     comparisonPeriod: range.comparisonPeriod,
     cardQueriesEnabled: range.cardQueriesEnabled,
-    visibility: {
-      periodGlance: periodGlanceCardVisible,
-      fundFlow: fundFlowCardVisible,
-      breakdown: breakdownCardVisible,
-      netWorth: netWorthCardVisible,
-      cashFlow: cashFlowCardVisible,
-      savingsRate: savingsRateCardVisible,
-      merchantDistribution: merchantDistributionCardVisible,
-      merchantRanking: merchantRankingCardVisible,
-    },
+    visibility,
   })
   const displayCurrency = user?.base_currency ?? 'CAD'
-  const selectedBreakdown = useMemo(
-    () => getBreakdownEntriesForMode(queries.incomeExpenseBreakdown.data, breakdownMode),
-    [breakdownMode, queries.incomeExpenseBreakdown.data],
-  )
-  const selectedBreakdownTotal = useMemo(
-    () => getBreakdownTotalForMode(queries.incomeExpenseBreakdown.data, breakdownMode),
-    [breakdownMode, queries.incomeExpenseBreakdown.data],
-  )
-  const selectedCategoryTrendSections = useMemo(
-    () => getCategoryTrendSections(queries.incomeExpenseBreakdown.data, breakdownMode),
-    [breakdownMode, queries.incomeExpenseBreakdown.data],
-  )
-  const periodGlanceData = useMemo(
-    () => getPeriodGlanceCardData(queries.periodGlance.data, displayCurrency),
-    [displayCurrency, queries.periodGlance.data],
-  )
-  const fundFlowData = useMemo(
-    () => getFundFlowCardData(queries.fundFlow.data),
-    [queries.fundFlow.data],
-  )
-  const netWorthCardData = useMemo(
-    () => getNetWorthCardData(
-      queries.netWorth.data,
-      range.rangeInputDates.from,
-      range.rangeInputDates.to,
-    ),
-    [queries.netWorth.data, range.rangeInputDates.from, range.rangeInputDates.to],
-  )
-  const cashFlowBars = useMemo(
-    () => getCashFlowBarData(
-      queries.cashFlow.data,
-      range.rangeInputDates.from,
-      range.rangeInputDates.to,
-    ),
-    [queries.cashFlow.data, range.rangeInputDates.from, range.rangeInputDates.to],
-  )
-  const savingsRateHistory = useMemo(
-    () => getSavingsRateHistory(queries.savingsRateTrend.data),
-    [queries.savingsRateTrend.data],
-  )
-  const merchantDistributionMerchants = useMemo(
-    () => getMerchantDistributionMerchants(queries.merchants.data),
-    [queries.merchants.data],
-  )
-  const rankedMerchants = useMemo(
-    () => getMerchantRankingRows(queries.merchants.data),
-    [queries.merchants.data],
-  )
+  const cardData = useInsightsCardData({
+    queries,
+    displayCurrency,
+    rangeInputDates: range.rangeInputDates,
+    breakdownMode,
+  })
 
   return (
     <div className="relative">
@@ -130,12 +75,12 @@ export default function InsightsPage() {
       />
 
       <div className="space-y-4 pb-28 min-[1050px]:pb-0">
-        <div ref={periodGlanceCardRef}>
+        <div ref={periodGlanceRef}>
           <PeriodGlanceCard
-            primaryMetric={periodGlanceData.primaryMetric}
-            supportItems={periodGlanceData.supportItems}
-            income={periodGlanceData.income}
-            expenses={periodGlanceData.expenses}
+            primaryMetric={cardData.periodGlanceData.primaryMetric}
+            supportItems={cardData.periodGlanceData.supportItems}
+            income={cardData.periodGlanceData.income}
+            expenses={cardData.periodGlanceData.expenses}
             incomeExpenseFxStatus={queries.periodGlance.data?.income_expense_fx_status}
             displayCurrency={displayCurrency}
             loading={queries.periodGlance.isFetching}
@@ -143,15 +88,15 @@ export default function InsightsPage() {
           />
         </div>
 
-        <div ref={fundFlowCardRef}>
+        <div ref={fundFlowRef}>
           <FundFlowCard
-            flowData={fundFlowData.flowData}
-            incomeSources={fundFlowData.incomeSources}
-            expenseCategories={fundFlowData.expenseCategories}
-            incomeOutflows={fundFlowData.incomeOutflows}
-            expenseInflows={fundFlowData.expenseInflows}
-            incomeSourceCount={fundFlowData.incomeSourceCount}
-            expenseCategoryCount={fundFlowData.expenseCategoryCount}
+            flowData={cardData.fundFlowData.flowData}
+            incomeSources={cardData.fundFlowData.incomeSources}
+            expenseCategories={cardData.fundFlowData.expenseCategories}
+            incomeOutflows={cardData.fundFlowData.incomeOutflows}
+            expenseInflows={cardData.fundFlowData.expenseInflows}
+            incomeSourceCount={cardData.fundFlowData.incomeSourceCount}
+            expenseCategoryCount={cardData.fundFlowData.expenseCategoryCount}
             fxStatus={queries.fundFlow.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.fundFlow.isFetching}
@@ -159,13 +104,13 @@ export default function InsightsPage() {
           />
         </div>
 
-        <div ref={breakdownCardRef}>
+        <div ref={breakdownRef}>
           <IncomeExpenseBreakdownCard
             mode={breakdownMode}
             onModeToggle={() => setBreakdownMode((mode) => (mode === 'expense' ? 'income' : 'expense'))}
-            entries={selectedBreakdown}
-            total={selectedBreakdownTotal}
-            trendSections={selectedCategoryTrendSections}
+            entries={cardData.selectedBreakdown}
+            total={cardData.selectedBreakdownTotal}
+            trendSections={cardData.selectedCategoryTrendSections}
             fxStatus={queries.incomeExpenseBreakdown.data?.fx_status}
             displayCurrency={displayCurrency}
             animationKey={`${breakdownMode}-${range.cardTransitionKey}`}
@@ -174,13 +119,13 @@ export default function InsightsPage() {
           />
         </div>
 
-        <div ref={netWorthCardRef}>
+        <div ref={netWorthRef}>
           <NetWorthCard
             mode={netWorthMode}
             onModeToggle={() => setNetWorthMode((mode) => (mode === 'overview' ? 'composition' : 'overview'))}
-            groups={netWorthCardData.groups}
-            baseline={netWorthCardData.baseline}
-            series={netWorthCardData.series}
+            groups={cardData.netWorthCardData.groups}
+            baseline={cardData.netWorthCardData.baseline}
+            series={cardData.netWorthCardData.series}
             fxStatus={queries.netWorth.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.netWorth.isFetching}
@@ -188,10 +133,10 @@ export default function InsightsPage() {
           />
         </div>
 
-        <div ref={cashFlowCardRef}>
+        <div ref={cashFlowRef}>
           <CashFlowCard
-            granularity={cashFlowBars.granularity}
-            buckets={cashFlowBars.buckets}
+            granularity={cardData.cashFlowBars.granularity}
+            buckets={cardData.cashFlowBars.buckets}
             fxStatus={queries.cashFlow.data?.fx_status}
             displayCurrency={displayCurrency}
             loading={queries.cashFlow.isFetching}
@@ -199,9 +144,9 @@ export default function InsightsPage() {
           />
         </div>
 
-        <div ref={savingsRateCardRef}>
+        <div ref={savingsRateRef}>
           <SavingsRateTrendCard
-            series={savingsRateHistory}
+            series={cardData.savingsRateHistory}
             fxStatus={queries.savingsRateTrend.data?.fx_status}
             displayCurrency={displayCurrency}
             capRates={capSavingsRateChart}
@@ -212,9 +157,9 @@ export default function InsightsPage() {
         </div>
 
         <section className="grid gap-4 min-[1300px]:grid-cols-[minmax(0,1fr)_360px]">
-          <div ref={merchantDistributionCardRef} className="min-w-0">
+          <div ref={merchantDistributionRef} className="min-w-0">
             <MerchantDistributionCard
-              merchants={merchantDistributionMerchants}
+              merchants={cardData.merchantDistributionMerchants}
               fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
               loading={queries.merchants.isFetching}
@@ -222,9 +167,9 @@ export default function InsightsPage() {
             />
           </div>
 
-          <div ref={merchantRankingCardRef} className="min-w-0">
+          <div ref={merchantRankingRef} className="min-w-0">
             <MerchantRankingCard
-              merchants={rankedMerchants}
+              merchants={cardData.rankedMerchants}
               fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
               loading={queries.merchants.isFetching}
