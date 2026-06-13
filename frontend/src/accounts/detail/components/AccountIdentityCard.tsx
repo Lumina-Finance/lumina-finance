@@ -2,43 +2,13 @@ import { Pencil } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { InstitutionLogo } from '@/accounts/components/InstitutionLogo'
 import { ACCOUNT_KIND_LABEL } from '@/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/accounts/detail/utils/formatAccountType'
 import {
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
 } from '@/accounts/utils/taxAdvantagedLimits'
-
-// Reuse the list logo treatment at a larger size for the account identity card.
-function DetailInstitutionLogo({ institution }: { institution: Account['institution'] }) {
-  const faviconUrl = institution?.website
-    ? `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(institution.website)}&size=256`
-    : null
-  return (
-    <div
-      className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-      style={
-        faviconUrl
-          ? undefined
-          : {
-              background: 'var(--app-accent-soft)',
-              border: '1px solid var(--app-border)',
-            }
-      }
-    >
-      {faviconUrl ? (
-        <img
-          src={faviconUrl}
-          alt={`${institution!.name} logo`}
-          className="h-full w-full object-contain"
-          loading="lazy"
-        />
-      ) : (
-        <span className="select-none text-xl font-semibold" style={{ color: 'var(--app-accent)' }}>$</span>
-      )}
-    </div>
-  )
-}
 
 function DetailLimitUsage({
   label,
@@ -209,7 +179,7 @@ export default function AccountIdentityCard({
         </button>
       )}
 
-      <DetailInstitutionLogo institution={account.institution} />
+      <InstitutionLogo institution={account.institution} variant="detail" />
 
       <h1 className="mt-4 font-serif text-[1.375rem] font-semibold leading-tight">{account.name}</h1>
       <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
