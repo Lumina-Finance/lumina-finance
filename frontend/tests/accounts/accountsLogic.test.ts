@@ -6,35 +6,35 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Institution } from '@/api/institutions'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { RunwayResult } from '@/api/user'
-import type { AccountsMetricsViewModel } from '@/accounts/types/accounts'
+import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import {
   getActiveFilters,
   getFilteredRows,
   getInstitutionOptions,
   getKindOptions,
   getTypeOptions,
-} from '@/accounts/utils/filters'
+} from '@/pages/accounts/utils/filters'
 import {
   getAccountSections,
   getCombinedAccountFxStatus,
-} from '@/accounts/utils/accountSections'
+} from '@/pages/accounts/utils/accountSections'
 import {
   getCreditUsageMetric,
   getRunwayMetric,
   getSavingsRateMetric,
-} from '@/accounts/utils/accountMetrics'
+} from '@/pages/accounts/utils/accountMetrics'
 import {
   getCreditUsageDisplay,
   getSavingsRateDisplay,
-} from '@/accounts/utils/metricDisplay'
+} from '@/pages/accounts/utils/metricDisplay'
 import {
   formatTaxAdvantagedMeterMoney,
   getLifetimeAvailableBoundary,
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
   hasTaxAdvantagedLimitTracking,
-} from '@/accounts/utils/taxAdvantagedLimits'
-import { getSummaryFxStatusMessage } from '@/accounts/components/summary/summaryFxStatus'
+} from '@/pages/accounts/utils/taxAdvantagedLimits'
+import { getSummaryFxStatusMessage } from '@/pages/accounts/components/summary/summaryFxStatus'
 
 function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {

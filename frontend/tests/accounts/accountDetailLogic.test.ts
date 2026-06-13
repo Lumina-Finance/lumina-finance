@@ -9,29 +9,29 @@ import type {
   AccountSpendingBreakdown,
 } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { calendarDateMs } from '@/accounts/detail/utils/balanceChartAxis'
+import { calendarDateMs } from '@/pages/accounts/detail/utils/balanceChartAxis'
 import {
   getBalanceChartSnapshot,
   getBalancePeriodDelta,
   getBalanceRangeWindow,
   getBalanceYearBoundary,
-} from '@/accounts/detail/utils/balanceChartViewModel'
+} from '@/pages/accounts/detail/utils/balanceChartViewModel'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
   getIdentityUpdatePayload,
-} from '@/accounts/detail/utils/identityForm'
+} from '@/pages/accounts/detail/utils/identityForm'
 import {
   getCashFlowDomainMax,
   getCompletedCashFlowAverage,
   getMonthlyCashFlowBars,
-} from '@/accounts/detail/utils/cashFlowChartViewModel'
+} from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
 import {
   appendOtherBreakdownRow,
   getBreakdownRowFillPercent,
   getBreakdownRows,
-} from '@/accounts/detail/utils/spendingBreakdownViewModel'
-import { toISODate } from '@/accounts/detail/utils/date'
+} from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
+import { toISODate } from '@/pages/accounts/detail/utils/date'
 
 const currencies: Currency[] = [
   { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
