@@ -3,7 +3,7 @@ import {
   invalidateProfileUpdateCaches,
   updateRunwayAccountCaches,
   updateRunwaySettingsCaches,
-} from '@/api/cache/user';
+} from '@/api/cache/updates/user';
 import {
   fetchRunway,
   fetchRunwayAccounts,

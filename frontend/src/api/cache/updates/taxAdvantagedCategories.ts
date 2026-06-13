@@ -4,7 +4,7 @@ import {
   invalidateTaxAdvantagedCategoryOverview,
 } from '@/api/cache/invalidation';
 import { accountKeys, taxAdvantagedCategoryKeys } from '@/api/cache/queryKeys';
-import type { Account, AccountsOverview } from '@/api/accounts';
+import type { Account, AccountsOverview } from '@/api/accounts/types';
 import type {
   TaxAdvantagedCategory,
   TaxAdvantagedCategoryLimit,

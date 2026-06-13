@@ -22,10 +22,6 @@ export {
 } from '@/api/transactions/requests';
 
 export {
-  invalidateTransactionAccountData,
-} from '@/api/cache/transactions';
-
-export {
   useCreateTransaction,
   useDeleteTransaction,
   useInfiniteTransactions,

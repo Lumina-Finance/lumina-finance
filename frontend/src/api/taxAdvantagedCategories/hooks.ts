@@ -8,7 +8,7 @@ import {
   removeTaxAdvantagedCategoryLimit,
   updateTaxAdvantagedCategoryCaches,
   upsertTaxAdvantagedCategoryLimit,
-} from '@/api/cache/taxAdvantagedCategories';
+} from '@/api/cache/updates/taxAdvantagedCategories';
 import {
   createTaxAdvantagedCategory,
   createTaxAdvantagedCategoryLimit,

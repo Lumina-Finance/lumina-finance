@@ -6,7 +6,7 @@ import {
   invalidateAccountTaxAdvantagedCategoryData,
   invalidateCreatedAccountData,
   updateCachedAccountList,
-} from '@/api/cache/accounts';
+} from '@/api/cache/updates/accounts';
 import {
   createAccount,
   deleteAccount,

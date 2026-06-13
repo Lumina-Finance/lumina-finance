@@ -3,7 +3,7 @@ import {
   removeMerchantCaches,
   updateMerchantCreateCaches,
   updateMerchantUpdateCaches,
-} from '@/api/cache/merchants';
+} from '@/api/cache/updates/merchants';
 import {
   createMerchant,
   deleteMerchant,

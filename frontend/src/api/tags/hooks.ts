@@ -3,7 +3,7 @@ import {
   removeTagCaches,
   updateTagCreateCaches,
   updateTagUpdateCaches,
-} from '@/api/cache/tags';
+} from '@/api/cache/updates/tags';
 import {
   createTag,
   deleteTag,

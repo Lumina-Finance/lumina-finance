@@ -12,7 +12,7 @@ import {
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
   uniqueIds,
-} from '@/api/cache/transactions';
+} from '@/api/cache/updates/transactions';
 import {
   createTransaction,
   deleteTransaction,

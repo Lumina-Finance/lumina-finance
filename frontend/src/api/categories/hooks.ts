@@ -3,7 +3,7 @@ import {
   removeCategoryCaches,
   updateCategoryCreateCaches,
   updateCategoryUpdateCaches,
-} from '@/api/cache/categories';
+} from '@/api/cache/updates/categories';
 import {
   createCategory,
   deleteCategory,

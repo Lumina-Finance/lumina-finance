@@ -5,7 +5,7 @@ import {
   isInfiniteReferenceLookupQueryKey,
   referenceLookupMatchesFilters,
   upsertReferenceLookupIntoInfiniteData,
-} from '@/api/cache/referenceLookup';
+} from '@/api/cache/utils/referenceLookup';
 import type { Tag } from '@/api/tags/types';
 
 /**

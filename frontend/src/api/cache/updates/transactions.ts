@@ -18,7 +18,7 @@ import {
   invalidateTransactions,
 } from '@/api/cache/invalidation';
 import { accountKeys, transactionKeys } from '@/api/cache/queryKeys';
-import type { Account, AccountKind, AccountsOverview } from '@/api/accounts';
+import type { Account, AccountKind, AccountsOverview } from '@/api/accounts/types';
 import type { Transaction, UpdateTransactionPayload } from '@/api/transactions/types';
 
 const TRANSACTION_LIST_FIELDS = new Set<keyof UpdateTransactionPayload>([

@@ -12,7 +12,7 @@ import {
   referenceLookupMatchesFilters,
   removeReferenceLookupFromInfiniteData,
   upsertReferenceLookupIntoInfiniteData,
-} from '@/api/cache/referenceLookup';
+} from '@/api/cache/utils/referenceLookup';
 import type { Merchant, UpdateMerchantPayload } from '@/api/merchants/types';
 
 /**
