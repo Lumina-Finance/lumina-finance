@@ -16,30 +16,18 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import {
   RUNWAY_BAND_STYLE,
   formatCompactRunway,
-  formatRunwayBasis,
   runwayBand,
 } from '@/utils/runway'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { getRunwayCaption } from '@/dashboard/utils/getRunwayCaption'
 import { getRunwayFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
 
 type RunwayWidgetProps = {
   displayCurrency: string
-}
-
-function getRunwayCaption(
-  runway: ReturnType<typeof useRunway>['data'],
-  displayCurrency: string,
-) {
-  if (!runway) return ''
-
-  if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
-  if (runway.reason === 'insufficient_history') return 'Need 1+ month of net expense data'
-
-  return `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth \u00B7 ${formatRunwayBasis(runway.months_covered)}`
 }
 
 function getRunwaySegmentAtX(runwaySegments: RunwaySegment[], xPct: number) {
