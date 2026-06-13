@@ -1,8 +1,8 @@
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useAuth } from '@/hooks/useAuth';
-import { authenticatedFetch } from '@/api/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createInstitution, fetchInstitutions } from '@/api/institutions/requests';
+import type { Institution } from '@/api/institutions/types';
 import { institutionKeys } from '@/api/queryKeys';
-import type { Institution } from '@/api/accounts';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Reads institutions available for account creation and account identity edits
@@ -11,26 +11,10 @@ export function useInstitutions() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: institutionKeys.list(),
-    queryFn: () => authenticatedFetch<Institution[]>('/institutions'),
+    queryFn: fetchInstitutions,
     enabled: !!accessToken,
     staleTime: 24 * 60 * 60 * 1000,
     gcTime: Infinity,
-  });
-}
-
-interface CreateInstitutionPayload {
-  name: string;
-  country_code: string;
-  website: string;
-}
-
-/**
- * Creates an institution record from the account creation flow
- */
-function createInstitution(payload: CreateInstitutionPayload) {
-  return authenticatedFetch<Institution>('/institutions', {
-    method: 'POST',
-    body: JSON.stringify(payload),
   });
 }
 
