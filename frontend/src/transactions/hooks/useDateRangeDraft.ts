@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import type { TransactionListFilters } from '@/transactions/types/transactionList'
 
+/**
+ * Manages pending transaction date-range inputs separately from applied list filters
+ */
 export function useDateRangeDraft({
   filters,
   setFilter,
@@ -16,7 +19,7 @@ export function useDateRangeDraft({
   })
 
   // React's recommended "adjust during render" pattern keeps popover drafts in
-  // sync with applied filters without adding an extra effect render.
+  // sync with applied filters without adding an extra effect render
   if (syncedRange.from !== filters.from_date || syncedRange.to !== filters.to_date) {
     setSyncedRange({ from: filters.from_date, to: filters.to_date })
     setPendingFrom(filters.from_date ?? '')
@@ -28,7 +31,10 @@ export function useDateRangeDraft({
     (pendingFrom || undefined) !== filters.from_date ||
     (pendingTo || undefined) !== filters.to_date
 
-  const commitDateRange = () => {
+  /**
+   * Applies a valid pending date range or resets the draft when the range is invalid
+   */
+  function commitDateRange() {
     if (dateRangeInvalid) {
       setPendingFrom(filters.from_date ?? '')
       setPendingTo(filters.to_date ?? '')

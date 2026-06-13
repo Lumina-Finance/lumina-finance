@@ -103,6 +103,9 @@ function DailyCashFlowTooltipContent({
   )
 }
 
+/**
+ * Animates the optional "Net" word in the daily cash-flow chart title
+ */
 function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
   const shouldReduceMotion = useReducedMotion()
 
@@ -150,6 +153,9 @@ function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
   )
 }
 
+/**
+ * Renders the transaction overview daily cash-flow chart
+ */
 export default function DailyCashFlowChart({
   rawDailyFlow,
   fromDate,
@@ -221,7 +227,10 @@ export default function DailyCashFlowChart({
     const element = dailyFlowChartRef.current
     if (!element) return undefined
 
-    const updateChartWidth = (width: number) => {
+    /**
+     * Stores rounded chart width so tick density updates only when layout changes meaningfully
+     */
+    function updateChartWidth(width: number) {
       const nextWidth = Math.max(Math.round(width), 0)
       setDailyFlowChartWidth((currentWidth) => (
         currentWidth === nextWidth ? currentWidth : nextWidth
@@ -239,10 +248,13 @@ export default function DailyCashFlowChart({
     return () => resizeObserver.disconnect()
   }, [])
 
-  const showDailyCashFlowTooltip = (
+  /**
+   * Resolves the hovered Recharts area point and forwards it to the deferred tooltip overlay
+   */
+  function showDailyCashFlowTooltip(
     state: RechartsTooltipState<DailyCashFlowPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
+  ) {
     const point = getRechartsTooltipPoint({
       state,
       data: dailyFlow,

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
+/**
+ * Observes the bottom sentinel and delays infinite-scroll fetches so loading feedback is visible
+ */
 export function useInfiniteScrollTrigger({
   hasNextPage,
   isFetchingNextPage,
@@ -15,7 +18,7 @@ export function useInfiniteScrollTrigger({
   const [pendingFetch, setPendingFetch] = useState(false)
 
   // Watch the sentinel and delay the fetch slightly so the user sees a stable
-  // loading state instead of rapid bottom-of-list flicker.
+  // loading state instead of rapid bottom-of-list flicker
   useEffect(() => {
     if (!hasNextPage || isFetchingNextPage || disabled) return
     const el = sentinelRef.current

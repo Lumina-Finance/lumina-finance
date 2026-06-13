@@ -1,5 +1,8 @@
 import { motion } from 'motion/react'
 
+/**
+ * Renders the blocking loading overlay used while transaction filters refresh data
+ */
 export default function TransactionFilterLoadingOverlay({
   placement = 'top',
   reducedMotion,

@@ -93,6 +93,9 @@ function TopCategoryYAxisTick({
   )
 }
 
+/**
+ * Renders the transaction overview top-category spend chart
+ */
 export default function TopCategoriesChart({
   categorySpend,
   fxStatus,
@@ -127,10 +130,14 @@ export default function TopCategoriesChart({
   )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
   const contentTransition = { duration: prefersReducedMotion ? 0 : 0.24, ease: [0.25, 0.1, 0.25, 1] } as const
-  const showTopCategoryTooltip = (
+
+  /**
+   * Resolves the hovered Recharts bar and forwards it to the deferred tooltip overlay
+   */
+  function showTopCategoryTooltip(
     state: RechartsTooltipState<OverviewCategorySpend>,
     event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
+  ) {
     const point = getRechartsTooltipPoint({
       state,
       data: categorySpend,

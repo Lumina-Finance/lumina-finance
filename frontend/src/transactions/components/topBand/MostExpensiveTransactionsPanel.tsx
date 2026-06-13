@@ -15,6 +15,9 @@ const emptyOutliersHeight =
   OUTLIER_TRANSACTION_LIMIT * OUTLIER_TRANSACTION_ROW_HEIGHT
   + (OUTLIER_TRANSACTION_LIMIT - 1) * OUTLIER_TRANSACTION_ROW_GAP
 
+/**
+ * Renders the transaction overview outlier list and opens selected transactions for editing
+ */
 export default function MostExpensiveTransactionsPanel({
   outliers,
   fxStatus,

@@ -10,6 +10,9 @@ const MAX_NET_FLOW_FONT_SIZE = 60
 const netFlowCalculation =
   'Money in minus money out for this period. Transfers count except Balance Adjustment.'
 
+/**
+ * Renders the transaction overview net-flow metric with responsive financial typography
+ */
 export default function NetFlowSummary({
   inflow,
   outflow,
@@ -34,10 +37,15 @@ export default function NetFlowSummary({
     const container = containerRef.current
     const measurement = measurementRef.current
     if (!container || !measurement) return
+    const containerElement = container
+    const measurementElement = measurement
 
-    const updateFontSize = () => {
-      const availableWidth = container.getBoundingClientRect().width
-      const measuredWidth = measurement.getBoundingClientRect().width
+    /**
+     * Fits large currency values into the available metric width without changing layout
+     */
+    function updateFontSize() {
+      const availableWidth = containerElement.getBoundingClientRect().width
+      const measuredWidth = measurementElement.getBoundingClientRect().width
       if (availableWidth <= 0 || measuredWidth <= 0) return
 
       const nextSize = Math.min(
@@ -50,8 +58,8 @@ export default function NetFlowSummary({
     updateFontSize()
 
     const resizeObserver = new ResizeObserver(updateFontSize)
-    resizeObserver.observe(container)
-    resizeObserver.observe(measurement)
+    resizeObserver.observe(containerElement)
+    resizeObserver.observe(measurementElement)
     return () => resizeObserver.disconnect()
   }, [formattedNetFlow])
 

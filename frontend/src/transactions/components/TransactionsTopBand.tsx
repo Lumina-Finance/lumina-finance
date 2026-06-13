@@ -24,6 +24,9 @@ function TopBandDivider({ className = '' }: { className?: string }) {
   return <div className={className} style={topBandDividerStyle} />
 }
 
+/**
+ * Renders the transaction overview metrics band and daily cash-flow chart
+ */
 export default function TransactionsTopBand({
   overview,
   displayCurrency,
@@ -62,7 +65,8 @@ export default function TransactionsTopBand({
   const emptyOverlayMessage = hasTransactions
     ? `No qualifying transactions for ${rangeLabel}`
     : `No transaction data for ${rangeLabel}.`
-  // Placeholders preserve chart geometry only when the whole top band is under the empty overlay.
+
+  // Placeholders preserve chart geometry only when the whole top band is under the empty overlay
   const inflow = hasNetFlowData ? overview!.total_inflow! : PLACEHOLDER_FLOW.total_inflow
   const outflow = hasNetFlowData ? overview!.total_outflow! : PLACEHOLDER_FLOW.total_outflow
   const outliers = hasOutlierData
@@ -86,16 +90,21 @@ export default function TransactionsTopBand({
   const [metricsBandHeight, setMetricsBandHeight] = useState<number | null>(null)
   const [dailyCashFlowMode, setDailyCashFlowMode] = useState<DailyCashFlowChartMode>('net')
 
-  // Keep the animated metrics band height in sync with responsive content.
   useLayoutEffect(() => {
     const element = metricsBandContentRef.current
     if (!element) return
+    const metricsBandContent = element
 
-    const updateHeight = () => setMetricsBandHeight(element.getBoundingClientRect().height)
+    /**
+     * Measures the metrics grid because its row count changes across responsive breakpoints
+     */
+    function updateHeight() {
+      setMetricsBandHeight(metricsBandContent.getBoundingClientRect().height)
+    }
     updateHeight()
 
     const observer = new ResizeObserver(updateHeight)
-    observer.observe(element)
+    observer.observe(metricsBandContent)
     return () => observer.disconnect()
   }, [])
 

@@ -19,6 +19,9 @@ import { normalizeTransactionFilters } from '@/transactions/utils/normalizeTrans
 
 const DEFAULT_DATE_HEADER_STICKY_TOP = 72
 
+/**
+ * Wires transaction list filters, infinite loading, row grouping, and list rendering
+ */
 export default function TransactionListSection({
   fixedAccount,
   accounts = [],

@@ -1,5 +1,8 @@
 import type { FxStatus } from '@/api/shared/fx'
 
+/**
+ * Returns the FX status message used by transaction cash-flow summaries
+ */
 export function getCashFlowFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -13,6 +16,9 @@ export function getCashFlowFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status message used by transaction top-category summaries
+ */
 export function getTopCategoriesFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -26,6 +32,9 @@ export function getTopCategoriesFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status message used by transaction outlier summaries
+ */
 export function getMostExpensiveTransactionsFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
