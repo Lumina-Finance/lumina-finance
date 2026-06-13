@@ -10,7 +10,6 @@ import {
   useUpdateRunwaySettings,
   type UpdateProfilePayload,
 } from '@/api/user'
-import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import {
   DEFAULT_RUNWAY_THRESHOLDS,
@@ -22,6 +21,7 @@ import MerchantSettingsSection from '@/settings/components/MerchantSettingsSecti
 import TagSettingsSection from '@/settings/components/TagSettingsSection'
 import ProfileSection from '@/settings/components/ProfileSection'
 import RunwaySection from '@/settings/components/RunwaySection'
+import { SettingsPaneActions } from '@/settings/components/SettingsPaneActions'
 import TaxAdvantagedCategoriesSection from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection'
 import { profileFormFromUser, type ProfileFormState } from '@/settings/profileForm'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/settings/settingsNavigation'
@@ -309,84 +309,44 @@ export default function SettingsPage() {
     return () => observer.disconnect()
   }, [])
 
-  const paneActions = ({
-    canSave,
-    dirty,
-    error,
-    onDiscard,
-    onSave,
-    pending,
-    status,
-  }: {
-    canSave: boolean
-    dirty: boolean
-    error?: string | null
-    onDiscard: () => void
-    onSave: () => void
-    pending: boolean
-    status: ActionFeedbackStatus
-  }) => (
-    <div className="space-y-2 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
-      {error && (
-        <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
-          {error}
-        </p>
-      )}
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          className="app-secondary-button"
-          onClick={onDiscard}
-          disabled={!dirty || pending}
-        >
-          Discard
-        </button>
-        <ActionFeedbackButton
-          type="button"
-          className="app-primary-button w-[72px]"
-          onClick={onSave}
-          disabled={!canSave && status === 'idle'}
-          loadingLabel="Saving"
-          status={status}
-        >
-          Save
-        </ActionFeedbackButton>
-      </div>
-    </div>
-  )
-
   const profileSaveError = updateProfile.isError
     ? ((updateProfile.error as Error)?.message ?? 'Failed to save profile.')
     : null
   const runwaySaveError = updateRunway.isError
     ? ((updateRunway.error as Error)?.message ?? 'Failed to save runway settings.')
     : null
-  const profileActions = paneActions({
-    canSave: canSaveProfile,
-    dirty: isProfileDirty,
-    error: profileSaveError,
-    onDiscard: handleDiscardProfile,
-    onSave: handleSaveProfile,
-    pending: isProfilePending,
-    status: profileSaveFeedback.status,
-  })
-  const emailPasswordActions = paneActions({
-    canSave: false,
-    dirty: false,
-    onDiscard: () => undefined,
-    onSave: () => undefined,
-    pending: false,
-    status: 'idle',
-  })
-  const runwayActions = paneActions({
-    canSave: canSaveRunway,
-    dirty: isRunwayPaneDirty,
-    error: runwaySaveError,
-    onDiscard: handleDiscardRunway,
-    onSave: handleSaveRunway,
-    pending: isRunwayPending,
-    status: runwaySaveFeedback.status,
-  })
+  const profileActions = (
+    <SettingsPaneActions
+      canSave={canSaveProfile}
+      dirty={isProfileDirty}
+      error={profileSaveError}
+      onDiscard={handleDiscardProfile}
+      onSave={handleSaveProfile}
+      pending={isProfilePending}
+      status={profileSaveFeedback.status}
+    />
+  )
+  const emailPasswordActions = (
+    <SettingsPaneActions
+      canSave={false}
+      dirty={false}
+      onDiscard={() => undefined}
+      onSave={() => undefined}
+      pending={false}
+      status="idle"
+    />
+  )
+  const runwayActions = (
+    <SettingsPaneActions
+      canSave={canSaveRunway}
+      dirty={isRunwayPaneDirty}
+      error={runwaySaveError}
+      onDiscard={handleDiscardRunway}
+      onSave={handleSaveRunway}
+      pending={isRunwayPending}
+      status={runwaySaveFeedback.status}
+    />
+  )
   const activeSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0]
   const ActiveSettingsIcon = activeSettingsSection.icon
 
