@@ -9,8 +9,8 @@ import {
   invalidateMerchants,
   invalidateTransactionOverview,
   invalidateTransactions,
-} from '@/api/cacheInvalidation';
-import { categoryKeys } from '@/api/queryKeys';
+} from '@/api/cache/invalidation';
+import { categoryKeys } from '@/api/cache/queryKeys';
 import type { Category } from '@/api/categories/types';
 
 /**

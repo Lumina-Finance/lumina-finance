@@ -16,8 +16,8 @@ import {
   invalidateTaxAdvantagedCategories,
   invalidateTransactionOverview as invalidateTransactionOverviewQueries,
   invalidateTransactions,
-} from '@/api/cacheInvalidation';
-import { accountKeys, transactionKeys } from '@/api/queryKeys';
+} from '@/api/cache/invalidation';
+import { accountKeys, transactionKeys } from '@/api/cache/queryKeys';
 import type { Account, AccountKind, AccountsOverview } from '@/api/accounts';
 import type { Transaction, UpdateTransactionPayload } from '@/api/transactions/types';
 

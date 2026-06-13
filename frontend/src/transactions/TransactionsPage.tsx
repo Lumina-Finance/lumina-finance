@@ -8,7 +8,7 @@ import {
   useTransactionsOverview,
   type Transaction,
 } from '@/api/transactions'
-import { transactionKeys } from '@/api/queryKeys'
+import { transactionKeys } from '@/api/cache/queryKeys'
 import CreateTransactionModal from '@/components/CreateTransactionModal'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
 import TransactionsTopBand from '@/transactions/components/TransactionsTopBand'

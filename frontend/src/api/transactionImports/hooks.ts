@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { invalidateAppData } from '@/api/cacheInvalidation';
+import { invalidateAppData } from '@/api/cache/invalidation';
 import { importTransactionsInBatches } from '@/api/transactionImports/batching';
 
 /**

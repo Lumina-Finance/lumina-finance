@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchAppVersion } from '@/api/version/requests';
-import { appVersionKeys } from '@/api/queryKeys';
+import { appVersionKeys } from '@/api/cache/queryKeys';
 
 /**
  * Polls the backend version endpoint for app update notices

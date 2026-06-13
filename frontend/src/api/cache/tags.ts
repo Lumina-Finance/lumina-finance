@@ -1,11 +1,11 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
-import { invalidateTags, invalidateTransactions } from '@/api/cacheInvalidation';
-import { tagKeys } from '@/api/queryKeys';
+import { invalidateTags, invalidateTransactions } from '@/api/cache/invalidation';
+import { tagKeys } from '@/api/cache/queryKeys';
 import {
   isInfiniteReferenceLookupQueryKey,
   referenceLookupMatchesFilters,
   upsertReferenceLookupIntoInfiniteData,
-} from '@/api/referenceLookupCache';
+} from '@/api/cache/referenceLookup';
 import type { Tag } from '@/api/tags/types';
 
 /**

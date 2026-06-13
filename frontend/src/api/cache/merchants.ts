@@ -5,14 +5,14 @@ import {
   invalidateMerchants,
   invalidateTransactionOverview,
   invalidateTransactions,
-} from '@/api/cacheInvalidation';
-import { merchantKeys } from '@/api/queryKeys';
+} from '@/api/cache/invalidation';
+import { merchantKeys } from '@/api/cache/queryKeys';
 import {
   isInfiniteReferenceLookupQueryKey,
   referenceLookupMatchesFilters,
   removeReferenceLookupFromInfiniteData,
   upsertReferenceLookupIntoInfiniteData,
-} from '@/api/referenceLookupCache';
+} from '@/api/cache/referenceLookup';
 import type { Merchant, UpdateMerchantPayload } from '@/api/merchants/types';
 
 /**

@@ -6,7 +6,7 @@ import {
   invalidateAccountTaxAdvantagedCategoryData,
   invalidateCreatedAccountData,
   updateCachedAccountList,
-} from '@/api/accounts/cache';
+} from '@/api/cache/accounts';
 import {
   createAccount,
   deleteAccount,
@@ -23,7 +23,7 @@ import type {
   SpendingRange,
 } from '@/api/accounts/types';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
-import { accountKeys } from '@/api/queryKeys';
+import { accountKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

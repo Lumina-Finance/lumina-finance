@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { invalidateBudgetActivity } from '@/api/budgets/cache';
+import { invalidateBudgetActivity } from '@/api/cache/budgets';
 import {
   createBaseBudget,
   createBudgetInstance,
@@ -12,7 +12,7 @@ import {
   updateBudget,
 } from '@/api/budgets/requests';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
-import { budgetKeys } from '@/api/queryKeys';
+import { budgetKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

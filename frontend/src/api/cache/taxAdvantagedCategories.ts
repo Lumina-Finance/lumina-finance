@@ -2,8 +2,8 @@ import type { QueryClient } from '@tanstack/react-query';
 import {
   invalidateTaxAdvantagedCategories,
   invalidateTaxAdvantagedCategoryOverview,
-} from '@/api/cacheInvalidation';
-import { accountKeys, taxAdvantagedCategoryKeys } from '@/api/queryKeys';
+} from '@/api/cache/invalidation';
+import { accountKeys, taxAdvantagedCategoryKeys } from '@/api/cache/queryKeys';
 import type { Account, AccountsOverview } from '@/api/accounts';
 import type {
   TaxAdvantagedCategory,

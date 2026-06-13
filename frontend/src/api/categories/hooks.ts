@@ -3,7 +3,7 @@ import {
   removeCategoryCaches,
   updateCategoryCreateCaches,
   updateCategoryUpdateCaches,
-} from '@/api/categories/cache';
+} from '@/api/cache/categories';
 import {
   createCategory,
   deleteCategory,
@@ -11,7 +11,7 @@ import {
   mergeCategory,
   updateCategory,
 } from '@/api/categories/requests';
-import { categoryKeys } from '@/api/queryKeys';
+import { categoryKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

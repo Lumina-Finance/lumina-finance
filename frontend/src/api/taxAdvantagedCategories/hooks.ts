@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
-import { taxAdvantagedCategoryKeys } from '@/api/queryKeys';
+import { taxAdvantagedCategoryKeys } from '@/api/cache/queryKeys';
 import {
   refreshTaxAdvantagedCategoryLimitCaches,
   refreshTaxAdvantagedCategorySummary,
@@ -8,7 +8,7 @@ import {
   removeTaxAdvantagedCategoryLimit,
   updateTaxAdvantagedCategoryCaches,
   upsertTaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories/cache';
+} from '@/api/cache/taxAdvantagedCategories';
 import {
   createTaxAdvantagedCategory,
   createTaxAdvantagedCategoryLimit,

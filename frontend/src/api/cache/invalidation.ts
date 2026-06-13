@@ -12,7 +12,7 @@ import {
   transactionKeys,
   transactionOverviewKeys,
   userKeys,
-} from '@/api/queryKeys'
+} from '@/api/cache/queryKeys'
 
 interface InvalidationTarget {
   queryKey: QueryKey

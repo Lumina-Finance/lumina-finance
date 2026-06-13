@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { invalidateBudgets, invalidateDashboardBudgets } from '@/api/cacheInvalidation';
+import { invalidateBudgets, invalidateDashboardBudgets } from '@/api/cache/invalidation';
 
 /**
  * Invalidates budget views after budget mutations change dashboard rollups

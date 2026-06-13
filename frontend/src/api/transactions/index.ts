@@ -23,7 +23,7 @@ export {
 
 export {
   invalidateTransactionAccountData,
-} from '@/api/transactions/cache';
+} from '@/api/cache/transactions';
 
 export {
   useCreateTransaction,

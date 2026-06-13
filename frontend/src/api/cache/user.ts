@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { invalidateAggregateData } from '@/api/cacheInvalidation';
-import { userKeys } from '@/api/queryKeys';
+import { invalidateAggregateData } from '@/api/cache/invalidation';
+import { userKeys } from '@/api/cache/queryKeys';
 import type {
   RunwayResult,
   RunwaySettings,

@@ -8,7 +8,7 @@ import {
   fetchSpendingComparison,
 } from '@/api/dashboard/requests';
 import type { SpendingRange } from '@/api/dashboard/types';
-import { dashboardKeys } from '@/api/queryKeys';
+import { dashboardKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

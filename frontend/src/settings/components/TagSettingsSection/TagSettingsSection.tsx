@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
 import { Plus, Search } from 'lucide-react'
 import { ApiError } from '@/api/auth'
-import { tagKeys } from '@/api/queryKeys'
+import { tagKeys } from '@/api/cache/queryKeys'
 import {
   useDeleteTag,
   useMergeTag,

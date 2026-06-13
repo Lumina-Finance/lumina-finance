@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createInstitution, fetchInstitutions } from '@/api/institutions/requests';
 import type { Institution } from '@/api/institutions/types';
-import { institutionKeys } from '@/api/queryKeys';
+import { institutionKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

@@ -3,7 +3,7 @@ import {
   invalidateProfileUpdateCaches,
   updateRunwayAccountCaches,
   updateRunwaySettingsCaches,
-} from '@/api/user/cache';
+} from '@/api/cache/user';
 import {
   fetchRunway,
   fetchRunwayAccounts,
@@ -12,7 +12,7 @@ import {
   updateRunwayAccounts,
   updateRunwaySettings,
 } from '@/api/user/requests';
-import { userKeys } from '@/api/queryKeys';
+import { userKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

@@ -4,15 +4,15 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { invalidateInsightsMerchants, invalidateTransactions } from '@/api/cacheInvalidation';
+import { invalidateInsightsMerchants, invalidateTransactions } from '@/api/cache/invalidation';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
-import { transactionKeys, transactionOverviewKeys } from '@/api/queryKeys';
+import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys';
 import {
   findCachedTransaction,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
   uniqueIds,
-} from '@/api/transactions/cache';
+} from '@/api/cache/transactions';
 import {
   createTransaction,
   deleteTransaction,

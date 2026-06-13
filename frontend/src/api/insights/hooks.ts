@@ -8,7 +8,7 @@ import {
   fetchInsightsPeriodGlance,
   fetchInsightsSavingsRateTrend,
 } from '@/api/insights/requests';
-import { insightsKeys } from '@/api/queryKeys';
+import { insightsKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 import type { InsightsComparisonPeriod } from '@/insights/types/range';
 

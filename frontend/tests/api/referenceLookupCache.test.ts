@@ -10,7 +10,7 @@ import {
   referenceLookupMatchesFilters,
   removeReferenceLookupFromInfiniteData,
   upsertReferenceLookupIntoInfiniteData,
-} from '@/api/referenceLookupCache';
+} from '@/api/cache/referenceLookup';
 
 interface TestLookupItem {
   id: string;

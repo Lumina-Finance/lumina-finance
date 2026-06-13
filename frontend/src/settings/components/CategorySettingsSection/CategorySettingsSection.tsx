@@ -9,7 +9,7 @@ import {
   useMergeCategory,
   type Category,
 } from '@/api/categories'
-import { categoryKeys } from '@/api/queryKeys'
+import { categoryKeys } from '@/api/cache/queryKeys'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CategoryGroup from '@/settings/components/CategorySettingsSection/CategoryGroup'
 import MergeDeleteCategoryModal from '@/settings/components/CategorySettingsSection/MergeDeleteCategoryModal'

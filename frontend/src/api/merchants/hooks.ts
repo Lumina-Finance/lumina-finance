@@ -3,7 +3,7 @@ import {
   removeMerchantCaches,
   updateMerchantCreateCaches,
   updateMerchantUpdateCaches,
-} from '@/api/merchants/cache';
+} from '@/api/cache/merchants';
 import {
   createMerchant,
   deleteMerchant,
@@ -13,7 +13,7 @@ import {
   updateMerchant,
 } from '@/api/merchants/requests';
 import type { MerchantFilters } from '@/api/merchants/types';
-import { merchantKeys } from '@/api/queryKeys';
+import { merchantKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

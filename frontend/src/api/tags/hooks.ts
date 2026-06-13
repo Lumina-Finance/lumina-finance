@@ -3,7 +3,7 @@ import {
   removeTagCaches,
   updateTagCreateCaches,
   updateTagUpdateCaches,
-} from '@/api/tags/cache';
+} from '@/api/cache/tags';
 import {
   createTag,
   deleteTag,
@@ -13,7 +13,7 @@ import {
   updateTag,
 } from '@/api/tags/requests';
 import type { TagFilters } from '@/api/tags/types';
-import { tagKeys } from '@/api/queryKeys';
+import { tagKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
