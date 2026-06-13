@@ -31,6 +31,19 @@ import { SectionHeader } from './SectionHeader'
 import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
+import {
+  formatSignedBreakdownCurrency,
+  getBreakdownCalculation,
+  getBreakdownCrossoverKind,
+  getBreakdownLegendEntries,
+  getBreakdownLegendMinHeight,
+  getBreakdownPercent,
+  getBreakdownTotal,
+  getCategoryDriverColor,
+  getCategoryDriverDescriptor,
+  getTransactionCountLabel,
+  getTrendSectionCalculation,
+} from '@/insights/utils/incomeExpenseBreakdownDisplay'
 import type {
   BreakdownEntry,
   BreakdownMode,
@@ -75,10 +88,6 @@ const pieLegendItemVariants = {
 } as const
 
 const pieLegendItemTransition = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
-const PIE_LEGEND_LIMIT = 5
-const PIE_LEGEND_ROW_HEIGHT = 20
-const PIE_LEGEND_ROW_GAP = 8
-const PIE_LEGEND_MIN_HEIGHT = 136
 
 const categoryTrendListVariants = {
   initial: { transition: { staggerChildren: 0.03 } },
@@ -86,75 +95,9 @@ const categoryTrendListVariants = {
   exit: { transition: { staggerChildren: 0.035, staggerDirection: -1 } },
 } as const
 
-function getTotal(entries: BreakdownEntry[]) {
-  return entries.reduce((sum, entry) => sum + entry.amount, 0)
-}
-
-function getPct(amount: number, total: number) {
-  if (total <= 0) return 0
-  return Math.round((amount / total) * 100)
-}
-
-function formatSignedCurrency(amount: number, currency: string) {
-  if (amount === 0) return formatCurrency(amount, currency)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
-}
-
-function getCategoryDriverColor(mode: BreakdownMode, changeAmount: number) {
-  if (changeAmount === 0) return 'var(--app-text-muted)'
-  if (mode === 'income') return changeAmount > 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)'
-  return changeAmount > 0 ? 'var(--app-chart-negative)' : 'var(--app-chart-positive)'
-}
-
-function getCategoryDriverDescriptor(changeAmount: number) {
-  if (changeAmount === 0) return 'flat'
-  return changeAmount > 0 ? 'increase' : 'decrease'
-}
-
-function getTransactionCountLabel(count: number) {
-  return `${count} ${count === 1 ? 'transaction' : 'transactions'}`
-}
-
-function getCrossoverKind(entry: BreakdownEntry, mode: BreakdownMode) {
-  if (mode === 'expense' && entry.categoryKind === 'income') return 'income-loss'
-  if (mode === 'income' && entry.categoryKind === 'expense') return 'expense-refund'
-  return null
-}
-
-function getBreakdownCalculation(mode: BreakdownMode) {
-  return mode === 'expense'
-    ? 'Spending by category for this range. Refunds reduce spending first before flipping into income. Transfers are excluded'
-    : 'Income by category for this range. Reversals reduce income first before flipping into spending. Transfers are excluded'
-}
-
-function getTrendSectionCalculation(sectionId: CategoryTrendSection['id']) {
-  return sectionId === 'increases'
-    ? 'Compared with the previous matching period, sorted by biggest increase'
-    : 'Compared with the previous matching period, sorted by biggest decrease'
-}
-
 function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
-  const kind = getCrossoverKind(entry, mode)
+  const kind = getBreakdownCrossoverKind(entry, mode)
   return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
-}
-
-function getLegendEntries(entries: BreakdownEntry[], mode: BreakdownMode) {
-  const visibleEntries = entries.slice(0, PIE_LEGEND_LIMIT)
-  const visibleIds = new Set(visibleEntries.map((entry) => entry.id))
-  const hiddenFlippedEntries = entries
-    .slice(PIE_LEGEND_LIMIT)
-    .filter((entry) => getCrossoverKind(entry, mode) && !visibleIds.has(entry.id))
-
-  return [...visibleEntries, ...hiddenFlippedEntries]
-}
-
-function getLegendMinHeight(entryCount: number) {
-  if (entryCount <= 0) return PIE_LEGEND_MIN_HEIGHT
-
-  return Math.max(
-    PIE_LEGEND_MIN_HEIGHT,
-    entryCount * PIE_LEGEND_ROW_HEIGHT + (entryCount - 1) * PIE_LEGEND_ROW_GAP + 4,
-  )
 }
 
 export function IncomeExpenseBreakdownCard({
@@ -192,7 +135,7 @@ export function IncomeExpenseBreakdownCard({
     loading,
     transitionKey,
   })
-  const sliceTotal = getTotal(displaySnapshot.entries)
+  const sliceTotal = getBreakdownTotal(displaySnapshot.entries)
   const breakdownColors = useMemo(() => getCategoryColorMap(displaySnapshot.entries.map((entry) => ({
     id: entry.id,
     name: entry.name,
@@ -243,10 +186,10 @@ export function IncomeExpenseBreakdownCard({
     setHoveredBreakdownEntry(null)
   }
   const legendEntries = useMemo(
-    () => getLegendEntries(displaySnapshot.entries, displaySnapshot.mode),
+    () => getBreakdownLegendEntries(displaySnapshot.entries, displaySnapshot.mode),
     [displaySnapshot.entries, displaySnapshot.mode],
   )
-  const legendMinHeight = getLegendMinHeight(legendEntries.length)
+  const legendMinHeight = getBreakdownLegendMinHeight(legendEntries.length)
 
   return (
     <section className="app-card">
@@ -382,7 +325,7 @@ export function IncomeExpenseBreakdownCard({
                           {renderCrossoverBadge(entry, displaySnapshot.mode)}
                         </span>
                         <span className="font-financial">
-                          {getPct(entry.amount, sliceTotal)}%
+                          {getBreakdownPercent(entry.amount, sliceTotal)}%
                         </span>
                       </motion.div>
                     ))}
@@ -469,7 +412,7 @@ export function IncomeExpenseBreakdownCard({
                                     {formatCurrency(driver.amount, displaySnapshot.displayCurrency)}
                                   </p>
                                   <p className="font-financial text-sm min-[750px]:mt-1" style={{ color: driverColor }}>
-                                    {formatSignedCurrency(changeAmount, displaySnapshot.displayCurrency)}
+                                    {formatSignedBreakdownCurrency(changeAmount, displaySnapshot.displayCurrency)}
                                     {changePctLabel && (
                                       <>
                                         {' '}
