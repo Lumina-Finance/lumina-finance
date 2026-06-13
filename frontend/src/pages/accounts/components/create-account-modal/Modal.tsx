@@ -4,7 +4,7 @@ import Dropdown from '@/components/dropdown/Dropdown';
 import IconTooltip from '@/components/tooltips/IconTooltip';
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow';
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame';
-import CreateAccountModalShell from '@/pages/accounts/components/create-account-modal/CreateAccountModalShell';
+import CreateAccountModalShell from '@/pages/accounts/components/create-account-modal/Shell';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories';
@@ -20,24 +20,24 @@ import {
   ALL_CREATE_ACCOUNT_FIELDS_TOUCHED,
   CREATE_ACCOUNT_EASE,
   CREATE_ACCOUNT_TYPE_OPTIONS,
-} from '@/pages/accounts/components/create-account-modal/createAccountModalConstants';
+} from '@/pages/accounts/components/create-account-modal/constants';
 import {
   buildCreateAccountPayload,
   buildCreateAccountViewModel,
   buildInitialCreateAccountForm,
   getNextCreateAccountForm,
   validateCreateAccountForm,
-} from '@/pages/accounts/components/create-account-modal/utils/createAccountModalForm';
+} from '@/pages/accounts/components/create-account-modal/utils/form';
 import {
   buildCreateAccountCurrencyOptions,
   buildCreateAccountInstitutionOptions,
   buildCreateAccountTaxPlanOptions,
-} from '@/pages/accounts/components/create-account-modal/utils/createAccountModalOptions';
+} from '@/pages/accounts/components/create-account-modal/utils/options';
 import type {
   CreateAccountFieldErrors,
   CreateAccountFormField,
   CreateAccountValidatedField,
-} from '@/pages/accounts/components/create-account-modal/createAccountModalTypes';
+} from '@/pages/accounts/components/create-account-modal/types';
 
 const conditionalField = {
   initial: { height: 0, opacity: 0 },

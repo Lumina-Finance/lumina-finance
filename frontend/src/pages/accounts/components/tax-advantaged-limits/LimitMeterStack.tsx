@@ -1,6 +1,6 @@
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { getLifetimeAvailableBoundary } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { TaxAdvantagedCompactLimitMeter } from './TaxAdvantagedCompactLimitMeter'
+import { TaxAdvantagedCompactLimitMeter } from './CompactLimitMeter'
 
 /**
  * Renders annual, lifetime, and withdrawal meters for one tax-advantaged category

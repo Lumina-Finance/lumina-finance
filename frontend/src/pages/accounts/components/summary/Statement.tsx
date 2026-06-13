@@ -1,9 +1,9 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
-import { getSummaryFxStatusMessage } from './summaryFxStatus'
-import { SummaryValueFade } from './SummaryValueFade'
-import { SummaryValueSkeleton } from './SummaryValueSkeleton'
+import { getSummaryFxStatusMessage } from './fxStatus'
+import { SummaryValueFade } from './ValueFade'
+import { SummaryValueSkeleton } from './ValueSkeleton'
 
 type SummaryStatementProps = {
   error: unknown

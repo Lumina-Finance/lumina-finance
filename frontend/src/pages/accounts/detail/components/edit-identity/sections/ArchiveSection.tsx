@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import { ArchiveBalanceWarning } from '../controls/ArchiveBalanceWarning'
-import { EditModalSection } from '../layout/EditModalSection'
+import { EditModalSection } from '../layout/Section'
 
 type AccountArchiveSectionProps = {
   sectionNumber: string

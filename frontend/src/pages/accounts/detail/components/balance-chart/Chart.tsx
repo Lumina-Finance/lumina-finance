@@ -22,7 +22,7 @@ import type {
   BalanceChartDataPoint,
   BalanceChartSnapshot,
 } from '@/pages/accounts/detail/utils/balanceChartViewModel'
-import { BalanceChartTooltipContent } from './BalanceChartTooltipContent'
+import { BalanceChartTooltipContent } from './TooltipContent'
 
 const BALANCE_AXIS_EDGE_PADDING_PX = 4
 

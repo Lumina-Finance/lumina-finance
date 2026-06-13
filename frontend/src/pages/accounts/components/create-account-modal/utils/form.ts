@@ -1,13 +1,13 @@
 import { ACCOUNT_KIND_BY_TYPE, type AccountType, type CreateAccountPayload } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { CREATE_ACCOUNT_TYPE_OPTIONS, INITIAL_CREATE_ACCOUNT_FORM } from '@/pages/accounts/components/create-account-modal/createAccountModalConstants'
-import { optionalAccountMoneyInputToMinorUnits } from '@/pages/accounts/components/create-account-modal/utils/createAccountModalMoney'
+import { CREATE_ACCOUNT_TYPE_OPTIONS, INITIAL_CREATE_ACCOUNT_FORM } from '@/pages/accounts/components/create-account-modal/constants'
+import { optionalAccountMoneyInputToMinorUnits } from '@/pages/accounts/components/create-account-modal/utils/money'
 import type {
   CreateAccountFieldErrors,
   CreateAccountForm,
   CreateAccountFormField,
   CreateAccountViewModel,
-} from '@/pages/accounts/components/create-account-modal/createAccountModalTypes'
+} from '@/pages/accounts/components/create-account-modal/types'
 
 /**
  * Seeds the create-account form with the user's base currency while preserving controlled input defaults

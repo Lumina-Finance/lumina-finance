@@ -9,8 +9,8 @@ import type {
   IdentityFormValues,
 } from '@/pages/accounts/detail/utils/identityForm'
 import type { SetIdentityFormField } from '../types'
-import { EditModalSection } from '../layout/EditModalSection'
-import { AccountIdentityFieldLabelRow } from '../controls/AccountIdentityFieldLabelRow'
+import { EditModalSection } from '../layout/Section'
+import { AccountIdentityFieldLabelRow } from '../controls/FieldLabelRow'
 
 type AccountDetailsSectionProps = {
   form: IdentityFormValues

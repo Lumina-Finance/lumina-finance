@@ -1,5 +1,5 @@
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
-import { DetailLimitUsage } from './DetailLimitUsage'
+import { DetailLimitUsage } from './LimitUsage'
 
 type TaxAdvantagedCategoryBandProps = {
   plan: TaxAdvantagedCategory | undefined

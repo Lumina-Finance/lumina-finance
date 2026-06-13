@@ -11,8 +11,8 @@ import {
   getMonthlyCashFlowBars,
   type CashFlowBar,
 } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
-import { MonthlyCashFlowBarChart } from './MonthlyCashFlowBarChart'
-import { MonthlyCashFlowLegend } from './MonthlyCashFlowLegend'
+import { MonthlyCashFlowBarChart } from './BarChart'
+import { MonthlyCashFlowLegend } from './Legend'
 
 /**
  * Renders monthly cash flow history alongside a completed-month average bar

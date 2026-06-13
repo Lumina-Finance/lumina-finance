@@ -16,7 +16,7 @@ import {
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
 import type { CashFlowBar } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
-import { MonthlyCashFlowTooltipContent } from './MonthlyCashFlowTooltipContent'
+import { MonthlyCashFlowTooltipContent } from './TooltipContent'
 
 const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
 const cashFlowHoverHighlightWidth = 70

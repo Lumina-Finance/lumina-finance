@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
-import AccountsLoadingRegion from '@/pages/accounts/components/AccountsLoadingRegion'
+import AccountsLoadingRegion from '@/pages/accounts/components/LoadingRegion'
 
 type MetricPanelProps = {
   className: string

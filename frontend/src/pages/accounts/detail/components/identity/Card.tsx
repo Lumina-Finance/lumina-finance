@@ -6,8 +6,8 @@ import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
 import { IdentityFacts } from './IdentityFacts'
-import { StandardAccountBand } from './StandardAccountBand'
-import { TaxAdvantagedCategoryBand } from './TaxAdvantagedCategoryBand'
+import { StandardAccountBand } from './StandardBand'
+import { TaxAdvantagedCategoryBand } from './TaxAdvantagedBand'
 
 /**
  * Renders account identity, static account facts, and tax-advantaged context

@@ -15,8 +15,8 @@ import {
   type BalanceChartSnapshot,
 } from '@/pages/accounts/detail/utils/balanceChartViewModel'
 import { toISODate } from '@/pages/accounts/detail/utils/date'
-import { BalanceChart } from './BalanceChart'
-import { BalanceChartHeader } from './BalanceChartHeader'
+import { BalanceChart } from './Chart'
+import { BalanceChartHeader } from './Header'
 import { BalanceValueSummary } from './BalanceValueSummary'
 
 /**

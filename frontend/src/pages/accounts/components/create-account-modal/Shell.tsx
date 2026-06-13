@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, X } from 'lucide-react'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
-import { CREATE_ACCOUNT_EASE } from '@/pages/accounts/components/create-account-modal/createAccountModalConstants'
+import { CREATE_ACCOUNT_EASE } from '@/pages/accounts/components/create-account-modal/constants'
 
 interface CreateAccountModalShellProps {
   children: ReactNode

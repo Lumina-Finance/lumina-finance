@@ -9,7 +9,7 @@ import {
   getCategoryColorMap,
 } from '@/utils/chartColor'
 import { getBreakdownRows } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
-import { SpendingBreakdownCard } from './SpendingBreakdownCard'
+import { SpendingBreakdownCard } from './Card'
 
 /**
  * Renders top spending categories for one account and owns category colour mapping

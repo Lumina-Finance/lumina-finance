@@ -1,5 +1,5 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type { CreateAccountFieldErrors, CreateAccountForm } from '@/pages/accounts/components/create-account-modal/createAccountModalTypes'
+import type { CreateAccountFieldErrors, CreateAccountForm } from '@/pages/accounts/components/create-account-modal/types'
 
 export const CREATE_ACCOUNT_EASE = [0.25, 0.1, 0.25, 1] as const
 

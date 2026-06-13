@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
-import AccountRow from '@/pages/accounts/components/AccountRow'
+import AccountRow from '@/pages/accounts/components/Row'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
 
 const ACCOUNT_ROW_EASE = [0.25, 0.1, 0.25, 1] as const

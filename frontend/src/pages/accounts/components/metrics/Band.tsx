@@ -8,7 +8,7 @@ import {
   getRunwayFxStatusMessage,
   getSavingsRateFxStatusMessage,
 } from '@/utils/fxTooltipMessages'
-import { MetricPanel } from './MetricPanel'
+import { MetricPanel } from './Panel'
 
 type MetricsBandProps = {
   metrics: AccountsMetricsViewModel

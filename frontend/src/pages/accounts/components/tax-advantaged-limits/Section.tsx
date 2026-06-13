@@ -1,6 +1,6 @@
 import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
 import { hasTaxAdvantagedLimitTracking } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { TaxAdvantagedLimitMeterStack } from './TaxAdvantagedLimitMeterStack'
+import { TaxAdvantagedLimitMeterStack } from './LimitMeterStack'
 
 /**
  * Renders tax-advantaged limit summaries for the currently visible accounts

@@ -20,13 +20,13 @@ import {
   type IdentityFieldErrors,
   type IdentityFormValues,
 } from '@/pages/accounts/detail/utils/identityForm'
-import { AccountArchiveSection } from './sections/AccountArchiveSection'
-import { DeleteAccountPanel } from './sections/DeleteAccountPanel'
-import { AccountDetailsSection } from './sections/AccountDetailsSection'
-import { EditModalFooter } from './layout/EditModalFooter'
-import { EditModalHeader } from './layout/EditModalHeader'
-import { EditModalSideRail } from './layout/EditModalSideRail'
-import { AccountIdentitySection } from './sections/AccountIdentitySection'
+import { AccountArchiveSection } from './sections/ArchiveSection'
+import { DeleteAccountPanel } from './sections/DeletePanel'
+import { AccountDetailsSection } from './sections/DetailsSection'
+import { EditModalFooter } from './layout/Footer'
+import { EditModalHeader } from './layout/Header'
+import { EditModalSideRail } from './layout/SideRail'
+import { AccountIdentitySection } from './sections/IdentitySection'
 import type { DeleteStage } from './types'
 
 type EditAccountIdentityModalProps = {

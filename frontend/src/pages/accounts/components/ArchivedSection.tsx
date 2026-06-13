@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
-import AccountRow from '@/pages/accounts/components/AccountRow'
+import AccountRow from '@/pages/accounts/components/Row'
 
 export default function ArchivedAccountsSection({
   accounts,

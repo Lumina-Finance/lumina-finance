@@ -9,7 +9,7 @@ import {
   getDeterministicChartColorMap,
 } from '@/utils/chartColor'
 import { getBreakdownRows } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
-import { SpendingBreakdownCard } from './SpendingBreakdownCard'
+import { SpendingBreakdownCard } from './Card'
 
 /**
  * Renders top spending merchants for one account and owns merchant colour mapping

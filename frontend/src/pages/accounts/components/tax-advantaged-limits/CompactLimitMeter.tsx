@@ -13,7 +13,7 @@ import {
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { TaxAdvantagedLimitMeterTooltipContent } from './TaxAdvantagedLimitMeterTooltipContent'
+import { TaxAdvantagedLimitMeterTooltipContent } from './LimitMeterTooltipContent'
 
 type LimitMeterTooltipData = {
   key: string
