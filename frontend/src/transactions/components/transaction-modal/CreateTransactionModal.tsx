@@ -1,8 +1,8 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'motion/react'
-import { Calendar, Check, ReceiptText, Tag as TagIcon, Trash2, X } from 'lucide-react'
+import { Calendar, ReceiptText, Tag as TagIcon, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import CreateTagModal from '@/components/CreateTagModal'
@@ -61,6 +61,7 @@ import type {
 } from '@/transactions/components/transaction-modal/transactionModalTypes'
 import { validateTransactionForm } from '@/transactions/components/transaction-modal/transactionModalValidation'
 import TransactionModalFieldLabelRow from '@/transactions/components/transaction-modal/TransactionModalFieldLabelRow'
+import TransactionModalFooter from '@/transactions/components/transaction-modal/TransactionModalFooter'
 import TransactionModalPillSelector from '@/transactions/components/transaction-modal/TransactionModalPillSelector'
 import { useDebouncedReferenceSearch } from '@/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
@@ -108,7 +109,6 @@ export default function CreateTransactionModal({
   const [fieldErrors, setFieldErrors] = useState<TransactionFormFieldErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitError, setSubmitError] = useState('')
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [categoryModalName, setCategoryModalName] = useState('')
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [categoryModalKey, setCategoryModalKey] = useState(0)
@@ -126,12 +126,8 @@ export default function CreateTransactionModal({
   const [directionHighlightKey, setDirectionHighlightKey] = useState(0)
   const merchantReferenceSearch = useDebouncedReferenceSearch(MERCHANT_SEARCH_DEBOUNCE_MS)
   const tagReferenceSearch = useDebouncedReferenceSearch(TAG_SEARCH_DEBOUNCE_MS)
-  const deleteButtonRef = useRef<HTMLButtonElement>(null)
-  const idleLabelRef = useRef<HTMLSpanElement>(null)
-  const confirmLabelRef = useRef<HTMLSpanElement>(null)
   const createdAccountIdsRef = useRef<Set<string>>(new Set())
   const openRef = useRef(open)
-  const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
 
   const flushDeferredAccountInvalidation = useCallback(() => {
     const accountIds = [...createdAccountIdsRef.current]
@@ -187,34 +183,6 @@ export default function CreateTransactionModal({
   const { data: fetchedSelectedMerchant } = useMerchant(selectedMerchantId, open && !!selectedMerchantId)
   const selectedMerchant = createdMerchant?.id === selectedMerchantId ? createdMerchant : fetchedSelectedMerchant
   const deleteLoading = deleteMutation.isPending
-  const deleteButtonLoading = deleteLoading && confirmingDelete
-
-  // Measure both label widths once after mount so we can drive a smooth width transition.
-  useLayoutEffect(() => {
-    if (!editing) return
-    if (idleLabelRef.current && confirmLabelRef.current) {
-      setLabelWidths({
-        idle: idleLabelRef.current.offsetWidth,
-        confirm: confirmLabelRef.current.offsetWidth,
-      })
-    }
-  }, [editing])
-
-  // Cancel pending deletion if the user clicks anywhere outside the Delete button.
-  useEffect(() => {
-    if (!confirmingDelete || deleteLoading) return
-    const onPointer = (e: PointerEvent) => {
-      if (deleteButtonRef.current && !deleteButtonRef.current.contains(e.target as Node)) {
-        setConfirmingDelete(false)
-      }
-    }
-    // defer to next tick so the click that armed confirmation doesn't immediately undo it
-    const t = setTimeout(() => window.addEventListener('pointerdown', onPointer), 0)
-    return () => {
-      clearTimeout(t)
-      window.removeEventListener('pointerdown', onPointer)
-    }
-  }, [confirmingDelete, deleteLoading])
 
   const createLoading = createMutation.isPending || createDelayPending
   const submitLoading = editing ? updateMutation.isPending : createLoading
@@ -593,16 +561,17 @@ export default function CreateTransactionModal({
   }
 
   const handleDelete = async () => {
-    if (!transaction) return
+    if (!transaction) return false
 
     setSubmitError('')
 
     try {
       await deleteMutation.mutateAsync(transaction.id)
       handleClose()
+      return true
     } catch (err) {
-      setConfirmingDelete(false)
       setSubmitError(err instanceof ApiError ? err.message : 'Could not delete transaction.')
+      return false
     }
   }
 
@@ -1066,117 +1035,16 @@ export default function CreateTransactionModal({
                   </div>
                 </div>
 
-                {/* Footer */}
-                <div
-                  className="flex shrink-0 flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:px-8 min-[1050px]:py-5"
-                  style={{ borderTop: '1px solid var(--app-border)' }}
-                >
-                  {editing ? (
-                    <button
-                      ref={deleteButtonRef}
-                      type="button"
-                      onClick={() => {
-                        if (isPending) return
-                        if (confirmingDelete) void handleDelete()
-                        else setConfirmingDelete(true)
-                      }}
-                      disabled={isPending}
-                      className={`app-danger-button overflow-hidden whitespace-nowrap ${
-                        deleteButtonLoading ? 'app-primary-button-loading shrink-0' : 'w-full sm:w-auto'
-                      }`}
-                    >
-                      {deleteButtonLoading ? (
-                        <div className="app-spinner" />
-                      ) : (
-                        <span
-                          className="relative block"
-                          style={{
-                            width: labelWidths
-                              ? `${confirmingDelete ? labelWidths.confirm : labelWidths.idle}px`
-                              : 'auto',
-                            height: '1.25rem',
-                            transition: 'width 220ms cubic-bezier(0.25, 0.1, 0.25, 1)',
-                          }}
-                        >
-                          {/* Hidden refs measure the natural width of each label once on mount */}
-                          <span
-                            ref={idleLabelRef}
-                            className="invisible absolute inline-flex items-center gap-2 whitespace-nowrap"
-                            aria-hidden
-                          >
-                            <Trash2 size={16} aria-hidden />
-                            Delete
-                          </span>
-                          <span
-                            ref={confirmLabelRef}
-                            className="invisible absolute inline-flex items-center gap-2 whitespace-nowrap"
-                            aria-hidden
-                          >
-                            <Check size={16} aria-hidden />
-                            Yes, delete
-                          </span>
-                          {/* Visible labels stack and crossfade */}
-                          <span
-                            className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
-                            style={{ opacity: confirmingDelete ? 0 : 1 }}
-                          >
-                            <Trash2 size={16} aria-hidden />
-                            Delete
-                          </span>
-                          <span
-                            className="absolute inset-0 inline-flex items-center justify-center gap-2 whitespace-nowrap transition-opacity duration-150"
-                            style={{ opacity: confirmingDelete ? 1 : 0 }}
-                          >
-                            <Check size={16} aria-hidden />
-                            Yes, delete
-                          </span>
-                        </span>
-                      )}
-                    </button>
-                  ) : (
-                    <div className="min-w-0 sm:max-w-xs">
-                      <label
-                        htmlFor="txn-keep-open"
-                        className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
-                      >
-                        <input
-                          id="txn-keep-open"
-                          type="checkbox"
-                          checked={keepOpenAfterCreate}
-                          onChange={(event) => setKeepOpenAfterCreate(event.target.checked)}
-                          disabled={isPending}
-                          className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
-                          style={{ accentColor: 'var(--app-accent)' }}
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                            Keep modal open after adding
-                          </span>
-                          <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                            Keep type, date, account, merchant, and category
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
-                    <button
-                      type="button"
-                      className="app-secondary-button w-full sm:w-auto"
-                      onClick={handleClose}
-                      disabled={isPending}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isPending}
-                      className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
-                    >
-                      {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
-                    </button>
-                  </div>
-                </div>
+                <TransactionModalFooter
+                  editing={editing}
+                  isPending={isPending}
+                  submitLoading={submitLoading}
+                  deleteLoading={deleteLoading}
+                  keepOpenAfterCreate={keepOpenAfterCreate}
+                  onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
+                  onCancel={handleClose}
+                  onDelete={handleDelete}
+                />
                   </form>
                 </motion.div>
               </motion.div>
