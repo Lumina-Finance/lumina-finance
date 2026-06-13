@@ -1,9 +1,4 @@
-import {
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
-} from 'react'
+import { useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Cell,
@@ -14,18 +9,19 @@ import {
 import type { CategoryBreakdownEntry } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
-import { SpendingBreakdownTooltipContent } from './SpendingBreakdownTooltipContent'
 import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/dashboard/constants/animation'
+import { useDashboardCursorTooltip } from '@/dashboard/hooks/useDashboardCursorTooltip'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import {
   getSpendingBreakdownEntryColor,
   type BreakdownMode,
   type SpendingBreakdownSummary,
 } from '@/dashboard/utils/getSpendingBreakdownSummary'
-import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
+
+import { SpendingBreakdownTooltipContent } from './SpendingBreakdownTooltipContent'
 
 type SpendingBreakdownChartProps = {
   entries: CategoryBreakdownEntry[]
@@ -50,59 +46,19 @@ export function SpendingBreakdownChart({
   shouldReduceMotion,
 }: SpendingBreakdownChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
-  const tooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredEntry, setHoveredEntry] = useState<CategoryBreakdownEntry | null>(null)
-  const [tooltipVisible, setTooltipVisible] = useState(false)
-
-  /**
-   * Keeps the portal tooltip aligned to the cursor within the chart bounds
-   */
-  function updateTooltipPosition(clientX: number, clientY: number) {
-    const chart = chartRef.current
-    const tooltip = tooltipRef.current
-    if (!chart || !tooltip) return
-
-    applyCursorTooltipPosition({
-      origin: chart,
-      tooltip,
-      clientX,
-      clientY,
-      xProperty: '--breakdown-tooltip-x',
-      yProperty: '--breakdown-tooltip-y',
-    })
-  }
-
-  /**
-   * Shows a tooltip only when Recharts resolves a concrete breakdown slice
-   */
-  function showTooltip(
-    entry: CategoryBreakdownEntry | undefined,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) {
-    if (!entry) {
-      setTooltipVisible(false)
-      return
-    }
-
-    updateTooltipPosition(event.clientX, event.clientY)
-    setHoveredEntry((current) => (
-      current?.category_id === entry.category_id ? current : entry
-    ))
-    setTooltipVisible(true)
-    requestAnimationFrame(() => updateTooltipPosition(event.clientX, event.clientY))
-  }
-
-  function hideTooltip() {
-    setTooltipVisible(false)
-  }
-
-  /**
-   * Keeps faded tooltip content mounted until the opacity transition finishes
-   */
-  function handleTooltipTransitionEnd(event: ReactTransitionEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
-    setHoveredEntry(null)
-  }
+  const {
+    tooltipRef,
+    tooltipItem: hoveredEntry,
+    tooltipVisible,
+    showTooltip,
+    hideTooltip,
+    handleTooltipTransitionEnd,
+  } = useDashboardCursorTooltip<CategoryBreakdownEntry, HTMLDivElement>({
+    originRef: chartRef,
+    xProperty: '--breakdown-tooltip-x',
+    yProperty: '--breakdown-tooltip-y',
+    getItemKey: (entry) => entry.category_id,
+  })
 
   return (
     <div

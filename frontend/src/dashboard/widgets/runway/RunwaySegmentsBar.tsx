@@ -1,14 +1,11 @@
 import {
-  useRef,
-  useState,
   type MouseEvent as ReactMouseEvent,
   type RefObject,
-  type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
+import { useDashboardCursorTooltip } from '@/dashboard/hooks/useDashboardCursorTooltip'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 type RunwaySegmentsBarProps = {
   segments: RunwaySegment[]
@@ -41,34 +38,26 @@ export function RunwaySegmentsBar({
   displayCurrency,
   tooltipOriginRef,
 }: RunwaySegmentsBarProps) {
-  const tooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredSegment, setHoveredSegment] = useState<RunwaySegment | null>(null)
-  const [tooltipVisible, setTooltipVisible] = useState(false)
-
-  /**
-   * Positions the portal tooltip relative to the full runway card
-   */
-  function updateTooltipPosition(clientX: number, clientY: number) {
-    const card = tooltipOriginRef.current
-    const tooltip = tooltipRef.current
-    if (!card || !tooltip) return
-
-    applyCursorTooltipPosition({
-      origin: card,
-      tooltip,
-      clientX,
-      clientY,
-      xProperty: '--runway-tooltip-x',
-      yProperty: '--runway-tooltip-y',
-    })
-  }
+  const {
+    tooltipRef,
+    tooltipItem: hoveredSegment,
+    tooltipVisible,
+    showTooltip: showSegmentTooltip,
+    hideTooltip,
+    handleTooltipTransitionEnd,
+  } = useDashboardCursorTooltip<RunwaySegment, HTMLDivElement>({
+    originRef: tooltipOriginRef,
+    xProperty: '--runway-tooltip-x',
+    yProperty: '--runway-tooltip-y',
+    getItemKey: (segment) => segment.id,
+  })
 
   /**
    * Shows the account segment under the cursor and keeps the tooltip pinned to the latest pointer
    */
   function showTooltip(event: ReactMouseEvent<HTMLDivElement>) {
     if (segments.length === 0) {
-      setTooltipVisible(false)
+      hideTooltip()
       return
     }
 
@@ -76,28 +65,11 @@ export function RunwaySegmentsBar({
     const xPct = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100))
     const segment = getRunwaySegmentAtX(segments, xPct)
     if (!segment) {
-      setTooltipVisible(false)
+      hideTooltip()
       return
     }
 
-    updateTooltipPosition(event.clientX, event.clientY)
-    setHoveredSegment((current) => (
-      current?.id === segment.id ? current : segment
-    ))
-    setTooltipVisible(true)
-    requestAnimationFrame(() => updateTooltipPosition(event.clientX, event.clientY))
-  }
-
-  function hideTooltip() {
-    setTooltipVisible(false)
-  }
-
-  /**
-   * Keeps faded tooltip content mounted until the opacity transition finishes
-   */
-  function handleTooltipTransitionEnd(event: ReactTransitionEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
-    setHoveredSegment(null)
+    showSegmentTooltip(segment, event)
   }
 
   return (
