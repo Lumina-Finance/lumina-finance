@@ -8,63 +8,42 @@ import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories';
 import CreateInstitutionModal from '@/components/CreateInstitutionModal';
-import {
-  useCreateAccount,
-  ACCOUNT_KIND_BY_TYPE,
-  type AccountType,
-  type CreateAccountPayload,
-} from '@/api/accounts';
+import { useCreateAccount } from '@/api/accounts';
 import { ApiError } from '@/api/auth';
 import { useAuth } from '@/hooks/useAuth';
 import {
   formatMoneyInputLive,
   sanitizeMoneyInput,
 } from '@/utils/moneyInput';
+import {
+  ALL_CREATE_ACCOUNT_FIELDS_TOUCHED,
+  CREATE_ACCOUNT_EASE,
+  CREATE_ACCOUNT_TYPE_OPTIONS,
+} from '@/accounts/components/create-account-modal/createAccountModalConstants';
+import {
+  buildCreateAccountPayload,
+  buildCreateAccountViewModel,
+  buildInitialCreateAccountForm,
+  getNextCreateAccountForm,
+  validateCreateAccountForm,
+} from '@/accounts/components/create-account-modal/createAccountModalForm';
+import {
+  buildCreateAccountCurrencyOptions,
+  buildCreateAccountInstitutionOptions,
+  buildCreateAccountTaxPlanOptions,
+} from '@/accounts/components/create-account-modal/createAccountModalOptions';
+import type {
+  CreateAccountFieldErrors,
+  CreateAccountFormField,
+  CreateAccountValidatedField,
+} from '@/accounts/components/create-account-modal/createAccountModalTypes';
 
-/* ── Constants ── */
-
-const EASE = [0.25, 0.1, 0.25, 1] as const;
-
-const ACCOUNT_TYPE_OPTIONS = [
-  { value: 'checking', label: 'Checking', group: 'Assets' },
-  { value: 'savings', label: 'Savings', group: 'Assets' },
-  { value: 'term_deposit', label: 'Term Deposit', group: 'Assets' },
-  { value: 'cash', label: 'Cash', group: 'Assets' },
-  { value: 'investment', label: 'Investment', group: 'Assets' },
-  { value: 'credit_card', label: 'Credit Card', group: 'Revolving credit' },
-  { value: 'line_of_credit', label: 'Line of Credit', group: 'Revolving credit' },
-  { value: 'heloc', label: 'HELOC', group: 'Revolving credit' },
-  { value: 'loan', label: 'Loan', group: 'Amortizing debt' },
-  { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
-];
-
-const INITIAL_FORM = {
-  account_type: '',
-  name: '',
-  currency: '',
-  institution_id: '',
-  tax_advantaged_category_id: '',
-  credit_limit: '',
-  starting_balance: '',
-};
-
-// Shared animation for conditional fields sliding in/out
 const conditionalField = {
   initial: { height: 0, opacity: 0 },
   animate: { height: 'auto', opacity: 1 },
   exit: { height: 0, opacity: 0 },
-  transition: { duration: 0.25, ease: EASE },
+  transition: { duration: 0.25, ease: CREATE_ACCOUNT_EASE },
 };
-
-/* ── Validation ── */
-
-interface FieldErrors {
-  account_type?: string;
-  name?: string;
-  currency?: string;
-  credit_limit?: string;
-  starting_balance?: string;
-}
 
 interface FieldLabelRowProps {
   label: React.ReactNode;
@@ -101,26 +80,6 @@ function FieldLabelRow({ label, htmlFor, error, accessory }: FieldLabelRowProps)
   );
 }
 
-function validate(form: typeof INITIAL_FORM): FieldErrors {
-  const errors: FieldErrors = {};
-  if (!form.account_type) errors.account_type = 'Select an account type';
-  if (!form.name.trim()) errors.name = 'Name is required';
-  else if (form.name.trim().length > 256) errors.name = 'Name must be 256 characters or less';
-  if (!form.currency) errors.currency = 'Select a currency';
-
-  if (form.credit_limit) {
-    const n = Number(form.credit_limit.replace(/,/g, ''));
-    if (isNaN(n) || n < 0) errors.credit_limit = 'Must be a positive number';
-  }
-  if (form.starting_balance) {
-    const n = Number(form.starting_balance.replace(/,/g, ''));
-    if (isNaN(n) || n < 0) errors.starting_balance = 'Must be zero or higher';
-  }
-  return errors;
-}
-
-/* ── Component ── */
-
 interface CreateAccountModalProps {
   open: boolean;
   onClose: () => void;
@@ -133,47 +92,27 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const { data: institutions = [] } = useInstitutions();
   const { data: taxAdvantagedCategories = [] } = useTaxAdvantagedCategories();
 
-  const [form, setForm] = useState(() => ({
-    ...INITIAL_FORM,
-    currency: user?.base_currency ?? '',
-  }));
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [form, setForm] = useState(() => buildInitialCreateAccountForm(user?.base_currency));
+  const [fieldErrors, setFieldErrors] = useState<CreateAccountFieldErrors>({});
+  const [touched, setTouched] = useState<Partial<Record<CreateAccountValidatedField, boolean>>>({});
   const [submitError, setSubmitError] = useState('');
 
-  // Derived state
-  const accountKind = form.account_type
-    ? ACCOUNT_KIND_BY_TYPE[form.account_type as AccountType]
-    : undefined;
-  // credit_limit applies only to revolving-credit products (credit cards,
-  // LOCs, HELOCs). Amortizing debt has a fixed principal schedule, not a limit.
-  const isRevolving = accountKind === 'revolving';
-  const isLiability = accountKind === 'revolving' || accountKind === 'amortizing';
-  const canLinkTaxPlan = accountKind === 'asset' && !!form.currency;
-  const conditionalAccountField = canLinkTaxPlan ? 'tax-plan' : isRevolving ? 'credit-limit' : null;
-  const selectedAccountType = ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type);
-  const selectedCurrencySymbol = currencies.find((currency) => currency.id === form.currency)?.symbol ?? '';
-  const startingBalanceLabel = isLiability ? 'Starting Amount Owed' : 'Starting Balance';
-
-  // Dropdown options
+  const {
+    conditionalAccountField,
+    selectedAccountTypeLabel,
+    selectedCurrencySymbol,
+    startingBalanceLabel,
+  } = buildCreateAccountViewModel(form, currencies);
   const currencyOptions = useMemo(
-    () => currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name} (${c.symbol})` })),
+    () => buildCreateAccountCurrencyOptions(currencies),
     [currencies],
   );
   const institutionOptions = useMemo(
-    () => [
-      { value: '', label: 'None' },
-      ...institutions.map((i) => ({ value: i.id, label: i.name })),
-    ],
+    () => buildCreateAccountInstitutionOptions(institutions),
     [institutions],
   );
   const taxPlanOptions = useMemo(
-    () => [
-      { value: '', label: 'None' },
-      ...taxAdvantagedCategories
-        .filter((plan) => plan.group_id === null && plan.currency === form.currency)
-        .map((plan) => ({ value: plan.id, label: plan.name })),
-    ],
+    () => buildCreateAccountTaxPlanOptions(taxAdvantagedCategories, form.currency),
     [form.currency, taxAdvantagedCategories],
   );
 
@@ -192,21 +131,9 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  const handleChange = (field: keyof typeof INITIAL_FORM, value: string) => {
-    setForm((f) => {
-      const next = { ...f, [field]: value };
-      // Reset dependent fields when their controlling field changes
-      if (field === 'account_type') {
-        const nextKind = value ? ACCOUNT_KIND_BY_TYPE[value as AccountType] : undefined;
-        if (nextKind !== 'revolving') next.credit_limit = '';
-        if (nextKind !== 'asset') next.tax_advantaged_category_id = '';
-      }
-      if (field === 'currency') {
-        next.tax_advantaged_category_id = '';
-      }
-      return next;
-    });
-    if (fieldErrors[field as keyof FieldErrors]) {
+  const handleChange = (field: CreateAccountFormField, value: string) => {
+    setForm((current) => getNextCreateAccountForm(current, field, value));
+    if (fieldErrors[field as CreateAccountValidatedField]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
     setSubmitError('');
@@ -228,46 +155,21 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     setShowInstitutionModal(false);
   };
 
-  const handleBlur = (field: keyof FieldErrors) => {
+  const handleBlur = (field: CreateAccountValidatedField) => {
     setTouched((t) => ({ ...t, [field]: true }));
-    const errors = validate(form);
+    const errors = validateCreateAccountForm(form);
     setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const errors = validate(form);
+    const errors = validateCreateAccountForm(form);
     setFieldErrors(errors);
-    setTouched({ account_type: true, name: true, currency: true, credit_limit: true, starting_balance: true });
+    setTouched(ALL_CREATE_ACCOUNT_FIELDS_TOUCHED);
     if (Object.keys(errors).length > 0) return;
 
-    // Convert user-entered major units (e.g. dollars) to minor units (e.g. cents)
-    const selectedCurrency = currencies.find((c) => c.id === form.currency);
-    const minorMultiplier = Math.pow(10, selectedCurrency?.minor_unit_exponent ?? 2);
-
-    const toMinor = (value: string): number | null => {
-      if (!value) return null;
-      const n = parseFloat(value.replace(/,/g, ''));
-      if (isNaN(n) || n < 0) return null;
-      return Math.round(n * minorMultiplier);
-    };
-
-    const payload: CreateAccountPayload = {
-      account_kind: ACCOUNT_KIND_BY_TYPE[form.account_type as AccountType],
-      account_type: form.account_type as AccountType,
-      tax_advantaged_category_id: form.tax_advantaged_category_id || null,
-      name: form.name.trim(),
-      institution_id: form.institution_id || null,
-      currency: form.currency,
-      credit_limit: isRevolving ? toMinor(form.credit_limit) : null,
-      starting_balance: (() => {
-        const amount = toMinor(form.starting_balance);
-        if (amount === null) return null;
-        return isLiability ? -amount : amount;
-      })(),
-      is_archived: false,
-    };
+    const payload = buildCreateAccountPayload(form, currencies);
 
     mutation.mutate(payload, {
       onSuccess: () => onClose(),
@@ -277,7 +179,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     });
   };
 
-  const showError = (field: keyof FieldErrors) => touched[field] && fieldErrors[field];
+  const showError = (field: CreateAccountValidatedField) => touched[field] && fieldErrors[field];
 
   return (
     <>
@@ -285,7 +187,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         <AnimatePresence>
           {open && (
             <>
-              {/* Backdrop */}
               <motion.div
                 className="fixed inset-0 z-50"
                 style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
@@ -303,7 +204,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                 initial={{ opacity: 0, scale: 0.96, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                transition={{ duration: 0.25, ease: EASE }}
+                transition={{ duration: 0.25, ease: CREATE_ACCOUNT_EASE }}
                 onClick={onClose}
               >
                 <div
@@ -332,9 +233,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                     </span>
                   </div>
 
-                  {/* Form */}
                   <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
-                    {/* Header */}
                     <div
                       className="shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8"
                       style={{ borderBottom: '1px solid var(--app-border)' }}
@@ -345,7 +244,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                             className="mb-2 text-xs font-semibold uppercase"
                             style={{ color: 'var(--app-accent)' }}
                           >
-                            {selectedAccountType?.label ?? 'New account'}
+                            {selectedAccountTypeLabel ?? 'New account'}
                           </p>
                           <h2
                             id="create-account-title"
@@ -382,11 +281,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           <div className="min-w-0 space-y-3">
                             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
-                            {/* Account Type */}
                             <div>
                               <FieldLabelRow label="Account Type" error={showError('account_type') || undefined} />
                               <Dropdown
-                                options={ACCOUNT_TYPE_OPTIONS}
+                                options={CREATE_ACCOUNT_TYPE_OPTIONS}
                                 value={form.account_type}
                                 onChange={(v) => handleChange('account_type', v)}
                                 className={`app-input ${showError('account_type') ? 'app-input-error' : ''}`}
@@ -399,7 +297,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                               </p>
                             </div>
 
-                            {/* Account Name */}
                             <div>
                               <FieldLabelRow htmlFor="account-name" label="Account Name" error={showError('name') || undefined} />
                               <input
@@ -414,7 +311,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                               />
                             </div>
 
-                            {/* Currency */}
                             <div>
                               <FieldLabelRow label="Currency" error={showError('currency') || undefined} />
                               <Dropdown
@@ -448,7 +344,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           <div className="min-w-0 space-y-3">
                             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
 
-                            {/* Institution */}
                             <div>
                               <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Institution</label>
                               <Dropdown
@@ -561,7 +456,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           </div>
                         </section>
 
-                        {/* Submit error */}
                         <AnimatePresence>
                           {submitError && (
                             <motion.p
@@ -579,7 +473,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                       </div>
                     </div>
 
-                    {/* Footer */}
                     <div
                       className="grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5"
                       style={{ borderTop: '1px solid var(--app-border)' }}
