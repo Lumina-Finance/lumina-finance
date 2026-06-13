@@ -3,13 +3,13 @@ import {
   DIRECTION_OPTIONS,
   EASE,
   KIND_OPTIONS,
-} from '@/transactions/components/transaction-modal/transactionModalConstants'
+} from '@/transactions/components/TransactionModal/transactionModalConstants'
 import type {
   TransactionDirection,
   TransactionModalKind,
-} from '@/transactions/components/transaction-modal/transactionModalTypes'
-import TransactionModalPillSelector from '@/transactions/components/transaction-modal/TransactionModalPillSelector'
-import TransactionModalSectionFrame from '@/transactions/components/transaction-modal/TransactionModalSectionFrame'
+} from '@/transactions/components/TransactionModal/transactionModalTypes'
+import TransactionModalPillSelector from '@/transactions/components/TransactionModal/TransactionModalPillSelector'
+import TransactionModalSectionFrame from '@/transactions/components/TransactionModal/TransactionModalSectionFrame'
 
 interface TransactionTypeDirectionSectionProps {
   kind: TransactionModalKind

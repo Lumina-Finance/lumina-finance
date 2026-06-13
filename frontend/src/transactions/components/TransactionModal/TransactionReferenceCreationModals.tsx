@@ -5,7 +5,7 @@ import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal from '@/components/CreateMerchantModal'
 import CreateTagModal from '@/components/CreateTagModal'
 import type { DropdownOption } from '@/components/Dropdown'
-import type { TransactionModalKind } from '@/transactions/components/transaction-modal/transactionModalTypes'
+import type { TransactionModalKind } from '@/transactions/components/TransactionModal/transactionModalTypes'
 
 interface TransactionReferenceCreationModalsProps {
   parentOpen: boolean

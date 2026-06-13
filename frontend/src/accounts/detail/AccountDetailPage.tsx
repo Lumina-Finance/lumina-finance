@@ -13,7 +13,7 @@ import { TopCategoriesBySpendingCard } from '@/accounts/detail/components/spendi
 import { TopMerchantsBySpendingCard } from '@/accounts/detail/components/spending-breakdown/TopMerchantsBySpendingCard'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
-import CreateTransactionModal from '@/transactions/components/transaction-modal/CreateTransactionModal'
+import CreateTransactionModal from '@/transactions/components/TransactionModal/CreateTransactionModal'
 
 type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
 

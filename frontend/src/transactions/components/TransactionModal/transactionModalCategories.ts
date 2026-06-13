@@ -3,11 +3,11 @@ import {
   DEFAULT_CATEGORY_ICON,
   DEFAULT_DIRECTION_BY_KIND,
   KIND_LABELS,
-} from '@/transactions/components/transaction-modal/transactionModalConstants'
+} from '@/transactions/components/TransactionModal/transactionModalConstants'
 import type {
   TransactionDirection,
   TransactionModalKind,
-} from '@/transactions/components/transaction-modal/transactionModalTypes'
+} from '@/transactions/components/TransactionModal/transactionModalTypes'
 
 const CATEGORY_KIND_ORDER: TransactionModalKind[] = ['expense', 'income', 'transfer']
 

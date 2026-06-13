@@ -28,34 +28,34 @@ import {
   TAG_FETCHING_MORE_TEXT_MIN_MS,
   TAG_SEARCH_DEBOUNCE_MS,
   TAG_SEARCH_LOADING_TEXT_MIN_MS,
-} from '@/transactions/components/transaction-modal/transactionModalConstants'
+} from '@/transactions/components/TransactionModal/transactionModalConstants'
 import {
   buildCategoryOptions,
   getDefaultDirectionForKind,
-} from '@/transactions/components/transaction-modal/transactionModalCategories'
-import { buildInitialTransactionForm } from '@/transactions/components/transaction-modal/transactionModalInitialForm'
-import { getDirectionFromAmountInputSign } from '@/transactions/components/transaction-modal/transactionModalMoney'
+} from '@/transactions/components/TransactionModal/transactionModalCategories'
+import { buildInitialTransactionForm } from '@/transactions/components/TransactionModal/transactionModalInitialForm'
+import { getDirectionFromAmountInputSign } from '@/transactions/components/TransactionModal/transactionModalMoney'
 import {
   buildCreateTransactionPayload,
   buildUpdateTransactionPatch,
-} from '@/transactions/components/transaction-modal/transactionModalPayloads'
+} from '@/transactions/components/TransactionModal/transactionModalPayloads'
 import type {
   CreateTransactionModalProps,
   TransactionFormFieldErrors,
   TransactionFormValues,
   TransactionModalKind,
-} from '@/transactions/components/transaction-modal/transactionModalTypes'
-import { validateTransactionForm } from '@/transactions/components/transaction-modal/transactionModalValidation'
-import TransactionDetailsSection from '@/transactions/components/transaction-modal/TransactionDetailsSection'
-import TransactionModalFooter from '@/transactions/components/transaction-modal/TransactionModalFooter'
-import TransactionModalShell from '@/transactions/components/transaction-modal/TransactionModalShell'
-import TransactionModalSubmitError from '@/transactions/components/transaction-modal/TransactionModalSubmitError'
-import TransactionReferenceCreationModals from '@/transactions/components/transaction-modal/TransactionReferenceCreationModals'
-import TransactionReferencesSection from '@/transactions/components/transaction-modal/TransactionReferencesSection'
-import TransactionTypeDirectionSection from '@/transactions/components/transaction-modal/TransactionTypeDirectionSection'
-import { useDebouncedReferenceSearch } from '@/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
-import { usePagedReferenceDropdown } from '@/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
-import { useTransactionModalEnvironment } from '@/transactions/components/transaction-modal/hooks/useTransactionModalEnvironment'
+} from '@/transactions/components/TransactionModal/transactionModalTypes'
+import { validateTransactionForm } from '@/transactions/components/TransactionModal/transactionModalValidation'
+import TransactionDetailsSection from '@/transactions/components/TransactionModal/TransactionDetailsSection'
+import TransactionModalFooter from '@/transactions/components/TransactionModal/TransactionModalFooter'
+import TransactionModalShell from '@/transactions/components/TransactionModal/TransactionModalShell'
+import TransactionModalSubmitError from '@/transactions/components/TransactionModal/TransactionModalSubmitError'
+import TransactionReferenceCreationModals from '@/transactions/components/TransactionModal/TransactionReferenceCreationModals'
+import TransactionReferencesSection from '@/transactions/components/TransactionModal/TransactionReferencesSection'
+import TransactionTypeDirectionSection from '@/transactions/components/TransactionModal/TransactionTypeDirectionSection'
+import { useDebouncedReferenceSearch } from '@/transactions/components/TransactionModal/hooks/useDebouncedReferenceSearch'
+import { usePagedReferenceDropdown } from '@/transactions/components/TransactionModal/hooks/usePagedReferenceDropdown'
+import { useTransactionModalEnvironment } from '@/transactions/components/TransactionModal/hooks/useTransactionModalEnvironment'
 
 function delay(ms: number) {
   return new Promise((resolve) => {

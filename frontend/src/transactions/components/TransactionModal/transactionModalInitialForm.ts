@@ -2,12 +2,12 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
-import { INITIAL_TRANSACTION_FORM } from '@/transactions/components/transaction-modal/transactionModalConstants'
-import { amountToInputString, getTodayLocalDateInputValue } from '@/transactions/components/transaction-modal/transactionModalMoney'
+import { INITIAL_TRANSACTION_FORM } from '@/transactions/components/TransactionModal/transactionModalConstants'
+import { amountToInputString, getTodayLocalDateInputValue } from '@/transactions/components/TransactionModal/transactionModalMoney'
 import type {
   TransactionFormValues,
   TransactionModalKind,
-} from '@/transactions/components/transaction-modal/transactionModalTypes'
+} from '@/transactions/components/TransactionModal/transactionModalTypes'
 
 interface BuildInitialTransactionFormOptions {
   transaction?: Transaction

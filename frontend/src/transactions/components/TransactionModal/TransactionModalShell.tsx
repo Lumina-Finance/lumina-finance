@@ -2,7 +2,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { ReceiptText, X } from 'lucide-react'
-import { EASE } from '@/transactions/components/transaction-modal/transactionModalConstants'
+import { EASE } from '@/transactions/components/TransactionModal/transactionModalConstants'
 
 interface TransactionModalShellProps {
   open: boolean

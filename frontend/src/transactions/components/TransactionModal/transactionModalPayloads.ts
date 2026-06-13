@@ -6,8 +6,8 @@ import type {
 import {
   amountInputToMinorUnits,
   applyTransactionDirection,
-} from '@/transactions/components/transaction-modal/transactionModalMoney'
-import type { TransactionFormValues } from '@/transactions/components/transaction-modal/transactionModalTypes'
+} from '@/transactions/components/TransactionModal/transactionModalMoney'
+import type { TransactionFormValues } from '@/transactions/components/TransactionModal/transactionModalTypes'
 
 /**
  * Builds the create payload after the form has passed validation

@@ -2,7 +2,7 @@ import type {
   TransactionDirection,
   TransactionFormValues,
   TransactionModalKind,
-} from '@/transactions/components/transaction-modal/transactionModalTypes'
+} from '@/transactions/components/TransactionModal/transactionModalTypes'
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
