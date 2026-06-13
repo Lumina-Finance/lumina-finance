@@ -4,6 +4,7 @@ import { Tag } from 'lucide-react'
 import { useCreateCategory, type Category } from '@/api/categories'
 import Dropdown from '@/components/Dropdown'
 import CategoryIconSelector from '@/components/category-icon-selector/CategoryIconSelector'
+import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/CreateReferenceModalShell'
@@ -129,18 +130,7 @@ export default function CreateCategoryModal({
       onSubmit={handleSubmit}
     >
       <div className="space-y-5">
-        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-          <div className="flex min-h-0 flex-col items-center">
-            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-              01
-            </span>
-            <span
-              className="mt-1 w-px flex-1"
-              style={{ backgroundColor: 'var(--app-border-strong)' }}
-              aria-hidden
-            />
-          </div>
-
+        <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
@@ -204,20 +194,9 @@ export default function CreateCategoryModal({
               </div>
             </div>
           </div>
-        </section>
+        </CreateModalSectionFrame>
 
-        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-          <div className="flex min-h-0 flex-col items-center">
-            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-              02
-            </span>
-            <span
-              className="mt-1 w-px flex-1"
-              style={{ backgroundColor: 'var(--app-border-strong)' }}
-              aria-hidden
-            />
-          </div>
-
+        <CreateModalSectionFrame step="02">
           <div className="min-w-0 space-y-3">
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Classification</p>
             <div>
@@ -229,7 +208,7 @@ export default function CreateCategoryModal({
               />
             </div>
           </div>
-        </section>
+        </CreateModalSectionFrame>
 
         <AnimatePresence>
           {formError && (

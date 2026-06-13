@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Landmark, X } from 'lucide-react';
 import Dropdown from '@/components/Dropdown';
 import IconTooltip from '@/components/IconTooltip';
+import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories';
@@ -266,18 +267,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
                     <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8">
                       <div className="space-y-5">
-                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-                          <div className="flex min-h-0 flex-col items-center">
-                            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-                              01
-                            </span>
-                            <span
-                              className="mt-1 w-px flex-1"
-                              style={{ backgroundColor: 'var(--app-border-strong)' }}
-                              aria-hidden
-                            />
-                          </div>
-
+                        <CreateModalSectionFrame step="01">
                           <div className="min-w-0 space-y-3">
                             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
@@ -327,20 +317,9 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                               </p>
                             </div>
                           </div>
-                        </section>
+                        </CreateModalSectionFrame>
 
-                        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-                          <div className="flex min-h-0 flex-col items-center">
-                            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-                              02
-                            </span>
-                            <span
-                              className="mt-1 w-px flex-1"
-                              style={{ backgroundColor: 'var(--app-border-strong)' }}
-                              aria-hidden
-                            />
-                          </div>
-
+                        <CreateModalSectionFrame step="02">
                           <div className="min-w-0 space-y-3">
                             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
 
@@ -454,7 +433,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                               )}
                             </AnimatePresence>
                           </div>
-                        </section>
+                        </CreateModalSectionFrame>
 
                         <AnimatePresence>
                           {submitError && (

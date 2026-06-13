@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ApiError } from '@/api/auth'
 import { useCreateInstitution, type Institution } from '@/api/institutions'
 import Dropdown from '@/components/Dropdown'
+import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
 import CreateReferenceModalShell from '@/components/create-modal/CreateReferenceModalShell'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
 
@@ -164,18 +165,7 @@ export default function CreateInstitutionModal({
       onSubmit={handleSubmit}
     >
       <div className="space-y-5">
-        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-          <div className="flex min-h-0 flex-col items-center">
-            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-              01
-            </span>
-            <span
-              className="mt-1 w-px flex-1"
-              style={{ backgroundColor: 'var(--app-border-strong)' }}
-              aria-hidden
-            />
-          </div>
-
+        <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
@@ -205,20 +195,9 @@ export default function CreateInstitutionModal({
               />
             </div>
           </div>
-        </section>
+        </CreateModalSectionFrame>
 
-        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-          <div className="flex min-h-0 flex-col items-center">
-            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-              02
-            </span>
-            <span
-              className="mt-1 w-px flex-1"
-              style={{ backgroundColor: 'var(--app-border-strong)' }}
-              aria-hidden
-            />
-          </div>
-
+        <CreateModalSectionFrame step="02">
           <div className="min-w-0 space-y-3">
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Reference</p>
 
@@ -235,7 +214,7 @@ export default function CreateInstitutionModal({
               />
             </div>
           </div>
-        </section>
+        </CreateModalSectionFrame>
 
         <AnimatePresence>
           {submitError && (
