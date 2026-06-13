@@ -7,11 +7,8 @@ import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { SpendingComparisonChart } from '@/dashboard/components/SpendingComparisonChart'
 import { SpendingComparisonHeader } from '@/dashboard/components/SpendingComparisonHeader'
+import { SpendingComparisonLegend } from '@/dashboard/components/SpendingComparisonLegend'
 import { SpendingComparisonMetric } from '@/dashboard/components/SpendingComparisonMetric'
-import {
-  CURRENT_LABEL_BY_RANGE,
-  PREVIOUS_LABEL_BY_RANGE,
-} from '@/dashboard/constants/ranges'
 import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
 
 type SpendingComparisonWidgetProps = {
@@ -76,48 +73,11 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
           spendingDeltaText={spendingDeltaText}
           displayCurrency={displayCurrency}
         />
-        <div className="mb-2 mt-2 flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{
-                background: 'var(--app-accent)',
-                opacity: currentHasData ? 1 : 0.4,
-              }}
-            />
-            <span
-              className="text-xs max-[1000px]:text-[0.675rem]"
-              style={{
-                color: 'var(--app-text-muted)',
-                fontStyle: currentHasData ? 'normal' : 'italic',
-              }}
-            >
-              {currentHasData
-                ? CURRENT_LABEL_BY_RANGE[displaySpendingRange]
-                : `No data for ${CURRENT_LABEL_BY_RANGE[displaySpendingRange].toLowerCase()}`}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{
-                background: 'var(--app-text-muted)',
-                opacity: previousHasData ? 1 : 0.4,
-              }}
-            />
-            <span
-              className="text-xs max-[1000px]:text-[0.675rem]"
-              style={{
-                color: 'var(--app-text-muted)',
-                fontStyle: previousHasData ? 'normal' : 'italic',
-              }}
-            >
-              {previousHasData
-                ? PREVIOUS_LABEL_BY_RANGE[displaySpendingRange]
-                : `No data for ${PREVIOUS_LABEL_BY_RANGE[displaySpendingRange].toLowerCase()}`}
-            </span>
-          </div>
-        </div>
+        <SpendingComparisonLegend
+          spendingRange={displaySpendingRange}
+          currentHasData={currentHasData}
+          previousHasData={previousHasData}
+        />
         <SpendingComparisonChart
           data={spendingChartData}
           pointsByLabel={spendingPointsByLabel}
