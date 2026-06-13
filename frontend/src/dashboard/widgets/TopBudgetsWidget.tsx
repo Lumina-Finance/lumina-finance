@@ -1,14 +1,11 @@
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { TopBudgetsHeader } from '@/dashboard/components/TopBudgetsHeader'
+import { TopBudgetsList } from '@/dashboard/components/TopBudgetsList'
 import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
-import { formatDashboardShortDate } from '@/dashboard/utils/formatDashboardShortDate'
-import { getTopBudgetAttentionState } from '@/dashboard/utils/getTopBudgetAttentionState'
 import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
-import { formatCurrency } from '@/utils/formatCurrency'
 
 /**
  * Loads recent budget utilization data and composes the dashboard top budgets list
@@ -51,80 +48,7 @@ export function TopBudgetsWidget() {
         className="flex-1"
         contentClassName="flex h-full min-h-0 flex-col"
       >
-        {budgets.length === 0 ? (
-          <div
-            className="flex flex-1 items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
-            style={{ color: 'var(--app-text-subtle)' }}
-          >
-            No budgets
-          </div>
-        ) : (
-          <>
-            <div className="min-h-0 flex-1">
-              {budgets.map((budget, index) => {
-                const attention = getTopBudgetAttentionState(budget.usagePct)
-                const barPct = Math.min(Math.max(budget.usagePct, 0), 100)
-                return (
-                  <Link
-                    key={budget.budget_id}
-                    to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
-                    className="block px-1 py-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
-                    style={{
-                      borderBottom: index < budgets.length - 1 ? '1px solid var(--app-border)' : undefined,
-                    }}
-                    aria-label={`Open ${budget.name} budget`}
-                  >
-                    <div className="flex items-baseline justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-semibold max-[1000px]:text-[0.9rem]">{budget.name}</p>
-                        <p
-                          className="mt-0.5 text-base max-[1000px]:text-[0.9rem]"
-                          style={{ color: 'var(--app-text-muted)' }}
-                        >
-                          {formatCurrency(budget.total_spent, budget.currency)}
-                          {' / '}
-                          {formatCurrency(budget.overall_limit, budget.currency)}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-base font-semibold leading-none max-[1000px]:text-[0.9rem]" style={{ color: attention.textColor }}>
-                          {budget.usagePct}%
-                        </p>
-                        <p className="mt-1 text-xs font-medium max-[1000px]:text-[0.675rem]" style={{ color: attention.textColor }}>
-                          {attention.label}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-center gap-3">
-                      <div
-                        className="h-1.5 flex-1 overflow-hidden rounded-full"
-                        style={{ background: 'var(--app-border)' }}
-                        aria-hidden
-                      >
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${barPct}%`,
-                            background: attention.indicatorColor,
-                          }}
-                        />
-                      </div>
-                      <span className="shrink-0 text-sm max-[1000px]:text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                        Ends {formatDashboardShortDate(budget.period_end)}
-                      </span>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-            <Link
-              to="/budgets"
-              className="app-secondary-button mt-3 h-9 text-xs max-[1000px]:text-[0.675rem]"
-            >
-              View all budgets
-            </Link>
-          </>
-        )}
+        <TopBudgetsList budgets={budgets} />
       </DashboardWidgetLoadingBody>
     </div>
   )
