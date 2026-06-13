@@ -8,8 +8,8 @@ import {
   runwayBand,
 } from '@/utils/runway'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
-import { RunwayHeader } from '@/dashboard/components/RunwayHeader'
-import { RunwaySegmentsBar } from '@/dashboard/components/RunwaySegmentsBar'
+import { RunwayHeader } from './RunwayHeader'
+import { RunwaySegmentsBar } from './RunwaySegmentsBar'
 import { getRunwayCaption } from '@/dashboard/utils/getRunwayCaption'
 import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
 

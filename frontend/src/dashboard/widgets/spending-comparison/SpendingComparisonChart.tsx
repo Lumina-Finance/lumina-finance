@@ -13,7 +13,7 @@ import {
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
-import { SpendingComparisonTooltipContent } from '@/dashboard/components/SpendingComparisonTooltipContent'
+import { SpendingComparisonTooltipContent } from './SpendingComparisonTooltipContent'
 import {
   getSpendingComparisonTooltipKey,
   getSpendingComparisonTooltipPointer,

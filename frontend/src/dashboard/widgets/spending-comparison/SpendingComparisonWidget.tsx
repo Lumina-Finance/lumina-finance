@@ -5,10 +5,10 @@ import {
 } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
-import { SpendingComparisonChart } from '@/dashboard/components/SpendingComparisonChart'
-import { SpendingComparisonHeader } from '@/dashboard/components/SpendingComparisonHeader'
-import { SpendingComparisonLegend } from '@/dashboard/components/SpendingComparisonLegend'
-import { SpendingComparisonMetric } from '@/dashboard/components/SpendingComparisonMetric'
+import { SpendingComparisonChart } from './SpendingComparisonChart'
+import { SpendingComparisonHeader } from './SpendingComparisonHeader'
+import { SpendingComparisonLegend } from './SpendingComparisonLegend'
+import { SpendingComparisonMetric } from './SpendingComparisonMetric'
 import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
 
 type SpendingComparisonWidgetProps = {

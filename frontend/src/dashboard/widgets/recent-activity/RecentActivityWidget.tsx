@@ -3,8 +3,8 @@ import { useCategories } from '@/api/categories'
 import { useDashboardRecentActivity } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
-import { RecentActivityHeader } from '@/dashboard/components/RecentActivityHeader'
-import { RecentActivityList } from '@/dashboard/components/RecentActivityList'
+import { RecentActivityHeader } from './RecentActivityHeader'
+import { RecentActivityList } from './RecentActivityList'
 import { getRecentActivityRows } from '@/dashboard/utils/getRecentActivityRows'
 
 /**

@@ -2,9 +2,9 @@ import { useMemo } from 'react'
 import { useDashboardNetWorth } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
-import { NetWorthChart } from '@/dashboard/components/NetWorthChart'
-import { NetWorthHeader } from '@/dashboard/components/NetWorthHeader'
-import { NetWorthMetric } from '@/dashboard/components/NetWorthMetric'
+import { NetWorthChart } from './NetWorthChart'
+import { NetWorthHeader } from './NetWorthHeader'
+import { NetWorthMetric } from './NetWorthMetric'
 import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
 
 type NetWorthWidgetProps = {

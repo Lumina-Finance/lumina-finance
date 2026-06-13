@@ -14,7 +14,7 @@ import {
 import type { CategoryBreakdownEntry } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
-import { SpendingBreakdownTooltipContent } from '@/dashboard/components/SpendingBreakdownTooltipContent'
+import { SpendingBreakdownTooltipContent } from './SpendingBreakdownTooltipContent'
 import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
