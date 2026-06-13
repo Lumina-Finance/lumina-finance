@@ -6,6 +6,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Institution } from '@/api/institutions'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { RunwayResult } from '@/api/user'
+import type { AccountsMetricsViewModel } from '@/accounts/types/accounts'
 import {
   getActiveFilters,
   getFilteredRows,
@@ -22,6 +23,10 @@ import {
   getRunwayMetric,
   getSavingsRateMetric,
 } from '@/accounts/utils/accountMetrics'
+import {
+  getCreditUsageDisplay,
+  getSavingsRateDisplay,
+} from '@/accounts/utils/metricDisplay'
 import {
   formatTaxAdvantagedMeterMoney,
   getLifetimeAvailableBoundary,
@@ -242,6 +247,43 @@ describe('account section helpers', () => {
 })
 
 describe('account metric helpers', () => {
+  it('formats savings rate empty states for accounts with expenses and no income', () => {
+    const savingsRate: AccountsMetricsViewModel['savingsRate'] = {
+      value: null,
+      hasExpenses: true,
+      isLoading: false,
+      net: -5_000,
+      income: 0,
+      progress: 0,
+      color: 'var(--app-negative)',
+      fxStatus: undefined,
+    }
+
+    expect(getSavingsRateDisplay(savingsRate, 'USD')).toEqual({
+      value: '−∞%',
+      caption: 'No income this month',
+    })
+  })
+
+  it('explains credit usage gaps caused by unavailable FX conversion', () => {
+    const creditUsage: AccountsMetricsViewModel['creditUsage'] = {
+      hasCreditAccounts: true,
+      hasCreditLimits: true,
+      hasCreditData: false,
+      isLoading: false,
+      utilization: 0,
+      totalUsed: 0,
+      totalLimit: 0,
+      color: 'var(--app-text-subtle)',
+      fxStatus: { state: 'unavailable', missing_pairs: [] },
+    }
+
+    expect(getCreditUsageDisplay(creditUsage, 'USD')).toEqual({
+      value: 'N/A',
+      caption: 'FX unavailable',
+    })
+  })
+
   it('uses the latest savings period and handles no-income expense months', () => {
     expect(getSavingsRateMetric({
       savings_rate_history: [

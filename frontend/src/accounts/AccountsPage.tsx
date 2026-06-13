@@ -6,7 +6,7 @@ import CreateAccountModal from '@/components/CreateAccountModal'
 import Filters from '@/accounts/components/filters/Filters'
 import AccountListSection from '@/accounts/components/AccountListSection'
 import SummaryStatement from '@/accounts/components/summary/SummaryStatement'
-import AccountsMetricsBand from '@/accounts/components/AccountsMetricsBand'
+import MetricsBand from '@/accounts/components/metrics/MetricsBand'
 import ArchivedAccountsSection from '@/accounts/components/ArchivedAccountsSection'
 import TaxAdvantagedLimitsSection from '@/accounts/components/tax-advantaged-limits/TaxAdvantagedLimitsSection'
 import { useFilters } from '@/accounts/hooks/useFilters'
@@ -66,7 +66,7 @@ export default function AccountsPage() {
         />
 
         <div>
-          <AccountsMetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
+          <MetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
           <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
         </div>
 
