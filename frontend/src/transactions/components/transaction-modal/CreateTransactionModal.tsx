@@ -20,7 +20,6 @@ import {
   useUpdateTransaction,
 } from '@/api/transactions'
 import { ApiError } from '@/api/auth'
-import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   formatMoneyInputLive,
@@ -63,6 +62,8 @@ import type {
 import { validateTransactionForm } from '@/transactions/components/transaction-modal/transactionModalValidation'
 import TransactionModalFieldLabelRow from '@/transactions/components/transaction-modal/TransactionModalFieldLabelRow'
 import TransactionModalPillSelector from '@/transactions/components/transaction-modal/TransactionModalPillSelector'
+import { useDebouncedReferenceSearch } from '@/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
+import { usePagedReferenceDropdown } from '@/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
 
 function delay(ms: number) {
   return new Promise((resolve) => {
@@ -112,13 +113,7 @@ export default function CreateTransactionModal({
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [categoryModalKey, setCategoryModalKey] = useState(0)
   const [merchantModalName, setMerchantModalName] = useState('')
-  const [merchantSearch, setMerchantSearch] = useState('')
-  const [activeMerchantSearch, setActiveMerchantSearch] = useState('')
-  const [visiblePagedMerchants, setVisiblePagedMerchants] = useState<Merchant[]>([])
   const [createdMerchant, setCreatedMerchant] = useState<Merchant | null>(null)
-  const [tagSearch, setTagSearch] = useState('')
-  const [activeTagSearch, setActiveTagSearch] = useState('')
-  const [visiblePagedTags, setVisiblePagedTags] = useState<Tag[]>([])
   const [createdTags, setCreatedTags] = useState<Tag[]>([])
   const [tagModalName, setTagModalName] = useState('')
   const [showTagModal, setShowTagModal] = useState(false)
@@ -129,15 +124,11 @@ export default function CreateTransactionModal({
   const [sessionAccountDeltas, setSessionAccountDeltas] = useState<Record<string, number>>({})
   const [createDelayPending, setCreateDelayPending] = useState(false)
   const [directionHighlightKey, setDirectionHighlightKey] = useState(0)
+  const merchantReferenceSearch = useDebouncedReferenceSearch(MERCHANT_SEARCH_DEBOUNCE_MS)
+  const tagReferenceSearch = useDebouncedReferenceSearch(TAG_SEARCH_DEBOUNCE_MS)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
-  const visibleMerchantCountRef = useRef(0)
-  const visibleTagCountRef = useRef(0)
-  const merchantInitialFetchStartedAtRef = useRef<number | null>(null)
-  const merchantFetchMoreStartedAtRef = useRef<number | null>(null)
-  const tagInitialFetchStartedAtRef = useRef<number | null>(null)
-  const tagFetchMoreStartedAtRef = useRef<number | null>(null)
   const createdAccountIdsRef = useRef<Set<string>>(new Set())
   const openRef = useRef(open)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
@@ -166,68 +157,34 @@ export default function CreateTransactionModal({
     [accounts, form.account_id],
   )
   const merchantQuery = useInfiniteMerchants(
-    { q: activeMerchantSearch.trim() || undefined },
+    { q: merchantReferenceSearch.activeSearchText || undefined },
     MERCHANT_DROPDOWN_PAGE_SIZE,
     open,
   )
   const tagQuery = useInfiniteTags(
     {
       group_id: selectedAccount?.group_id ?? undefined,
-      q: activeTagSearch.trim() || undefined,
+      q: tagReferenceSearch.activeSearchText || undefined,
     },
     TAG_DROPDOWN_PAGE_SIZE,
     open && !!form.account_id,
   )
-  const showFetchingMoreMerchants = useMinimumVisibleFlag(
-    merchantQuery.isFetchingNextPage,
-    MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
-  )
-  const showInitialMerchantLoading = useMinimumVisibleFlag(
-    merchantQuery.isLoading,
-    MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
-  )
-  const showFetchingMoreTags = useMinimumVisibleFlag(
-    tagQuery.isFetchingNextPage,
-    TAG_FETCHING_MORE_TEXT_MIN_MS,
-  )
-  const showInitialTagLoading = useMinimumVisibleFlag(
-    tagQuery.isLoading,
-    TAG_SEARCH_LOADING_TEXT_MIN_MS,
-  )
-  const showMerchantLoading = showInitialMerchantLoading || showFetchingMoreMerchants
-  const showTagLoading = showInitialTagLoading || showFetchingMoreTags
-  const activeMerchantSearchText = activeMerchantSearch.trim()
-  const activeTagSearchText = activeTagSearch.trim()
-  const merchantLoadingText = showFetchingMoreMerchants
-    ? 'Fetching more'
-    : activeMerchantSearchText
-      ? `Searching for ${activeMerchantSearchText}`
-      : 'Loading merchants...'
-  const tagLoadingText = showFetchingMoreTags
-    ? 'Fetching more'
-    : activeTagSearchText
-      ? `Searching for ${activeTagSearchText}`
-      : 'Loading tags...'
+  const merchantReference = usePagedReferenceDropdown({
+    query: merchantQuery,
+    activeSearchText: merchantReferenceSearch.activeSearchText,
+    searchLoadingMinMs: MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
+    fetchingMoreMinMs: MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
+    idleLoadingText: 'Loading merchants...',
+  })
+  const tagReference = usePagedReferenceDropdown({
+    query: tagQuery,
+    activeSearchText: tagReferenceSearch.activeSearchText,
+    searchLoadingMinMs: TAG_SEARCH_LOADING_TEXT_MIN_MS,
+    fetchingMoreMinMs: TAG_FETCHING_MORE_TEXT_MIN_MS,
+    idleLoadingText: 'Loading tags...',
+  })
   const selectedMerchantId = form.merchant_id || null
   const { data: fetchedSelectedMerchant } = useMerchant(selectedMerchantId, open && !!selectedMerchantId)
-  const fetchedMerchants = useMemo(() => merchantQuery.data?.pages.flat() ?? [], [merchantQuery.data])
-  const fetchedTags = useMemo(() => tagQuery.data?.pages.flat() ?? [], [tagQuery.data])
-  const fetchedMerchantKey = useMemo(
-    () => fetchedMerchants.map((merchant) => merchant.id).join('|'),
-    [fetchedMerchants],
-  )
-  const fetchedTagKey = useMemo(
-    () => fetchedTags.map((tag) => tag.id).join('|'),
-    [fetchedTags],
-  )
-  const visibleMerchantKey = useMemo(
-    () => visiblePagedMerchants.map((merchant) => merchant.id).join('|'),
-    [visiblePagedMerchants],
-  )
-  const visibleTagKey = useMemo(
-    () => visiblePagedTags.map((tag) => tag.id).join('|'),
-    [visiblePagedTags],
-  )
   const selectedMerchant = createdMerchant?.id === selectedMerchantId ? createdMerchant : fetchedSelectedMerchant
   const deleteLoading = deleteMutation.isPending
   const deleteButtonLoading = deleteLoading && confirmingDelete
@@ -259,174 +216,6 @@ export default function CreateTransactionModal({
     }
   }, [confirmingDelete, deleteLoading])
 
-  useEffect(() => {
-    const nextSearch = merchantSearch.trim() ? merchantSearch : ''
-    const timeoutId = window.setTimeout(() => {
-      setActiveMerchantSearch(nextSearch)
-    }, nextSearch ? MERCHANT_SEARCH_DEBOUNCE_MS : 0)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [merchantSearch])
-
-  useEffect(() => {
-    const nextSearch = tagSearch.trim() ? tagSearch : ''
-    const timeoutId = window.setTimeout(() => {
-      setActiveTagSearch(nextSearch)
-    }, nextSearch ? TAG_SEARCH_DEBOUNCE_MS : 0)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [tagSearch])
-
-  useEffect(() => {
-    visibleMerchantCountRef.current = visiblePagedMerchants.length
-  }, [visiblePagedMerchants.length])
-
-  useEffect(() => {
-    visibleTagCountRef.current = visiblePagedTags.length
-  }, [visiblePagedTags.length])
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      if (!activeMerchantSearchText) {
-        merchantInitialFetchStartedAtRef.current = null
-        merchantFetchMoreStartedAtRef.current = null
-        return
-      }
-
-      setVisiblePagedMerchants([])
-      visibleMerchantCountRef.current = 0
-      merchantInitialFetchStartedAtRef.current = performance.now()
-      merchantFetchMoreStartedAtRef.current = null
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [activeMerchantSearchText])
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      if (!activeTagSearchText) {
-        tagInitialFetchStartedAtRef.current = null
-        tagFetchMoreStartedAtRef.current = null
-        return
-      }
-
-      setVisiblePagedTags([])
-      visibleTagCountRef.current = 0
-      tagInitialFetchStartedAtRef.current = performance.now()
-      tagFetchMoreStartedAtRef.current = null
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [activeTagSearchText])
-
-  useLayoutEffect(() => {
-    if (activeMerchantSearchText) return
-    if (merchantQuery.isFetchingNextPage || merchantFetchMoreStartedAtRef.current !== null) return
-    if (fetchedMerchantKey === visibleMerchantKey) return
-
-    const frame = window.requestAnimationFrame(() => {
-      setVisiblePagedMerchants(fetchedMerchants)
-      visibleMerchantCountRef.current = fetchedMerchants.length
-      merchantInitialFetchStartedAtRef.current = null
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [
-    activeMerchantSearchText,
-    fetchedMerchantKey,
-    fetchedMerchants,
-    merchantQuery.isFetchingNextPage,
-    visibleMerchantKey,
-  ])
-
-  useLayoutEffect(() => {
-    if (activeTagSearchText) return
-    if (tagQuery.isFetchingNextPage || tagFetchMoreStartedAtRef.current !== null) return
-    if (fetchedTagKey === visibleTagKey) return
-
-    const frame = window.requestAnimationFrame(() => {
-      setVisiblePagedTags(fetchedTags)
-      visibleTagCountRef.current = fetchedTags.length
-      tagInitialFetchStartedAtRef.current = null
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [
-    activeTagSearchText,
-    fetchedTagKey,
-    fetchedTags,
-    tagQuery.isFetchingNextPage,
-    visibleTagKey,
-  ])
-
-  useEffect(() => {
-    if (merchantQuery.isLoading) {
-      merchantInitialFetchStartedAtRef.current = performance.now()
-    }
-  }, [merchantQuery.isLoading])
-
-  useEffect(() => {
-    if (tagQuery.isLoading) {
-      tagInitialFetchStartedAtRef.current = performance.now()
-    }
-  }, [tagQuery.isLoading])
-
-  useEffect(() => {
-    if (merchantQuery.isFetchingNextPage) {
-      merchantFetchMoreStartedAtRef.current = performance.now()
-    }
-  }, [merchantQuery.isFetchingNextPage])
-
-  useEffect(() => {
-    if (tagQuery.isFetchingNextPage) {
-      tagFetchMoreStartedAtRef.current = performance.now()
-    }
-  }, [tagQuery.isFetchingNextPage])
-
-  useEffect(() => {
-    if (fetchedMerchantKey === visibleMerchantKey) return undefined
-
-    const isAppendingPage = fetchedMerchants.length > visibleMerchantCountRef.current && visibleMerchantCountRef.current > 0
-    const isInitialPage = fetchedMerchants.length > 0 && visibleMerchantCountRef.current === 0
-    const fetchStartedAt = isAppendingPage
-      ? merchantFetchMoreStartedAtRef.current
-      : merchantInitialFetchStartedAtRef.current
-    const minimumVisibleMs = isAppendingPage
-      ? MERCHANT_FETCHING_MORE_TEXT_MIN_MS
-      : MERCHANT_SEARCH_LOADING_TEXT_MIN_MS
-    const elapsed = fetchStartedAt === null ? minimumVisibleMs : performance.now() - fetchStartedAt
-    const delayMs = Math.max(minimumVisibleMs - elapsed, 0)
-    const timeoutId = window.setTimeout(() => {
-      setVisiblePagedMerchants(fetchedMerchants)
-      if (isInitialPage) merchantInitialFetchStartedAtRef.current = null
-      if (isAppendingPage) merchantFetchMoreStartedAtRef.current = null
-    }, delayMs)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [fetchedMerchantKey, fetchedMerchants, visibleMerchantKey])
-
-  useEffect(() => {
-    if (fetchedTagKey === visibleTagKey) return undefined
-
-    const isAppendingPage = fetchedTags.length > visibleTagCountRef.current && visibleTagCountRef.current > 0
-    const isInitialPage = fetchedTags.length > 0 && visibleTagCountRef.current === 0
-    const fetchStartedAt = isAppendingPage
-      ? tagFetchMoreStartedAtRef.current
-      : tagInitialFetchStartedAtRef.current
-    const minimumVisibleMs = isAppendingPage
-      ? TAG_FETCHING_MORE_TEXT_MIN_MS
-      : TAG_SEARCH_LOADING_TEXT_MIN_MS
-    const elapsed = fetchStartedAt === null ? minimumVisibleMs : performance.now() - fetchStartedAt
-    const delayMs = Math.max(minimumVisibleMs - elapsed, 0)
-    const timeoutId = window.setTimeout(() => {
-      setVisiblePagedTags(fetchedTags)
-      if (isInitialPage) tagInitialFetchStartedAtRef.current = null
-      if (isAppendingPage) tagFetchMoreStartedAtRef.current = null
-    }, delayMs)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [fetchedTagKey, fetchedTags, visibleTagKey])
-
   const createLoading = createMutation.isPending || createDelayPending
   const submitLoading = editing ? updateMutation.isPending : createLoading
   const isPending = createLoading || updateMutation.isPending || deleteLoading
@@ -457,10 +246,10 @@ export default function CreateTransactionModal({
   )
   const merchantCandidates = useMemo(() => {
     const map = new Map<string, Merchant>()
-    visiblePagedMerchants.forEach((merchant) => map.set(merchant.id, merchant))
+    merchantReference.visibleItems.forEach((merchant) => map.set(merchant.id, merchant))
     if (createdMerchant) map.set(createdMerchant.id, createdMerchant)
     return [...map.values()]
-  }, [createdMerchant, visiblePagedMerchants])
+  }, [createdMerchant, merchantReference.visibleItems])
   const merchantOptions = useMemo(
     () => merchantCandidates
       .slice()
@@ -471,18 +260,18 @@ export default function CreateTransactionModal({
   const selectedTagMap = useMemo(() => {
     const map = new Map<string, Pick<Tag, 'id' | 'group_id' | 'name'>>()
     transaction?.tags?.forEach((tag) => map.set(tag.id, tag))
-    fetchedTags.forEach((tag) => map.set(tag.id, tag))
-    visiblePagedTags.forEach((tag) => map.set(tag.id, tag))
+    tagReference.fetchedItems.forEach((tag) => map.set(tag.id, tag))
+    tagReference.visibleItems.forEach((tag) => map.set(tag.id, tag))
     createdTags.forEach((tag) => map.set(tag.id, tag))
     return map
-  }, [createdTags, fetchedTags, transaction?.tags, visiblePagedTags])
+  }, [createdTags, tagReference.fetchedItems, tagReference.visibleItems, transaction?.tags])
   const selectedTagIds = form.tag_ids
   const tagCandidates = useMemo(() => {
     const map = new Map<string, Tag>()
-    visiblePagedTags.forEach((tag) => map.set(tag.id, tag))
+    tagReference.visibleItems.forEach((tag) => map.set(tag.id, tag))
     createdTags.forEach((tag) => map.set(tag.id, tag))
     return [...map.values()]
-  }, [createdTags, visiblePagedTags])
+  }, [createdTags, tagReference.visibleItems])
   const tagOptions = useMemo(
     () => tagCandidates
       .filter((tag) => !selectedTagIds.includes(tag.id))
@@ -686,8 +475,7 @@ export default function CreateTransactionModal({
     setForm((f) => (
       f.tag_ids.includes(tag.id) ? f : { ...f, tag_ids: [...f.tag_ids, tag.id] }
     ))
-    setTagSearch('')
-    setActiveTagSearch('')
+    tagReferenceSearch.clearSearch()
     setShowTagModal(false)
   }
 
@@ -1027,26 +815,18 @@ export default function CreateTransactionModal({
                             placeholder="Select or type to create..."
                             searchable
                             searchPlaceholder="Search merchants..."
-                            searchValue={merchantSearch}
-                            onSearchChange={setMerchantSearch}
-                            onSearchCommit={setActiveMerchantSearch}
+                            searchValue={merchantReferenceSearch.search}
+                            onSearchChange={merchantReferenceSearch.setSearch}
+                            onSearchCommit={merchantReferenceSearch.setActiveSearch}
                             filterOptions={false}
-                            isLoading={showMerchantLoading}
-                            loadingText={merchantLoadingText}
+                            isLoading={merchantReference.showLoading}
+                            loadingText={merchantReference.loadingText}
                             loadingMinMs={0}
-                            hideOptionsWhileLoading={showInitialMerchantLoading}
+                            hideOptionsWhileLoading={merchantReference.showInitialLoading}
                             autoHighlightFirstOption
                             selectHighlightedOnSearchEnter
                             hasMore={!!merchantQuery.hasNextPage}
-                            onLoadMore={() => {
-                              if (
-                                merchantQuery.hasNextPage &&
-                                !merchantQuery.isFetchingNextPage &&
-                                !showFetchingMoreMerchants
-                              ) {
-                                merchantQuery.fetchNextPage()
-                              }
-                            }}
+                            onLoadMore={merchantReference.loadMore}
                             onCreateNew={handleCreateMerchant}
                             createNewLabel={(query) => query ? `Create merchant "${query}"` : 'Create merchant'}
                           />
@@ -1094,24 +874,16 @@ export default function CreateTransactionModal({
                             placeholder={form.account_id ? 'Add tags...' : 'Select account first'}
                             searchable
                             searchPlaceholder="Search tags..."
-                            searchValue={tagSearch}
-                            onSearchChange={setTagSearch}
-                            onSearchCommit={setActiveTagSearch}
+                            searchValue={tagReferenceSearch.search}
+                            onSearchChange={tagReferenceSearch.setSearch}
+                            onSearchCommit={tagReferenceSearch.setActiveSearch}
                             filterOptions={false}
-                            isLoading={showTagLoading}
-                            loadingText={tagLoadingText}
+                            isLoading={tagReference.showLoading}
+                            loadingText={tagReference.loadingText}
                             loadingMinMs={0}
-                            hideOptionsWhileLoading={showInitialTagLoading}
+                            hideOptionsWhileLoading={tagReference.showInitialLoading}
                             hasMore={!!tagQuery.hasNextPage}
-                            onLoadMore={() => {
-                              if (
-                                tagQuery.hasNextPage &&
-                                !tagQuery.isFetchingNextPage &&
-                                !showFetchingMoreTags
-                              ) {
-                                tagQuery.fetchNextPage()
-                              }
-                            }}
+                            onLoadMore={tagReference.loadMore}
                             onCreateNew={handleCreateTag}
                             createNewLabel={(query) => query ? `Create tag "${query}"` : 'Create tag'}
                             disabled={!form.account_id}
