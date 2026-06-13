@@ -1,5 +1,5 @@
 /**
- * Tests account list helper behaviour so filtering, section totals, and FX rollups cannot drift while the page components are split apart
+ * Tests account list helper behaviour so filtering, section totals, summary messaging, and FX rollups cannot drift while the page components are split apart
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -29,6 +29,7 @@ import {
   getTaxAdvantagedUsagePercent,
   hasTaxAdvantagedLimitTracking,
 } from '@/accounts/utils/taxAdvantagedLimits'
+import { getSummaryFxStatusMessage } from '@/accounts/components/summary/summaryFxStatus'
 
 function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {
@@ -157,6 +158,15 @@ describe('filter helpers', () => {
       account_kind: 'asset',
       account_type: 'checking',
     }).map((account) => account.id)).toEqual(['checking'])
+  })
+})
+
+describe('summary FX status messages', () => {
+  it('explains incomplete account totals when some conversion rates are missing', () => {
+    expect(getSummaryFxStatusMessage({
+      state: 'incomplete',
+      missing_pairs: [{ base: 'USD', quote: 'CAD' }],
+    })).toBe('Some foreign currency accounts could not be converted. Account totals are incomplete and only include accounts with available conversion rates')
   })
 })
 
