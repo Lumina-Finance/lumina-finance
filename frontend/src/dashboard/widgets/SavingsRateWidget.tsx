@@ -20,14 +20,15 @@ import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
-import type { SavingsRateSeriesPoint } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getSavingsRateFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import {
+  getSavingsRateChartData,
+  getSavingsRateDisplay,
+  getSavingsRateTier,
+  type SavingsRateChartPoint,
+} from '@/dashboard/utils/getSavingsRateChartData'
 import { getSavingsRateSeries } from '@/dashboard/utils/getSavingsRateSeries'
-
-type SavingsRateChartPoint = SavingsRateSeriesPoint & {
-  chartRate: number | null
-}
 
 type SavingsRateTooltipState = {
   activeLabel?: string | number
@@ -43,30 +44,13 @@ type SavingsRateTooltipState = {
 const savingsRateChartMargin = { top: 4, right: 4, bottom: 0, left: 4 } as const
 const savingsRateHoverHighlightWidth = 70
 
-function getSavingsTier(rate: number | null) {
-  if (rate === null) return 'negative'
-  if (rate >= 20) return 'positive'
-  if (rate >= 10) return 'accent'
-  return 'negative'
-}
-
-function clampSavingsRate(rate: number | null) {
-  if (rate === null) return null
-  return Math.max(-100, Math.min(100, rate))
-}
-
-function hasSavingsRateActivity(point: Pick<SavingsRateSeriesPoint, 'income' | 'expenses'>) {
-  return point.income !== 0 || point.expenses !== 0
-}
-
-function shouldShowSavingsRatePoint(point: SavingsRateSeriesPoint) {
-  return point.isCurrent || hasSavingsRateActivity(point)
-}
-
 function getSavingsRateTooltipKey(point: SavingsRateChartPoint) {
   return point.fullLabel
 }
 
+/**
+ * Carries browser cursor coordinates and Recharts chart coordinates into the shared tooltip overlay
+ */
 function getSavingsRateTooltipPointer(
   state: SavingsRateTooltipState,
   event: ReactMouseEvent<SVGGraphicsElement>,
@@ -78,13 +62,9 @@ function getSavingsRateTooltipPointer(
   }
 }
 
-function getSavingsRateDisplay(point: SavingsRateChartPoint) {
-  if (point.income === 0 && point.expenses === 0) return null
-  return point.income > 0
-    ? `${Math.round(((point.income - point.expenses) / point.income) * 100)}%`
-    : '−∞%'
-}
-
+/**
+ * Renders the savings rate chart point details inside the cursor tooltip
+ */
 function SavingsRateTooltipContent({ point }: { point: SavingsRateChartPoint }) {
   const display = getSavingsRateDisplay(point)
 
@@ -98,6 +78,9 @@ function SavingsRateTooltipContent({ point }: { point: SavingsRateChartPoint }) 
   )
 }
 
+/**
+ * Resolves the active chart point from Recharts payload data before falling back to the active label
+ */
 function getSavingsRateTooltipPoint(
   state: SavingsRateTooltipState,
   data: SavingsRateChartPoint[],
@@ -113,6 +96,9 @@ function getSavingsRateTooltipPoint(
     : data.find((point) => point.monthLabel === String(state.activeLabel))
 }
 
+/**
+ * Caps the hover guide width to the active bar slot width
+ */
 function getSavingsRateGuideMaxWidth(chartWidth: number, pointCount: number) {
   if (pointCount <= 0) return savingsRateHoverHighlightWidth
   return Math.max(
@@ -121,6 +107,9 @@ function getSavingsRateGuideMaxWidth(chartWidth: number, pointCount: number) {
   )
 }
 
+/**
+ * Loads savings rate data and composes the chart, FX status, and capped display toggle
+ */
 export function SavingsRateWidget() {
   const savingsRateChartRef = useRef<HTMLDivElement>(null)
   const savingsRateTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SavingsRateChartPoint>>(null)
@@ -147,12 +136,7 @@ export function SavingsRateWidget() {
     [dashboardSavingsRate],
   )
   const chartData = useMemo(
-    () => savingsData
-      .filter(shouldShowSavingsRatePoint)
-      .map((point) => ({
-        ...point,
-        chartRate: capSavingsRateChart ? clampSavingsRate(point.rate) : point.rate,
-      })),
+    () => getSavingsRateChartData(savingsData, capSavingsRateChart),
     [capSavingsRateChart, savingsData],
   )
   const showSavingsRateTooltip = (
@@ -219,8 +203,7 @@ export function SavingsRateWidget() {
             className="relative h-full min-h-0"
             onMouseLeave={hideSavingsRateTooltip}
           >
-            {/* Pattern definitions live beside the chart so Recharts can resolve
-                the url(#id) fills regardless of its internal SVG structure. */}
+            {/* Recharts resolves pattern fills reliably when definitions share the chart SVG context */}
             <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
               <defs>
                 {(['positive', 'accent', 'negative'] as const).map((tier) => (
@@ -269,7 +252,7 @@ export function SavingsRateWidget() {
                 />
                 <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={28}>
                   {chartData.map((entry, index) => {
-                    const tier = getSavingsTier(entry.rate)
+                    const tier = getSavingsRateTier(entry.rate)
                     return (
                       <Cell
                         key={index}
