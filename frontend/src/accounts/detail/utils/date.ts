@@ -5,8 +5,9 @@ export function toISODate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-// Parse a date-only string as browser-local midnight. This is not timezone-aware;
-// it just avoids the UTC interpretation that new Date("YYYY-MM-DD") applies.
+/**
+ * Parses a date-only string as browser-local midnight to avoid UTC date shifting
+ */
 export function parseYmdLocal(ymd: string): Date {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Date(y, m - 1, d)

@@ -44,9 +44,9 @@ function sameCalendarDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-// Generate balance sample dates from the selected range itself. The first and
-// last points are always the exact range bounds; coarser ranges only reduce the
-// interior sample cadence.
+/**
+ * Generates balance sample dates from the selected range while preserving exact range bounds
+ */
 function generateSampleDates(
   fromDate: Date,
   toDate: Date,
@@ -68,9 +68,9 @@ function generateSampleDates(
   return samples
 }
 
-// Build the chart series: one point per selected sample date. Balance comes
-// from the latest snapshot at or before that date. Sample dates with no
-// preceding data render at 0.
+/**
+ * Builds one chart point per sample date using the latest snapshot at or before that date
+ */
 export function buildChartSeries(
   snapshots: AccountBalanceSnapshot[],
   fromDate: Date,
@@ -82,8 +82,7 @@ export function buildChartSeries(
 
   const sorted = [...snapshots].sort((a, b) => a.dt.localeCompare(b.dt))
 
-  // Pointer walks through sorted snapshots as sample dates advance.
-  // Samples before the first snapshot render at 0 (no data yet).
+  // The pointer advances once through sorted snapshots so each sample uses the latest known balance
   let idx = 0
   let runningBalance = 0
   const points: BalanceChartPoint[] = []
