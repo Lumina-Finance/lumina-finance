@@ -1,5 +1,5 @@
 import { formatCurrency } from '@/utils/formatCurrency'
-import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetrics'
+import type { AccountsMetricsViewModel } from '@/accounts/types/accounts'
 import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import AccountsLoadingRegion from '@/accounts/components/AccountsLoadingRegion'
 import {
