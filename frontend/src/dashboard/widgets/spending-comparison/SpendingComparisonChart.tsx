@@ -13,13 +13,13 @@ import {
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
-import { SpendingComparisonTooltipContent } from './SpendingComparisonTooltipContent'
 import {
-  getSpendingComparisonTooltipKey,
-  getSpendingComparisonTooltipPointer,
-  getSpendingComparisonTooltipPoint,
-  type SpendingComparisonTooltipState,
-} from '@/dashboard/utils/spendingComparisonTooltip'
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/dashboard/utils/rechartsTooltip'
+
+import { SpendingComparisonTooltipContent } from './SpendingComparisonTooltipContent'
 
 type SpendingComparisonChartProps = {
   data: SpendingComparisonSeriesPoint[]
@@ -89,11 +89,15 @@ export function SpendingComparisonChart({
    * Shows a tooltip only when Recharts resolves a point with current or previous values
    */
   function showTooltip(
-    state: SpendingComparisonTooltipState,
+    state: RechartsTooltipState<SpendingComparisonSeriesPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) {
-    const point = getSpendingComparisonTooltipPoint(state, data, pointsByLabel)
-    const pointer = getSpendingComparisonTooltipPointer(state, event)
+    const point = getRechartsTooltipPoint({
+      state,
+      data,
+      resolveLabel: (label) => pointsByLabel.get(label),
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point || (point.current == null && point.previous == null)) {
       tooltipRef.current?.show(null, pointer)
@@ -175,7 +179,7 @@ export function SpendingComparisonChart({
         ref={tooltipRef}
         chartRef={chartRef}
         className="min-w-48"
-        getKey={getSpendingComparisonTooltipKey}
+        getKey={(point) => point.label}
         renderContent={(point) => (
           <SpendingComparisonTooltipContent
             point={point}

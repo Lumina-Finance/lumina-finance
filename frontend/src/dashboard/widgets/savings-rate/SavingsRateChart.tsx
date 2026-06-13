@@ -10,7 +10,6 @@ import {
 } from 'recharts'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
@@ -20,43 +19,19 @@ import {
   getSavingsRateTier,
   type SavingsRateChartPoint,
 } from '@/dashboard/utils/getSavingsRateChartData'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/dashboard/utils/rechartsTooltip'
 
 type SavingsRateChartProps = {
   data: SavingsRateChartPoint[]
   capSavingsRateChart: boolean
 }
 
-type SavingsRateTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: SavingsRateChartPoint
-  }>
-}
-
 const savingsRateChartMargin = { top: 4, right: 4, bottom: 0, left: 4 } as const
 const savingsRateHoverHighlightWidth = 70
-
-function getSavingsRateTooltipKey(point: SavingsRateChartPoint) {
-  return point.fullLabel
-}
-
-/**
- * Carries browser cursor coordinates and Recharts chart coordinates into the shared tooltip overlay
- */
-function getSavingsRateTooltipPointer(
-  state: SavingsRateTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
 
 /**
  * Renders the savings rate chart point details inside the cursor tooltip
@@ -72,24 +47,6 @@ function SavingsRateTooltipContent({ point }: { point: SavingsRateChartPoint }) 
       </div>
     </>
   )
-}
-
-/**
- * Resolves the active chart point from Recharts payload data before falling back to the active label
- */
-function getSavingsRateTooltipPoint(
-  state: SavingsRateTooltipState,
-  data: SavingsRateChartPoint[],
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : data.find((point) => point.monthLabel === String(state.activeLabel))
 }
 
 /**
@@ -117,11 +74,15 @@ export function SavingsRateChart({
    * Shows the active savings rate point only when Recharts resolves a chart datum
    */
   function showTooltip(
-    state: SavingsRateTooltipState,
+    state: RechartsTooltipState<SavingsRateChartPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) {
-    const point = getSavingsRateTooltipPoint(state, data)
-    const pointer = getSavingsRateTooltipPointer(state, event)
+    const point = getRechartsTooltipPoint({
+      state,
+      data,
+      resolveLabel: (label) => data.find((entry) => entry.monthLabel === label),
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point) {
       tooltipRef.current?.show(null, pointer)
@@ -212,7 +173,7 @@ export function SavingsRateChart({
         guideVariant="bar"
         guideWidth={savingsRateHoverHighlightWidth}
         guideMaxWidth={(chartWidth) => getSavingsRateGuideMaxWidth(chartWidth, data.length)}
-        getKey={getSavingsRateTooltipKey}
+        getKey={(point) => point.fullLabel}
         renderContent={(point) => (
           <SavingsRateTooltipContent point={point} />
         )}

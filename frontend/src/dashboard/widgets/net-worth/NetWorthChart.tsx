@@ -8,7 +8,6 @@ import {
 } from 'recharts'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import {
@@ -17,6 +16,11 @@ import {
   DASHBOARD_X_AXIS_TICK_FONT_SIZE,
 } from '@/dashboard/constants/chart'
 import type { NetWorthSeriesPoint } from '@/dashboard/types/dashboard'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/dashboard/utils/rechartsTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type NetWorthChartProps = {
@@ -27,17 +31,6 @@ type NetWorthChartProps = {
 type NetWorthTooltipTarget = {
   point: NetWorthSeriesPoint
   chartX: number
-}
-
-type NetWorthTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: NetWorthSeriesPoint
-  }>
 }
 
 const netWorthChartMargin = { top: 4, right: 4, bottom: 0, left: 4 } as const
@@ -53,24 +46,6 @@ function getNetWorthXAxisTicks(data: NetWorthSeriesPoint[]) {
   return Array.from({ length: tickCount }, (_, index) => (
     data[Math.round((lastIndex * index) / (tickCount - 1))].date
   ))
-}
-
-function getNetWorthTooltipKey(point: NetWorthSeriesPoint) {
-  return point.date
-}
-
-/**
- * Carries both browser cursor coordinates and Recharts chart coordinates into the shared tooltip overlay
- */
-function getNetWorthTooltipPointer(
-  state: NetWorthTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
 }
 
 /**
@@ -94,25 +69,6 @@ function NetWorthTooltipContent({
       </div>
     </>
   )
-}
-
-/**
- * Resolves the active chart point from Recharts payload data before falling back to the active label
- */
-function getNetWorthTooltipPoint(
-  state: NetWorthTooltipState,
-  data: NetWorthSeriesPoint[],
-  pointsByDate: Map<string, NetWorthSeriesPoint>,
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : pointsByDate.get(String(state.activeLabel))
 }
 
 /**
@@ -169,13 +125,17 @@ export function NetWorthChart({ data, displayCurrency }: NetWorthChartProps) {
    * Shows the closest net worth point when Recharts gives only partial cursor state
    */
   function showTooltip(
-    state: NetWorthTooltipState,
+    state: RechartsTooltipState<NetWorthSeriesPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) {
     const fallbackTarget = getNetWorthTooltipTargetFromCursor(event.clientX, chartRef.current, data)
-    const point = getNetWorthTooltipPoint(state, data, pointsByDate) ?? fallbackTarget?.point
+    const point = getRechartsTooltipPoint({
+      state,
+      data,
+      resolveLabel: (label) => pointsByDate.get(label),
+    }) ?? fallbackTarget?.point
     const pointer = {
-      ...getNetWorthTooltipPointer(state, event),
+      ...getRechartsTooltipPointer(state, event),
       chartX: typeof state.activeCoordinate?.x === 'number'
         ? state.activeCoordinate.x
         : fallbackTarget?.chartX,
@@ -238,7 +198,7 @@ export function NetWorthChart({ data, displayCurrency }: NetWorthChartProps) {
         ref={tooltipRef}
         chartRef={chartRef}
         className="min-w-44"
-        getKey={getNetWorthTooltipKey}
+        getKey={(point) => point.date}
         showGuide={false}
         renderContent={(point) => (
           <NetWorthTooltipContent
