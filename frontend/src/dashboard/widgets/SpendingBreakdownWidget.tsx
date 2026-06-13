@@ -27,6 +27,7 @@ import {
 } from '@/dashboard/constants/animation'
 import { SpendingBreakdownCrossoverBadge } from '@/dashboard/components/SpendingBreakdownCrossoverBadge'
 import { SpendingBreakdownHeader } from '@/dashboard/components/SpendingBreakdownHeader'
+import { SpendingBreakdownLegend } from '@/dashboard/components/SpendingBreakdownLegend'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import {
@@ -221,26 +222,11 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                 )}
               </CursorTooltipPortal>
             </div>
-            <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2">
-              {breakdownEntries.map((entry) => (
-                <div key={entry.category_id} className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: getSpendingBreakdownEntryColor(entry, breakdownSummary) }}
-                  />
-                  <span
-                    className="whitespace-nowrap text-xs font-medium max-[1000px]:text-[0.675rem]"
-                    style={{ color: 'var(--app-text-muted)' }}
-                  >
-                    {entry.name}
-                  </span>
-                  <SpendingBreakdownCrossoverBadge
-                    entry={entry}
-                    breakdownMode={breakdownMode}
-                  />
-                </div>
-              ))}
-            </div>
+            <SpendingBreakdownLegend
+              entries={breakdownEntries}
+              breakdownMode={breakdownMode}
+              summary={breakdownSummary}
+            />
           </>
         )}
       </DashboardWidgetLoadingBody>
