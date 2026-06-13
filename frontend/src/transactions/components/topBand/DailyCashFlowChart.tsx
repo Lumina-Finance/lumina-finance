@@ -19,9 +19,14 @@ import type { FxStatus } from '@/api/shared/fx'
 import type { DailyCashFlow } from '@/api/transactions'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/components/charts/rechartsTooltip'
 import IconTooltip from '@/components/IconTooltip'
 import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -40,17 +45,6 @@ type DailyCashFlowPoint = {
 
 export type DailyCashFlowChartMode = 'net' | 'gross'
 type DailyCashFlowGranularity = 'day' | 'week' | 'month'
-
-type DailyCashFlowTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: DailyCashFlowPoint
-  }>
-}
 
 const titleWordTransition = { duration: 0.34, ease: [0.16, 1, 0.3, 1] } as const
 const titleWidthTransition = { duration: 0.3, ease: [0.16, 1, 0.3, 1] } as const
@@ -72,7 +66,8 @@ const dailyCashFlowXAxisTickSpacing = 64
 const dailyCashFlowChartMargin = { top: 4, right: 12, bottom: 0, left: 12 } as const
 const dailyCashFlowXAxisPadding = { left: 20, right: 20 } as const
 const dailyCashFlowXAxisCandidateSteps = [1, 2, 3, 4, 5, 7, 10, 14, 15, 21, 30] as const
-// Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
+
+// Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
 
 function formatYmdLocal(date: Date) {
@@ -246,33 +241,9 @@ function getDailyCashFlowTooltipKey(point: DailyCashFlowPoint) {
   return point.key
 }
 
-function getDailyCashFlowTooltipPointer(
-  state: DailyCashFlowTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getDailyCashFlowTooltipPoint(
-  state: DailyCashFlowTooltipState,
-  data: DailyCashFlowPoint[],
-  pointsByKey: Map<string, DailyCashFlowPoint>,
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : pointsByKey.get(String(state.activeLabel))
-}
-
+/**
+ * Renders daily cash flow values with shared chart tooltip typography
+ */
 function DailyCashFlowTooltipContent({
   point,
   displayCurrency,
@@ -284,27 +255,24 @@ function DailyCashFlowTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.rangeLabel}</p>
+      <ChartTooltipTitle>{point.rangeLabel}</ChartTooltipTitle>
       {mode === 'net' && (
-        <div className="mt-1 flex justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">Net</span>
-          <span className="app-chart-tooltip-default-value font-financial">
-            {formatCurrency(point.net, displayCurrency)}
-          </span>
-        </div>
+        <ChartTooltipRow
+          label="Net"
+          value={formatCurrency(point.net, displayCurrency)}
+          financialValue
+        />
       )}
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Inflow</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(Math.abs(point.inflow), displayCurrency)}
-        </span>
-      </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Outflow</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(Math.abs(point.outflow), displayCurrency)}
-        </span>
-      </div>
+      <ChartTooltipRow
+        label="Inflow"
+        value={formatCurrency(Math.abs(point.inflow), displayCurrency)}
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Outflow"
+        value={formatCurrency(Math.abs(point.outflow), displayCurrency)}
+        financialValue
+      />
     </>
   )
 }
@@ -446,11 +414,15 @@ export default function DailyCashFlowChart({
   }, [])
 
   const showDailyCashFlowTooltip = (
-    state: DailyCashFlowTooltipState,
+    state: RechartsTooltipState<DailyCashFlowPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    const point = getDailyCashFlowTooltipPoint(state, dailyFlow, dailyFlowPointsByKey)
-    const pointer = getDailyCashFlowTooltipPointer(state, event)
+    const point = getRechartsTooltipPoint({
+      state,
+      data: dailyFlow,
+      resolveLabel: (label) => dailyFlowPointsByKey.get(label),
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point) {
       dailyFlowTooltipRef.current?.show(null, pointer)
