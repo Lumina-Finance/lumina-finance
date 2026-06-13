@@ -1,1 +1,1 @@
-export { default } from './MerchantSettingsSection'
+export { default } from './Section'

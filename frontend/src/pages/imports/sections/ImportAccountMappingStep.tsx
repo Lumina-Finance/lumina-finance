@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import CreateInstitutionModal from '@/components/CreateInstitutionModal'
+import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import { ACCOUNT_TYPE_OPTIONS } from '../constants'
-import { AccountMappingTable, EmptyState, ImportNotice, ImportStep } from '../components'
+import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
 import { getResolvedAccountChoice, getResolvedAccountCreateCurrency, getResolvedAccountCreateInstitution, getResolvedAccountCreateType } from '../utils'
 
@@ -92,7 +92,7 @@ export function ImportAccountMappingStep({
           description="Upload a file or check the mapped account column."
         />
       ) : (
-        <AccountMappingTable
+        <ImportAccountMappingTable
           rows={accountMappingSources.map((sourceAccount) => {
             const value = getResolvedAccountChoice(accountMappings[sourceAccount.id])
             const account = accountById.get(value)

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { InsightCalculationTooltip } from '@/pages/insights/components/InsightCalculationTooltip'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type {
   BreakdownMode,
   CategoryTrendSection,

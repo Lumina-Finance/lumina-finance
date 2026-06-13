@@ -1,4 +1,4 @@
-import { EmptyState, HeaderMappingTable, ImportStep } from '../components'
+import { EmptyState, ImportHeaderMappingTable, ImportStep } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
 
 type ImportColumnMappingStepProps = Pick<
@@ -27,7 +27,7 @@ export function ImportColumnMappingStep({
           description="Upload a CSV file to map columns."
         />
       ) : (
-        <HeaderMappingTable
+        <ImportHeaderMappingTable
           headers={headers}
           files={files}
           options={columnTargetOptions}

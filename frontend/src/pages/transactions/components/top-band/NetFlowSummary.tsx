@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { getCashFlowFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'

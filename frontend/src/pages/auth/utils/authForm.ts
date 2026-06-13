@@ -1,6 +1,6 @@
 import { ApiError, type LoginPayload, type SignupPayload } from '@/api/auth'
 import type { Currency } from '@/api/currency'
-import type { DropdownOption } from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
 export type AuthMode = 'login' | 'signup'
 

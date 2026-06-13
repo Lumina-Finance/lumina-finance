@@ -1,5 +1,5 @@
 import type { AccountSpendingBreakdown, SpendingRange } from '@/api/accounts'
-import type { TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
+import type { TimeRangeSelectorOption } from '@/components/time-range/Selector'
 
 export const SPENDING_RANGE_OPTIONS: TimeRangeSelectorOption<SpendingRange>[] = [
   { value: 'WTD', label: 'WTD', description: 'Week to date' },

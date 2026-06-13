@@ -34,7 +34,7 @@ import {
   getTaxAdvantagedUsagePercent,
   hasTaxAdvantagedLimitTracking,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { getSummaryFxStatusMessage } from '@/pages/accounts/components/summary/summaryFxStatus'
+import { getSummaryFxStatusMessage } from '@/pages/accounts/components/summary/fxStatus'
 
 function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {

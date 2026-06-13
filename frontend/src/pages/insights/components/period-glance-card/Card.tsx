@@ -8,11 +8,11 @@ import type {
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
+} from '@/components/loading/Transition'
 import { PeriodGlancePrimaryPanel } from './PrimaryPanel'
 import { PeriodGlanceSupportGrid } from './SupportGrid'
-import { SectionHeader } from '../SectionHeader'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { InsightSectionHeader } from '../SectionHeader'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 type PeriodGlanceSnapshot = {
   primaryMetric: PeriodGlancePrimaryMetric
@@ -68,7 +68,7 @@ export function PeriodGlanceCard({
 
   return (
     <section className="app-card">
-      <SectionHeader icon={Sparkles} label="This Period at a Glance" />
+      <InsightSectionHeader icon={Sparkles} label="This Period at a Glance" />
 
       <div className="relative overflow-hidden" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>

@@ -8,12 +8,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
+} from '@/components/charts/DeferredTooltipOverlay'
 import { SavingsCurrentBoundary } from '@/pages/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'

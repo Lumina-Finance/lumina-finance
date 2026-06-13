@@ -1,1 +1,1 @@
-export { default } from './RunwaySection'
+export { default } from './Section'

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Network } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type {
   FundFlowData,
   FundFlowEntry,
@@ -11,9 +11,9 @@ import { withoutMatchingEntries } from '@/pages/insights/utils/fundFlowEntries'
 import { getFundFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { FundFlowCategoryList } from './CategoryList'
 import { FundFlowChart } from './Chart'
-import { FxStatusBadge } from '../FxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { SectionHeader } from '../SectionHeader'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightSectionHeader } from '../SectionHeader'
 
 type FundFlowSnapshot = {
   flowData: FundFlowData
@@ -106,7 +106,7 @@ export function FundFlowCard({
         setExpenseListOpen(false)
       }}
     >
-      <SectionHeader
+      <InsightSectionHeader
         icon={Network}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -116,7 +116,7 @@ export function FundFlowCard({
               calculation="Refunds and reversals are applied first. Money in flows to Income. Money out flows through Expenses. Transfers are excluded"
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Fund Flow FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getFundFlowFxStatusMessage}

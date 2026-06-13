@@ -1,6 +1,6 @@
 import type React from 'react'
 
-export default function Field({
+export default function SettingsField({
   label,
   labelAccessory,
   hint,

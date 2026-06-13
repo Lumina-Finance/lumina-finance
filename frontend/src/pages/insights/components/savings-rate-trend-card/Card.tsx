@@ -5,17 +5,17 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+} from '@/components/loading/Transition'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { getSavingsRateSummary } from '@/pages/insights/utils/savingsRateChart'
-import { FxStatusBadge } from '../FxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { InsightActionButton } from '../InsightActionButton'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightActionButton } from '../ActionButton'
 import { SavingsRateChart } from './Chart'
-import { SectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '../SectionHeader'
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]
@@ -81,7 +81,7 @@ export function SavingsRateTrendCard({
 
   return (
     <section className="app-card">
-      <SectionHeader
+      <InsightSectionHeader
         icon={Repeat}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -91,7 +91,7 @@ export function SavingsRateTrendCard({
               calculation={savingsRateCalculation}
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Savings Rate Trend FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getSavingsRateTrendFxStatusMessage}

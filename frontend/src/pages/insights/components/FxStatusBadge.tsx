@@ -1,14 +1,14 @@
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/utils/fxStatus'
 
-type FxStatusBadgeProps = {
+type InsightFxStatusBadgeProps = {
   label: string
   status: FxStatus
   getMessage?: (status: FxStatus) => string
 }
 
-export function FxStatusBadge({ label, status, getMessage = getFxStatusMessage }: FxStatusBadgeProps) {
+export function InsightFxStatusBadge({ label, status, getMessage = getFxStatusMessage }: InsightFxStatusBadgeProps) {
   return (
     <IconTooltip
       label={label}

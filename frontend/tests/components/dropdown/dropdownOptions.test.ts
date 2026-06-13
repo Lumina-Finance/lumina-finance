@@ -8,8 +8,8 @@ import {
   getGroupedDropdownOptions,
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
-} from '@/components/dropdown/dropdownOptions'
-import type { DropdownOption } from '@/components/Dropdown'
+} from '@/components/dropdown/options'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
 const options: DropdownOption[] = [
   { value: 'chequing', label: 'Chequing', group: 'Assets' },

@@ -4,15 +4,15 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+} from '@/components/loading/Transition'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantMarketMerchant } from '@/pages/insights/types/merchantDistribution'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { FxStatusBadge } from '../FxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
 import { MerchantDistributionLegend } from './Legend'
 import { MerchantMarketMap } from './MarketMap'
-import { SectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '../SectionHeader'
 
 type MerchantDistributionCardProps = {
   merchants: MerchantMarketMerchant[]
@@ -58,7 +58,7 @@ export function MerchantDistributionCard({
 
   return (
     <div className="app-card flex h-[560px] flex-col min-[1300px]:h-full">
-      <SectionHeader
+      <InsightSectionHeader
         icon={Store}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -68,7 +68,7 @@ export function MerchantDistributionCard({
               calculation="Shows merchant spending after refunds. Income losses are not included"
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Merchant Distribution FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getMerchantSpendingFxStatusMessage}

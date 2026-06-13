@@ -1,4 +1,4 @@
-import type { DropdownOption } from '@/components/Dropdown';
+import type { DropdownOption } from '@/components/dropdown/Dropdown';
 
 // ISO 3166-1 alpha-2 codes. Labels are derived at runtime via Intl.DisplayNames
 // so we don't need to maintain a parallel name list.

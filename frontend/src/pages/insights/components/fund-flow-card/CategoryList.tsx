@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
-import { InsightCalculationTooltip } from '@/pages/insights/components/InsightCalculationTooltip'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type { FundFlowEntry } from '@/pages/insights/types/fundFlow'
 import { joinClassNames } from '@/utils/classNames'
 import { formatCurrency } from '@/utils/formatCurrency'

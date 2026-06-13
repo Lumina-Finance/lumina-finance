@@ -1,2 +1,1 @@
-export { default } from './TaxAdvantagedCategoriesSection'
-
+export { default } from './Section'

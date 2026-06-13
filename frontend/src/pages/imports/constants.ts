@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import type { DropdownOption } from '@/components/Dropdown'
+import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ColumnMap, ColumnTarget, ImportCategoryKind } from './types'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {

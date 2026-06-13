@@ -4,15 +4,15 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+} from '@/components/loading/Transition'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
-import { FxStatusBadge } from '../FxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { SectionHeader } from '../SectionHeader'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightSectionHeader } from '../SectionHeader'
 
 type CashFlowCardProps = {
   granularity: CashFlowGranularity
@@ -67,7 +67,7 @@ export function CashFlowCard({
 
   return (
     <section className="app-card">
-      <SectionHeader
+      <InsightSectionHeader
         icon={CalendarDays}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -77,7 +77,7 @@ export function CashFlowCard({
               calculation={cashFlowCalculation}
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Cash Flow FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getInsightsCashFlowFxStatusMessage}

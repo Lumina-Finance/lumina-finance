@@ -5,7 +5,7 @@ import {
   IncomeExpenseBreakdownCard,
   type BreakdownMode,
 } from './components/income-expense-breakdown-card/Card'
-import { InsightsFloatingRangeControl } from './components/InsightsFloatingRangeControl'
+import { InsightsFloatingRangeControl } from './components/FloatingRangeControl'
 import { MerchantDistributionCard } from './components/merchant-distribution-card/Card'
 import { MerchantRankingCard } from './components/merchant-ranking-card/Card'
 import { FundFlowCard } from './components/fund-flow-card/Card'

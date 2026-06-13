@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react'
 import { Plus, SlidersHorizontal } from 'lucide-react'
 import type { AccountKind, AccountType } from '@/api/accounts'
-import FilterChip from '@/components/FilterChip'
-import FilterOptionList, { type OptionItem } from '@/components/FilterOptionList'
+import FilterChip from '@/components/filters/Chip'
+import FilterOptionList, { type OptionItem } from '@/components/filters/OptionList'
 import type { FilterValues } from '@/pages/accounts/types/accounts'
-import { MobileFilterSheet } from './MobileFilterSheet'
+import { MobileFilterSheet } from './MobileSheet'
 
 type FiltersProps = {
   filters: FilterValues

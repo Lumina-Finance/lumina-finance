@@ -4,15 +4,15 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
-import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+} from '@/components/loading/Transition'
+import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { getInsightsNetWorthFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { FxStatusBadge } from '../FxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { InsightActionButton } from '../InsightActionButton'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightActionButton } from '../ActionButton'
 import { NetWorthChart } from './Chart'
-import { SectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '../SectionHeader'
 import {
   formatSignedNetWorthCurrency,
   getNetWorthChartData,
@@ -107,7 +107,7 @@ export function NetWorthCard({
 
   return (
     <section className="app-card">
-      <SectionHeader
+      <InsightSectionHeader
         icon={Wallet}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -117,7 +117,7 @@ export function NetWorthCard({
               calculation={getNetWorthCalculation(displaySnapshot.mode)}
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Net Worth FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getInsightsNetWorthFxStatusMessage}

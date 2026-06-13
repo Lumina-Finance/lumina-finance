@@ -1,17 +1,17 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
-type SectionHeaderProps = {
+type InsightSectionHeaderProps = {
   icon: LucideIcon
   label: ReactNode
   action?: ReactNode
 }
 
-export function SectionHeader({
+export function InsightSectionHeader({
   icon: Icon,
   label,
   action,
-}: SectionHeaderProps) {
+}: InsightSectionHeaderProps) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <div className="rounded-xl p-2" style={{ background: 'var(--app-accent-soft)' }}>

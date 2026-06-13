@@ -1,1 +1,1 @@
-export { default } from './TagSettingsSection'
+export { default } from './Section'

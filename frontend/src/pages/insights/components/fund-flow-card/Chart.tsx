@@ -10,7 +10,7 @@ import {
   type SankeyLinkProps,
   type SankeyNodeProps,
 } from 'recharts'
-import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
+import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type { FundFlowData, FundFlowNode, FundFlowNodeKind } from '@/pages/insights/types/fundFlow'
@@ -18,7 +18,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/LoadingTransition'
+} from '@/components/loading/Transition'
 
 type FlowTooltipPayload = Partial<FundFlowNode> & {
   value?: number | string
