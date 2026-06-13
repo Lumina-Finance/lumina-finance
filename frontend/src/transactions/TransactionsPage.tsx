@@ -13,19 +13,14 @@ import CreateTransactionModal from '@/components/CreateTransactionModal'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
 import TransactionsTopBand from '@/transactions/components/TransactionsTopBand'
 import type { TransactionListFilters } from '@/transactions/types/transactionList'
+import {
+  formatOverviewRangeLabel,
+  getCurrentMonthOverviewRange,
+} from '@/transactions/utils/date'
 
-function formatOverviewRangeLabel(from: string, to: string): string {
-  // Treat YYYY-MM-DD inputs as calendar dates so labels do not shift by local timezone.
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-  const parse = (value: string) => new Date(`${value}T00:00:00Z`)
-  return `${fmt.format(parse(from))} – ${fmt.format(parse(to))}`
-}
-
+/**
+ * Renders the transactions page overview, filters, list, and transaction modal workflows
+ */
 export default function TransactionsPage() {
   const prefersReducedMotion = useReducedMotion()
   const queryClient = useQueryClient()
@@ -41,12 +36,18 @@ export default function TransactionsPage() {
   const [openingOutlierId, setOpeningOutlierId] = useState<string | null>(null)
   const [outlierOpenError, setOutlierOpenError] = useState<string | null>(null)
 
+  /**
+   * Opens the transaction modal in create mode and resets any previous edit state
+   */
   const openCreateModal = () => {
     setEditingTransaction(null)
     setCreateModalKey((key) => key + 1)
     setShowCreateModal(true)
   }
 
+  /**
+   * Opens the transaction modal in edit mode unless the owning account is archived
+   */
   const openEditModal = (transaction: Transaction) => {
     const account = accounts?.find((item) => item.id === transaction.account_id)
     if (account?.is_archived) return
@@ -56,9 +57,13 @@ export default function TransactionsPage() {
     setShowCreateModal(true)
   }
 
+  /**
+   * Opens a top-band outlier transaction from the loaded list or a cached detail fetch
+   */
   const openOutlierTransaction = async (transactionId: string) => {
     setOutlierOpenError(null)
-    // Outliers may not be in the currently loaded list page, so fall back to a detail fetch.
+
+    // Outliers may not be in the currently loaded list page, so fall back to a detail fetch
     const loadedTransaction = latestTransactionsRef.current.find((transaction) => transaction.id === transactionId)
     if (loadedTransaction) {
       const account = accounts?.find((item) => item.id === loadedTransaction.account_id)
@@ -90,18 +95,10 @@ export default function TransactionsPage() {
     }
   }
 
-  // Default overview metrics to the current month in the user's configured timezone.
-  const { monthStart, today } = useMemo(() => {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: user!.tz,
-    })
-    const todayStr = fmt.format(new Date())
-    const monthStartStr = `${todayStr.slice(0, 7)}-01`
-    return { monthStart: monthStartStr, today: todayStr }
-  }, [user])
+  const { monthStart, today } = useMemo(
+    () => getCurrentMonthOverviewRange(user!.tz),
+    [user],
+  )
 
   const overviewFromDate = filters.from_date ?? monthStart
   const overviewToDate = filters.to_date ?? today
@@ -109,13 +106,14 @@ export default function TransactionsPage() {
     () => formatOverviewRangeLabel(overviewFromDate, overviewToDate),
     [overviewFromDate, overviewToDate],
   )
-  // Overview supports account/date filters; category filtering remains list-only.
+  // Overview supports account and date filters while category filtering remains list-only
   const { data: overview, isFetching: isOverviewFetching } = useTransactionsOverview({
     account_id: filters.account_id,
     from_date: overviewFromDate,
     to_date: overviewToDate,
   })
-  // Force chart remounts when filters change so the pre-refactor animation behavior stays intact.
+
+  // Chart remounts preserve the pre-refactor animation timing when filters change
   const chartAnimationKey = [
     filters.account_id ?? 'all-accounts',
     filters.category_id ?? 'all-categories',

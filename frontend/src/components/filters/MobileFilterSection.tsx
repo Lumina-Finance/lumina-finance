@@ -1,6 +1,6 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
 import type { OptionItem } from '@/components/FilterOptionList'
-import { MobileOptionRow } from './MobileOptionRow'
+import { MobileOptionRow } from '@/components/filters/MobileOptionRow'
 
 type MobileFilterSectionProps = {
   title: string
@@ -15,7 +15,7 @@ type MobileFilterSectionProps = {
 }
 
 /**
- * Renders one searchable filter group inside the mobile account filter sheet
+ * Renders one searchable filter group inside a mobile filter sheet
  */
 export function MobileFilterSection({
   title,

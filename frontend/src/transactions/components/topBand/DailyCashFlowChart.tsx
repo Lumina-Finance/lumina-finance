@@ -19,38 +19,33 @@ import type { FxStatus } from '@/api/shared/fx'
 import type { DailyCashFlow } from '@/api/transactions'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/components/charts/rechartsTooltip'
 import IconTooltip from '@/components/IconTooltip'
 import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { PLACEHOLDER_DAILY_FLOW } from '@/transactions/components/topBand/constants'
-import { parseYmdLocal } from '@/transactions/utils/date'
+import {
+  DAILY_CASH_FLOW_CHART_MARGIN,
+  DAILY_CASH_FLOW_X_AXIS_PADDING,
+  getDailyCashFlowCadenceTitle,
+  getDailyCashFlowCalculation,
+  getDailyCashFlowGranularity,
+  getDailyCashFlowSeries,
+  getDailyCashFlowXAxisTickCount,
+  getDailyCashFlowXAxisTicks,
+  type DailyCashFlowChartMode,
+  type DailyCashFlowPoint,
+} from '@/transactions/utils/dailyCashFlowChart'
 import { getCashFlowFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
-type DailyCashFlowPoint = {
-  key: string
-  date: string
-  rangeLabel: string
-  inflow: number
-  outflow: number
-  net: number
-}
-
-export type DailyCashFlowChartMode = 'net' | 'gross'
-type DailyCashFlowGranularity = 'day' | 'week' | 'month'
-
-type DailyCashFlowTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: DailyCashFlowPoint
-  }>
-}
+export type { DailyCashFlowChartMode } from '@/transactions/utils/dailyCashFlowChart'
 
 const titleWordTransition = { duration: 0.34, ease: [0.16, 1, 0.3, 1] } as const
 const titleWidthTransition = { duration: 0.3, ease: [0.16, 1, 0.3, 1] } as const
@@ -65,214 +60,16 @@ const titleCharVariants = {
   enter: { y: 0, opacity: 1, filter: 'blur(0px)' },
   exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
 } as const
-const dailyCashFlowRangeDayCount = 31
-const weeklyCashFlowRangeDayCount = 183
-const dailyCashFlowMaxXAxisTickCount = 10
-const dailyCashFlowXAxisTickSpacing = 64
-const dailyCashFlowChartMargin = { top: 4, right: 12, bottom: 0, left: 12 } as const
-const dailyCashFlowXAxisPadding = { left: 20, right: 20 } as const
-const dailyCashFlowXAxisCandidateSteps = [1, 2, 3, 4, 5, 7, 10, 14, 15, 21, 30] as const
-// Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names.
+// Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names
 const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
-
-function formatYmdLocal(date: Date) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
-function getDailyCashFlowGranularity(fromDate: string, toDate: string): DailyCashFlowGranularity {
-  if (fromDate > toDate) return 'day'
-
-  const from = parseYmdLocal(fromDate)
-  const to = parseYmdLocal(toDate)
-  const dayCount = Math.max(
-    1,
-    Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
-  )
-
-  if (dayCount <= dailyCashFlowRangeDayCount) return 'day'
-  if (dayCount <= weeklyCashFlowRangeDayCount) return 'week'
-  return 'month'
-}
-
-function getDailyCashFlowCadenceTitle(granularity: DailyCashFlowGranularity) {
-  if (granularity === 'week') return 'Weekly'
-  if (granularity === 'month') return 'Monthly'
-  return 'Daily'
-}
-
-function getDailyCashFlowPeriodName(granularity: DailyCashFlowGranularity) {
-  if (granularity === 'week') return 'week'
-  if (granularity === 'month') return 'month'
-  return 'day'
-}
-
-function getDailyCashFlowCalculation(
-  granularity: DailyCashFlowGranularity,
-  mode: DailyCashFlowChartMode,
-) {
-  const period = getDailyCashFlowPeriodName(granularity)
-  return mode === 'net'
-    ? `Each ${period}'s money in minus money out. Transfers count except Balance Adjustment.`
-    : `Each ${period}'s money in and money out. Transfers count except Balance Adjustment.`
-}
-
-function formatCashFlowPointLabel(date: Date, granularity: DailyCashFlowGranularity) {
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: granularity === 'month' ? undefined : 'numeric',
-  })
-}
-
-function formatCashFlowTooltipDate(date: Date) {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function formatCashFlowRangeLabel(start: Date, end: Date, granularity: DailyCashFlowGranularity) {
-  if (granularity === 'day' || formatYmdLocal(start) === formatYmdLocal(end)) {
-    return formatCashFlowTooltipDate(start)
-  }
-
-  return `${formatCashFlowTooltipDate(start)} - ${formatCashFlowTooltipDate(end)}`
-}
-
-function getDailyCashFlowSeries(
-  raw: DailyCashFlow[],
-  granularity: DailyCashFlowGranularity,
-): DailyCashFlowPoint[] {
-  return raw.map((entry) => {
-    const bucketStart = parseYmdLocal(entry.date)
-    const bucketEnd = parseYmdLocal(entry.end_date)
-
-    return {
-      key: entry.date,
-      date: formatCashFlowPointLabel(bucketStart, granularity),
-      rangeLabel: formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity),
-      inflow: entry.inflow,
-      outflow: entry.outflow,
-      net: entry.inflow + entry.outflow,
-    }
-  })
-}
-
-function getDailyCashFlowXAxisTickCount(chartWidth: number | undefined) {
-  if (chartWidth === undefined) return dailyCashFlowMaxXAxisTickCount
-
-  const usableWidth = Math.max(
-    chartWidth
-      - dailyCashFlowChartMargin.left
-      - dailyCashFlowChartMargin.right
-      - dailyCashFlowXAxisPadding.left
-      - dailyCashFlowXAxisPadding.right,
-    0,
-  )
-
-  return Math.max(
-    2,
-    Math.min(
-      dailyCashFlowMaxXAxisTickCount,
-      Math.floor(usableWidth / dailyCashFlowXAxisTickSpacing) + 1,
-    ),
-  )
-}
-
-function getDailyCashFlowXAxisTickIndexesForStep(dataLength: number, step: number) {
-  const lastIndex = dataLength - 1
-  const indexes: number[] = []
-
-  for (let index = 0; index < lastIndex; index += step) {
-    indexes.push(index)
-  }
-
-  const finalGap = lastIndex - indexes[indexes.length - 1]
-  if (finalGap === 0) return indexes
-
-  if (indexes.length > 1 && finalGap < step / 2) {
-    indexes[indexes.length - 1] = lastIndex
-    return indexes
-  }
-
-  return [...indexes, lastIndex]
-}
-
-function getDailyCashFlowXAxisTickIndexes(dataLength: number, maxTickCount: number) {
-  const cappedTickCount = Math.min(maxTickCount, dataLength)
-  if (cappedTickCount === 0) return []
-  if (cappedTickCount === 1) return [0]
-
-  const lastIndex = dataLength - 1
-  const minimumStep = Math.max(1, Math.ceil(lastIndex / (cappedTickCount - 1)))
-  const candidateSteps = dailyCashFlowXAxisCandidateSteps.some((step) => step === minimumStep)
-    ? dailyCashFlowXAxisCandidateSteps
-    : [...dailyCashFlowXAxisCandidateSteps, minimumStep].sort((a, b) => a - b)
-
-  let bestIndexes = [0, lastIndex]
-  let bestScore = Number.POSITIVE_INFINITY
-
-  for (const step of candidateSteps) {
-    if (step < minimumStep) continue
-
-    const indexes = getDailyCashFlowXAxisTickIndexesForStep(dataLength, step)
-    if (indexes.length > cappedTickCount) continue
-
-    const gaps = indexes.slice(1).map((index, gapIndex) => index - indexes[gapIndex])
-    const gapSpread = Math.max(...gaps) - Math.min(...gaps)
-    const unusedTickPenalty = (cappedTickCount - indexes.length) * 0.2
-    const score = gapSpread / step + unusedTickPenalty
-
-    if (score < bestScore) {
-      bestIndexes = indexes
-      bestScore = score
-    }
-  }
-
-  return bestIndexes
-}
-
-function getDailyCashFlowXAxisTicks(data: DailyCashFlowPoint[], maxTickCount: number) {
-  return getDailyCashFlowXAxisTickIndexes(data.length, maxTickCount).map((index) => (
-    data[index].key
-  ))
-}
 
 function getDailyCashFlowTooltipKey(point: DailyCashFlowPoint) {
   return point.key
 }
 
-function getDailyCashFlowTooltipPointer(
-  state: DailyCashFlowTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getDailyCashFlowTooltipPoint(
-  state: DailyCashFlowTooltipState,
-  data: DailyCashFlowPoint[],
-  pointsByKey: Map<string, DailyCashFlowPoint>,
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : pointsByKey.get(String(state.activeLabel))
-}
-
+/**
+ * Renders daily cash flow values with shared chart tooltip typography
+ */
 function DailyCashFlowTooltipContent({
   point,
   displayCurrency,
@@ -284,31 +81,31 @@ function DailyCashFlowTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.rangeLabel}</p>
+      <ChartTooltipTitle>{point.rangeLabel}</ChartTooltipTitle>
       {mode === 'net' && (
-        <div className="mt-1 flex justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">Net</span>
-          <span className="app-chart-tooltip-default-value font-financial">
-            {formatCurrency(point.net, displayCurrency)}
-          </span>
-        </div>
+        <ChartTooltipRow
+          label="Net"
+          value={formatCurrency(point.net, displayCurrency)}
+          financialValue
+        />
       )}
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Inflow</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(Math.abs(point.inflow), displayCurrency)}
-        </span>
-      </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Outflow</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(Math.abs(point.outflow), displayCurrency)}
-        </span>
-      </div>
+      <ChartTooltipRow
+        label="Inflow"
+        value={formatCurrency(Math.abs(point.inflow), displayCurrency)}
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Outflow"
+        value={formatCurrency(Math.abs(point.outflow), displayCurrency)}
+        financialValue
+      />
     </>
   )
 }
 
+/**
+ * Animates the optional "Net" word in the daily cash-flow chart title
+ */
 function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
   const shouldReduceMotion = useReducedMotion()
 
@@ -356,6 +153,9 @@ function DailyCashFlowTitleWord({ visible }: { visible: boolean }) {
   )
 }
 
+/**
+ * Renders the transaction overview daily cash-flow chart
+ */
 export default function DailyCashFlowChart({
   rawDailyFlow,
   fromDate,
@@ -427,7 +227,10 @@ export default function DailyCashFlowChart({
     const element = dailyFlowChartRef.current
     if (!element) return undefined
 
-    const updateChartWidth = (width: number) => {
+    /**
+     * Stores rounded chart width so tick density updates only when layout changes meaningfully
+     */
+    function updateChartWidth(width: number) {
       const nextWidth = Math.max(Math.round(width), 0)
       setDailyFlowChartWidth((currentWidth) => (
         currentWidth === nextWidth ? currentWidth : nextWidth
@@ -445,12 +248,19 @@ export default function DailyCashFlowChart({
     return () => resizeObserver.disconnect()
   }, [])
 
-  const showDailyCashFlowTooltip = (
-    state: DailyCashFlowTooltipState,
+  /**
+   * Resolves the hovered Recharts area point and forwards it to the deferred tooltip overlay
+   */
+  function showDailyCashFlowTooltip(
+    state: RechartsTooltipState<DailyCashFlowPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
-    const point = getDailyCashFlowTooltipPoint(state, dailyFlow, dailyFlowPointsByKey)
-    const pointer = getDailyCashFlowTooltipPointer(state, event)
+  ) {
+    const point = getRechartsTooltipPoint({
+      state,
+      data: dailyFlow,
+      resolveLabel: (label) => dailyFlowPointsByKey.get(label),
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point) {
       dailyFlowTooltipRef.current?.show(null, pointer)
@@ -513,7 +323,7 @@ export default function DailyCashFlowChart({
           <AreaChart
             key={`daily-flow-${mode}-${chartAnimationKey}`}
             data={dailyFlow}
-            margin={dailyCashFlowChartMargin}
+            margin={DAILY_CASH_FLOW_CHART_MARGIN}
             onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
             onMouseLeave={hideDailyCashFlowTooltip}
           >
@@ -537,7 +347,7 @@ export default function DailyCashFlowChart({
               tickFormatter={(value) => dailyFlowLabelsByKey.get(String(value)) ?? String(value)}
               axisLine={false}
               tickLine={false}
-              padding={dailyCashFlowXAxisPadding}
+              padding={DAILY_CASH_FLOW_X_AXIS_PADDING}
               interval={0}
               ticks={dailyFlowXAxisTicks}
             />

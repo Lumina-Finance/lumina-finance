@@ -18,9 +18,14 @@ import {
 import type { FxStatus } from '@/api/shared/fx'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/components/charts/rechartsTooltip'
 import IconTooltip from '@/components/IconTooltip'
 import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -36,48 +41,13 @@ import { getTopCategoriesFxStatusMessage } from '@/transactions/utils/fxTooltipM
 
 const emptyTopCategoryHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT
 
-type TopCategoryTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: OverviewCategorySpend
-  }>
-}
-
 function getTopCategoryTooltipKey(point: OverviewCategorySpend) {
   return point.name
 }
 
-function getTopCategoryTooltipPointer(
-  state: TopCategoryTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getTopCategoryTooltipPoint(
-  state: TopCategoryTooltipState,
-  data: OverviewCategorySpend[],
-  pointsByName: Map<string, OverviewCategorySpend>,
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : pointsByName.get(String(state.activeLabel))
-}
-
+/**
+ * Renders top-category spend values with shared chart tooltip typography
+ */
 function TopCategoryTooltipContent({
   point,
   displayCurrency,
@@ -87,17 +57,19 @@ function TopCategoryTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.name}</p>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Spent</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(point.amount, displayCurrency)}
-        </span>
-      </div>
+      <ChartTooltipTitle>{point.name}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label="Spent"
+        value={formatCurrency(point.amount, displayCurrency)}
+        financialValue
+      />
     </>
   )
 }
 
+/**
+ * Renders category labels through a custom tick so Recharts does not apply its default SVG text styling
+ */
 function TopCategoryYAxisTick({
   x = 0,
   y = 0,
@@ -121,6 +93,9 @@ function TopCategoryYAxisTick({
   )
 }
 
+/**
+ * Renders the transaction overview top-category spend chart
+ */
 export default function TopCategoriesChart({
   categorySpend,
   fxStatus,
@@ -139,7 +114,8 @@ export default function TopCategoriesChart({
   const topCategoryChartRef = useRef<HTMLDivElement>(null)
   const topCategoryTooltipRef = useRef<DeferredChartTooltipOverlayHandle<OverviewCategorySpend>>(null)
   const topCategoryChartHeight = Math.max(24, categorySpend.length * TOP_CATEGORY_ROW_HEIGHT)
-  // Recharts needs an explicit Y-axis width; estimate it from label length to avoid clipping.
+
+  // Recharts needs an explicit Y-axis width because otherwise long category labels can clip
   const topCategoryAxisWidth = Math.max(
     TOP_CATEGORY_AXIS_MIN_WIDTH,
     Math.ceil(
@@ -154,12 +130,20 @@ export default function TopCategoriesChart({
   )
   const chartAnimationDuration = prefersReducedMotion ? 0 : 550
   const contentTransition = { duration: prefersReducedMotion ? 0 : 0.24, ease: [0.25, 0.1, 0.25, 1] } as const
-  const showTopCategoryTooltip = (
-    state: TopCategoryTooltipState,
+
+  /**
+   * Resolves the hovered Recharts bar and forwards it to the deferred tooltip overlay
+   */
+  function showTopCategoryTooltip(
+    state: RechartsTooltipState<OverviewCategorySpend>,
     event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
-    const point = getTopCategoryTooltipPoint(state, categorySpend, topCategoryPointsByName)
-    const pointer = getTopCategoryTooltipPointer(state, event)
+  ) {
+    const point = getRechartsTooltipPoint({
+      state,
+      data: categorySpend,
+      resolveLabel: (label) => topCategoryPointsByName.get(label),
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point) {
       topCategoryTooltipRef.current?.show(null, pointer)

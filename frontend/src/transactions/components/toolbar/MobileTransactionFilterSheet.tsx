@@ -1,56 +1,66 @@
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
-import type { AccountKind, AccountType } from '@/api/accounts'
-import type { OptionItem } from '@/components/FilterOptionList'
 import { MobileFilterSection } from '@/components/filters/MobileFilterSection'
 import { useMobileFilterSheetEffects } from '@/components/filters/useMobileFilterSheetEffects'
-import type { FilterValues } from '@/accounts/types/accounts'
+import { MobileDateRangeSection } from '@/transactions/components/toolbar/MobileDateRangeSection'
+import type {
+  TransactionDateRangeDraftProps,
+  TransactionFilterSetter,
+  TransactionToolbarOptions,
+  TransactionToolbarSelectionLabels,
+} from '@/transactions/components/toolbar/types'
+import type { TransactionListFilters } from '@/transactions/types/transactionList'
 
-type MobileFilterSheetProps = {
+type MobileTransactionFilterSheetProps = TransactionDateRangeDraftProps & TransactionToolbarOptions & TransactionToolbarSelectionLabels & {
   isOpen: boolean
   activeFilterCount: number
-  filters: FilterValues
-  setFilter: (patch: Partial<FilterValues>) => void
-  institutionOptions: OptionItem[]
-  kindOptions: OptionItem[]
-  typeOptions: OptionItem[]
-  selectedInstitutionLabel: string | null
-  selectedKindLabel: string | null
-  selectedTypeLabel: string | null
+  filters: TransactionListFilters
+  setFilter: TransactionFilterSetter
+  showAccountFilter: boolean
   onClose: () => void
   onExitComplete: () => void
 }
 
 /**
- * Renders the mobile filter sheet and owns its page-level modal effects
+ * Renders the mobile transaction filter sheet and delegates shared modal browser effects
  */
-export function MobileFilterSheet({
+export function MobileTransactionFilterSheet({
   isOpen,
   activeFilterCount,
   filters,
   setFilter,
-  institutionOptions,
-  kindOptions,
-  typeOptions,
-  selectedInstitutionLabel,
-  selectedKindLabel,
-  selectedTypeLabel,
+  showAccountFilter,
+  accountOptions,
+  categoryOptions,
+  selectedAccountLabel,
+  selectedCategoryLabel,
+  selectedDateLabel,
+  pendingFrom,
+  pendingTo,
+  dateRangeChanged,
+  dateRangeInvalid,
+  onPendingFromChange,
+  onPendingToChange,
+  onDateRangeReset,
+  onDateRangeClose,
   onClose,
   onExitComplete,
-}: MobileFilterSheetProps) {
+}: MobileTransactionFilterSheetProps) {
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose })
   const shouldReduceMotion = useReducedMotion()
 
   /**
-   * Clears every filter before closing so the exit animation reflects the cleared state
+   * Resets date drafts with the applied filters so clearing does not leave stale pending dates in the sheet
    */
   function clearAllFilters() {
     setFilter({
-      institution_id: undefined,
-      account_kind: undefined,
-      account_type: undefined,
+      account_id: undefined,
+      category_id: undefined,
+      from_date: undefined,
+      to_date: undefined,
     })
+    onDateRangeReset()
     onClose()
   }
 
@@ -68,7 +78,7 @@ export function MobileFilterSheet({
     <AnimatePresence onExitComplete={onExitComplete}>
       {isOpen && (
         <div
-          className="fixed inset-x-0 -top-[env(safe-area-inset-top)] bottom-0 z-[100] min-[730px]:hidden"
+          className="fixed inset-x-0 -top-[env(safe-area-inset-top)] bottom-0 z-[100] min-[750px]:hidden"
           onClick={onClose}
         >
           <motion.div
@@ -88,7 +98,7 @@ export function MobileFilterSheet({
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-label="Account filters"
+            aria-label="Transaction filters"
             className="absolute inset-x-0 bottom-0 flex max-h-[86dvh] flex-col overflow-hidden rounded-t-2xl border-t"
             style={{
               background: 'var(--app-bg)',
@@ -120,38 +130,40 @@ export function MobileFilterSheet({
             </div>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain py-5 pl-5 pr-6 [scrollbar-gutter:stable]">
-              <MobileFilterSection
-                title="Institution"
-                options={institutionOptions}
-                selectedValue={filters.institution_id}
-                selectedLabel={selectedInstitutionLabel}
-                searchPlaceholder="Search institutions..."
-                allLabel="All institutions"
-                onSelect={(value) => setFilter({ institution_id: value })}
-                onClear={() => setFilter({ institution_id: undefined })}
-                selectFirstSearchResultOnEnter
-              />
+              {showAccountFilter && (
+                <MobileFilterSection
+                  title="Account"
+                  options={accountOptions}
+                  selectedValue={filters.account_id}
+                  selectedLabel={selectedAccountLabel}
+                  searchPlaceholder="Search accounts..."
+                  allLabel="All accounts"
+                  onSelect={(value) => setFilter({ account_id: value })}
+                  onClear={() => setFilter({ account_id: undefined })}
+                  selectFirstSearchResultOnEnter
+                />
+              )}
               <MobileFilterSection
                 title="Category"
-                options={kindOptions}
-                selectedValue={filters.account_kind}
-                selectedLabel={selectedKindLabel}
+                options={categoryOptions}
+                selectedValue={filters.category_id}
+                selectedLabel={selectedCategoryLabel}
                 searchPlaceholder="Search categories..."
                 allLabel="All categories"
-                onSelect={(value) => setFilter({ account_kind: value as AccountKind })}
-                onClear={() => setFilter({ account_kind: undefined })}
+                onSelect={(value) => setFilter({ category_id: value })}
+                onClear={() => setFilter({ category_id: undefined })}
                 selectFirstSearchResultOnEnter
               />
-              <MobileFilterSection
-                title="Type"
-                options={typeOptions}
-                selectedValue={filters.account_type}
-                selectedLabel={selectedTypeLabel}
-                searchPlaceholder="Search types..."
-                allLabel="All types"
-                onSelect={(value) => setFilter({ account_type: value as AccountType })}
-                onClear={() => setFilter({ account_type: undefined })}
-                selectFirstSearchResultOnEnter
+              <MobileDateRangeSection
+                selectedLabel={selectedDateLabel}
+                from={pendingFrom}
+                to={pendingTo}
+                changed={dateRangeChanged}
+                invalid={dateRangeInvalid}
+                onFromChange={onPendingFromChange}
+                onToChange={onPendingToChange}
+                onReset={onDateRangeReset}
+                onApply={onDateRangeClose}
               />
             </div>
 

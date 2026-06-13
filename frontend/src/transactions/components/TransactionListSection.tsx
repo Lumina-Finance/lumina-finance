@@ -1,23 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
 import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
-import { FILTER_LIST_LOADING_MIN_MS, TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/transactions/constants/transactionList'
+import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/transactions/components/TransactionDateGroupList'
 import TransactionFilterLoadingOverlay from '@/transactions/components/TransactionFilterLoadingOverlay'
-import TransactionListToolbar from '@/transactions/components/TransactionListToolbar'
+import TransactionListToolbar from '@/transactions/components/toolbar/TransactionListToolbar'
 import { useDateRangeDraft } from '@/transactions/hooks/useDateRangeDraft'
+import { useTransactionFilterLoadingState } from '@/transactions/hooks/useTransactionFilterLoadingState'
 import { useInfiniteScrollTrigger } from '@/transactions/hooks/useInfiniteScrollTrigger'
 import { useTransactionSearch } from '@/transactions/hooks/useTransactionSearch'
 import type { TransactionListAccount, TransactionListFilters } from '@/transactions/types/transactionList'
-import { groupTransactionsByDate } from '@/transactions/utils/groupTransactionsByDate'
+import { groupTransactionsByDate } from '@/transactions/utils/transactionDateGroups'
 import { normalizeTransactionFilters } from '@/transactions/utils/normalizeTransactionFilters'
 
 const DEFAULT_DATE_HEADER_STICKY_TOP = 72
 
+/**
+ * Wires transaction list filters, infinite loading, row grouping, and list rendering
+ */
 export default function TransactionListSection({
   fixedAccount,
   accounts = [],
@@ -41,33 +45,51 @@ export default function TransactionListSection({
 }) {
   const prefersReducedMotion = useReducedMotion()
   const { search, setSearch, activeSearch, submitSearch } = useTransactionSearch()
-  const latestTransactionsRef = useRef<Transaction[]>([])
-  const filterLoadingStartedAtRef = useRef(0)
-  const filterLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [internalFilters, setInternalFilters] = useState<TransactionListFilters>(
     fixedAccount ? { account_id: fixedAccount.id } : {},
   )
   const filters = controlledFilters ?? internalFilters
   const filtersRef = useRef(filters)
-  const [filterListLoading, setFilterListLoading] = useState(false)
-  const [filterLoadingRows, setFilterLoadingRows] = useState<Transaction[] | null>(null)
-  const [pendingClearReveal, setPendingClearReveal] = useState(false)
-  const [clearExitRows, setClearExitRows] = useState<Transaction[] | null>(null)
-  const [listRevealKey, setListRevealKey] = useState(0)
   const [dateHeaderStickyTop, setDateHeaderStickyTop] = useState(DEFAULT_DATE_HEADER_STICKY_TOP)
 
-  // `setFilter` reads the latest filters from a ref so child callbacks do not
-  // need to be recreated for every filter change.
+  // `setFilter` reads from a ref so toolbar callbacks can stay stable while filters change
   useEffect(() => {
     filtersRef.current = filters
   }, [filters])
 
-  const setFilterLoading = useCallback((loading: boolean) => {
-    setFilterListLoading(loading)
-    onFilterLoadingChange?.(loading)
-  }, [onFilterLoadingChange])
+  const {
+    data: txnPages,
+    error,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isFetching,
+  } = useInfiniteTransactions({
+    ...filters,
+    q: activeSearch || undefined,
+  })
+  const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
+  const transactionsLoaded = txnPages !== undefined
+  const {
+    filterListLoading,
+    displayedTransactions,
+    displayedTransactionsLoaded,
+    listRevealKey,
+    beginFilterTransition,
+  } = useTransactionFilterLoadingState({
+    transactions,
+    transactionsLoaded,
+    isFetching,
+    queryReady: txnPages !== undefined,
+    error,
+    onLoadingChange: onFilterLoadingChange,
+    onSettledTransactionsChange,
+  })
 
-  const setFilter = (patch: Partial<TransactionListFilters>) => {
+  /**
+   * Applies list filters and tells the transition hook whether rows should hold or fade while the query updates
+   */
+  function setFilter(patch: Partial<TransactionListFilters>) {
     const current = filtersRef.current
     const fixedAccountPatch = fixedAccount ? { account_id: fixedAccount.id } : {}
     const next = normalizeTransactionFilters({ ...current, ...patch, ...fixedAccountPatch })
@@ -77,27 +99,7 @@ export default function TransactionListSection({
     const isApplyingFilter = Object.entries(patch).some(([key, value]) => (
       key !== 'account_id' && Boolean(value)
     ))
-    if (isApplyingFilter) {
-      setPendingClearReveal(false)
-      setClearExitRows(null)
-      if (filterLoadingTimeoutRef.current !== null) {
-        clearTimeout(filterLoadingTimeoutRef.current)
-        filterLoadingTimeoutRef.current = null
-      }
-      filterLoadingStartedAtRef.current = Date.now()
-      setFilterLoadingRows(latestTransactionsRef.current)
-      setFilterLoading(true)
-    } else {
-      if (filterLoadingTimeoutRef.current !== null) {
-        clearTimeout(filterLoadingTimeoutRef.current)
-        filterLoadingTimeoutRef.current = null
-      }
-      filterLoadingStartedAtRef.current = 0
-      setFilterLoading(false)
-      setFilterLoadingRows(null)
-      setClearExitRows(latestTransactionsRef.current)
-      setPendingClearReveal(true)
-    }
+    beginFilterTransition(isApplyingFilter ? 'apply' : 'clear')
 
     if (onFiltersChange) {
       onFiltersChange(next)
@@ -116,25 +118,6 @@ export default function TransactionListSection({
     commitDateRange,
   } = useDateRangeDraft({ filters, setFilter })
 
-  const {
-    data: txnPages,
-    error,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-    isFetching,
-  } = useInfiniteTransactions({
-    ...filters,
-    q: activeSearch || undefined,
-  })
-  const transactions = useMemo(() => txnPages?.pages.flat() ?? [], [txnPages])
-  const transactionsLoaded = txnPages !== undefined
-  const displayedTransactions = filterListLoading && filterLoadingRows
-    ? filterLoadingRows
-    : clearExitRows ?? transactions
-  const displayedTransactionsLoaded =
-    transactionsLoaded || (filterListLoading && filterLoadingRows !== null) || clearExitRows !== null
-
   const { data: categories } = useCategories()
   const categoryMap = useMemo(
     () => new Map(categories?.map((category) => [category.id, category]) ?? []),
@@ -150,63 +133,6 @@ export default function TransactionListSection({
   )
   const createDisabled = Boolean(fixedAccount?.is_archived)
   const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
-
-  // Filter changes can schedule delayed loading cleanup; clear that timer if
-  // the list unmounts mid-transition.
-  useEffect(() => {
-    return () => {
-      if (filterLoadingTimeoutRef.current !== null) {
-        clearTimeout(filterLoadingTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // Remember the last settled rows so applying a filter can keep the old list
-  // visible behind the loading overlay until the new query resolves.
-  useEffect(() => {
-    if (!filterListLoading && !pendingClearReveal && clearExitRows === null && transactionsLoaded) {
-      latestTransactionsRef.current = transactions
-      onSettledTransactionsChange?.(transactions)
-    }
-  }, [
-    clearExitRows,
-    filterListLoading,
-    onSettledTransactionsChange,
-    pendingClearReveal,
-    transactions,
-    transactionsLoaded,
-  ])
-
-  // Clearing filters fades out the old rows first, then reveals the refetched
-  // unfiltered list on the next tick.
-  useEffect(() => {
-    if (!pendingClearReveal || isFetching || txnPages === undefined) return
-    const revealTimeout = window.setTimeout(() => {
-      setListRevealKey((key) => key + 1)
-      setClearExitRows(null)
-      setPendingClearReveal(false)
-    }, 0)
-    return () => window.clearTimeout(revealTimeout)
-  }, [isFetching, pendingClearReveal, txnPages])
-
-  // Keep the filter-loading overlay visible for a minimum duration so filter
-  // transitions read as intentional instead of flashing.
-  useEffect(() => {
-    if (!filterListLoading) return
-    if (!isFetching && (txnPages !== undefined || error)) {
-      const elapsed = Date.now() - filterLoadingStartedAtRef.current
-      const remaining = Math.max(FILTER_LIST_LOADING_MIN_MS - elapsed, 0)
-      if (filterLoadingTimeoutRef.current !== null) {
-        clearTimeout(filterLoadingTimeoutRef.current)
-      }
-      filterLoadingTimeoutRef.current = setTimeout(() => {
-        setFilterLoading(false)
-        setFilterLoadingRows(null)
-        filterLoadingStartedAtRef.current = 0
-        filterLoadingTimeoutRef.current = null
-      }, remaining)
-    }
-  }, [error, filterListLoading, isFetching, setFilterLoading, txnPages])
 
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
