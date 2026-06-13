@@ -8,20 +8,19 @@ import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import {
+  getCreditUsageSummary,
+  type CreditMode,
+} from '@/dashboard/utils/getCreditUsageSummary'
 import { getCreditFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
-
-function getCreditTier(utilization: number) {
-  if (utilization <= 30) return 'positive'
-  if (utilization <= 70) return 'accent'
-  return 'negative'
-}
 
 type CreditWidgetProps = {
   displayCurrency: string
 }
 
-type CreditMode = 'used' | 'available'
-
+/**
+ * Loads credit utilization data and composes the active mode, header, progress ring, and amount
+ */
 export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const { data: incomingDashboardCredit, isFetching: dashboardCreditLoading } = useDashboardCredit()
   const [creditMode, setCreditMode] = useState<CreditMode>('used')
@@ -40,28 +39,21 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
     transitionKey: 'credit',
   })
   const dashboardCredit = displaySnapshot.dashboardCredit
-  const creditLimit = dashboardCredit?.credit_limit_total ?? 0
-  const creditUsed = dashboardCredit?.credit_used ?? 0
   const fxStatus = dashboardCredit?.fx_status
-  const utilization = creditLimit > 0 ? Math.round((creditUsed / creditLimit) * 100) : 0
-  const hasCredit = creditLimit > 0
+  const {
+    creditAvailable,
+    displayAmount,
+    displayPct,
+    hasCredit,
+    tierColor,
+    tierSoft,
+  } = getCreditUsageSummary(dashboardCredit, creditMode)
 
-  const creditAvailable = creditLimit
-  const creditRemaining = creditAvailable - creditUsed
-  const remainingPct = creditAvailable > 0 ? 100 - utilization : 0
-  const displayPct = creditMode === 'used' ? utilization : remainingPct
-  const displayAmount = creditMode === 'used' ? creditUsed : creditRemaining
-
-  // Color tier always derives from utilization so the risk signal stays
-  // consistent when toggling between used and remaining credit.
   const size = 120
   const strokeWidth = 10
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const filled = (Math.max(0, Math.min(displayPct, 100)) / 100) * circumference
-  const tier = getCreditTier(utilization)
-  const tierColor = `var(--app-${tier})`
-  const tierSoft = `var(--app-${tier}-soft)`
 
   return (
     <div className="app-card h-[14rem] flex flex-col">
