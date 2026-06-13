@@ -3,11 +3,10 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
+import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type {
   MerchantMarketMerchant,
   MerchantMarketTile,
@@ -18,11 +17,6 @@ import {
 } from '@/insights/utils/merchantDistributionMap'
 import { formatSignedCurrency } from '@/insights/utils/money'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
-
-type MerchantMarketHover = {
-  merchant: MerchantMarketTile
-}
 
 type MerchantMarketMapProps = {
   merchants: MerchantMarketMerchant[]
@@ -41,10 +35,20 @@ export function MerchantMarketMap({
   merchants,
   currency,
 }: MerchantMarketMapProps) {
-  const [hoveredTile, setHoveredTile] = useState<MerchantMarketHover | null>(null)
   const mapRef = useRef<HTMLDivElement | null>(null)
-  const tooltipRef = useRef<HTMLDivElement | null>(null)
-  const [tooltipVisible, setTooltipVisible] = useState(false)
+  const {
+    tooltipRef,
+    tooltipItem: hoveredMerchant,
+    tooltipVisible,
+    showTooltip: showMerchantTooltip,
+    hideTooltip,
+    handleTooltipTransitionEnd,
+  } = useCursorTooltip<MerchantMarketTile, HTMLDivElement>({
+    originRef: mapRef,
+    xProperty: '--merchant-tooltip-x',
+    yProperty: '--merchant-tooltip-y',
+    getItemKey: (merchant) => merchant.id,
+  })
   const [mapSize, setMapSize] = useState({ width: DEFAULT_MAP_WIDTH, height: DEFAULT_MAP_HEIGHT })
   const layoutWidth = Math.max(mapSize.width, 1)
   const layoutHeight = Math.max(mapSize.height, 1)
@@ -55,53 +59,13 @@ export function MerchantMarketMap({
     [layoutHeight, layoutWidth, merchants],
   )
 
-  /**
-   * Repositions the cursor tooltip inside the measured map bounds
-   */
-  function updateTooltipPosition(clientX: number, clientY: number) {
-    const map = mapRef.current
-    const tooltip = tooltipRef.current
-    if (!map || !tooltip) return
-
-    applyCursorTooltipPosition({
-      origin: map,
-      tooltip,
-      clientX,
-      clientY,
-      xProperty: '--merchant-tooltip-x',
-      yProperty: '--merchant-tooltip-y',
-    })
-  }
-
-  /**
-   * Shows tooltip details for the hovered merchant tile
-   */
-  function showTooltip(
-    merchant: MerchantMarketTile,
-    event: ReactMouseEvent<Element>,
-  ) {
-    updateTooltipPosition(event.clientX, event.clientY)
-    setHoveredTile((current) => (current?.merchant.id === merchant.id ? current : { merchant }))
-    setTooltipVisible(true)
-    requestAnimationFrame(() => updateTooltipPosition(event.clientX, event.clientY))
-  }
-
-  function hideTooltip() {
-    setTooltipVisible(false)
-  }
-
-  /**
-   * Clears tooltip content only after the opacity transition has fully hidden it
-   */
-  function handleTooltipTransitionEnd(event: ReactTransitionEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
-    setHoveredTile(null)
-  }
-
   useEffect(() => {
     const element = mapRef.current
     if (!element || typeof ResizeObserver === 'undefined') return undefined
 
+    /**
+     * Normalizes measured map dimensions before they drive the treemap layout
+     */
     const updateSize = (width: number, height: number) => {
       const nextWidth = Math.max(Math.round(width), 1)
       const nextHeight = Math.max(Math.round(height), 1)
@@ -173,8 +137,8 @@ export function MerchantMarketMap({
                   width: `${(merchant.width / layoutWidth) * 100}%`,
                   height: `${(merchant.height / layoutHeight) * 100}%`,
                 }}
-                onMouseEnter={(event) => showTooltip(merchant, event)}
-                onMouseMove={(event) => showTooltip(merchant, event)}
+                onMouseEnter={(event) => showMerchantTooltip(merchant, event)}
+                onMouseMove={(event) => showMerchantTooltip(merchant, event)}
               >
                 {showName && (
                   <p
@@ -228,23 +192,23 @@ export function MerchantMarketMap({
           width: tooltipWidth,
         }}
       >
-        {hoveredTile && (
+        {hoveredMerchant && (
           <>
-            <ChartTooltipTitle>{hoveredTile.merchant.name}</ChartTooltipTitle>
+            <ChartTooltipTitle>{hoveredMerchant.name}</ChartTooltipTitle>
             <ChartTooltipRow
               label="Total Spend"
-              value={formatCurrency(hoveredTile.merchant.totalAmount, currency)}
+              value={formatCurrency(hoveredMerchant.totalAmount, currency)}
               financialValue
             />
-            {hoveredTile.merchant.changeAmount !== null && (
+            {hoveredMerchant.changeAmount !== null && (
               <ChartTooltipRow
                 label="Change"
                 value={(
                   <>
-                    {formatSignedCurrency(hoveredTile.merchant.changeAmount, currency)}
-                    {hoveredTile.merchant.changePct === null
+                    {formatSignedCurrency(hoveredMerchant.changeAmount, currency)}
+                    {hoveredMerchant.changePct === null
                       ? ''
-                      : ` (${hoveredTile.merchant.changePct > 0 ? '+' : ''}${hoveredTile.merchant.changePct}%)`}
+                      : ` (${hoveredMerchant.changePct > 0 ? '+' : ''}${hoveredMerchant.changePct}%)`}
                   </>
                 )}
                 financialValue

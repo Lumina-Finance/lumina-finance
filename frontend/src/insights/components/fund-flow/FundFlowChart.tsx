@@ -1,8 +1,6 @@
 import {
   useRef,
-  useState,
   type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { motion } from 'motion/react'
 import {
@@ -14,9 +12,9 @@ import {
 } from 'recharts'
 import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
+import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type { FundFlowData, FundFlowNode, FundFlowNodeKind } from '@/insights/types/fundFlow'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 import {
   InsightLoadingContent,
   InsightLoadingOverlay,
@@ -185,27 +183,20 @@ export function FundFlowChart({
   shouldReduceMotion,
 }: FundFlowChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
-  const tooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredTooltip, setHoveredTooltip] = useState<SankeyFlowTooltipData | null>(null)
-  const [tooltipVisible, setTooltipVisible] = useState(false)
-
-  /**
-   * Repositions the cursor tooltip inside the current chart bounds
-   */
-  function updateTooltipPosition(clientX: number, clientY: number) {
-    const chart = chartRef.current
-    const tooltip = tooltipRef.current
-    if (!chart || !tooltip) return
-
-    applyCursorTooltipPosition({
-      origin: chart,
-      tooltip,
-      clientX,
-      clientY,
-      xProperty: '--flow-tooltip-x',
-      yProperty: '--flow-tooltip-y',
-    })
-  }
+  const {
+    tooltipRef,
+    tooltipItem: hoveredTooltip,
+    tooltipVisible,
+    updateTooltipPosition,
+    showTooltip: showFlowTooltip,
+    hideTooltip,
+    handleTooltipTransitionEnd,
+  } = useCursorTooltip<SankeyFlowTooltipData, HTMLDivElement>({
+    originRef: chartRef,
+    xProperty: '--flow-tooltip-x',
+    yProperty: '--flow-tooltip-y',
+    getItemKey: (tooltip) => `${tooltip.name}:${tooltip.amount}`,
+  })
 
   /**
    * Shows the tooltip for the active Sankey node or link
@@ -215,33 +206,8 @@ export function FundFlowChart({
     type: SankeyElementType,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) {
-    updateTooltipPosition(event.clientX, event.clientY)
-
     const tooltip = getSankeyFlowTooltipData(item, type)
-    if (!tooltip) {
-      setTooltipVisible(false)
-      return
-    }
-
-    setHoveredTooltip((current) => (
-      current?.name === tooltip.name && current.amount === tooltip.amount
-        ? current
-        : tooltip
-    ))
-    setTooltipVisible(true)
-    requestAnimationFrame(() => updateTooltipPosition(event.clientX, event.clientY))
-  }
-
-  function hideTooltip() {
-    setTooltipVisible(false)
-  }
-
-  /**
-   * Clears tooltip content only after the opacity transition has fully hidden it
-   */
-  function handleTooltipTransitionEnd(event: ReactTransitionEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
-    setHoveredTooltip(null)
+    showFlowTooltip(tooltip, event)
   }
 
   return (

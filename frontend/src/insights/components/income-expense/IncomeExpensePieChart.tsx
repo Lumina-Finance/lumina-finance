@@ -1,9 +1,6 @@
 import {
   useMemo,
   useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
@@ -15,6 +12,7 @@ import {
 import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
+import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type { BreakdownEntry, BreakdownMode } from '@/insights/types/incomeExpenseBreakdown'
 import {
   getBreakdownCrossoverKind,
@@ -25,7 +23,6 @@ import {
 } from '@/insights/utils/incomeExpenseBreakdownDisplay'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 type IncomeExpensePieChartProps = {
   mode: BreakdownMode
@@ -67,9 +64,19 @@ export function IncomeExpensePieChart({
   shouldReduceMotion,
 }: IncomeExpensePieChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
-  const tooltipRef = useRef<HTMLDivElement>(null)
-  const [hoveredEntry, setHoveredEntry] = useState<BreakdownEntry | null>(null)
-  const [tooltipVisible, setTooltipVisible] = useState(false)
+  const {
+    tooltipRef,
+    tooltipItem: hoveredEntry,
+    tooltipVisible,
+    showTooltip: showEntryTooltip,
+    hideTooltip,
+    handleTooltipTransitionEnd,
+  } = useCursorTooltip<BreakdownEntry, HTMLDivElement>({
+    originRef: chartRef,
+    xProperty: '--breakdown-tooltip-x',
+    yProperty: '--breakdown-tooltip-y',
+    getItemKey: (entry) => entry.id,
+  })
   const sliceTotal = getBreakdownTotal(entries)
   const breakdownColors = useMemo(() => getCategoryColorMap(entries.map((entry) => ({
     id: entry.id,
@@ -92,54 +99,6 @@ export function IncomeExpensePieChart({
 
   function getSpacedBreakdownColor(entry: BreakdownEntry) {
     return breakdownColors.get(entry.id || entry.name) ?? getBreakdownColor(entry)
-  }
-
-  /**
-   * Repositions the cursor tooltip inside the current chart bounds
-   */
-  function updateTooltipPosition(clientX: number, clientY: number) {
-    const chart = chartRef.current
-    const tooltip = tooltipRef.current
-    if (!chart || !tooltip) return
-
-    applyCursorTooltipPosition({
-      origin: chart,
-      tooltip,
-      clientX,
-      clientY,
-      xProperty: '--breakdown-tooltip-x',
-      yProperty: '--breakdown-tooltip-y',
-    })
-  }
-
-  /**
-   * Shows the tooltip for the active pie slice
-   */
-  function showTooltip(
-    entry: BreakdownEntry | undefined,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) {
-    if (!entry) {
-      setTooltipVisible(false)
-      return
-    }
-
-    updateTooltipPosition(event.clientX, event.clientY)
-    setHoveredEntry((current) => (current?.id === entry.id ? current : entry))
-    setTooltipVisible(true)
-    requestAnimationFrame(() => updateTooltipPosition(event.clientX, event.clientY))
-  }
-
-  function hideTooltip() {
-    setTooltipVisible(false)
-  }
-
-  /**
-   * Clears tooltip content only after the opacity transition has fully hidden it
-   */
-  function handleTooltipTransitionEnd(event: ReactTransitionEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget || event.propertyName !== 'opacity' || tooltipVisible) return
-    setHoveredEntry(null)
   }
 
   return (
@@ -170,10 +129,10 @@ export function IncomeExpensePieChart({
               nameKey="name"
               stroke="none"
               onMouseEnter={(_sector, index, event) => {
-                showTooltip(entries[index], event)
+                showEntryTooltip(entries[index], event)
               }}
               onMouseMove={(_sector, index, event) => {
-                showTooltip(entries[index], event)
+                showEntryTooltip(entries[index], event)
               }}
               onMouseLeave={hideTooltip}
             >

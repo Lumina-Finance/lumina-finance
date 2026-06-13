@@ -7,12 +7,12 @@ import {
 } from 'react'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
-type DashboardCursorTooltipPointer = {
+type CursorTooltipPointer = {
   clientX: number
   clientY: number
 }
 
-type DashboardCursorTooltipOptions<TItem, TOrigin extends HTMLElement> = {
+type CursorTooltipOptions<TItem, TOrigin extends HTMLElement> = {
   originRef: RefObject<TOrigin | null>
   xProperty: string
   yProperty: string
@@ -20,14 +20,14 @@ type DashboardCursorTooltipOptions<TItem, TOrigin extends HTMLElement> = {
 }
 
 /**
- * Owns dashboard cursor tooltip portal state while callers keep their own item selection rules
+ * Owns cursor tooltip portal state while callers keep their own item selection rules
  */
-export function useDashboardCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElement>({
+export function useCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElement>({
   originRef,
   xProperty,
   yProperty,
   getItemKey,
-}: DashboardCursorTooltipOptions<TItem, TOrigin>) {
+}: CursorTooltipOptions<TItem, TOrigin>) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const [tooltipItem, setTooltipItem] = useState<TItem | null>(null)
   const [tooltipVisible, setTooltipVisible] = useState(false)
@@ -57,7 +57,7 @@ export function useDashboardCursorTooltip<TItem, TOrigin extends HTMLElement = H
   /**
    * Shows the selected tooltip item and repositions after React updates the portal content
    */
-  const showTooltip = useCallback((nextItem: TItem | null | undefined, pointer: DashboardCursorTooltipPointer) => {
+  const showTooltip = useCallback((nextItem: TItem | null | undefined, pointer: CursorTooltipPointer) => {
     if (!nextItem) {
       hideTooltip()
       return
@@ -83,6 +83,7 @@ export function useDashboardCursorTooltip<TItem, TOrigin extends HTMLElement = H
     tooltipRef,
     tooltipItem,
     tooltipVisible,
+    updateTooltipPosition,
     showTooltip,
     hideTooltip,
     handleTooltipTransitionEnd,
