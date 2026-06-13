@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type RefObject, type UIEvent } from 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import ScrollableListMoreButton from '@/components/list-controls/ScrollableListMoreButton'
-import TagRow from '@/pages/settings/components/tag-settings-section/TagRow'
+import TagRow from '@/pages/settings/components/tag-settings-section/list/TagRow'
 import { TAG_LIST_HEIGHT_TRANSITION } from '@/pages/settings/components/tag-settings-section/tagSettingsConstants'
 
 export default function TagSettingsList({

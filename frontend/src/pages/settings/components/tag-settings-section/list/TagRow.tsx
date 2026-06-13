@@ -2,7 +2,7 @@ import { Check, LoaderCircle, Pencil, Trash2, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import MarqueeText from '@/components/display/MarqueeText'
-import InlineTagEdit from '@/pages/settings/components/tag-settings-section/InlineTagEdit'
+import InlineTagEdit from '@/pages/settings/components/tag-settings-section/editors/InlineTagEdit'
 import {
   TAG_ROW_ANIMATE,
   TAG_ROW_EXIT,

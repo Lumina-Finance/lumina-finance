@@ -1,6 +1,6 @@
 import { Check, Lock, Pencil, Trash2, X } from 'lucide-react'
 import type { Category } from '@/api/categories'
-import InlineCategoryEdit from '@/pages/settings/components/category-settings-section/InlineCategoryEdit'
+import InlineCategoryEdit from '@/pages/settings/components/category-settings-section/editors/InlineCategoryEdit'
 import { displayEmoji } from '@/pages/settings/components/category-settings-section/categorySettingsUtils'
 
 export default function CategorySettingsRow({

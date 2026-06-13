@@ -4,7 +4,7 @@ import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import MarqueeText from '@/components/display/MarqueeText'
-import InlineMerchantEdit from '@/pages/settings/components/merchant-settings-section/InlineMerchantEdit'
+import MobileInlineMerchantEdit from '@/pages/settings/components/merchant-settings-section/editors/MobileInlineMerchantEdit'
 import {
   MERCHANT_ROW_EXIT,
   MERCHANT_ROW_EXIT_TRANSITION,
@@ -14,7 +14,7 @@ import {
   scopeLabel,
 } from '@/pages/settings/components/merchant-settings-section/merchantSettingsUtils'
 
-export default function MerchantRow({
+export default function MobileMerchantRow({
   categoryById,
   categoryOptions,
   confirmingDelete,
@@ -45,7 +45,7 @@ export default function MerchantRow({
 }) {
   if (isEditing) {
     return (
-      <InlineMerchantEdit
+      <MobileInlineMerchantEdit
         categoryOptions={categoryOptions}
         merchant={merchant}
         isLast={isLast}
@@ -55,23 +55,20 @@ export default function MerchantRow({
   }
 
   return (
-    <motion.tr
+    <motion.div
       layout={!shouldReduceMotion}
       exit={shouldReduceMotion ? { opacity: 0 } : MERCHANT_ROW_EXIT}
       transition={shouldReduceMotion ? { duration: 0.12 } : MERCHANT_ROW_EXIT_TRANSITION}
-      className="app-marquee-trigger"
+      className="app-marquee-trigger py-3"
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
-      <td className="w-px max-w-[14rem] whitespace-nowrap py-3 pl-4 pr-6 align-middle">
-        <MarqueeText className="font-medium">{merchant.name}</MarqueeText>
-        <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          {scopeLabel(merchant)}
-        </p>
-      </td>
-      <td className="min-w-0 py-3 pr-4 align-middle">
-        <p className="truncate font-medium">{categoryName(categoryById, merchant.default_category_id)}</p>
-      </td>
-      <td className="py-3 pr-4 align-middle">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <MarqueeText active className="font-medium">{merchant.name}</MarqueeText>
+          <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            {scopeLabel(merchant)}
+          </p>
+        </div>
         <div className="flex justify-end gap-1.5">
           {confirmingDelete ? (
             <>
@@ -119,7 +116,19 @@ export default function MerchantRow({
             </>
           )}
         </div>
-      </td>
-    </motion.tr>
+        <div className="col-span-2 min-w-0">
+          <span
+            className="inline-flex max-w-full rounded-md px-2.5 py-1 text-sm font-medium"
+            style={{
+              background: 'var(--app-input-bg)',
+              color: 'var(--app-text-muted)',
+              border: '1px solid var(--app-input-border)',
+            }}
+          >
+            <span className="truncate">{categoryName(categoryById, merchant.default_category_id)}</span>
+          </span>
+        </div>
+      </div>
+    </motion.div>
   )
 }

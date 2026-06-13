@@ -4,8 +4,8 @@ import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import ScrollableListMoreButton from '@/components/list-controls/ScrollableListMoreButton'
-import MerchantRow from '@/pages/settings/components/merchant-settings-section/MerchantRow'
-import MobileMerchantRow from '@/pages/settings/components/merchant-settings-section/MobileMerchantRow'
+import MerchantRow from '@/pages/settings/components/merchant-settings-section/list/MerchantRow'
+import MobileMerchantRow from '@/pages/settings/components/merchant-settings-section/list/MobileMerchantRow'
 
 export default function MerchantSettingsList({
   activeSearch,

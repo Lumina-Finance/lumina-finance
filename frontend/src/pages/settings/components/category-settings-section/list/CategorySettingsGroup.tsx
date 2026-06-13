@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import type { Category } from '@/api/categories'
-import CategorySettingsRow from '@/pages/settings/components/category-settings-section/CategorySettingsRow'
+import CategorySettingsRow from '@/pages/settings/components/category-settings-section/list/CategorySettingsRow'
 import {
   EASE,
   KIND_LABELS,
