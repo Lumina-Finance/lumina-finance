@@ -2,8 +2,8 @@ import type { LatestBudgetUtilization } from '@/api/budgets'
 import type { TopBudget } from '@/dashboard/types/dashboard'
 
 /**
- * Ranks latest-period budget utilizations by exact usage ratio.
- * The rounded percentage is display-only and does not affect ordering.
+ * Ranks latest-period budget utilizations by exact usage ratio
+ * The rounded percentage is display-only and does not affect ordering
  */
 export function getTopBudgets(
   latestBudgetUtilizations: LatestBudgetUtilization[] | undefined,
@@ -29,8 +29,9 @@ export function getTopBudgets(
       }
     })
     .sort((a, b) => {
+
       // Sort by exact ratio first so display rounding cannot misorder close
-      // budgets; total spent is only the tie-breaker.
+      // budgets while total spent is only the tie-breaker
       if (b.usageRatio !== a.usageRatio) return b.usageRatio - a.usageRatio
       return b.total_spent - a.total_spent
     })

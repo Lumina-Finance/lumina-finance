@@ -32,7 +32,7 @@ import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPe
 import { formatCalendarDate, parseYmd } from '@/budgets/utils/date'
 import { attentionState } from '@/budgets/utils/budgetStatus'
 import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/budgets/utils/fxTooltipMessages'
-import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
+import { combineFxStatuses } from '@/utils/fxStatus'
 
 function utilizationPercent(spent: number, limit: number) {
   if (limit <= 0) return 0

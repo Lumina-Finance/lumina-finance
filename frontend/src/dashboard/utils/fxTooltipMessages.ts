@@ -1,5 +1,8 @@
 import type { FxStatus } from '@/api/shared/fx'
 
+/**
+ * Explains how FX conversion affected dashboard net worth values
+ */
 export function getNetWorthFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -13,6 +16,9 @@ export function getNetWorthFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Explains how FX conversion affected dashboard credit values
+ */
 export function getCreditFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -26,6 +32,9 @@ export function getCreditFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Explains how FX conversion affected dashboard savings rate values
+ */
 export function getSavingsRateFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -39,6 +48,9 @@ export function getSavingsRateFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Explains how FX conversion affected dashboard runway values
+ */
 export function getRunwayFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -52,6 +64,9 @@ export function getRunwayFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Explains how FX conversion affected spending comparison values
+ */
 export function getSpendingComparisonFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -65,6 +80,9 @@ export function getSpendingComparisonFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Explains how FX conversion affected the active spending or income breakdown
+ */
 export function getBreakdownFxStatusMessage(fxStatus: FxStatus, mode: 'spending' | 'income') {
   const metricLabel = mode === 'spending' ? 'Spending breakdown' : 'Income breakdown'
   const activityLabel = mode === 'spending' ? 'spending' : 'income'
@@ -81,6 +99,9 @@ export function getBreakdownFxStatusMessage(fxStatus: FxStatus, mode: 'spending'
   }
 }
 
+/**
+ * Explains how FX conversion affected top budget utilization values
+ */
 export function getTopBudgetsFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':

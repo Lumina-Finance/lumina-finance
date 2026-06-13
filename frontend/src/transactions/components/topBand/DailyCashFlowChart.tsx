@@ -23,7 +23,7 @@ import {
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { PLACEHOLDER_DAILY_FLOW } from '@/transactions/components/topBand/constants'
 import { parseYmdLocal } from '@/transactions/utils/date'
