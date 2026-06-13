@@ -9,7 +9,6 @@ import {
 import {
   useAccountCashFlow,
   type Account,
-  type AccountMonthlyCashFlow,
 } from '@/api/accounts'
 import {
   DeferredChartTooltipOverlay,
@@ -25,23 +24,17 @@ import {
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { parseYmdLocal } from '@/accounts/detail/utils/date'
+import {
+  CASH_FLOW_AVG_MONTHS,
+  CASH_FLOW_CHART_MONTHS,
+  getCashFlowDomainMax,
+  getCompletedCashFlowAverage,
+  getMonthlyCashFlowBars,
+  type CashFlowBar,
+} from '@/accounts/detail/utils/cashFlowChartViewModel'
 
-// Shows recent monthly cash flow plus a completed-month average. One extra
-// month is fetched so the chart includes the current partial month, while the
-// average excludes it.
-const CASH_FLOW_AVG_MONTHS = 6
-const CASH_FLOW_CHART_MONTHS = CASH_FLOW_AVG_MONTHS + 1
 const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
 const cashFlowHoverHighlightWidth = 70
-
-// Reused for both the monthly history and the average bar. Both callers pass
-// the same `domain` so heights stay comparable.
-interface CashFlowBar {
-  label: string
-  income: number
-  expense: number
-}
 
 function getCashFlowTooltipKey(point: CashFlowBar) {
   return point.label
@@ -178,42 +171,19 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
   const { data } = useAccountCashFlow(account.id, CASH_FLOW_CHART_MONTHS)
 
   const chartData = useMemo(
-    () =>
-      (data ?? []).map((row: AccountMonthlyCashFlow) => ({
-        label: parseYmdLocal(row.month).toLocaleDateString('en-US', { month: 'short' }),
-        tooltipLabel: parseYmdLocal(row.month).toLocaleDateString('en-US', {
-          month: 'short',
-          year: 'numeric',
-        }),
-        income: row.income,
-        expense: row.expenses,
-      })),
+    () => getMonthlyCashFlowBars(data),
     [data],
   )
   const hasActivity = chartData.some((m) => m.income > 0 || m.expense > 0)
 
-  // Average completed months only. Dormant months still count as $0 so the
-  // value stays stable across the month.
-  const { avgIn, avgOut } = useMemo(() => {
-    if (!data || data.length <= 1) return { avgIn: 0, avgOut: 0 }
-    const completed = data.slice(0, -1)
-    const totalIn = completed.reduce((sum, m) => sum + m.income, 0)
-    const totalOut = completed.reduce((sum, m) => sum + m.expenses, 0)
-    return {
-      avgIn: Math.round(totalIn / completed.length),
-      avgOut: Math.round(totalOut / completed.length),
-    }
-  }, [data])
-
-  // Shared Y-axis ceiling keeps the average bar comparable to monthly bars.
-  const yMax = useMemo(() => {
-    const monthlyPeak = chartData.reduce(
-      (peak, m) => Math.max(peak, m.income, m.expense),
-      0,
-    )
-    // Prevent Recharts from collapsing to a zero-height domain.
-    return Math.max(monthlyPeak, avgIn, avgOut, 1)
-  }, [chartData, avgIn, avgOut])
+  const { avgIn, avgOut } = useMemo(
+    () => getCompletedCashFlowAverage(data),
+    [data],
+  )
+  const yMax = useMemo(
+    () => getCashFlowDomainMax(chartData, { avgIn, avgOut }),
+    [chartData, avgIn, avgOut],
+  )
 
   const avgData: CashFlowBar[] = [
     { label: `${CASH_FLOW_AVG_MONTHS} Mo Avg`, income: avgIn, expense: avgOut },

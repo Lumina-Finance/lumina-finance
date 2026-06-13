@@ -2,7 +2,7 @@
  * Tests account detail helper behaviour so balance chart range, delta, and snapshot rules stay stable while the chart JSX is split apart
  */
 import { describe, expect, it } from 'vitest'
-import type { AccountBalanceSnapshot } from '@/api/accounts'
+import type { AccountBalanceSnapshot, AccountMonthlyCashFlow } from '@/api/accounts'
 import { calendarDateMs } from '@/accounts/detail/utils/balanceChartAxis'
 import {
   getBalanceChartSnapshot,
@@ -10,6 +10,11 @@ import {
   getBalanceRangeWindow,
   getBalanceYearBoundary,
 } from '@/accounts/detail/utils/balanceChartViewModel'
+import {
+  getCashFlowDomainMax,
+  getCompletedCashFlowAverage,
+  getMonthlyCashFlowBars,
+} from '@/accounts/detail/utils/cashFlowChartViewModel'
 import { toISODate } from '@/accounts/detail/utils/date'
 
 describe('balance chart view model helpers', () => {
@@ -94,5 +99,33 @@ describe('balance chart view model helpers', () => {
     expect(snapshot.periodDelta).toEqual({ absolute: 1_500, pct: 15 })
     expect(snapshot.trendUp).toBe(true)
     expect(snapshot.chartLineColor).toBe('var(--app-positive)')
+  })
+})
+
+describe('monthly cash flow view model helpers', () => {
+  const rows: AccountMonthlyCashFlow[] = [
+    { month: '2026-04-01', income: 1_000, expenses: 600 },
+    { month: '2026-05-01', income: 2_000, expenses: 900 },
+    { month: '2026-06-01', income: 500, expenses: 200 },
+  ]
+
+  it('projects monthly cash flow rows into chart labels and values', () => {
+    expect(getMonthlyCashFlowBars(rows)).toEqual([
+      { label: 'Apr', tooltipLabel: 'Apr 2026', income: 1_000, expense: 600 },
+      { label: 'May', tooltipLabel: 'May 2026', income: 2_000, expense: 900 },
+      { label: 'Jun', tooltipLabel: 'Jun 2026', income: 500, expense: 200 },
+    ])
+  })
+
+  it('excludes the current partial month from the average bar', () => {
+    expect(getCompletedCashFlowAverage(rows)).toEqual({
+      avgIn: 1_500,
+      avgOut: 750,
+    })
+  })
+
+  it('keeps chart domain above zero and shared across monthly and average bars', () => {
+    expect(getCashFlowDomainMax([], { avgIn: 0, avgOut: 0 })).toBe(1)
+    expect(getCashFlowDomainMax(getMonthlyCashFlowBars(rows), { avgIn: 1_500, avgOut: 2_500 })).toBe(2_500)
   })
 })
