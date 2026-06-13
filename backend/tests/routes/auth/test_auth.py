@@ -5,7 +5,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from app.main import app
-from app.models.active_token import ActiveToken
+from app.models.auth_session import AuthSession
+from app.models.auth_token import AuthToken
+from app.models.base import AuthTokenKind
 from app.models.user import User
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _seed_currency
@@ -47,15 +49,20 @@ async def test_signup_sets_refresh_cookie(client):
     assert "refresh_token" in resp.cookies
 
 
-async def test_signup_registers_tokens_in_active_tokens(client):
-    """Signup stores both access and refresh token jti in active_tokens."""
+async def test_signup_registers_auth_session_and_tokens(client):
+    """Signup stores one auth session with access and refresh token rows"""
     await _seed_currency()
     await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
 
     async with TestSession() as session:
-        result = await session.execute(select(ActiveToken))
-        tokens = result.scalars().all()
-        assert len(tokens) == 2
+        session_result = await session.execute(select(AuthSession))
+        auth_sessions = session_result.scalars().all()
+        assert len(auth_sessions) == 1
+
+        token_result = await session.execute(select(AuthToken))
+        tokens = token_result.scalars().all()
+        assert {token.token_kind for token in tokens} == {AuthTokenKind.ACCESS, AuthTokenKind.REFRESH}
+        assert {token.session_id for token in tokens} == {auth_sessions[0].id}
 
 
 async def test_signup_duplicate_email_returns_409(client):
@@ -263,14 +270,14 @@ async def test_access_token_as_refresh_cookie_returns_401(client):
 
 
 async def test_refresh_revokes_old_access_token(client):
-    """After refresh, the old access token is also removed from active_tokens."""
+    """After refresh, the old access token is removed from the auth token allowlist"""
     signup_resp = await _create_user(client)
     old_access_token = signup_resp.json()["access_token"]
     refresh_cookie = signup_resp.cookies["refresh_token"]
 
     # Record JTIs from the signup pair
     async with TestSession() as session:
-        result = await session.execute(select(ActiveToken.jti))
+        result = await session.execute(select(AuthToken.jti))
         old_jtis = {row[0] for row in result.all()}
         assert len(old_jtis) == 2
 
@@ -282,7 +289,7 @@ async def test_refresh_revokes_old_access_token(client):
 
     # Old pair replaced by new pair — JTIs should be entirely different
     async with TestSession() as session:
-        result = await session.execute(select(ActiveToken.jti))
+        result = await session.execute(select(AuthToken.jti))
         new_jtis = {row[0] for row in result.all()}
         assert len(new_jtis) == 2
         assert old_jtis.isdisjoint(new_jtis)
@@ -298,7 +305,7 @@ async def test_refresh_revokes_old_access_token(client):
 
 
 async def test_expired_tokens_purged_on_token_issuance(client):
-    """Expired active_token rows are cleaned up when new tokens are issued."""
+    """Expired auth token rows are cleaned up when new tokens are issued"""
     await _create_user(client)
 
     # Seed an expired token directly in the DB
@@ -307,20 +314,28 @@ async def test_expired_tokens_purged_on_token_issuance(client):
         user_result = await session.execute(select(User))
         user = user_result.scalars().first()
 
-        session.add(ActiveToken(
+        auth_session = AuthSession(
+            user_id=user.id,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+        session.add(auth_session)
+        await session.flush()
+
+        session.add(AuthToken(
             jti=expired_jti,
             user_id=user.id,
-            session_id=uuid4(),
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.ACCESS,
             expires_at=datetime.now(UTC) - timedelta(hours=1),
         ))
         await session.commit()
 
     # 2 valid signup tokens + 1 expired = 3 total
     async with TestSession() as session:
-        result = await session.execute(select(ActiveToken))
+        result = await session.execute(select(AuthToken))
         assert len(result.scalars().all()) == 3
 
-    # Login triggers _issue_and_store_tokens which purges expired rows
+    # Login triggers token issuance, which purges expired rows
     login_resp = await client.post(
         "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]},
     )
@@ -328,11 +343,11 @@ async def test_expired_tokens_purged_on_token_issuance(client):
 
     async with TestSession() as session:
         # The expired token should be gone
-        result = await session.execute(select(ActiveToken).where(ActiveToken.jti == expired_jti))
+        result = await session.execute(select(AuthToken).where(AuthToken.jti == expired_jti))
         assert result.scalar_one_or_none() is None
 
         # Valid tokens survive: 2 from signup + 2 from login = 4
-        result = await session.execute(select(ActiveToken))
+        result = await session.execute(select(AuthToken))
         assert len(result.scalars().all()) == 4
 
 
@@ -340,7 +355,7 @@ async def test_expired_tokens_purged_on_token_issuance(client):
 
 
 async def test_logout_revokes_tokens_and_clears_cookie(client):
-    """Logout removes both tokens from active_tokens and clears the refresh cookie."""
+    """Logout removes the session and its token allowlist rows"""
     signup_resp = await _create_user(client)
     access_token = signup_resp.json()["access_token"]
     refresh_cookie = signup_resp.cookies["refresh_token"]
@@ -354,11 +369,12 @@ async def test_logout_revokes_tokens_and_clears_cookie(client):
     assert resp.status_code == 200
     assert resp.json()["detail"] == "Logged out"
 
-    # Both tokens should be removed from the allowlist
+    # The session and its tokens should be removed from the allowlist
     async with TestSession() as session:
-        result = await session.execute(select(ActiveToken))
-        tokens = result.scalars().all()
-        assert len(tokens) == 0
+        token_result = await session.execute(select(AuthToken))
+        session_result = await session.execute(select(AuthSession))
+        assert len(token_result.scalars().all()) == 0
+        assert len(session_result.scalars().all()) == 0
 
 
 async def test_logout_access_token_cannot_be_reused(client):
@@ -379,11 +395,12 @@ async def test_logout_access_token_cannot_be_reused(client):
     assert resp.status_code == 401
 
 
-async def test_logout_without_auth_header_returns_401(client):
-    """Logout without an Authorization header is rejected by the bearer dependency."""
+async def test_logout_without_auth_header_returns_200(client):
+    """Logout without an Authorization header still clears the refresh cookie"""
     resp = await client.post("/auth/logout")
 
-    assert resp.status_code == 401
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "Logged out"
 
 
 async def test_double_logout_is_idempotent(client):
@@ -418,11 +435,12 @@ async def test_logout_without_refresh_cookie_still_revokes_session(client):
     assert resp.status_code == 200
     assert resp.json()["detail"] == "Logged out"
 
-    # Both rows for the session should be gone even though the cookie was never sent
+    # The session should be gone even though the cookie was never sent
     async with TestSession() as session:
-        result = await session.execute(select(ActiveToken))
-        tokens = result.scalars().all()
-        assert len(tokens) == 0
+        token_result = await session.execute(select(AuthToken))
+        session_result = await session.execute(select(AuthSession))
+        assert len(token_result.scalars().all()) == 0
+        assert len(session_result.scalars().all()) == 0
 
 
 async def test_logout_only_affects_caller_session(client):
@@ -438,10 +456,12 @@ async def test_logout_only_affects_caller_session(client):
         assert login_resp.status_code == 200
         session2_access = login_resp.json()["access_token"]
 
-        # Two sessions x two rows each = 4 active_tokens rows
+        # Two sessions x two token rows each = 4 auth_tokens rows
         async with TestSession() as db:
-            result = await db.execute(select(ActiveToken))
-            assert len(result.scalars().all()) == 4
+            token_result = await db.execute(select(AuthToken))
+            session_result = await db.execute(select(AuthSession))
+            assert len(token_result.scalars().all()) == 4
+            assert len(session_result.scalars().all()) == 2
 
         # Logout session 1
         resp = await client.post("/auth/logout", headers={"Authorization": f"Bearer {session1_access}"})
@@ -449,8 +469,10 @@ async def test_logout_only_affects_caller_session(client):
 
         # Session 2's rows survive
         async with TestSession() as db:
-            result = await db.execute(select(ActiveToken))
-            assert len(result.scalars().all()) == 2
+            token_result = await db.execute(select(AuthToken))
+            session_result = await db.execute(select(AuthSession))
+            assert len(token_result.scalars().all()) == 2
+            assert len(session_result.scalars().all()) == 1
 
         # Session 2's access token still authenticates
         me_resp = await second_client.get("/test/me", headers={"Authorization": f"Bearer {session2_access}"})
@@ -514,7 +536,7 @@ async def test_invalid_access_token_returns_401(client):
 
 
 async def test_revoked_access_token_returns_401(client):
-    """An access token removed from the allowlist is rejected."""
+    """An access token from a deleted session is rejected"""
     signup_resp = await _create_user(client)
     access_token = signup_resp.json()["access_token"]
     refresh_cookie = signup_resp.cookies["refresh_token"]
