@@ -2,8 +2,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Tag as TagIcon, X } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
-import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/FieldLabelRow'
-import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/SectionFrame'
+import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/TransactionModalFieldLabelRow'
+import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/TransactionModalSectionFrame'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type SelectedTransactionTag = {

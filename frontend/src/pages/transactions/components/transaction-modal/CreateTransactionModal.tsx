@@ -47,9 +47,9 @@ import type {
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
-import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/DetailsSection'
-import TransactionModalFooter from '@/pages/transactions/components/transaction-modal/Footer'
-import TransactionModalShell from '@/pages/transactions/components/transaction-modal/Shell'
+import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/TransactionDetailsSection'
+import TransactionModalFooter from '@/pages/transactions/components/transaction-modal/TransactionModalFooter'
+import TransactionModalShell from '@/pages/transactions/components/transaction-modal/TransactionModalShell'
 import TransactionModalSubmitError from '@/pages/transactions/components/transaction-modal/controls/SubmitError'
 import TransactionReferenceCreationModals from '@/pages/transactions/components/transaction-modal/ReferenceCreationModals'
 import TransactionReferencesSection from '@/pages/transactions/components/transaction-modal/sections/ReferencesSection'
