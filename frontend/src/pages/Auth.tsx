@@ -3,35 +3,33 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, animate, AnimatePresence } from 'motion/react';
 import { AlertCircle, Check, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { ApiError } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
 import { useCurrencies } from '@/api/currency';
 import Dropdown from '@/components/Dropdown';
 import { waitForMilliseconds } from '@/utils/timing';
-
-const MIN_LOADING_MS = 1500;
-const FADE_OUT_MS = 300;
-const LOCKOUT_MS = 30 * 60 * 1000 + 30 * 1000; // 30 minutes + 30 seconds
-const LOCKOUT_KEY = 'lumina:auth_lockout';
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const PASSWORD_RULES = [
-  { label: '12+ characters', test: (p: string) => p.length >= 12 },
-  { label: '1 uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
-  { label: '1 lowercase letter', test: (p: string) => /[a-z]/.test(p) },
-  { label: '1 number', test: (p: string) => /\d/.test(p) },
-  { label: '1 special character', test: (p: string) => /[^A-Za-z0-9\s]/.test(p) },
-  { label: 'No spaces', test: (p: string) => !/\s/.test(p) },
-];
-
-// Map backend error messages to user-friendly copy
-const ERROR_MESSAGES: Record<string, string> = {
-  'Invalid credentials': 'Incorrect email or password. Please try again.',
-  'Email already registered': 'An account with this email already exists.',
-  'Account temporarily locked': 'Too many failed attempts.',
-  'Invalid currency code': 'The selected currency is not supported.',
-};
+import {
+  FADE_OUT_MS,
+  LOCKOUT_KEY,
+  MIN_LOADING_MS,
+  PASSWORD_RULES,
+  buildCurrencyOptions,
+  buildInitialAuthForm,
+  buildLoginPayload,
+  buildSignupPayload,
+  getAuthErrorMessage,
+  getAuthMode,
+  getCurrencyPlaceholder,
+  getDisplayAuthError,
+  getLockoutExpiry,
+  getLockoutRemainingLabel,
+  getSubmitTouchedFields,
+  isAuthFieldErrorKey,
+  isAuthLockoutError,
+  isAuthSubmitDisabled,
+  validateAuthFields,
+  type AuthFieldErrors,
+  type AuthFormValues,
+} from './auth/authForm';
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -40,45 +38,7 @@ const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
   label: tz.replace(/_/g, ' '),
 }));
 
-type Mode = 'login' | 'signup';
-
-interface FieldErrors {
-  email?: string;
-  password?: string;
-  confirm_password?: string;
-  first_name?: string;
-}
-
-function validateFields(form: { email: string; password: string; confirm_password: string; first_name: string }, mode: Mode): FieldErrors {
-  const errors: FieldErrors = {};
-
-  if (!form.email) {
-    errors.email = 'Email is required';
-  } else if (!EMAIL_RE.test(form.email)) {
-    errors.email = 'Enter a valid email address';
-  }
-
-  if (!form.password) {
-    errors.password = 'Password is required';
-  } else if (mode === 'signup' && !PASSWORD_RULES.every((r) => r.test(form.password))) {
-    errors.password = 'Password does not meet requirements';
-  }
-
-  if (mode === 'signup') {
-    if (!form.first_name.trim()) {
-      errors.first_name = 'First name is required';
-    }
-    if (!form.confirm_password) {
-      errors.confirm_password = 'Please confirm your password';
-    } else if (form.confirm_password !== form.password) {
-      errors.confirm_password = 'Passwords do not match';
-    }
-  }
-
-  return errors;
-}
-
-// Shared animation props for signup-only fields sliding in/out
+// Signup-only fields share animation props so each conditional field enters and exits consistently
 const signupFieldAnimation = {
   initial: { height: 0, opacity: 0, marginTop: 0 },
   animate: { height: 'auto', opacity: 1, marginTop: 20 },
@@ -92,18 +52,10 @@ const Auth = () => {
   const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const mode: Mode = location.pathname === '/signup' ? 'signup' : 'login';
+  const mode = getAuthMode(location.pathname);
 
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-    confirm_password: '',
-    first_name: '',
-    last_name: '',
-    base_currency: 'CAD',
-    tz: DETECTED_TZ,
-  });
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [form, setForm] = useState<AuthFormValues>(() => buildInitialAuthForm(DETECTED_TZ));
+  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -112,29 +64,19 @@ const Auth = () => {
 
   const isLogin = mode === 'login';
 
-  const currencyPlaceholder = currenciesError
-    ? 'Failed to load currencies'
-    : currencies.length === 0
-      ? 'Loading currencies…'
-      : 'Select...';
+  const currencyPlaceholder = getCurrencyPlaceholder(currenciesError, currencies.length);
+  const displayError = getDisplayAuthError(error, mode, currenciesError, currencies.length);
 
-  // Surface the currency load failure in the top banner so signup users can't miss it.
-  const displayError = error || (!isLogin && currenciesError && currencies.length === 0
-    ? 'Unable to load currencies. Please refresh and try again.'
-    : '');
-
-  /** Check if locked out, and return remaining time as a readable string if so. */
+  /**
+   * Returns the remaining local lockout time and clears expired lockout state
+   */
   const getLockedRemaining = (): string | null => {
     const stored = localStorage.getItem(LOCKOUT_KEY);
-    if (!stored) return null;
-    const diff = Number(stored) - Date.now();
-    if (diff <= 0) {
+    const remaining = getLockoutRemainingLabel(stored, Date.now());
+    if (!remaining && stored) {
       localStorage.removeItem(LOCKOUT_KEY);
-      return null;
     }
-    const mins = Math.floor(diff / 60000);
-    const secs = Math.floor((diff % 60000) / 1000);
-    return `${mins}:${String(secs).padStart(2, '0')}`;
+    return remaining;
   };
 
   const switchMode = () => {
@@ -144,15 +86,15 @@ const Auth = () => {
     setTouched({});
   };
 
-  const handleBlur = (field: keyof FieldErrors) => {
+  const handleBlur = (field: keyof AuthFieldErrors) => {
     setTouched((t) => ({ ...t, [field]: true }));
-    const errors = validateFields(form, mode);
+    const errors = validateAuthFields(form, mode);
     setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }));
   };
 
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
-    if (fieldErrors[field as keyof FieldErrors]) {
+    if (isAuthFieldErrorKey(field) && fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
@@ -160,14 +102,9 @@ const Auth = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const errors = validateFields(form, mode);
+    const errors = validateAuthFields(form, mode);
     setFieldErrors(errors);
-    const touchAll: Record<string, boolean> = { email: true, password: true };
-    if (!isLogin) {
-      touchAll.first_name = true;
-      touchAll.confirm_password = true;
-    }
-    setTouched(touchAll);
+    setTouched(getSubmitTouchedFields(mode));
     if (Object.keys(errors).length > 0) return;
 
     // Check frontend lockout before hitting the backend
@@ -190,26 +127,15 @@ const Auth = () => {
     let res: AuthResponse;
 
     try {
-      if (isLogin) {
-        res = await login({ email: form.email, password: form.password });
-      } else {
-        res = await signup({
-          email: form.email,
-          password: form.password,
-          first_name: form.first_name.trim(),
-          last_name: form.last_name.trim() || undefined,
-          tz: form.tz,
-          base_currency: form.base_currency,
-        });
-      }
+      res = isLogin
+        ? await login(buildLoginPayload(form))
+        : await signup(buildSignupPayload(form));
     } catch (err) {
       setSubmitting(false);
-      const msg = err instanceof ApiError ? err.message : '';
-      if (err instanceof ApiError && err.status === 423) {
-        const until = Date.now() + LOCKOUT_MS;
-        localStorage.setItem(LOCKOUT_KEY, String(until));
+      if (isAuthLockoutError(err)) {
+        localStorage.setItem(LOCKOUT_KEY, String(getLockoutExpiry(Date.now())));
       }
-      setError(ERROR_MESSAGES[msg] ?? 'Something went wrong. Please try again.');
+      setError(getAuthErrorMessage(err));
       return;
     }
 
@@ -470,7 +396,7 @@ const Auth = () => {
               <label htmlFor="base_currency" className="app-label block">Base currency</label>
               <Dropdown
                 id="base_currency"
-                options={currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name} (${c.symbol})` }))}
+                options={buildCurrencyOptions(currencies)}
                 value={form.base_currency}
                 onChange={(v) => handleChange('base_currency', v)}
                 placeholder={currencyPlaceholder}
@@ -501,7 +427,7 @@ const Auth = () => {
         <div className="flex justify-center">
           <button
             type="submit"
-            disabled={submitting || Object.values(fieldErrors).some(Boolean) || (!isLogin && currencies.length === 0)}
+            disabled={isAuthSubmitDisabled(submitting, fieldErrors, mode, currencies.length)}
             className={`app-primary-button transition-all duration-300 ${
               submitting ? 'app-primary-button-loading' : 'w-full'
             }`}
