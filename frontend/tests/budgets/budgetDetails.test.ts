@@ -15,6 +15,9 @@ import {
   getSortedBudgetPeriods,
 } from '@/budgets/utils/budgetDetails'
 
+/**
+ * Creates a base budget fixture with valid recurring monthly defaults
+ */
 function createBaseBudget(overrides: Partial<BaseBudget> = {}): BaseBudget {
   return {
     id: overrides.id ?? 'base',
@@ -34,6 +37,9 @@ function createBaseBudget(overrides: Partial<BaseBudget> = {}): BaseBudget {
   }
 }
 
+/**
+ * Creates a budget period fixture tied to a valid base budget
+ */
 function createBudget(overrides: Partial<Budget> = {}): Budget {
   const baseBudget = createBaseBudget()
 
@@ -49,6 +55,9 @@ function createBudget(overrides: Partial<Budget> = {}): Budget {
   }
 }
 
+/**
+ * Creates a utilization fixture with complete FX coverage by default
+ */
 function createUtilization(overrides: Partial<BudgetUtilization> = {}): BudgetUtilization {
   return {
     budget_id: overrides.budget_id ?? 'budget',
@@ -62,6 +71,9 @@ function createUtilization(overrides: Partial<BudgetUtilization> = {}): BudgetUt
   }
 }
 
+/**
+ * Creates an expense category fixture for chart metadata tests
+ */
 function createCategory(overrides: Partial<Category>): Category {
   return {
     id: overrides.id ?? 'category',
