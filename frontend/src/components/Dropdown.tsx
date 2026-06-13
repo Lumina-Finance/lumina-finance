@@ -1,14 +1,20 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, type UIEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, Plus } from 'lucide-react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
+import { DropdownOptionList } from './dropdown/DropdownOptionList';
+import { DropdownSearchControls } from './dropdown/DropdownSearchControls';
+import { DropdownTrigger } from './dropdown/DropdownTrigger';
+import {
+  getCreateNewLabel,
+  getEffectiveHighlightedIndex,
+  getGroupedDropdownOptions,
+  getSelectedDropdownOption,
+  getVisibleDropdownOptions,
+} from './dropdown/dropdownOptions';
+import type { DropdownCreateLabel, DropdownOption } from './dropdown/types';
+import { useDropdownPosition } from './dropdown/useDropdownPosition';
 
-export interface DropdownOption {
-  value: string;
-  label: string;
-  group?: string;
-  icon?: string | null;
-}
+export type { DropdownOption } from './dropdown/types';
 
 interface DropdownProps {
   id?: string;
@@ -34,18 +40,16 @@ interface DropdownProps {
   onSearchCommit?: (value: string) => void;
   disabled?: boolean;
   blankWhenEmpty?: boolean;
-  /** Called when the user clicks the dropdown create action. Receives the current search text. */
+  /** Called when the user clicks the dropdown create action with the current search text */
   onCreateNew?: (query: string) => void;
-  createNewLabel?: string | ((query: string) => string);
+  createNewLabel?: DropdownCreateLabel;
 }
 
 const LOADING_TEXT_MIN_MS = 300;
-const DROPDOWN_GAP = 6;
-const DROPDOWN_MAX_HEIGHT = 336;
-const DROPDOWN_MIN_HEIGHT = 160;
-const DROPDOWN_SEARCH_HEIGHT = 56;
-const DROPDOWN_VIEWPORT_PADDING = 12;
 
+/**
+ * Coordinates dropdown selection, search, keyboard navigation, and floating menu state
+ */
 const Dropdown = ({
   id,
   options,
@@ -76,108 +80,60 @@ const Dropdown = ({
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [search, setSearch] = useState('');
-  const [listPos, setListPos] = useState({
-    left: 0,
-    listMaxHeight: 208,
-    top: 0,
-    width: 0,
-  });
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { listPosition, updateListPosition } = useDropdownPosition({ open, searchable, triggerRef });
 
-  const selected = options.find((o) => o.value === value) ?? (
-    selectedOption?.value === value ? selectedOption : undefined
+  const selected = useMemo(
+    () => getSelectedDropdownOption(options, selectedOption, value),
+    [options, selectedOption, value],
   );
   const emptySelectionIsBlank = blankWhenEmpty && value === '';
   const searchText = searchValue ?? search;
   const heldLoading = useMinimumVisibleFlag(isLoading, loadingMinMs);
   const showLoading = loadingMinMs <= 0 ? isLoading : heldLoading;
-
-  const filtered = useMemo(() => {
-    if (!filterOptions || !searchable || !searchText) return options;
-    const q = searchText.toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(q));
-  }, [options, searchText, searchable, filterOptions]);
   const visibleFiltered = useMemo(
-    () => (showLoading && hideOptionsWhileLoading ? [] : filtered),
-    [filtered, hideOptionsWhileLoading, showLoading],
+    () => getVisibleDropdownOptions({
+      filterOptions,
+      hideOptionsWhileLoading,
+      options,
+      searchable,
+      searchText,
+      showLoading,
+    }),
+    [filterOptions, hideOptionsWhileLoading, options, searchable, searchText, showLoading],
   );
-  const effectiveHighlightedIndex = (
-    autoHighlightFirstOption &&
-    visibleFiltered.length > 0 &&
-    (highlightedIndex < 0 || highlightedIndex >= visibleFiltered.length)
-  )
-    ? 0
-    : highlightedIndex;
+  const effectiveHighlightedIndex = getEffectiveHighlightedIndex(
+    autoHighlightFirstOption,
+    highlightedIndex,
+    visibleFiltered.length,
+  );
+  const groupedFiltered = useMemo(
+    () => getGroupedDropdownOptions(visibleFiltered),
+    [visibleFiltered],
+  );
 
-  // Group filtered options by their `group` field for sectioned rendering.
-  // Each group wraps its options so sticky headers stay pinned for the full section.
-  const groupedFiltered = useMemo(() => {
-    if (!visibleFiltered.some((o) => o.group)) return null;
-
-    const groups: { label: string; items: { option: DropdownOption; flatIndex: number }[] }[] = [];
-    let current: string | undefined;
-
-    visibleFiltered.forEach((option, i) => {
-      if (groups.length === 0 || option.group !== current) {
-        current = option.group;
-        groups.push({ label: option.group ?? '', items: [] });
-      }
-      groups[groups.length - 1].items.push({ option, flatIndex: i });
-    });
-
-    return groups;
-  }, [visibleFiltered]);
-
-  const updateListPosition = useCallback(() => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const visualViewport = window.visualViewport;
-    const viewportTop = visualViewport?.offsetTop ?? 0;
-    const viewportLeft = visualViewport?.offsetLeft ?? 0;
-    const viewportWidth = visualViewport?.width ?? window.innerWidth;
-    const viewportHeight = visualViewport?.height ?? window.innerHeight;
-    const viewportBottom = viewportTop + viewportHeight;
-    const viewportRight = viewportLeft + viewportWidth;
-    const left = Math.min(
-      Math.max(rect.left, viewportLeft + DROPDOWN_VIEWPORT_PADDING),
-      viewportRight - rect.width - DROPDOWN_VIEWPORT_PADDING,
-    );
-    const spaceBelow = viewportBottom - rect.bottom - DROPDOWN_GAP - DROPDOWN_VIEWPORT_PADDING;
-    const spaceAbove = rect.top - viewportTop - DROPDOWN_GAP - DROPDOWN_VIEWPORT_PADDING;
-    const openAbove = spaceBelow < DROPDOWN_MIN_HEIGHT && spaceAbove > spaceBelow;
-    const availableHeight = Math.max(
-      DROPDOWN_MIN_HEIGHT,
-      openAbove ? spaceAbove : spaceBelow,
-    );
-    const maxHeight = Math.min(DROPDOWN_MAX_HEIGHT, availableHeight);
-    const top = openAbove
-      ? Math.max(viewportTop + DROPDOWN_VIEWPORT_PADDING, rect.top - maxHeight - DROPDOWN_GAP)
-      : Math.min(rect.bottom + DROPDOWN_GAP, viewportBottom - maxHeight - DROPDOWN_VIEWPORT_PADDING);
-
-    setListPos({
-      left,
-      listMaxHeight: Math.max(96, maxHeight - (searchable ? DROPDOWN_SEARCH_HEIGHT : 0)),
-      top,
-      width: rect.width,
-    });
-  }, [searchable]);
-
+  /**
+   * Updates controlled or local search text and resets keyboard focus to the first option
+   */
   const setSearchText = useCallback((nextSearch: string) => {
     if (searchValue === undefined) setSearch(nextSearch);
     onSearchChange?.(nextSearch);
     setHighlightedIndex(0);
   }, [onSearchChange, searchValue]);
 
+  /**
+   * Resets transient menu state whenever the floating list closes
+   */
   const close = useCallback(() => {
     setOpen(false);
     setSearchText('');
     setHighlightedIndex(-1);
   }, [setSearchText]);
 
-  // Close on outside click
+  // The dropdown closes on outside mouse interactions so stale menus do not remain open
   useEffect(() => {
     if (!open) return;
 
@@ -191,37 +147,14 @@ const Dropdown = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open, close]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    let frame = 0;
-    const updateOnFrame = () => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(updateListPosition);
-    };
-
-    updateOnFrame();
-    window.addEventListener('resize', updateOnFrame);
-    window.addEventListener('scroll', updateOnFrame, true);
-    window.visualViewport?.addEventListener('resize', updateOnFrame);
-    window.visualViewport?.addEventListener('scroll', updateOnFrame);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener('resize', updateOnFrame);
-      window.removeEventListener('scroll', updateOnFrame, true);
-      window.visualViewport?.removeEventListener('resize', updateOnFrame);
-      window.visualViewport?.removeEventListener('scroll', updateOnFrame);
-    };
-  }, [open, updateListPosition]);
-
-  // Scroll highlighted option into view
+  // The highlighted option scrolls into view after keyboard movement so focus stays visible
   useEffect(() => {
     if (!open || effectiveHighlightedIndex < 0 || !listRef.current) return;
     const item = listRef.current.querySelector(`[data-option-index="${effectiveHighlightedIndex}"]`) as HTMLElement;
     item?.scrollIntoView({ block: 'nearest' });
   }, [effectiveHighlightedIndex, open]);
 
-  // Focus search input when dropdown opens
+  // The search input receives focus only after the floating menu mounts
   useEffect(() => {
     if (open && searchable) {
       requestAnimationFrame(() => searchRef.current?.focus());
@@ -234,9 +167,7 @@ const Dropdown = ({
   };
 
   const createQuery = searchText.trim();
-  const resolvedCreateNewLabel = typeof createNewLabel === 'function'
-    ? createNewLabel(createQuery)
-    : createNewLabel ?? (createQuery ? `Create "${createQuery}"` : 'Create new');
+  const resolvedCreateNewLabel = getCreateNewLabel(createNewLabel, createQuery);
 
   const handleCreateNew = () => {
     if (!onCreateNew) return;
@@ -244,7 +175,10 @@ const Dropdown = ({
     close();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  /**
+   * Handles shared keyboard navigation from the trigger and search field
+   */
+  const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
@@ -276,7 +210,43 @@ const Dropdown = ({
     }
   };
 
-  const handleListScroll = (e: React.UIEvent<HTMLUListElement>) => {
+  /**
+   * Gives search-specific Enter behaviour priority before falling back to menu navigation
+   */
+  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    const canSelectHighlighted = effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length;
+    if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
+      e.preventDefault();
+      handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
+      return;
+    }
+    if (e.key === 'Enter' && onSearchCommit) {
+      e.preventDefault();
+      onSearchCommit(searchText);
+      setHighlightedIndex(0);
+      return;
+    }
+    handleKeyDown(e);
+  };
+
+  /**
+   * Opens the menu from the trigger and seeds keyboard focus from the current selected value
+   */
+  const handleTriggerClick = () => {
+    if (disabled) return;
+    if (!open) {
+      updateListPosition();
+      setHighlightedIndex(options.findIndex((o) => o.value === value));
+      setOpen(true);
+      return;
+    }
+    close();
+  };
+
+  /**
+   * Requests the next page when the user scrolls close to the end of an incremental dropdown list
+   */
+  const handleListScroll = (e: UIEvent<HTMLUListElement>) => {
     if (!hasMore || isLoading || !onLoadMore) return;
     const target = e.currentTarget;
     const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
@@ -285,59 +255,28 @@ const Dropdown = ({
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        ref={triggerRef}
+      <DropdownTrigger
+        triggerRef={triggerRef}
         id={id}
-        type="button"
-        role="combobox"
-        aria-expanded={open}
-        aria-haspopup="listbox"
+        className={className}
         disabled={disabled}
-        className={`${className} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60`}
-        onClick={() => {
-          if (disabled) return;
-          if (!open) {
-            updateListPosition();
-            setHighlightedIndex(options.findIndex((o) => o.value === value));
-          } else {
-            close();
-            return;
-          }
-          setOpen(true);
-        }}
+        emptySelectionIsBlank={emptySelectionIsBlank}
+        open={open}
+        placeholder={placeholder}
+        selected={selected}
+        onClick={handleTriggerClick}
         onKeyDown={handleKeyDown}
-      >
-        <span
-          className="flex min-w-0 flex-1 items-center gap-2"
-          style={{ color: selected && !emptySelectionIsBlank ? 'var(--app-text)' : 'var(--app-text-subtle)' }}
-        >
-          {selected?.icon && !emptySelectionIsBlank && (
-            <span className="shrink-0 text-base leading-none" aria-hidden>
-              {selected.icon}
-            </span>
-          )}
-          <span className="min-w-0 flex-1 truncate">{emptySelectionIsBlank ? '' : selected?.label ?? placeholder}</span>
-        </span>
-        <ChevronDown
-          size={16}
-          className="shrink-0 transition-transform duration-200"
-          style={{
-            color: 'var(--app-text-subtle)',
-            transform: open ? 'rotate(180deg)' : 'rotate(0)',
-          }}
-          aria-hidden
-        />
-      </button>
+      />
 
       <AnimatePresence>
         {open && (
           <motion.div
             className="fixed z-50 rounded-xl"
             style={{
-              top: listPos.top,
-              left: listPos.left,
-              width: listPos.width,
-              maxHeight: listPos.listMaxHeight + (searchable ? DROPDOWN_SEARCH_HEIGHT : 0),
+              top: listPosition.top,
+              left: listPosition.left,
+              width: listPosition.width,
+              maxHeight: listPosition.menuMaxHeight,
               background: 'var(--app-input-bg)',
               border: '1px solid var(--app-border-strong)',
               boxShadow: 'var(--app-shadow-soft)',
@@ -349,134 +288,30 @@ const Dropdown = ({
             transition={{ duration: 0.15 }}
           >
             {searchable && (
-              <div className="flex gap-2 px-2 pb-2 pt-2">
-                <input
-                  ref={searchRef}
-                  type="text"
-                  className="app-input min-w-0 flex-1"
-                  style={{ fontSize: '0.8125rem' }}
-                  placeholder={searchPlaceholder}
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  onKeyDown={(e) => {
-                    const canSelectHighlighted = effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length;
-                    if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
-                      e.preventDefault();
-                      handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
-                      return;
-                    }
-                    if (e.key === 'Enter' && onSearchCommit) {
-                      e.preventDefault();
-                      onSearchCommit(searchText);
-                      setHighlightedIndex(0);
-                      return;
-                    }
-                    handleKeyDown(e);
-                  }}
-                />
-                {onCreateNew && (
-                  <button
-                    type="button"
-                    className="app-icon-button h-10 w-10 shrink-0"
-                    style={{ color: 'var(--app-accent)' }}
-                    aria-label={resolvedCreateNewLabel}
-                    title={resolvedCreateNewLabel}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={handleCreateNew}
-                  >
-                    <Plus size={18} aria-hidden />
-                  </button>
-                )}
-              </div>
+              <DropdownSearchControls
+                createNewLabel={resolvedCreateNewLabel}
+                searchPlaceholder={searchPlaceholder}
+                searchRef={searchRef}
+                searchText={searchText}
+                showCreateAction={Boolean(onCreateNew)}
+                onCreateNew={handleCreateNew}
+                onKeyDown={handleSearchKeyDown}
+                onSearchChange={setSearchText}
+              />
             )}
-            <ul
-              ref={listRef}
-              role="listbox"
-              className="overflow-auto"
-              style={{ maxHeight: listPos.listMaxHeight }}
+            <DropdownOptionList
+              effectiveHighlightedIndex={effectiveHighlightedIndex}
+              groupedOptions={groupedFiltered}
+              listMaxHeight={listPosition.listMaxHeight}
+              listRef={listRef}
+              loadingText={loadingText}
+              options={visibleFiltered}
+              selectedValue={value}
+              showLoading={showLoading}
+              onHighlight={setHighlightedIndex}
               onScroll={handleListScroll}
-            >
-              {visibleFiltered.length === 0 && !showLoading ? (
-                <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  No results
-                </li>
-              ) : groupedFiltered ? (
-                groupedFiltered.map((group, groupIndex) => (
-                  <li key={`${group.label}-${groupIndex}`}>
-                    <div
-                      className="sticky top-0 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide z-10"
-                      style={{
-                        color: 'var(--app-text-subtle)',
-                        background: 'var(--app-input-bg)',
-                        borderBottom: '1px solid var(--app-border)',
-                      }}
-                    >
-                      {group.label}
-                    </div>
-                    {group.items.map(({ option, flatIndex }) => {
-                      const isSelected = option.value === value;
-                      const isHighlighted = flatIndex === effectiveHighlightedIndex;
-                      return (
-                        <div
-                          key={option.value}
-                          role="option"
-                          aria-selected={isSelected}
-                          data-option-index={flatIndex}
-                          className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm transition-colors duration-100"
-                          style={{
-                            background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
-                            color: isSelected ? 'var(--app-accent)' : 'var(--app-text)',
-                          }}
-                          onMouseEnter={() => setHighlightedIndex(flatIndex)}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleSelect(option.value)}
-                        >
-                          {option.icon && (
-                            <span className="shrink-0 text-base leading-none" aria-hidden>
-                              {option.icon}
-                            </span>
-                          )}
-                          <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                        </div>
-                      );
-                    })}
-                  </li>
-                ))
-              ) : (
-                visibleFiltered.map((option, i) => {
-                  const isSelected = option.value === value;
-                  const isHighlighted = i === effectiveHighlightedIndex;
-                  return (
-                    <li
-                      key={option.value}
-                      role="option"
-                      aria-selected={isSelected}
-                      data-option-index={i}
-                      className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm transition-colors duration-100"
-                      style={{
-                        background: isHighlighted ? 'var(--app-accent-soft)' : 'transparent',
-                        color: isSelected ? 'var(--app-accent)' : 'var(--app-text)',
-                      }}
-                      onMouseEnter={() => setHighlightedIndex(i)}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSelect(option.value)}
-                    >
-                      {option.icon && (
-                        <span className="shrink-0 text-base leading-none" aria-hidden>
-                          {option.icon}
-                        </span>
-                      )}
-                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                    </li>
-                  );
-                })
-              )}
-              {showLoading && (
-                <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                  {loadingText}
-                </li>
-              )}
-            </ul>
+              onSelect={handleSelect}
+            />
           </motion.div>
         )}
       </AnimatePresence>
