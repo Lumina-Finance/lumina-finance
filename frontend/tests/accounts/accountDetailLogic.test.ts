@@ -1,12 +1,14 @@
 /**
- * Tests account detail helper behaviour so balance chart range, delta, and snapshot rules stay stable while the chart JSX is split apart
+ * Tests account detail helper behaviour so chart, breakdown, and identity form rules cannot drift while the JSX is split apart
  */
 import { describe, expect, it } from 'vitest'
 import type {
+  Account,
   AccountBalanceSnapshot,
   AccountMonthlyCashFlow,
   AccountSpendingBreakdown,
 } from '@/api/accounts'
+import type { Currency } from '@/api/currency'
 import { calendarDateMs } from '@/accounts/detail/utils/balanceChartAxis'
 import {
   getBalanceChartSnapshot,
@@ -14,6 +16,11 @@ import {
   getBalanceRangeWindow,
   getBalanceYearBoundary,
 } from '@/accounts/detail/utils/balanceChartViewModel'
+import {
+  createIdentityFormValues,
+  getIdentityFieldErrors,
+  getIdentityUpdatePayload,
+} from '@/accounts/detail/utils/identityForm'
 import {
   getCashFlowDomainMax,
   getCompletedCashFlowAverage,
@@ -25,6 +32,103 @@ import {
   getBreakdownRows,
 } from '@/accounts/detail/utils/spendingBreakdownViewModel'
 import { toISODate } from '@/accounts/detail/utils/date'
+
+const currencies: Currency[] = [
+  { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
+]
+
+function createAccount(overrides: Partial<Account> = {}): Account {
+  return {
+    id: overrides.id ?? 'account',
+    owner_id: null,
+    group_id: null,
+    account_kind: overrides.account_kind ?? 'asset',
+    account_type: overrides.account_type ?? 'checking',
+    tax_advantaged_category_id: overrides.tax_advantaged_category_id ?? null,
+    name: overrides.name ?? 'Account',
+    institution: overrides.institution ?? null,
+    currency: overrides.currency ?? 'USD',
+    current_balance: overrides.current_balance ?? 0,
+    base_currency_current_balance: overrides.base_currency_current_balance ?? null,
+    current_balance_fx_status: overrides.current_balance_fx_status ?? { state: 'none', missing_pairs: [] },
+    credit_limit: overrides.credit_limit ?? null,
+    is_archived: overrides.is_archived ?? false,
+    closed_at: null,
+    created_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+describe('identity form helpers', () => {
+  it('creates editable form values from nullable backend account fields', () => {
+    expect(createIdentityFormValues(createAccount({
+      institution: {
+        id: 'bank',
+        status: 'active',
+        name: 'Bank',
+        country_code: 'US',
+        website: 'https://bank.example.com',
+        logo_url: null,
+      },
+      tax_advantaged_category_id: 'plan',
+      credit_limit: 1_234,
+      is_archived: true,
+    }), currencies)).toEqual({
+      name: 'Account',
+      institution_id: 'bank',
+      tax_advantaged_category_id: 'plan',
+      credit_limit: '12.34',
+      is_archived: true,
+    })
+  })
+
+  it('validates required names and only checks credit limits for revolving accounts', () => {
+    const form = createIdentityFormValues(createAccount(), currencies)
+
+    expect(getIdentityFieldErrors({ ...form, name: '   ' }, false)).toEqual({
+      name: 'Name is required.',
+    })
+    expect(getIdentityFieldErrors({ ...form, credit_limit: '-1' }, true)).toEqual({
+      credit_limit: 'Credit limit must be zero or higher.',
+    })
+    expect(getIdentityFieldErrors({ ...form, credit_limit: '-1' }, false)).toEqual({})
+  })
+
+  it('builds update payloads without sending fields hidden for the account kind', () => {
+    const form = {
+      name: '  Travel Card  ',
+      institution_id: '',
+      tax_advantaged_category_id: 'plan',
+      credit_limit: '1,234.56',
+      is_archived: true,
+    }
+
+    expect(getIdentityUpdatePayload({
+      form,
+      isRevolving: true,
+      canLinkTaxAdvantagedCategory: false,
+      currencies,
+      accountCurrency: 'USD',
+    })).toEqual({
+      name: 'Travel Card',
+      institution_id: null,
+      is_archived: true,
+      credit_limit: 123_456,
+    })
+    expect(getIdentityUpdatePayload({
+      form,
+      isRevolving: false,
+      canLinkTaxAdvantagedCategory: true,
+      currencies,
+      accountCurrency: 'USD',
+    })).toEqual({
+      name: 'Travel Card',
+      institution_id: null,
+      is_archived: true,
+      tax_advantaged_category_id: 'plan',
+    })
+  })
+})
 
 describe('balance chart view model helpers', () => {
   it('derives the selected range window from a local-day anchor date', () => {
