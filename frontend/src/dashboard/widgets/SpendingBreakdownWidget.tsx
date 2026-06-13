@@ -18,7 +18,6 @@ import {
   useSpendingBreakdown,
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
-import { BreakdownCrossoverBadge } from '@/components/BreakdownCrossoverBadge'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -26,6 +25,7 @@ import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/dashboard/constants/animation'
+import { SpendingBreakdownCrossoverBadge } from '@/dashboard/components/SpendingBreakdownCrossoverBadge'
 import { SpendingBreakdownHeader } from '@/dashboard/components/SpendingBreakdownHeader'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
@@ -38,17 +38,6 @@ import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 type SpendingBreakdownWidgetProps = {
   displayCurrency: string
-}
-
-function getCrossoverKind(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
-  if (mode === 'spending' && entry.category_kind === 'income') return 'income-loss'
-  if (mode === 'income' && entry.category_kind === 'expense') return 'expense-refund'
-  return null
-}
-
-function renderCrossoverBadge(entry: CategoryBreakdownEntry, mode: BreakdownMode) {
-  const kind = getCrossoverKind(entry, mode)
-  return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
 }
 
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
@@ -220,7 +209,10 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                       <span className="app-chart-tooltip-default-title">
                         {hoveredBreakdownEntry.name}
                       </span>
-                      {renderCrossoverBadge(hoveredBreakdownEntry, breakdownMode)}
+                      <SpendingBreakdownCrossoverBadge
+                        entry={hoveredBreakdownEntry}
+                        breakdownMode={breakdownMode}
+                      />
                     </div>
                     <div className="app-chart-tooltip-default-value">
                       {formatCurrency(hoveredBreakdownEntry.amount, displayCurrency)}
@@ -242,7 +234,10 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                   >
                     {entry.name}
                   </span>
-                  {renderCrossoverBadge(entry, breakdownMode)}
+                  <SpendingBreakdownCrossoverBadge
+                    entry={entry}
+                    breakdownMode={breakdownMode}
+                  />
                 </div>
               ))}
             </div>
