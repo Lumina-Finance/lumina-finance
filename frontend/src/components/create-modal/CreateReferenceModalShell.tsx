@@ -13,8 +13,8 @@ interface CreateReferenceModalShellProps {
   footerError?: string | null
   modalTitleId: string
   open: boolean
-  railLabel: string
-  RailIcon: LucideIcon
+  railLabel?: string
+  RailIcon?: LucideIcon
   submitDisabled: boolean
   submitLabel: string
   submitWidthClassName: string
@@ -90,6 +90,7 @@ export default function CreateReferenceModalShell({
 }: CreateReferenceModalShellProps) {
   const layout = layoutByVariant[variant]
   const closeIfAllowed = closeDisabled ? undefined : onClose
+  const hasRail = RailIcon && railLabel
 
   useBodyScrollLock(open && variant !== 'secondary')
 
@@ -138,12 +139,14 @@ export default function CreateReferenceModalShell({
               }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className={layout.railClassName} style={layout.railStyle} aria-hidden>
-                <RailIcon size={layout.iconSize} strokeWidth={2} />
-                <span className={`${layout.railLabelClassName} rotate-180 font-semibold uppercase`} style={{ writingMode: 'vertical-rl' }}>
-                  {railLabel}
-                </span>
-              </div>
+              {hasRail && (
+                <div className={layout.railClassName} style={layout.railStyle} aria-hidden>
+                  <RailIcon size={layout.iconSize} strokeWidth={2} />
+                  <span className={`${layout.railLabelClassName} rotate-180 font-semibold uppercase`} style={{ writingMode: 'vertical-rl' }}>
+                    {railLabel}
+                  </span>
+                </div>
+              )}
 
               <form onSubmit={onSubmit} className="flex min-h-0 w-full flex-col" noValidate>
                 <div className={layout.headerClassName} style={{ borderBottom: '1px solid var(--app-border)' }}>
