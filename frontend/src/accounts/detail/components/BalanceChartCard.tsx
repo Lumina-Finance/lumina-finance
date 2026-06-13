@@ -10,10 +10,18 @@ import {
 } from 'recharts'
 import { useAccountSnapshots, type Account } from '@/api/accounts'
 import {
+  ChartTooltipRow,
+  ChartTooltipTitle,
+} from '@/components/charts/ChartTooltipContent'
+import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/components/charts/rechartsTooltip'
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -86,17 +94,6 @@ type AxisTickProps = {
   }
 }
 
-type BalanceChartTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: BalanceChartDataPoint
-  }>
-}
-
 function BalanceXAxisTick({
   x = 0,
   y = 0,
@@ -128,35 +125,6 @@ function BalanceXAxisTick({
   )
 }
 
-function getBalanceChartTooltipPointer(
-  state: BalanceChartTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getBalanceChartTooltipPoint(
-  state: BalanceChartTooltipState,
-  data: BalanceChartDataPoint[],
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  const activeDateMs = Number(state.activeLabel)
-  if (Number.isFinite(activeDateMs)) {
-    return data.find((point) => point.dateMs === activeDateMs)
-  }
-
-  return undefined
-}
-
 function BalanceChartTooltipContent({
   point,
   chartMode,
@@ -173,13 +141,12 @@ function BalanceChartTooltipContent({
 
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.tooltipLabel}</p>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">{label}</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {value}
-        </span>
-      </div>
+      <ChartTooltipTitle>{point.tooltipLabel}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label={label}
+        value={value}
+        financialValue
+      />
     </>
   )
 }
@@ -295,11 +262,20 @@ export default function BalanceChartCard({ account }: { account: Account }) {
     transitionKey: range,
   })
   const showBalanceTooltip = (
-    state: BalanceChartTooltipState,
+    state: RechartsTooltipState<BalanceChartDataPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    const point = getBalanceChartTooltipPoint(state, displaySnapshot.chartSeries)
-    const pointer = getBalanceChartTooltipPointer(state, event)
+    const point = getRechartsTooltipPoint({
+      state,
+      data: displaySnapshot.chartSeries,
+      resolveLabel: (label) => {
+        const activeDateMs = Number(label)
+        return Number.isFinite(activeDateMs)
+          ? displaySnapshot.chartSeries.find((entry) => entry.dateMs === activeDateMs)
+          : undefined
+      },
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point) {
       balanceTooltipRef.current?.show(null, pointer)

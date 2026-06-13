@@ -13,9 +13,17 @@ import {
 } from '@/api/accounts'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import {
+  ChartTooltipRow,
+  ChartTooltipTitle,
+} from '@/components/charts/ChartTooltipContent'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/components/charts/rechartsTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { parseYmdLocal } from '@/accounts/detail/utils/date'
 
@@ -35,45 +43,8 @@ interface CashFlowBar {
   expense: number
 }
 
-type CashFlowTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: CashFlowBar
-  }>
-}
-
 function getCashFlowTooltipKey(point: CashFlowBar) {
   return point.label
-}
-
-function getCashFlowTooltipPointer(
-  state: CashFlowTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getCashFlowTooltipPoint(
-  state: CashFlowTooltipState,
-  data: CashFlowBar[],
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : data.find((point) => point.label === String(state.activeLabel))
 }
 
 function getCashFlowGuideMaxWidth(chartWidth: number, pointCount: number) {
@@ -95,19 +66,17 @@ function CashFlowTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{title}</p>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">In</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(point.income, currency)}
-        </span>
-      </div>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Out</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(point.expense, currency)}
-        </span>
-      </div>
+      <ChartTooltipTitle>{title}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label="In"
+        value={formatCurrency(point.income, currency)}
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Out"
+        value={formatCurrency(point.expense, currency)}
+        financialValue
+      />
     </>
   )
 }
@@ -126,11 +95,15 @@ function CashFlowBarChart({
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBar>>(null)
   const showTooltip = (
-    state: CashFlowTooltipState,
+    state: RechartsTooltipState<CashFlowBar>,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    const point = getCashFlowTooltipPoint(state, data)
-    const pointer = getCashFlowTooltipPointer(state, event)
+    const point = getRechartsTooltipPoint({
+      state,
+      data,
+      resolveLabel: (label) => data.find((entry) => entry.label === label),
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point) {
       tooltipRef.current?.show(null, pointer)

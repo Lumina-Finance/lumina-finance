@@ -3,6 +3,10 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import {
+  ChartTooltipRow,
+  ChartTooltipTitle,
+} from '@/components/charts/ChartTooltipContent'
+import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
@@ -128,20 +132,20 @@ function LimitMeterTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title font-medium">{label}</p>
-      <div className="mt-1 grid grid-cols-[auto_auto] gap-x-4 gap-y-1">
-        <span className="app-chart-tooltip-default-value">Used</span>
-        <span className="app-chart-tooltip-default-value text-right font-financial">
-          {formatRawLimitMoney(used, currency)}
-        </span>
-        <span className="app-chart-tooltip-default-value">Remaining</span>
-        <span
-          className="app-chart-tooltip-default-value text-right font-financial"
-          style={remaining < 0 ? { color: 'var(--app-negative)' } : undefined}
-        >
-          {formatRawLimitMoney(remaining, currency)}
-        </span>
-      </div>
+      <ChartTooltipTitle className="font-medium">{label}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label="Used"
+        value={formatRawLimitMoney(used, currency)}
+        valueClassName="text-right"
+        financialValue
+      />
+      <ChartTooltipRow
+        label="Remaining"
+        value={formatRawLimitMoney(remaining, currency)}
+        valueClassName="text-right"
+        valueStyle={remaining < 0 ? { color: 'var(--app-negative)' } : undefined}
+        financialValue
+      />
     </>
   )
 }

@@ -1,42 +1,12 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetrics'
-import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
+import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import AccountsLoadingRegion from '@/accounts/components/AccountsLoadingRegion'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import {
   getCreditFxStatusMessage,
   getRunwayFxStatusMessage,
   getSavingsRateFxStatusMessage,
 } from '@/dashboard/utils/fxTooltipMessages'
-
-function FxStatusTooltip({
-  label,
-  fxStatus,
-  getMessage,
-}: {
-  label: string
-  fxStatus: AccountsMetricsViewModel['creditUsage']['fxStatus']
-  getMessage: (fxStatus: FxStatus) => string
-}) {
-  if (!fxStatus) return null
-
-  return (
-    <IconTooltip
-      label={label}
-      icon="fx"
-      fxTone={getFxStatusTone(fxStatus)}
-      placement="top"
-    >
-      <span className="block">{getMessage(fxStatus)}</span>
-      {fxStatus.missing_pairs.length > 0 && (
-        <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-        </span>
-      )}
-    </IconTooltip>
-  )
-}
 
 export default function AccountsMetricsBand({
   metrics,

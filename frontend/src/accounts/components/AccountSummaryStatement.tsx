@@ -2,8 +2,7 @@ import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
+import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 
 function AccountValueSkeleton({
   label,
@@ -137,19 +136,11 @@ export default function AccountSummaryStatement({
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2">
             <p className="app-label">Net Worth</p>
-            <IconTooltip
+            <FxStatusTooltip
               label="Net worth FX status"
-              icon="fx"
-              fxTone={getFxStatusTone(fxStatus)}
-              placement="top"
-            >
-              <span className="block">{getAccountSummaryFxStatusMessage(fxStatus)}</span>
-              {fxStatus.missing_pairs.length > 0 && (
-                <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-                </span>
-              )}
-            </IconTooltip>
+              fxStatus={fxStatus}
+              getMessage={getAccountSummaryFxStatusMessage}
+            />
           </div>
           <AccountValueFade
             loading={isLoading}
