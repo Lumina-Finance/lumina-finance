@@ -3,52 +3,23 @@ import { NavLink } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   ArrowUpRight,
-  BarChart2,
-  CreditCard,
-  LayoutDashboard,
   LogOut,
-  Moon,
-  Monitor,
-  PieChart,
-  Receipt,
-  Settings,
-  Sun,
-  type LucideIcon,
 } from 'lucide-react';
 import { CURRENT_APP_VERSION, useAppVersion } from '@/api/version';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import type { Theme } from '@/types';
-
-interface NavigationItem {
-  to: string;
-  icon: LucideIcon;
-  label: string;
-}
-
-interface ThemeOption {
-  value: Theme;
-  icon: LucideIcon;
-  label: string;
-}
-
-const navItems: NavigationItem[] = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/accounts', icon: CreditCard, label: 'Accounts' },
-  { to: '/transactions', icon: Receipt, label: 'Transactions' },
-  { to: '/budgets', icon: PieChart, label: 'Budgets' },
-  { to: '/insights', icon: BarChart2, label: 'Insights' },
-];
-
-const primaryNavItems = [...navItems, { to: '/settings', icon: Settings, label: 'Settings' }];
-
-const mobileMenuFadeMs = 260;
-const themeToggleSpring = { type: 'spring', stiffness: 500, damping: 38 } as const;
-const themeOptions: ThemeOption[] = [
-  { value: 'light', icon: Sun, label: 'Light theme' },
-  { value: 'system', icon: Monitor, label: 'System theme' },
-  { value: 'dark', icon: Moon, label: 'Dark theme' },
-];
+import {
+  MOBILE_MENU_FADE_MS,
+  PRIMARY_NAVIGATION_ITEMS,
+  THEME_OPTIONS,
+  THEME_TOGGLE_SPRING,
+} from './navigation/navigationData';
+import {
+  getCurrentVersionLabel,
+  getNavigationDisplayName,
+  getNavigationInitials,
+} from './navigation/navigationLabels';
 
 function NavigationBrand() {
   return (
@@ -77,7 +48,7 @@ function NavigationBrand() {
 function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <ul className="list-none space-y-1 p-0 m-0">
-      {primaryNavItems.map((item) => {
+      {PRIMARY_NAVIGATION_ITEMS.map((item) => {
         const Icon = item.icon;
         const isSettings = item.to === '/settings';
         return (
@@ -117,7 +88,7 @@ function ThemeToggle({
   onThemeChange?: () => void;
 }) {
   const shouldReduceMotion = useReducedMotion();
-  const activeIndex = Math.max(themeOptions.findIndex((option) => option.value === theme), 0);
+  const activeIndex = Math.max(THEME_OPTIONS.findIndex((option) => option.value === theme), 0);
 
   return (
     <div
@@ -129,11 +100,11 @@ function ThemeToggle({
         className="app-navigation-theme-toggle-indicator"
         aria-hidden
         initial={false}
-        style={{ width: `calc((100% - 0.5rem) / ${themeOptions.length})` }}
+        style={{ width: `calc((100% - 0.5rem) / ${THEME_OPTIONS.length})` }}
         animate={{ x: `${activeIndex * 100}%` }}
-        transition={shouldReduceMotion ? { duration: 0 } : themeToggleSpring}
+        transition={shouldReduceMotion ? { duration: 0 } : THEME_TOGGLE_SPRING}
       />
-      {themeOptions.map(({ value, icon: Icon, label }) => {
+      {THEME_OPTIONS.map(({ value, icon: Icon, label }) => {
         const isActive = theme === value;
         return (
           <button
@@ -197,16 +168,6 @@ function UserProfile({
       </button>
     </div>
   );
-}
-
-function formatVersionLabel(version: string) {
-  const trimmedVersion = version.trim();
-  return trimmedVersion.toLowerCase().startsWith('v') ? trimmedVersion : `v${trimmedVersion}`;
-}
-
-function getCurrentVersionLabel(version: string) {
-  const trimmedVersion = version.trim();
-  return trimmedVersion ? `Lumina Finance ${formatVersionLabel(trimmedVersion)}` : 'Lumina Finance';
 }
 
 function VersionIndicator() {
@@ -439,7 +400,7 @@ function MobileNavigation({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: shouldReduceMotion ? 0.16 : mobileMenuFadeMs / 1000, ease: 'easeOut' }}
+            transition={{ duration: shouldReduceMotion ? 0.16 : MOBILE_MENU_FADE_MS / 1000, ease: 'easeOut' }}
           >
             <motion.div
               className="flex min-h-[100dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+2rem)]"
@@ -481,15 +442,8 @@ const Navigation = () => {
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
 
-  // Display name and avatar initials from the authenticated user. Falls back to
-  // sensible placeholders so the nav renders even during the split-second before
-  // user state hydrates from the refresh flow.
-  const displayName = user
-    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
-    : '';
-  const initials = user
-    ? `${user.first_name[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
-    : '';
+  const displayName = getNavigationDisplayName(user);
+  const initials = getNavigationInitials(user);
 
   return (
     <>
