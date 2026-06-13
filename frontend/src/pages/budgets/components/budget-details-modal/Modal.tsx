@@ -9,7 +9,7 @@ import BudgetDetailsSidebar from '@/pages/budgets/components/budget-details-moda
 import BudgetHistoryChart from '@/pages/budgets/components/budget-details-modal/HistoryChart'
 import BudgetPeriodHistory from '@/pages/budgets/components/budget-details-modal/PeriodHistory'
 import BudgetEditModal from '@/pages/budgets/components/budget-editor-modal/EditModal'
-import BudgetFxStatusTooltip from '@/pages/budgets/components/shared/FxStatusTooltip'
+import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_SECONDS } from '@/pages/budgets/constants'
 import { attentionState } from '@/pages/budgets/utils/budgetStatus'
 import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/pages/budgets/utils/fxTooltipMessages'
@@ -212,7 +212,7 @@ export default function BudgetDetailsModal({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
-                    <BudgetFxStatusTooltip
+                    <BudgetFxStatusBadge
                       fxStatus={utilizationHistoryFxStatus}
                       label="Historical utilization FX status"
                       getMessage={getHistoricalBudgetUtilizationFxStatusMessage}

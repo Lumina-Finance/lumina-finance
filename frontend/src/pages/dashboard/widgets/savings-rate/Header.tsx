@@ -1,6 +1,6 @@
 import { ArrowUpToLine, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import { getSavingsRateFxStatusMessage } from '@/utils/fxTooltipMessages'
 
@@ -22,7 +22,7 @@ export function SavingsRateHeader({
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={Repeat} />
       <span className="app-label">Savings Rate</span>
-      <FxStatusTooltip
+      <FxStatusBadge
         label="Savings rate FX status"
         fxStatus={fxStatus}
         getMessage={getSavingsRateFxStatusMessage}

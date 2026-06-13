@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { FxStatus } from '@/api/shared/fx'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { getSummaryFxStatusMessage } from './fxStatus'
 import { SummaryValueFade } from './ValueFade'
 import { SummaryValueSkeleton } from './ValueSkeleton'
@@ -53,7 +53,7 @@ export default function SummaryStatement({
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2">
             <p className="app-label">Net Worth</p>
-            <FxStatusTooltip
+            <FxStatusBadge
               label="Net worth FX status"
               fxStatus={fxStatus}
               getMessage={getSummaryFxStatusMessage}

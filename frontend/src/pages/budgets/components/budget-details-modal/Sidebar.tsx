@@ -5,7 +5,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import MarqueeText from '@/components/display/MarqueeText'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
-import BudgetFxStatusTooltip from '@/pages/budgets/components/shared/FxStatusTooltip'
+import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 
@@ -142,7 +142,7 @@ export default function BudgetDetailsSidebar({
             <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
               Current budget
             </p>
-            <BudgetFxStatusTooltip
+            <BudgetFxStatusBadge
               fxStatus={latestUtilization?.fx_status}
               label="Current budget FX status"
             />
