@@ -24,6 +24,9 @@ function clampSavingsRate(rate: number | null) {
   return Math.max(-100, Math.min(100, rate))
 }
 
+/**
+ * Treats any income or expense movement as visible chart activity
+ */
 function hasSavingsRateActivity(point: Pick<SavingsRateSeriesPoint, 'income' | 'expenses'>) {
   return point.income !== 0 || point.expenses !== 0
 }

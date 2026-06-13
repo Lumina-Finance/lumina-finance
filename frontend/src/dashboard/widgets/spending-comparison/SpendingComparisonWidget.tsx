@@ -15,6 +15,9 @@ type SpendingComparisonWidgetProps = {
   displayCurrency: string
 }
 
+/**
+ * Loads spending comparison data and composes the range controls, metric, legend, and chart
+ */
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: incomingSpendingComparison, isFetching: spendingComparisonLoading } = useSpendingComparison(spendingRange)

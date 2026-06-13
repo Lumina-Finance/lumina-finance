@@ -3,6 +3,9 @@ import type { RunwayResult } from '@/api/user'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
 import { getDeterministicChartColor } from '@/utils/chartColor'
 
+/**
+ * Normalizes account names so stable runway colours do not change with whitespace or casing
+ */
 function getRunwayAccountColorSeed(accountName: string) {
   return `runway-account:${accountName.trim().toLowerCase().replace(/\s+/g, ' ')}`
 }

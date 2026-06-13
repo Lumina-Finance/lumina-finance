@@ -13,6 +13,9 @@ type TopBudgetRowProps = {
   showDivider: boolean
 }
 
+/**
+ * Clamps budget progress bar width to valid CSS percentage bounds
+ */
 function getBudgetProgressWidth(usagePct: number) {
   return Math.min(Math.max(usagePct, 0), 100)
 }
