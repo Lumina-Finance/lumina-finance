@@ -2,6 +2,9 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { FieldLabelRowProps } from '@/budgets/types'
 
+/**
+ * Renders a form label with animated inline validation text
+ */
 export default function FieldLabelRow({ label, htmlFor, error }: FieldLabelRowProps) {
   return (
     <div className="mb-1.5 flex min-w-0 items-start justify-between gap-3">

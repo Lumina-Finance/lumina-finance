@@ -18,6 +18,9 @@ interface BudgetFormScopeSectionProps {
   handlers: BudgetFormHandlers
 }
 
+/**
+ * Renders budget name, currency, and limit controls for create and edit forms
+ */
 export default function BudgetFormScopeSection({
   state,
   options,

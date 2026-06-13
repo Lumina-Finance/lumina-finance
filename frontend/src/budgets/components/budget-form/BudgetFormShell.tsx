@@ -42,6 +42,9 @@ interface BudgetFormShellProps {
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
 }
 
+/**
+ * Provides the animated modal shell shared by create and edit budget forms
+ */
 export default function BudgetFormShell({
   open,
   title,

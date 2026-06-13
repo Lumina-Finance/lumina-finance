@@ -15,6 +15,9 @@ interface BudgetFormCategorySectionProps {
   handlers: BudgetFormHandlers
 }
 
+/**
+ * Renders searchable tracked-category selection and category validation feedback
+ */
 export default function BudgetFormCategorySection({
   state,
   options,
@@ -124,6 +127,9 @@ export default function BudgetFormCategorySection({
   )
 }
 
+/**
+ * Renders one selectable category row with optional layout animation while editing
+ */
 function BudgetCategoryOption({
   category,
   selected,

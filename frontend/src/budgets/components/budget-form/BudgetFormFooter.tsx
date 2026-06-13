@@ -6,6 +6,9 @@ interface BudgetFormFooterProps {
   onClose: () => void
 }
 
+/**
+ * Renders shared budget form actions with the pending-state spinner treatment
+ */
 export default function BudgetFormFooter({
   className,
   isPending,

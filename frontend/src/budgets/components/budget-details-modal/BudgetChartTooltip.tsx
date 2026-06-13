@@ -1,4 +1,3 @@
-
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   ChartTooltipRow,
@@ -19,6 +18,9 @@ export interface BudgetChartPoint {
   }>
 }
 
+/**
+ * Renders the shared chart tooltip content for budget utilization history
+ */
 export default function BudgetChartTooltip({
   point,
   currency,

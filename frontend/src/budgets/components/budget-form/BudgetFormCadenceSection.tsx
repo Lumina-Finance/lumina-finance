@@ -13,6 +13,9 @@ interface BudgetFormCadenceSectionProps {
   handlers: BudgetFormHandlers
 }
 
+/**
+ * Renders recurrence type, frequency, period length, and start-date controls for budget forms
+ */
 export default function BudgetFormCadenceSection({
   state,
   ids,
@@ -64,7 +67,9 @@ export default function BudgetFormCadenceSection({
 
           <div>
             <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Frequency</span>
-            {/* Edit locks recurrence cadence because changing it requires creating future periods differently. */}
+            {/*
+              Edit locks recurrence cadence because changing it requires creating future periods differently
+            */}
             <div className={`app-segmented-control w-full ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
               {RECURRENCE_OPTIONS.map((option) => (
                 <button
