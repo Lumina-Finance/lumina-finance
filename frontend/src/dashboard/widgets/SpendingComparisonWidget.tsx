@@ -37,7 +37,7 @@ import {
 import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getSpendingComparisonFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
-import { getSpendingComparisonSeries } from '@/dashboard/utils/getSpendingComparisonSeries'
+import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
 
 type SpendingComparisonWidgetProps = {
   displayCurrency: string
@@ -62,20 +62,6 @@ type SpendingComparisonTooltipState = {
   activePayload?: Array<{
     payload?: SpendingComparisonSeriesPoint
   }>
-}
-
-function getSpendingComparisonXAxisTicks(
-  range: SpendingRange,
-  data: Array<{ label: string }>,
-) {
-  const labels = data.map((point) => point.label)
-  if (range === 'MTD') {
-    return labels.filter((_, index) => (
-      index % 2 === 0 || index === labels.length - 1
-    ))
-  }
-
-  return labels
 }
 
 function SpendingComparisonXAxisTick({
@@ -194,37 +180,21 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   })
   const { spendingComparison, spendingRange: displaySpendingRange } = displaySnapshot
   const fxStatus = spendingComparison?.fx_status
-  const spendingChartData = useMemo(
-    () => getSpendingComparisonSeries(spendingComparison),
-    [spendingComparison],
+  const {
+    spendingChartData,
+    spendingXAxisTicks,
+    firstSpendingXAxisTick,
+    lastSpendingXAxisTick,
+    spendingPointsByLabel,
+    currentHasData,
+    previousHasData,
+    spentToDate,
+    spendingDeltaPct,
+    spendingDeltaText,
+  } = useMemo(
+    () => getSpendingComparisonSummary(spendingComparison, displaySpendingRange),
+    [displaySpendingRange, spendingComparison],
   )
-  const spendingXAxisTicks = useMemo(
-    () => getSpendingComparisonXAxisTicks(displaySpendingRange, spendingChartData),
-    [displaySpendingRange, spendingChartData],
-  )
-  const firstSpendingXAxisTick = spendingXAxisTicks[0]
-  const lastSpendingXAxisTick = spendingXAxisTicks[spendingXAxisTicks.length - 1]
-  const spendingPointsByLabel = useMemo(
-    () => new Map(spendingChartData.map((point) => [point.label, point])),
-    [spendingChartData],
-  )
-  const currentSeries = spendingComparison?.current ?? []
-  const previousSeries = spendingComparison?.previous ?? []
-  const currentHasData = currentSeries.some((value) => value > 0)
-  const previousHasData = previousSeries.some((value) => value > 0)
-  const spentToDate = currentSeries.at(-1) ?? 0
-  const previousAtSameOffset =
-    currentSeries.length === 0
-      ? null
-      : previousSeries[Math.min(currentSeries.length, previousSeries.length) - 1] ?? null
-  const spendingDeltaPct =
-    previousAtSameOffset != null && previousAtSameOffset > 0
-      ? ((spentToDate - previousAtSameOffset) / previousAtSameOffset) * 100
-      : null
-  const spendingDeltaText =
-    spendingDeltaPct == null
-      ? '+00.0%'
-      : `${spendingDeltaPct >= 0 ? '+' : ''}${spendingDeltaPct.toFixed(1)}%`
   const showSpendingComparisonTooltip = (
     state: SpendingComparisonTooltipState,
     event: ReactMouseEvent<SVGGraphicsElement>,
