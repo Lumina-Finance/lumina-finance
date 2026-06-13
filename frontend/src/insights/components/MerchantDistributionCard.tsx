@@ -7,7 +7,7 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { Store } from 'lucide-react'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'

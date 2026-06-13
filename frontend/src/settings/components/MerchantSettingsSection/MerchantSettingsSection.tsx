@@ -9,7 +9,7 @@ import {
   useMergeMerchant,
   type Merchant,
 } from '@/api/merchants'
-import { merchantKeys } from '@/api/queryKeys'
+import { merchantKeys } from '@/api/cache/queryKeys'
 import CreateMerchantModal from '@/components/CreateMerchantModal'
 import MerchantSettingsList from '@/settings/components/MerchantSettingsSection/MerchantSettingsList'
 import MergeDeleteMerchantModal from '@/settings/components/MerchantSettingsSection/MergeDeleteMerchantModal'

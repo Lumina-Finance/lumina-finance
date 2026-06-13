@@ -9,7 +9,7 @@ import {
 } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
-import { useTaxAdvantagedPlans } from '@/api/taxAdvantagedPlans'
+import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import CreateInstitutionModal from '@/components/CreateInstitutionModal'
 import Dropdown from '@/components/Dropdown'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
@@ -129,7 +129,7 @@ export default function EditAccountIdentityModal({
   const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
   const { data: currencies = [] } = useCurrencies()
   const { data: institutions = [] } = useInstitutions()
-  const { data: taxAdvantagedPlans = [] } = useTaxAdvantagedPlans()
+  const { data: taxAdvantagedCategories = [] } = useTaxAdvantagedCategories()
   const [form, setForm] = useState<AccountIdentityForm>({
     name: account.name,
     institution_id: account.institution?.id ?? '',
@@ -162,11 +162,11 @@ export default function EditAccountIdentityModal({
   const taxAdvantagedCategoryOptions = useMemo(
     () => [
       { value: '', label: 'None' },
-      ...taxAdvantagedPlans
+      ...taxAdvantagedCategories
         .filter((plan) => plan.group_id === null && plan.currency === account.currency)
         .map((plan) => ({ value: plan.id, label: plan.name })),
     ],
-    [account.currency, taxAdvantagedPlans],
+    [account.currency, taxAdvantagedCategories],
   )
 
   const setField = <K extends keyof AccountIdentityForm>(field: K, value: AccountIdentityForm[K]) => {

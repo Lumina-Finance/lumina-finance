@@ -15,7 +15,7 @@ import {
   type SankeyLinkProps,
   type SankeyNodeProps,
 } from 'recharts'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import IconTooltip from '@/components/IconTooltip'
 import { getFundFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'

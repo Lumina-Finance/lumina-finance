@@ -1,5 +1,5 @@
 import { StickyNote, Tag as TagIcon } from 'lucide-react'
-import type { Institution } from '@/api/accounts'
+import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { formatCurrency } from '@/utils/formatCurrency'

@@ -1,6 +1,6 @@
 import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transactions'
+import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transactionImports'
 import { ACCOUNT_TYPE_OPTIONS, COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
 import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '../types'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'

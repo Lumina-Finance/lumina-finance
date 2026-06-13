@@ -1,4 +1,4 @@
-import type { FxRateIssue, FxStatus } from '@/api/dashboard'
+import type { FxRateIssue, FxStatus } from '@/api/shared/fx'
 
 export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
   const distinctPairs = Array.from(new Set(missingPairs.map((pair) => `${pair.base}/${pair.quote}`)))

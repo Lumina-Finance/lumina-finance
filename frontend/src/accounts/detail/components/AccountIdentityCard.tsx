@@ -1,6 +1,6 @@
 import { Pencil } from 'lucide-react'
 import type { Account } from '@/api/accounts'
-import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { ACCOUNT_KIND_LABEL } from '@/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/accounts/detail/utils/formatAccountType'
@@ -122,7 +122,7 @@ function TaxAdvantagedCategoryBand({
   plan,
   hasError,
 }: {
-  plan: TaxAdvantagedPlan | undefined
+  plan: TaxAdvantagedCategory | undefined
   hasError: boolean
 }) {
   return (
@@ -182,16 +182,16 @@ function StandardAccountBand() {
 
 export default function AccountIdentityCard({
   account,
-  linkedTaxAdvantagedPlan,
-  linkedTaxAdvantagedPlanError,
+  linkedTaxAdvantagedCategory,
+  linkedTaxAdvantagedCategoryError,
   onEdit,
 }: {
   account: Account
-  linkedTaxAdvantagedPlan: TaxAdvantagedPlan | undefined
-  linkedTaxAdvantagedPlanError: unknown
+  linkedTaxAdvantagedCategory: TaxAdvantagedCategory | undefined
+  linkedTaxAdvantagedCategoryError: unknown
   onEdit: () => void
 }) {
-  const linkedTaxAdvantagedPlanId = account.group_id === null ? account.tax_advantaged_category_id : null
+  const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
   const closedLabel = account.closed_at
     ? ' · Closed ' + new Date(account.closed_at).toLocaleDateString()
     : ''
@@ -237,10 +237,10 @@ export default function AccountIdentityCard({
         ))}
       </dl>
 
-      {linkedTaxAdvantagedPlanId ? (
+      {linkedTaxAdvantagedCategoryId ? (
         <TaxAdvantagedCategoryBand
-          plan={linkedTaxAdvantagedPlan}
-          hasError={!!linkedTaxAdvantagedPlanError}
+          plan={linkedTaxAdvantagedCategory}
+          hasError={!!linkedTaxAdvantagedCategoryError}
         />
       ) : (
         <StandardAccountBand />

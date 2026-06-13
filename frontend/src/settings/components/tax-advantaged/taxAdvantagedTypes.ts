@@ -1,4 +1,4 @@
-import type { TaxTreatment } from '@/api/taxAdvantagedPlans'
+import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
 
 export interface TaxPlanFormState {
   name: string

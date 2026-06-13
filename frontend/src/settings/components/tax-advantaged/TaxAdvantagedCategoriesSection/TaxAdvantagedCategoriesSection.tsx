@@ -3,7 +3,7 @@ import { AnimatePresence } from 'motion/react'
 import { Plus, Search } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
-import { useTaxAdvantagedPlans } from '@/api/taxAdvantagedPlans'
+import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import SectionHeader from '@/settings/components/SectionHeader'
 import SettingsCard from '@/settings/components/SettingsCard'
 import CreateTaxAdvantagedCategoryModal from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/CreateTaxAdvantagedCategoryModal'
@@ -21,7 +21,7 @@ export default function TaxAdvantagedCategoriesSection({
   userTimezone?: string
 }) {
   const { data: currencies = [] } = useCurrencies()
-  const { data: plans = [], isLoading } = useTaxAdvantagedPlans()
+  const { data: plans = [], isLoading } = useTaxAdvantagedCategories()
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)

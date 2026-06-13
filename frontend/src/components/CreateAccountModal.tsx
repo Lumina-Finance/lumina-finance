@@ -6,7 +6,7 @@ import Dropdown from '@/components/Dropdown';
 import IconTooltip from '@/components/IconTooltip';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
-import { useTaxAdvantagedPlans } from '@/api/taxAdvantagedPlans';
+import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories';
 import CreateInstitutionModal from '@/components/CreateInstitutionModal';
 import {
   useCreateAccount,
@@ -144,7 +144,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const mutation = useCreateAccount();
   const { data: currencies = [] } = useCurrencies();
   const { data: institutions = [] } = useInstitutions();
-  const { data: taxAdvantagedPlans = [] } = useTaxAdvantagedPlans();
+  const { data: taxAdvantagedCategories = [] } = useTaxAdvantagedCategories();
 
   const [form, setForm] = useState(() => ({
     ...INITIAL_FORM,
@@ -183,11 +183,11 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const taxPlanOptions = useMemo(
     () => [
       { value: '', label: 'None' },
-      ...taxAdvantagedPlans
+      ...taxAdvantagedCategories
         .filter((plan) => plan.group_id === null && plan.currency === form.currency)
         .map((plan) => ({ value: plan.id, label: plan.name })),
     ],
-    [form.currency, taxAdvantagedPlans],
+    [form.currency, taxAdvantagedCategories],
   );
 
   // Scroll lock

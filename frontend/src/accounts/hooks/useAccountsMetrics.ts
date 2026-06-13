@@ -1,5 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 import { useDashboardCredit, useDashboardSavingsRate } from '@/api/dashboard'
 import { useRunway } from '@/api/user'
 import { formatCurrency } from '@/utils/formatCurrency'

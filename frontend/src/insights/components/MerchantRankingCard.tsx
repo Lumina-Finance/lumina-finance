@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'

@@ -6,7 +6,7 @@ import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
-import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { TaxAdvantagedLimitSummary } from '@/accounts/types/accounts'
 
 function limitUsageColor(used: number, limit: number): string {
@@ -85,7 +85,7 @@ function formatRawLimitMoney(amount: number, currency: string): string {
   return formatNoDecimalCurrency(getMajorCurrencyAmount(amount, currency), currency)
 }
 
-function getLifetimeAvailableBoundary(plan: TaxAdvantagedPlan): number | null {
+function getLifetimeAvailableBoundary(plan: TaxAdvantagedCategory): number | null {
   if (
     plan.lifetime_contribution_limit === null ||
     plan.accrued_lifetime_contribution_limit === null
@@ -275,7 +275,7 @@ function CompactLimitMeter({
 function ContributionMeterStack({
   plan,
 }: {
-  plan: TaxAdvantagedPlan
+  plan: TaxAdvantagedCategory
 }) {
   const showLifetimeMeter = plan.lifetime_contribution_limit !== null
   const annualMeter = (
@@ -327,7 +327,7 @@ function ContributionMeterStack({
   )
 }
 
-function hasLimitTracking(plan: TaxAdvantagedPlan): boolean {
+function hasLimitTracking(plan: TaxAdvantagedCategory): boolean {
   return (
     plan.current_year_contribution_limit !== null ||
     plan.current_year_withdrawal_limit !== null ||

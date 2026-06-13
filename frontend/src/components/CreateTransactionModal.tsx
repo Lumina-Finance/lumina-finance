@@ -13,8 +13,8 @@ import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
+import { invalidateTransactionAccountData } from '@/api/cache/updates/transactions'
 import {
-  invalidateTransactionAccountData,
   useCreateTransaction,
   useDeleteTransaction,
   useUpdateTransaction,

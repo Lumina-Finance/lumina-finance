@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
-import type { TaxAdvantagedPlan } from '@/api/taxAdvantagedPlans'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import {
   currentYearForTimezone,
   formatTaxTreatment,
@@ -13,7 +13,7 @@ export function useTaxAdvantagedCategoryList({
   userTimezone,
 }: {
   accounts: AccountsOverview[]
-  plans: TaxAdvantagedPlan[]
+  plans: TaxAdvantagedCategory[]
   search: string
   userTimezone?: string
 }) {

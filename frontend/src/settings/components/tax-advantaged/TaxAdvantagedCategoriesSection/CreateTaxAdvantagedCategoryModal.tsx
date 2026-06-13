@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, X } from 'lucide-react'
 import type { Currency } from '@/api/currency'
-import { useCreateTaxAdvantagedPlan, type TaxTreatment } from '@/api/taxAdvantagedPlans'
+import { useCreateTaxAdvantagedCategory, type TaxTreatment } from '@/api/taxAdvantagedCategories'
 import Dropdown from '@/components/Dropdown'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type { TaxPlanFormState } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
@@ -32,7 +32,7 @@ export default function CreateTaxAdvantagedCategoryModal({
   onClose: () => void
   userBaseCurrency?: string
 }) {
-  const createPlan = useCreateTaxAdvantagedPlan()
+  const createPlan = useCreateTaxAdvantagedCategory()
   const [form, setForm] = useState<TaxPlanFormState>({
     name: '',
     tax_treatment: 'tax_free',

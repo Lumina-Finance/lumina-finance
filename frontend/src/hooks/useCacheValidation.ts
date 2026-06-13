@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { focusManager, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { fetchCacheStatus } from '@/api/user'
-import { invalidateAppData, invalidateFxData } from '@/api/cacheInvalidation'
+import { invalidateAppData, invalidateFxData } from '@/api/cache/invalidation'
 
 const PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX = 'lumina:personal-cache-changed-at'
 const FX_REFRESHED_AT_KEY_PREFIX = 'lumina:fx-refreshed-at'
