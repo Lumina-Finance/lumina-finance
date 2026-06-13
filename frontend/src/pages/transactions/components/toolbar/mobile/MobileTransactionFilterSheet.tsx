@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
 import { MobileFilterSection } from '@/components/filters/MobileFilterSection'
 import { useMobileFilterSheetEffects } from '@/components/filters/hooks/useMobileFilterSheetEffects'
-import { MobileDateRangeSection } from '@/pages/transactions/components/toolbar/MobileDateRangeSection'
+import { MobileDateRangeSection } from '@/pages/transactions/components/toolbar/mobile/MobileDateRangeSection'
 import type {
   TransactionDateRangeDraftProps,
   TransactionFilterSetter,
