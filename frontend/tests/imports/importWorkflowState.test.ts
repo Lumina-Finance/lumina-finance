@@ -2,14 +2,14 @@
  * Tests import workflow state helpers so column target changes keep validation, auto-fill markers, and completion checks consistent
  */
 import { describe, expect, it } from 'vitest'
-import { EMPTY_COLUMN_MAP } from '@/imports/constants'
-import type { ImportFileDraft } from '@/imports/types'
+import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   getNextAutoFilledColumnHeaders,
   getNextColumnMap,
   getNextColumnValidationErrors,
   isColumnMappingComplete,
-} from '@/imports/utils'
+} from '@/pages/imports/utils'
 
 /**
  * Creates an import file fixture for column completion checks

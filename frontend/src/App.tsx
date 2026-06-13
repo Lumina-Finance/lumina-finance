@@ -13,7 +13,7 @@ import TransactionsPage from '@/pages/transactions/TransactionsPage'
 import BudgetsPage from '@/pages/budgets/BudgetsPage'
 import InsightsPage from '@/pages/insights/InsightsPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
-import ImportsPage from '@/imports/ImportsPage'
+import ImportsPage from '@/pages/imports/ImportsPage'
 import LoadingScreen from '@/components/LoadingScreen'
 import AuthPage from '@/pages/auth/AuthPage'
 
