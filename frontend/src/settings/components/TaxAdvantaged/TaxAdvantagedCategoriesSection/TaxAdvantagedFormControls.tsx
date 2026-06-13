@@ -7,9 +7,8 @@ import { TAX_TREATMENT_OPTIONS } from '@/settings/components/TaxAdvantaged/TaxAd
 import {
   currencySymbol,
   formatMoneyInput,
-  formatMoneyInputLive,
-  sanitizeMoneyInput,
 } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
 
 export function TaxAdvantagedCurrencyWarning() {
   return (

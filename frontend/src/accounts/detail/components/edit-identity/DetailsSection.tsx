@@ -3,7 +3,7 @@ import Dropdown from '@/components/Dropdown'
 import {
   formatMoneyInputLive,
   sanitizeMoneyInput,
-} from '@/accounts/detail/utils/moneyInput'
+} from '@/utils/moneyInput'
 import type {
   IdentityFieldErrors,
   IdentityFormValues,

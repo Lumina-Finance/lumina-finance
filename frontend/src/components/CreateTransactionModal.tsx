@@ -25,6 +25,10 @@ import {
 import { ApiError } from '@/api/auth'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  formatMoneyInputLive,
+  sanitizeMoneyInput,
+} from '@/utils/moneyInput'
 
 /* ── Constants ── */
 
@@ -94,14 +98,6 @@ function amountToInputString(amountMinor: number, exponent: number): string {
   return (Math.abs(amountMinor) / Math.pow(10, exponent)).toFixed(exponent)
 }
 
-function sanitizeMoneyInput(value: string) {
-  let sanitized = value.replace(/[^\d.]/g, '')
-  const parts = sanitized.split('.')
-  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
-  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
-  return sanitized
-}
-
 function directionFromAmountInputSign(value: string): TransactionDirection | null {
   let direction: TransactionDirection | null = null
   for (const char of value) {
@@ -109,15 +105,6 @@ function directionFromAmountInputSign(value: string): TransactionDirection | nul
     if (char === '-') direction = 'debit'
   }
   return direction
-}
-
-function formatMoneyInputLive(value: string) {
-  if (!value.trim()) return value
-  const [integerPart, decimalPart] = value.split('.', 2)
-  const formattedInteger = integerPart
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
-    : '0'
-  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
 }
 
 function amountInputToMinorUnits(value: string, exponent: number): number | null {

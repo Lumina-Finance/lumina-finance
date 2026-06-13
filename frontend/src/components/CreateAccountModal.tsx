@@ -16,6 +16,10 @@ import {
 } from '@/api/accounts';
 import { ApiError } from '@/api/auth';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  formatMoneyInputLive,
+  sanitizeMoneyInput,
+} from '@/utils/moneyInput';
 
 /* ── Constants ── */
 
@@ -51,23 +55,6 @@ const conditionalField = {
   exit: { height: 0, opacity: 0 },
   transition: { duration: 0.25, ease: EASE },
 };
-
-function sanitizeMoneyInput(value: string) {
-  let sanitized = value.replace(/[^\d.]/g, '');
-  const parts = sanitized.split('.');
-  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`;
-  return sanitized;
-}
-
-function formatMoneyInputLive(value: string) {
-  if (!value.trim()) return value;
-  const [integerPart, decimalPart] = value.split('.', 2);
-  const formattedInteger = integerPart
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
-    : '0';
-  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger;
-}
 
 /* ── Validation ── */
 

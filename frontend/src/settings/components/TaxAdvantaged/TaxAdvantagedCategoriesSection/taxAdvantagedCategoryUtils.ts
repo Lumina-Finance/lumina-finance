@@ -31,14 +31,6 @@ export function currencySymbol(currencies: Currency[], code: string) {
   return currencies.find((c) => c.id === code)?.symbol ?? ''
 }
 
-export function sanitizeMoneyInput(value: string) {
-  let sanitized = value.replace(/[^\d.]/g, '')
-  const parts = sanitized.split('.')
-  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
-  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
-  return sanitized
-}
-
 export function formatMoneyInput(value: string, currencies: Currency[], code: string) {
   if (!value.trim() || !isValidMoneyInput(value)) return value
   const exponent = currencyExponent(currencies, code)
@@ -46,15 +38,6 @@ export function formatMoneyInput(value: string, currencies: Currency[], code: st
     minimumFractionDigits: exponent,
     maximumFractionDigits: exponent,
   }).format(Number(value))
-}
-
-export function formatMoneyInputLive(value: string) {
-  if (!value.trim()) return value
-  const [integerPart, decimalPart] = value.split('.', 2)
-  const formattedInteger = integerPart
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
-    : '0'
-  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
 }
 
 export function isValidMoneyInput(value: string, required = false) {

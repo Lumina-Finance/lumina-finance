@@ -2,7 +2,7 @@ import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import FieldLabelRow from '@/budgets/components/shared/FieldLabelRow'
-import { formatMoneyInputLive, sanitizeMoneyInput } from '@/budgets/utils/money'
+import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
 
 interface BudgetEditorModalScopeSectionProps {
   state: BudgetEditorModalViewState
