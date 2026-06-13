@@ -5,6 +5,24 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
+const apiEndpointBarrelImports = [
+  '@/api/accounts',
+  '@/api/auth',
+  '@/api/budgets',
+  '@/api/categories',
+  '@/api/currency',
+  '@/api/dashboard',
+  '@/api/insights',
+  '@/api/institutions',
+  '@/api/merchants',
+  '@/api/tags',
+  '@/api/taxAdvantagedCategories',
+  '@/api/transactionImports',
+  '@/api/transactions',
+  '@/api/user',
+  '@/api/version',
+]
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -18,6 +36,20 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+  },
+  {
+    files: ['src/api/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: apiEndpointBarrelImports.map((name) => ({
+            name,
+            message: 'Import the owning API module file directly inside frontend/src/api',
+          })),
+        },
+      ],
     },
   },
 ])
