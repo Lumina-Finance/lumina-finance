@@ -1,11 +1,4 @@
-import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { useMemo, useState } from 'react'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -19,76 +12,25 @@ import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import IconTooltip from '@/components/IconTooltip'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
-import {
-  DeferredChartTooltipOverlay,
-  type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
-import { SpendingComparisonTooltipContent } from '@/dashboard/components/SpendingComparisonTooltipContent'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import { SpendingComparisonChart } from '@/dashboard/components/SpendingComparisonChart'
 import {
   CURRENT_LABEL_BY_RANGE,
   DASHBOARD_RANGE_SELECT_OPTIONS,
   PREVIOUS_LABEL_BY_RANGE,
   PREVIOUS_PERIOD_LABEL_BY_RANGE,
 } from '@/dashboard/constants/ranges'
-import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getSpendingComparisonFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
-import {
-  getSpendingComparisonTooltipKey,
-  getSpendingComparisonTooltipPointer,
-  getSpendingComparisonTooltipPoint,
-  type SpendingComparisonTooltipState,
-} from '@/dashboard/utils/spendingComparisonTooltip'
 
 type SpendingComparisonWidgetProps = {
   displayCurrency: string
 }
 
-type SpendingComparisonXAxisTickProps = {
-  x?: number | string
-  y?: number | string
-  payload?: {
-    value?: number | string
-  }
-  firstLabel?: string
-  lastLabel?: string
-}
-
-/**
- * Edge-aligns the first and last chart labels so they stay inside the widget bounds
- */
-function SpendingComparisonXAxisTick({
-  x = 0,
-  y = 0,
-  payload,
-  firstLabel,
-  lastLabel,
-}: SpendingComparisonXAxisTickProps) {
-  const value = String(payload?.value ?? '')
-  const textAnchor = value === firstLabel ? 'start' : value === lastLabel ? 'end' : 'middle'
-
-  return (
-    <text
-      x={Number(x)}
-      y={Number(y)}
-      dy={12}
-      textAnchor={textAnchor}
-      fill="var(--app-text-subtle)"
-      fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
-    >
-      {value}
-    </text>
-  )
-}
-
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
-  const spendingComparisonChartRef = useRef<HTMLDivElement>(null)
-  const spendingComparisonTooltipRef = useRef<DeferredChartTooltipOverlayHandle<SpendingComparisonSeriesPoint>>(null)
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
   const { data: incomingSpendingComparison, isFetching: spendingComparisonLoading } = useSpendingComparison(spendingRange)
   const loadingSnapshot = useMemo(
@@ -125,22 +67,6 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
     () => getSpendingComparisonSummary(spendingComparison, displaySpendingRange),
     [displaySpendingRange, spendingComparison],
   )
-  const showSpendingComparisonTooltip = (
-    state: SpendingComparisonTooltipState,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
-    const point = getSpendingComparisonTooltipPoint(state, spendingChartData, spendingPointsByLabel)
-    const pointer = getSpendingComparisonTooltipPointer(state, event)
-
-    if (!point || (point.current == null && point.previous == null)) {
-      spendingComparisonTooltipRef.current?.show(null, pointer)
-      return
-    }
-
-    spendingComparisonTooltipRef.current?.show(point, pointer)
-  }
-  const hideSpendingComparisonTooltip = () => spendingComparisonTooltipRef.current?.hide()
-
   return (
     <div className="app-card h-[470px] flex flex-col">
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -251,85 +177,15 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
             </span>
           </div>
         </div>
-        <div
-          ref={spendingComparisonChartRef}
-          className="relative min-h-0 flex-1"
-          onMouseLeave={hideSpendingComparisonTooltip}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={spendingChartData}
-              margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
-              onMouseMove={(state, event) => showSpendingComparisonTooltip(state, event)}
-              onMouseLeave={hideSpendingComparisonTooltip}
-            >
-              <defs>
-                <linearGradient id="spendCurrentFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--app-accent)" stopOpacity={0.28} />
-                  <stop offset="100%" stopColor="var(--app-accent)" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="spendPreviousFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--app-text-muted)" stopOpacity={0.15} />
-                  <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                xAxisId="plot"
-                dataKey="label"
-                hide
-              />
-              <XAxis
-                xAxisId="labels"
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                interval={0}
-                ticks={spendingXAxisTicks}
-                tick={(props) => (
-                  <SpendingComparisonXAxisTick
-                    {...props}
-                    firstLabel={firstSpendingXAxisTick}
-                    lastLabel={lastSpendingXAxisTick}
-                  />
-                )}
-                tickMargin={4}
-              />
-              <YAxis hide />
-              <Area
-                xAxisId="plot"
-                type="monotone"
-                dataKey="previous"
-                stroke="var(--app-text-muted)"
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-                fill="url(#spendPreviousFill)"
-                connectNulls={false}
-              />
-              <Area
-                xAxisId="plot"
-                type="monotone"
-                dataKey="current"
-                stroke="var(--app-accent)"
-                strokeWidth={2.5}
-                fill="url(#spendCurrentFill)"
-                connectNulls={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-          <DeferredChartTooltipOverlay
-            ref={spendingComparisonTooltipRef}
-            chartRef={spendingComparisonChartRef}
-            className="min-w-48"
-            getKey={getSpendingComparisonTooltipKey}
-            renderContent={(point) => (
-              <SpendingComparisonTooltipContent
-                point={point}
-                displayCurrency={displayCurrency}
-                spendingRange={displaySpendingRange}
-              />
-            )}
-          />
-        </div>
+        <SpendingComparisonChart
+          data={spendingChartData}
+          pointsByLabel={spendingPointsByLabel}
+          xAxisTicks={spendingXAxisTicks}
+          firstXAxisTick={firstSpendingXAxisTick}
+          lastXAxisTick={lastSpendingXAxisTick}
+          displayCurrency={displayCurrency}
+          spendingRange={displaySpendingRange}
+        />
       </DashboardWidgetLoadingBody>
     </div>
   )
