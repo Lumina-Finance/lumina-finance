@@ -20,14 +20,13 @@ import {
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
-import { formatCurrency } from '@/utils/formatCurrency'
 import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/dashboard/constants/animation'
-import { SpendingBreakdownCrossoverBadge } from '@/dashboard/components/SpendingBreakdownCrossoverBadge'
 import { SpendingBreakdownHeader } from '@/dashboard/components/SpendingBreakdownHeader'
 import { SpendingBreakdownLegend } from '@/dashboard/components/SpendingBreakdownLegend'
+import { SpendingBreakdownTooltipContent } from '@/dashboard/components/SpendingBreakdownTooltipContent'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import {
@@ -205,20 +204,11 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
                 }}
               >
                 {hoveredBreakdownEntry && (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className="app-chart-tooltip-default-title">
-                        {hoveredBreakdownEntry.name}
-                      </span>
-                      <SpendingBreakdownCrossoverBadge
-                        entry={hoveredBreakdownEntry}
-                        breakdownMode={breakdownMode}
-                      />
-                    </div>
-                    <div className="app-chart-tooltip-default-value">
-                      {formatCurrency(hoveredBreakdownEntry.amount, displayCurrency)}
-                    </div>
-                  </>
+                  <SpendingBreakdownTooltipContent
+                    entry={hoveredBreakdownEntry}
+                    breakdownMode={breakdownMode}
+                    displayCurrency={displayCurrency}
+                  />
                 )}
               </CursorTooltipPortal>
             </div>
