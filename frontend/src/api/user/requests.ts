@@ -1,4 +1,4 @@
-import type { User } from '@/api/auth';
+import type { User } from '@/api/auth/types';
 import { authenticatedFetch } from '@/api/client';
 import {
   fromRunwayResultResponse,

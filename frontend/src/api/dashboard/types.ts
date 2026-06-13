@@ -1,4 +1,4 @@
-import type { Transaction } from '@/api/transactions';
+import type { Transaction } from '@/api/transactions/types';
 import type { FxStatus } from '@/api/shared/fx';
 
 export interface MonthlyIncomeExpense {

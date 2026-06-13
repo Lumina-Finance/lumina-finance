@@ -1,8 +1,8 @@
-import type { Account } from '@/api/accounts';
+import type { AccountType } from '@/api/accounts/types';
 
 export interface TransactionImportCreateAccount {
   name: string;
-  account_type: Account['account_type'];
+  account_type: AccountType;
   currency: string;
   institution_id?: string | null;
 }
