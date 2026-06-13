@@ -7,12 +7,12 @@ import type { Institution } from '@/api/institutions'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { RunwayResult } from '@/api/user'
 import {
-  getAccountKindOptions,
-  getAccountTypeOptions,
-  getActiveAccountFilters,
-  getFilteredAccounts,
+  getActiveFilters,
+  getFilteredRows,
   getInstitutionOptions,
-} from '@/accounts/utils/accountFilters'
+  getKindOptions,
+  getTypeOptions,
+} from '@/accounts/utils/filters'
 import {
   getAccountSections,
   getCombinedAccountFxStatus,
@@ -84,9 +84,9 @@ function createTaxAdvantagedCategory(overrides: Partial<TaxAdvantagedCategory>):
   }
 }
 
-describe('account filter helpers', () => {
+describe('filter helpers', () => {
   it('removes empty filters before filtering accounts', () => {
-    expect(getActiveAccountFilters({
+    expect(getActiveFilters({
       institution_id: '',
       account_kind: 'asset',
       account_type: undefined,
@@ -119,11 +119,11 @@ describe('account filter helpers', () => {
       'Alpha Bank',
       'Zeta Bank',
     ])
-    expect(getAccountKindOptions(rows).map((option) => option.value)).toEqual([
+    expect(getKindOptions(rows).map((option) => option.value)).toEqual([
       'asset',
       'revolving',
     ])
-    expect(getAccountTypeOptions(rows).map((option) => option.value)).toEqual([
+    expect(getTypeOptions(rows).map((option) => option.value)).toEqual([
       'checking',
       'cash',
       'credit_card',
@@ -152,7 +152,7 @@ describe('account filter helpers', () => {
       }),
     ]
 
-    expect(getFilteredAccounts(rows, {
+    expect(getFilteredRows(rows, {
       institution_id: 'bank',
       account_kind: 'asset',
       account_type: 'checking',

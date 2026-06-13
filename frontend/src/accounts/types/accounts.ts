@@ -2,7 +2,7 @@ import type { AccountKind, AccountType } from '@/api/accounts'
 import type { FxStatus } from '@/api/shared/fx'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 
-export interface AccountFilterValues {
+export interface FilterValues {
   institution_id?: string
   account_kind?: AccountKind
   account_type?: AccountType

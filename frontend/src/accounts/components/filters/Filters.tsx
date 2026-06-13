@@ -3,15 +3,15 @@ import { Plus, SlidersHorizontal } from 'lucide-react'
 import type { AccountKind, AccountType } from '@/api/accounts'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList, { type OptionItem } from '@/components/FilterOptionList'
-import type { AccountFilterValues } from '@/accounts/types/accounts'
+import type { FilterValues } from '@/accounts/types/accounts'
 import { MobileFilterSheet } from './MobileFilterSheet'
 
 type FiltersProps = {
-  filters: AccountFilterValues
-  setFilter: (patch: Partial<AccountFilterValues>) => void
+  filters: FilterValues
+  setFilter: (patch: Partial<FilterValues>) => void
   institutionOptions: OptionItem[]
-  accountKindOptions: OptionItem[]
-  accountTypeOptions: OptionItem[]
+  kindOptions: OptionItem[]
+  typeOptions: OptionItem[]
   onAddAccount: () => void
 }
 
@@ -22,16 +22,16 @@ export default function Filters({
   filters,
   setFilter,
   institutionOptions,
-  accountKindOptions,
-  accountTypeOptions,
+  kindOptions,
+  typeOptions,
   onAddAccount,
 }: FiltersProps) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
   const [isMobileBackdropActive, setIsMobileBackdropActive] = useState(false)
 
   const selectedInstitutionLabel = institutionOptions.find((option) => option.value === filters.institution_id)?.label ?? null
-  const selectedKindLabel = accountKindOptions.find((option) => option.value === filters.account_kind)?.label ?? null
-  const selectedTypeLabel = accountTypeOptions.find((option) => option.value === filters.account_type)?.label ?? null
+  const selectedKindLabel = kindOptions.find((option) => option.value === filters.account_kind)?.label ?? null
+  const selectedTypeLabel = typeOptions.find((option) => option.value === filters.account_type)?.label ?? null
   const activeFilterCount = [filters.institution_id, filters.account_kind, filters.account_type].filter(Boolean).length
 
   const openMobileSheet = useCallback(() => {
@@ -102,7 +102,7 @@ export default function Filters({
         >
           {(close) => (
             <FilterOptionList
-              options={accountKindOptions}
+              options={kindOptions}
               selectedValue={filters.account_kind}
               onSelect={(value) => { setFilter({ account_kind: value as AccountKind }); close() }}
               searchPlaceholder="Search categories..."
@@ -118,7 +118,7 @@ export default function Filters({
         >
           {(close) => (
             <FilterOptionList
-              options={accountTypeOptions}
+              options={typeOptions}
               selectedValue={filters.account_type}
               onSelect={(value) => { setFilter({ account_type: value as AccountType }); close() }}
               searchPlaceholder="Search types..."
@@ -144,8 +144,8 @@ export default function Filters({
           filters={filters}
           setFilter={setFilter}
           institutionOptions={institutionOptions}
-          accountKindOptions={accountKindOptions}
-          accountTypeOptions={accountTypeOptions}
+          kindOptions={kindOptions}
+          typeOptions={typeOptions}
           selectedInstitutionLabel={selectedInstitutionLabel}
           selectedKindLabel={selectedKindLabel}
           selectedTypeLabel={selectedTypeLabel}

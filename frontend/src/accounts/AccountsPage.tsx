@@ -9,7 +9,7 @@ import AccountSummaryStatement from '@/accounts/components/AccountSummaryStateme
 import AccountsMetricsBand from '@/accounts/components/AccountsMetricsBand'
 import ArchivedAccountsSection from '@/accounts/components/ArchivedAccountsSection'
 import TaxAdvantagedLimitsSection from '@/accounts/components/tax-advantaged-limits/TaxAdvantagedLimitsSection'
-import { useAccountFilters } from '@/accounts/hooks/useAccountFilters'
+import { useFilters } from '@/accounts/hooks/useFilters'
 import { useAccountSections } from '@/accounts/hooks/useAccountSections'
 import { useAccountsMetrics } from '@/accounts/hooks/useAccountsMetrics'
 import { useTaxAdvantagedLimitSummaries } from '@/accounts/hooks/useTaxAdvantagedLimitSummaries'
@@ -30,10 +30,10 @@ export default function AccountsPage() {
     filters,
     setFilter,
     institutionOptions,
-    accountKindOptions,
-    accountTypeOptions,
+    kindOptions,
+    typeOptions,
     filteredRows,
-  } = useAccountFilters(rows)
+  } = useFilters(rows)
   const accountSections = useAccountSections({ rows, filteredRows })
   const accountMetrics = useAccountsMetrics(rows, displayCurrency)
   const { taxAdvantagedCategoryById, taxAdvantagedLimitSummaries } =
@@ -74,8 +74,8 @@ export default function AccountsPage() {
           filters={filters}
           setFilter={setFilter}
           institutionOptions={institutionOptions}
-          accountKindOptions={accountKindOptions}
-          accountTypeOptions={accountTypeOptions}
+          kindOptions={kindOptions}
+          typeOptions={typeOptions}
           onAddAccount={() => {
             setCreateModalKey((key) => key + 1)
             setShowCreateModal(true)

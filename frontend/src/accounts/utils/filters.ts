@@ -1,15 +1,15 @@
 import type { AccountKind, AccountType, AccountsOverview } from '@/api/accounts'
 import type { OptionItem } from '@/components/FilterOptionList'
-import type { AccountFilterValues } from '@/accounts/types/accounts'
+import type { FilterValues } from '@/accounts/types/accounts'
 
-const ACCOUNT_KIND_OPTIONS: OptionItem[] = [
+const KIND_OPTIONS: OptionItem[] = [
   { value: 'asset', label: 'Assets' },
   { value: 'revolving', label: 'Revolving credit' },
   { value: 'amortizing', label: 'Amortizing debt' },
 ]
 
 // Group labels mirror the account sections so filter options follow the page structure
-const ACCOUNT_TYPE_OPTIONS: OptionItem[] = [
+const TYPE_OPTIONS: OptionItem[] = [
   { value: 'checking', label: 'Checking', group: 'Assets' },
   { value: 'savings', label: 'Savings', group: 'Assets' },
   { value: 'term_deposit', label: 'Term Deposit', group: 'Assets' },
@@ -25,9 +25,9 @@ const ACCOUNT_TYPE_OPTIONS: OptionItem[] = [
 /**
  * Removes empty filter values so downstream comparisons only handle active filters
  */
-export function getActiveAccountFilters(filters: AccountFilterValues) {
+export function getActiveFilters(filters: FilterValues) {
   const activeFilters = { ...filters }
-  for (const key of Object.keys(activeFilters) as (keyof AccountFilterValues)[]) {
+  for (const key of Object.keys(activeFilters) as (keyof FilterValues)[]) {
     if (!activeFilters[key]) delete activeFilters[key]
   }
   return activeFilters
@@ -48,25 +48,25 @@ export function getInstitutionOptions(rows: AccountsOverview[]): OptionItem[] {
 /**
  * Keeps account kind filter options limited to kinds that exist in the current account list
  */
-export function getAccountKindOptions(rows: AccountsOverview[]): OptionItem[] {
+export function getKindOptions(rows: AccountsOverview[]): OptionItem[] {
   const present = new Set(rows.map((account) => account.account_kind))
-  return ACCOUNT_KIND_OPTIONS.filter((option) => present.has(option.value as AccountKind))
+  return KIND_OPTIONS.filter((option) => present.has(option.value as AccountKind))
 }
 
 /**
  * Keeps account type filter options limited to types that exist in the current account list
  */
-export function getAccountTypeOptions(rows: AccountsOverview[]): OptionItem[] {
+export function getTypeOptions(rows: AccountsOverview[]): OptionItem[] {
   const present = new Set(rows.map((account) => account.account_type))
-  return ACCOUNT_TYPE_OPTIONS.filter((option) => present.has(option.value as AccountType))
+  return TYPE_OPTIONS.filter((option) => present.has(option.value as AccountType))
 }
 
 /**
  * Applies active account filters while allowing accounts with missing optional metadata to remain searchable
  */
-export function getFilteredAccounts(
+export function getFilteredRows(
   rows: AccountsOverview[],
-  filters: AccountFilterValues,
+  filters: FilterValues,
 ) {
   return rows.filter((account) => {
     if (filters.institution_id && account.institution?.id !== filters.institution_id) return false

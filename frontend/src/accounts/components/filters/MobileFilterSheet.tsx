@@ -4,17 +4,17 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
 import type { AccountKind, AccountType } from '@/api/accounts'
 import type { OptionItem } from '@/components/FilterOptionList'
-import type { AccountFilterValues } from '@/accounts/types/accounts'
+import type { FilterValues } from '@/accounts/types/accounts'
 import { MobileFilterSection } from './MobileFilterSection'
 
 type MobileFilterSheetProps = {
   isOpen: boolean
   activeFilterCount: number
-  filters: AccountFilterValues
-  setFilter: (patch: Partial<AccountFilterValues>) => void
+  filters: FilterValues
+  setFilter: (patch: Partial<FilterValues>) => void
   institutionOptions: OptionItem[]
-  accountKindOptions: OptionItem[]
-  accountTypeOptions: OptionItem[]
+  kindOptions: OptionItem[]
+  typeOptions: OptionItem[]
   selectedInstitutionLabel: string | null
   selectedKindLabel: string | null
   selectedTypeLabel: string | null
@@ -31,8 +31,8 @@ export function MobileFilterSheet({
   filters,
   setFilter,
   institutionOptions,
-  accountKindOptions,
-  accountTypeOptions,
+  kindOptions,
+  typeOptions,
   selectedInstitutionLabel,
   selectedKindLabel,
   selectedTypeLabel,
@@ -218,7 +218,7 @@ export function MobileFilterSheet({
               />
               <MobileFilterSection
                 title="Category"
-                options={accountKindOptions}
+                options={kindOptions}
                 selectedValue={filters.account_kind}
                 selectedLabel={selectedKindLabel}
                 searchPlaceholder="Search categories..."
@@ -229,7 +229,7 @@ export function MobileFilterSheet({
               />
               <MobileFilterSection
                 title="Type"
-                options={accountTypeOptions}
+                options={typeOptions}
                 selectedValue={filters.account_type}
                 selectedLabel={selectedTypeLabel}
                 searchPlaceholder="Search types..."
