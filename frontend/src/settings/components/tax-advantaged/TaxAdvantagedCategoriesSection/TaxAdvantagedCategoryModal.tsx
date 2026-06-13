@@ -5,10 +5,8 @@ import { useUpdateAccount, type AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
   useCreateTaxAdvantagedCategoryLimit,
-  useDeleteTaxAdvantagedCategory,
   useDeleteTaxAdvantagedCategoryLimit,
   useTaxAdvantagedCategoryLimits,
-  useUpdateTaxAdvantagedCategory,
   useUpdateTaxAdvantagedCategoryLimit,
   type TaxAdvantagedCategory,
   type TaxAdvantagedCategoryLimit,
@@ -18,25 +16,25 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import type {
   AutosaveNotice,
   CategoryModalTab,
-  TaxPlanFormState,
   TaxPlanLimitFormState,
 } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
 import AutosaveStatusIcon from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/AutosaveStatusIcon'
 import InfoItem from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/InfoItem'
 import OpeningUsageLabel from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/OpeningUsageLabel'
 import TaxAdvantagedCategoryDetailsModal from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedCategoryDetailsModal'
+import { useTaxAdvantagedCategoryDetailsForm } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedCategoryDetailsForm'
 import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
 import {
   ACCOUNT_LINK_SAVE_MIN_LOADING_MS,
   ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS,
   DEFAULT_NEW_LIMIT_YEAR,
-  DELETE_TAX_CATEGORY_MIN_LOADING_MS,
   LIMIT_DELETE_BUTTON_TRANSITION,
   LIMIT_DELETE_FEEDBACK_MS,
   LIMIT_SAVE_FEEDBACK_MS,
   MAX_VISIBLE_LIMIT_ROWS,
 } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
+  delay,
   formatTaxTreatment,
   fromMinorUnits,
   isValidMoneyInput,
@@ -53,12 +51,6 @@ type LimitDraftField = keyof Pick<
   'contribution_limit' | 'withdrawal_limit' | 'accrued_contributions' | 'accrued_withdrawals'
 >
 
-function delay(ms: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
-
 export default function TaxAdvantagedCategoryModal({
   accounts,
   onClose,
@@ -70,19 +62,30 @@ export default function TaxAdvantagedCategoryModal({
   plan: TaxAdvantagedCategory
   currencies: Currency[]
 }) {
-  const updatePlan = useUpdateTaxAdvantagedCategory(plan.id)
-  const deletePlan = useDeleteTaxAdvantagedCategory({ minimumPendingMs: DELETE_TAX_CATEGORY_MIN_LOADING_MS })
   const updateAccount = useUpdateAccount()
   const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedCategoryLimits(plan.id)
   const createLimit = useCreateTaxAdvantagedCategoryLimit()
   const updateLimit = useUpdateTaxAdvantagedCategoryLimit()
   const deleteLimit = useDeleteTaxAdvantagedCategoryLimit()
+  const {
+    closeDetails: closeCategoryDetailsModal,
+    confirmingDelete: confirmingPlanDelete,
+    deleteCategory: handleDeletePlan,
+    deletePending: deletePlanPending,
+    detailsOpen: categoryEditOpen,
+    openDetails,
+    planError,
+    planForm,
+    planSaveStatus,
+    saveDetails: handleSaveCategoryDetails,
+    setConfirmingDelete: setConfirmingPlanDelete,
+    setPlanField,
+    updatePending: updatePlanPending,
+  } = useTaxAdvantagedCategoryDetailsForm({ currencies, onClose, plan })
   const [activeTab, setActiveTab] = useState<CategoryModalTab>('limits')
-  const [categoryEditOpen, setCategoryEditOpen] = useState(false)
   const [showAddTaxYear, setShowAddTaxYear] = useState(false)
   const [selectedLimitYear, setSelectedLimitYear] = useState<number | null>(null)
   const [accountError, setAccountError] = useState<string | null>(null)
-  const [confirmingPlanDelete, setConfirmingPlanDelete] = useState(false)
   const planDeleteButtonRef = useRef<HTMLButtonElement>(null)
   const planDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
   const planDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
@@ -91,15 +94,6 @@ export default function TaxAdvantagedCategoryModal({
   const limitDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
   const [planDeleteLabelWidths, setPlanDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
   const [limitDeleteLabelWidths, setLimitDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
-  const planBase: TaxPlanFormState = {
-    name: plan.name,
-    tax_treatment: plan.tax_treatment,
-    currency: plan.currency,
-    lifetime_contribution_limit: fromMinorUnits(plan.lifetime_contribution_limit, currencies, plan.currency),
-    accrued_contributions: fromMinorUnits(plan.accrued_contributions, currencies, plan.currency),
-  }
-  const [planOverrides, setPlanOverrides] = useState<Partial<TaxPlanFormState>>({})
-  const planForm: TaxPlanFormState = { ...planBase, ...planOverrides }
   const [limitDrafts, setLimitDrafts] = useState<Record<number, Partial<Pick<TaxPlanLimitFormState, LimitDraftField>>>>({})
   const [newLimitForm, setNewLimitForm] = useState<TaxPlanLimitFormState>({
     year: String(DEFAULT_NEW_LIMIT_YEAR),
@@ -112,9 +106,7 @@ export default function TaxAdvantagedCategoryModal({
   const [deleteConfirmYear, setDeleteConfirmYear] = useState<number | null>(null)
   const [pendingDeleteLimitYear, setPendingDeleteLimitYear] = useState<number | null>(null)
   const [pendingDeletedLimit, setPendingDeletedLimit] = useState<TaxAdvantagedCategoryLimit | null>(null)
-  const [planError, setPlanError] = useState<string | null>(null)
   const [limitError, setLimitError] = useState<string | null>(null)
-  const [planSaveStatus, setPlanSaveStatus] = useState<'idle' | 'loading' | 'success'>('idle')
   const [autosaveNotice, setAutosaveNotice] = useState<AutosaveNotice | null>(null)
   const autosaveTimerRef = useRef<number | null>(null)
 
@@ -165,7 +157,7 @@ export default function TaxAdvantagedCategoryModal({
   }, [])
 
   useEffect(() => {
-    if (!confirmingPlanDelete || deletePlan.isPending) return
+    if (!confirmingPlanDelete || deletePlanPending) return
     const onPointerDown = (event: PointerEvent) => {
       if (planDeleteButtonRef.current && !planDeleteButtonRef.current.contains(event.target as Node)) {
         setConfirmingPlanDelete(false)
@@ -176,7 +168,7 @@ export default function TaxAdvantagedCategoryModal({
       window.clearTimeout(timer)
       window.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [confirmingPlanDelete, deletePlan.isPending])
+  }, [confirmingPlanDelete, deletePlanPending, setConfirmingPlanDelete])
 
   useEffect(() => {
     if (deleteConfirmYear === null || pendingDeleteLimitYear !== null) return
@@ -191,11 +183,6 @@ export default function TaxAdvantagedCategoryModal({
       window.removeEventListener('pointerdown', onPointerDown)
     }
   }, [deleteConfirmYear, pendingDeleteLimitYear])
-
-  const setPlanField = <K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) => {
-    setPlanOverrides((current) => ({ ...current, [key]: value }))
-    setPlanError(null)
-  }
 
   const setNewLimitField = <K extends keyof TaxPlanLimitFormState>(key: K, value: TaxPlanLimitFormState[K]) => {
     setNewLimitForm((current) => ({ ...current, [key]: value }))
@@ -265,89 +252,11 @@ export default function TaxAdvantagedCategoryModal({
     setDeleteConfirmYear(null)
   }
 
-  const getPlanUpdateState = (form: TaxPlanFormState) => {
-    const nextLifetimeLimit = toMinorUnits(form.lifetime_contribution_limit, currencies, plan.currency)
-    const nextAccruedContributions = toMinorUnits(form.accrued_contributions, currencies, plan.currency) ?? 0
-    const dirty = form.name.trim() !== plan.name
-      || form.tax_treatment !== plan.tax_treatment
-      || nextLifetimeLimit !== plan.lifetime_contribution_limit
-      || nextAccruedContributions !== plan.accrued_contributions
-    return { dirty, nextAccruedContributions, nextLifetimeLimit }
-  }
-
-  const validatePlanForm = (form: TaxPlanFormState) => {
-    if (!form.name.trim()) {
-      return 'Name is required.'
-    }
-    if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-      return 'Lifetime limit must be zero or higher.'
-    }
-    if (!isValidMoneyInput(form.accrued_contributions)) {
-      return 'Opening usage must be zero or higher.'
-    }
-    return null
-  }
-
   const openCategoryDetailsModal = () => {
-    if (planSaveStatus !== 'idle') return
-    setPlanOverrides({})
-    setPlanError(null)
+    if (!openDetails()) return
     setShowAddTaxYear(false)
     setSelectedLimitYear(null)
     setDeleteConfirmYear(null)
-    setCategoryEditOpen(true)
-  }
-
-  const closeCategoryDetailsModal = () => {
-    if (updatePlan.isPending || planSaveStatus !== 'idle') return
-    setCategoryEditOpen(false)
-    setPlanOverrides({})
-    setPlanError(null)
-  }
-
-  const handleSaveCategoryDetails = async () => {
-    if (updatePlan.isPending || planSaveStatus !== 'idle') return
-    const validationError = validatePlanForm(planForm)
-    if (validationError) {
-      setPlanError(validationError)
-      return
-    }
-
-    const { dirty, nextAccruedContributions, nextLifetimeLimit } = getPlanUpdateState(planForm)
-    setPlanSaveStatus('loading')
-    const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, 1000))
-    try {
-      if (dirty) {
-        await updatePlan.mutateAsync({
-          name: planForm.name.trim(),
-          tax_treatment: planForm.tax_treatment,
-          lifetime_contribution_limit: nextLifetimeLimit,
-          accrued_contributions: nextAccruedContributions,
-        })
-        setPlanOverrides({})
-        setPlanError(null)
-      }
-      await minimumLoading
-      setPlanSaveStatus('success')
-      await delay(600)
-      setCategoryEditOpen(false)
-      setPlanSaveStatus('idle')
-    } catch (error) {
-      await minimumLoading
-      setPlanSaveStatus('idle')
-      setPlanError(error instanceof Error ? error.message : 'Failed to update category.')
-    }
-  }
-
-  const handleDeletePlan = () => {
-    setPlanError(null)
-    deletePlan.mutate(plan.id, {
-      onSuccess: onClose,
-      onError: (error) => {
-        setConfirmingPlanDelete(false)
-        setPlanError(error instanceof Error ? error.message : 'Failed to delete category.')
-      },
-    })
   }
 
   const sortedLimits = useMemo(() => {
@@ -759,15 +668,15 @@ export default function TaxAdvantagedCategoryModal({
                 <button
                   ref={planDeleteButtonRef}
                   type="button"
-                  className={`app-danger-button w-full justify-center min-[750px]:w-auto ${deletePlan.isPending && confirmingPlanDelete ? 'app-primary-button-loading' : ''}`}
+                  className={`app-danger-button w-full justify-center min-[750px]:w-auto ${deletePlanPending && confirmingPlanDelete ? 'app-primary-button-loading' : ''}`}
                   onClick={() => {
-                    if (deletePlan.isPending) return
+                    if (deletePlanPending) return
                     if (confirmingPlanDelete) handleDeletePlan()
                     else setConfirmingPlanDelete(true)
                   }}
-                  disabled={deletePlan.isPending}
+                  disabled={deletePlanPending}
                 >
-                  {deletePlan.isPending && confirmingPlanDelete ? (
+                  {deletePlanPending && confirmingPlanDelete ? (
                     <div className="app-spinner" />
                   ) : (
                     <span
@@ -1205,7 +1114,7 @@ export default function TaxAdvantagedCategoryModal({
         planError={planError}
         planForm={planForm}
         planSaveStatus={planSaveStatus}
-        updatePending={updatePlan.isPending}
+        updatePending={updatePlanPending}
       />
 
       <AnimatePresence>
