@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { BreakdownCrossoverBadge } from '@/components/display/BreakdownCrossoverBadge'
-import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/ChartTooltipContent'
+import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type { BreakdownEntry, BreakdownMode } from '@/pages/insights/types/incomeExpenseBreakdown'

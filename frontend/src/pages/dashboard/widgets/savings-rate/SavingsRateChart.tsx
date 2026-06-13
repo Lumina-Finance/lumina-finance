@@ -11,11 +11,11 @@ import {
 import {
   ChartTooltipTitle,
   ChartTooltipValue,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
+} from '@/components/charts/DeferredTooltipOverlay'
 import { SavingsCurrentBoundary } from '@/pages/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import {

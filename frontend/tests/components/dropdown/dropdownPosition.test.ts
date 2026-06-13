@@ -2,7 +2,7 @@
  * Tests dropdown positioning math so refactors catch menus opening off-screen, clipping against viewport padding, or shrinking searchable lists incorrectly
  */
 import { describe, expect, it } from 'vitest'
-import { getDropdownListPosition } from '@/components/dropdown/dropdownPosition'
+import { getDropdownListPosition } from '@/components/dropdown/position'
 
 const viewport = {
   height: 600,

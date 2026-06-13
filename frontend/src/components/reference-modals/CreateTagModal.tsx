@@ -2,10 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { Tag as TagIcon } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateTag, type Tag } from '@/api/tags'
-import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
-} from '@/components/create-modal/CreateReferenceModalShell'
+} from '@/components/create-modal/ReferenceModalShell'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_TAG_MIN_LOADING_MS = 800

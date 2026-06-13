@@ -1,6 +1,6 @@
 import { CreditCard, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import { AppSlotMachineText } from '@/components/display/AppSlotMachineText'
+import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/DashboardWidgetHeaderIcon'
 import type { CreditMode } from '@/pages/dashboard/utils/getCreditUsageSummary'

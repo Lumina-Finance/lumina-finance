@@ -5,7 +5,7 @@ import {
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
+} from '@/components/charts/DeferredTooltipOverlay'
 import {
   clampTaxAdvantagedPercent,
   formatTaxAdvantagedMeterMoney,

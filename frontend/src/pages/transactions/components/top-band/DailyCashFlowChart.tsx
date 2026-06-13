@@ -20,8 +20,8 @@ import type { DailyCashFlow } from '@/api/transactions'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
-import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/DeferredTooltipOverlay'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,

@@ -1,18 +1,18 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, type UIEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
-import { DropdownOptionList } from './DropdownOptionList';
-import { DropdownSearchControls } from './DropdownSearchControls';
-import { DropdownTrigger } from './DropdownTrigger';
+import { DropdownOptionList } from './OptionList';
+import { DropdownSearchControls } from './SearchControls';
+import { DropdownTrigger } from './Trigger';
 import {
   getCreateNewLabel,
   getEffectiveHighlightedIndex,
   getGroupedDropdownOptions,
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
-} from './dropdownOptions';
+} from './options';
 import type { DropdownCreateLabel, DropdownOption } from './types';
-import { useDropdownPosition } from './hooks/useDropdownPosition';
+import { useDropdownPosition } from './hooks/usePosition';
 
 export type { DropdownOption } from './types';
 

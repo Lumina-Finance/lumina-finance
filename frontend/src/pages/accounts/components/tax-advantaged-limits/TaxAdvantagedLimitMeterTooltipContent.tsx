@@ -1,7 +1,7 @@
 import {
   ChartTooltipRow,
   ChartTooltipTitle,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import { formatTaxAdvantagedRawMoney } from '@/pages/accounts/utils/taxAdvantagedLimits'
 
 type TaxAdvantagedLimitMeterTooltipContentProps = {

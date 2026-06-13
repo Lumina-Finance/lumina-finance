@@ -1,4 +1,4 @@
-import TransactionRow from '@/components/transactions/TransactionRow'
+import TransactionRow from '@/components/transactions/Row'
 import { EmptyState, ImportStep } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
 

@@ -4,7 +4,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/loading/LoadingTransition'
+} from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'

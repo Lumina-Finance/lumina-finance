@@ -1,9 +1,9 @@
 import type { Theme } from '@/types'
-import { NavigationBrand } from '@/components/navigation/parts/NavigationBrand'
-import { NavigationLinks } from '@/components/navigation/parts/NavigationLinks'
-import { NavigationThemeToggle } from '@/components/navigation/parts/NavigationThemeToggle'
-import { NavigationUserProfile } from '@/components/navigation/parts/NavigationUserProfile'
-import { NavigationVersionIndicator } from '@/components/navigation/parts/NavigationVersionIndicator'
+import { NavigationBrand } from '@/components/navigation/parts/Brand'
+import { NavigationLinks } from '@/components/navigation/parts/Links'
+import { NavigationThemeToggle } from '@/components/navigation/parts/ThemeToggle'
+import { NavigationUserProfile } from '@/components/navigation/parts/UserProfile'
+import { NavigationVersionIndicator } from '@/components/navigation/parts/VersionIndicator'
 
 interface DesktopNavigationProps {
   displayName: string

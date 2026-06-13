@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react'
 import type { Theme } from '@/types'
-import { THEME_OPTIONS, THEME_TOGGLE_SPRING } from '@/components/navigation/constants/navigationData'
+import { THEME_OPTIONS, THEME_TOGGLE_SPRING } from '@/components/navigation/constants/data'
 
 interface NavigationThemeToggleProps {
   theme: Theme

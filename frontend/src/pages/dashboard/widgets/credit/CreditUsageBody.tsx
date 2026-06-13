@@ -1,4 +1,4 @@
-import { AppScrambledNumber } from '@/components/display/AppScrambledNumber'
+import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
 import type { CreditUsageSummary } from '@/pages/dashboard/utils/getCreditUsageSummary'
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { LoadingContent, LoadingOverlay } from '@/components/loading/LoadingTransition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 export default function AccountsLoadingRegion({

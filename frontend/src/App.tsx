@@ -14,7 +14,7 @@ import BudgetsPage from '@/pages/budgets/BudgetsPage'
 import InsightsPage from '@/pages/insights/InsightsPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import ImportsPage from '@/pages/imports/ImportsPage'
-import LoadingScreen from '@/components/loading/LoadingScreen'
+import LoadingScreen from '@/components/loading/Screen'
 import AuthPage from '@/pages/auth/AuthPage'
 
 const LOADING_SCREEN_MIN_MS = 1000;

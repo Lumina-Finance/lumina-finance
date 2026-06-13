@@ -1,7 +1,7 @@
 import {
   ChartTooltipRow,
   ChartTooltipTitle,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { BalanceChartMode } from '@/pages/accounts/detail/constants/accountDetail'
 import { formatSignedBalanceCurrency } from '@/pages/accounts/detail/utils/balanceChartAxis'

@@ -2,7 +2,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
 } from 'lucide-react'
-import { AppScrambledNumber } from '@/components/display/AppScrambledNumber'
+import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type SpendingComparisonMetricProps = {

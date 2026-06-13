@@ -19,8 +19,8 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
-import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/DeferredTooltipOverlay'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,

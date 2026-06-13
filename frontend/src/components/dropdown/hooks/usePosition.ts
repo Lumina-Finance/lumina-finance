@@ -3,7 +3,7 @@ import {
   DEFAULT_DROPDOWN_LIST_POSITION,
   getDropdownListPosition,
   type DropdownListPosition,
-} from '../dropdownPosition'
+} from '../position'
 
 interface UseDropdownPositionParams {
   open: boolean

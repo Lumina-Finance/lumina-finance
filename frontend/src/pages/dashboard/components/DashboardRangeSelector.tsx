@@ -1,7 +1,7 @@
 import {
   TimeRangeSelector,
   type TimeRangeSelectorOption,
-} from '@/components/time-range/TimeRangeSelector'
+} from '@/components/time-range/Selector'
 
 type DashboardRangeSelectorProps<T extends string> = {
   value: T

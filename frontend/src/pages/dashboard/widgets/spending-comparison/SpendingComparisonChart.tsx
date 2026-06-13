@@ -10,7 +10,7 @@ import type { SpendingRange } from '@/api/dashboard'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
+} from '@/components/charts/DeferredTooltipOverlay'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import {

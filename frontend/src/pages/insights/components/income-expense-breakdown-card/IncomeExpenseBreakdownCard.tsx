@@ -4,9 +4,9 @@ import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
   LoadingOverlay,
-} from '@/components/loading/LoadingTransition'
+} from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { AppSlotMachineText } from '@/components/display/AppSlotMachineText'
+import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'

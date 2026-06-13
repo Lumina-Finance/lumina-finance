@@ -4,7 +4,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type {

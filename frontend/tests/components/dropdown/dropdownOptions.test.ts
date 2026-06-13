@@ -8,7 +8,7 @@ import {
   getGroupedDropdownOptions,
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
-} from '@/components/dropdown/dropdownOptions'
+} from '@/components/dropdown/options'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
 const options: DropdownOption[] = [

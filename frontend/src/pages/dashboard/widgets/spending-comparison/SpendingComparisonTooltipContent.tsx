@@ -2,7 +2,7 @@ import type { SpendingRange } from '@/api/dashboard'
 import {
   ChartTooltipRow,
   ChartTooltipTitle,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import {
   CURRENT_LABEL_BY_RANGE,
   PREVIOUS_LABEL_BY_RANGE,

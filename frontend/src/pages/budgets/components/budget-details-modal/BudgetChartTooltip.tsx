@@ -2,7 +2,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import {
   ChartTooltipRow,
   ChartTooltipTitle,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 
 export interface BudgetChartPoint {
   label: string

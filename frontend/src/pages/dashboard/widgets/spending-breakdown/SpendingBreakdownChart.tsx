@@ -7,7 +7,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { CategoryBreakdownEntry } from '@/api/dashboard'
-import { AppScrambledNumber } from '@/components/display/AppScrambledNumber'
+import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import {
   BREAKDOWN_DONUT_TRANSITION,

@@ -1,6 +1,6 @@
 import { ArrowUpRight } from 'lucide-react'
 import { CURRENT_APP_VERSION, useAppVersion } from '@/api/version'
-import { getCurrentVersionLabel } from '@/components/navigation/utils/navigationLabels'
+import { getCurrentVersionLabel } from '@/components/navigation/utils/labels'
 
 /**
  * Renders the current app version and available-update link in the navigation footer

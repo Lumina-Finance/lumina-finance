@@ -3,11 +3,11 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Tag } from 'lucide-react'
 import { useCreateCategory, type Category } from '@/api/categories'
 import Dropdown from '@/components/dropdown/Dropdown'
-import CategoryIconSelector from '@/components/category-icon-selector/CategoryIconSelector'
-import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
+import CategoryIconSelector from '@/components/category-icon-selector/Selector'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
-} from '@/components/create-modal/CreateReferenceModalShell'
+} from '@/components/create-modal/ReferenceModalShell'
 import { waitForMilliseconds } from '@/utils/timing'
 
 type CategoryKind = Category['kind']

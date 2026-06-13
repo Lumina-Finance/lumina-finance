@@ -8,7 +8,7 @@ import {
   getCurrentVersionLabel,
   getNavigationDisplayName,
   getNavigationInitials,
-} from '@/components/navigation/utils/navigationLabels'
+} from '@/components/navigation/utils/labels'
 
 const user: User = {
   id: 'user-1',

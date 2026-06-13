@@ -2,7 +2,7 @@ import type { CategoryBreakdownEntry } from '@/api/dashboard'
 import {
   ChartTooltipTitle,
   ChartTooltipValue,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import type { BreakdownMode } from '@/pages/dashboard/utils/getSpendingBreakdownSummary'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { SpendingBreakdownCrossoverBadge } from './SpendingBreakdownCrossoverBadge'

@@ -1,5 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import type { ChartTooltipPointer } from '@/components/charts/DeferredChartTooltipOverlay'
+import type { ChartTooltipPointer } from '@/components/charts/DeferredTooltipOverlay'
 
 export type RechartsTooltipState<TPoint> = {
   activeLabel?: string | number

@@ -4,10 +4,10 @@ import { Store } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
-} from '@/components/create-modal/CreateReferenceModalShell'
+} from '@/components/create-modal/ReferenceModalShell'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_MERCHANT_MIN_LOADING_MS = 800

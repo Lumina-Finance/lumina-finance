@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateCategory, type Category } from '@/api/categories'
-import CategoryIconSelector from '@/components/category-icon-selector/CategoryIconSelector'
+import CategoryIconSelector from '@/components/category-icon-selector/Selector'
 import { editableEmoji } from '@/pages/settings/components/category-settings-section/categorySettingsUtils'
 
 export default function InlineCategoryEdit({

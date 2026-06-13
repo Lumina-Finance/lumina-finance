@@ -1,8 +1,8 @@
 import type { RefObject } from 'react'
 import { Plus } from 'lucide-react'
-import DateRangeFilterPanel from '@/components/filters/DateRangeFilterPanel'
-import FilterChip from '@/components/filters/FilterChip'
-import FilterOptionList from '@/components/filters/FilterOptionList'
+import DateRangeFilterPanel from '@/components/filters/DateRangePanel'
+import FilterChip from '@/components/filters/Chip'
+import FilterOptionList from '@/components/filters/OptionList'
 import type {
   TransactionDateRangeDraftProps,
   TransactionFilterSetter,

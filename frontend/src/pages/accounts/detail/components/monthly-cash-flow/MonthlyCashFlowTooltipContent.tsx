@@ -1,7 +1,7 @@
 import {
   ChartTooltipRow,
   ChartTooltipTitle,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { CashFlowBar } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
 

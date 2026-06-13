@@ -11,12 +11,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/ChartTooltipContent'
+import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
+} from '@/components/charts/DeferredTooltipOverlay'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'

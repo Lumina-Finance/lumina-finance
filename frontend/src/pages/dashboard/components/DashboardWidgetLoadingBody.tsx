@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { LoadingContent, LoadingOverlay } from '@/components/loading/LoadingTransition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 
 /**
  * Wraps dashboard widget content with the shared loading conceal and overlay behaviour

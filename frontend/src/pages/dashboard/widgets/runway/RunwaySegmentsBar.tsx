@@ -5,7 +5,7 @@ import {
 import {
   ChartTooltipTitle,
   ChartTooltipValue,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import type { RunwaySegment } from '@/pages/dashboard/types/dashboard'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'

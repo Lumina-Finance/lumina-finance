@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react'
 import { Calendar } from 'lucide-react'
-import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/time-range/TimeRangeSelector'
+import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/time-range/Selector'
 import type { InsightsRangePreset } from '../types/range'
 
 const INSIGHTS_RANGE_OPTIONS: TimeRangeSelectorOption<InsightsRangePreset>[] = [

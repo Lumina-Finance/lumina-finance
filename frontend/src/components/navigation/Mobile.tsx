@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Theme } from '@/types'
-import { AnimatedMobileMenuIcon } from '@/components/navigation/parts/AnimatedMobileMenuIcon'
-import { MOBILE_MENU_FADE_MS } from '@/components/navigation/constants/navigationData'
-import { NavigationBrand } from '@/components/navigation/parts/NavigationBrand'
-import { NavigationLinks } from '@/components/navigation/parts/NavigationLinks'
-import { NavigationThemeToggle } from '@/components/navigation/parts/NavigationThemeToggle'
-import { NavigationUserProfile } from '@/components/navigation/parts/NavigationUserProfile'
-import { NavigationVersionIndicator } from '@/components/navigation/parts/NavigationVersionIndicator'
-import { useMobileNavigationEffects } from '@/components/navigation/hooks/useMobileNavigationEffects'
+import { AnimatedMobileMenuIcon } from '@/components/navigation/parts/MobileMenuIcon'
+import { MOBILE_MENU_FADE_MS } from '@/components/navigation/constants/data'
+import { NavigationBrand } from '@/components/navigation/parts/Brand'
+import { NavigationLinks } from '@/components/navigation/parts/Links'
+import { NavigationThemeToggle } from '@/components/navigation/parts/ThemeToggle'
+import { NavigationUserProfile } from '@/components/navigation/parts/UserProfile'
+import { NavigationVersionIndicator } from '@/components/navigation/parts/VersionIndicator'
+import { useMobileNavigationEffects } from '@/components/navigation/hooks/useMobileEffects'
 
 interface MobileNavigationProps {
   displayName: string

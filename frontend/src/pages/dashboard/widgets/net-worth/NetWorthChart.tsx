@@ -9,11 +9,11 @@ import {
 import {
   ChartTooltipRow,
   ChartTooltipTitle,
-} from '@/components/charts/ChartTooltipContent'
+} from '@/components/charts/TooltipContent'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
+} from '@/components/charts/DeferredTooltipOverlay'
 import {
   DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
   DASHBOARD_NET_WORTH_X_AXIS_TICK_COUNT,
