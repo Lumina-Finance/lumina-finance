@@ -55,6 +55,7 @@ import TransactionReferencesSection from '@/transactions/components/transaction-
 import TransactionTypeDirectionSection from '@/transactions/components/transaction-modal/TransactionTypeDirectionSection'
 import { useDebouncedReferenceSearch } from '@/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
+import { useTransactionModalEnvironment } from '@/transactions/components/transaction-modal/hooks/useTransactionModalEnvironment'
 
 function delay(ms: number) {
   return new Promise((resolve) => {
@@ -276,19 +277,7 @@ export default function CreateTransactionModal({
     ? selectedAccount.current_balance + selectedAccountSessionDelta
     : 0
 
-  // Scroll lock + Escape close
-  useEffect(() => {
-    if (!open) return
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [handleClose, open])
+  useTransactionModalEnvironment({ open, onClose: handleClose })
 
   const clearError = (field: keyof TransactionFormFieldErrors) => {
     if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: undefined }))
