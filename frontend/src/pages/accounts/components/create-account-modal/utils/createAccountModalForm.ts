@@ -1,7 +1,7 @@
 import { ACCOUNT_KIND_BY_TYPE, type AccountType, type CreateAccountPayload } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_TYPE_OPTIONS, INITIAL_CREATE_ACCOUNT_FORM } from '@/pages/accounts/components/create-account-modal/createAccountModalConstants'
-import { optionalAccountMoneyInputToMinorUnits } from '@/pages/accounts/components/create-account-modal/createAccountModalMoney'
+import { optionalAccountMoneyInputToMinorUnits } from '@/pages/accounts/components/create-account-modal/utils/createAccountModalMoney'
 import type {
   CreateAccountFieldErrors,
   CreateAccountForm,

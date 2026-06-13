@@ -11,12 +11,12 @@ import {
   buildInitialCreateAccountForm,
   getNextCreateAccountForm,
   validateCreateAccountForm,
-} from '@/pages/accounts/components/create-account-modal/createAccountModalForm'
+} from '@/pages/accounts/components/create-account-modal/utils/createAccountModalForm'
 import {
   buildCreateAccountCurrencyOptions,
   buildCreateAccountInstitutionOptions,
   buildCreateAccountTaxPlanOptions,
-} from '@/pages/accounts/components/create-account-modal/createAccountModalOptions'
+} from '@/pages/accounts/components/create-account-modal/utils/createAccountModalOptions'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
