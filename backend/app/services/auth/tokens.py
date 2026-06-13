@@ -14,6 +14,7 @@ from app.config import (
     JWT_REFRESH_PRIVATE_KEY,
     JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
 )
+from app.models.base import AuthTokenKind
 
 
 def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
@@ -32,6 +33,7 @@ def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str,
         expires_in_seconds=JWT_ACCESS_TOKEN_EXPIRE_SECONDS,
         private_key=JWT_ACCESS_PRIVATE_KEY,
         key_id=JWT_ACCESS_KID,
+        token_use=AuthTokenKind.ACCESS.value,
     )
     return token
 
@@ -52,6 +54,7 @@ def create_refresh_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str
         expires_in_seconds=JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
         private_key=JWT_REFRESH_PRIVATE_KEY,
         key_id=JWT_REFRESH_KID,
+        token_use=AuthTokenKind.REFRESH.value,
     )
     return token
 
@@ -63,6 +66,7 @@ def _create_signed_token(
     expires_in_seconds: int,
     private_key: str,
     key_id: str,
+    token_use: str,
 ) -> tuple[str, uuid.UUID, datetime]:
     """Create a signed JWT token with shared auth claims
 
@@ -72,6 +76,7 @@ def _create_signed_token(
         expires_in_seconds: Number of seconds until the token expires
         private_key: Private key used to sign the token
         key_id: Key identifier added to the JWT headers
+        token_use: Token use claim that separates access and refresh tokens
 
     Returns:
         Encoded JWT, token identifier, and expiration timestamp
@@ -83,6 +88,7 @@ def _create_signed_token(
         "sub": str(user_id),
         "jti": str(token_id),
         "sid": str(session_id),
+        "token_use": token_use,
         "iat": issued_at,
         "exp": expires_at,
         "iss": JWT_ISSUER,

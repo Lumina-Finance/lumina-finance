@@ -15,7 +15,7 @@ from app.routes.auth.token_helpers import (
 from app.schemas.auth import AuthResponse, LoginRequest, SignupRequest
 from app.services.auth import login, signup
 
-_security = HTTPBearer()
+_security = HTTPBearer(auto_error=False)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -100,23 +100,26 @@ async def refresh_route(
 @router.post("/logout")
 async def logout_route(
     response: Response,
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_security)] = None,
+    refresh_token: str | None = Cookie(None),
 ):
-    """Revoke every active token for the caller's session
+    """Revoke the caller's active auth session
 
-    Invalid bearer tokens are ignored because logout is best-effort and still
-    clears the refresh cookie
+    Invalid or missing tokens are ignored because logout is best-effort and
+    still clears the refresh cookie
 
     Args:
         response: FastAPI response object
-        credentials: Bearer token from the Authorization header
         db: Active database session
+        credentials: Optional bearer token from the Authorization header
+        refresh_token: Optional refresh token read from the cookie by FastAPI
 
     Returns:
         Logout confirmation
     """
-    logout_response = await logout_auth_session(db, response, credentials.credentials)
+    access_token = credentials.credentials if credentials else None
+    logout_response = await logout_auth_session(db, response, access_token, refresh_token)
     return logout_response
 
 

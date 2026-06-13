@@ -19,6 +19,13 @@ class AuthProvider(enum.StrEnum):
     PASSWORD = "password"  # noqa: S105 — enum value, not a hardcoded secret
 
 
+class AuthTokenKind(enum.StrEnum):
+    """Authentication token allowlist kinds"""
+
+    ACCESS = "access"
+    REFRESH = "refresh"
+
+
 # --- Institutions ---
 
 class InstitutionStatus(enum.StrEnum):
