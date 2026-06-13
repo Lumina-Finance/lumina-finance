@@ -1,37 +1,36 @@
-import { useMemo, useState } from 'react'
-import {
-  useAccountSpendingBreakdown,
-  type Account,
-  type SpendingRange,
-} from '@/api/accounts'
+import { useMemo } from 'react'
+import type { SpendingRange } from '@/api/accounts'
+import { LoadingContent, LoadingOverlay } from '@/components/LoadingTransition'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
-import { formatCurrency } from '@/utils/formatCurrency'
-import {
-  LoadingContent,
-  LoadingOverlay,
-} from '@/components/LoadingTransition'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
-import {
-  getCategoryColor,
-  getCategoryColorMap,
-  getDeterministicChartColor,
-  getDeterministicChartColorMap,
-} from '@/utils/chartColor'
+import { formatCurrency } from '@/utils/formatCurrency'
+import { getDeterministicChartColor } from '@/utils/chartColor'
 import {
   BREAKDOWN_CARD_LIST_MIN_HEIGHT,
   BREAKDOWN_OTHER_COLOR,
   SPENDING_RANGE_OPTIONS,
   getBreakdownRowFillPercent,
-  getBreakdownRows,
   type BreakdownRow,
   type BreakdownSnapshot,
 } from '@/accounts/detail/utils/spendingBreakdownViewModel'
 
-// Shared presentation for the spending-by-category and top-merchants cards.
-// Each row has a colored fill proportional to its share of grandTotal,
-// with "Other" rendered in neutral gray. The Total row is pinned to the
-// bottom via a flex-1 spacer so sparse cards don't collapse in height.
-function BreakdownCard({
+type SpendingBreakdownCardProps = {
+  title: string
+  rangeLabel: string
+  range: SpendingRange
+  onRangeChange: (range: SpendingRange) => void
+  rows: BreakdownRow[]
+  grandTotal: number
+  currency: string
+  emptyLabel: string
+  loading: boolean
+  transitionKey: string
+}
+
+/**
+ * Renders the shared account detail spending breakdown card layout
+ */
+export function SpendingBreakdownCard({
   title,
   rangeLabel,
   range,
@@ -42,18 +41,7 @@ function BreakdownCard({
   emptyLabel,
   loading,
   transitionKey,
-}: {
-  title: string
-  rangeLabel: string
-  range: SpendingRange
-  onRangeChange: (r: SpendingRange) => void
-  rows: BreakdownRow[]
-  grandTotal: number
-  currency: string
-  emptyLabel: string
-  loading: boolean
-  transitionKey: string
-}) {
+}: SpendingBreakdownCardProps) {
   const incomingSnapshot = useMemo<BreakdownSnapshot>(() => ({
     rows,
     grandTotal,
@@ -115,6 +103,7 @@ function BreakdownCard({
                 {displaySnapshot.rows.map((item) => {
                   const barPct = getBreakdownRowFillPercent(item.total, displaySnapshot.grandTotal)
                   const color = item.isOther ? BREAKDOWN_OTHER_COLOR : item.color ?? getDeterministicChartColor(item.key || item.name)
+
                   return (
                     <div
                       key={item.key}
@@ -142,7 +131,6 @@ function BreakdownCard({
                 })}
               </div>
 
-              {/* Keeps Total pinned to the bottom when there are few rows. */}
               <div className="flex-1" />
 
               <div
@@ -172,100 +160,5 @@ function BreakdownCard({
         />
       </div>
     </section>
-  )
-}
-
-export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
-  const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
-  const categoryColors = useMemo(() => getCategoryColorMap((data?.top_categories ?? []).map((category) => ({
-    id: category.category_id,
-    name: category.name,
-    kind: 'expense',
-  }))), [data?.top_categories])
-
-  const handleRangeChange = (nextRange: SpendingRange) => {
-    if (nextRange === range) return
-    setRange(nextRange)
-  }
-
-  const rows = getBreakdownRows(
-    data,
-    (b) => b.top_categories.map((c) => ({
-      key: c.category_id,
-      name: c.name,
-      total: c.total,
-      isOther: false,
-      color: categoryColors.get(c.category_id || c.name) ?? getCategoryColor({
-        id: c.category_id,
-        name: c.name,
-        kind: 'expense',
-      }),
-    })),
-    (b) => b.other_categories_count,
-  )
-
-  return (
-    <BreakdownCard
-      title="Categories by Spending"
-      rangeLabel="Spending range"
-      range={range}
-      onRangeChange={handleRangeChange}
-      rows={rows}
-      grandTotal={data?.grand_total_spend ?? 0}
-      currency={account.currency}
-      emptyLabel="No spending in this range"
-      loading={isFetching}
-      transitionKey={range}
-    />
-  )
-}
-
-export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
-  const [range, setRange] = useState<SpendingRange>('MTD')
-  const { data, isFetching } = useAccountSpendingBreakdown(account.id, range)
-  const merchantColors = useMemo(() => getDeterministicChartColorMap((data?.top_merchants ?? []).map((merchant) => {
-    const key = merchant.merchant_id || merchant.name
-
-    return {
-      key,
-      seed: key,
-    }
-  })), [data?.top_merchants])
-
-  const handleRangeChange = (nextRange: SpendingRange) => {
-    if (nextRange === range) return
-    setRange(nextRange)
-  }
-
-  const rows = getBreakdownRows(
-    data,
-    (b) => b.top_merchants.map((m) => {
-      const key = m.merchant_id || m.name
-
-      return {
-        key,
-        name: m.name,
-        total: m.total,
-        isOther: false,
-        color: merchantColors.get(key) ?? getDeterministicChartColor(key),
-      }
-    }),
-    (b) => b.other_merchants_count,
-  )
-
-  return (
-    <BreakdownCard
-      title="Merchants by Spending"
-      rangeLabel="Merchant range"
-      range={range}
-      onRangeChange={handleRangeChange}
-      rows={rows}
-      grandTotal={data?.grand_total_spend ?? 0}
-      currency={account.currency}
-      emptyLabel="No merchant activity in this range"
-      loading={isFetching}
-      transitionKey={range}
-    />
   )
 }
