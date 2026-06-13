@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 type ChartTooltipTitleProps = {
   children: ReactNode
@@ -17,7 +17,9 @@ type ChartTooltipRowProps = {
   value: ReactNode
   className?: string
   labelClassName?: string
+  labelStyle?: CSSProperties
   valueClassName?: string
+  valueStyle?: CSSProperties
   /** Uses the app financial font for the row value */
   financialValue?: boolean
 }
@@ -67,7 +69,9 @@ export function ChartTooltipRow({
   value,
   className,
   labelClassName,
+  labelStyle,
   valueClassName,
+  valueStyle,
   financialValue = false,
 }: ChartTooltipRowProps) {
   const valueBaseClassName = financialValue
@@ -76,10 +80,16 @@ export function ChartTooltipRow({
 
   return (
     <div className={getTooltipClassName('mt-1 flex justify-between gap-4', className)}>
-      <span className={getTooltipClassName('app-chart-tooltip-default-value', labelClassName)}>
+      <span
+        className={getTooltipClassName('app-chart-tooltip-default-value', labelClassName)}
+        style={labelStyle}
+      >
         {label}
       </span>
-      <span className={getTooltipClassName(valueBaseClassName, valueClassName)}>
+      <span
+        className={getTooltipClassName(valueBaseClassName, valueClassName)}
+        style={valueStyle}
+      >
         {value}
       </span>
     </div>

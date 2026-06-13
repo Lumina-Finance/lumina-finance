@@ -9,7 +9,7 @@ import {
   DASHBOARD_RANGE_SELECT_OPTIONS,
   PREVIOUS_PERIOD_LABEL_BY_RANGE,
 } from '@/dashboard/constants/ranges'
-import { getSpendingComparisonFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import { getSpendingComparisonFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type SpendingComparisonHeaderProps = {
   spendingRange: SpendingRange

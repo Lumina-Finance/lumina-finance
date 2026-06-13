@@ -2,7 +2,7 @@ import { ArrowUpToLine, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
-import { getSavingsRateFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import { getSavingsRateFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type SavingsRateHeaderProps = {
   fxStatus: FxStatus | undefined

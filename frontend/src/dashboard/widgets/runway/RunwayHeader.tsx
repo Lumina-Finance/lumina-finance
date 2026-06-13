@@ -4,7 +4,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
-import { getRunwayFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import { getRunwayFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type RunwayStyle = {
   label: string

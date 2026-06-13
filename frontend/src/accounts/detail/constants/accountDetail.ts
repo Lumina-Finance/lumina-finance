@@ -9,6 +9,7 @@ export const ACCOUNT_KIND_LABEL: Record<string, string> = {
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 
 export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
+export type BalanceChartMode = 'balance' | 'change'
 export const BALANCE_RANGES: BalanceRange[] = ['7D', '30D', '90D', '1Y']
 export const TIME_SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.7 } as const
 export const RANGE_CONFIG: Record<

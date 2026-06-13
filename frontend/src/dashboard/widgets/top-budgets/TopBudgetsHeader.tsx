@@ -2,7 +2,7 @@ import { PieChart as PieChartIcon } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
-import { getTopBudgetsFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import { getTopBudgetsFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type TopBudgetsHeaderProps = {
   fxStatus: FxStatus

@@ -3,52 +3,9 @@ import { EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { InstitutionLogo } from '@/accounts/components/InstitutionLogo'
+import { humanizeAccountType } from '@/accounts/detail/utils/formatAccountType'
 import type { AccountAccent } from '@/accounts/types/accounts'
-
-function humanizeAccountType(type: string): string {
-  return type
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
-
-// Fixed-size slot for an institution logo. Linked institutions use Google's
-// faviconV2 endpoint; cashflow-only accounts get the neutral badge.
-function InstitutionLogo({ institution }: { institution: AccountsOverview['institution'] }) {
-  const faviconUrl = institution?.website
-    ? `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(institution.website)}&size=256`
-    : null
-
-  return (
-    <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-      style={
-        faviconUrl
-          ? undefined
-          : {
-              background: 'var(--app-accent-soft)',
-              border: '1px solid var(--app-border)',
-            }
-      }
-    >
-      {faviconUrl ? (
-        <img
-          src={faviconUrl}
-          alt={`${institution!.name} logo`}
-          className="h-full w-full object-contain"
-          loading="lazy"
-        />
-      ) : (
-        <span
-          className="select-none text-sm font-semibold"
-          style={{ color: 'var(--app-accent)' }}
-        >
-          $
-        </span>
-      )}
-    </div>
-  )
-}
 
 export default function AccountRow({
   account,

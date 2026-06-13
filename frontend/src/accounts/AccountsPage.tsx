@@ -3,13 +3,13 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import CreateAccountModal from '@/components/CreateAccountModal'
-import AccountFilters from '@/accounts/components/AccountFilters'
+import Filters from '@/accounts/components/filters/Filters'
 import AccountListSection from '@/accounts/components/AccountListSection'
-import AccountSummaryStatement from '@/accounts/components/AccountSummaryStatement'
-import AccountsMetricsBand from '@/accounts/components/AccountsMetricsBand'
+import SummaryStatement from '@/accounts/components/summary/SummaryStatement'
+import MetricsBand from '@/accounts/components/metrics/MetricsBand'
 import ArchivedAccountsSection from '@/accounts/components/ArchivedAccountsSection'
-import TaxAdvantagedLimitsSection from '@/accounts/components/TaxAdvantagedLimitsSection'
-import { useAccountFilters } from '@/accounts/hooks/useAccountFilters'
+import TaxAdvantagedLimitsSection from '@/accounts/components/tax-advantaged-limits/TaxAdvantagedLimitsSection'
+import { useFilters } from '@/accounts/hooks/useFilters'
 import { useAccountSections } from '@/accounts/hooks/useAccountSections'
 import { useAccountsMetrics } from '@/accounts/hooks/useAccountsMetrics'
 import { useTaxAdvantagedLimitSummaries } from '@/accounts/hooks/useTaxAdvantagedLimitSummaries'
@@ -30,10 +30,10 @@ export default function AccountsPage() {
     filters,
     setFilter,
     institutionOptions,
-    accountKindOptions,
-    accountTypeOptions,
+    kindOptions,
+    typeOptions,
     filteredRows,
-  } = useAccountFilters(rows)
+  } = useFilters(rows)
   const accountSections = useAccountSections({ rows, filteredRows })
   const accountMetrics = useAccountsMetrics(rows, displayCurrency)
   const { taxAdvantagedCategoryById, taxAdvantagedLimitSummaries } =
@@ -53,7 +53,7 @@ export default function AccountsPage() {
       </header>
 
       <div className="space-y-4">
-        <AccountSummaryStatement
+        <SummaryStatement
           error={error}
           isLoading={accountsLoading}
           netWorth={accountSections.netWorth}
@@ -66,16 +66,16 @@ export default function AccountsPage() {
         />
 
         <div>
-          <AccountsMetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
+          <MetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
           <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
         </div>
 
-        <AccountFilters
+        <Filters
           filters={filters}
           setFilter={setFilter}
           institutionOptions={institutionOptions}
-          accountKindOptions={accountKindOptions}
-          accountTypeOptions={accountTypeOptions}
+          kindOptions={kindOptions}
+          typeOptions={typeOptions}
           onAddAccount={() => {
             setCreateModalKey((key) => key + 1)
             setShowCreateModal(true)
