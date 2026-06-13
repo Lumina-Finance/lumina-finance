@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAccount, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { Transaction } from '@/api/transactions'
-import CreateTransactionModal from '@/components/CreateTransactionModal'
 import AccountIdentityCard from '@/accounts/detail/components/identity/AccountIdentityCard'
 import BackLink from '@/accounts/detail/components/BackLink'
 import BalanceChartCard from '@/accounts/detail/components/balance-chart/BalanceChartCard'
@@ -14,6 +13,7 @@ import { TopCategoriesBySpendingCard } from '@/accounts/detail/components/spendi
 import { TopMerchantsBySpendingCard } from '@/accounts/detail/components/spending-breakdown/TopMerchantsBySpendingCard'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
+import CreateTransactionModal from '@/transactions/components/transaction-modal/CreateTransactionModal'
 
 type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
 
