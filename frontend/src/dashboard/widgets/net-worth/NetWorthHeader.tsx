@@ -2,7 +2,7 @@ import { Wallet } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
-import { getNetWorthFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import { getNetWorthFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type NetWorthHeaderProps = {
   fxStatus: FxStatus | undefined

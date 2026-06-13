@@ -4,7 +4,7 @@ import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
 import type { CreditMode } from '@/dashboard/utils/getCreditUsageSummary'
-import { getCreditFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import { getCreditFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type CreditHeaderProps = {
   creditMode: CreditMode

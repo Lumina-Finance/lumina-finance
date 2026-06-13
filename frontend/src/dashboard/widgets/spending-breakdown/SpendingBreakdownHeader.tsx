@@ -6,7 +6,7 @@ import { FxStatusTooltip } from '@/components/FxStatusTooltip'
 import { DashboardRangeSelector } from '@/dashboard/components/DashboardRangeSelector'
 import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
-import { getBreakdownFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
+import { getBreakdownFxStatusMessage } from '@/utils/fxTooltipMessages'
 import type { BreakdownMode } from '@/dashboard/utils/getSpendingBreakdownSummary'
 
 type SpendingBreakdownHeaderProps = {

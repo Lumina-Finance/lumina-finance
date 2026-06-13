@@ -1,7 +1,7 @@
 import type { FxStatus } from '@/api/shared/fx'
 
 /**
- * Explains how FX conversion affected dashboard net worth values
+ * Explains how FX conversion affected net worth values
  */
 export function getNetWorthFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
@@ -17,7 +17,7 @@ export function getNetWorthFxStatusMessage(fxStatus: FxStatus) {
 }
 
 /**
- * Explains how FX conversion affected dashboard credit values
+ * Explains how FX conversion affected credit values
  */
 export function getCreditFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
@@ -33,7 +33,7 @@ export function getCreditFxStatusMessage(fxStatus: FxStatus) {
 }
 
 /**
- * Explains how FX conversion affected dashboard savings rate values
+ * Explains how FX conversion affected savings rate values
  */
 export function getSavingsRateFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
@@ -49,7 +49,7 @@ export function getSavingsRateFxStatusMessage(fxStatus: FxStatus) {
 }
 
 /**
- * Explains how FX conversion affected dashboard runway values
+ * Explains how FX conversion affected runway values
  */
 export function getRunwayFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {

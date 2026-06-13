@@ -6,7 +6,7 @@ import {
   getCreditFxStatusMessage,
   getRunwayFxStatusMessage,
   getSavingsRateFxStatusMessage,
-} from '@/dashboard/utils/fxTooltipMessages'
+} from '@/utils/fxTooltipMessages'
 
 export default function AccountsMetricsBand({
   metrics,
