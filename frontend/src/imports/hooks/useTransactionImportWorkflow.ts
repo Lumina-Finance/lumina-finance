@@ -4,24 +4,29 @@ import { useAccounts } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transactionImports'
-import type { DropdownOption } from '@/components/Dropdown'
 import {
-  ACCOUNT_KIND_LABELS,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
-  CREATE_CATEGORY_VALUE,
-  DEFAULT_CATEGORY_ICON,
   EMPTY_COLUMN_MAP,
-  KIND_LABELS,
 } from '../constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAccountSource, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
 import {
+  buildColumnTargetOptions,
+  buildImportAccountMappingSources,
+  buildImportAccountOptions,
+  buildImportCategoryMatchOptions,
+  buildImportCurrencyOptions,
+  buildImportInstitutionOptions,
   buildTransactionImportPayload,
   buildImportPreviewRows,
   formatImportSummary,
   getErrorMessage,
-  getImportAccountName,
   getImportedCategoryTypes,
+  getImportedCategories,
+  getImportedMerchants,
+  getImportedTags,
+  getImportHeaders,
+  getMissingRequiredColumnLabels,
   inferAccountMappings,
   inferCategoryMappings,
   groupPreviewRowsByDate,
@@ -30,8 +35,6 @@ import {
   readCsvFile,
   removeRecordKey,
   removeSetValue,
-  splitImportedValues,
-  unique,
   validateColumnValues,
 } from '../utils'
 
@@ -73,55 +76,23 @@ export function useTransactionImportWorkflow() {
     [accounts],
   )
 
-  const accountOptions = useMemo<DropdownOption[]>(
-    () => [
-      { value: CREATE_ACCOUNT_VALUE, label: 'Create New Account', group: 'Import Action' },
-      ...selectableAccounts.map((account) => ({
-        value: account.id,
-        label: account.name,
-        group: ACCOUNT_KIND_LABELS[account.account_kind],
-      })),
-    ],
+  const accountOptions = useMemo(
+    () => buildImportAccountOptions(selectableAccounts),
     [selectableAccounts],
   )
 
-  const currencyOptions = useMemo<DropdownOption[]>(
-    () =>
-      currencies.map((currency) => ({
-        value: currency.id,
-        label: currency.id,
-      })),
+  const currencyOptions = useMemo(
+    () => buildImportCurrencyOptions(currencies),
     [currencies],
   )
 
-  const institutionOptions = useMemo<DropdownOption[]>(
-    () => [
-      { value: '', label: 'None' },
-      ...institutions.map((institution) => ({
-        value: institution.id,
-        label: institution.name,
-      })),
-    ],
+  const institutionOptions = useMemo(
+    () => buildImportInstitutionOptions(institutions),
     [institutions],
   )
 
-  const categoryMatchOptions = useMemo<DropdownOption[]>(
-    () => [
-      {
-        value: CREATE_CATEGORY_VALUE,
-        label: 'Create new category',
-        group: 'Import action',
-      },
-      ...(categories ?? [])
-        .slice()
-        .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
-        .map((category) => ({
-          value: category.id,
-          label: category.name,
-          group: KIND_LABELS[category.kind],
-          icon: category.icon ?? DEFAULT_CATEGORY_ICON,
-        })),
-    ],
+  const categoryMatchOptions = useMemo(
+    () => buildImportCategoryMatchOptions(categories),
     [categories],
   )
 
@@ -141,56 +112,23 @@ export function useTransactionImportWorkflow() {
   )
 
   const headers = useMemo(
-    () => unique(files.flatMap((file) => file.headers)),
+    () => getImportHeaders(files),
     [files],
   )
 
   const missingRequiredColumnLabels = useMemo(
-    () =>
-      COLUMN_TARGETS
-        .filter((target) => target.required && !columnMap[target.id])
-        .map((target) => target.label),
+    () => getMissingRequiredColumnLabels(columnMap),
     [columnMap],
   )
 
-  const columnTargetOptions = useMemo<DropdownOption[]>(
-    () => [
-      { value: '', label: 'Do not import' },
-      ...COLUMN_TARGETS.map((target) => ({
-        value: target.id,
-        label: target.label,
-        group: target.required ? 'Required fields' : 'Optional fields',
-      })),
-    ],
+  const columnTargetOptions = useMemo(
+    () => buildColumnTargetOptions(),
     [],
   )
 
-  const sourceAccounts = useMemo(() => {
-    if (!columnMap.account_id) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.map((row) => row[columnMap.account_id]?.trim()).filter(Boolean),
-      ),
-    )
-  }, [columnMap.account_id, files])
-
-  const accountMappingSources = useMemo<ImportAccountSource[]>(
-    () => {
-      if (columnMap.account_id) {
-        return sourceAccounts.map((source) => ({
-          id: source,
-          label: source,
-          matchText: source,
-        }))
-      }
-
-      return files.map((file) => ({
-        id: file.id,
-        label: getImportAccountName(file.name),
-        matchText: file.name,
-      }))
-    },
-    [columnMap.account_id, files, sourceAccounts],
+  const accountMappingSources = useMemo(
+    () => buildImportAccountMappingSources(files, columnMap.account_id),
+    [columnMap.account_id, files],
   )
 
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
@@ -214,37 +152,25 @@ export function useTransactionImportWorkflow() {
     [accountMappingSources, accountMappings, resolvedAccountMappings],
   )
 
-  const importedCategories = useMemo(() => {
-    if (!columnMap.category_id) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.map((row) => row[columnMap.category_id]?.trim()).filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b))
-  }, [columnMap.category_id, files])
+  const importedCategories = useMemo(
+    () => getImportedCategories(files, columnMap.category_id),
+    [columnMap.category_id, files],
+  )
 
-  const importedMerchants = useMemo(() => {
-    if (!columnMap.merchant_id) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.map((row) => row[columnMap.merchant_id]?.trim()).filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b))
-  }, [columnMap.merchant_id, files])
+  const importedMerchants = useMemo(
+    () => getImportedMerchants(files, columnMap.merchant_id),
+    [columnMap.merchant_id, files],
+  )
 
   const categoryTypesBySource = useMemo(
     () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
     [columnMap.amount, columnMap.category_id, files, importedCategories],
   )
 
-  const importedTags = useMemo(() => {
-    if (!columnMap.tag_ids) return []
-    return unique(
-      files.flatMap((file) =>
-        file.rows.flatMap((row) => splitImportedValues(row[columnMap.tag_ids] ?? '')),
-      ),
-    ).sort((a, b) => a.localeCompare(b))
-  }, [columnMap.tag_ids, files])
+  const importedTags = useMemo(
+    () => getImportedTags(files, columnMap.tag_ids),
+    [columnMap.tag_ids, files],
+  )
 
   const canInferCategoryMappings = Boolean(columnMap.category_id)
     && categoryAutoMatchKey === columnMap.category_id
