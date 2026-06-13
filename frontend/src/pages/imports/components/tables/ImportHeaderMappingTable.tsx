@@ -1,7 +1,7 @@
 import { TriangleAlert } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '../types'
-import { getColumnSamples, getTargetForHeader } from '../utils'
+import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '../../types'
+import { getColumnSamples, getTargetForHeader } from '../../utils'
 
 export function ImportHeaderMappingTable({
   headers,
