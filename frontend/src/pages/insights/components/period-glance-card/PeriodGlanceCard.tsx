@@ -9,8 +9,8 @@ import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/LoadingTransition'
-import { PeriodGlancePrimaryPanel } from './PrimaryPanel'
-import { PeriodGlanceSupportGrid } from './SupportGrid'
+import { PeriodGlancePrimaryPanel } from './PeriodGlancePrimaryPanel'
+import { PeriodGlanceSupportGrid } from './PeriodGlanceSupportGrid'
 import { SectionHeader } from '../SectionHeader'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 

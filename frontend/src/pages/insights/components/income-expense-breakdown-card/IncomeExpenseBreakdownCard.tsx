@@ -11,8 +11,8 @@ import { getIncomeExpenseBreakdownFxStatusMessage } from '@/pages/insights/utils
 import { FxStatusBadge } from '../FxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
 import { InsightActionButton } from '../InsightActionButton'
-import { IncomeExpensePieChart } from './PieChart'
-import { IncomeExpenseTrendSections } from './TrendSections'
+import { IncomeExpensePieChart } from './IncomeExpensePieChart'
+import { IncomeExpenseTrendSections } from './IncomeExpenseTrendSections'
 import { SectionHeader } from '../SectionHeader'
 import {
   getBreakdownCalculation,

@@ -6,7 +6,7 @@ import {
   LoadingOverlay,
 } from '@/components/LoadingTransition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { CashFlowBarChart } from './BarChart'
+import { CashFlowBarChart } from './CashFlowBarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
