@@ -1,25 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronDown, Upload } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
 import { useAccounts } from '@/api/accounts'
 import CategorySettingsSection from '@/settings/components/CategorySettingsSection'
 import MerchantSettingsSection from '@/settings/components/MerchantSettingsSection'
 import TagSettingsSection from '@/settings/components/TagSettingsSection'
 import ProfileSection from '@/settings/components/ProfileSection'
 import RunwaySection from '@/settings/components/RunwaySection'
+import {
+  SettingsDesktopSectionSidebar,
+  SettingsMobileSectionMenu,
+} from '@/settings/components/SettingsSectionNavigation'
 import { SettingsPaneActions } from '@/settings/components/SettingsPaneActions'
 import TaxAdvantagedCategoriesSection from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection'
 import { useProfileSettingsForm } from '@/settings/hooks/useProfileSettingsForm'
 import { useRunwaySettingsForm } from '@/settings/hooks/useRunwaySettingsForm'
-import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/settings/settingsNavigation'
-
-
-/* ── Top-level page ── */
+import { useSettingsSectionNavigation } from '@/settings/hooks/useSettingsSectionNavigation'
 
 export default function SettingsPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
   const {
     user,
     profileForm,
@@ -50,141 +45,7 @@ export default function SettingsPage() {
     handleSaveRunway,
     handleDiscardRunway,
   } = useRunwaySettingsForm({ accounts, accountsLoading })
-
-  // ── Pane-level save/discard ──
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
-  const [settingsMenuStuck, setSettingsMenuStuck] = useState(false)
-  const mobileSettingsStickySentinelRef = useRef<HTMLDivElement>(null)
-  const mobileSettingsMenuRef = useRef<HTMLDivElement>(null)
-
-  // ── Scroll-spy navigation ──
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>('profile')
-  // Suppress the scroll spy while a programmatic scroll is settling,
-  // so clicks don't briefly flash the wrong item active.
-  const skipScrollSpyRef = useRef(false)
-
-  const navigateToSection = (id: SettingsSectionId) => {
-    const el = document.getElementById(id)
-    if (!el) return
-    skipScrollSpyRef.current = true
-    setActiveSection(id)
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.setTimeout(() => { skipScrollSpyRef.current = false }, 600)
-  }
-
-  const navigateFromMobileMenu = (id: SettingsSectionId) => {
-    setSettingsMenuOpen(false)
-    navigateToSection(id)
-  }
-
-  const navigateToImport = () => {
-    setSettingsMenuOpen(false)
-    navigate('/settings/imports')
-  }
-
-  useEffect(() => {
-    if (!location.hash) return undefined
-
-    const section = SETTINGS_SECTIONS.find(({ id }) => id === decodeURIComponent(location.hash.slice(1)))
-    if (!section) return undefined
-
-    let settleTimer: number | null = null
-    const frameId = window.requestAnimationFrame(() => {
-      const el = document.getElementById(section.id)
-      if (!el) return
-
-      skipScrollSpyRef.current = true
-      setActiveSection(section.id)
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      settleTimer = window.setTimeout(() => { skipScrollSpyRef.current = false }, 600)
-    })
-
-    return () => {
-      window.cancelAnimationFrame(frameId)
-      if (settleTimer !== null) window.clearTimeout(settleTimer)
-    }
-  }, [location.hash])
-
-  useEffect(() => {
-    let frameId: number | null = null
-
-    const syncActiveSection = () => {
-      if (frameId !== null) return
-
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null
-        if (skipScrollSpyRef.current) return
-
-        const isCompactMenu = window.matchMedia('(max-width: 1199.98px)').matches
-        const compactMenuBottom = mobileSettingsMenuRef.current?.getBoundingClientRect().bottom ?? 0
-        const activationLine = isCompactMenu
-          ? compactMenuBottom + 24
-          : Math.min(window.innerHeight * 0.32, 240)
-        let nextActiveSection = SETTINGS_SECTIONS[0].id
-
-        for (const section of SETTINGS_SECTIONS) {
-          const el = document.getElementById(section.id)
-          if (!el) continue
-          if (el.getBoundingClientRect().top > activationLine) break
-          nextActiveSection = section.id
-        }
-
-        setActiveSection((current) => (
-          current === nextActiveSection ? current : nextActiveSection
-        ))
-      })
-    }
-
-    syncActiveSection()
-    window.addEventListener('scroll', syncActiveSection, { passive: true })
-    window.addEventListener('resize', syncActiveSection)
-    window.addEventListener('orientationchange', syncActiveSection)
-
-    return () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      window.removeEventListener('scroll', syncActiveSection)
-      window.removeEventListener('resize', syncActiveSection)
-      window.removeEventListener('orientationchange', syncActiveSection)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!settingsMenuOpen) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (mobileSettingsMenuRef.current?.contains(target)) return
-      setSettingsMenuOpen(false)
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setSettingsMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [settingsMenuOpen])
-
-  useEffect(() => {
-    const sentinel = mobileSettingsStickySentinelRef.current
-    if (!sentinel) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => setSettingsMenuStuck(!entry.isIntersecting),
-      { threshold: 0 },
-    )
-
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [])
+  const sectionNavigation = useSettingsSectionNavigation()
 
   const profileActions = (
     <SettingsPaneActions
@@ -218,9 +79,6 @@ export default function SettingsPage() {
       status={runwaySaveStatus}
     />
   )
-  const activeSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0]
-  const ActiveSettingsIcon = activeSettingsSection.icon
-
   return (
     <div>
       <header className="app-page-header mb-3 min-[1050px]:mb-4 min-[1200px]:mb-6">
@@ -230,119 +88,24 @@ export default function SettingsPage() {
         </p>
       </header>
 
-      <div ref={mobileSettingsStickySentinelRef} aria-hidden className="h-px min-[1200px]:hidden" />
-      <div className="settings-mobile-section-menu-lock-spacer hidden min-[1200px]:hidden" aria-hidden />
-
-      <div
-        className="settings-mobile-section-menu-shell sticky top-0 z-20 -mx-2 -mt-4 mb-4 min-h-[3.75rem] px-2 pt-4 min-[1050px]:-mt-5 min-[1050px]:min-h-16 min-[1050px]:pt-5 min-[1200px]:hidden"
-        style={{
-          background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-        }}
-      >
-        <div
-          ref={mobileSettingsMenuRef}
-          className={`relative transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${settingsMenuStuck ? 'max-[1049px]:mr-16' : 'max-[1049px]:mr-0'}`}
-        >
-          <button
-            type="button"
-            className="relative flex h-11 w-full items-center gap-3 rounded-xl border px-4 text-left font-medium shadow-sm transition-colors duration-150"
-            style={{
-              background: 'var(--app-surface-soft)',
-              borderColor: 'var(--app-border)',
-              color: 'var(--app-text)',
-            }}
-            aria-expanded={settingsMenuOpen}
-            aria-controls="settings-mobile-section-menu"
-            onClick={() => setSettingsMenuOpen((open) => !open)}
-          >
-            <ActiveSettingsIcon size={18} aria-hidden className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{activeSettingsSection.label}</span>
-            <ChevronDown
-              size={18}
-              aria-hidden
-              className={`shrink-0 transition-transform duration-200 ${settingsMenuOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          <AnimatePresence>
-            {settingsMenuOpen && (
-              <motion.div
-                id="settings-mobile-section-menu"
-                initial={{ opacity: 0, y: -6, scale: 0.99 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -4, scale: 0.99 }}
-                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute left-0 right-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-xl border p-1 shadow-lg"
-                style={{
-                  background: 'var(--app-surface-soft)',
-                  borderColor: 'var(--app-border)',
-                }}
-              >
-                <nav className="space-y-0.5" aria-label="Settings sections">
-                  {SETTINGS_SECTIONS.map((section) => {
-                    const Icon = section.icon
-                    const isActive = activeSection === section.id
-                    return (
-                      <button
-                        key={section.id}
-                        type="button"
-                        onClick={() => navigateFromMobileMenu(section.id)}
-                        className={`app-nav-link ${isActive ? 'app-nav-link-active' : ''}`}
-                      >
-                        <Icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden />
-                        {section.label}
-                      </button>
-                    )
-                  })}
-                  <button
-                    type="button"
-                    onClick={navigateToImport}
-                    className="app-nav-link"
-                  >
-                    <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
-                    Import
-                  </button>
-                </nav>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
+      <SettingsMobileSectionMenu
+        activeSection={sectionNavigation.activeSection}
+        activeSettingsSection={sectionNavigation.activeSettingsSection}
+        menuOpen={sectionNavigation.settingsMenuOpen}
+        menuStuck={sectionNavigation.settingsMenuStuck}
+        sentinelRef={sectionNavigation.mobileSettingsStickySentinelRef}
+        menuRef={sectionNavigation.mobileSettingsMenuRef}
+        onMenuToggle={sectionNavigation.toggleMobileSettingsMenu}
+        onSectionSelect={sectionNavigation.navigateFromMobileMenu}
+        onImportSelect={sectionNavigation.navigateToImport}
+      />
 
       <div className="min-[1200px]:grid min-[1200px]:grid-cols-[260px_minmax(0,1fr)] min-[1200px]:gap-10 min-[1200px]:items-start">
-        {/* Sidebar — sticky on desktop, hidden on mobile (sections just stack) */}
-        <aside className="hidden w-[260px] self-stretch min-[1200px]:grid min-[1200px]:min-h-[calc(100vh-3rem)] min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]">
-          <nav className="settings-desktop-section-nav sticky top-6 row-start-1 space-y-0.5" aria-label="Settings sections">
-          {SETTINGS_SECTIONS.map((s) => {
-              const Icon = s.icon
-              const isActive = activeSection === s.id
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => navigateToSection(s.id)}
-                  className={`app-nav-link ${isActive ? 'app-nav-link-active' : ''}`}
-                >
-                  <Icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden />
-                  {s.label}
-                </button>
-              )
-            })}
-
-          </nav>
-          <div className="sticky bottom-6 row-start-3">
-            <button
-              type="button"
-              onClick={() => navigate('/settings/imports')}
-              className="app-nav-link"
-            >
-              <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
-              Import
-            </button>
-          </div>
-        </aside>
+        <SettingsDesktopSectionSidebar
+          activeSection={sectionNavigation.activeSection}
+          onSectionSelect={sectionNavigation.navigateToSection}
+          onImportSelect={sectionNavigation.navigateToImport}
+        />
 
         <div className="min-w-0 space-y-10">
           <ProfileSection
