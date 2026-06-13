@@ -1,7 +1,7 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { getSummaryFxStatusMessage } from './fxStatus'
+import { getAccountSummaryFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
 import { SummaryValueFade } from './ValueFade'
 import { SummaryValueSkeleton } from './ValueSkeleton'
 
@@ -56,7 +56,7 @@ export default function SummaryStatement({
             <FxStatusBadge
               label="Net worth FX status"
               fxStatus={fxStatus}
-              getMessage={getSummaryFxStatusMessage}
+              getMessage={getAccountSummaryFxStatusMessage}
             />
           </div>
           <SummaryValueFade

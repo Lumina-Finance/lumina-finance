@@ -2,10 +2,12 @@ import { Link } from 'react-router-dom'
 import { EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
+import { getAccountBalanceFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
 
 export default function AccountRow({
   account,
@@ -96,12 +98,19 @@ export default function AccountRow({
             {formatCurrency(account.current_balance, account.currency)}
           </p>
           {showConvertedBalance && (
-            <p
-              className="font-financial mt-0.5 text-xs"
-              style={{ color: fxStatus.state === 'complete' ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
-            >
-              {convertedBalanceText}
-            </p>
+            <div className="mt-0.5 flex items-center gap-1.5 min-[730px]:justify-end">
+              <p
+                className="font-financial text-xs"
+                style={{ color: fxStatus.state === 'complete' ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
+              >
+                {convertedBalanceText}
+              </p>
+              <FxStatusBadge
+                label="Account balance FX status"
+                fxStatus={fxStatus}
+                getMessage={getAccountBalanceFxStatusMessage}
+              />
+            </div>
           )}
           {showCreditLimit && account.credit_limit !== null && (
             <p
