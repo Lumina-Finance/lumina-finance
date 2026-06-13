@@ -17,29 +17,20 @@ import {
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAccountSource, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
 import {
   buildTransactionImportPayload,
+  buildImportPreviewRows,
   formatImportSummary,
   getErrorMessage,
   getImportAccountName,
   getImportedCategoryTypes,
-  getMappedValue,
-  getPreviewCategory,
-  getPreviewCurrency,
-  getPreviewDateLabel,
   inferAccountMappings,
   inferCategoryMappings,
-  getResolvedAccountChoice,
-  getResolvedAccountCreateCurrency,
-  getResolvedAccountCreateInstitution,
   groupPreviewRowsByDate,
   inferColumnMap,
   keepCurrentMatchMap,
-  normalizeImportDate,
-  parseImportNumber,
   readCsvFile,
   removeRecordKey,
   removeSetValue,
   splitImportedValues,
-  toMinorUnits,
   unique,
   validateColumnValues,
 } from '../utils'
@@ -274,88 +265,24 @@ export function useTransactionImportWorkflow() {
     [categoryMappings, importedCategories, resolvedCategoryMappings],
   )
 
-  const previewRows = useMemo<PreviewTransactionRow[]>(() => {
-    if (missingRequiredColumnLabels.length > 0) return []
-
-    const rows: PreviewTransactionRow[] = []
-    const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
-    const timestamp = new Date().toISOString()
-
-    for (const file of files) {
-      for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
-        const row = file.rows[rowIndex]
-        const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
-        const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)
-        const accountChoice = getResolvedAccountChoice(resolvedAccountMappings[accountSource])
-        const account = accountChoice === CREATE_ACCOUNT_VALUE ? undefined : accountById.get(accountChoice)
-        const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
-          ? getResolvedAccountCreateCurrency(accountSource, accountCreateCurrencies)
-          : ''
-        const createAccountInstitution = accountChoice === CREATE_ACCOUNT_VALUE
-          ? institutionById.get(getResolvedAccountCreateInstitution(accountSource, accountCreateInstitutions))
-          : undefined
-        const importedDate = getMappedValue(row, columnMap.dt)
-        const dt = normalizeImportDate(importedDate)
-        const merchant = getMappedValue(row, columnMap.merchant_id)
-        const notes = getMappedValue(row, columnMap.notes)
-        const currency = getPreviewCurrency(
-          getMappedValue(row, columnMap.currency),
-          account?.currency,
-          createAccountCurrency,
-          fallbackCurrency,
-        )
-        const amountValue = parseImportNumber(getMappedValue(row, columnMap.amount)) ?? 0
-        const amount = toMinorUnits(amountValue, currency)
-        const importedCategory = getMappedValue(row, columnMap.category_id)
-        const importedTagValues = splitImportedValues(getMappedValue(row, columnMap.tag_ids))
-        const category = getPreviewCategory(
-          importedCategory,
-          resolvedCategoryMappings,
-          categoryById,
-          categoryCreateKinds,
-          categoryTypesBySource,
-          amountValue,
-        )
-        const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
-
-        rows.push({
-          id: `${file.id}-${rowIndex}`,
-          accountInstitution: account?.institution ?? createAccountInstitution ?? null,
-          accountName: account?.name ?? (accountLabel || 'Unmapped account'),
-          category,
-          currency,
-          dateLabel: getPreviewDateLabel(dt),
-          transaction: {
-            id: `import-preview-${file.id}-${rowIndex}`,
-            created_by_user_id: 'import-preview',
-            account_id: account?.id ?? accountChoice,
-            dt,
-            merchant_id: merchant ? `import-preview-merchant-${file.id}-${rowIndex}` : null,
-            merchant_name: merchant || null,
-            category_id: category?.id ?? '',
-            amount,
-            account_amount: amount,
-            base_currency_amount: amount,
-            currency,
-            fx_rate: null,
-            notes: notes || null,
-            created_at: timestamp,
-            updated_at: timestamp,
-            tag_ids: tagIds,
-            tags: importedTagValues.map((tag, tagIndex) => ({
-              id: tagIds[tagIndex],
-              group_id: null,
-              name: tag,
-            })),
-          },
-        })
-
-        if (rows.length >= 5) return rows
-      }
-    }
-
-    return rows
-  }, [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings])
+  const previewRows = useMemo<PreviewTransactionRow[]>(
+    () => buildImportPreviewRows({
+      files,
+      columnMap,
+      missingRequiredColumnLabels,
+      currencies,
+      accountById,
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      categoryById,
+      categoryCreateKinds,
+      categoryTypesBySource,
+      institutionById,
+      resolvedAccountMappings,
+      resolvedCategoryMappings,
+    }),
+    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
+  )
 
   const previewGroups = useMemo(
     () => groupPreviewRowsByDate(previewRows),

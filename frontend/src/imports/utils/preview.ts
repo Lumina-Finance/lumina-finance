@@ -1,7 +1,40 @@
+import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
-import type { ImportCategoryKind, PreviewTransactionRow } from '../types'
-import { isSupportedCurrency } from './valueParsers'
+import type { Currency } from '@/api/currency'
+import type { Institution } from '@/api/institutions'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
+import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '../types'
+import {
+  getImportAccountName,
+  getResolvedAccountChoice,
+  getResolvedAccountCreateCurrency,
+  getResolvedAccountCreateInstitution,
+} from './accountMapping'
+import { splitImportedValues } from './categoryMatching'
+import { getMappedValue } from './columnMapping'
+import {
+  getPreviewDateLabel,
+  isSupportedCurrency,
+  normalizeImportDate,
+  parseImportNumber,
+  toMinorUnits,
+} from './valueParsers'
+
+interface BuildImportPreviewRowsOptions {
+  files: ImportFileDraft[]
+  columnMap: ColumnMap
+  missingRequiredColumnLabels: string[]
+  currencies: Currency[]
+  accountById: Map<string, AccountsOverview>
+  accountCreateCurrencies: Record<string, string>
+  accountCreateInstitutions: Record<string, string>
+  categoryById: Map<string, Category>
+  categoryCreateKinds: Record<string, ImportCategoryKind>
+  categoryTypesBySource: Record<string, string>
+  institutionById: Map<string, Institution>
+  resolvedAccountMappings: Record<string, string>
+  resolvedCategoryMappings: Record<string, string>
+}
 
 export function groupPreviewRowsByDate(rows: PreviewTransactionRow[]) {
   const groups: Array<{ dateLabel: string; rows: PreviewTransactionRow[] }> = []
@@ -16,6 +49,107 @@ export function groupPreviewRowsByDate(rows: PreviewTransactionRow[]) {
   }
 
   return groups
+}
+
+/**
+ * Builds the first preview rows from mapped CSV files so the import review can show representative transactions
+ */
+export function buildImportPreviewRows({
+  files,
+  columnMap,
+  missingRequiredColumnLabels,
+  currencies,
+  accountById,
+  accountCreateCurrencies,
+  accountCreateInstitutions,
+  categoryById,
+  categoryCreateKinds,
+  categoryTypesBySource,
+  institutionById,
+  resolvedAccountMappings,
+  resolvedCategoryMappings,
+}: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
+  if (missingRequiredColumnLabels.length > 0) return []
+
+  const rows: PreviewTransactionRow[] = []
+  const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
+  const timestamp = new Date().toISOString()
+
+  // Preview generation walks files in row order and stops early because the UI only renders a small sample
+  for (const file of files) {
+    for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
+      const row = file.rows[rowIndex]
+      const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
+      const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)
+      const accountChoice = getResolvedAccountChoice(resolvedAccountMappings[accountSource])
+      const account = accountChoice === CREATE_ACCOUNT_VALUE ? undefined : accountById.get(accountChoice)
+      const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
+        ? getResolvedAccountCreateCurrency(accountSource, accountCreateCurrencies)
+        : ''
+      const createAccountInstitution = accountChoice === CREATE_ACCOUNT_VALUE
+        ? institutionById.get(getResolvedAccountCreateInstitution(accountSource, accountCreateInstitutions))
+        : undefined
+      const importedDate = getMappedValue(row, columnMap.dt)
+      const dt = normalizeImportDate(importedDate)
+      const merchant = getMappedValue(row, columnMap.merchant_id)
+      const notes = getMappedValue(row, columnMap.notes)
+      const currency = getPreviewCurrency(
+        getMappedValue(row, columnMap.currency),
+        account?.currency,
+        createAccountCurrency,
+        fallbackCurrency,
+      )
+      const amountValue = parseImportNumber(getMappedValue(row, columnMap.amount)) ?? 0
+      const amount = toMinorUnits(amountValue, currency)
+      const importedCategory = getMappedValue(row, columnMap.category_id)
+      const importedTagValues = splitImportedValues(getMappedValue(row, columnMap.tag_ids))
+      const category = getPreviewCategory(
+        importedCategory,
+        resolvedCategoryMappings,
+        categoryById,
+        categoryCreateKinds,
+        categoryTypesBySource,
+        amountValue,
+      )
+      const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
+
+      rows.push({
+        id: `${file.id}-${rowIndex}`,
+        accountInstitution: account?.institution ?? createAccountInstitution ?? null,
+        accountName: account?.name ?? (accountLabel || 'Unmapped account'),
+        category,
+        currency,
+        dateLabel: getPreviewDateLabel(dt),
+        transaction: {
+          id: `import-preview-${file.id}-${rowIndex}`,
+          created_by_user_id: 'import-preview',
+          account_id: account?.id ?? accountChoice,
+          dt,
+          merchant_id: merchant ? `import-preview-merchant-${file.id}-${rowIndex}` : null,
+          merchant_name: merchant || null,
+          category_id: category?.id ?? '',
+          amount,
+          account_amount: amount,
+          base_currency_amount: amount,
+          currency,
+          fx_rate: null,
+          notes: notes || null,
+          created_at: timestamp,
+          updated_at: timestamp,
+          tag_ids: tagIds,
+          tags: importedTagValues.map((tag, tagIndex) => ({
+            id: tagIds[tagIndex],
+            group_id: null,
+            name: tag,
+          })),
+        },
+      })
+
+      if (rows.length >= 5) return rows
+    }
+  }
+
+  return rows
 }
 
 export function getPreviewCurrency(
@@ -72,4 +206,3 @@ export function getPreviewCategoryKind(
   if (amount > 0) return 'income'
   return 'expense'
 }
-
