@@ -7,6 +7,10 @@ import {
   YAxis,
 } from 'recharts'
 import {
+  ChartTooltipRow,
+  ChartTooltipTitle,
+} from '@/components/charts/ChartTooltipContent'
+import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
@@ -60,13 +64,12 @@ function NetWorthTooltipContent({
 }) {
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.date}</p>
-      <div className="mt-1 flex justify-between gap-4">
-        <span className="app-chart-tooltip-default-value">Net Worth</span>
-        <span className="app-chart-tooltip-default-value font-financial">
-          {formatCurrency(point.value, displayCurrency)}
-        </span>
-      </div>
+      <ChartTooltipTitle>{point.date}</ChartTooltipTitle>
+      <ChartTooltipRow
+        label="Net Worth"
+        value={formatCurrency(point.value, displayCurrency)}
+        financialValue
+      />
     </>
   )
 }

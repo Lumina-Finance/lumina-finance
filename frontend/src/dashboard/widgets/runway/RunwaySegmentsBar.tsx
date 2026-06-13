@@ -2,6 +2,10 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from 'react'
+import {
+  ChartTooltipTitle,
+  ChartTooltipValue,
+} from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useDashboardCursorTooltip } from '@/dashboard/hooks/useDashboardCursorTooltip'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
@@ -119,12 +123,12 @@ export function RunwaySegmentsBar({
       >
         {hoveredSegment && (
           <>
-            <div className="app-chart-tooltip-default-title truncate font-medium">
+            <ChartTooltipTitle className="truncate font-medium">
               {hoveredSegment.name}
-            </div>
-            <div className="app-chart-tooltip-default-value font-financial">
+            </ChartTooltipTitle>
+            <ChartTooltipValue financial>
               {formatCurrency(hoveredSegment.amount, displayCurrency)}
-            </div>
+            </ChartTooltipValue>
           </>
         )}
       </CursorTooltipPortal>

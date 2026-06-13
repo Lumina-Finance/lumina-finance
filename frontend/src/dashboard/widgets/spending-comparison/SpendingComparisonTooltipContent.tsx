@@ -1,5 +1,9 @@
 import type { SpendingRange } from '@/api/dashboard'
 import {
+  ChartTooltipRow,
+  ChartTooltipTitle,
+} from '@/components/charts/ChartTooltipContent'
+import {
   CURRENT_LABEL_BY_RANGE,
   PREVIOUS_LABEL_BY_RANGE,
 } from '@/dashboard/constants/ranges'
@@ -35,14 +39,14 @@ export function SpendingComparisonTooltipContent({
 
   return (
     <>
-      <p className="app-chart-tooltip-default-title">{point.label}</p>
+      <ChartTooltipTitle>{point.label}</ChartTooltipTitle>
       {rows.map((row) => (
-        <div key={row.key} className="mt-1 flex justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">{row.label}</span>
-          <span className="app-chart-tooltip-default-value font-financial">
-            {formatCurrency(Number(row.value), displayCurrency)}
-          </span>
-        </div>
+        <ChartTooltipRow
+          key={row.key}
+          label={row.label}
+          value={formatCurrency(Number(row.value), displayCurrency)}
+          financialValue
+        />
       ))}
     </>
   )

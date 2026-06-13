@@ -9,6 +9,10 @@ import {
   YAxis,
 } from 'recharts'
 import {
+  ChartTooltipTitle,
+  ChartTooltipValue,
+} from '@/components/charts/ChartTooltipContent'
+import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
@@ -41,10 +45,10 @@ function SavingsRateTooltipContent({ point }: { point: SavingsRateChartPoint }) 
 
   return (
     <>
-      <div className="app-chart-tooltip-default-title">{point.fullLabel}</div>
-      <div className="app-chart-tooltip-default-value">
+      <ChartTooltipTitle>{point.fullLabel}</ChartTooltipTitle>
+      <ChartTooltipValue>
         Savings Rate: {display ?? 'N/A'}
-      </div>
+      </ChartTooltipValue>
     </>
   )
 }

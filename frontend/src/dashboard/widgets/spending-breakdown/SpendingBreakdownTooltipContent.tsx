@@ -1,7 +1,11 @@
 import type { CategoryBreakdownEntry } from '@/api/dashboard'
-import { SpendingBreakdownCrossoverBadge } from './SpendingBreakdownCrossoverBadge'
+import {
+  ChartTooltipTitle,
+  ChartTooltipValue,
+} from '@/components/charts/ChartTooltipContent'
 import type { BreakdownMode } from '@/dashboard/utils/getSpendingBreakdownSummary'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { SpendingBreakdownCrossoverBadge } from './SpendingBreakdownCrossoverBadge'
 
 type SpendingBreakdownTooltipContentProps = {
   entry: CategoryBreakdownEntry
@@ -20,17 +24,15 @@ export function SpendingBreakdownTooltipContent({
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="app-chart-tooltip-default-title">
-          {entry.name}
-        </span>
+        <ChartTooltipTitle>{entry.name}</ChartTooltipTitle>
         <SpendingBreakdownCrossoverBadge
           entry={entry}
           breakdownMode={breakdownMode}
         />
       </div>
-      <div className="app-chart-tooltip-default-value">
+      <ChartTooltipValue>
         {formatCurrency(entry.amount, displayCurrency)}
-      </div>
+      </ChartTooltipValue>
     </>
   )
 }
