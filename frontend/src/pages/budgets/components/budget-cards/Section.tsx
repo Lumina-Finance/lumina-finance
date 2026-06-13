@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react'
 import type { BudgetUtilization } from '@/api/budgets'
 import { LoadingOverlay } from '@/components/loading/Transition'
-import BudgetCard from '@/pages/budgets/components/budget-card/BudgetCard'
+import BudgetCard from '@/pages/budgets/components/budget-card/Card'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
 
 const BUDGET_CARDS_LOADING_AREA_HEIGHT = 'max(0px, calc(100dvh - 15rem))'

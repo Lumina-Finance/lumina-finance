@@ -3,8 +3,8 @@ import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
-import { DashboardRangeSelector } from '@/pages/dashboard/components/DashboardRangeSelector'
-import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/DashboardWidgetHeaderIcon'
+import { DashboardRangeSelector } from '@/pages/dashboard/components/RangeSelector'
+import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import {
   DASHBOARD_RANGE_SELECT_OPTIONS,
   PREVIOUS_PERIOD_LABEL_BY_RANGE,

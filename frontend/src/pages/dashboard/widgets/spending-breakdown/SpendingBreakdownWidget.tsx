@@ -7,7 +7,7 @@ import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { SpendingBreakdownChart } from './SpendingBreakdownChart'
 import { SpendingBreakdownHeader } from './SpendingBreakdownHeader'
 import { SpendingBreakdownLegend } from './SpendingBreakdownLegend'
-import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
+import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import {
   getSpendingBreakdownSummary,
   type BreakdownMode,

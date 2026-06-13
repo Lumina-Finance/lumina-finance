@@ -1,5 +1,5 @@
 import { Activity } from 'lucide-react'
-import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/DashboardWidgetHeaderIcon'
+import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 
 /**
  * Renders the recent activity widget label

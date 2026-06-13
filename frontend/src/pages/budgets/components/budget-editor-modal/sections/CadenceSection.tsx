@@ -1,5 +1,5 @@
-import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/budgetEditorModalTypes'
-import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/BudgetEditorFieldLabelRow'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
+import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { RECURRENCE_OPTIONS } from '@/pages/budgets/constants'
 import { cadenceSummary } from '@/pages/budgets/utils/budgetPeriods'
 

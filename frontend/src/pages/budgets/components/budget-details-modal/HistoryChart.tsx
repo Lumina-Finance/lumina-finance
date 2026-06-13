@@ -16,7 +16,7 @@ import {
   getRechartsTooltipPointer,
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
-import BudgetChartTooltip, { type BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/BudgetChartTooltip'
+import BudgetChartTooltip, { type BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import { MODAL_SURFACE_TRANSITION_MS } from '@/pages/budgets/constants'
 import {
   BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH,

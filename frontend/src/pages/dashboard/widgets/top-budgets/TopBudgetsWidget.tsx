@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
+import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { TopBudgetsHeader } from './TopBudgetsHeader'
 import { TopBudgetsList } from './TopBudgetsList'
 import { combineFxStatuses } from '@/utils/fxStatus'

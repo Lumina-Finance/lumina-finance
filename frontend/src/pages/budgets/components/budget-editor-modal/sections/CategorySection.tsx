@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Search } from 'lucide-react'
 import type { Category } from '@/api/categories'
-import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/budgetEditorModalTypes'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import { EASE } from '@/pages/budgets/constants'
 import { categoryIcon } from '@/pages/budgets/utils/category'
 

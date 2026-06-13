@@ -3,7 +3,7 @@ import { useDashboardCredit } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { CreditHeader } from './CreditHeader'
 import { CreditUsageBody } from './CreditUsageBody'
-import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
+import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import {
   getCreditUsageSummary,
   type CreditMode,

@@ -3,7 +3,7 @@ import { CircleHelp, LifeBuoy } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
-import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/DashboardWidgetHeaderIcon'
+import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import { getRunwayFxStatusMessage } from '@/utils/fxTooltipMessages'
 
 type RunwayStyle = {

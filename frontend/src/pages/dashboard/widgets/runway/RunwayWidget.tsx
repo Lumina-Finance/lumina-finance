@@ -7,7 +7,7 @@ import {
   formatCompactRunway,
   runwayBand,
 } from '@/utils/runway'
-import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/DashboardWidgetLoadingBody'
+import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import { RunwayHeader } from './RunwayHeader'
 import { RunwaySegmentsBar } from './RunwaySegmentsBar'
 import { getRunwayCaption } from '@/pages/dashboard/utils/getRunwayCaption'

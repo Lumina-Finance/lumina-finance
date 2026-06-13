@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { AuthTextField } from './AuthTextField'
+import { AuthTextField } from './TextField'
 import { SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations'
 import type { AuthFieldErrors, AuthFormValues } from '@/pages/auth/utils/authForm'
 

@@ -1,6 +1,6 @@
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
-import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/BudgetChartTooltip'
+import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import { formatCalendarDate, parseYmd } from '@/pages/budgets/utils/date'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
