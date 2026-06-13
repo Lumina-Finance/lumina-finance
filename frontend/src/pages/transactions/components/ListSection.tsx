@@ -6,9 +6,9 @@ import {
   type Transaction,
 } from '@/api/transactions'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
-import TransactionDateGroupList from '@/pages/transactions/components/TransactionDateGroupList'
-import TransactionFilterLoadingOverlay from '@/pages/transactions/components/TransactionFilterLoadingOverlay'
-import TransactionListToolbar from '@/pages/transactions/components/toolbar/TransactionListToolbar'
+import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
+import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
+import TransactionListToolbar from '@/pages/transactions/components/toolbar/ListToolbar'
 import { useDateRangeDraft } from '@/pages/transactions/hooks/useDateRangeDraft'
 import { useTransactionFilterLoadingState } from '@/pages/transactions/hooks/useTransactionFilterLoadingState'
 import { useInfiniteScrollTrigger } from '@/pages/transactions/hooks/useInfiniteScrollTrigger'

@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { TransactionListToolbarProps } from '@/pages/transactions/components/toolbar/types'
-import { DesktopTransactionToolbarControls } from '@/pages/transactions/components/toolbar/desktop/DesktopTransactionToolbarControls'
-import { MobileToolbarActions } from '@/pages/transactions/components/toolbar/mobile/MobileToolbarActions'
-import { MobileTransactionFilterSheet } from '@/pages/transactions/components/toolbar/mobile/MobileTransactionFilterSheet'
-import { TransactionSearchField } from '@/pages/transactions/components/toolbar/TransactionSearchField'
-import { useDesktopToolbarLayout } from '@/pages/transactions/components/toolbar/hooks/useDesktopToolbarLayout'
+import { DesktopTransactionToolbarControls } from '@/pages/transactions/components/toolbar/desktop/Controls'
+import { MobileToolbarActions } from '@/pages/transactions/components/toolbar/mobile/Actions'
+import { MobileTransactionFilterSheet } from '@/pages/transactions/components/toolbar/mobile/FilterSheet'
+import { TransactionSearchField } from '@/pages/transactions/components/toolbar/SearchField'
+import { useDesktopToolbarLayout } from '@/pages/transactions/components/toolbar/hooks/useDesktopLayout'
 import { useMobileSearchStuck } from '@/pages/transactions/components/toolbar/hooks/useMobileSearchStuck'
-import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useToolbarStickyOffset'
+import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useStickyOffset'
 import { formatDateRangeLabel } from '@/pages/transactions/utils/date'
 import {
   getAccountOptions,

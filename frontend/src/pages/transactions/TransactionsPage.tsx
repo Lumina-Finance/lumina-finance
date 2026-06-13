@@ -9,9 +9,9 @@ import {
   type Transaction,
 } from '@/api/transactions'
 import { transactionKeys } from '@/api/cache/queryKeys'
-import TransactionListSection from '@/pages/transactions/components/TransactionListSection'
-import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/CreateTransactionModal'
-import TransactionsTopBand from '@/pages/transactions/components/TransactionsTopBand'
+import TransactionListSection from '@/pages/transactions/components/ListSection'
+import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
+import TransactionsTopBand from '@/pages/transactions/components/TopBand'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import {
   formatOverviewRangeLabel,

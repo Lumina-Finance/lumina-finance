@@ -47,16 +47,16 @@ import type {
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
-import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/TransactionDetailsSection'
-import TransactionModalFooter from '@/pages/transactions/components/transaction-modal/layout/TransactionModalFooter'
-import TransactionModalShell from '@/pages/transactions/components/transaction-modal/layout/TransactionModalShell'
-import TransactionModalSubmitError from '@/pages/transactions/components/transaction-modal/controls/TransactionModalSubmitError'
-import TransactionReferenceCreationModals from '@/pages/transactions/components/transaction-modal/modals/TransactionReferenceCreationModals'
-import TransactionReferencesSection from '@/pages/transactions/components/transaction-modal/sections/TransactionReferencesSection'
-import TransactionTypeDirectionSection from '@/pages/transactions/components/transaction-modal/sections/TransactionTypeDirectionSection'
+import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/DetailsSection'
+import TransactionModalFooter from '@/pages/transactions/components/transaction-modal/layout/Footer'
+import TransactionModalShell from '@/pages/transactions/components/transaction-modal/layout/Shell'
+import TransactionModalSubmitError from '@/pages/transactions/components/transaction-modal/controls/SubmitError'
+import TransactionReferenceCreationModals from '@/pages/transactions/components/transaction-modal/modals/ReferenceCreationModals'
+import TransactionReferencesSection from '@/pages/transactions/components/transaction-modal/sections/ReferencesSection'
+import TransactionTypeDirectionSection from '@/pages/transactions/components/transaction-modal/sections/TypeDirectionSection'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/pages/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
-import { useTransactionModalEnvironment } from '@/pages/transactions/components/transaction-modal/hooks/useTransactionModalEnvironment'
+import { useTransactionModalEnvironment } from '@/pages/transactions/components/transaction-modal/hooks/useEnvironment'
 
 export default function CreateTransactionModal({
   open,

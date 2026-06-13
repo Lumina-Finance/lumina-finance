@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { TransactionsOverview } from '@/api/transactions'
-import TransactionFilterLoadingOverlay from '@/pages/transactions/components/TransactionFilterLoadingOverlay'
+import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
 import DailyCashFlowChart, {
   type DailyCashFlowChartMode,
 } from '@/pages/transactions/components/top-band/DailyCashFlowChart'
