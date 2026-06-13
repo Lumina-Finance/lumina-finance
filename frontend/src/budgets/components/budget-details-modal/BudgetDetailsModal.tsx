@@ -18,9 +18,13 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { getCategoryColorMap } from '@/utils/chartColor'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
+import {
+  getRechartsTooltipPoint,
+  getRechartsTooltipPointer,
+  type RechartsTooltipState,
+} from '@/components/charts/rechartsTooltip'
 import BudgetChartTooltip, { type BudgetChartPoint } from '@/budgets/components/budget-details-modal/BudgetChartTooltip'
 import BudgetEditModal from '@/budgets/components/budget-form/BudgetEditModal'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
@@ -44,45 +48,8 @@ const budgetChartMargin = { top: 4, right: 8, bottom: 0, left: 0 } as const
 const budgetChartYAxisWidth = 48
 const budgetChartHoverHighlightWidth = 70
 
-type BudgetChartTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: BudgetChartPoint
-  }>
-}
-
 function getBudgetChartTooltipKey(point: BudgetChartPoint) {
   return point.label
-}
-
-function getBudgetChartTooltipPointer(
-  state: BudgetChartTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getBudgetChartTooltipPoint(
-  state: BudgetChartTooltipState,
-  data: BudgetChartPoint[],
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : data.find((point) => point.label === String(state.activeLabel))
 }
 
 function getBudgetChartGuideMaxWidth(chartWidth: number, pointCount: number) {
@@ -287,11 +254,15 @@ export default function BudgetDetailsModal({
     })
   }
   const showBudgetChartTooltip = (
-    state: BudgetChartTooltipState,
+    state: RechartsTooltipState<BudgetChartPoint>,
     event: ReactMouseEvent<SVGGraphicsElement>,
   ) => {
-    const point = getBudgetChartTooltipPoint(state, chartData)
-    const pointer = getBudgetChartTooltipPointer(state, event)
+    const point = getRechartsTooltipPoint({
+      state,
+      data: chartData,
+      resolveLabel: (label) => chartData.find((item) => item.label === label),
+    })
+    const pointer = getRechartsTooltipPointer(state, event)
 
     if (!point) {
       budgetChartTooltipRef.current?.show(null, pointer)

@@ -1,5 +1,9 @@
 
 import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  ChartTooltipRow,
+  ChartTooltipTitle,
+} from '@/components/charts/ChartTooltipContent'
 
 export interface BudgetChartPoint {
   label: string
@@ -26,35 +30,47 @@ export default function BudgetChartTooltip({
 
   return (
     <>
-      <p className="app-chart-tooltip-default-title font-medium">{point.label}</p>
+      <ChartTooltipTitle className="font-medium">{point.label}</ChartTooltipTitle>
       <div className="mt-2 space-y-1">
-        <div className="flex min-w-44 justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">Used</span>
-          <span className="app-chart-tooltip-default-value font-financial">{formatCurrency(point.spent, currency)}</span>
-        </div>
-        <div className="flex min-w-44 justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">Limit</span>
-          <span className="app-chart-tooltip-default-value font-financial">{formatCurrency(point.limit, currency)}</span>
-        </div>
-        <div className="flex min-w-44 justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">Utilization</span>
-          <span className="app-chart-tooltip-default-value font-financial">{point.utilizationPct}%</span>
-        </div>
+        <ChartTooltipRow
+          className="min-w-44"
+          label="Used"
+          value={formatCurrency(point.spent, currency)}
+          financialValue
+        />
+        <ChartTooltipRow
+          className="min-w-44"
+          label="Limit"
+          value={formatCurrency(point.limit, currency)}
+          financialValue
+        />
+        <ChartTooltipRow
+          className="min-w-44"
+          label="Utilization"
+          value={`${point.utilizationPct}%`}
+          financialValue
+        />
       </div>
       {categoryBreakdown.length > 1 && (
         <div className="mt-2 space-y-1 border-t border-[var(--app-border)] pt-2">
           {categoryBreakdown.map((category) => (
-            <div key={category.id} className="flex min-w-44 items-center justify-between gap-4">
-              <span className="app-chart-tooltip-default-value flex min-w-0 items-center gap-2">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: category.color }}
-                  aria-hidden
-                />
-                <span className="truncate">{category.name}</span>
-              </span>
-              <span className="app-chart-tooltip-default-value font-financial">{formatCurrency(category.spent, currency)}</span>
-            </div>
+            <ChartTooltipRow
+              key={category.id}
+              className="min-w-44 items-center"
+              label={(
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: category.color }}
+                    aria-hidden
+                  />
+                  <span className="truncate">{category.name}</span>
+                </span>
+              )}
+              value={formatCurrency(category.spent, currency)}
+              labelClassName="min-w-0"
+              financialValue
+            />
           ))}
         </div>
       )}
