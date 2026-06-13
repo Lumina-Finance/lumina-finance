@@ -2,7 +2,7 @@
  * Tests budget utilization math so cards, summaries, and status labels handle zero limits consistently
  */
 import { describe, expect, it } from 'vitest'
-import { getBudgetUtilizationPercent } from '@/budgets/utils/utilization'
+import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 
 describe('budget utilization helpers', () => {
   it('calculates utilization as a percentage of the budget limit', () => {

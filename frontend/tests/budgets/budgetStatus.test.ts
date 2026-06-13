@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Budget, BudgetUtilization } from '@/api/budgets'
-import { attentionState } from '@/budgets/utils/budgetStatus'
+import { attentionState } from '@/pages/budgets/utils/budgetStatus'
 
 /**
  * Creates a budget period fixture with a positive limit

@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { BaseBudget, Budget } from '@/api/budgets'
-import type { BudgetFormState } from '@/budgets/types'
+import type { BudgetFormState } from '@/pages/budgets/types'
 import {
   budgetCadenceLabel,
   cadenceSummary,
@@ -11,7 +11,7 @@ import {
   nextBudgetPeriods,
   oneOffPeriodEnd,
   recurrenceAnchorsFromStart,
-} from '@/budgets/utils/budgetPeriods'
+} from '@/pages/budgets/utils/budgetPeriods'
 
 /**
  * Creates a recurring monthly base budget fixture
