@@ -11,7 +11,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { FxStatusBadge } from '../FxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
 import { InsightActionButton } from '../InsightActionButton'
-import { NetWorthChart } from './NetWorthChart'
+import { NetWorthChart } from './Chart'
 import { SectionHeader } from '../SectionHeader'
 import {
   formatSignedNetWorthCurrency,

@@ -14,7 +14,7 @@ import { getSavingsRateSummary } from '@/insights/utils/savingsRateChart'
 import { FxStatusBadge } from '../FxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
 import { InsightActionButton } from '../InsightActionButton'
-import { SavingsRateChart } from './SavingsRateChart'
+import { SavingsRateChart } from './Chart'
 import { SectionHeader } from '../SectionHeader'
 
 type SavingsRateTrendCardProps = {

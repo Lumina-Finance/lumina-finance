@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { BreakdownMode } from '@/insights/components/income-expense-breakdown-card/IncomeExpenseBreakdownCard'
+import type { BreakdownMode } from '@/insights/components/income-expense-breakdown-card/Card'
 import type { InsightsCardQueries } from '@/insights/hooks/useInsightsCardQueries'
 import type { InsightsRangeInputDates } from '@/insights/types/range'
 import { getCashFlowBarData } from '@/insights/utils/cashFlow'

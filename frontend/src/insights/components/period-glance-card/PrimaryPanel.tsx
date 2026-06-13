@@ -5,7 +5,7 @@ import type { PeriodGlancePrimaryMetric } from '@/insights/types/periodGlance'
 import { getPeriodIncomeExpenseFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { getPeriodGlanceToneClass } from './periodGlanceDisplay'
+import { getPeriodGlanceToneClass } from './display'
 import { useFittedPrimaryAmount } from './useFittedPrimaryAmount'
 
 type PeriodGlancePrimaryPanelProps = {

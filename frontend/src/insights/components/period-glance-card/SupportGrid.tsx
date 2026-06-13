@@ -4,7 +4,7 @@ import type { PeriodGlanceSupportItem } from '@/insights/types/periodGlance'
 import {
   getPeriodGlanceToneClass,
   PERIOD_GLANCE_TITLE_CONTROL_SLOT_CLASS,
-} from './periodGlanceDisplay'
+} from './display'
 
 type PeriodGlanceSupportGridProps = {
   supportItems: PeriodGlanceSupportItem[]

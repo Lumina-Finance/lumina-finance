@@ -10,8 +10,8 @@ import type { MerchantMarketMerchant } from '@/insights/types/merchantDistributi
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from '../FxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { MerchantDistributionLegend } from './MerchantDistributionLegend'
-import { MerchantMarketMap } from './MerchantMarketMap'
+import { MerchantDistributionLegend } from './Legend'
+import { MerchantMarketMap } from './MarketMap'
 import { SectionHeader } from '../SectionHeader'
 
 type MerchantDistributionCardProps = {
