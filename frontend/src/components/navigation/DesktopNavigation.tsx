@@ -1,9 +1,9 @@
 import type { Theme } from '@/types'
-import { NavigationBrand } from './NavigationBrand'
-import { NavigationLinks } from './NavigationLinks'
-import { NavigationThemeToggle } from './NavigationThemeToggle'
-import { NavigationUserProfile } from './NavigationUserProfile'
-import { NavigationVersionIndicator } from './NavigationVersionIndicator'
+import { NavigationBrand } from '@/components/navigation/components/NavigationBrand'
+import { NavigationLinks } from '@/components/navigation/components/NavigationLinks'
+import { NavigationThemeToggle } from '@/components/navigation/components/NavigationThemeToggle'
+import { NavigationUserProfile } from '@/components/navigation/components/NavigationUserProfile'
+import { NavigationVersionIndicator } from '@/components/navigation/components/NavigationVersionIndicator'
 
 interface DesktopNavigationProps {
   displayName: string
@@ -51,4 +51,3 @@ export function DesktopNavigation({
     </nav>
   )
 }
-

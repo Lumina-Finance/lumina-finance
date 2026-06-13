@@ -9,7 +9,7 @@ import {
   Settings,
   Sun,
 } from 'lucide-react'
-import type { NavigationItem, NavigationThemeOption } from './types'
+import type { NavigationItem, NavigationThemeOption } from '@/components/navigation/types/navigationTypes'
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -37,4 +37,3 @@ export const THEME_OPTIONS: NavigationThemeOption[] = [
   { value: 'system', icon: Monitor, label: 'System theme' },
   { value: 'dark', icon: Moon, label: 'Dark theme' },
 ]
-

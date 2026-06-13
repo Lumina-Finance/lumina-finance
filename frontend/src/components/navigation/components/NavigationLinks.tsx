@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { PRIMARY_NAVIGATION_ITEMS } from './navigationData'
+import { PRIMARY_NAVIGATION_ITEMS } from '@/components/navigation/constants/navigationData'
 
 /**
  * Renders primary route links and closes mobile navigation after link activation when requested
@@ -36,4 +36,3 @@ export function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
     </ul>
   )
 }
-

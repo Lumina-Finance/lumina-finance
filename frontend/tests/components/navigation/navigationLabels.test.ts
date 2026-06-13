@@ -8,7 +8,7 @@ import {
   getCurrentVersionLabel,
   getNavigationDisplayName,
   getNavigationInitials,
-} from '@/components/navigation/navigationLabels'
+} from '@/components/navigation/utils/navigationLabels'
 
 const user: User = {
   id: 'user-1',
@@ -37,4 +37,3 @@ describe('navigation labels', () => {
     expect(getNavigationInitials(undefined)).toBe('')
   })
 })
-

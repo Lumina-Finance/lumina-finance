@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Theme } from '@/types'
-import { AnimatedMobileMenuIcon } from './AnimatedMobileMenuIcon'
-import { MOBILE_MENU_FADE_MS } from './navigationData'
-import { NavigationBrand } from './NavigationBrand'
-import { NavigationLinks } from './NavigationLinks'
-import { NavigationThemeToggle } from './NavigationThemeToggle'
-import { NavigationUserProfile } from './NavigationUserProfile'
-import { NavigationVersionIndicator } from './NavigationVersionIndicator'
-import { useMobileNavigationEffects } from './useMobileNavigationEffects'
+import { AnimatedMobileMenuIcon } from '@/components/navigation/components/AnimatedMobileMenuIcon'
+import { MOBILE_MENU_FADE_MS } from '@/components/navigation/constants/navigationData'
+import { NavigationBrand } from '@/components/navigation/components/NavigationBrand'
+import { NavigationLinks } from '@/components/navigation/components/NavigationLinks'
+import { NavigationThemeToggle } from '@/components/navigation/components/NavigationThemeToggle'
+import { NavigationUserProfile } from '@/components/navigation/components/NavigationUserProfile'
+import { NavigationVersionIndicator } from '@/components/navigation/components/NavigationVersionIndicator'
+import { useMobileNavigationEffects } from '@/components/navigation/hooks/useMobileNavigationEffects'
 
 interface MobileNavigationProps {
   displayName: string
@@ -108,4 +108,3 @@ export function MobileNavigation({
     </>
   )
 }
-

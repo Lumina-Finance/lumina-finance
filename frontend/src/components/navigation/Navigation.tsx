@@ -1,11 +1,11 @@
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
-import { DesktopNavigation } from './navigation/DesktopNavigation'
-import { MobileNavigation } from './navigation/MobileNavigation'
+import { DesktopNavigation } from '@/components/navigation/DesktopNavigation'
+import { MobileNavigation } from '@/components/navigation/MobileNavigation'
 import {
   getNavigationDisplayName,
   getNavigationInitials,
-} from './navigation/navigationLabels'
+} from '@/components/navigation/utils/navigationLabels'
 
 /**
  * Composes desktop and mobile navigation from authenticated user and theme state
