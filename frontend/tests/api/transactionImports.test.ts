@@ -22,6 +22,9 @@ vi.mock('@/api/client', () => ({
 
 import { importTransactionsInBatches } from '@/api/transactionImports';
 
+/**
+ * Builds a representative parsed import row used across batching scenarios
+ */
 function buildImportRow(notes = ''): TransactionImportRow {
   return {
     account_source: 'Checking',
@@ -34,6 +37,9 @@ function buildImportRow(notes = ''): TransactionImportRow {
   };
 }
 
+/**
+ * Builds a valid import payload around the requested rows so tests can focus on batching behaviour
+ */
 function buildImportPayload(rows: TransactionImportRow[]): TransactionImportPayload {
   return {
     accounts: [
@@ -59,6 +65,9 @@ function buildImportPayload(rows: TransactionImportRow[]): TransactionImportPayl
   };
 }
 
+/**
+ * Builds a complete backend import response with focused overrides for each assertion
+ */
 function buildImportResponse(
   overrides: Partial<TransactionImportResponse> = {},
 ): TransactionImportResponse {
