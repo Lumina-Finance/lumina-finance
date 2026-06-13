@@ -1,12 +1,10 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { PieChart as PieChartIcon } from 'lucide-react'
 import { useLatestBudgetUtilizations } from '@/api/budgets'
-import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
+import { TopBudgetsHeader } from '@/dashboard/components/TopBudgetsHeader'
 import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
-import { getTopBudgetsFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { formatDashboardShortDate } from '@/dashboard/utils/formatDashboardShortDate'
 import { getTopBudgetAttentionState } from '@/dashboard/utils/getTopBudgetAttentionState'
 import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
@@ -43,18 +41,7 @@ export function TopBudgetsWidget() {
 
   return (
     <div className="app-card h-[410px] flex flex-col">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
-          <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
-        </div>
-        <span className="app-label">Top Budgets</span>
-        <BudgetFxStatusTooltip
-          fxStatus={fxStatus}
-          label="Top budgets FX status"
-          placement="bottom"
-          getMessage={getTopBudgetsFxStatusMessage}
-        />
-      </div>
+      <TopBudgetsHeader fxStatus={fxStatus} />
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
