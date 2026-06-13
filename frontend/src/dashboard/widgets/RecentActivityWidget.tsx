@@ -5,8 +5,12 @@ import { useCategories } from '@/api/categories'
 import { useDashboardRecentActivity } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
+import { getRecentActivityRows } from '@/dashboard/utils/getRecentActivityRows'
 import { formatCurrency } from '@/utils/formatCurrency'
 
+/**
+ * Loads recent transactions and category metadata for the dashboard activity list
+ */
 export function RecentActivityWidget() {
   const { data: incomingDashboardRecentActivity, isFetching: recentActivityLoading } = useDashboardRecentActivity()
   const { data: incomingCategories, isFetching: categoriesLoading } = useCategories()
@@ -28,14 +32,10 @@ export function RecentActivityWidget() {
     transitionKey: 'recent-activity',
   })
   const { categories, dashboardRecentActivity } = displaySnapshot
-  const categoryMap = useMemo(() => {
-    const map = new Map<string, { name: string; kind: 'expense' | 'income' | 'transfer' }>()
-    categories?.forEach((category) => {
-      map.set(category.id, { name: category.name, kind: category.kind })
-    })
-    return map
-  }, [categories])
-  const recentActivity = (dashboardRecentActivity?.recent_transactions ?? []).slice(0, 5)
+  const recentActivityRows = useMemo(
+    () => getRecentActivityRows(dashboardRecentActivity?.recent_transactions, categories),
+    [categories, dashboardRecentActivity],
+  )
 
   return (
     <div className="app-card h-[410px] flex flex-col">
@@ -54,7 +54,7 @@ export function RecentActivityWidget() {
         className="flex-1"
         contentClassName="flex h-full min-h-0 flex-col"
       >
-        {recentActivity.length === 0 ? (
+        {recentActivityRows.length === 0 ? (
           <div
             className="flex flex-1 items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
             style={{ color: 'var(--app-text-subtle)' }}
@@ -64,18 +64,13 @@ export function RecentActivityWidget() {
         ) : (
           <>
             <div className="min-h-0 flex-1">
-              {recentActivity.map((transaction, index) => {
-                const category = categoryMap.get(transaction.category_id)
-                const merchantName = transaction.merchant_name
-                const isIncome = category?.kind === 'income'
-                const title = merchantName ?? transaction.notes ?? category?.name ?? 'Transaction'
-
+              {recentActivityRows.map(({ transaction, category, title, isIncome }, index) => {
                 return (
                   <div
                     key={transaction.id}
                     className="flex items-center justify-between gap-2 py-2.5"
                     style={
-                      index < recentActivity.length - 1
+                      index < recentActivityRows.length - 1
                         ? { borderBottom: '1px solid var(--app-border)' }
                         : undefined
                     }
