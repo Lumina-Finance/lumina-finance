@@ -1,10 +1,12 @@
-
 import { useEffect, useRef } from 'react'
 import type { CreateBudgetPayload } from '@/api/budgets'
 import { ApiError } from '@/api/auth'
 import type { BudgetCardViewModel } from '@/budgets/types'
 import { missingRecurringPeriodStarts } from '@/budgets/utils/budgetPeriods'
 
+/**
+ * Creates elapsed recurring budget periods after stale data loads into the page
+ */
 export function useRecurringBudgetBackfill({
   enabled,
   budgetCards,
@@ -23,8 +25,7 @@ export function useRecurringBudgetBackfill({
   useEffect(() => {
     if (!enabled) return
 
-    // Backfill only missing recurring periods up to today, and remember attempted
-    // base/start pairs so rerenders do not duplicate mutation attempts.
+    // Remember attempted base/start pairs so rerenders do not duplicate mutation attempts
     const missingPeriods = budgetCards.flatMap(({ baseBudget, latestPeriod }) => {
       if (!latestPeriod) return []
       return missingRecurringPeriodStarts(baseBudget, latestPeriod, today).map((periodStart) => ({
@@ -43,6 +44,9 @@ export function useRecurringBudgetBackfill({
 
     let cancelled = false
 
+    /**
+     * Runs period creation serially so a failed earlier period does not hide later backend state
+     */
     async function backfillPeriods() {
       let shouldRefetch = false
       for (const period of missingPeriods) {
@@ -54,8 +58,8 @@ export function useRecurringBudgetBackfill({
           })
           shouldRefetch = true
         } catch (error) {
-          // A 409 means another request already created the period; refetch to
-          // converge local query data with the backend.
+
+          // A 409 means another request already created the period, so refetch to converge local query data with the backend
           if (error instanceof ApiError && error.status === 409) {
             shouldRefetch = true
             continue

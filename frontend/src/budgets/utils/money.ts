@@ -1,4 +1,3 @@
-
 import type { Currency } from '@/api/currency'
 
 export function currencyExponent(currencies: Currency[], code: string) {
@@ -9,6 +8,9 @@ export function currencySymbol(currencies: Currency[], code: string) {
   return currencies.find((currency) => currency.id === code)?.symbol ?? ''
 }
 
+/**
+ * Removes unsupported characters while keeping at most one decimal separator
+ */
 export function sanitizeMoneyInput(value: string) {
   let sanitized = value.replace(/[^\d.]/g, '')
   const parts = sanitized.split('.')
@@ -17,6 +19,9 @@ export function sanitizeMoneyInput(value: string) {
   return sanitized
 }
 
+/**
+ * Formats a money input while preserving a trailing decimal during typing
+ */
 export function formatMoneyInputLive(value: string) {
   if (!value.trim()) return value
   const [integerPart, decimalPart] = value.split('.', 2)
@@ -26,6 +31,9 @@ export function formatMoneyInputLive(value: string) {
   return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
 }
 
+/**
+ * Converts a positive user-entered decimal amount into the currency's minor units
+ */
 export function toMinorUnits(value: string, currencies: Currency[], code: string) {
   if (!value.trim()) return null
   const numberValue = Number(value.replace(/,/g, ''))
@@ -33,6 +41,9 @@ export function toMinorUnits(value: string, currencies: Currency[], code: string
   return Math.round(numberValue * Math.pow(10, currencyExponent(currencies, code)))
 }
 
+/**
+ * Formats a stored minor-unit value back into an editable decimal input
+ */
 export function formatMinorUnitsInput(value: number, currencies: Currency[], code: string) {
   const exponent = currencyExponent(currencies, code)
   return new Intl.NumberFormat(undefined, {

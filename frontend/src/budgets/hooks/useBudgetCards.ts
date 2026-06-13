@@ -1,8 +1,10 @@
-
 import { useMemo } from 'react'
 import type { BaseBudget, Budget } from '@/api/budgets'
 import type { BudgetCardViewModel } from '@/budgets/types'
 
+/**
+ * Builds stable budget card view models from base budgets and period instances
+ */
 export function useBudgetCards({
   baseBudgets,
   periods,
@@ -16,8 +18,7 @@ export function useBudgetCards({
     const baseById = new Map<string, BaseBudget>()
     const periodsByBase = new Map<string, Budget[]>()
 
-    // Base budgets can exist before any periods do; merge both API payloads so
-    // those budgets still render as cards.
+    // Base budgets can exist before any periods do, so merge both API payloads before deriving cards
     for (const baseBudget of baseBudgets ?? []) {
       baseById.set(baseBudget.id, baseBudget)
     }

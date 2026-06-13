@@ -1,9 +1,11 @@
-
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/budgets/types'
 import { toMinorUnits } from '@/budgets/utils/money'
 
+/**
+ * Validates the create-budget form against frontend and backend budget requirements
+ */
 export function validateBudgetCreateForm(
   form: BudgetFormState,
   currencies: Currency[],
