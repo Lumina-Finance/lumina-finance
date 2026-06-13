@@ -1,5 +1,5 @@
 import type { InsightsSavingsRateTrendResponse } from '@/api/insights'
-import type { SavingsRateHistoryPoint } from '../components/SavingsRateTrendCard'
+import type { SavingsRateHistoryPoint } from '@/insights/types/savingsRate'
 import { getMonthLabel } from './date'
 import { getSavingsRate } from './money'
 

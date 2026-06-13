@@ -1,5 +1,5 @@
 import type { InsightsCashFlowResponse } from '@/api/insights'
-import type { CashFlowBarBucket, CashFlowGranularity } from '../components/CashFlowCard'
+import type { CashFlowBarBucket, CashFlowGranularity } from '@/insights/types/cashFlow'
 import {
   getIsoWeek,
   getMonthLabel,

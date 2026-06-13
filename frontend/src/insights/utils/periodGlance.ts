@@ -3,7 +3,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import type {
   PeriodGlancePrimaryMetric,
   PeriodGlanceSupportItem,
-} from '../components/PeriodGlanceCard'
+} from '@/insights/types/periodGlance'
 import {
   formatSavingsRateValue,
   formatSignedCurrency,

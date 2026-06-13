@@ -9,6 +9,9 @@ type InsightActionButtonProps = {
   children: ReactNode
 }
 
+/**
+ * Renders an icon action button that avoids double activation on delayed touch clicks
+ */
 export function InsightActionButton({
   title,
   ariaLabel,
@@ -18,10 +21,13 @@ export function InsightActionButton({
   const suppressNextClick = useRef(false)
   const suppressionTimer = useRef<number | undefined>(undefined)
 
+  /**
+   * Triggers touch presses immediately while suppressing the delayed synthetic click
+   */
   function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
     if (event.pointerType !== 'touch') return
 
-    // iOS shows active feedback before dispatching the delayed click.
+    // iOS shows active feedback before dispatching the delayed click
     suppressNextClick.current = true
     if (suppressionTimer.current !== undefined) {
       window.clearTimeout(suppressionTimer.current)
@@ -33,6 +39,9 @@ export function InsightActionButton({
     onPress()
   }
 
+  /**
+   * Runs mouse and keyboard activation unless a touch event already handled the press
+   */
   function handleClick() {
     if (suppressNextClick.current) {
       suppressNextClick.current = false

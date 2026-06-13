@@ -27,6 +27,9 @@ type UseInsightsCardQueriesParams = {
   visibility: InsightsCardQueryVisibility
 }
 
+/**
+ * Runs insights card queries only when the range is valid and each card is visible
+ */
 export function useInsightsCardQueries({
   rangeInputDates,
   comparisonPeriod,
@@ -78,3 +81,5 @@ export function useInsightsCardQueries({
     merchants,
   }
 }
+
+export type InsightsCardQueries = ReturnType<typeof useInsightsCardQueries>

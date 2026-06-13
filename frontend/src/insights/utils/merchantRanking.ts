@@ -1,5 +1,5 @@
 import type { InsightsMerchantsResponse } from '@/api/insights'
-import type { MerchantRankingRow } from '../components/MerchantRankingCard'
+import type { MerchantRankingRow } from '@/insights/types/merchantRanking'
 
 export function getMerchantRankingRows(
   response: InsightsMerchantsResponse | undefined,

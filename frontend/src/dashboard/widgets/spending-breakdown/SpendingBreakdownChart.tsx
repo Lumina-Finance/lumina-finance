@@ -13,7 +13,7 @@ import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/dashboard/constants/animation'
-import { useDashboardCursorTooltip } from '@/dashboard/hooks/useDashboardCursorTooltip'
+import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import {
   getSpendingBreakdownEntryColor,
@@ -53,7 +53,7 @@ export function SpendingBreakdownChart({
     showTooltip,
     hideTooltip,
     handleTooltipTransitionEnd,
-  } = useDashboardCursorTooltip<CategoryBreakdownEntry, HTMLDivElement>({
+  } = useCursorTooltip<CategoryBreakdownEntry, HTMLDivElement>({
     originRef: chartRef,
     xProperty: '--breakdown-tooltip-x',
     yProperty: '--breakdown-tooltip-y',

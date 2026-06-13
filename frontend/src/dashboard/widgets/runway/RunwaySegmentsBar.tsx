@@ -7,8 +7,8 @@ import {
   ChartTooltipValue,
 } from '@/components/charts/ChartTooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
-import { useDashboardCursorTooltip } from '@/dashboard/hooks/useDashboardCursorTooltip'
 import type { RunwaySegment } from '@/dashboard/types/dashboard'
+import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type RunwaySegmentsBarProps = {
@@ -49,7 +49,7 @@ export function RunwaySegmentsBar({
     showTooltip: showSegmentTooltip,
     hideTooltip,
     handleTooltipTransitionEnd,
-  } = useDashboardCursorTooltip<RunwaySegment, HTMLDivElement>({
+  } = useCursorTooltip<RunwaySegment, HTMLDivElement>({
     originRef: tooltipOriginRef,
     xProperty: '--runway-tooltip-x',
     yProperty: '--runway-tooltip-y',

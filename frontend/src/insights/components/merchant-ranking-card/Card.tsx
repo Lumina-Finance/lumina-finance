@@ -1,25 +1,17 @@
 import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import IconTooltip from '@/components/IconTooltip'
+import {
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
+import type { MerchantRankingRow } from '@/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
-import { FxStatusBadge } from './FxStatusBadge'
-import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
-
-export type MerchantRankingRow = {
-  id: string
-  name: string
-  totalAmount: number
-  transactionCount: number
-  averageAmount: number
-  changePct: number | null
-}
+import { FxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
+import { SectionHeader } from '../SectionHeader'
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]
@@ -66,7 +58,7 @@ export function MerchantRankingCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<MerchantRankingSnapshot>({
+  } = useLoadingSnapshot<MerchantRankingSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -79,13 +71,10 @@ export function MerchantRankingCard({
         label={(
           <span className="inline-flex items-center gap-2">
             Merchant Ranking
-            <IconTooltip
-              label="How merchant ranking is calculated"
-              placement="bottom"
-              widthClassName="w-64"
-            >
-              Ranks merchants by spending after refunds. Income losses are not included
-            </IconTooltip>
+            <InsightCalculationTooltip
+              label="Merchant Ranking"
+              calculation="Ranks merchants by spending after refunds. Income losses are not included"
+            />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
                 label="Merchant Ranking FX status"
@@ -97,7 +86,7 @@ export function MerchantRankingCard({
         )}
       />
       <div className="relative overflow-hidden">
-        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.merchants.length > 0 ? (
             <div className="space-y-3">
               {displaySnapshot.merchants.map((merchant, index) => (
@@ -135,9 +124,9 @@ export function MerchantRankingCard({
               {displaySnapshot.emptyLabel}
             </div>
           )}
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading merchant ranking"

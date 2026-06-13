@@ -6,10 +6,21 @@ export function getSavingsRate(income: number, expenses: number) {
 }
 
 export function formatSavingsRateValue(rate: number | null) {
-  return rate === null ? 'N/A' : `${rate}%`
+  if (rate === null) return 'N/A'
+  if (!Number.isFinite(rate)) return rate < 0 ? '−∞%' : '∞%'
+  return `${rate}%`
 }
 
 export function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
+}
+
+/**
+ * Returns the semantic colour token for a signed insight amount
+ */
+export function getSignedAmountColor(amount: number) {
+  if (amount > 0) return 'var(--app-positive)'
+  if (amount < 0) return 'var(--app-negative)'
+  return 'var(--app-text)'
 }

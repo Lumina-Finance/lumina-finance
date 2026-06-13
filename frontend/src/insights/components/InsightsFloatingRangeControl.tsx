@@ -1,9 +1,9 @@
-import { InsightsRangeSelector, type InsightsRangeSelectorOption } from './InsightsRangeSelector'
-import type { InsightsRangePreset } from '../types/range'
 import type { KeyboardEvent } from 'react'
 import { Calendar } from 'lucide-react'
+import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/TimeRangeSelector'
+import type { InsightsRangePreset } from '../types/range'
 
-const INSIGHTS_RANGE_OPTIONS: InsightsRangeSelectorOption<InsightsRangePreset>[] = [
+const INSIGHTS_RANGE_OPTIONS: TimeRangeSelectorOption<InsightsRangePreset>[] = [
   { value: 'THIS_MONTH', label: 'MTD', description: 'This month' },
   { value: 'LAST_MONTH', label: 'LM', description: 'Last month' },
   { value: 'LAST_30_DAYS', label: '30D', description: 'Last 30 days' },
@@ -32,12 +32,18 @@ type InsightsDateFieldProps = {
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
 }
 
+/**
+ * Adds spacing around mobile date parts so narrow inputs remain readable
+ */
 function formatMobileDate(value: string) {
   const [year, month, day] = value.split('-')
   if (!year || !month || !day) return value
   return `${year} - ${month} - ${day}`
 }
 
+/**
+ * Renders the responsive date input used by the floating insights range control
+ */
 function InsightsDateField({
   value,
   label,
@@ -81,6 +87,9 @@ function InsightsDateField({
   )
 }
 
+/**
+ * Renders the sticky insights date range picker and custom range inputs
+ */
 export function InsightsFloatingRangeControl({
   preset,
   fromDateValue,
@@ -91,14 +100,9 @@ export function InsightsFloatingRangeControl({
   onCustomToChange,
   onCustomRangeCommit,
 }: InsightsFloatingRangeControlProps) {
-  function handleCustomFromChange(value: string) {
-    onCustomFromChange(value)
-  }
-
-  function handleCustomToChange(value: string) {
-    onCustomToChange(value)
-  }
-
+  /**
+   * Commits keyboard-entered custom dates before focus leaves the active input
+   */
   function handleDateKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       onCustomRangeCommit()
@@ -113,7 +117,7 @@ export function InsightsFloatingRangeControl({
           label="Insights start date"
           value={fromDateValue}
           customInvalid={customInvalid}
-          onChange={handleCustomFromChange}
+          onChange={onCustomFromChange}
           onBlur={onCustomRangeCommit}
           onKeyDown={handleDateKeyDown}
         />
@@ -124,7 +128,7 @@ export function InsightsFloatingRangeControl({
           label="Insights end date"
           value={toDateValue}
           customInvalid={customInvalid}
-          onChange={handleCustomToChange}
+          onChange={onCustomToChange}
           onBlur={onCustomRangeCommit}
           onKeyDown={handleDateKeyDown}
         />
@@ -137,6 +141,9 @@ export function InsightsFloatingRangeControl({
     </div>
   )
 
+  /**
+   * Keeps desktop and mobile floating controls structurally identical
+   */
   const renderControl = (dropdownPlacement?: 'bottom' | 'top') => (
     <div
       className="app-card rounded-xl p-3"
@@ -145,14 +152,16 @@ export function InsightsFloatingRangeControl({
         borderColor: 'transparent',
       }}
     >
-      <InsightsRangeSelector
+      <TimeRangeSelector
         value={preset}
         options={INSIGHTS_RANGE_OPTIONS}
         onChange={onPresetChange}
         ariaLabel="Insights date range"
+        variant="mobile"
         className="w-full"
         sheetTitle="Insights date range"
         dropdownPlacement={dropdownPlacement}
+        shortcutMode="when-description-differs"
       />
       <div className="mt-2">
         {dateFields}
