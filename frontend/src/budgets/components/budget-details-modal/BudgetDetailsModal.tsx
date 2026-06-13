@@ -15,7 +15,6 @@ import { useBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budge
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { getCategoryColorMap } from '@/utils/chartColor'
 import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
@@ -33,36 +32,26 @@ import MarqueeText from '@/components/MarqueeText'
 import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
 import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFACE_TRANSITION_SECONDS } from '@/budgets/constants'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
-import { formatCalendarDate, parseYmd } from '@/budgets/utils/date'
 import { attentionState } from '@/budgets/utils/budgetStatus'
 import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/budgets/utils/fxTooltipMessages'
+import {
+  BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH,
+  BUDGET_CHART_LAYOUT,
+  getBudgetChartCategories,
+  getBudgetChartGuideMaxWidth,
+  getBudgetDetailsChartData,
+  getBudgetPeriodHistory,
+  getBudgetUtilizationByBudgetId,
+  getBudgetUtilizationPercent,
+  getLatestBudgetCategories,
+  getSortedBudgetPeriods,
+} from '@/budgets/utils/budgetDetails'
 import { combineFxStatuses } from '@/utils/fxStatus'
 
-function utilizationPercent(spent: number, limit: number) {
-  if (limit <= 0) return 0
-  return (spent / limit) * 100
-}
-
 const CHART_INITIAL_DIMENSION = { width: 1, height: 192 }
-const budgetChartMargin = { top: 4, right: 8, bottom: 0, left: 0 } as const
-const budgetChartYAxisWidth = 48
-const budgetChartHoverHighlightWidth = 70
 
 function getBudgetChartTooltipKey(point: BudgetChartPoint) {
   return point.label
-}
-
-function getBudgetChartGuideMaxWidth(chartWidth: number, pointCount: number) {
-  if (pointCount <= 0) return budgetChartHoverHighlightWidth
-  return Math.max(
-    1,
-    (
-      chartWidth -
-      budgetChartMargin.left -
-      budgetChartMargin.right -
-      budgetChartYAxisWidth
-    ) / pointCount,
-  )
 }
 
 export default function BudgetDetailsModal({
@@ -102,47 +91,25 @@ export default function BudgetDetailsModal({
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   )
-  const chartCategories = useMemo(() => {
-    const trackedCategories = baseBudget.category_ids.map((categoryId) => {
-      const category = categoryDetailsById.get(categoryId)
-
-      return {
-        id: categoryId,
-        name: category?.name ?? categoryById.get(categoryId) ?? 'Uncategorized',
-        kind: category?.kind ?? 'expense',
-      }
-    })
-    const categoryColors = getCategoryColorMap(trackedCategories)
-
-    return trackedCategories.map((category, index) => ({
-      ...category,
-      dataKey: `categoryPct${index}`,
-      color: categoryColors.get(category.id || category.name) ?? 'var(--app-accent)',
-    }))
-  }, [baseBudget.category_ids, categoryById, categoryDetailsById])
+  const chartCategories = useMemo(
+    () => getBudgetChartCategories({ baseBudget, categoryById, categoryDetailsById }),
+    [baseBudget, categoryById, categoryDetailsById],
+  )
   const categoryColorById = useMemo(
     () => new Map(chartCategories.map((category) => [category.id, category.color])),
     [chartCategories],
   )
-  const sortedPeriods = periods.slice().sort((a, b) => a.period_start.localeCompare(b.period_start))
+  const sortedPeriods = useMemo(() => getSortedBudgetPeriods(periods), [periods])
   const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
   const periodIds = useMemo(() => periods.map((period) => period.id), [periods])
   const utilizationQueries = useBudgetUtilizations(periodIds)
-  const utilizationByBudgetId = useMemo(() => {
-    const utilizations = new Map<string, BudgetUtilization>()
-    // Seed with the list-level latest utilization so the modal can render useful
-    // current-period data before every historical query finishes.
-    if (initialLatestUtilization) {
-      utilizations.set(initialLatestUtilization.budget_id, initialLatestUtilization)
-    }
-    utilizationQueries
-      .map((query) => query.data)
-      .filter((utilization): utilization is BudgetUtilization => Boolean(utilization))
-      .forEach((utilization) => {
-        utilizations.set(utilization.budget_id, utilization)
-      })
-    return utilizations
-  }, [initialLatestUtilization, utilizationQueries])
+  const utilizationByBudgetId = useMemo(
+    () => getBudgetUtilizationByBudgetId(
+      initialLatestUtilization,
+      utilizationQueries.map((query) => query.data),
+    ),
+    [initialLatestUtilization, utilizationQueries],
+  )
   const utilizationHistoryLoading = utilizationQueries.some((query) => query.isLoading)
   const utilizationHistoryError = utilizationQueries.some((query) => query.isError)
   const latestUtilization = latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined
@@ -153,52 +120,17 @@ export default function BudgetDetailsModal({
   const limit = latestPeriod?.overall_limit ?? 0
   const remaining = latestPeriod ? limit - spent : 0
   const isOverBudget = remaining < 0
-  const utilizationPct = latestPeriod ? Math.round(utilizationPercent(spent, limit)) : null
+  const utilizationPct = latestPeriod ? Math.round(getBudgetUtilizationPercent(spent, limit)) : null
   const showStackedCategoryChart = chartCategories.length > 1
-  // Keep the chart readable by showing only the most recent budget periods.
-  const chartData = sortedPeriods.slice(-6).map((period) => {
-    const utilization = utilizationByBudgetId.get(period.id)
-    const periodSpent = utilization?.total_spent ?? 0
-    const categorySpentById = new Map(
-      (utilization?.categories ?? []).map((category) => [category.category_id, category.spent]),
-    )
-    const categoryValues = chartCategories.reduce<Record<string, number>>((values, category) => {
-      values[category.dataKey] = utilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
-      return values
-    }, {})
-
-    return {
-      label: formatCalendarDate(parseYmd(period.period_start)),
-      spent: periodSpent,
-      limit: period.overall_limit,
-      utilizationPct: Math.round(utilizationPercent(periodSpent, period.overall_limit)),
-      categories: chartCategories.map((category) => {
-        const categorySpent = categorySpentById.get(category.id) ?? 0
-
-        return {
-          id: category.id,
-          name: category.name,
-          spent: categorySpent,
-          utilizationPct: utilizationPercent(categorySpent, period.overall_limit),
-          color: category.color,
-        }
-      }),
-      ...categoryValues,
-    }
-  })
-  const periodHistory = sortedPeriods.slice().reverse().map((period) => {
-    const utilization = utilizationByBudgetId.get(period.id)
-    const spent = utilization?.total_spent ?? 0
-    const remaining = period.overall_limit - spent
-    return {
-      period,
-      spent,
-      remaining,
-    }
-  })
-  const latestCategories = (latestUtilization?.categories ?? [])
-    .slice()
-    .sort((a, b) => b.spent - a.spent)
+  const chartData = useMemo(
+    () => getBudgetDetailsChartData({ sortedPeriods, utilizationByBudgetId, chartCategories }),
+    [chartCategories, sortedPeriods, utilizationByBudgetId],
+  )
+  const periodHistory = useMemo(
+    () => getBudgetPeriodHistory(sortedPeriods, utilizationByBudgetId),
+    [sortedPeriods, utilizationByBudgetId],
+  )
+  const latestCategories = getLatestBudgetCategories(latestUtilization)
   const attention = attentionState(latestPeriod, latestUtilization)
   const isDeleting = deleteBaseBudget.isPending || deleteInProgress
   const showTrackedCategoryListMoreIndicator = trackedCategoryListScrollable && !trackedCategoryListAtBottom
@@ -384,7 +316,7 @@ export default function BudgetDetailsModal({
                     <div className="h-2 flex-1 rounded-full" style={{ background: 'var(--app-border)' }}>
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${Math.min(Math.max(utilizationPercent(spent, limit), 0), 100)}%`, background: attention.indicatorColor }}
+                        style={{ width: `${Math.min(Math.max(getBudgetUtilizationPercent(spent, limit), 0), 100)}%`, background: attention.indicatorColor }}
                       />
                     </div>
                     <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--app-text-subtle)' }}>
@@ -533,7 +465,7 @@ export default function BudgetDetailsModal({
                       <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
                         <BarChart
                           data={chartData}
-                          margin={budgetChartMargin}
+                          margin={BUDGET_CHART_LAYOUT.margin}
                           onMouseMove={(state, event) => showBudgetChartTooltip(state, event)}
                           onMouseLeave={hideBudgetChartTooltip}
                         >
@@ -550,7 +482,7 @@ export default function BudgetDetailsModal({
                             domain={[0, (dataMax: number) => Math.max(100, Math.ceil(dataMax / 25) * 25)]}
                             tick={{ fill: 'var(--app-text-subtle)', fontSize: 12 }}
                             tickFormatter={(value) => `${Number(value)}%`}
-                            width={budgetChartYAxisWidth}
+                            width={BUDGET_CHART_LAYOUT.yAxisWidth}
                           />
                           {showStackedCategoryChart ? chartCategories.map((category, index) => (
                             <Bar
@@ -578,7 +510,7 @@ export default function BudgetDetailsModal({
                         chartRef={budgetChartRef}
                         className="min-w-44"
                         guideVariant="bar"
-                        guideWidth={budgetChartHoverHighlightWidth}
+                        guideWidth={BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH}
                         guideMaxWidth={(chartWidth) => getBudgetChartGuideMaxWidth(chartWidth, chartData.length)}
                         getKey={getBudgetChartTooltipKey}
                         renderContent={(point) => (
