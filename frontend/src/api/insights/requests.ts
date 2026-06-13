@@ -9,7 +9,7 @@ import type {
   InsightsPeriodGlanceResponse,
   InsightsSavingsRateTrendResponse,
 } from '@/api/insights/types';
-import type { InsightsComparisonPeriod } from '@/insights/types/range';
+import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
 
 /**
  * Builds the backend range query shared by dated insights widgets

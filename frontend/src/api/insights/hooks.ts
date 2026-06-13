@@ -10,7 +10,7 @@ import {
 } from '@/api/insights/requests';
 import { insightsKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
-import type { InsightsComparisonPeriod } from '@/insights/types/range';
+import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
 
 /**
  * Reads headline insights metrics for a comparison date range
