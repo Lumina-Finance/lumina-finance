@@ -9,7 +9,7 @@ import {
   useMergeTag,
   type Tag,
 } from '@/api/tags'
-import SectionHeader from '@/pages/settings/components/SectionHeader'
+import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'
 import MergeDeleteTagModal from '@/pages/settings/components/tag-settings-section/MergeDeleteTagModal'
 import TagCreateModal from '@/pages/settings/components/tag-settings-section/TagCreateModal'
@@ -70,7 +70,7 @@ export default function TagSettingsSection() {
 
   return (
     <section id="tags" className="scroll-mt-8">
-      <SectionHeader
+      <SettingsSectionHeader
         title="Tags"
         description="Manage reusable labels for transaction organization."
       />

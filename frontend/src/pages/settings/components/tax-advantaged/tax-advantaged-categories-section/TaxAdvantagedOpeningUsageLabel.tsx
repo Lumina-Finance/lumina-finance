@@ -9,7 +9,7 @@ interface OpeningUsageLabelProps {
 /**
  * Renders the opening usage label with the shared TAC baseline explanation
  */
-export default function OpeningUsageLabel({ label = 'Opening usage' }: OpeningUsageLabelProps) {
+export default function TaxAdvantagedOpeningUsageLabel({ label = 'Opening usage' }: OpeningUsageLabelProps) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       <span className="min-w-0 truncate">{label}</span>

@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import InlineCategoryEdit from '@/pages/settings/components/category-settings-section/InlineCategoryEdit'
 import { displayEmoji } from '@/pages/settings/components/category-settings-section/categorySettingsUtils'
 
-export default function CategoryRow({
+export default function CategorySettingsRow({
   category,
   confirmingDelete,
   deleting,

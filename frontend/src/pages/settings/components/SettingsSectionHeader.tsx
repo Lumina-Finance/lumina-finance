@@ -1,6 +1,6 @@
 import type React from 'react'
 
-export default function SectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
+export default function SettingsSectionHeader({ title, description }: { title: string; description: React.ReactNode }) {
   return (
     <div className="app-section-header">
       <h2 className="app-section-title">{title}</h2>

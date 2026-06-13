@@ -10,8 +10,8 @@ import type {
   CategoryModalTab,
 } from '@/pages/settings/components/tax-advantaged/taxAdvantagedTypes'
 import TaxAdvantagedAccountLinksPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedAccountLinksPanel'
-import AutosaveStatusIcon from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/AutosaveStatusIcon'
-import InfoItem from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/InfoItem'
+import TaxAdvantagedAutosaveStatusIcon from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedAutosaveStatusIcon'
+import TaxAdvantagedInfoItem from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedInfoItem'
 import TaxAdvantagedCategoryDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedCategoryDetailsModal'
 import TaxAdvantagedLimitDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedLimitDetailsModal'
 import TaxAdvantagedLimitsPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedLimitsPanel'
@@ -193,7 +193,7 @@ export default function TaxAdvantagedCategoryModal({
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.16 }}
           >
-            <AutosaveStatusIcon status={autosaveNotice.status} />
+            <TaxAdvantagedAutosaveStatusIcon status={autosaveNotice.status} />
             <span>{autosaveNotice.message}</span>
           </motion.div>
         )}
@@ -273,14 +273,14 @@ export default function TaxAdvantagedCategoryModal({
               </div>
 
               <div className="hidden min-[750px]:grid min-[750px]:grid-cols-4 min-[750px]:gap-x-4 min-[750px]:gap-y-3 min-[1050px]:block min-[1050px]:space-y-4">
-                <InfoItem label="Type" value={formatTaxTreatment(plan.tax_treatment)} />
-                <InfoItem
+                <TaxAdvantagedInfoItem label="Type" value={formatTaxTreatment(plan.tax_treatment)} />
+                <TaxAdvantagedInfoItem
                   label="Currency"
                   labelAccessory={<TaxAdvantagedCurrencyWarning />}
                   value={plan.currency}
                 />
-                <InfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
-                <InfoItem label="Linked Accounts" value={linkedAccountsSummary} />
+                <TaxAdvantagedInfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
+                <TaxAdvantagedInfoItem label="Linked Accounts" value={linkedAccountsSummary} />
               </div>
 
               {planError && (

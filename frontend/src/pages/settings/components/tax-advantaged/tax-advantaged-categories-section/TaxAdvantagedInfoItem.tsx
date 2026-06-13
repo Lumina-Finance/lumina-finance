@@ -1,7 +1,7 @@
 import type React from 'react'
 import { CATEGORY_SUMMARY_VALUE_CLASS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryConstants'
 
-export default function InfoItem({
+export default function TaxAdvantagedInfoItem({
   financial = false,
   label,
   labelAccessory,

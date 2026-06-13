@@ -16,7 +16,7 @@ import MergeDeleteMerchantModal from '@/pages/settings/components/merchant-setti
 import { DELETE_SPINNER_MS } from '@/pages/settings/components/merchant-settings-section/merchantSettingsConstants'
 import { categoryOptions } from '@/pages/settings/components/merchant-settings-section/merchantSettingsUtils'
 import { useMerchantSettingsList } from '@/pages/settings/components/merchant-settings-section/hooks/useMerchantSettingsList'
-import SectionHeader from '@/pages/settings/components/SectionHeader'
+import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -76,7 +76,7 @@ export default function MerchantSettingsSection() {
 
   return (
     <section id="merchants" className="scroll-mt-8">
-      <SectionHeader
+      <SettingsSectionHeader
         title="Merchants"
         description="Manage merchant names and their default categories."
       />

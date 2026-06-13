@@ -7,7 +7,7 @@ import type {
 } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryConstants'
-import OpeningUsageLabel from './OpeningUsageLabel'
+import TaxAdvantagedOpeningUsageLabel from './TaxAdvantagedOpeningUsageLabel'
 
 interface TaxAdvantagedLimitsPanelProps {
   deleteConfirmYear: number | null
@@ -64,7 +64,7 @@ export default function TaxAdvantagedLimitsPanel({
           </div>
           <div className="grid min-w-0 gap-1 min-[750px]:grid-cols-[auto_minmax(0,1fr)] min-[750px]:items-baseline min-[750px]:gap-4">
             <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              <OpeningUsageLabel />
+              <TaxAdvantagedOpeningUsageLabel />
             </span>
             <span className="min-w-0 truncate text-sm font-medium">
               {hasLifetimePriorActivity ? 'Noted' : 'None'}
@@ -106,7 +106,7 @@ export default function TaxAdvantagedLimitsPanel({
                 <th className="py-2 pl-0 pr-4 font-medium" style={{ background: 'var(--app-bg)' }}>Contribution limit</th>
                 <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>Withdrawal limit</th>
                 <th className="py-2 pl-4 pr-0 font-medium" style={{ background: 'var(--app-bg)' }}>
-                  <OpeningUsageLabel />
+                  <TaxAdvantagedOpeningUsageLabel />
                 </th>
                 <th className="py-2 pl-2 font-medium" style={{ background: 'var(--app-bg)' }} aria-label="Actions" />
               </tr>

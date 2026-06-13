@@ -1,8 +1,8 @@
 import type React from 'react'
 import { useCurrencies } from '@/api/currency'
 import Dropdown from '@/components/Dropdown'
-import Field from '@/pages/settings/components/Field'
-import SectionHeader from '@/pages/settings/components/SectionHeader'
+import SettingsField from '@/pages/settings/components/SettingsField'
+import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'
 import type { ProfileFormState } from '@/pages/settings/profileForm'
 
@@ -50,7 +50,7 @@ export default function ProfileSection({
 
   return (
     <section id="profile" className="scroll-mt-8">
-      <SectionHeader
+      <SettingsSectionHeader
         title="Profile"
         description="Your name and localization defaults."
       />
@@ -81,7 +81,7 @@ export default function ProfileSection({
             </div>
 
             <div className="grid gap-4 min-[1500px]:grid-cols-2">
-              <Field label="First name">
+              <SettingsField label="First name">
                 <input
                   className="app-input"
                   required
@@ -89,15 +89,15 @@ export default function ProfileSection({
                   value={form.first_name}
                   onChange={(e) => onFieldChange('first_name', e.target.value)}
                 />
-              </Field>
-              <Field label="Last name">
+              </SettingsField>
+              <SettingsField label="Last name">
                 <input
                   className="app-input"
                   value={form.last_name}
                   onChange={(e) => onFieldChange('last_name', e.target.value)}
                 />
-              </Field>
-              <Field label="Timezone">
+              </SettingsField>
+              <SettingsField label="Timezone">
                 <Dropdown
                   options={TIMEZONES}
                   value={form.tz}
@@ -105,15 +105,15 @@ export default function ProfileSection({
                   searchable
                   searchPlaceholder="Search timezones..."
                 />
-              </Field>
-              <Field label="Base currency" hint="Planned, currently not supported to change">
+              </SettingsField>
+              <SettingsField label="Base currency" hint="Planned, currently not supported to change">
                 <input
                   className="app-input"
                   value={baseCurrencyLabel}
                   disabled
                   style={DISABLED_INPUT_STYLE}
                 />
-              </Field>
+              </SettingsField>
             </div>
 
             {userInformationActions}
@@ -130,7 +130,7 @@ export default function ProfileSection({
             </div>
 
             <div className="grid gap-4 min-[1500px]:grid-cols-2">
-              <Field label="Email" hint="Planned, currently not supported to change">
+              <SettingsField label="Email" hint="Planned, currently not supported to change">
                 <input
                   className="app-input"
                   type="email"
@@ -138,8 +138,8 @@ export default function ProfileSection({
                   disabled
                   style={DISABLED_INPUT_STYLE}
                 />
-              </Field>
-              <Field label="Current password" hint="Planned, currently not supported to change">
+              </SettingsField>
+              <SettingsField label="Current password" hint="Planned, currently not supported to change">
                 <input
                   className="app-input"
                   type="password"
@@ -147,8 +147,8 @@ export default function ProfileSection({
                   disabled
                   style={DISABLED_INPUT_STYLE}
                 />
-              </Field>
-              <Field label="New password" hint="Planned, currently not supported to change">
+              </SettingsField>
+              <SettingsField label="New password" hint="Planned, currently not supported to change">
                 <input
                   className="app-input"
                   type="password"
@@ -156,8 +156,8 @@ export default function ProfileSection({
                   disabled
                   style={DISABLED_INPUT_STYLE}
                 />
-              </Field>
-              <Field label="Confirm new password" hint="Planned, currently not supported to change">
+              </SettingsField>
+              <SettingsField label="Confirm new password" hint="Planned, currently not supported to change">
                 <input
                   className="app-input"
                   type="password"
@@ -165,7 +165,7 @@ export default function ProfileSection({
                   disabled
                   style={DISABLED_INPUT_STYLE}
                 />
-              </Field>
+              </SettingsField>
             </div>
 
             {emailPasswordActions}

@@ -1,14 +1,14 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import type { Category } from '@/api/categories'
-import CategoryRow from '@/pages/settings/components/category-settings-section/CategoryRow'
+import CategorySettingsRow from '@/pages/settings/components/category-settings-section/CategorySettingsRow'
 import {
   EASE,
   KIND_LABELS,
   type CategoryKind,
 } from '@/pages/settings/components/category-settings-section/categorySettingsConstants'
 
-export default function CategoryGroup({
+export default function CategorySettingsGroup({
   categories,
   confirmingDeleteCategoryId,
   deletingCategoryId,
@@ -76,7 +76,7 @@ export default function CategoryGroup({
                 }}
                 exit={{ opacity: 0, y: -4, transition: { duration: 0.12, ease: EASE } }}
               >
-                <CategoryRow
+                <CategorySettingsRow
                   category={category}
                   confirmingDelete={confirmingDeleteCategoryId === category.id}
                   deleting={deletingCategoryId === category.id}

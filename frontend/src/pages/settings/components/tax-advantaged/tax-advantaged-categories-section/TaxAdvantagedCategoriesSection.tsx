@@ -4,7 +4,7 @@ import { Plus, Search } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
-import SectionHeader from '@/pages/settings/components/SectionHeader'
+import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'
 import CreateTaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/CreateTaxAdvantagedCategoryModal'
 import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedCategoriesTable'
@@ -41,7 +41,7 @@ export default function TaxAdvantagedCategoriesSection({
 
   return (
     <section id="tax-advantaged-categories" className="scroll-mt-8">
-      <SectionHeader
+      <SettingsSectionHeader
         title="Tax-Advantaged Categories"
         description="Create category-level limits before assigning accounts to them."
       />

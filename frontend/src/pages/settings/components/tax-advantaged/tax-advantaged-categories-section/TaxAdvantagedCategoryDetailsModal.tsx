@@ -10,7 +10,7 @@ import {
   CompactCurrencyInput,
   TaxAdvantagedCurrencyWarning,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedFormControls'
-import OpeningUsageLabel from './OpeningUsageLabel'
+import TaxAdvantagedOpeningUsageLabel from './TaxAdvantagedOpeningUsageLabel'
 
 interface TaxAdvantagedCategoryDetailsModalProps {
   currencies: Currency[]
@@ -163,7 +163,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
                       </div>
                       <div className="min-w-0">
                         <span className="app-label mb-1 block text-xs">
-                          <OpeningUsageLabel />
+                          <TaxAdvantagedOpeningUsageLabel />
                         </span>
                         <CompactCurrencyInput
                           ariaLabel="Opening usage"

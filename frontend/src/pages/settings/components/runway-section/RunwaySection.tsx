@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { RunwayThresholds } from '@/utils/runway'
-import SectionHeader from '@/pages/settings/components/SectionHeader'
+import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'
 import { ArchivedRunwayAccountTile, RunwayAccountTile } from './RunwayAccountTiles'
 import { RunwayThresholdSlider } from './RunwayThresholdSlider'
@@ -32,7 +32,7 @@ export default function RunwaySection({
 }: RunwaySectionProps) {
   return (
     <section id="runway" className="scroll-mt-8">
-      <SectionHeader
+      <SettingsSectionHeader
         title="Runway"
         description={
           <>

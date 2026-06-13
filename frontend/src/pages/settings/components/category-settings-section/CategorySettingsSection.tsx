@@ -11,11 +11,11 @@ import {
 } from '@/api/categories'
 import { categoryKeys } from '@/api/cache/queryKeys'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
-import CategoryGroup from '@/pages/settings/components/category-settings-section/CategoryGroup'
+import CategorySettingsGroup from '@/pages/settings/components/category-settings-section/CategorySettingsGroup'
 import MergeDeleteCategoryModal from '@/pages/settings/components/category-settings-section/MergeDeleteCategoryModal'
 import { DELETE_SPINNER_MS } from '@/pages/settings/components/category-settings-section/categorySettingsConstants'
 import { useCategorySettingsGroups } from '@/pages/settings/components/category-settings-section/hooks/useCategorySettingsGroups'
-import SectionHeader from '@/pages/settings/components/SectionHeader'
+import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -81,7 +81,7 @@ export default function CategorySettingsSection() {
 
   return (
     <section id="categories" className="scroll-mt-8">
-      <SectionHeader
+      <SettingsSectionHeader
         title="Categories"
         description="Review system categories and manage custom categories."
       />
@@ -134,7 +134,7 @@ export default function CategorySettingsSection() {
             <div className="space-y-6">
               {groupedCategories.map(({ kind, items }) => (
                 items.length > 0 && (
-                  <CategoryGroup
+                  <CategorySettingsGroup
                     key={kind}
                     kind={kind}
                     expanded={expandedKinds.has(kind)}
