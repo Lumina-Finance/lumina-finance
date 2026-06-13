@@ -11,7 +11,7 @@ import {
 } from '@/components/LoadingTransition'
 import { PeriodGlancePrimaryPanel } from './PeriodGlancePrimaryPanel'
 import { PeriodGlanceSupportGrid } from './PeriodGlanceSupportGrid'
-import { SectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '../InsightSectionHeader'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 type PeriodGlanceSnapshot = {
@@ -68,7 +68,7 @@ export function PeriodGlanceCard({
 
   return (
     <section className="app-card">
-      <SectionHeader icon={Sparkles} label="This Period at a Glance" />
+      <InsightSectionHeader icon={Sparkles} label="This Period at a Glance" />
 
       <div className="relative overflow-hidden" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>

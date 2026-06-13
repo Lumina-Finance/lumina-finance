@@ -8,11 +8,11 @@ import {
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { getInsightsNetWorthFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { FxStatusBadge } from '../FxStatusBadge'
+import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
 import { InsightActionButton } from '../InsightActionButton'
 import { NetWorthChart } from './NetWorthChart'
-import { SectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '../InsightSectionHeader'
 import {
   formatSignedNetWorthCurrency,
   getNetWorthChartData,
@@ -107,7 +107,7 @@ export function NetWorthCard({
 
   return (
     <section className="app-card">
-      <SectionHeader
+      <InsightSectionHeader
         icon={Wallet}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -117,7 +117,7 @@ export function NetWorthCard({
               calculation={getNetWorthCalculation(displaySnapshot.mode)}
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Net Worth FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getInsightsNetWorthFxStatusMessage}

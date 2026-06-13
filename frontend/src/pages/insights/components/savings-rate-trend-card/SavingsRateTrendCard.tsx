@@ -11,11 +11,11 @@ import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate
 import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { getSavingsRateSummary } from '@/pages/insights/utils/savingsRateChart'
-import { FxStatusBadge } from '../FxStatusBadge'
+import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
 import { InsightActionButton } from '../InsightActionButton'
 import { SavingsRateChart } from './SavingsRateChart'
-import { SectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '../InsightSectionHeader'
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]
@@ -81,7 +81,7 @@ export function SavingsRateTrendCard({
 
   return (
     <section className="app-card">
-      <SectionHeader
+      <InsightSectionHeader
         icon={Repeat}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -91,7 +91,7 @@ export function SavingsRateTrendCard({
               calculation={savingsRateCalculation}
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Savings Rate Trend FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getSavingsRateTrendFxStatusMessage}

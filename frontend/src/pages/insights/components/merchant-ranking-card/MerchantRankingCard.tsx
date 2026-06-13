@@ -9,9 +9,9 @@ import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { FxStatusBadge } from '../FxStatusBadge'
+import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
 import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { SectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '../InsightSectionHeader'
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]
@@ -66,7 +66,7 @@ export function MerchantRankingCard({
 
   return (
     <div className="app-card min-[1300px]:h-[560px]">
-      <SectionHeader
+      <InsightSectionHeader
         icon={ListChecks}
         label={(
           <span className="inline-flex items-center gap-2">
@@ -76,7 +76,7 @@ export function MerchantRankingCard({
               calculation="Ranks merchants by spending after refunds. Income losses are not included"
             />
             {displaySnapshot.fxStatus && (
-              <FxStatusBadge
+              <InsightFxStatusBadge
                 label="Merchant Ranking FX status"
                 status={displaySnapshot.fxStatus}
                 getMessage={getMerchantSpendingFxStatusMessage}
