@@ -13,3 +13,12 @@ export function formatSignedCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
 }
+
+/**
+ * Returns the semantic colour token for a signed insight amount
+ */
+export function getSignedAmountColor(amount: number) {
+  if (amount > 0) return 'var(--app-positive)'
+  if (amount < 0) return 'var(--app-negative)'
+  return 'var(--app-text)'
+}
