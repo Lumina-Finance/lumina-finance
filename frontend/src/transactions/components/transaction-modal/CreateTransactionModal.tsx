@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import CreateCategoryModal from '@/components/CreateCategoryModal'
-import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
-import CreateTagModal from '@/components/CreateTagModal'
+import { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
@@ -52,6 +50,7 @@ import TransactionDetailsSection from '@/transactions/components/transaction-mod
 import TransactionModalFooter from '@/transactions/components/transaction-modal/TransactionModalFooter'
 import TransactionModalShell from '@/transactions/components/transaction-modal/TransactionModalShell'
 import TransactionModalSubmitError from '@/transactions/components/transaction-modal/TransactionModalSubmitError'
+import TransactionReferenceCreationModals from '@/transactions/components/transaction-modal/TransactionReferenceCreationModals'
 import TransactionReferencesSection from '@/transactions/components/transaction-modal/TransactionReferencesSection'
 import TransactionTypeDirectionSection from '@/transactions/components/transaction-modal/TransactionTypeDirectionSection'
 import { useDebouncedReferenceSearch } from '@/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
@@ -668,32 +667,26 @@ export default function CreateTransactionModal({
           <TransactionModalSubmitError error={submitError} />
         </div>
       </TransactionModalShell>
-      <CreateMerchantModal
-        key={merchantModalKey}
-        open={open && showMerchantModal}
-        initialName={merchantModalName}
-        variant="secondary"
-        categoryOptions={merchantDefaultCategoryOptions}
-        onClose={() => setShowMerchantModal(false)}
-        onCreated={handleMerchantCreated}
-      />
-      <CreateCategoryModal
-        key={categoryModalKey}
-        open={open && showCategoryModal}
-        initialName={categoryModalName}
-        initialKind={form.kind}
-        variant="secondary"
-        onClose={() => setShowCategoryModal(false)}
-        onCreated={handleCategoryCreated}
-      />
-      <CreateTagModal
-        key={tagModalKey}
-        open={open && showTagModal}
-        initialName={tagModalName}
-        groupId={selectedAccount?.group_id ?? null}
-        variant="secondary"
-        onClose={() => setShowTagModal(false)}
-        onCreated={handleTagCreated}
+      <TransactionReferenceCreationModals
+        parentOpen={open}
+        merchantModalKey={merchantModalKey}
+        merchantOpen={showMerchantModal}
+        merchantInitialName={merchantModalName}
+        merchantCategoryOptions={merchantDefaultCategoryOptions}
+        onCloseMerchant={() => setShowMerchantModal(false)}
+        onMerchantCreated={handleMerchantCreated}
+        categoryModalKey={categoryModalKey}
+        categoryOpen={showCategoryModal}
+        categoryInitialName={categoryModalName}
+        categoryInitialKind={form.kind}
+        onCloseCategory={() => setShowCategoryModal(false)}
+        onCategoryCreated={handleCategoryCreated}
+        tagModalKey={tagModalKey}
+        tagOpen={showTagModal}
+        tagInitialName={tagModalName}
+        tagGroupId={selectedAccount?.group_id ?? null}
+        onCloseTag={() => setShowTagModal(false)}
+        onTagCreated={handleTagCreated}
       />
     </>
   )
