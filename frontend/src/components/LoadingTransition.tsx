@@ -3,6 +3,9 @@ import { AnimatePresence, motion } from 'motion/react'
 
 const loadingVisibilityTransition = { duration: 0.32, ease: [0.22, 1, 0.36, 1] } as const
 
+/**
+ * Conceals content while preserving its layout box during loading transitions
+ */
 export function LoadingContent({
   children,
   concealed,
@@ -31,16 +34,21 @@ export function LoadingContent({
   )
 }
 
+/**
+ * Displays the shared spinner overlay with consistent enter and exit timing
+ */
 export function LoadingOverlay({
   visible,
   shouldReduceMotion,
   label,
   className = 'absolute inset-0 flex items-center justify-center',
+  style,
 }: {
   visible: boolean
   shouldReduceMotion: boolean
   label: string
   className?: string
+  style?: CSSProperties
 }) {
   return (
     <AnimatePresence>
@@ -51,6 +59,7 @@ export function LoadingOverlay({
           animate={{ opacity: 1 }}
           exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
           transition={shouldReduceMotion ? { duration: 0 } : loadingVisibilityTransition}
+          style={style}
         >
           <div className="app-spinner" aria-label={label} />
         </motion.div>

@@ -1,4 +1,3 @@
-
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CategoryRow from '@/budgets/components/budget-card/CategoryRow'
@@ -6,7 +5,11 @@ import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import { budgetCadenceLabel, formatBudgetPeriod, nextBudgetPeriods } from '@/budgets/utils/budgetPeriods'
 import { attentionState } from '@/budgets/utils/budgetStatus'
+import { getBudgetUtilizationPercent } from '@/budgets/utils/budgetDetails'
 
+/**
+ * Renders a single budget summary card with current spending, period context, and tracked categories
+ */
 export default function BudgetCard({
   baseBudget,
   latestPeriod,
@@ -26,7 +29,7 @@ export default function BudgetCard({
   const remaining = latestPeriod ? latestPeriod.overall_limit - spent : 0
   const isOverBudget = remaining < 0
   const displayBalance = isOverBudget ? Math.abs(remaining) : remaining
-  const progress = latestPeriod ? Math.min(Math.max((spent / latestPeriod.overall_limit) * 100, 0), 100) : 0
+  const progress = latestPeriod ? Math.min(Math.max(getBudgetUtilizationPercent(spent, latestPeriod.overall_limit), 0), 100) : 0
   const attention = attentionState(latestPeriod, utilization)
   const upcomingPeriods = nextBudgetPeriods(baseBudget, latestPeriod)
 
