@@ -4,12 +4,12 @@ import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import ActionFeedbackButton from '@/components/ActionFeedbackButton'
 import Dropdown from '@/components/Dropdown'
-import type { TaxPlanFormState } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
-import { TAX_TREATMENT_OPTIONS } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+import type { TaxPlanFormState } from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
+import { TAX_TREATMENT_OPTIONS } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   CompactCurrencyInput,
   TaxAdvantagedCurrencyWarning,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 import OpeningUsageLabel from './OpeningUsageLabel'
 
 interface TaxAdvantagedCategoryDetailsModalProps {

@@ -1,6 +1,6 @@
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/taxAdvantagedCategories'
-import { DEFAULT_NEW_LIMIT_YEAR, TAX_TREATMENT_OPTIONS } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+import { DEFAULT_NEW_LIMIT_YEAR, TAX_TREATMENT_OPTIONS } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 
 /**
  * Waits for feedback UI to stay visible for its minimum duration

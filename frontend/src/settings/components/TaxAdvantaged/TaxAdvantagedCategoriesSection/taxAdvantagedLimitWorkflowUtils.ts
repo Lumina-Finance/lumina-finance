@@ -6,12 +6,12 @@ import type {
 import type {
   TaxPlanLimitDraftState,
   TaxPlanLimitFormState,
-} from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
+} from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
 import {
   fromMinorUnits,
   isValidMoneyInput,
   toMinorUnits,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
 
 /**
  * Creates a blank annual limit form for the supplied tax year

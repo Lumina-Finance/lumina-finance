@@ -6,7 +6,7 @@ import type {
   TaxAdvantagedCategoryLimit,
 } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import OpeningUsageLabel from './OpeningUsageLabel'
 
 interface TaxAdvantagedLimitsPanelProps {

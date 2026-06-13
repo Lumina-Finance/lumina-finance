@@ -13,25 +13,25 @@ import type {
   TaxPlanLimitDraftField,
   TaxPlanLimitDraftState,
   TaxPlanLimitFormState,
-} from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
+} from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
 import {
   DEFAULT_NEW_LIMIT_YEAR,
   LIMIT_DELETE_FEEDBACK_MS,
   LIMIT_SAVE_FEEDBACK_MS,
   MAX_VISIBLE_LIMIT_ROWS,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   delay,
   nextAvailableLimitYear,
   toMinorUnits,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
 import {
   createEmptyLimitForm,
   getLimitDraft,
   isLimitDirty,
   validateExistingLimitDraft,
   validateNewLimitForm,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedLimitWorkflowUtils'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedLimitWorkflowUtils'
 
 interface UseTaxAdvantagedLimitWorkflowParams {
   currencies: Currency[]

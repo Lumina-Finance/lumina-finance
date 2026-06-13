@@ -6,15 +6,15 @@ import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
 import Dropdown from '@/components/Dropdown'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
-import { useCreateTaxAdvantagedCategoryForm } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useCreateTaxAdvantagedCategoryForm'
+import { useCreateTaxAdvantagedCategoryForm } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/hooks/useCreateTaxAdvantagedCategoryForm'
 import {
   EASE,
   TAX_TREATMENT_OPTIONS,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   CurrencyInput,
   TaxAdvantagedCurrencyWarning,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 
 /**
  * Renders the modal for creating a new tax-advantaged category

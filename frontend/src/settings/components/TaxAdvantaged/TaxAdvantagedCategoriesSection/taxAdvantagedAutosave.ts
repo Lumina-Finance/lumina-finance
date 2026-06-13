@@ -1,4 +1,4 @@
-import type { AutosaveNotice } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
+import type { AutosaveNotice } from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
 
 export function autosaveNoticeColor(status: AutosaveNotice['status']) {
   if (status === 'error') return 'var(--app-negative)'

@@ -1,14 +1,14 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { Currency } from '@/api/currency'
 import { useCreateTaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
-import type { TaxPlanFormState } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
-import { CREATE_TAX_CATEGORY_MIN_LOADING_MS } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+import type { TaxPlanFormState } from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
+import { CREATE_TAX_CATEGORY_MIN_LOADING_MS } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   currencyOptions,
   delay,
   isValidMoneyInput,
   toMinorUnits,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
 
 interface UseCreateTaxAdvantagedCategoryFormParams {
   currencies: Currency[]

@@ -8,19 +8,19 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type {
   AutosaveNotice,
   CategoryModalTab,
-} from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
-import TaxAdvantagedAccountLinksPanel from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedAccountLinksPanel'
-import AutosaveStatusIcon from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/AutosaveStatusIcon'
-import InfoItem from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/InfoItem'
-import TaxAdvantagedCategoryDetailsModal from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedCategoryDetailsModal'
-import TaxAdvantagedLimitDetailsModal from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedLimitDetailsModal'
-import TaxAdvantagedLimitsPanel from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedLimitsPanel'
-import { useTaxAdvantagedAccountLinks } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedAccountLinks'
-import { useTaxAdvantagedCategoryDetailsForm } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedCategoryDetailsForm'
-import { useTaxAdvantagedLimitWorkflow } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedLimitWorkflow'
-import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
-import { formatTaxTreatment } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
-import { TaxAdvantagedCurrencyWarning } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
+} from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
+import TaxAdvantagedAccountLinksPanel from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedAccountLinksPanel'
+import AutosaveStatusIcon from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/AutosaveStatusIcon'
+import InfoItem from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/InfoItem'
+import TaxAdvantagedCategoryDetailsModal from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedCategoryDetailsModal'
+import TaxAdvantagedLimitDetailsModal from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedLimitDetailsModal'
+import TaxAdvantagedLimitsPanel from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedLimitsPanel'
+import { useTaxAdvantagedAccountLinks } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedAccountLinks'
+import { useTaxAdvantagedCategoryDetailsForm } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedCategoryDetailsForm'
+import { useTaxAdvantagedLimitWorkflow } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedLimitWorkflow'
+import { autosaveNoticeColor } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
+import { formatTaxTreatment } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+import { TaxAdvantagedCurrencyWarning } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 
 /**
  * Renders the TAC management modal shell with details, limit, and account workflows

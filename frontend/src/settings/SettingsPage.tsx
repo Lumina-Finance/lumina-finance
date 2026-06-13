@@ -9,7 +9,7 @@ import {
   SettingsMobileSectionMenu,
 } from '@/settings/components/SettingsSectionNavigation'
 import { SettingsPaneActions } from '@/settings/components/SettingsPaneActions'
-import TaxAdvantagedCategoriesSection from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection'
+import TaxAdvantagedCategoriesSection from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection'
 import { useProfileSettingsForm } from '@/settings/hooks/useProfileSettingsForm'
 import { useRunwaySettingsForm } from '@/settings/hooks/useRunwaySettingsForm'
 import { useSettingsSectionNavigation } from '@/settings/hooks/useSettingsSectionNavigation'

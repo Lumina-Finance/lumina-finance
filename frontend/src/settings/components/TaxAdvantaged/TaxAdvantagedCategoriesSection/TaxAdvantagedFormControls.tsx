@@ -3,13 +3,13 @@ import { Pencil } from 'lucide-react'
 import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
 import IconTooltip from '@/components/IconTooltip'
-import { TAX_TREATMENT_OPTIONS } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+import { TAX_TREATMENT_OPTIONS } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   currencySymbol,
   formatMoneyInput,
   formatMoneyInputLive,
   sanitizeMoneyInput,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
 
 export function TaxAdvantagedCurrencyWarning() {
   return (

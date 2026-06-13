@@ -5,14 +5,14 @@ import {
   useUpdateTaxAdvantagedCategory,
   type TaxAdvantagedCategory,
 } from '@/api/taxAdvantagedCategories'
-import type { TaxPlanFormState } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
-import { DELETE_TAX_CATEGORY_MIN_LOADING_MS } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
+import type { TaxPlanFormState } from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
+import { DELETE_TAX_CATEGORY_MIN_LOADING_MS } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   delay,
   fromMinorUnits,
   isValidMoneyInput,
   toMinorUnits,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
 
 interface UseTaxAdvantagedCategoryDetailsFormParams {
   currencies: Currency[]
