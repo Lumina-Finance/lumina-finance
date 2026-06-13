@@ -2,12 +2,10 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'motion/react'
-import { Calendar, ReceiptText, Tag as TagIcon, X } from 'lucide-react'
+import { ReceiptText, X } from 'lucide-react'
 import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CreateMerchantModal, { NO_DEFAULT_CATEGORY_VALUE } from '@/components/CreateMerchantModal'
 import CreateTagModal from '@/components/CreateTagModal'
-import Dropdown from '@/components/Dropdown'
-import IconTooltip from '@/components/IconTooltip'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
@@ -20,17 +18,11 @@ import {
   useUpdateTransaction,
 } from '@/api/transactions'
 import { ApiError } from '@/api/auth'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { sanitizeMoneyInput } from '@/utils/moneyInput'
 import {
-  formatMoneyInputLive,
-  sanitizeMoneyInput,
-} from '@/utils/moneyInput'
-import {
-  DIRECTION_OPTIONS,
   EASE,
   INITIAL_TRANSACTION_FORM,
   KIND_LABELS,
-  KIND_OPTIONS,
   MERCHANT_DROPDOWN_PAGE_SIZE,
   MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
   MERCHANT_SEARCH_DEBOUNCE_MS,
@@ -60,9 +52,10 @@ import type {
   TransactionModalKind,
 } from '@/transactions/components/transaction-modal/transactionModalTypes'
 import { validateTransactionForm } from '@/transactions/components/transaction-modal/transactionModalValidation'
-import TransactionModalFieldLabelRow from '@/transactions/components/transaction-modal/TransactionModalFieldLabelRow'
+import TransactionDetailsSection from '@/transactions/components/transaction-modal/TransactionDetailsSection'
 import TransactionModalFooter from '@/transactions/components/transaction-modal/TransactionModalFooter'
-import TransactionModalPillSelector from '@/transactions/components/transaction-modal/TransactionModalPillSelector'
+import TransactionReferencesSection from '@/transactions/components/transaction-modal/TransactionReferencesSection'
+import TransactionTypeDirectionSection from '@/transactions/components/transaction-modal/TransactionTypeDirectionSection'
 import { useDebouncedReferenceSearch } from '@/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
 
@@ -667,355 +660,80 @@ export default function CreateTransactionModal({
 
                 <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8">
                   <div className="space-y-5">
-                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-                      <div className="flex min-h-0 flex-col items-center">
-                        <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-                          01
-                        </span>
-                        <span
-                          className="mt-1 w-px flex-1"
-                          style={{ backgroundColor: 'var(--app-border-strong)' }}
-                          aria-hidden
-                        />
-                      </div>
+                    <TransactionTypeDirectionSection
+                      kind={form.kind}
+                      direction={form.direction}
+                      editing={editing}
+                      directionHighlightKey={directionHighlightKey}
+                      onKindChange={handleKindChange}
+                      onDirectionChange={(value) => handleField('direction', value)}
+                    />
 
-                      <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Type &amp; Direction</p>
+                    <TransactionReferencesSection
+                      accountOptions={accountOptions}
+                      selectedArchivedAccountOption={selectedArchivedAccountOption}
+                      accountValue={form.account_id}
+                      accountError={showError('account_id')}
+                      accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
+                      runningBalance={showRunningBalance && selectedAccount
+                        ? { amount: runningBalance, currency: selectedAccount.currency }
+                        : undefined}
+                      merchantOptions={merchantOptions}
+                      selectedMerchantOption={selectedMerchantOption}
+                      merchantValue={form.merchant_id}
+                      merchantError={showError('merchant_id')}
+                      merchantSearch={merchantReferenceSearch.search}
+                      merchantLoading={merchantReference.showLoading}
+                      merchantLoadingText={merchantReference.loadingText}
+                      merchantHideOptionsWhileLoading={merchantReference.showInitialLoading}
+                      merchantHasMore={!!merchantQuery.hasNextPage}
+                      categoryOptions={categoryOptions}
+                      categoryValue={form.category_id}
+                      categoryError={showError('category_id')}
+                      showMerchantDefaultCategoryAction={showMerchantDefaultCategoryAction}
+                      merchantDefaultCategoryActionLabel={merchantDefaultCategoryActionLabel}
+                      merchantDefaultCategoryPending={updateMerchantMutation.isPending}
+                      tagOptions={tagOptions}
+                      tagsDisabled={!form.account_id}
+                      tagSearch={tagReferenceSearch.search}
+                      tagLoading={tagReference.showLoading}
+                      tagLoadingText={tagReference.loadingText}
+                      tagHideOptionsWhileLoading={tagReference.showInitialLoading}
+                      tagHasMore={!!tagQuery.hasNextPage}
+                      selectedTags={selectedTags}
+                      onAccountChange={handleAccountChange}
+                      onMerchantChange={handleMerchantChange}
+                      onMerchantSearchChange={merchantReferenceSearch.setSearch}
+                      onMerchantSearchCommit={merchantReferenceSearch.setActiveSearch}
+                      onMerchantLoadMore={merchantReference.loadMore}
+                      onCreateMerchant={handleCreateMerchant}
+                      onMakeMerchantDefaultCategory={handleMakeMerchantDefaultCategory}
+                      onCategoryChange={handleCategoryChange}
+                      onCreateCategory={handleCreateCategory}
+                      onTagChange={handleTagChange}
+                      onTagSearchChange={tagReferenceSearch.setSearch}
+                      onTagSearchCommit={tagReferenceSearch.setActiveSearch}
+                      onTagLoadMore={tagReference.loadMore}
+                      onCreateTag={handleCreateTag}
+                      onRemoveTag={handleRemoveTag}
+                    />
 
-                        <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-                          {/* Kind pills — locked in edit mode (kind is derived from the chosen category) */}
-                          <TransactionModalPillSelector
-                            value={form.kind}
-                            options={KIND_OPTIONS}
-                            ariaLabel="Transaction type"
-                            onChange={handleKindChange}
-                            disabled={editing}
-                          />
-                          <div className="relative rounded-lg">
-                            <AnimatePresence initial={false}>
-                              {directionHighlightKey > 0 && (
-                                <motion.span
-                                  key={directionHighlightKey}
-                                  className="pointer-events-none absolute inset-0 rounded-lg"
-                                  initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
-                                  animate={{ boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
-                                  exit={{ opacity: 0 }}
-                                  transition={{ duration: 0.45, ease: EASE }}
-                                  aria-hidden
-                                />
-                              )}
-                            </AnimatePresence>
-                            <TransactionModalPillSelector
-                              value={form.direction}
-                              options={DIRECTION_OPTIONS}
-                              ariaLabel="Transaction direction"
-                              onChange={(value) => handleField('direction', value)}
-                            />
-                          </div>
-                        </div>
-
-                      </div>
-                    </section>
-
-                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-                      <div className="flex min-h-0 flex-col items-center">
-                        <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-                          02
-                        </span>
-                        <span
-                          className="mt-1 w-px flex-1"
-                          style={{ backgroundColor: 'var(--app-border-strong)' }}
-                          aria-hidden
-                        />
-                      </div>
-
-                      <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Source/Destination</p>
-
-                        {/* Account */}
-                        <div>
-                          <TransactionModalFieldLabelRow label="Account" error={showError('account_id')} />
-                          <Dropdown
-                            options={accountOptions}
-                            selectedOption={selectedArchivedAccountOption}
-                            value={form.account_id}
-                            onChange={handleAccountChange}
-                            className={`app-input ${showError('account_id') ? 'app-input-error' : ''}`}
-                            placeholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
-                            searchable
-                            searchPlaceholder="Search accounts..."
-                          />
-                          <AnimatePresence initial={false}>
-                            {showRunningBalance && selectedAccount && (
-	                              <motion.div
-	                                key="running-balance"
-	                                className="overflow-hidden"
-	                                initial={{ height: 0, opacity: 0, y: -3 }}
-	                                animate={{ height: 'auto', opacity: 1, y: 0 }}
-	                                exit={{ height: 0, opacity: 0, y: -3 }}
-	                                transition={{ duration: 0.2, ease: EASE }}
-	                                aria-live="polite"
-	                              >
-	                                <div className="flex items-center justify-between gap-3 px-0.5 pt-2 text-xs">
-	                                  <span className="font-medium" style={{ color: 'var(--app-text-muted)' }}>
-	                                    Running balance
-	                                  </span>
-	                                  <span
-	                                    className="font-financial text-sm font-semibold"
-	                                    style={{ color: 'var(--app-text)' }}
-	                                  >
-	                                    {formatCurrency(runningBalance, selectedAccount.currency)}
-	                                  </span>
-	                                </div>
-	                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
-                        {/* Merchant */}
-                        <div>
-                          <TransactionModalFieldLabelRow label="Merchant" error={showError('merchant_id')} />
-                          <Dropdown
-                            options={merchantOptions}
-                            selectedOption={selectedMerchantOption}
-                            value={form.merchant_id}
-                            onChange={handleMerchantChange}
-                            className={`app-input ${showError('merchant_id') ? 'app-input-error' : ''}`}
-                            placeholder="Select or type to create..."
-                            searchable
-                            searchPlaceholder="Search merchants..."
-                            searchValue={merchantReferenceSearch.search}
-                            onSearchChange={merchantReferenceSearch.setSearch}
-                            onSearchCommit={merchantReferenceSearch.setActiveSearch}
-                            filterOptions={false}
-                            isLoading={merchantReference.showLoading}
-                            loadingText={merchantReference.loadingText}
-                            loadingMinMs={0}
-                            hideOptionsWhileLoading={merchantReference.showInitialLoading}
-                            autoHighlightFirstOption
-                            selectHighlightedOnSearchEnter
-                            hasMore={!!merchantQuery.hasNextPage}
-                            onLoadMore={merchantReference.loadMore}
-                            onCreateNew={handleCreateMerchant}
-                            createNewLabel={(query) => query ? `Create merchant "${query}"` : 'Create merchant'}
-                          />
-                        </div>
-
-                        {/* Category */}
-                        <div>
-                          <TransactionModalFieldLabelRow
-                            label="Category"
-                            error={showError('category_id')}
-                            action={showMerchantDefaultCategoryAction && (
-                              <button
-                                type="button"
-                                className="block h-5 min-w-0 max-w-full truncate text-left text-xs font-medium leading-5 disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
-                                style={{ color: 'var(--app-accent)' }}
-                                title={merchantDefaultCategoryActionLabel}
-                                disabled={updateMerchantMutation.isPending}
-                                onClick={handleMakeMerchantDefaultCategory}
-                              >
-                                {merchantDefaultCategoryActionLabel}
-                              </button>
-                            )}
-                          />
-                          <Dropdown
-                            options={categoryOptions}
-                            value={form.category_id}
-                            onChange={handleCategoryChange}
-                            className={`app-input ${showError('category_id') ? 'app-input-error' : ''}`}
-                            placeholder="Select category..."
-                            searchable
-                            searchPlaceholder="Search categories..."
-                            onCreateNew={handleCreateCategory}
-                            createNewLabel={(query) => query ? `Create category "${query}"` : 'Create category'}
-                          />
-                        </div>
-
-                        {/* Tags */}
-                        <div>
-                          <TransactionModalFieldLabelRow label="Tags" />
-                          <Dropdown
-                            options={tagOptions}
-                            value=""
-                            onChange={handleTagChange}
-                            className="app-input"
-                            placeholder={form.account_id ? 'Add tags...' : 'Select account first'}
-                            searchable
-                            searchPlaceholder="Search tags..."
-                            searchValue={tagReferenceSearch.search}
-                            onSearchChange={tagReferenceSearch.setSearch}
-                            onSearchCommit={tagReferenceSearch.setActiveSearch}
-                            filterOptions={false}
-                            isLoading={tagReference.showLoading}
-                            loadingText={tagReference.loadingText}
-                            loadingMinMs={0}
-                            hideOptionsWhileLoading={tagReference.showInitialLoading}
-                            hasMore={!!tagQuery.hasNextPage}
-                            onLoadMore={tagReference.loadMore}
-                            onCreateNew={handleCreateTag}
-                            createNewLabel={(query) => query ? `Create tag "${query}"` : 'Create tag'}
-                            disabled={!form.account_id}
-                          />
-                          <AnimatePresence initial={false}>
-                            {selectedTags.length > 0 && (
-                              <motion.div
-                                key="selected-tags"
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.22, ease: EASE }}
-                                style={{ overflow: 'hidden' }}
-                              >
-                                <motion.div
-                                  layout
-                                  className="mt-2 flex flex-wrap gap-2"
-                                  transition={{ layout: { duration: 0.22, ease: EASE } }}
-                                >
-                                  <AnimatePresence initial={false} mode="popLayout">
-                                    {selectedTags.map((tag) => (
-                                      <motion.button
-                                        layout
-                                        key={tag.id}
-                                        type="button"
-                                        onClick={() => handleRemoveTag(tag.id)}
-                                        className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-100 hover:bg-[var(--app-accent-soft)]"
-                                        style={{
-                                          background: 'var(--app-surface-soft)',
-                                          color: 'var(--app-text-muted)',
-                                          border: '1px solid var(--app-border)',
-                                        }}
-                                        initial={{ opacity: 0, scale: 0.96, y: -4 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.96, y: -4 }}
-                                        transition={{ duration: 0.18, ease: EASE }}
-                                        aria-label={`Remove ${tag.name}`}
-                                      >
-                                        <TagIcon size={13} aria-hidden className="shrink-0" />
-                                        <span className="min-w-0 truncate">{tag.name}</span>
-                                        <X size={13} aria-hidden className="shrink-0" />
-                                      </motion.button>
-                                    ))}
-                                  </AnimatePresence>
-                                </motion.div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
-                      <div className="flex min-h-0 flex-col items-center">
-                        <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
-                          03
-                        </span>
-                        <span
-                          className="mt-1 w-px flex-1"
-                          style={{ backgroundColor: 'var(--app-border-strong)' }}
-                          aria-hidden
-                        />
-                      </div>
-
-                      <div className="min-w-0 space-y-3">
-                        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
-
-                        {/* Date + Currency + Amount */}
-                        <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
-                          <div>
-                            <TransactionModalFieldLabelRow htmlFor="txn-date" label="Date" error={showError('date')} />
-                            <div
-                              className={`app-input relative flex items-center justify-between gap-2 overflow-hidden pr-3 text-sm min-[1050px]:hidden ${
-                                showError('date')
-                                  ? 'app-input-error'
-                                  : 'focus-within:border-[var(--app-accent-border)] focus-within:shadow-[0_0_0_2px_var(--app-accent-soft)]'
-                              }`}
-                            >
-                              <span className="min-w-0 truncate font-medium tabular-nums" aria-hidden>
-                                {form.date}
-                              </span>
-                              <Calendar size={15} className="shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
-                              <input
-                                id="txn-date-mobile"
-                                type="date"
-                                aria-label="Date"
-                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base"
-                                value={form.date}
-                                onChange={(e) => handleField('date', e.target.value)}
-                                onBlur={() => handleBlur('date')}
-                              />
-                            </div>
-                            <input
-                              id="txn-date"
-                              type="date"
-                              className={`app-input app-date-input-balanced hidden min-[1050px]:block ${showError('date') ? 'app-input-error' : ''}`}
-                              value={form.date}
-                              onChange={(e) => handleField('date', e.target.value)}
-                              onBlur={() => handleBlur('date')}
-                            />
-                          </div>
-                          <div>
-                            <div className="mb-1.5 flex items-center gap-2">
-                              <label className="app-label block text-[0.9375rem] leading-5">Currency</label>
-                              <IconTooltip label="Transaction currency limitation">
-                                Locked to the selected account's currency
-                              </IconTooltip>
-                            </div>
-                            <Dropdown
-                              options={currencyOptions}
-                              value={form.currency}
-                              onChange={() => undefined}
-                              placeholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
-                              searchable
-                              searchPlaceholder="Search currencies..."
-                              disabled
-                            />
-                          </div>
-                          <div>
-                            <TransactionModalFieldLabelRow htmlFor="txn-amount" label="Amount" error={showError('amount')} />
-                            <div className="relative">
-                              {selectedCurrencySymbol && (
-                                <span
-                                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-                                  style={{
-                                    color: 'var(--app-text-subtle)',
-                                    fontSize: '0.9375rem',
-                                    lineHeight: 1,
-                                  }}
-                                  aria-hidden
-                                >
-                                  {selectedCurrencySymbol}
-                                </span>
-                              )}
-                              <input
-                                id="txn-amount"
-                                type="text"
-                                inputMode="decimal"
-                                className={`app-input w-full ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('amount') ? 'app-input-error' : ''}`}
-                                placeholder="0.00"
-                                value={formatMoneyInputLive(form.amount)}
-                                onChange={(e) => handleAmountChange(e.target.value)}
-                                onBlur={() => handleBlur('amount')}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Notes */}
-                        <div>
-                          <label htmlFor="txn-notes" className="app-label mb-1.5 block text-[0.9375rem] leading-5">Notes</label>
-                          <input
-                            id="txn-notes"
-                            type="text"
-                            className="app-input"
-                            placeholder="Optional"
-                            value={form.notes}
-                            onChange={(e) => handleField('notes', e.target.value)}
-                            maxLength={500}
-                          />
-                        </div>
-                      </div>
-                    </section>
+                    <TransactionDetailsSection
+                      date={form.date}
+                      dateError={showError('date')}
+                      currencyOptions={currencyOptions}
+                      currencyValue={form.currency}
+                      currencyPlaceholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
+                      selectedCurrencySymbol={selectedCurrencySymbol}
+                      amount={form.amount}
+                      amountError={showError('amount')}
+                      notes={form.notes}
+                      onDateChange={(value) => handleField('date', value)}
+                      onDateBlur={() => handleBlur('date')}
+                      onAmountChange={handleAmountChange}
+                      onAmountBlur={() => handleBlur('amount')}
+                      onNotesChange={(value) => handleField('notes', value)}
+                    />
 
                     {/* Submit error */}
                     <AnimatePresence>
