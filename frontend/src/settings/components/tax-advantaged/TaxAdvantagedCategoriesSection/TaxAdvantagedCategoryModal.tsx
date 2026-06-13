@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ChevronRight, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { useUpdateAccount, type AccountsOverview } from '@/api/accounts'
+import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
   useCreateTaxAdvantagedCategoryLimit,
@@ -18,15 +18,15 @@ import type {
   CategoryModalTab,
   TaxPlanLimitFormState,
 } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
+import TaxAdvantagedAccountLinksPanel from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedAccountLinksPanel'
 import AutosaveStatusIcon from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/AutosaveStatusIcon'
 import InfoItem from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/InfoItem'
 import OpeningUsageLabel from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/OpeningUsageLabel'
 import TaxAdvantagedCategoryDetailsModal from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedCategoryDetailsModal'
+import { useTaxAdvantagedAccountLinks } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedAccountLinks'
 import { useTaxAdvantagedCategoryDetailsForm } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedCategoryDetailsForm'
 import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
 import {
-  ACCOUNT_LINK_SAVE_MIN_LOADING_MS,
-  ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS,
   DEFAULT_NEW_LIMIT_YEAR,
   LIMIT_DELETE_BUTTON_TRANSITION,
   LIMIT_DELETE_FEEDBACK_MS,
@@ -34,7 +34,6 @@ import {
   MAX_VISIBLE_LIMIT_ROWS,
 } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
-  delay,
   formatTaxTreatment,
   fromMinorUnits,
   isValidMoneyInput,
@@ -62,7 +61,6 @@ export default function TaxAdvantagedCategoryModal({
   plan: TaxAdvantagedCategory
   currencies: Currency[]
 }) {
-  const updateAccount = useUpdateAccount()
   const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedCategoryLimits(plan.id)
   const createLimit = useCreateTaxAdvantagedCategoryLimit()
   const updateLimit = useUpdateTaxAdvantagedCategoryLimit()
@@ -85,7 +83,6 @@ export default function TaxAdvantagedCategoryModal({
   const [activeTab, setActiveTab] = useState<CategoryModalTab>('limits')
   const [showAddTaxYear, setShowAddTaxYear] = useState(false)
   const [selectedLimitYear, setSelectedLimitYear] = useState<number | null>(null)
-  const [accountError, setAccountError] = useState<string | null>(null)
   const planDeleteButtonRef = useRef<HTMLButtonElement>(null)
   const planDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
   const planDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
@@ -122,6 +119,15 @@ export default function TaxAdvantagedCategoryModal({
       }, 2400)
     }
   }
+  const {
+    accountError,
+    bindableAccounts,
+    linkedAccountsCount,
+    linkedAccountsMobileSummary,
+    linkedAccountsSummary,
+    pendingAccountId,
+    toggleAccount,
+  } = useTaxAdvantagedAccountLinks({ accounts, plan, showAutosaveNotice })
 
   useBodyScrollLock(true)
 
@@ -269,16 +275,6 @@ export default function TaxAdvantagedCategoryModal({
   const hasScrollableLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
   const creatingLimit = pendingCreateLimitYear !== null || createLimit.isPending
   const hasLifetimePriorActivity = plan.accrued_contributions > 0
-  const bindableAccounts = accounts.filter(
-    (account) =>
-      account.closed_at === null
-      && account.account_kind === 'asset'
-      && account.currency === plan.currency,
-  )
-  const linkedAccountsCount = bindableAccounts.filter((account) => account.tax_advantaged_category_id === plan.id).length
-  const linkedAccountsSummary = `${linkedAccountsCount} linked`
-  const linkedAccountsMobileSummary = `${linkedAccountsCount} ${linkedAccountsCount === 1 ? 'acct' : 'accts'} linked`
-
   const limitDraft = (year: number) => {
     const limit = limits.find((row) => row.year === year)
       ?? (pendingDeletedLimit?.year === year ? pendingDeletedLimit : undefined)
@@ -458,35 +454,6 @@ export default function TaxAdvantagedCategoryModal({
     }
 
     setLimitError(null)
-  }
-
-  const handleToggleAccount = async (account: AccountsOverview) => {
-    if (account.is_archived) return
-
-    const isLinked = account.tax_advantaged_category_id === plan.id
-    let savingNoticeShown = false
-    const savingNoticeTimer = window.setTimeout(() => {
-      savingNoticeShown = true
-      showAutosaveNotice({ status: 'saving', message: 'Saving account link...' })
-    }, ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS)
-
-    try {
-      await updateAccount.mutateAsync({
-        accountId: account.id,
-        payload: { tax_advantaged_category_id: isLinked ? null : plan.id },
-      })
-      window.clearTimeout(savingNoticeTimer)
-
-      if (savingNoticeShown) await delay(ACCOUNT_LINK_SAVE_MIN_LOADING_MS)
-
-      setAccountError(null)
-      showAutosaveNotice({ status: 'saved', message: 'Account link saved.' })
-    } catch (error) {
-      window.clearTimeout(savingNoticeTimer)
-      const message = error instanceof Error ? error.message : 'Failed to update account binding.'
-      setAccountError(message)
-      showAutosaveNotice({ status: 'error', message })
-    }
   }
 
   const renderLimitEditorField = (
@@ -1028,75 +995,14 @@ export default function TaxAdvantagedCategoryModal({
                     )}
                   </div>
                 ) : (
-                  <div className="flex h-full min-h-0 flex-col gap-4">
-                    <div className="shrink-0">
-                      <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
-                        Choose eligible {plan.currency} accounts for this category. Archived accounts stay visible for history but cannot be linked or unlinked until unarchived.
-                      </p>
-                    </div>
-
-                    {accountError && (
-                      <p className="shrink-0 text-sm" style={{ color: 'var(--app-negative)' }}>
-                        {accountError}
-                      </p>
-                    )}
-
-                    {bindableAccounts.length === 0 ? (
-                      <p className="min-h-0 flex-1 py-3 text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-                        No eligible {plan.currency} asset accounts.
-                      </p>
-                    ) : (
-                      <div
-                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-xl border"
-                        style={{ borderColor: 'var(--app-border)' }}
-                      >
-                        {bindableAccounts.map((account, index) => {
-                          const linked = account.tax_advantaged_category_id === plan.id
-                          const linkedElsewhere = account.tax_advantaged_category_id !== null && !linked
-                          const pending = updateAccount.isPending && updateAccount.variables?.accountId === account.id
-                          const disabled = account.is_archived || linkedElsewhere || pending
-                          const statusParts = [
-                            account.institution?.name ?? 'Cash',
-                            account.is_archived ? 'Archived' : null,
-                            linkedElsewhere ? 'Linked elsewhere' : null,
-                          ].filter((part): part is string => part !== null)
-                          return (
-                            <label
-                              key={account.id}
-                              className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-sm transition-colors duration-150 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-accent-soft)]'}`}
-                              style={{
-                                borderTop: index === 0 ? 'none' : '1px solid var(--app-border)',
-                                opacity: account.is_archived || linkedElsewhere ? 0.55 : 1,
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={linked}
-                                onChange={() => handleToggleAccount(account)}
-                                disabled={disabled}
-                                aria-label={`${linked ? 'Unlink' : 'Link'} ${account.name}`}
-                                className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
-                                style={{ accentColor: 'var(--app-accent)' }}
-                              />
-                              <span className="min-w-0">
-                                <span className="block truncate font-medium">{account.name}</span>
-                                <span className="block truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                                  {statusParts.join(' · ')}
-                                </span>
-                              </span>
-                              <span className="font-financial text-sm">
-                                {formatCurrency(account.current_balance, account.currency)}
-                              </span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    <p className="shrink-0 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      {linkedAccountsCount} of {bindableAccounts.length} linked
-                    </p>
-                  </div>
+                  <TaxAdvantagedAccountLinksPanel
+                    accountError={accountError}
+                    bindableAccounts={bindableAccounts}
+                    linkedAccountsCount={linkedAccountsCount}
+                    onToggleAccount={(account) => { void toggleAccount(account) }}
+                    pendingAccountId={pendingAccountId}
+                    plan={plan}
+                  />
                 )}
               </div>
             </div>
