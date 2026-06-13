@@ -14,8 +14,8 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
-import { SavingsCurrentBoundary } from '@/dashboard/components/SavingsCurrentBoundary'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import { SavingsCurrentBoundary } from '@/pages/dashboard/components/SavingsCurrentBoundary'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { SavingsRateHistoryPoint } from '@/insights/types/savingsRate'
 import {
   getSavingsRateAxisConfig,

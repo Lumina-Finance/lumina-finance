@@ -17,7 +17,7 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
+import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { CashFlowBarBucket } from '@/insights/types/cashFlow'
 import { formatSignedCurrency, getSignedAmountColor } from '@/insights/utils/money'
 import { formatCurrency } from '@/utils/formatCurrency'
