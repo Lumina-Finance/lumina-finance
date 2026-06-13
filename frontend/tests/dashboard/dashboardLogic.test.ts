@@ -4,15 +4,23 @@
  * These tests catch regressions where dashboard rows, chart points, thresholds,
  * or summary values drift away from the business rules the widgets render
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { LatestBudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
+import type {
+  CategoryBreakdownEntry,
+  NetWorthWidgetResponse,
+  SpendingBreakdownResponse,
+  SpendingComparisonResponse,
+} from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import type { Transaction } from '@/api/transactions'
 import type { RunwayResult } from '@/api/user'
+import { formatDashboardMoney } from '@/dashboard/utils/formatDashboardMoney'
 import { formatDashboardShortDate } from '@/dashboard/utils/formatDashboardShortDate'
 import { getCreditUsageSummary } from '@/dashboard/utils/getCreditUsageSummary'
+import { getNetWorthSeries } from '@/dashboard/utils/getNetWorthSeries'
 import { getRecentActivityRows } from '@/dashboard/utils/getRecentActivityRows'
 import { getRunwayCaption } from '@/dashboard/utils/getRunwayCaption'
 import { getRunwaySegments } from '@/dashboard/utils/getRunwaySegments'
@@ -20,11 +28,21 @@ import {
   getSavingsRateChartData,
   getSavingsRateDisplay,
 } from '@/dashboard/utils/getSavingsRateChartData'
+import {
+  getSpendingBreakdownEntryColor,
+  getSpendingBreakdownSummary,
+} from '@/dashboard/utils/getSpendingBreakdownSummary'
+import { getSpendingComparisonSeries } from '@/dashboard/utils/getSpendingComparisonSeries'
+import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
 import { getTopBudgetAttentionState } from '@/dashboard/utils/getTopBudgetAttentionState'
 import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
 import type { SavingsRateSeriesPoint } from '@/dashboard/types/dashboard'
 
 const fxStatus: FxStatus = { state: 'none', missing_pairs: [] }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {
@@ -252,5 +270,104 @@ describe('dashboard logic helpers', () => {
   it('formats compact dashboard dates from backend date strings', () => {
     expect(formatDashboardShortDate('2026-01-05')).toBe('Jan 5')
     expect(formatDashboardShortDate('bad-date')).toBe('Unknown')
+  })
+
+  it('builds spending comparison series and summary gaps without inventing values', () => {
+    const comparison: SpendingComparisonResponse = {
+      range: 'MTD',
+      slot_labels: ['1', '2', '3', '4', '5'],
+      current: [100, 300, 600],
+      previous: [200, 400, 900, 1200],
+      fx_status: fxStatus,
+    }
+
+    expect(getSpendingComparisonSeries(comparison)).toEqual([
+      { label: '1', current: 100, previous: 200 },
+      { label: '2', current: 300, previous: 400 },
+      { label: '3', current: 600, previous: 900 },
+      { label: '4', current: null, previous: 1200 },
+      { label: '5', current: null, previous: null },
+    ])
+
+    const summary = getSpendingComparisonSummary(comparison, 'MTD')
+    expect(summary.spendingXAxisTicks).toEqual(['1', '3', '5'])
+    expect(summary.firstSpendingXAxisTick).toBe('1')
+    expect(summary.lastSpendingXAxisTick).toBe('5')
+    expect(summary.spendingPointsByLabel.get('4')).toMatchObject({ previous: 1200 })
+    expect(summary.currentHasData).toBe(true)
+    expect(summary.previousHasData).toBe(true)
+    expect(summary.spentToDate).toBe(600)
+    expect(summary.spendingDeltaPct).toBeCloseTo(-33.333, 3)
+    expect(summary.spendingDeltaText).toBe('-33.3%')
+  })
+
+  it('builds spending breakdown summary with explicit totals and stable colours', () => {
+    const expenseEntry: CategoryBreakdownEntry = {
+      category_id: 'category-groceries',
+      name: 'Groceries',
+      category_kind: 'expense',
+      amount: 12500,
+    }
+    const otherExpenseEntry: CategoryBreakdownEntry = {
+      category_id: 'synthetic-other',
+      name: 'Other',
+      category_kind: 'expense',
+      amount: 2500,
+    }
+    const incomeEntry: CategoryBreakdownEntry = {
+      category_id: 'category-salary',
+      name: 'Salary',
+      category_kind: 'income',
+      amount: 90000,
+    }
+    const breakdown: SpendingBreakdownResponse = {
+      range: 'MTD',
+      expense: [expenseEntry, otherExpenseEntry],
+      income: [incomeEntry],
+      expense_total: 20000,
+      income_total: 90000,
+      fx_status: fxStatus,
+    }
+
+    const summary = getSpendingBreakdownSummary(breakdown, 'spending', 'MTD')
+
+    expect(summary.entries).toEqual([expenseEntry, otherExpenseEntry])
+    expect(summary.total).toBe(20000)
+    expect(summary.chartKey).toBe('spending-MTD')
+    expect(summary.categoryKind).toBe('expense')
+    expect(getSpendingBreakdownEntryColor(expenseEntry, summary)).toBe(summary.colors.get('category-groceries'))
+    expect(getSpendingBreakdownEntryColor(otherExpenseEntry, summary)).toBe(summary.colors.get('expense-other'))
+
+    expect(getSpendingBreakdownSummary(breakdown, 'income', 'YTD')).toMatchObject({
+      entries: [incomeEntry],
+      total: 90000,
+      chartKey: 'income-YTD',
+      categoryKind: 'income',
+    })
+  })
+
+  it('labels net worth history from the current trailing date', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-05T12:00:00Z'))
+
+    const netWorth: NetWorthWidgetResponse = {
+      current_net_worth: 300000,
+      net_worth_history: [100000, 200000, 300000],
+      net_worth_window_days: 3,
+      fx_status: fxStatus,
+    }
+
+    expect(getNetWorthSeries(netWorth)).toEqual([
+      { date: 'Jan 3', value: 100000 },
+      { date: 'Jan 4', value: 200000 },
+      { date: 'Jan 5', value: 300000 },
+    ])
+  })
+
+  it('formats dashboard money using widget-specific compaction rules', () => {
+    expect(formatDashboardMoney(12345678900, 'USD', 'netWorth')).toBe('≈$123M')
+    expect(formatDashboardMoney(12345678, 'USD', 'credit')).toBe('≈$123K')
+    expect(formatDashboardMoney(123456, 'USD', 'breakdown')).toBe('≈$2K')
+    expect(formatDashboardMoney(123456, 'USD', 'raw')).toBe('$1,234.56')
   })
 })
