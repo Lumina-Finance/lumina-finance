@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthTextField } from './AuthTextField'
-import { SIGNUP_FIELD_ANIMATION } from './authAnimations'
-import type { AuthFieldErrors, AuthFormValues } from './authForm'
+import { SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations'
+import type { AuthFieldErrors, AuthFormValues } from '@/pages/auth/utils/authForm'
 
 interface AuthConfirmPasswordFieldProps {
   error?: string
@@ -43,4 +43,3 @@ export function AuthConfirmPasswordField({
     </AnimatePresence>
   )
 }
-

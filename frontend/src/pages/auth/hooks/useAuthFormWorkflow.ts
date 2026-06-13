@@ -25,7 +25,7 @@ import {
   type AuthFieldErrors,
   type AuthFormValues,
   type AuthMode,
-} from './authForm'
+} from '@/pages/auth/utils/authForm'
 
 interface UseAuthFormWorkflowParams {
   containerRef: RefObject<HTMLDivElement | null>
@@ -181,4 +181,3 @@ export function useAuthFormWorkflow({
     touched,
   }
 }
-

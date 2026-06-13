@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import type { AuthMode } from './authForm'
+import type { AuthMode } from '@/pages/auth/utils/authForm'
 
 /**
  * Renders the animated auth heading when the route switches between login and signup
@@ -41,4 +41,3 @@ export function AuthAnimatedTitle({ mode }: { mode: AuthMode }) {
     </div>
   )
 }
-

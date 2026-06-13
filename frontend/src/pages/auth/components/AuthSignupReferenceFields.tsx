@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { Currency } from '@/api/currency'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
-import { SIGNUP_FIELD_ANIMATION } from './authAnimations'
-import { buildCurrencyOptions, type AuthFormValues } from './authForm'
+import { SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations'
+import { buildCurrencyOptions, type AuthFormValues } from '@/pages/auth/utils/authForm'
 
 interface AuthSignupReferenceFieldsProps {
   currencies: Currency[]

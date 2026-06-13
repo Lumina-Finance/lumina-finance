@@ -15,7 +15,7 @@ import InsightsPage from '@/insights/InsightsPage'
 import SettingsPage from '@/settings/SettingsPage'
 import ImportsPage from '@/imports/ImportsPage'
 import LoadingScreen from '@/components/LoadingScreen'
-import Auth from '@/pages/Auth'
+import AuthPage from '@/pages/auth/AuthPage'
 
 const LOADING_SCREEN_MIN_MS = 1000;
 const PAGE_TRANSITION_MS = 350;
@@ -193,8 +193,8 @@ function AnimatedRoutes() {
     >
         {/* Public routes — login, signup */}
         <Route element={<PublicRoute />}>
-          <Route path="/login" element={<Auth />} />
-          <Route path="/signup" element={<Auth />} />
+          <Route path="/login" element={<AuthPage />} />
+          <Route path="/signup" element={<AuthPage />} />
         </Route>
 
         {/* Protected app routes */}

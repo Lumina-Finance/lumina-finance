@@ -20,7 +20,7 @@ import {
   isAuthLockoutError,
   isAuthSubmitDisabled,
   validateAuthFields,
-} from '@/pages/auth/authForm'
+} from '@/pages/auth/utils/authForm'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },

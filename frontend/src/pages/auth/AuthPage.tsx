@@ -2,15 +2,15 @@ import { useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
-import { AuthAnimatedTitle } from './auth/AuthAnimatedTitle';
-import { AuthConfirmPasswordField } from './auth/AuthConfirmPasswordField';
-import { AuthErrorBanner } from './auth/AuthErrorBanner';
-import { AuthSignupNameFields } from './auth/AuthSignupNameFields';
-import { AuthSignupReferenceFields } from './auth/AuthSignupReferenceFields';
-import { AuthTextField } from './auth/AuthTextField';
-import { PasswordRequirements } from './auth/PasswordRequirements';
-import { getAuthMode } from './auth/authForm';
-import { useAuthFormWorkflow } from './auth/useAuthFormWorkflow';
+import { AuthAnimatedTitle } from '@/pages/auth/components/AuthAnimatedTitle';
+import { AuthConfirmPasswordField } from '@/pages/auth/components/AuthConfirmPasswordField';
+import { AuthErrorBanner } from '@/pages/auth/components/AuthErrorBanner';
+import { AuthSignupNameFields } from '@/pages/auth/components/AuthSignupNameFields';
+import { AuthSignupReferenceFields } from '@/pages/auth/components/AuthSignupReferenceFields';
+import { AuthTextField } from '@/pages/auth/components/AuthTextField';
+import { PasswordRequirements } from '@/pages/auth/components/PasswordRequirements';
+import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
+import { getAuthMode } from '@/pages/auth/utils/authForm';
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -22,7 +22,7 @@ const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
 /**
  * Renders the auth page shell and wires the workflow hook into the form sections
  */
-const Auth = () => {
+const AuthPage = () => {
   const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mode = getAuthMode(location.pathname);
@@ -154,4 +154,4 @@ const Auth = () => {
   );
 };
 
-export default Auth;
+export default AuthPage;

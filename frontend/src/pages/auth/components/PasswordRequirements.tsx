@@ -1,6 +1,6 @@
 import { Check, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { PASSWORD_RULES } from './authForm'
+import { PASSWORD_RULES } from '@/pages/auth/utils/authForm'
 
 interface PasswordRequirementsProps {
   focused: boolean
@@ -52,4 +52,3 @@ export function PasswordRequirements({
     </AnimatePresence>
   )
 }
-
