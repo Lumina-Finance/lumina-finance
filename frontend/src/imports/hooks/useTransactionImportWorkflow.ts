@@ -5,7 +5,6 @@ import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transactionImports'
 import {
-  COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   EMPTY_COLUMN_MAP,
 } from '../constants'
@@ -27,14 +26,19 @@ import {
   getImportedTags,
   getImportHeaders,
   getMissingRequiredColumnLabels,
+  getNextAutoFilledColumnHeaders,
+  getNextColumnMap,
+  getNextColumnValidationErrors,
   inferAccountMappings,
   inferCategoryMappings,
+  isColumnMappingComplete,
   groupPreviewRowsByDate,
   inferColumnMap,
   keepCurrentMatchMap,
   readCsvFile,
   removeRecordKey,
   removeSetValue,
+  sleep,
   validateColumnValues,
 } from '../utils'
 
@@ -489,70 +493,3 @@ export function useTransactionImportWorkflow() {
 }
 
 export type TransactionImportWorkflow = ReturnType<typeof useTransactionImportWorkflow>
-
-function getNextColumnMap(columnMap: ColumnMap, header: string, targetValue: string) {
-  const next = { ...columnMap }
-
-  for (const target of COLUMN_TARGETS) {
-    if (next[target.id] === header) next[target.id] = ''
-  }
-  if (targetValue) next[targetValue as ColumnTarget] = header
-
-  return next
-}
-
-function getNextAutoFilledColumnHeaders(
-  current: Set<string>,
-  previousColumnMap: ColumnMap,
-  nextColumnMap: ColumnMap,
-) {
-  const mappedHeaders = new Set(Object.values(nextColumnMap).filter(Boolean))
-  const next = new Set([...current].filter((header) => mappedHeaders.has(header)))
-
-  for (const target of COLUMN_TARGETS) {
-    const header = nextColumnMap[target.id]
-    if (header && previousColumnMap[target.id] !== header) next.add(header)
-  }
-
-  return next
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, ms))
-}
-
-function getNextColumnValidationErrors(
-  columnValidationErrors: ColumnValidationErrors,
-  header: string,
-  displacedHeader: string,
-  targetValue: string,
-  validation: { valid: boolean; message: string },
-) {
-  if (!targetValue) return removeRecordKey(columnValidationErrors, header)
-
-  let next = displacedHeader && displacedHeader !== header
-    ? removeRecordKey(columnValidationErrors, displacedHeader)
-    : columnValidationErrors
-
-  next = validation.valid
-    ? removeRecordKey(next, header)
-    : { ...next, [header]: validation.message }
-
-  return next
-}
-
-function isColumnMappingComplete(
-  columnMap: ColumnMap,
-  columnValidationErrors: ColumnValidationErrors,
-  files: ImportFileDraft[],
-) {
-  if (files.length === 0) return false
-
-  const missingRequired = COLUMN_TARGETS.some(
-    (target) => target.required && !columnMap[target.id],
-  )
-  if (missingRequired) return false
-
-  const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
-  return !Object.keys(columnValidationErrors).some((header) => mappedHeaders.has(header))
-}
