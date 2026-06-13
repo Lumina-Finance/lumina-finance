@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { DesktopTransactionToolbarRefs } from '@/transactions/components/toolbar/types'
+import type { DesktopTransactionToolbarRefs } from '@/transactions/components/Toolbar/types'
 
 const DESKTOP_SEARCH_MIN_WIDTH = 320
 

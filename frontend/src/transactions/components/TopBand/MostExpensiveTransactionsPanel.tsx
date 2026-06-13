@@ -8,7 +8,7 @@ import {
   OUTLIER_TRANSACTION_LIMIT,
   OUTLIER_TRANSACTION_ROW_GAP,
   OUTLIER_TRANSACTION_ROW_HEIGHT,
-} from '@/transactions/components/topBand/constants'
+} from '@/transactions/components/TopBand/constants'
 import { getMostExpensiveTransactionsFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
 const emptyOutliersHeight =

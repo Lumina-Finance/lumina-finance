@@ -8,7 +8,7 @@ import {
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/transactions/components/TransactionDateGroupList'
 import TransactionFilterLoadingOverlay from '@/transactions/components/TransactionFilterLoadingOverlay'
-import TransactionListToolbar from '@/transactions/components/toolbar/TransactionListToolbar'
+import TransactionListToolbar from '@/transactions/components/Toolbar/TransactionListToolbar'
 import { useDateRangeDraft } from '@/transactions/hooks/useDateRangeDraft'
 import { useTransactionFilterLoadingState } from '@/transactions/hooks/useTransactionFilterLoadingState'
 import { useInfiniteScrollTrigger } from '@/transactions/hooks/useInfiniteScrollTrigger'
