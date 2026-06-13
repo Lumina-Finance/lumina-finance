@@ -16,6 +16,8 @@ type TimeRangeSelectorProps<T extends string> = {
   variant?: 'desktop' | 'mobile'
   className?: string
   sheetTitle?: string
+  dropdownPlacement?: 'bottom' | 'top'
+  shortcutMode?: 'always' | 'when-description-differs'
 }
 
 const selectorSpring = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
@@ -25,6 +27,21 @@ function joinClassNames(...classNames: Array<string | undefined | false>) {
   return classNames.filter(Boolean).join(' ')
 }
 
+/**
+ * Resolves whether the compact shortcut label adds information beyond the main label
+ */
+function getRangeShortcut<T extends string>(
+  option: TimeRangeSelectorOption<T>,
+  shortcutMode: TimeRangeSelectorProps<T>['shortcutMode'],
+) {
+  if (shortcutMode === 'when-description-differs' && option.description === undefined) return null
+  if (shortcutMode === 'when-description-differs' && option.description === option.label) return null
+  return option.label
+}
+
+/**
+ * Renders a desktop segmented range selector or mobile dropdown selector
+ */
 export function TimeRangeSelector<T extends string>({
   value,
   options,
@@ -33,6 +50,8 @@ export function TimeRangeSelector<T extends string>({
   variant = 'desktop',
   className,
   sheetTitle,
+  dropdownPlacement = 'bottom',
+  shortcutMode = 'always',
 }: TimeRangeSelectorProps<T>) {
   if (variant === 'mobile') {
     return (
@@ -43,6 +62,8 @@ export function TimeRangeSelector<T extends string>({
         ariaLabel={ariaLabel}
         className={className}
         sheetTitle={sheetTitle}
+        dropdownPlacement={dropdownPlacement}
+        shortcutMode={shortcutMode}
       />
     )
   }
@@ -58,6 +79,9 @@ export function TimeRangeSelector<T extends string>({
   )
 }
 
+/**
+ * Renders the compact segmented desktop range control
+ */
 function DesktopTimeRangeSelector<T extends string>({
   value,
   options,
@@ -103,6 +127,9 @@ function DesktopTimeRangeSelector<T extends string>({
   )
 }
 
+/**
+ * Renders the mobile range dropdown with optional top placement for floating controls
+ */
 function MobileTimeRangeSelector<T extends string>({
   value,
   options,
@@ -110,12 +137,22 @@ function MobileTimeRangeSelector<T extends string>({
   ariaLabel,
   className,
   sheetTitle,
+  dropdownPlacement = 'bottom',
+  shortcutMode = 'always',
 }: TimeRangeSelectorProps<T>) {
   const [open, setOpen] = useState(false)
   const listboxId = useId()
   const selectorRef = useRef<HTMLDivElement>(null)
   const shouldReduceMotion = useReducedMotion()
   const selected = options.find((option) => option.value === value) ?? options[0]
+  const selectedDisplay = selected.description ?? selected.label
+  const selectedShortcut = getRangeShortcut(selected, shortcutMode)
+  const dropdownPositionClass = dropdownPlacement === 'top'
+    ? 'bottom-full mb-2'
+    : 'top-full mt-2'
+  const dropdownOrigin = dropdownPlacement === 'top' ? 'bottom center' : 'top center'
+  const closedOffset = dropdownPlacement === 'top' ? 4 : -4
+  const exitOffset = dropdownPlacement === 'top' ? 3 : -3
 
   useEffect(() => {
     if (!open) return
@@ -151,15 +188,15 @@ function MobileTimeRangeSelector<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
-        aria-label={`${ariaLabel}: ${selected.description ?? selected.label}`}
+        aria-label={`${ariaLabel}: ${selectedDisplay}`}
         onClick={() => setOpen((current) => !current)}
       >
         <span className="flex min-w-0 items-center gap-2">
           <CalendarRange size={14} aria-hidden />
-          <span className="truncate">{selected.description ?? selected.label}</span>
+          <span className="truncate">{selectedDisplay}</span>
         </span>
         <span className="flex shrink-0 items-center gap-1 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
-          {selected.label}
+          {selectedShortcut && <span>{selectedShortcut}</span>}
           <ChevronDown
             size={13}
             aria-hidden
@@ -174,16 +211,19 @@ function MobileTimeRangeSelector<T extends string>({
             id={listboxId}
             role="listbox"
             aria-label={sheetTitle ?? ariaLabel}
-            className="app-modal-panel absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-xl"
-            initial={shouldReduceMotion ? false : { opacity: 0, y: -4, scale: 0.985 }}
+            className={`app-modal-panel absolute left-0 right-0 overflow-hidden rounded-xl ${dropdownPositionClass}`}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: closedOffset, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -3, scale: 0.99 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: exitOffset, scale: 0.99 }}
             transition={shouldReduceMotion ? { duration: 0 } : mobileDropdownTransition}
-            style={{ transformOrigin: 'top center', willChange: 'transform, opacity' }}
+            style={{ transformOrigin: dropdownOrigin, willChange: 'transform, opacity' }}
           >
             <div className="py-1">
               {options.map((option) => {
                 const active = option.value === value
+                const optionDisplay = option.description ?? option.label
+                const optionShortcut = getRangeShortcut(option, shortcutMode)
+
                 return (
                   <button
                     key={option.value}
@@ -198,10 +238,12 @@ function MobileTimeRangeSelector<T extends string>({
                     onClick={() => handleSelect(option.value)}
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold">{option.description ?? option.label}</span>
-                      <span className="mt-0.5 block text-xs font-medium uppercase" style={{ color: active ? 'var(--app-accent)' : 'var(--app-text-muted)' }}>
-                        {option.label}
-                      </span>
+                      <span className="block truncate text-sm font-semibold">{optionDisplay}</span>
+                      {optionShortcut && (
+                        <span className="mt-0.5 block text-xs font-medium uppercase" style={{ color: active ? 'var(--app-accent)' : 'var(--app-text-muted)' }}>
+                          {optionShortcut}
+                        </span>
+                      )}
                     </span>
                     {active ? <Check size={16} className="shrink-0" aria-hidden /> : null}
                   </button>
