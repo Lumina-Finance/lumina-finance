@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { invalidateInsightsMerchants, invalidateTransactions } from '@/api/cacheInvalidation';
-import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { transactionKeys, transactionOverviewKeys } from '@/api/queryKeys';
 import {
   findCachedTransaction,

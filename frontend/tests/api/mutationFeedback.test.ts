@@ -4,7 +4,7 @@
  * These tests catch regressions where success or error results resolve before the minimum pending duration
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 
 afterEach(() => {
   vi.useRealTimers();

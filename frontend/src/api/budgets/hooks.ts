@@ -11,7 +11,7 @@ import {
   updateBaseBudget,
   updateBudget,
 } from '@/api/budgets/requests';
-import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { budgetKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 

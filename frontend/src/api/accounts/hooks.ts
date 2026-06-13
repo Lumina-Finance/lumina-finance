@@ -22,7 +22,7 @@ import type {
   AccountsOverview,
   SpendingRange,
 } from '@/api/accounts/types';
-import { runWithMinimumPendingTime } from '@/api/mutationFeedback';
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { accountKeys } from '@/api/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 

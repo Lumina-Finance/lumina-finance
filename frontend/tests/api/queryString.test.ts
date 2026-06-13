@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { buildQueryString } from '@/api/queryString';
+import { buildQueryString } from '@/api/utils/queryString';
 
 describe('buildQueryString', () => {
   it('returns an empty suffix when all parameters are absent', () => {

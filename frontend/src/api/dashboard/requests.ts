@@ -1,5 +1,5 @@
 import { authenticatedFetch } from '@/api/client';
-import { buildQueryString } from '@/api/queryString';
+import { buildQueryString } from '@/api/utils/queryString';
 import type {
   CreditWidgetResponse,
   NetWorthWidgetResponse,
