@@ -1,9 +1,9 @@
 import type React from 'react'
 import { useCurrencies } from '@/api/currency'
 import Dropdown from '@/components/dropdown/Dropdown'
-import SettingsField from '@/pages/settings/components/SettingsField'
-import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
-import SettingsCard from '@/pages/settings/components/SettingsCard'
+import SettingsField from '@/pages/settings/components/Field'
+import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
+import SettingsCard from '@/pages/settings/components/Card'
 import type { ProfileFormState } from '@/pages/settings/profileForm'
 
 const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({

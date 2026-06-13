@@ -1,1 +1,1 @@
-export { default } from './CategorySettingsSection'
+export { default } from './Section'

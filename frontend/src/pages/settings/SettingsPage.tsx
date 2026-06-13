@@ -7,8 +7,8 @@ import RunwaySection from '@/pages/settings/components/runway-section'
 import {
   SettingsDesktopSectionSidebar,
   SettingsMobileSectionMenu,
-} from '@/pages/settings/components/SettingsSectionNavigation'
-import { SettingsPaneActions } from '@/pages/settings/components/SettingsPaneActions'
+} from '@/pages/settings/components/SectionNavigation'
+import { SettingsPaneActions } from '@/pages/settings/components/PaneActions'
 import TaxAdvantagedCategoriesSection from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section'
 import { useProfileSettingsForm } from '@/pages/settings/hooks/useProfileSettingsForm'
 import { useRunwaySettingsForm } from '@/pages/settings/hooks/useRunwaySettingsForm'
