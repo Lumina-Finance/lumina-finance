@@ -1,4 +1,4 @@
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 
 export function getCashFlowFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {

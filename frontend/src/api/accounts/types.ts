@@ -1,4 +1,4 @@
-import type { FxStatus } from '@/api/dashboard';
+import type { FxStatus } from '@/api/shared/fx';
 
 /**
  * Splits liabilities into revolving balances and amortizing debt because cash-flow treatment differs

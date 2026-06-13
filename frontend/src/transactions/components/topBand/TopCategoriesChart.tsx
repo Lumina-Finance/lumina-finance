@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 import {
   DeferredChartTooltipOverlay,
   type ChartTooltipPointer,

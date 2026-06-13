@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { AccountKind, AccountsOverview } from '@/api/accounts'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 
 function sumByKind(accounts: AccountsOverview[], kind: AccountKind): number {
   return accounts

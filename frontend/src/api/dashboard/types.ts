@@ -1,4 +1,5 @@
 import type { Transaction } from '@/api/transactions';
+import type { FxStatus } from '@/api/shared/fx';
 
 export interface MonthlyIncomeExpense {
   // First-of-month calendar date in YYYY-MM-DD format
@@ -11,18 +12,6 @@ export interface CreditWidgetResponse {
   credit_limit_total: number;
   credit_used: number;
   fx_status: FxStatus;
-}
-
-export type FxState = 'none' | 'complete' | 'incomplete' | 'unavailable';
-
-export interface FxRateIssue {
-  base: string;
-  quote: string;
-}
-
-export interface FxStatus {
-  state: FxState;
-  missing_pairs: FxRateIssue[];
 }
 
 export interface NetWorthWidgetResponse {

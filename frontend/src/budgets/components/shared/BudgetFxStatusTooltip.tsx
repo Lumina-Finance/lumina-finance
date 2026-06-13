@@ -1,5 +1,5 @@
 import type { SyntheticEvent } from 'react'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { getBudgetUtilizationFxStatusMessage } from '@/budgets/utils/fxTooltipMessages'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'

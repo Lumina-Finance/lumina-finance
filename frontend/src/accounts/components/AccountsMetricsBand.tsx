@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetrics'
-import type { FxStatus } from '@/api/dashboard'
+import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import AccountsLoadingRegion from '@/accounts/components/AccountsLoadingRegion'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'

@@ -1,4 +1,4 @@
-import type { FxStatus } from '@/api/dashboard';
+import type { FxStatus } from '@/api/shared/fx';
 import type { RunwayThresholds } from '@/utils/runway';
 
 /**
