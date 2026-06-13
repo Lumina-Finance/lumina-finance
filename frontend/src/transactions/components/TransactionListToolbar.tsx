@@ -6,15 +6,14 @@ import type { Category } from '@/api/categories'
 import DateRangeFilterPanel from '@/components/DateRangeFilterPanel'
 import FilterChip from '@/components/FilterChip'
 import FilterOptionList, { type OptionItem } from '@/components/FilterOptionList'
-import { DEFAULT_TRANSACTION_CATEGORY_ICON } from '@/transactions/constants/transactionList'
 import type { TransactionListAccount, TransactionListFilters } from '@/transactions/types/transactionList'
 import { formatDateRangeLabel } from '@/transactions/utils/date'
+import {
+  getAccountOptions,
+  getActiveFilterCount,
+  getCategoryOptions,
+} from '@/transactions/utils/filterOptions'
 
-const CATEGORY_KIND_LABELS: Record<string, string> = {
-  expense: 'Expense',
-  income: 'Income',
-  transfer: 'Transfer',
-}
 const DESKTOP_SEARCH_MIN_WIDTH = 320
 const DATE_HEADER_STICKY_GAP_PX = 4
 
@@ -75,34 +74,17 @@ export default function TransactionListToolbar({
   const shouldReduceMotion = useReducedMotion()
 
   const accountOptions = useMemo(
-    () => (accounts ?? []).map((account) => ({
-      value: account.id,
-      label: account.name ?? 'Unnamed account',
-    })),
+    () => getAccountOptions(accounts),
     [accounts],
   )
   const categoryOptions = useMemo(
-    () => (['expense', 'income', 'transfer'] as const).flatMap((kind) =>
-      (categories ?? [])
-        .filter((category) => category.kind === kind)
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((category) => ({
-          value: category.id,
-          label: category.name,
-          group: CATEGORY_KIND_LABELS[kind],
-          icon: category.icon ?? DEFAULT_TRANSACTION_CATEGORY_ICON,
-        })),
-    ),
+    () => getCategoryOptions(categories),
     [categories],
   )
   const selectedAccountLabel = accounts?.find((account) => account.id === filters.account_id)?.name ?? null
   const selectedCategoryLabel = categories?.find((category) => category.id === filters.category_id)?.name ?? null
   const selectedDateLabel = formatDateRangeLabel(filters.from_date, filters.to_date)
-  const activeFilterCount = [
-    showAccountFilter && filters.account_id,
-    filters.category_id,
-    filters.from_date || filters.to_date,
-  ].filter(Boolean).length
+  const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 
   useLayoutEffect(() => {
     const toolbar = desktopToolbarRef.current
