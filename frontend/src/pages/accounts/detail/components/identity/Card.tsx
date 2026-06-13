@@ -5,7 +5,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
-import { IdentityFacts } from './IdentityFacts'
+import { IdentityFacts } from './Facts'
 import { StandardAccountBand } from './StandardBand'
 import { TaxAdvantagedCategoryBand } from './TaxAdvantagedBand'
 

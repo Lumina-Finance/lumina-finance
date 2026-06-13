@@ -5,7 +5,7 @@ import {
 } from '@/components/charts/TooltipContent'
 import type { BreakdownMode } from '@/pages/dashboard/utils/getSpendingBreakdownSummary'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { SpendingBreakdownCrossoverBadge } from './SpendingBreakdownCrossoverBadge'
+import { SpendingBreakdownCrossoverBadge } from './CrossoverBadge'
 
 type SpendingBreakdownTooltipContentProps = {
   entry: CategoryBreakdownEntry

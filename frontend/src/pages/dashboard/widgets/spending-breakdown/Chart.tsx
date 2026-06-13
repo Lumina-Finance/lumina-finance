@@ -21,7 +21,7 @@ import {
   type SpendingBreakdownSummary,
 } from '@/pages/dashboard/utils/getSpendingBreakdownSummary'
 
-import { SpendingBreakdownTooltipContent } from './SpendingBreakdownTooltipContent'
+import { SpendingBreakdownTooltipContent } from './TooltipContent'
 
 type SpendingBreakdownChartProps = {
   entries: CategoryBreakdownEntry[]

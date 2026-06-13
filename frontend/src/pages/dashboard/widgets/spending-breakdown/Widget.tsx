@@ -4,9 +4,9 @@ import {
   useSpendingBreakdown,
 } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { SpendingBreakdownChart } from './SpendingBreakdownChart'
-import { SpendingBreakdownHeader } from './SpendingBreakdownHeader'
-import { SpendingBreakdownLegend } from './SpendingBreakdownLegend'
+import { SpendingBreakdownChart } from './Chart'
+import { SpendingBreakdownHeader } from './Header'
+import { SpendingBreakdownLegend } from './Legend'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import {
   getSpendingBreakdownSummary,

@@ -1,5 +1,5 @@
 import type { CategoryBreakdownEntry } from '@/api/dashboard'
-import { SpendingBreakdownCrossoverBadge } from './SpendingBreakdownCrossoverBadge'
+import { SpendingBreakdownCrossoverBadge } from './CrossoverBadge'
 import {
   getSpendingBreakdownEntryColor,
   type BreakdownMode,

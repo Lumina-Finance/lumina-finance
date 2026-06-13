@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useDashboardCredit } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { CreditHeader } from './CreditHeader'
-import { CreditUsageBody } from './CreditUsageBody'
+import { CreditHeader } from './Header'
+import { CreditUsageBody } from './UsageBody'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
 import {
   getCreditUsageSummary,

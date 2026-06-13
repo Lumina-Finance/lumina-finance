@@ -17,7 +17,7 @@ import {
 import { toISODate } from '@/pages/accounts/detail/utils/date'
 import { BalanceChart } from './Chart'
 import { BalanceChartHeader } from './Header'
-import { BalanceValueSummary } from './BalanceValueSummary'
+import { BalanceValueSummary } from './ValueSummary'
 
 /**
  * Renders the account balance chart card and owns snapshot fetching for selected chart controls

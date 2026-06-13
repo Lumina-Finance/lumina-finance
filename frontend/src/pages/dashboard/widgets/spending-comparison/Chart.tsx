@@ -19,7 +19,7 @@ import {
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
 
-import { SpendingComparisonTooltipContent } from './SpendingComparisonTooltipContent'
+import { SpendingComparisonTooltipContent } from './TooltipContent'
 
 type SpendingComparisonChartProps = {
   data: SpendingComparisonSeriesPoint[]
