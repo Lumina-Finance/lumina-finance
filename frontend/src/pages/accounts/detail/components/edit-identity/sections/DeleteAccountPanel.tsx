@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, EyeOff } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
-import type { DeleteStage } from './types'
+import type { DeleteStage } from '../types'
 
 type DeleteAccountPanelProps = {
   account: Account

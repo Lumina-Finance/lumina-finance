@@ -4,9 +4,9 @@ import type {
   IdentityFieldErrors,
   IdentityFormValues,
 } from '@/pages/accounts/detail/utils/identityForm'
-import type { SetIdentityFormField } from './types'
-import { EditModalSection } from './EditModalSection'
-import { AccountIdentityFieldLabelRow } from './AccountIdentityFieldLabelRow'
+import type { SetIdentityFormField } from '../types'
+import { EditModalSection } from '../layout/EditModalSection'
+import { AccountIdentityFieldLabelRow } from '../controls/AccountIdentityFieldLabelRow'
 
 type AccountIdentitySectionProps = {
   form: IdentityFormValues

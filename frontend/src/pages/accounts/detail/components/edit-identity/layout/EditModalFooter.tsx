@@ -1,5 +1,5 @@
 import { Trash2 } from 'lucide-react'
-import type { DeleteStage } from './types'
+import type { DeleteStage } from '../types'
 
 type EditModalFooterProps = {
   deleteStage: DeleteStage
