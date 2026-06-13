@@ -44,11 +44,17 @@ export function useTaxAdvantagedCategoryDetailsForm({
   const [planOverrides, setPlanOverrides] = useState<Partial<TaxPlanFormState>>({})
   const planForm: TaxPlanFormState = { ...planBase, ...planOverrides }
 
+  /**
+   * Updates a TAC details draft field and clears validation tied to the previous value
+   */
   function setPlanField<K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) {
     setPlanOverrides((current) => ({ ...current, [key]: value }))
     setPlanError(null)
   }
 
+  /**
+   * Opens the TAC details editor with a fresh draft from the persisted category
+   */
   function openDetails() {
     if (planSaveStatus !== 'idle') return false
     setPlanOverrides({})
@@ -58,6 +64,9 @@ export function useTaxAdvantagedCategoryDetailsForm({
     return true
   }
 
+  /**
+   * Closes the TAC details editor when no save operation is active
+   */
   function closeDetails() {
     if (updatePlan.isPending || planSaveStatus !== 'idle') return
     setDetailsOpen(false)
@@ -65,6 +74,9 @@ export function useTaxAdvantagedCategoryDetailsForm({
     setPlanError(null)
   }
 
+  /**
+   * Validates and saves TAC identity and lifetime contribution room edits
+   */
   async function saveDetails() {
     if (updatePlan.isPending || planSaveStatus !== 'idle') return
     const validationError = validatePlanForm(planForm)
@@ -99,6 +111,9 @@ export function useTaxAdvantagedCategoryDetailsForm({
     }
   }
 
+  /**
+   * Deletes the TAC after the confirmation button enters its second-click state
+   */
   function deleteCategory() {
     setPlanError(null)
     deletePlan.mutate(plan.id, {

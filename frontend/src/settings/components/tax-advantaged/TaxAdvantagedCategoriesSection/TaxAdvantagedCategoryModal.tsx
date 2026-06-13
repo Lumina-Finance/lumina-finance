@@ -1,23 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Trash2, X } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import {
-  useCreateTaxAdvantagedCategoryLimit,
-  useDeleteTaxAdvantagedCategoryLimit,
-  useTaxAdvantagedCategoryLimits,
-  useUpdateTaxAdvantagedCategoryLimit,
-  type TaxAdvantagedCategory,
-  type TaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type {
   AutosaveNotice,
   CategoryModalTab,
-  TaxPlanLimitDraftField,
-  TaxPlanLimitDraftState,
-  TaxPlanLimitFormState,
 } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
 import TaxAdvantagedAccountLinksPanel from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedAccountLinksPanel'
 import AutosaveStatusIcon from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/AutosaveStatusIcon'
@@ -27,22 +17,14 @@ import TaxAdvantagedLimitDetailsModal from '@/settings/components/tax-advantaged
 import TaxAdvantagedLimitsPanel from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedLimitsPanel'
 import { useTaxAdvantagedAccountLinks } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedAccountLinks'
 import { useTaxAdvantagedCategoryDetailsForm } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedCategoryDetailsForm'
+import { useTaxAdvantagedLimitWorkflow } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/hooks/useTaxAdvantagedLimitWorkflow'
 import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
-import {
-  DEFAULT_NEW_LIMIT_YEAR,
-  LIMIT_DELETE_FEEDBACK_MS,
-  LIMIT_SAVE_FEEDBACK_MS,
-  MAX_VISIBLE_LIMIT_ROWS,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
-import {
-  formatTaxTreatment,
-  fromMinorUnits,
-  isValidMoneyInput,
-  nextAvailableLimitYear,
-  toMinorUnits,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+import { formatTaxTreatment } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
 import { TaxAdvantagedCurrencyWarning } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 
+/**
+ * Renders the TAC management modal shell with details, limit, and account workflows
+ */
 export default function TaxAdvantagedCategoryModal({
   accounts,
   onClose,
@@ -54,10 +36,6 @@ export default function TaxAdvantagedCategoryModal({
   plan: TaxAdvantagedCategory
   currencies: Currency[]
 }) {
-  const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedCategoryLimits(plan.id)
-  const createLimit = useCreateTaxAdvantagedCategoryLimit()
-  const updateLimit = useUpdateTaxAdvantagedCategoryLimit()
-  const deleteLimit = useDeleteTaxAdvantagedCategoryLimit()
   const {
     closeDetails: closeCategoryDetailsModal,
     confirmingDelete: confirmingPlanDelete,
@@ -74,8 +52,6 @@ export default function TaxAdvantagedCategoryModal({
     updatePending: updatePlanPending,
   } = useTaxAdvantagedCategoryDetailsForm({ currencies, onClose, plan })
   const [activeTab, setActiveTab] = useState<CategoryModalTab>('limits')
-  const [showAddTaxYear, setShowAddTaxYear] = useState(false)
-  const [selectedLimitYear, setSelectedLimitYear] = useState<number | null>(null)
   const planDeleteButtonRef = useRef<HTMLButtonElement>(null)
   const planDeleteIdleLabelRef = useRef<HTMLSpanElement>(null)
   const planDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
@@ -84,22 +60,12 @@ export default function TaxAdvantagedCategoryModal({
   const limitDeleteConfirmLabelRef = useRef<HTMLSpanElement>(null)
   const [planDeleteLabelWidths, setPlanDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
   const [limitDeleteLabelWidths, setLimitDeleteLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
-  const [limitDrafts, setLimitDrafts] = useState<Record<number, Partial<TaxPlanLimitDraftState>>>({})
-  const [newLimitForm, setNewLimitForm] = useState<TaxPlanLimitFormState>({
-    year: String(DEFAULT_NEW_LIMIT_YEAR),
-    contribution_limit: '',
-    withdrawal_limit: '',
-    accrued_contributions: '',
-    accrued_withdrawals: '',
-  })
-  const [pendingCreateLimitYear, setPendingCreateLimitYear] = useState<number | null>(null)
-  const [deleteConfirmYear, setDeleteConfirmYear] = useState<number | null>(null)
-  const [pendingDeleteLimitYear, setPendingDeleteLimitYear] = useState<number | null>(null)
-  const [pendingDeletedLimit, setPendingDeletedLimit] = useState<TaxAdvantagedCategoryLimit | null>(null)
-  const [limitError, setLimitError] = useState<string | null>(null)
   const [autosaveNotice, setAutosaveNotice] = useState<AutosaveNotice | null>(null)
   const autosaveTimerRef = useRef<number | null>(null)
 
+  /**
+   * Shows the floating autosave notice and clears completed notices after a short delay
+   */
   const showAutosaveNotice = (notice: AutosaveNotice) => {
     if (autosaveTimerRef.current !== null) {
       window.clearTimeout(autosaveTimerRef.current)
@@ -112,6 +78,38 @@ export default function TaxAdvantagedCategoryModal({
       }, 2400)
     }
   }
+  const {
+    closeLimitDetailsModal,
+    createNewLimit: handleCreateLimit,
+    creatingLimit,
+    deleteConfirmYear,
+    deleteSelectedLimit: handleDeleteLimit,
+    hasLifetimePriorActivity,
+    hasScrollableLimitRows,
+    limitError,
+    limitsLoading,
+    newLimitForm,
+    pendingDeleteLimitYear,
+    resetLimitSelection,
+    saveLimit: handleSaveLimit,
+    selectLimitYear,
+    selectedDraft,
+    selectedLimit,
+    selectedLimitDeleteConfirming,
+    selectedLimitDeleting,
+    selectedLimitDirty,
+    selectedSavingLimit,
+    setLimitField,
+    setNewLimitField,
+    showAddTaxYear,
+    sortedLimits,
+    startNewLimitForm,
+  } = useTaxAdvantagedLimitWorkflow({
+    currencies,
+    limitDeleteButtonRef,
+    plan,
+    showAutosaveNotice,
+  })
   const {
     accountError,
     bindableAccounts,
@@ -169,298 +167,13 @@ export default function TaxAdvantagedCategoryModal({
     }
   }, [confirmingPlanDelete, deletePlanPending, setConfirmingPlanDelete])
 
-  useEffect(() => {
-    if (deleteConfirmYear === null || pendingDeleteLimitYear !== null) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (limitDeleteButtonRef.current && !limitDeleteButtonRef.current.contains(event.target as Node)) {
-        setDeleteConfirmYear(null)
-      }
-    }
-    const timer = window.setTimeout(() => window.addEventListener('pointerdown', onPointerDown), 0)
-    return () => {
-      window.clearTimeout(timer)
-      window.removeEventListener('pointerdown', onPointerDown)
-    }
-  }, [deleteConfirmYear, pendingDeleteLimitYear])
-
-  const setNewLimitField = <K extends keyof TaxPlanLimitFormState>(key: K, value: TaxPlanLimitFormState[K]) => {
-    setNewLimitForm((current) => ({ ...current, [key]: value }))
-    setLimitError(null)
-  }
-
-  const resetNewLimitForm = () => {
-    setNewLimitForm({
-      year: String(nextAvailableLimitYear(limits)),
-      contribution_limit: '',
-      withdrawal_limit: '',
-      accrued_contributions: '',
-      accrued_withdrawals: '',
-    })
-    setShowAddTaxYear(false)
-    setLimitError(null)
-  }
-
-  const startNewLimitForm = () => {
-    setNewLimitForm({
-      year: String(nextAvailableLimitYear(limits)),
-      contribution_limit: '',
-      withdrawal_limit: '',
-      accrued_contributions: '',
-      accrued_withdrawals: '',
-    })
-    setShowAddTaxYear(true)
-    setSelectedLimitYear(null)
-    setLimitError(null)
-  }
-
-  const setLimitField = (
-    year: number,
-    key: TaxPlanLimitDraftField,
-    value: string,
-  ) => {
-    setLimitDrafts((current) => ({
-      ...current,
-      [year]: {
-        ...current[year],
-        [key]: value,
-      },
-    }))
-    setLimitError(null)
-    setDeleteConfirmYear(null)
-  }
-
-  const selectLimitYear = (year: number) => {
-    setSelectedLimitYear(year)
-    setShowAddTaxYear(false)
-    setDeleteConfirmYear(null)
-  }
-
-  const closeLimitDetailsModal = () => {
-    if (creatingLimit || updateLimit.isPending) return
-    if (selectedLimitYear !== null) {
-      setLimitDrafts((current) => {
-        if (!(selectedLimitYear in current)) return current
-        const next = { ...current }
-        delete next[selectedLimitYear]
-        return next
-      })
-    }
-    setShowAddTaxYear(false)
-    setSelectedLimitYear(null)
-    setLimitError(null)
-    setDeleteConfirmYear(null)
-  }
-
+  /**
+   * Opens category details while closing any active annual limit editor
+   */
   const openCategoryDetailsModal = () => {
     if (!openDetails()) return
-    setShowAddTaxYear(false)
-    setSelectedLimitYear(null)
-    setDeleteConfirmYear(null)
+    resetLimitSelection()
   }
-
-  const sortedLimits = useMemo(() => {
-    const nextLimits = limits.filter((limit) => limit.year !== pendingCreateLimitYear)
-    if (pendingDeletedLimit && !nextLimits.some((limit) => limit.year === pendingDeletedLimit.year)) {
-      nextLimits.push(pendingDeletedLimit)
-    }
-    return nextLimits.sort((a, b) => b.year - a.year)
-  }, [limits, pendingCreateLimitYear, pendingDeletedLimit])
-  const hasScrollableLimitRows = sortedLimits.length > MAX_VISIBLE_LIMIT_ROWS
-  const creatingLimit = pendingCreateLimitYear !== null || createLimit.isPending
-  const hasLifetimePriorActivity = plan.accrued_contributions > 0
-  const limitDraft = (year: number) => {
-    const limit = limits.find((row) => row.year === year)
-      ?? (pendingDeletedLimit?.year === year ? pendingDeletedLimit : undefined)
-    return {
-      contribution_limit: limitDrafts[year]?.contribution_limit
-        ?? fromMinorUnits(limit?.contribution_limit ?? null, currencies, plan.currency),
-      withdrawal_limit: limitDrafts[year]?.withdrawal_limit
-        ?? fromMinorUnits(limit?.withdrawal_limit ?? null, currencies, plan.currency),
-      accrued_contributions: limitDrafts[year]?.accrued_contributions
-        ?? fromMinorUnits(limit?.accrued_contributions ?? null, currencies, plan.currency),
-      accrued_withdrawals: limitDrafts[year]?.accrued_withdrawals
-        ?? fromMinorUnits(limit?.accrued_withdrawals ?? null, currencies, plan.currency),
-    }
-  }
-
-  const limitDirty = (year: number) => {
-    const limit = limits.find((row) => row.year === year)
-    if (!limit) return false
-    const draft = limitDraft(year)
-    return toMinorUnits(draft.contribution_limit, currencies, plan.currency) !== limit.contribution_limit
-      || toMinorUnits(draft.withdrawal_limit, currencies, plan.currency) !== limit.withdrawal_limit
-      || (toMinorUnits(draft.accrued_contributions, currencies, plan.currency) ?? 0) !== limit.accrued_contributions
-      || (toMinorUnits(draft.accrued_withdrawals, currencies, plan.currency) ?? 0) !== limit.accrued_withdrawals
-  }
-
-  const handleSaveLimit = (year: number) => {
-    if (!limitDirty(year) || updateLimit.isPending) return
-    const draft = limitDraft(year)
-    if (!isValidMoneyInput(draft.contribution_limit, true)) {
-      setLimitError(`${year} contribution limit is required.`)
-      showAutosaveNotice({ status: 'error', message: `${year} contribution limit is required.` })
-      return
-    }
-    if (!isValidMoneyInput(draft.withdrawal_limit)) {
-      setLimitError(`${year} withdrawal limit must be zero or higher.`)
-      showAutosaveNotice({ status: 'error', message: `${year} withdrawal limit must be zero or higher.` })
-      return
-    }
-    if (!isValidMoneyInput(draft.accrued_contributions)) {
-      setLimitError(`${year} opening contributions must be zero or higher.`)
-      showAutosaveNotice({ status: 'error', message: `${year} opening contributions must be zero or higher.` })
-      return
-    }
-    if (!isValidMoneyInput(draft.accrued_withdrawals)) {
-      setLimitError(`${year} opening withdrawals must be zero or higher.`)
-      showAutosaveNotice({ status: 'error', message: `${year} opening withdrawals must be zero or higher.` })
-      return
-    }
-
-    showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
-    updateLimit.mutate(
-      {
-        categoryId: plan.id,
-        year,
-        contribution_limit: toMinorUnits(draft.contribution_limit, currencies, plan.currency) ?? 0,
-        withdrawal_limit: toMinorUnits(draft.withdrawal_limit, currencies, plan.currency),
-        accrued_contributions: toMinorUnits(draft.accrued_contributions, currencies, plan.currency) ?? 0,
-        accrued_withdrawals: toMinorUnits(draft.accrued_withdrawals, currencies, plan.currency) ?? 0,
-      },
-      {
-        onSuccess: () => {
-          setLimitDrafts((current) => {
-            const next = { ...current }
-            delete next[year]
-            return next
-          })
-          setLimitError(null)
-          setDeleteConfirmYear(null)
-          setSelectedLimitYear(null)
-          showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
-        },
-        onError: (error) => {
-          const message = error instanceof Error ? error.message : `Failed to save ${year} limits.`
-          setLimitError(message)
-          showAutosaveNotice({ status: 'error', message })
-        },
-      },
-    )
-  }
-
-  const handleCreateLimit = async () => {
-    if (!showAddTaxYear || createLimit.isPending || pendingCreateLimitYear !== null) return
-    const year = Number.parseInt(newLimitForm.year, 10)
-    if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-      setLimitError('Year must be between 1900 and 2100.')
-      showAutosaveNotice({ status: 'error', message: 'Year must be between 1900 and 2100.' })
-      return
-    }
-    if (limits.some((limit) => limit.year === year)) {
-      setLimitError(`A limit for ${year} already exists.`)
-      showAutosaveNotice({ status: 'error', message: `A limit for ${year} already exists.` })
-      return
-    }
-    if (!isValidMoneyInput(newLimitForm.contribution_limit, true)) {
-      setLimitError('Contribution limit is required.')
-      showAutosaveNotice({ status: 'error', message: 'Contribution limit is required.' })
-      return
-    }
-    if (!isValidMoneyInput(newLimitForm.withdrawal_limit)) {
-      setLimitError('Withdrawal limit must be zero or higher.')
-      showAutosaveNotice({ status: 'error', message: 'Withdrawal limit must be zero or higher.' })
-      return
-    }
-    if (!isValidMoneyInput(newLimitForm.accrued_contributions)) {
-      setLimitError('Opening contributions must be zero or higher.')
-      showAutosaveNotice({ status: 'error', message: 'Opening contributions must be zero or higher.' })
-      return
-    }
-    if (!isValidMoneyInput(newLimitForm.accrued_withdrawals)) {
-      setLimitError('Opening withdrawals must be zero or higher.')
-      showAutosaveNotice({ status: 'error', message: 'Opening withdrawals must be zero or higher.' })
-      return
-    }
-
-    setPendingCreateLimitYear(year)
-    showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
-    const minimumFeedback = new Promise((resolve) => window.setTimeout(resolve, LIMIT_SAVE_FEEDBACK_MS))
-
-    let createError: unknown = null
-    try {
-      const createdLimit = await createLimit.mutateAsync({
-        categoryId: plan.id,
-        year,
-        contribution_limit: toMinorUnits(newLimitForm.contribution_limit, currencies, plan.currency) ?? 0,
-        withdrawal_limit: toMinorUnits(newLimitForm.withdrawal_limit, currencies, plan.currency),
-        accrued_contributions: toMinorUnits(newLimitForm.accrued_contributions, currencies, plan.currency) ?? 0,
-        accrued_withdrawals: toMinorUnits(newLimitForm.accrued_withdrawals, currencies, plan.currency) ?? 0,
-      })
-      setSelectedLimitYear(createdLimit.year)
-    } catch (error) {
-      createError = error
-    }
-
-    await minimumFeedback
-    setPendingCreateLimitYear(null)
-
-    if (createError) {
-      const message = createError instanceof Error ? createError.message : 'Failed to add tax-year limits.'
-      setLimitError(message)
-      showAutosaveNotice({ status: 'error', message })
-      return
-    }
-
-    resetNewLimitForm()
-    setLimitError(null)
-    showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })
-  }
-
-  const handleDeleteLimit = async (limit: TaxAdvantagedCategoryLimit) => {
-    if (deleteConfirmYear !== limit.year) {
-      setDeleteConfirmYear(limit.year)
-      return
-    }
-    if (pendingDeleteLimitYear !== null) return
-
-    setPendingDeleteLimitYear(limit.year)
-    setPendingDeletedLimit(limit)
-    setSelectedLimitYear((current) => (current === limit.year ? null : current))
-    const minimumFeedback = new Promise((resolve) => window.setTimeout(resolve, LIMIT_DELETE_FEEDBACK_MS))
-
-    let deleteError: unknown = null
-    try {
-      await deleteLimit.mutateAsync({ categoryId: plan.id, year: limit.year })
-    } catch (error) {
-      deleteError = error
-    }
-
-    await minimumFeedback
-
-    setPendingDeleteLimitYear(null)
-    setPendingDeletedLimit(null)
-    setDeleteConfirmYear(null)
-
-    if (deleteError) {
-      setLimitError(deleteError instanceof Error ? deleteError.message : 'Failed to delete limit.')
-      return
-    }
-
-    setLimitError(null)
-  }
-
-  const selectedLimit = showAddTaxYear
-    ? null
-    : selectedLimitYear === null
-      ? null
-      : sortedLimits.find((limit) => limit.year === selectedLimitYear) ?? null
-  const selectedDraft = selectedLimit ? limitDraft(selectedLimit.year) : null
-  const selectedSavingLimit = selectedLimit !== null
-    && updateLimit.isPending
-    && updateLimit.variables?.year === selectedLimit.year
-  const selectedLimitDirty = selectedLimit ? limitDirty(selectedLimit.year) : false
-  const selectedLimitDeleteConfirming = selectedLimit !== null && deleteConfirmYear === selectedLimit.year
-  const selectedLimitDeleting = selectedLimit !== null && pendingDeleteLimitYear === selectedLimit.year
 
   return (
     <>

@@ -40,6 +40,9 @@ export function useTaxAdvantagedAccountLinks({
     ? updateAccount.variables?.accountId ?? null
     : null
 
+  /**
+   * Toggles a same-currency asset account link while preserving minimum autosave feedback timing
+   */
   async function toggleAccount(account: AccountsOverview) {
     if (account.is_archived) return
 
