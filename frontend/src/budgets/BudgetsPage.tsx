@@ -62,6 +62,9 @@ export default function BudgetsPage() {
     budgetDetailsSnapshot?.baseBudget.id === selectedBudgetId ? budgetDetailsSnapshot : null
   )
 
+  /**
+   * Stores a selected-budget snapshot before syncing the detail modal to the URL
+   */
   const openBudget = (budget: BudgetCardViewModel) => {
     setBudgetDetailsSnapshot(budget)
     setSearchParams((current) => {
@@ -71,6 +74,9 @@ export default function BudgetsPage() {
     })
   }
 
+  /**
+   * Clears the selected-budget URL state and any stale details snapshot
+   */
   const closeBudget = () => {
     setBudgetDetailsSnapshot(null)
     setSearchParams((current) => {
