@@ -7,7 +7,7 @@ import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantage
 import {
   currencySymbol,
   formatMoneyInput,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryUtils'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedCategoryUtils'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
 
 export function TaxAdvantagedCurrencyWarning() {

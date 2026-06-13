@@ -11,7 +11,7 @@ import {
   fromMinorUnits,
   isValidMoneyInput,
   toMinorUnits,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryUtils'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedCategoryUtils'
 
 /**
  * Creates a blank annual limit form for the supplied tax year

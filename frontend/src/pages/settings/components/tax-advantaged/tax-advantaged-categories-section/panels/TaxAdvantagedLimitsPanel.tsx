@@ -7,7 +7,7 @@ import type {
 } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryConstants'
-import TaxAdvantagedOpeningUsageLabel from './TaxAdvantagedOpeningUsageLabel'
+import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedOpeningUsageLabel'
 
 interface TaxAdvantagedLimitsPanelProps {
   deleteConfirmYear: number | null

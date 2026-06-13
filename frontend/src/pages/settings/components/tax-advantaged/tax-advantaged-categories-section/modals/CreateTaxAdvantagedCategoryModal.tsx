@@ -14,7 +14,7 @@ import {
 import {
   CurrencyInput,
   TaxAdvantagedCurrencyWarning,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedFormControls'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedFormControls'
 
 /**
  * Renders the modal for creating a new tax-advantaged category

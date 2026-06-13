@@ -10,7 +10,7 @@ import type {
   TaxPlanLimitDraftState,
   TaxPlanLimitFormState,
 } from '@/pages/settings/components/tax-advantaged/taxAdvantagedTypes'
-import { CompactCurrencyInput } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedFormControls'
+import { CompactCurrencyInput } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedFormControls'
 
 interface TaxAdvantagedLimitDetailsModalProps {
   creatingLimit: boolean

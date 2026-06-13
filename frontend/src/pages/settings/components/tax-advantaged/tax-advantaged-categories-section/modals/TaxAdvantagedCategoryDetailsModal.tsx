@@ -9,8 +9,8 @@ import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantage
 import {
   CompactCurrencyInput,
   TaxAdvantagedCurrencyWarning,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedFormControls'
-import TaxAdvantagedOpeningUsageLabel from './TaxAdvantagedOpeningUsageLabel'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedFormControls'
+import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedOpeningUsageLabel'
 
 interface TaxAdvantagedCategoryDetailsModalProps {
   currencies: Currency[]

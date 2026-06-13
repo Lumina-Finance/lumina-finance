@@ -23,14 +23,14 @@ import {
 import {
   nextAvailableLimitYear,
   toMinorUnits,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryUtils'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedCategoryUtils'
 import {
   createEmptyLimitForm,
   getLimitDraft,
   isLimitDirty,
   validateExistingLimitDraft,
   validateNewLimitForm,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedLimitWorkflowUtils'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedLimitWorkflowUtils'
 import { waitForMilliseconds } from '@/utils/timing'
 
 interface UseTaxAdvantagedLimitWorkflowParams {

@@ -9,18 +9,18 @@ import type {
   AutosaveNotice,
   CategoryModalTab,
 } from '@/pages/settings/components/tax-advantaged/taxAdvantagedTypes'
-import TaxAdvantagedAccountLinksPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedAccountLinksPanel'
-import TaxAdvantagedAutosaveStatusIcon from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedAutosaveStatusIcon'
-import TaxAdvantagedInfoItem from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedInfoItem'
-import TaxAdvantagedCategoryDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedCategoryDetailsModal'
-import TaxAdvantagedLimitDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedLimitDetailsModal'
-import TaxAdvantagedLimitsPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedLimitsPanel'
+import TaxAdvantagedAccountLinksPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/panels/TaxAdvantagedAccountLinksPanel'
+import TaxAdvantagedAutosaveStatusIcon from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedAutosaveStatusIcon'
+import TaxAdvantagedInfoItem from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedInfoItem'
+import TaxAdvantagedCategoryDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/TaxAdvantagedCategoryDetailsModal'
+import TaxAdvantagedLimitDetailsModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/TaxAdvantagedLimitDetailsModal'
+import TaxAdvantagedLimitsPanel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/panels/TaxAdvantagedLimitsPanel'
 import { useTaxAdvantagedAccountLinks } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useTaxAdvantagedAccountLinks'
 import { useTaxAdvantagedCategoryDetailsForm } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useTaxAdvantagedCategoryDetailsForm'
 import { useTaxAdvantagedLimitWorkflow } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useTaxAdvantagedLimitWorkflow'
-import { autosaveNoticeColor } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedAutosave'
-import { formatTaxTreatment } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryUtils'
-import { TaxAdvantagedCurrencyWarning } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedFormControls'
+import { autosaveNoticeColor } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedAutosave'
+import { formatTaxTreatment } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedCategoryUtils'
+import { TaxAdvantagedCurrencyWarning } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/TaxAdvantagedFormControls'
 
 /**
  * Renders the TAC management modal shell with details, limit, and account workflows

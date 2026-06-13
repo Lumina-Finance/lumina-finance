@@ -2,7 +2,7 @@ import { useTaxAdvantagedCategoryLimits, type TaxAdvantagedCategory } from '@/ap
 import {
   formatLimitYears,
   formatTaxTreatment,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryUtils'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedCategoryUtils'
 
 export default function TaxAdvantagedCategoriesTable({
   currentYear,

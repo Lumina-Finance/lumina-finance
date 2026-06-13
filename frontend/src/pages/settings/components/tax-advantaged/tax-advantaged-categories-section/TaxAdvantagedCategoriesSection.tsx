@@ -6,9 +6,9 @@ import { useCurrencies } from '@/api/currency'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import SettingsSectionHeader from '@/pages/settings/components/SettingsSectionHeader'
 import SettingsCard from '@/pages/settings/components/SettingsCard'
-import CreateTaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/CreateTaxAdvantagedCategoryModal'
-import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedCategoriesTable'
-import TaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/TaxAdvantagedCategoryModal'
+import CreateTaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CreateTaxAdvantagedCategoryModal'
+import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/table/TaxAdvantagedCategoriesTable'
+import TaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/TaxAdvantagedCategoryModal'
 import { useTaxAdvantagedCategoryList } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useTaxAdvantagedCategoryList'
 
 export default function TaxAdvantagedCategoriesSection({

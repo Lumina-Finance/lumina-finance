@@ -4,7 +4,7 @@ import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import {
   currentYearForTimezone,
   formatTaxTreatment,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/taxAdvantagedCategoryUtils'
+} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/taxAdvantagedCategoryUtils'
 
 export function useTaxAdvantagedCategoryList({
   accounts,
