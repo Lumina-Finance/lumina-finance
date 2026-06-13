@@ -2,28 +2,21 @@ import { useMemo, useState } from 'react'
 import {
   ArrowDownRight,
   ArrowUpRight,
-  BarChart3,
 } from 'lucide-react'
 import {
   type SpendingRange,
   useSpendingComparison,
 } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/AppScrambledNumber'
-import { AppSlotMachineText } from '@/components/AppSlotMachineText'
-import IconTooltip from '@/components/IconTooltip'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
-import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { SpendingComparisonChart } from '@/dashboard/components/SpendingComparisonChart'
+import { SpendingComparisonHeader } from '@/dashboard/components/SpendingComparisonHeader'
 import {
   CURRENT_LABEL_BY_RANGE,
-  DASHBOARD_RANGE_SELECT_OPTIONS,
   PREVIOUS_LABEL_BY_RANGE,
-  PREVIOUS_PERIOD_LABEL_BY_RANGE,
 } from '@/dashboard/constants/ranges'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
-import { getSpendingComparisonFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
 
 type SpendingComparisonWidgetProps = {
@@ -69,46 +62,11 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
   )
   return (
     <div className="app-card h-[470px] flex flex-col">
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
-          <BarChart3 size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
-        </div>
-        <span className="app-label inline-flex items-baseline whitespace-nowrap">
-          Spending vs. Last&nbsp;
-          <AppSlotMachineText text={PREVIOUS_PERIOD_LABEL_BY_RANGE[spendingRange]} />
-        </span>
-        {fxStatus && (
-          <IconTooltip
-            label="Spending comparison FX status"
-            icon="fx"
-            fxTone={getFxStatusTone(fxStatus)}
-            placement="top"
-          >
-            <span className="block">{getSpendingComparisonFxStatusMessage(fxStatus)}</span>
-            {fxStatus.missing_pairs.length > 0 && (
-              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-              </span>
-            )}
-          </IconTooltip>
-        )}
-        <TimeRangeSelector
-          value={spendingRange}
-          options={DASHBOARD_RANGE_SELECT_OPTIONS}
-          onChange={setSpendingRange}
-          ariaLabel="Spending range"
-          className="ml-auto hidden min-[730px]:inline-flex"
-        />
-        <TimeRangeSelector
-          value={spendingRange}
-          options={DASHBOARD_RANGE_SELECT_OPTIONS}
-          onChange={setSpendingRange}
-          ariaLabel="Spending range"
-          variant="mobile"
-          className="w-full min-[730px]:hidden"
-          sheetTitle="Spending range"
-        />
-      </div>
+      <SpendingComparisonHeader
+        spendingRange={spendingRange}
+        fxStatus={fxStatus}
+        onRangeChange={setSpendingRange}
+      />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         loadingVisible={loadingVisible}
