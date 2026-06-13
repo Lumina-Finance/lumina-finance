@@ -4,6 +4,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
 import { DashboardRangeSelector } from '@/dashboard/components/DashboardRangeSelector'
+import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/dashboard/constants/ranges'
 import { getBreakdownFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import type { BreakdownMode } from '@/dashboard/utils/getSpendingBreakdownSummary'
@@ -30,9 +31,7 @@ export function SpendingBreakdownHeader({
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3">
-      <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
-        <PieChartIcon size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
-      </div>
+      <DashboardWidgetHeaderIcon icon={PieChartIcon} />
       <span className="app-label inline-flex items-baseline whitespace-nowrap">
         <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
         <span className="ml-[0.25em]">Breakdown</span>

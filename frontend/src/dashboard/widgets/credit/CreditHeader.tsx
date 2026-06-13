@@ -2,6 +2,7 @@ import { CreditCard, Repeat } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
+import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
 import type { CreditMode } from '@/dashboard/utils/getCreditUsageSummary'
 import { getCreditFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 
@@ -27,9 +28,7 @@ export function CreditHeader({
 }: CreditHeaderProps) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <div className="p-2 rounded-xl" style={{ background: tierSoft }}>
-        <CreditCard size={16} style={{ color: tierColor }} aria-hidden />
-      </div>
+      <DashboardWidgetHeaderIcon icon={CreditCard} background={tierSoft} color={tierColor} />
       <span className="inline-flex min-w-0 items-center gap-2">
         <span className="app-label">
           Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} />

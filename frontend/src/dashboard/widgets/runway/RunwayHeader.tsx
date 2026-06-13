@@ -3,6 +3,7 @@ import { CircleHelp, LifeBuoy } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
+import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
 import { getRunwayFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 
 type RunwayStyle = {
@@ -25,9 +26,7 @@ export function RunwayHeader({
 }: RunwayHeaderProps) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
-        <LifeBuoy size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
-      </div>
+      <DashboardWidgetHeaderIcon icon={LifeBuoy} />
       <span className="app-label">Runway</span>
       <IconTooltip
         label="How runway is calculated"

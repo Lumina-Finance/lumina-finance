@@ -4,6 +4,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { DashboardFxStatusTooltip } from '@/dashboard/components/DashboardFxStatusTooltip'
 import { DashboardRangeSelector } from '@/dashboard/components/DashboardRangeSelector'
+import { DashboardWidgetHeaderIcon } from '@/dashboard/components/DashboardWidgetHeaderIcon'
 import {
   DASHBOARD_RANGE_SELECT_OPTIONS,
   PREVIOUS_PERIOD_LABEL_BY_RANGE,
@@ -26,9 +27,7 @@ export function SpendingComparisonHeader({
 }: SpendingComparisonHeaderProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3">
-      <div className="p-2 rounded-xl" style={{ background: 'var(--app-accent-soft)' }}>
-        <BarChart3 size={16} style={{ color: 'var(--app-accent)' }} aria-hidden />
-      </div>
+      <DashboardWidgetHeaderIcon icon={BarChart3} />
       <span className="app-label inline-flex items-baseline whitespace-nowrap">
         Spending vs. Last&nbsp;
         <AppSlotMachineText text={PREVIOUS_PERIOD_LABEL_BY_RANGE[spendingRange]} />
