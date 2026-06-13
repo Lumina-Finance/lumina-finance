@@ -7,7 +7,7 @@ import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
-import { getBudgetUtilizationPercent } from '@/budgets/utils/budgetDetails'
+import { getBudgetUtilizationPercent } from '@/budgets/utils/utilization'
 
 type BudgetAttention = {
   label: string

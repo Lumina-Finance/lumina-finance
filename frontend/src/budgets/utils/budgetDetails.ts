@@ -2,6 +2,7 @@ import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { BudgetChartPoint } from '@/budgets/components/budget-details-modal/BudgetChartTooltip'
 import { formatCalendarDate, parseYmd } from '@/budgets/utils/date'
+import { getBudgetUtilizationPercent } from '@/budgets/utils/utilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
 
 export type BudgetChartCategory = {
@@ -26,14 +27,6 @@ export const BUDGET_CHART_LAYOUT = {
   margin: BUDGET_CHART_MARGIN,
   yAxisWidth: BUDGET_CHART_Y_AXIS_WIDTH,
 } as const
-
-/**
- * Calculates budget utilization percent while treating zero or negative limits as unused
- */
-export function getBudgetUtilizationPercent(spent: number, limit: number) {
-  if (limit <= 0) return 0
-  return (spent / limit) * 100
-}
 
 /**
  * Sorts periods oldest-to-newest for chart rendering and newest-to-oldest derivations

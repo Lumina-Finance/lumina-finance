@@ -11,7 +11,6 @@ import {
   getBudgetDetailsChartData,
   getBudgetPeriodHistory,
   getBudgetUtilizationByBudgetId,
-  getBudgetUtilizationPercent,
   getLatestBudgetCategories,
   getSortedBudgetPeriods,
 } from '@/budgets/utils/budgetDetails'
@@ -173,8 +172,7 @@ describe('budget details helpers', () => {
     expect(getLatestBudgetCategories(utilization).map((category) => category.category_id)).toEqual(['large', 'small'])
   })
 
-  it('handles zero limits and clamps chart guide width to the plot area', () => {
-    expect(getBudgetUtilizationPercent(1000, 0)).toBe(0)
+  it('clamps chart guide width to the plot area', () => {
     expect(getBudgetChartGuideMaxWidth(40, 3)).toBe(1)
     expect(getBudgetChartGuideMaxWidth(500, 0)).toBe(BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH)
   })

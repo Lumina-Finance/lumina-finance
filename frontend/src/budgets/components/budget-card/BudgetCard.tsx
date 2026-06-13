@@ -5,7 +5,7 @@ import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import { budgetCadenceLabel, formatBudgetPeriod, nextBudgetPeriods } from '@/budgets/utils/budgetPeriods'
 import { attentionState } from '@/budgets/utils/budgetStatus'
-import { getBudgetUtilizationPercent } from '@/budgets/utils/budgetDetails'
+import { getBudgetUtilizationPercent } from '@/budgets/utils/utilization'
 
 /**
  * Renders a single budget summary card with current spending, period context, and tracked categories
