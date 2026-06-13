@@ -13,6 +13,7 @@ import type { BudgetFormFieldErrors, BudgetFormState } from '@/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { sameStringSet } from '@/budgets/utils/form'
 import { currencySymbol, formatMinorUnitsInput, toMinorUnits } from '@/budgets/utils/money'
+import { waitForMilliseconds } from '@/utils/timing'
 
 const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   name: 'budget-edit-name',
@@ -268,8 +269,7 @@ export default function BudgetEditModal({
       await Promise.all([
         saveChanges(),
 
-        // Match the existing save-button feedback timing
-        new Promise((resolve) => window.setTimeout(resolve, 1000)),
+        waitForMilliseconds(1000),
       ])
       closeAndReset()
       onSaved()

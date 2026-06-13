@@ -14,6 +14,7 @@ import {
 } from '@/api/transactions'
 import { ApiError } from '@/api/auth'
 import { sanitizeMoneyInput } from '@/utils/moneyInput'
+import { waitForMilliseconds } from '@/utils/timing'
 import {
   INITIAL_TRANSACTION_FORM,
   KIND_LABELS,
@@ -56,12 +57,6 @@ import TransactionTypeDirectionSection from '@/transactions/components/Transacti
 import { useDebouncedReferenceSearch } from '@/transactions/components/TransactionModal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/transactions/components/TransactionModal/hooks/usePagedReferenceDropdown'
 import { useTransactionModalEnvironment } from '@/transactions/components/TransactionModal/hooks/useTransactionModalEnvironment'
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
 
 export default function CreateTransactionModal({
   open,
@@ -496,7 +491,7 @@ export default function CreateTransactionModal({
 
     setSubmitError('')
     setCreateDelayPending(true)
-    const minimumLoading = delay(
+    const minimumLoading = waitForMilliseconds(
       keepOpenAfterCreate ? MIN_BATCH_ADD_TRANSACTION_LOADING_MS : MIN_ADD_TRANSACTION_LOADING_MS,
     )
 

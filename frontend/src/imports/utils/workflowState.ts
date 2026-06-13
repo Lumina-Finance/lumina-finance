@@ -81,10 +81,3 @@ export function isColumnMappingComplete(
   const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
   return !Object.keys(columnValidationErrors).some((header) => mappedHeaders.has(header))
 }
-
-/**
- * Waits for a minimum duration before changing import progress UI state
- */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}

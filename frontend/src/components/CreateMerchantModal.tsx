@@ -8,6 +8,7 @@ import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectio
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/CreateReferenceModalShell'
+import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_MERCHANT_MIN_LOADING_MS = 800
 
@@ -25,12 +26,6 @@ interface CreateMerchantModalProps {
   variant?: CreateMerchantModalVariant
   onClose: () => void
   onCreated: (merchant: Merchant) => void
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
 }
 
 export default function CreateMerchantModal({
@@ -78,7 +73,7 @@ export default function CreateMerchantModal({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = delay(CREATE_MERCHANT_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(CREATE_MERCHANT_MIN_LOADING_MS)
 
     void createMerchant.mutateAsync(
       {

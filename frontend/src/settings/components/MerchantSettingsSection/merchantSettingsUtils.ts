@@ -7,12 +7,6 @@ import {
   NO_CATEGORY_VALUE,
 } from '@/settings/components/MerchantSettingsSection/merchantSettingsConstants'
 
-export function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
-
 export function categoryOptions(categories: Category[]): DropdownOption[] {
   return [
     { value: NO_CATEGORY_VALUE, label: 'No default category', group: 'Default' },

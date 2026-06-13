@@ -8,6 +8,7 @@ import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectio
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/CreateReferenceModalShell'
+import { waitForMilliseconds } from '@/utils/timing'
 
 type CategoryKind = Category['kind']
 type CreateCategoryField = 'icon' | 'name'
@@ -33,12 +34,6 @@ const KIND_LABELS: Record<CategoryKind, string> = {
 
 const KIND_ORDER: CategoryKind[] = ['expense', 'income', 'transfer']
 const KIND_OPTIONS = KIND_ORDER.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
 
 export default function CreateCategoryModal({
   open,
@@ -89,7 +84,7 @@ export default function CreateCategoryModal({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = delay(CREATE_CATEGORY_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(CREATE_CATEGORY_MIN_LOADING_MS)
 
     void createCategory.mutateAsync(
       {

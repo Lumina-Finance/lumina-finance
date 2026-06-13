@@ -6,6 +6,7 @@ import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectio
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/CreateReferenceModalShell'
+import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_TAG_MIN_LOADING_MS = 800
 
@@ -18,12 +19,6 @@ interface CreateTagModalProps {
   variant?: CreateTagModalVariant
   onClose: () => void
   onCreated: (tag: Tag) => void
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
 }
 
 export default function CreateTagModal({
@@ -52,7 +47,7 @@ export default function CreateTagModal({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = delay(CREATE_TAG_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(CREATE_TAG_MIN_LOADING_MS)
 
     void createTag.mutateAsync({ name: trimmed, group_id: groupId })
       .then(async (tag) => {

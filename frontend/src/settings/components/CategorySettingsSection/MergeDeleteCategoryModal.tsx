@@ -9,10 +9,8 @@ import {
   DELETE_SPINNER_MS,
   EASE,
 } from '@/settings/components/CategorySettingsSection/categorySettingsConstants'
-import {
-  categoryMergeOptions,
-  delay,
-} from '@/settings/components/CategorySettingsSection/categorySettingsUtils'
+import { categoryMergeOptions } from '@/settings/components/CategorySettingsSection/categorySettingsUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 export default function MergeDeleteCategoryModal({
   category,
@@ -61,7 +59,7 @@ export default function MergeDeleteCategoryModal({
     try {
       await Promise.all([
         onMerge(selectedReplacementId),
-        delay(DELETE_SPINNER_MS),
+        waitForMilliseconds(DELETE_SPINNER_MS),
       ])
       onClose()
     } catch (error) {

@@ -9,7 +9,7 @@ import {
   CREATE_TAG_MIN_LOADING_MS,
   EASE,
 } from '@/settings/components/TagSettingsSection/tagSettingsConstants'
-import { delay } from '@/settings/components/TagSettingsSection/tagSettingsUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 export default function TagCreateModal({
   open,
@@ -51,7 +51,7 @@ export default function TagCreateModal({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = delay(CREATE_TAG_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(CREATE_TAG_MIN_LOADING_MS)
 
     void createTag.mutateAsync({ name: trimmed })
       .then(async (tag) => {

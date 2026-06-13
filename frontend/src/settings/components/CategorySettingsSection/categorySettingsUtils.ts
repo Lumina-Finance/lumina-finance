@@ -2,12 +2,6 @@ import type { Category } from '@/api/categories'
 import type { CategoryKind } from '@/settings/components/CategorySettingsSection/categorySettingsConstants'
 import { DEFAULT_CATEGORY_ICON } from '@/settings/components/CategorySettingsSection/categorySettingsConstants'
 
-export function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
-
 export function displayEmoji(category: Category): string {
   return category.icon ?? DEFAULT_CATEGORY_ICON
 }

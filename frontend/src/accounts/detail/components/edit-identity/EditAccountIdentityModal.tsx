@@ -11,6 +11,7 @@ import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import CreateInstitutionModal from '@/components/CreateInstitutionModal'
 import type { DropdownOption } from '@/components/Dropdown'
+import { waitForMilliseconds } from '@/utils/timing'
 import { EASE } from '@/accounts/detail/constants/accountDetail'
 import {
   createIdentityFormValues,
@@ -38,15 +39,6 @@ type EditAccountIdentityModalProps = {
 
 const MIN_SAVE_SPINNER_MS = 800
 const MIN_DELETE_SPINNER_MS = 1000
-
-/**
- * Keeps fast mutations from flashing loading states too quickly to read
- */
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
 
 /**
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
@@ -136,7 +128,7 @@ export default function EditAccountIdentityModal({
 
     setSubmitError(null)
     setSaveDelayPending(true)
-    const minimumDelay = wait(MIN_SAVE_SPINNER_MS)
+    const minimumDelay = waitForMilliseconds(MIN_SAVE_SPINNER_MS)
 
     try {
       await updateAccount.mutateAsync({

@@ -8,11 +8,11 @@ import {
 import type { TaxPlanFormState } from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
 import { DELETE_TAX_CATEGORY_MIN_LOADING_MS } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
-  delay,
   fromMinorUnits,
   isValidMoneyInput,
   toMinorUnits,
 } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 interface UseTaxAdvantagedCategoryDetailsFormParams {
   currencies: Currency[]
@@ -87,7 +87,7 @@ export function useTaxAdvantagedCategoryDetailsForm({
 
     const { dirty, nextAccruedContributions, nextLifetimeLimit } = getPlanUpdateState(planForm, currencies, plan)
     setPlanSaveStatus('loading')
-    const minimumLoading = delay(1000)
+    const minimumLoading = waitForMilliseconds(1000)
     try {
       if (dirty) {
         await updatePlan.mutateAsync({
@@ -101,7 +101,7 @@ export function useTaxAdvantagedCategoryDetailsForm({
       }
       await minimumLoading
       setPlanSaveStatus('success')
-      await delay(600)
+      await waitForMilliseconds(600)
       setDetailsOpen(false)
       setPlanSaveStatus('idle')
     } catch (error) {

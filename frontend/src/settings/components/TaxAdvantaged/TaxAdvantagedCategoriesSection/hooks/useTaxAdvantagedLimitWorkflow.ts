@@ -21,7 +21,6 @@ import {
   MAX_VISIBLE_LIMIT_ROWS,
 } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
-  delay,
   nextAvailableLimitYear,
   toMinorUnits,
 } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
@@ -32,6 +31,7 @@ import {
   validateExistingLimitDraft,
   validateNewLimitForm,
 } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedLimitWorkflowUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 interface UseTaxAdvantagedLimitWorkflowParams {
   currencies: Currency[]
@@ -252,7 +252,7 @@ export function useTaxAdvantagedLimitWorkflow({
 
     setPendingCreateLimitYear(year)
     showAutosaveNotice({ status: 'saving', message: 'Saving limits...' })
-    const minimumFeedback = delay(LIMIT_SAVE_FEEDBACK_MS)
+    const minimumFeedback = waitForMilliseconds(LIMIT_SAVE_FEEDBACK_MS)
 
     let createError: unknown = null
     try {
@@ -298,7 +298,7 @@ export function useTaxAdvantagedLimitWorkflow({
     setPendingDeleteLimitYear(limit.year)
     setPendingDeletedLimit(limit)
     setSelectedLimitYear((current) => (current === limit.year ? null : current))
-    const minimumFeedback = delay(LIMIT_DELETE_FEEDBACK_MS)
+    const minimumFeedback = waitForMilliseconds(LIMIT_DELETE_FEEDBACK_MS)
 
     let deleteError: unknown = null
     try {

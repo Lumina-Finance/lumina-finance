@@ -7,6 +7,7 @@ import CreateModalFieldLabelRow from '@/components/create-modal/CreateModalField
 import CreateModalSectionFrame from '@/components/create-modal/CreateModalSectionFrame'
 import CreateReferenceModalShell from '@/components/create-modal/CreateReferenceModalShell'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
+import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_INSTITUTION_MIN_LOADING_MS = 800
 
@@ -42,15 +43,6 @@ function validateCreateInstitutionForm(form: CreateInstitutionForm): CreateInsti
   if (!form.country_code) errors.country_code = 'Select a country'
   if (!form.website.trim()) errors.website = 'Website is required'
   return errors
-}
-
-/**
- * Keeps the create button loading state visible long enough to avoid a flicker
- */
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
 }
 
 /**
@@ -98,7 +90,7 @@ export default function CreateInstitutionModal({
     if (Object.keys(errors).length > 0) return
 
     setCreateInProgress(true)
-    const minimumLoading = delay(CREATE_INSTITUTION_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(CREATE_INSTITUTION_MIN_LOADING_MS)
 
     void mutation.mutateAsync(
       {
