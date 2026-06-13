@@ -3,6 +3,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
+import type { Institution } from '@/api/institutions'
+import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { RunwayResult } from '@/api/user'
 import {
   getAccountKindOptions,
@@ -20,6 +22,13 @@ import {
   getRunwayMetric,
   getSavingsRateMetric,
 } from '@/accounts/utils/accountMetrics'
+import {
+  formatTaxAdvantagedMeterMoney,
+  getLifetimeAvailableBoundary,
+  getTaxAdvantagedUsageColor,
+  getTaxAdvantagedUsagePercent,
+  hasTaxAdvantagedLimitTracking,
+} from '@/accounts/utils/taxAdvantagedLimits'
 
 function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {
@@ -42,6 +51,39 @@ function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   }
 }
 
+function createInstitution(id: string, name: string): Institution {
+  return {
+    id,
+    status: 'active',
+    name,
+    country_code: 'US',
+    website: `https://${id}.example.com`,
+    logo_url: null,
+  }
+}
+
+function createTaxAdvantagedCategory(overrides: Partial<TaxAdvantagedCategory>): TaxAdvantagedCategory {
+  return {
+    id: overrides.id ?? 'plan',
+    category_owner_user_id: 'user',
+    group_id: null,
+    name: overrides.name ?? 'Plan',
+    tax_treatment: 'tax_free',
+    currency: overrides.currency ?? 'USD',
+    lifetime_contribution_limit: null,
+    accrued_contributions: 0,
+    accrued_lifetime_contribution_limit: null,
+    current_year_contribution_limit: null,
+    current_year_withdrawal_limit: null,
+    ytd_contributions: 0,
+    ytd_withdrawals: 0,
+    lifetime_contributions: 0,
+    lifetime_withdrawals: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
 describe('account filter helpers', () => {
   it('removes empty filters before filtering accounts', () => {
     expect(getActiveAccountFilters({
@@ -57,19 +99,19 @@ describe('account filter helpers', () => {
         id: 'checking',
         account_kind: 'asset',
         account_type: 'checking',
-        institution: { id: 'z', name: 'Zeta Bank', website: null },
+        institution: createInstitution('z', 'Zeta Bank'),
       }),
       createAccount({
         id: 'card',
         account_kind: 'revolving',
         account_type: 'credit_card',
-        institution: { id: 'a', name: 'Alpha Bank', website: null },
+        institution: createInstitution('a', 'Alpha Bank'),
       }),
       createAccount({
         id: 'cash',
         account_kind: 'asset',
         account_type: 'cash',
-        institution: { id: 'z', name: 'Zeta Bank', website: null },
+        institution: createInstitution('z', 'Zeta Bank'),
       }),
     ]
 
@@ -94,13 +136,13 @@ describe('account filter helpers', () => {
         id: 'checking',
         account_kind: 'asset',
         account_type: 'checking',
-        institution: { id: 'bank', name: 'Bank', website: null },
+        institution: createInstitution('bank', 'Bank'),
       }),
       createAccount({
         id: 'card',
         account_kind: 'revolving',
         account_type: 'credit_card',
-        institution: { id: 'bank', name: 'Bank', website: null },
+        institution: createInstitution('bank', 'Bank'),
       }),
       createAccount({
         id: 'cash',
@@ -277,5 +319,43 @@ describe('account metric helpers', () => {
       caption: '$1,234.56/mth · 6 mths basis',
       progress: 100,
     })
+  })
+})
+
+describe('tax-advantaged limit helpers', () => {
+  it('bounds usage percentages and marks over-limit usage as negative', () => {
+    expect(getTaxAdvantagedUsagePercent(125, 100)).toBe(100)
+    expect(getTaxAdvantagedUsagePercent(-25, 100)).toBe(0)
+    expect(getTaxAdvantagedUsageColor(125, 100)).toBe('var(--app-negative)')
+    expect(getTaxAdvantagedUsageColor(100, 100)).toBe('var(--app-text-muted)')
+  })
+
+  it('formats compact meter values without losing the currency sign', () => {
+    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD')).toBe('$1K')
+    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD')).toBe('$123K')
+  })
+
+  it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {
+    expect(getLifetimeAvailableBoundary(createTaxAdvantagedCategory({
+      lifetime_contribution_limit: 10_000,
+      accrued_lifetime_contribution_limit: 7_000,
+      lifetime_contributions: 5_000,
+    }))).toBe(7_000)
+
+    expect(getLifetimeAvailableBoundary(createTaxAdvantagedCategory({
+      lifetime_contribution_limit: 10_000,
+      accrued_lifetime_contribution_limit: 4_000,
+      lifetime_contributions: 5_000,
+    }))).toBeNull()
+  })
+
+  it('detects categories with limit settings or recorded activity', () => {
+    expect(hasTaxAdvantagedLimitTracking(createTaxAdvantagedCategory({}))).toBe(false)
+    expect(hasTaxAdvantagedLimitTracking(createTaxAdvantagedCategory({
+      current_year_withdrawal_limit: 0,
+    }))).toBe(true)
+    expect(hasTaxAdvantagedLimitTracking(createTaxAdvantagedCategory({
+      ytd_contributions: 100,
+    }))).toBe(true)
   })
 })

@@ -4,6 +4,10 @@ import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { ACCOUNT_KIND_LABEL } from '@/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/accounts/detail/utils/formatAccountType'
+import {
+  getTaxAdvantagedUsageColor,
+  getTaxAdvantagedUsagePercent,
+} from '@/accounts/utils/taxAdvantagedLimits'
 
 // Reuse the list logo treatment at a larger size for the account identity card.
 function DetailInstitutionLogo({ institution }: { institution: Account['institution'] }) {
@@ -36,19 +40,6 @@ function DetailInstitutionLogo({ institution }: { institution: Account['institut
   )
 }
 
-function taxAdvantagedUsageColor(used: number, limit: number): string {
-  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-muted)'
-  const ratio = used / limit
-  if (ratio > 1) return 'var(--app-negative)'
-  if (limit - used === 0) return 'var(--app-text-muted)'
-  return 'var(--app-accent)'
-}
-
-function taxAdvantagedUsagePercent(used: number, limit: number): number {
-  if (limit <= 0) return 100
-  return Math.min(Math.max((used / limit) * 100, 0), 100)
-}
-
 function DetailLimitUsage({
   label,
   used,
@@ -75,9 +66,9 @@ function DetailLimitUsage({
     )
   }
 
-  const color = taxAdvantagedUsageColor(used, limit)
+  const color = getTaxAdvantagedUsageColor(used, limit)
   const usageLabel = `${formatCurrency(used, currency)} / ${formatCurrency(limit, currency)}`
-  const usagePercent = taxAdvantagedUsagePercent(used, limit)
+  const usagePercent = getTaxAdvantagedUsagePercent(used, limit)
 
   return (
     <div className="group relative">
