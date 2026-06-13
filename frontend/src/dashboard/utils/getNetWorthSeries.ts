@@ -2,8 +2,8 @@ import type { NetWorthWidgetResponse } from '@/api/dashboard'
 import type { NetWorthSeriesPoint } from '@/dashboard/types/dashboard'
 
 /**
- * Adds display dates to the trailing net-worth history returned by the API.
- * The backend returns only ordered values, so labels are derived from today.
+ * Adds display dates to the trailing net-worth history returned by the API
+ * The backend returns only ordered values, so labels are derived from today
  */
 export function getNetWorthSeries(
   dashboardNetWorth: NetWorthWidgetResponse | undefined,
@@ -12,7 +12,7 @@ export function getNetWorthSeries(
   if (history.length === 0) return []
 
   // The backend returns a trailing daily value array without labels. Recreate
-  // the matching date labels client-side from today backward.
+  // the matching date labels client-side from today backward
   const today = new Date()
   return history.map((value, i) => {
     const date = new Date(today)

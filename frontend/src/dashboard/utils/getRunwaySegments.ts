@@ -8,8 +8,8 @@ function getRunwayAccountColorSeed(accountName: string) {
 }
 
 /**
- * Converts selected positive-balance runway accounts into proportional bar segments.
- * Archived accounts and unavailable runway states produce no segments.
+ * Converts selected positive-balance runway accounts into proportional bar segments
+ * Archived accounts and unavailable runway states produce no segments
  */
 export function getRunwaySegments(
   accounts: AccountsOverview[] | undefined,
@@ -25,8 +25,9 @@ export function getRunwaySegments(
       accountBalance.balance,
     ]),
   )
+
   // Only selected active accounts with positive balances contribute to the
-  // bar; archived accounts and liabilities are excluded before this helper.
+  // bar because archived accounts and liabilities are excluded before this helper
   const rows = (accounts ?? [])
     .map((account) => ({
       account,
@@ -40,8 +41,9 @@ export function getRunwaySegments(
   let cursor = 0
   return rows.map(({ account, balance }) => {
     const pct = (balance / total) * 100
+
     // centerPct is kept for consumers that need a stable tooltip anchor without
-    // querying DOM widths for each proportional segment.
+    // querying DOM widths for each proportional segment
     const centerPct = cursor + pct / 2
     cursor += pct
 

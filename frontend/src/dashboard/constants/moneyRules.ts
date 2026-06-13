@@ -2,7 +2,7 @@ import type { DashboardMoneyFormat } from '@/dashboard/types/dashboard'
 import type { CompactMoneyRule } from '@/utils/formatCompactMoney'
 
 // Money compaction is intentionally widget-specific: net worth tolerates more
-// precision at large values, while compact cards need earlier K/M shortening.
+// precision at large values, while compact cards need earlier K/M shortening
 export const DASHBOARD_MONEY_RULES: Record<DashboardMoneyFormat, CompactMoneyRule[]> = {
   raw: [],
   netWorth: [

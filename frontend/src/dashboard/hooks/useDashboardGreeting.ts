@@ -1,5 +1,5 @@
 /**
- * Returns the dashboard greeting copy for the current local hour.
+ * Returns the dashboard greeting copy for the current local hour
  */
 export function useDashboardGreeting() {
   const hour = new Date().getHours()

@@ -4,8 +4,8 @@ import { formatCompactMoney } from '@/utils/formatCompactMoney'
 import type { DashboardMoneyFormat } from '@/dashboard/types/dashboard'
 
 /**
- * Formats dashboard money values with widget-specific K/M compaction rules.
- * Input values are API minor units; thresholds are evaluated in major units.
+ * Formats dashboard money values with widget-specific K/M compaction rules
+ * Input values are API minor units and thresholds are evaluated in major units
  */
 export function formatDashboardMoney(
   minorUnits: number,
