@@ -6,7 +6,7 @@ import {
   formatDateRangeLabel,
   formatOverviewRangeLabel,
   getCurrentMonthOverviewRange,
-} from '@/transactions/utils/date'
+} from '@/pages/transactions/utils/date'
 
 describe('transaction date helpers', () => {
   it('formats compact date-range filter labels', () => {

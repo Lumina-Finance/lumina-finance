@@ -7,8 +7,8 @@ import {
   getAccountOptions,
   getActiveFilterCount,
   getCategoryOptions,
-} from '@/transactions/utils/filterOptions'
-import type { TransactionListAccount } from '@/transactions/types/transactionList'
+} from '@/pages/transactions/utils/filterOptions'
+import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 
 function createCategory(overrides: Partial<Category>): Category {
   return {

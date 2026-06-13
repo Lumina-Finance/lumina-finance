@@ -12,8 +12,8 @@ import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash
 import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopCategoriesBySpendingCard'
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsBySpendingCard'
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
-import TransactionListSection from '@/transactions/components/TransactionListSection'
-import CreateTransactionModal from '@/transactions/components/TransactionModal/CreateTransactionModal'
+import TransactionListSection from '@/pages/transactions/components/TransactionListSection'
+import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/CreateTransactionModal'
 
 type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
 
