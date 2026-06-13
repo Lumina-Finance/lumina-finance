@@ -1,7 +1,7 @@
 /**
  * Renders the inflow and outflow legend for the monthly cash flow card
  */
-export function CashFlowLegend() {
+export function MonthlyCashFlowLegend() {
   return (
     <div
       className="flex items-center gap-3 text-xs"

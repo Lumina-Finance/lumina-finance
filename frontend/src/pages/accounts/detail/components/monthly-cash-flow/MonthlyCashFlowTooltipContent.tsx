@@ -5,7 +5,7 @@ import {
 import { formatCurrency } from '@/utils/formatCurrency'
 import type { CashFlowBar } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
 
-type CashFlowTooltipContentProps = {
+type MonthlyCashFlowTooltipContentProps = {
   point: CashFlowBar
   currency: string
   title: string
@@ -14,11 +14,11 @@ type CashFlowTooltipContentProps = {
 /**
  * Renders inflow and outflow values for one monthly cash flow chart bar
  */
-export function CashFlowTooltipContent({
+export function MonthlyCashFlowTooltipContent({
   point,
   currency,
   title,
-}: CashFlowTooltipContentProps) {
+}: MonthlyCashFlowTooltipContentProps) {
   return (
     <>
       <ChartTooltipTitle>{title}</ChartTooltipTitle>

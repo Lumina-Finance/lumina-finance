@@ -11,8 +11,8 @@ import {
   getMonthlyCashFlowBars,
   type CashFlowBar,
 } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
-import { CashFlowBarChart } from './CashFlowBarChart'
-import { CashFlowLegend } from './CashFlowLegend'
+import { MonthlyCashFlowBarChart } from './MonthlyCashFlowBarChart'
+import { MonthlyCashFlowLegend } from './MonthlyCashFlowLegend'
 
 /**
  * Renders monthly cash flow history alongside a completed-month average bar
@@ -42,7 +42,7 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
     <section className="app-card flex h-[400px] flex-col">
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
         <p className="app-label">Monthly Cash Flow</p>
-        <CashFlowLegend />
+        <MonthlyCashFlowLegend />
       </div>
 
       <div className="relative flex-1 min-h-[200px] w-full flex gap-4">
@@ -55,7 +55,7 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
               No cash flow yet
             </div>
           ) : (
-            <CashFlowBarChart
+            <MonthlyCashFlowBarChart
               data={chartData}
               domain={[0, yMax]}
               currency={account.currency}
@@ -72,7 +72,7 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
               aria-hidden
             />
             <div className="shrink-0" style={{ width: 72 }}>
-              <CashFlowBarChart
+              <MonthlyCashFlowBarChart
                 data={avgData}
                 domain={[0, yMax]}
                 currency={account.currency}

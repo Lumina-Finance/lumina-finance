@@ -16,12 +16,12 @@ import {
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
 import type { CashFlowBar } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
-import { CashFlowTooltipContent } from './CashFlowTooltipContent'
+import { MonthlyCashFlowTooltipContent } from './MonthlyCashFlowTooltipContent'
 
 const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
 const cashFlowHoverHighlightWidth = 70
 
-type CashFlowBarChartProps = {
+type MonthlyCashFlowBarChartProps = {
   data: CashFlowBar[]
   domain: [number, number]
   currency: string
@@ -46,12 +46,12 @@ function getCashFlowGuideMaxWidth(chartWidth: number, pointCount: number) {
 /**
  * Renders grouped inflow and outflow bars and owns tooltip wiring
  */
-export function CashFlowBarChart({
+export function MonthlyCashFlowBarChart({
   data,
   domain,
   currency,
   tooltipLabel,
-}: CashFlowBarChartProps) {
+}: MonthlyCashFlowBarChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBar>>(null)
 
@@ -128,7 +128,7 @@ export function CashFlowBarChart({
         guideMaxWidth={(chartWidth) => getCashFlowGuideMaxWidth(chartWidth, data.length)}
         getKey={getCashFlowTooltipKey}
         renderContent={(point) => (
-          <CashFlowTooltipContent
+          <MonthlyCashFlowTooltipContent
             point={point}
             currency={currency}
             title={tooltipLabel(point.label)}
