@@ -1,7 +1,7 @@
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
-} from '@/transactions/components/TransactionModal/transactionModalTypes'
+} from '@/transactions/components/TransactionModal/types'
 
 /**
  * Validates fields required before a transaction can be sent to the API

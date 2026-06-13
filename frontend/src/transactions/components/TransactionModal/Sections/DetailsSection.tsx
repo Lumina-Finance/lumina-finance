@@ -1,8 +1,8 @@
 import { Calendar } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
-import TransactionModalFieldLabelRow from '@/transactions/components/TransactionModal/TransactionModalFieldLabelRow'
-import TransactionModalSectionFrame from '@/transactions/components/TransactionModal/TransactionModalSectionFrame'
+import TransactionModalFieldLabelRow from '@/transactions/components/TransactionModal/Controls/FieldLabelRow'
+import TransactionModalSectionFrame from '@/transactions/components/TransactionModal/Controls/SectionFrame'
 import { formatMoneyInputLive } from '@/utils/moneyInput'
 
 interface TransactionDetailsSectionProps {

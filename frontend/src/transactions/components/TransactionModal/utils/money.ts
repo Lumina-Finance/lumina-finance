@@ -1,4 +1,4 @@
-import type { TransactionDirection } from '@/transactions/components/TransactionModal/transactionModalTypes'
+import type { TransactionDirection } from '@/transactions/components/TransactionModal/types'
 
 /**
  * Builds the date input value using the browser's local calendar day

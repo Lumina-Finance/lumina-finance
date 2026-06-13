@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import {
   SEGMENTED_OPTION_GAP_REM,
   SELECTOR_SPRING,
-} from '@/transactions/components/TransactionModal/transactionModalConstants'
+} from '@/transactions/components/TransactionModal/constants'
 import { joinClassNames } from '@/utils/classNames'
 
 interface TransactionModalPillSelectorProps<T extends string> {

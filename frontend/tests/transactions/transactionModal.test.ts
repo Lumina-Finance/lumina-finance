@@ -6,19 +6,19 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
-import { buildCategoryOptions } from '@/transactions/components/TransactionModal/transactionModalCategories'
-import { buildInitialTransactionForm } from '@/transactions/components/TransactionModal/transactionModalInitialForm'
+import { buildCategoryOptions } from '@/transactions/components/TransactionModal/utils/categories'
+import { buildInitialTransactionForm } from '@/transactions/components/TransactionModal/utils/initialForm'
 import {
   amountInputToMinorUnits,
   amountToInputString,
   applyTransactionDirection,
   getDirectionFromAmountInputSign,
-} from '@/transactions/components/TransactionModal/transactionModalMoney'
+} from '@/transactions/components/TransactionModal/utils/money'
 import {
   buildCreateTransactionPayload,
   buildUpdateTransactionPatch,
-} from '@/transactions/components/TransactionModal/transactionModalPayloads'
-import { validateTransactionForm } from '@/transactions/components/TransactionModal/transactionModalValidation'
+} from '@/transactions/components/TransactionModal/utils/payloads'
+import { validateTransactionForm } from '@/transactions/components/TransactionModal/utils/validation'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },

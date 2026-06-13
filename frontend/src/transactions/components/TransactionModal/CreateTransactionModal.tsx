@@ -28,31 +28,31 @@ import {
   TAG_FETCHING_MORE_TEXT_MIN_MS,
   TAG_SEARCH_DEBOUNCE_MS,
   TAG_SEARCH_LOADING_TEXT_MIN_MS,
-} from '@/transactions/components/TransactionModal/transactionModalConstants'
+} from '@/transactions/components/TransactionModal/constants'
 import {
   buildCategoryOptions,
   getDefaultDirectionForKind,
-} from '@/transactions/components/TransactionModal/transactionModalCategories'
-import { buildInitialTransactionForm } from '@/transactions/components/TransactionModal/transactionModalInitialForm'
-import { getDirectionFromAmountInputSign } from '@/transactions/components/TransactionModal/transactionModalMoney'
+} from '@/transactions/components/TransactionModal/utils/categories'
+import { buildInitialTransactionForm } from '@/transactions/components/TransactionModal/utils/initialForm'
+import { getDirectionFromAmountInputSign } from '@/transactions/components/TransactionModal/utils/money'
 import {
   buildCreateTransactionPayload,
   buildUpdateTransactionPatch,
-} from '@/transactions/components/TransactionModal/transactionModalPayloads'
+} from '@/transactions/components/TransactionModal/utils/payloads'
 import type {
   CreateTransactionModalProps,
   TransactionFormFieldErrors,
   TransactionFormValues,
   TransactionModalKind,
-} from '@/transactions/components/TransactionModal/transactionModalTypes'
-import { validateTransactionForm } from '@/transactions/components/TransactionModal/transactionModalValidation'
-import TransactionDetailsSection from '@/transactions/components/TransactionModal/TransactionDetailsSection'
-import TransactionModalFooter from '@/transactions/components/TransactionModal/TransactionModalFooter'
-import TransactionModalShell from '@/transactions/components/TransactionModal/TransactionModalShell'
-import TransactionModalSubmitError from '@/transactions/components/TransactionModal/TransactionModalSubmitError'
-import TransactionReferenceCreationModals from '@/transactions/components/TransactionModal/TransactionReferenceCreationModals'
-import TransactionReferencesSection from '@/transactions/components/TransactionModal/TransactionReferencesSection'
-import TransactionTypeDirectionSection from '@/transactions/components/TransactionModal/TransactionTypeDirectionSection'
+} from '@/transactions/components/TransactionModal/types'
+import { validateTransactionForm } from '@/transactions/components/TransactionModal/utils/validation'
+import TransactionDetailsSection from '@/transactions/components/TransactionModal/Sections/DetailsSection'
+import TransactionModalFooter from '@/transactions/components/TransactionModal/Footer'
+import TransactionModalShell from '@/transactions/components/TransactionModal/Shell'
+import TransactionModalSubmitError from '@/transactions/components/TransactionModal/Controls/SubmitError'
+import TransactionReferenceCreationModals from '@/transactions/components/TransactionModal/ReferenceCreationModals'
+import TransactionReferencesSection from '@/transactions/components/TransactionModal/Sections/ReferencesSection'
+import TransactionTypeDirectionSection from '@/transactions/components/TransactionModal/Sections/TypeDirectionSection'
 import { useDebouncedReferenceSearch } from '@/transactions/components/TransactionModal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/transactions/components/TransactionModal/hooks/usePagedReferenceDropdown'
 import { useTransactionModalEnvironment } from '@/transactions/components/TransactionModal/hooks/useTransactionModalEnvironment'

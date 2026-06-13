@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { EASE } from '@/transactions/components/TransactionModal/transactionModalConstants'
+import { EASE } from '@/transactions/components/TransactionModal/constants'
 import { joinClassNames } from '@/utils/classNames'
 
 interface TransactionModalFieldLabelRowProps {
