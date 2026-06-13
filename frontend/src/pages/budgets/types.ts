@@ -19,7 +19,7 @@ export interface CalendarDate {
   day: number
 }
 
-export interface FieldLabelRowProps {
+export interface BudgetEditorFieldLabelRowProps {
   label: React.ReactNode
   htmlFor?: string
   error?: string | false

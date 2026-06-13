@@ -1,7 +1,7 @@
 import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/budgetEditorModalTypes'
-import FieldLabelRow from '@/pages/budgets/components/shared/FieldLabelRow'
+import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/BudgetEditorFieldLabelRow'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
 
 interface BudgetEditorModalScopeSectionProps {
@@ -55,7 +55,7 @@ export default function BudgetEditorModalScopeSection({
         <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Scope</p>
 
         <div>
-          <FieldLabelRow htmlFor={ids.name} label="Name" error={showError('name')} />
+          <BudgetEditorFieldLabelRow htmlFor={ids.name} label="Name" error={showError('name')} />
           <input
             id={ids.name}
             className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
@@ -68,7 +68,7 @@ export default function BudgetEditorModalScopeSection({
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <FieldLabelRow
+            <BudgetEditorFieldLabelRow
               htmlFor={ids.currency}
               label={currencyTooltip ? (
                 <span className="inline-flex items-center gap-2">
@@ -106,7 +106,7 @@ export default function BudgetEditorModalScopeSection({
           </div>
 
           <div>
-            <FieldLabelRow htmlFor={ids.limit} label="Limit" error={showError('limit')} />
+            <BudgetEditorFieldLabelRow htmlFor={ids.limit} label="Limit" error={showError('limit')} />
             <div className="relative">
               {selectedCurrencySymbol && (
                 <span

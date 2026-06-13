@@ -1,5 +1,5 @@
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/budgetEditorModalTypes'
-import FieldLabelRow from '@/pages/budgets/components/shared/FieldLabelRow'
+import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/BudgetEditorFieldLabelRow'
 import { RECURRENCE_OPTIONS } from '@/pages/budgets/constants'
 import { cadenceSummary } from '@/pages/budgets/utils/budgetPeriods'
 
@@ -88,7 +88,7 @@ export default function BudgetEditorModalCadenceSection({
 
         <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,1fr)]">
           <div className={`min-w-0 ${recurrenceControlsLocked || !form.recurs ? 'opacity-60' : ''}`}>
-            <FieldLabelRow
+            <BudgetEditorFieldLabelRow
               htmlFor={ids.interval}
               label="Period length"
               error={showError('instanceLength')}
@@ -106,7 +106,7 @@ export default function BudgetEditorModalCadenceSection({
           </div>
 
           <div className={`min-w-0 ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
-            <FieldLabelRow htmlFor={ids.periodStart} label={periodStartLabel} error={showError('periodStart')} />
+            <BudgetEditorFieldLabelRow htmlFor={ids.periodStart} label={periodStartLabel} error={showError('periodStart')} />
             <input
               id={ids.periodStart}
               className={`app-input disabled:cursor-not-allowed ${showError('periodStart') ? 'app-input-error' : ''}`}

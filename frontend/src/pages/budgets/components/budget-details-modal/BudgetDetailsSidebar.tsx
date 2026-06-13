@@ -4,7 +4,7 @@ import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { formatCurrency } from '@/utils/formatCurrency'
 import MarqueeText from '@/components/MarqueeText'
 import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
-import AttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
+import BudgetAttentionIcon from '@/pages/budgets/components/shared/BudgetAttentionIcon'
 import BudgetFxStatusTooltip from '@/pages/budgets/components/shared/BudgetFxStatusTooltip'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
@@ -124,7 +124,7 @@ export default function BudgetDetailsSidebar({
             className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
             style={{ background: attention.background, color: attention.textColor }}
           >
-            <AttentionIcon label={attention.label} />
+            <BudgetAttentionIcon label={attention.label} />
             {attention.label}
           </span>
           <p className="mt-2 min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>

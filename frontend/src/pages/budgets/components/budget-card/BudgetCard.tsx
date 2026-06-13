@@ -1,7 +1,7 @@
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { formatCurrency } from '@/utils/formatCurrency'
-import CategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
-import AttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
+import BudgetCategoryRow from '@/pages/budgets/components/budget-card/BudgetCategoryRow'
+import BudgetAttentionIcon from '@/pages/budgets/components/shared/BudgetAttentionIcon'
 import BudgetFxStatusTooltip from '@/pages/budgets/components/shared/BudgetFxStatusTooltip'
 import { budgetCadenceLabel, formatBudgetPeriod, nextBudgetPeriods } from '@/pages/budgets/utils/budgetPeriods'
 import { attentionState } from '@/pages/budgets/utils/budgetStatus'
@@ -69,7 +69,7 @@ export default function BudgetCard({
           className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
           style={{ background: attention.background, color: attention.textColor }}
         >
-          <AttentionIcon label={attention.label} />
+          <BudgetAttentionIcon label={attention.label} />
           {attention.label}
         </span>
       </div>
@@ -124,11 +124,11 @@ export default function BudgetCard({
           </p>
           <div className="grid gap-2">
             {shownCategories.length > 0 ? shownCategories.map((name) => (
-              <CategoryRow key={name} label={name} />
+              <BudgetCategoryRow key={name} label={name} />
             )) : (
-              <CategoryRow label="No categories selected" />
+              <BudgetCategoryRow label="No categories selected" />
             )}
-            {extraCategoryCount > 0 && <CategoryRow label={`+${extraCategoryCount} more`} />}
+            {extraCategoryCount > 0 && <BudgetCategoryRow label={`+${extraCategoryCount} more`} />}
           </div>
         </div>
       </div>
