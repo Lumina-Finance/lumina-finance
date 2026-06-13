@@ -1,21 +1,24 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Search } from 'lucide-react'
 import type { Category } from '@/api/categories'
-import type { BudgetFormErrorGetter, BudgetFormFieldIds, BudgetFormHandlers, BudgetFormOptions, BudgetFormViewState } from '@/budgets/components/budget-form/budgetFormTypes'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import { EASE } from '@/budgets/constants'
 import { categoryIcon } from '@/budgets/utils/category'
 
-interface BudgetFormCategorySectionProps {
-  state: BudgetFormViewState
-  options: BudgetFormOptions
-  ids: BudgetFormFieldIds
+interface BudgetEditorModalCategorySectionProps {
+  state: BudgetEditorModalViewState
+  options: BudgetEditorModalOptions
+  ids: BudgetEditorModalFieldIds
   emptyMessage: string
   animateOptions: boolean
-  showError: BudgetFormErrorGetter
-  handlers: BudgetFormHandlers
+  showError: BudgetEditorModalErrorGetter
+  handlers: BudgetEditorModalHandlers
 }
 
-export default function BudgetFormCategorySection({
+/**
+ * Renders searchable tracked-category selection and category validation feedback
+ */
+export default function BudgetEditorModalCategorySection({
   state,
   options,
   ids,
@@ -23,7 +26,7 @@ export default function BudgetFormCategorySection({
   animateOptions,
   showError,
   handlers,
-}: BudgetFormCategorySectionProps) {
+}: BudgetEditorModalCategorySectionProps) {
   const { form, categorySearch } = state
   const { categories, filteredCategories } = options
   const categoryIdsError = showError('categoryIds')
@@ -124,6 +127,9 @@ export default function BudgetFormCategorySection({
   )
 }
 
+/**
+ * Renders one selectable category row with optional layout animation while editing
+ */
 function BudgetCategoryOption({
   category,
   selected,

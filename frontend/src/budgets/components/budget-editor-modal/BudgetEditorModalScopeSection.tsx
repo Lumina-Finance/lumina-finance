@@ -1,24 +1,27 @@
 import Dropdown from '@/components/Dropdown'
 import IconTooltip from '@/components/IconTooltip'
-import type { BudgetFormErrorGetter, BudgetFormFieldIds, BudgetFormHandlers, BudgetFormOptions, BudgetFormViewState } from '@/budgets/components/budget-form/budgetFormTypes'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import FieldLabelRow from '@/budgets/components/shared/FieldLabelRow'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/budgets/utils/money'
 
-interface BudgetFormScopeSectionProps {
-  state: BudgetFormViewState
-  options: BudgetFormOptions
-  ids: BudgetFormFieldIds
+interface BudgetEditorModalScopeSectionProps {
+  state: BudgetEditorModalViewState
+  options: BudgetEditorModalOptions
+  ids: BudgetEditorModalFieldIds
   selectedCurrencySymbol: string
   namePlaceholder?: string
   limitPlaceholder: string
   currencyReadOnly: boolean
   currencyTooltip: boolean
   limitDisabled: boolean
-  showError: BudgetFormErrorGetter
-  handlers: BudgetFormHandlers
+  showError: BudgetEditorModalErrorGetter
+  handlers: BudgetEditorModalHandlers
 }
 
-export default function BudgetFormScopeSection({
+/**
+ * Renders budget name, currency, and limit controls for create and edit forms
+ */
+export default function BudgetEditorModalScopeSection({
   state,
   options,
   ids,
@@ -30,7 +33,7 @@ export default function BudgetFormScopeSection({
   limitDisabled,
   showError,
   handlers,
-}: BudgetFormScopeSectionProps) {
+}: BudgetEditorModalScopeSectionProps) {
   const { form } = state
   const { currencies } = options
   const { setField, onBlur } = handlers

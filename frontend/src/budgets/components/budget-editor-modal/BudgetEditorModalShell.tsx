@@ -10,7 +10,7 @@ type SurfaceMotion = {
   y: number
 }
 
-export interface BudgetFormShellAppearance {
+export interface BudgetEditorModalShellAppearance {
   backdropClassName: string
   backdropStyle: React.CSSProperties
   backdropDuration: number
@@ -27,7 +27,7 @@ export interface BudgetFormShellAppearance {
   bodyClassName: string
 }
 
-interface BudgetFormShellProps {
+interface BudgetEditorModalShellProps {
   open: boolean
   title: string
   titleId: string
@@ -35,14 +35,17 @@ interface BudgetFormShellProps {
   sideLabel: string
   warning?: string
   formError: string | null
-  appearance: BudgetFormShellAppearance
+  appearance: BudgetEditorModalShellAppearance
   footer: React.ReactNode
   children: React.ReactNode
   onClose: () => void
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
 }
 
-export default function BudgetFormShell({
+/**
+ * Provides the animated modal shell shared by create and edit budget workflows
+ */
+export default function BudgetEditorModalShell({
   open,
   title,
   titleId,
@@ -55,7 +58,7 @@ export default function BudgetFormShell({
   children,
   onClose,
   onSubmit,
-}: BudgetFormShellProps) {
+}: BudgetEditorModalShellProps) {
   return createPortal(
     <AnimatePresence>
       {open && (

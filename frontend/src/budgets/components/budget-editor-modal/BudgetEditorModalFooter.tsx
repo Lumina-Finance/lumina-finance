@@ -1,4 +1,4 @@
-interface BudgetFormFooterProps {
+interface BudgetEditorModalFooterProps {
   className: string
   isPending: boolean
   submitDisabled: boolean
@@ -6,13 +6,16 @@ interface BudgetFormFooterProps {
   onClose: () => void
 }
 
-export default function BudgetFormFooter({
+/**
+ * Renders shared budget form actions with the pending-state spinner treatment
+ */
+export default function BudgetEditorModalFooter({
   className,
   isPending,
   submitDisabled,
   submitLabel,
   onClose,
-}: BudgetFormFooterProps) {
+}: BudgetEditorModalFooterProps) {
   return (
     <div
       className={className}

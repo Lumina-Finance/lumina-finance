@@ -1,5 +1,8 @@
 import type { FxStatus } from '@/api/shared/fx'
 
+/**
+ * Explains the FX coverage behind a current budget utilization value
+ */
 export function getBudgetUtilizationFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -13,6 +16,9 @@ export function getBudgetUtilizationFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Explains the combined FX coverage behind historical budget utilization values
+ */
 export function getHistoricalBudgetUtilizationFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':

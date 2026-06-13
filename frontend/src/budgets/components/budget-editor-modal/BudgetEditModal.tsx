@@ -3,18 +3,18 @@ import type React from 'react'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import BudgetFormCadenceSection from '@/budgets/components/budget-form/BudgetFormCadenceSection'
-import BudgetFormCategorySection from '@/budgets/components/budget-form/BudgetFormCategorySection'
-import BudgetFormFooter from '@/budgets/components/budget-form/BudgetFormFooter'
-import BudgetFormScopeSection from '@/budgets/components/budget-form/BudgetFormScopeSection'
-import BudgetFormShell, { type BudgetFormShellAppearance } from '@/budgets/components/budget-form/BudgetFormShell'
-import type { BudgetFormErrorGetter, BudgetFormFieldIds, BudgetFormHandlers, BudgetFormOptions, BudgetFormViewState } from '@/budgets/components/budget-form/budgetFormTypes'
+import BudgetEditorModalCadenceSection from '@/budgets/components/budget-editor-modal/BudgetEditorModalCadenceSection'
+import BudgetEditorModalCategorySection from '@/budgets/components/budget-editor-modal/BudgetEditorModalCategorySection'
+import BudgetEditorModalFooter from '@/budgets/components/budget-editor-modal/BudgetEditorModalFooter'
+import BudgetEditorModalScopeSection from '@/budgets/components/budget-editor-modal/BudgetEditorModalScopeSection'
+import BudgetEditorModalShell, { type BudgetEditorModalShellAppearance } from '@/budgets/components/budget-editor-modal/BudgetEditorModalShell'
+import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/budgets/components/budget-editor-modal/budgetEditorModalTypes'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { sameStringSet } from '@/budgets/utils/form'
 import { currencySymbol, formatMinorUnitsInput, toMinorUnits } from '@/budgets/utils/money'
 
-const EDIT_FIELD_IDS: BudgetFormFieldIds = {
+const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   name: 'budget-edit-name',
   currency: 'budget-edit-currency',
   limit: 'budget-edit-limit',
@@ -23,7 +23,7 @@ const EDIT_FIELD_IDS: BudgetFormFieldIds = {
   categoryError: 'budget-edit-category-error',
 }
 
-const EDIT_SHELL_APPEARANCE: BudgetFormShellAppearance = {
+const EDIT_SHELL_APPEARANCE: BudgetEditorModalShellAppearance = {
   backdropClassName: 'fixed inset-0 z-[100]',
   backdropStyle: { background: 'rgba(0, 0, 0, 0.22)', backdropFilter: 'blur(6px)' },
   backdropDuration: 0.15,
@@ -52,6 +52,9 @@ const EDIT_INITIAL_TOUCHED = {
   categoryIds: false,
 }
 
+/**
+ * Converts the saved budget and latest period into editable form state
+ */
 function getInitialEditForm(baseBudget: BaseBudget, latestPeriod: Budget | undefined, currencies: Currency[]): BudgetFormState {
   return {
     name: baseBudget.name,
@@ -65,6 +68,9 @@ function getInitialEditForm(baseBudget: BaseBudget, latestPeriod: Budget | undef
   }
 }
 
+/**
+ * Manages edit-budget form state, validation, and split base-budget/current-period submission
+ */
 export default function BudgetEditModal({
   open,
   baseBudget,
@@ -94,9 +100,9 @@ export default function BudgetEditModal({
   const [saveInProgress, setSaveInProgress] = useState(false)
   const [categorySearch, setCategorySearch] = useState('')
   const [form, setForm] = useState<BudgetFormState>(initialForm)
+
+  // Preserve the budget's ownership scope so shared and personal budgets cannot cross category boundaries
   const categoryOptions = useMemo(
-    // Preserve the budget's ownership scope: shared budgets can only use group
-    // categories; personal budgets can only use personal categories.
     () => categories.filter((category) => (
       category.kind === 'expense'
       && (baseBudget.group_id ? category.group_id === baseBudget.group_id : category.group_id === null)
@@ -106,8 +112,8 @@ export default function BudgetEditModal({
   const filteredCategories = useMemo(() => {
     const query = categorySearch.trim().toLowerCase()
     const selectedCategoryIds = new Set(form.categoryIds)
-    // Keep selected categories at the top while editing so they remain visible
-    // after search text changes or the category list rerenders.
+
+    // Keep selected categories visible after search text changes or the list rerenders
     return categoryOptions
       .filter((category) => !query || category.name.toLowerCase().includes(query))
       .sort((a, b) => {
@@ -133,9 +139,13 @@ export default function BudgetEditModal({
     && hasCategory
     && (!latestPeriod || limitMinorUnits !== null)
     && (baseChanged || periodChanged)
-  const state: BudgetFormViewState = { form, formError, fieldErrors, touched, categorySearch }
-  const options: BudgetFormOptions = { categories: categoryOptions, filteredCategories, currencies }
-  const showError: BudgetFormErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
+  const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
+  const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
+  const showError: BudgetEditorModalErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
+
+  /**
+   * Restores edit state from the latest budget snapshot after save or close
+   */
   const resetEditState = useCallback(() => {
     setForm(initialForm)
     setFieldErrors({})
@@ -144,6 +154,10 @@ export default function BudgetEditModal({
     setCategorySearch('')
     setSaveInProgress(false)
   }, [initialForm])
+
+  /**
+   * Closes the nested edit dialog and clears any transient form state immediately
+   */
   const closeAndReset = useCallback(() => {
     onClose()
     resetEditState()
@@ -151,13 +165,20 @@ export default function BudgetEditModal({
 
   useEffect(() => {
     if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
+
+    /**
+     * Closes the nested edit modal from global Escape while the parent details modal remains mounted
+     */
+    const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeAndReset()
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
   }, [closeAndReset, open])
 
+  /**
+   * Validates fields that can be edited without changing immutable budget cadence fields
+   */
   const validateEditForm = () => {
     const errors: BudgetFormFieldErrors = {}
     if (!form.name.trim()) errors.name = 'Name is required'
@@ -166,23 +187,35 @@ export default function BudgetEditModal({
     return errors
   }
 
+  /**
+   * Clears field and form-level errors after a user changes the related input
+   */
   const clearError = (field: keyof BudgetFormFieldErrors) => {
     setFieldErrors((current) => ({ ...current, [field]: undefined }))
     setFormError(null)
   }
 
+  /**
+   * Updates an editable form field and clears validation errors tied to that field
+   */
   const setField = <K extends keyof BudgetFormState>(field: K, value: BudgetFormState[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
     if (field === 'name') clearError('name')
     if (field === 'limit') clearError('limit')
   }
 
+  /**
+   * Validates touched fields without surfacing untouched form errors
+   */
   const handleBlur = (field: keyof BudgetFormFieldErrors) => {
     setTouched((current) => ({ ...current, [field]: true }))
     const errors = validateEditForm()
     setFieldErrors((current) => ({ ...current, [field]: errors[field] }))
   }
 
+  /**
+   * Toggles tracked categories and clears category validation once the user acts
+   */
   const toggleCategory = (categoryId: string) => {
     setForm((current) => ({
       ...current,
@@ -193,6 +226,9 @@ export default function BudgetEditModal({
     clearError('categoryIds')
   }
 
+  /**
+   * Persists changed base-budget fields and latest-period limit changes through their owning endpoints
+   */
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setFormError(null)
@@ -204,7 +240,7 @@ export default function BudgetEditModal({
       return
     }
 
-    // Base-budget fields and current-period fields are persisted through different endpoints.
+    // Base-budget fields and current-period fields are persisted through different endpoints
     const basePatch: {
       name?: string
       recurs?: boolean
@@ -217,6 +253,9 @@ export default function BudgetEditModal({
     setSaveInProgress(true)
 
     try {
+      /**
+       * Preserves endpoint ordering when both base fields and current-period limit changes are saved
+       */
       const saveChanges = async () => {
         if (Object.keys(basePatch).length > 0) {
           await updateBaseBudget.mutateAsync({ id: baseBudget.id, patch: basePatch })
@@ -228,7 +267,8 @@ export default function BudgetEditModal({
 
       await Promise.all([
         saveChanges(),
-        // Match the existing save-button feedback timing.
+
+        // Match the existing save-button feedback timing
         new Promise((resolve) => window.setTimeout(resolve, 1000)),
       ])
       closeAndReset()
@@ -239,7 +279,7 @@ export default function BudgetEditModal({
     }
   }
 
-  const handlers: BudgetFormHandlers = {
+  const handlers: BudgetEditorModalHandlers = {
     onClose: closeAndReset,
     onSubmit: handleSubmit,
     setField,
@@ -250,7 +290,7 @@ export default function BudgetEditModal({
   }
 
   return (
-    <BudgetFormShell
+    <BudgetEditorModalShell
       open={open}
       title="Edit Budget"
       titleId="budget-edit-title"
@@ -262,7 +302,7 @@ export default function BudgetEditModal({
       onClose={closeAndReset}
       onSubmit={handleSubmit}
       footer={(
-        <BudgetFormFooter
+        <BudgetEditorModalFooter
           className={EDIT_FOOTER_CLASS_NAME}
           isPending={isPending}
           submitDisabled={!canSave}
@@ -273,7 +313,7 @@ export default function BudgetEditModal({
     >
       <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-h-0 flex-col gap-5">
-          <BudgetFormScopeSection
+          <BudgetEditorModalScopeSection
             state={state}
             options={options}
             ids={EDIT_FIELD_IDS}
@@ -286,7 +326,7 @@ export default function BudgetEditModal({
             handlers={handlers}
           />
 
-          <BudgetFormCadenceSection
+          <BudgetEditorModalCadenceSection
             state={state}
             ids={EDIT_FIELD_IDS}
             periodStartLabel="Period start"
@@ -297,7 +337,7 @@ export default function BudgetEditModal({
           />
         </div>
 
-        <BudgetFormCategorySection
+        <BudgetEditorModalCategorySection
           state={state}
           options={options}
           ids={EDIT_FIELD_IDS}
@@ -307,6 +347,6 @@ export default function BudgetEditModal({
           handlers={handlers}
         />
       </div>
-    </BudgetFormShell>
+    </BudgetEditorModalShell>
   )
 }

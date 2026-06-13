@@ -1,3 +1,6 @@
+/**
+ * Renders a compact category pill inside budget cards
+ */
 export default function CategoryRow({ label }: { label: string }) {
   return (
     <div
