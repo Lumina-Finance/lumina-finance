@@ -6,7 +6,7 @@ import {
   ACCOUNT_LINK_SAVE_MIN_LOADING_MS,
   ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS,
 } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
-import { delay } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 interface UseTaxAdvantagedAccountLinksParams {
   accounts: AccountsOverview[]
@@ -60,7 +60,7 @@ export function useTaxAdvantagedAccountLinks({
       })
       window.clearTimeout(savingNoticeTimer)
 
-      if (savingNoticeShown) await delay(ACCOUNT_LINK_SAVE_MIN_LOADING_MS)
+      if (savingNoticeShown) await waitForMilliseconds(ACCOUNT_LINK_SAVE_MIN_LOADING_MS)
 
       setAccountError(null)
       showAutosaveNotice({ status: 'saved', message: 'Account link saved.' })

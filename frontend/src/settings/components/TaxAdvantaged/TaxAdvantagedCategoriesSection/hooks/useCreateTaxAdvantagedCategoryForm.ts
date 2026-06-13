@@ -5,10 +5,10 @@ import type { TaxPlanFormState } from '@/settings/components/TaxAdvantaged/taxAd
 import { CREATE_TAX_CATEGORY_MIN_LOADING_MS } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   currencyOptions,
-  delay,
   isValidMoneyInput,
   toMinorUnits,
 } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 interface UseCreateTaxAdvantagedCategoryFormParams {
   currencies: Currency[]
@@ -60,7 +60,7 @@ export function useCreateTaxAdvantagedCategoryForm({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = delay(CREATE_TAX_CATEGORY_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(CREATE_TAX_CATEGORY_MIN_LOADING_MS)
 
     void createPlan.mutateAsync(
       {

@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ActionFeedbackStatus } from '@/components/ActionFeedbackButton'
+import { waitForMilliseconds } from '@/utils/timing'
 
 const DEFAULT_MINIMUM_LOADING_MS = 1000
 const DEFAULT_SUCCESS_MS = 1200
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, ms))
-}
 
 interface UseActionFeedbackOptions {
   minimumLoadingMs?: number
@@ -35,13 +32,13 @@ export function useActionFeedback({
 
   const run = useCallback(async <T,>(action: () => Promise<T>): Promise<T> => {
     setMountedStatus('loading')
-    const minimumLoading = sleep(minimumLoadingMs)
+    const minimumLoading = waitForMilliseconds(minimumLoadingMs)
 
     try {
       const result = await action()
       await minimumLoading
       setMountedStatus('success')
-      await sleep(successMs)
+      await waitForMilliseconds(successMs)
       setMountedStatus('idle')
       return result
     } catch (error) {

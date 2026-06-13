@@ -10,10 +10,8 @@ import {
   EASE,
   TAG_MERGE_PAGE_SIZE,
 } from '@/settings/components/TagSettingsSection/tagSettingsConstants'
-import {
-  delay,
-  tagMergeOptions,
-} from '@/settings/components/TagSettingsSection/tagSettingsUtils'
+import { tagMergeOptions } from '@/settings/components/TagSettingsSection/tagSettingsUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 export default function MergeDeleteTagModal({
   tag,
@@ -75,7 +73,7 @@ export default function MergeDeleteTagModal({
     try {
       await Promise.all([
         onMerge(selectedReplacementId),
-        delay(DELETE_SPINNER_MS),
+        waitForMilliseconds(DELETE_SPINNER_MS),
       ])
       onClose()
     } catch (error) {

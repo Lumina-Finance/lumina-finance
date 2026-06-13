@@ -7,6 +7,7 @@ import { ApiError } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
 import { useCurrencies } from '@/api/currency';
 import Dropdown from '@/components/Dropdown';
+import { waitForMilliseconds } from '@/utils/timing';
 
 const MIN_LOADING_MS = 1500;
 const FADE_OUT_MS = 300;
@@ -214,7 +215,7 @@ const Auth = () => {
 
     const elapsed = Date.now() - start;
     if (elapsed < MIN_LOADING_MS) {
-      await new Promise((r) => setTimeout(r, MIN_LOADING_MS - elapsed));
+      await waitForMilliseconds(MIN_LOADING_MS - elapsed);
     }
 
     if (containerRef.current) {

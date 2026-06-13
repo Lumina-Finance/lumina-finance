@@ -14,13 +14,11 @@ import CreateMerchantModal from '@/components/CreateMerchantModal'
 import MerchantSettingsList from '@/settings/components/MerchantSettingsSection/MerchantSettingsList'
 import MergeDeleteMerchantModal from '@/settings/components/MerchantSettingsSection/MergeDeleteMerchantModal'
 import { DELETE_SPINNER_MS } from '@/settings/components/MerchantSettingsSection/merchantSettingsConstants'
-import {
-  categoryOptions,
-  delay,
-} from '@/settings/components/MerchantSettingsSection/merchantSettingsUtils'
+import { categoryOptions } from '@/settings/components/MerchantSettingsSection/merchantSettingsUtils'
 import { useMerchantSettingsList } from '@/settings/components/MerchantSettingsSection/hooks/useMerchantSettingsList'
 import SectionHeader from '@/settings/components/SectionHeader'
 import SettingsCard from '@/settings/components/SettingsCard'
+import { waitForMilliseconds } from '@/utils/timing'
 
 export default function MerchantSettingsSection() {
   const queryClient = useQueryClient()
@@ -55,7 +53,7 @@ export default function MerchantSettingsSection() {
 
     const deleteResult = await Promise.allSettled([
       deleteMerchant.mutateAsync(merchant.id),
-      delay(DELETE_SPINNER_MS),
+      waitForMilliseconds(DELETE_SPINNER_MS),
     ])
 
     if (deleteResult[0].status === 'fulfilled') {

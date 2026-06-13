@@ -13,10 +13,8 @@ import {
   EASE,
   MERCHANT_MERGE_PAGE_SIZE,
 } from '@/settings/components/MerchantSettingsSection/merchantSettingsConstants'
-import {
-  delay,
-  merchantMergeOptions,
-} from '@/settings/components/MerchantSettingsSection/merchantSettingsUtils'
+import { merchantMergeOptions } from '@/settings/components/MerchantSettingsSection/merchantSettingsUtils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 export default function MergeDeleteMerchantModal({
   merchant,
@@ -78,7 +76,7 @@ export default function MergeDeleteMerchantModal({
     try {
       await Promise.all([
         onMerge(selectedReplacementId),
-        delay(DELETE_SPINNER_MS),
+        waitForMilliseconds(DELETE_SPINNER_MS),
       ])
       onClose()
     } catch (error) {

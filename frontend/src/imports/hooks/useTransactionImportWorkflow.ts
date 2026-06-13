@@ -38,9 +38,9 @@ import {
   readCsvFile,
   removeRecordKey,
   removeSetValue,
-  sleep,
   validateColumnValues,
 } from '../utils'
+import { waitForMilliseconds } from '@/utils/timing'
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 const CSV_PROCESSING_MIN_MS = 1500
@@ -281,7 +281,7 @@ export function useTransactionImportWorkflow() {
     try {
       const [drafts] = await Promise.all([
         Promise.all(selectedFiles.map(readCsvFile)),
-        sleep(CSV_PROCESSING_MIN_MS),
+        waitForMilliseconds(CSV_PROCESSING_MIN_MS),
       ])
       const next = drafts.slice(0, 1)
 
@@ -374,7 +374,7 @@ export function useTransactionImportWorkflow() {
     setImportError(null)
     setImportResult(null)
     setImportOverlayPhase('importing')
-    const minimumOverlay = sleep(IMPORT_OVERLAY_MIN_MS)
+    const minimumOverlay = waitForMilliseconds(IMPORT_OVERLAY_MIN_MS)
 
     try {
       const result = await importTransactions.mutateAsync(payload)

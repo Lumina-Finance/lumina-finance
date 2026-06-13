@@ -14,10 +14,10 @@ import CreateCategoryModal from '@/components/CreateCategoryModal'
 import CategoryGroup from '@/settings/components/CategorySettingsSection/CategoryGroup'
 import MergeDeleteCategoryModal from '@/settings/components/CategorySettingsSection/MergeDeleteCategoryModal'
 import { DELETE_SPINNER_MS } from '@/settings/components/CategorySettingsSection/categorySettingsConstants'
-import { delay } from '@/settings/components/CategorySettingsSection/categorySettingsUtils'
 import { useCategorySettingsGroups } from '@/settings/components/CategorySettingsSection/hooks/useCategorySettingsGroups'
 import SectionHeader from '@/settings/components/SectionHeader'
 import SettingsCard from '@/settings/components/SettingsCard'
+import { waitForMilliseconds } from '@/utils/timing'
 
 export default function CategorySettingsSection() {
   const queryClient = useQueryClient()
@@ -53,7 +53,7 @@ export default function CategorySettingsSection() {
 
     const deleteResult = await Promise.allSettled([
       deleteCategory.mutateAsync(category.id),
-      delay(DELETE_SPINNER_MS),
+      waitForMilliseconds(DELETE_SPINNER_MS),
     ])
 
     if (deleteResult[0].status === 'fulfilled') {

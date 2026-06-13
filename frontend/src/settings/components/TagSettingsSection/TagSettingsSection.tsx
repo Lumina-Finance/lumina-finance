@@ -15,8 +15,8 @@ import MergeDeleteTagModal from '@/settings/components/TagSettingsSection/MergeD
 import TagCreateModal from '@/settings/components/TagSettingsSection/TagCreateModal'
 import TagSettingsList from '@/settings/components/TagSettingsSection/TagSettingsList'
 import { DELETE_SPINNER_MS } from '@/settings/components/TagSettingsSection/tagSettingsConstants'
-import { delay } from '@/settings/components/TagSettingsSection/tagSettingsUtils'
 import { useTagSettingsList } from '@/settings/components/TagSettingsSection/hooks/useTagSettingsList'
+import { waitForMilliseconds } from '@/utils/timing'
 
 export default function TagSettingsSection() {
   const queryClient = useQueryClient()
@@ -46,7 +46,7 @@ export default function TagSettingsSection() {
 
     const deleteResult = await Promise.allSettled([
       deleteTag.mutateAsync(tag.id),
-      delay(DELETE_SPINNER_MS),
+      waitForMilliseconds(DELETE_SPINNER_MS),
     ])
 
     if (deleteResult[0].status === 'fulfilled') {

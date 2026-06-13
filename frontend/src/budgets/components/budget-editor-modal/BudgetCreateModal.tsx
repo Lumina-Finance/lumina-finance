@@ -16,6 +16,7 @@ import { recurrenceAnchorsFromStart } from '@/budgets/utils/budgetPeriods'
 import { validateBudgetCreateForm } from '@/budgets/utils/budgetCreateValidation'
 import { todayYmd } from '@/budgets/utils/date'
 import { currencySymbol, toMinorUnits } from '@/budgets/utils/money'
+import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   name: 'budget-name',
@@ -224,8 +225,7 @@ export default function BudgetCreateModal({
 
     setCreateInProgress(true)
 
-    // Keep successful and failed submissions from flashing too quickly
-    const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, CREATE_BUDGET_MIN_LOADING_MS))
+    const minimumLoading = waitForMilliseconds(CREATE_BUDGET_MIN_LOADING_MS)
 
     try {
       const createBudget = createBaseBudget.mutateAsync({
