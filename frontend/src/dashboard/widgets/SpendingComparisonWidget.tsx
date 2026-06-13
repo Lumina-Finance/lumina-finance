@@ -21,12 +21,12 @@ import IconTooltip from '@/components/IconTooltip'
 import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   DeferredChartTooltipOverlay,
-  type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredChartTooltipOverlay'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
+import { SpendingComparisonTooltipContent } from '@/dashboard/components/SpendingComparisonTooltipContent'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/dashboard/constants/chart'
 import {
   CURRENT_LABEL_BY_RANGE,
@@ -38,6 +38,12 @@ import type { SpendingComparisonSeriesPoint } from '@/dashboard/types/dashboard'
 import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
 import { getSpendingComparisonFxStatusMessage } from '@/dashboard/utils/fxTooltipMessages'
 import { getSpendingComparisonSummary } from '@/dashboard/utils/getSpendingComparisonSummary'
+import {
+  getSpendingComparisonTooltipKey,
+  getSpendingComparisonTooltipPointer,
+  getSpendingComparisonTooltipPoint,
+  type SpendingComparisonTooltipState,
+} from '@/dashboard/utils/spendingComparisonTooltip'
 
 type SpendingComparisonWidgetProps = {
   displayCurrency: string
@@ -53,17 +59,9 @@ type SpendingComparisonXAxisTickProps = {
   lastLabel?: string
 }
 
-type SpendingComparisonTooltipState = {
-  activeLabel?: string | number
-  activeTooltipIndex?: string | number | null
-  activeCoordinate?: {
-    x?: number
-  }
-  activePayload?: Array<{
-    payload?: SpendingComparisonSeriesPoint
-  }>
-}
-
+/**
+ * Edge-aligns the first and last chart labels so they stay inside the widget bounds
+ */
 function SpendingComparisonXAxisTick({
   x = 0,
   y = 0,
@@ -85,74 +83,6 @@ function SpendingComparisonXAxisTick({
     >
       {value}
     </text>
-  )
-}
-
-function getSpendingComparisonTooltipKey(point: SpendingComparisonSeriesPoint) {
-  return point.label
-}
-
-function getSpendingComparisonTooltipPointer(
-  state: SpendingComparisonTooltipState,
-  event: ReactMouseEvent<SVGGraphicsElement>,
-): ChartTooltipPointer {
-  return {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
-  }
-}
-
-function getSpendingComparisonTooltipPoint(
-  state: SpendingComparisonTooltipState,
-  data: SpendingComparisonSeriesPoint[],
-  pointsByLabel: Map<string, SpendingComparisonSeriesPoint>,
-) {
-  const payloadPoint = state.activePayload?.[0]?.payload
-  if (payloadPoint) return payloadPoint
-
-  const activeIndex = Number(state.activeTooltipIndex)
-  if (Number.isInteger(activeIndex)) return data[activeIndex]
-
-  return state.activeLabel === undefined
-    ? undefined
-    : pointsByLabel.get(String(state.activeLabel))
-}
-
-function SpendingComparisonTooltipContent({
-  point,
-  displayCurrency,
-  spendingRange,
-}: {
-  point: SpendingComparisonSeriesPoint
-  displayCurrency: string
-  spendingRange: SpendingRange
-}) {
-  const rows = [
-    {
-      key: 'current',
-      label: CURRENT_LABEL_BY_RANGE[spendingRange],
-      value: point.current,
-    },
-    {
-      key: 'previous',
-      label: PREVIOUS_LABEL_BY_RANGE[spendingRange],
-      value: point.previous,
-    },
-  ].filter((row) => row.value != null)
-
-  return (
-    <>
-      <p className="app-chart-tooltip-default-title">{point.label}</p>
-      {rows.map((row) => (
-        <div key={row.key} className="mt-1 flex justify-between gap-4">
-          <span className="app-chart-tooltip-default-value">{row.label}</span>
-          <span className="app-chart-tooltip-default-value font-financial">
-            {formatCurrency(Number(row.value), displayCurrency)}
-          </span>
-        </div>
-      ))}
-    </>
   )
 }
 
