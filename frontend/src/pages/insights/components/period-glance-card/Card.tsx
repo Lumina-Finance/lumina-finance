@@ -9,9 +9,9 @@ import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/loading/Transition'
-import { PeriodGlancePrimaryPanel } from './PeriodGlancePrimaryPanel'
-import { PeriodGlanceSupportGrid } from './PeriodGlanceSupportGrid'
-import { InsightSectionHeader } from '../InsightSectionHeader'
+import { PeriodGlancePrimaryPanel } from './PrimaryPanel'
+import { PeriodGlanceSupportGrid } from './SupportGrid'
+import { InsightSectionHeader } from '../SectionHeader'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 type PeriodGlanceSnapshot = {

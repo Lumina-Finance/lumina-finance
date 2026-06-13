@@ -9,9 +9,9 @@ import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { InsightSectionHeader } from '../InsightSectionHeader'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightSectionHeader } from '../SectionHeader'
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]

@@ -11,11 +11,11 @@ import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate
 import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { getSavingsRateSummary } from '@/pages/insights/utils/savingsRateChart'
-import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { InsightActionButton } from '../InsightActionButton'
-import { SavingsRateChart } from './SavingsRateChart'
-import { InsightSectionHeader } from '../InsightSectionHeader'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightActionButton } from '../ActionButton'
+import { SavingsRateChart } from './Chart'
+import { InsightSectionHeader } from '../SectionHeader'
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]

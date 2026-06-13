@@ -6,13 +6,13 @@ import {
   LoadingOverlay,
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { CashFlowBarChart } from './CashFlowBarChart'
+import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
-import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { InsightSectionHeader } from '../InsightSectionHeader'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightSectionHeader } from '../SectionHeader'
 
 type CashFlowCardProps = {
   granularity: CashFlowGranularity

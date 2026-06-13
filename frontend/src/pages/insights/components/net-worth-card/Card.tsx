@@ -8,11 +8,11 @@ import {
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { getInsightsNetWorthFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { InsightFxStatusBadge } from '../InsightFxStatusBadge'
-import { InsightCalculationTooltip } from '../InsightCalculationTooltip'
-import { InsightActionButton } from '../InsightActionButton'
-import { NetWorthChart } from './NetWorthChart'
-import { InsightSectionHeader } from '../InsightSectionHeader'
+import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightActionButton } from '../ActionButton'
+import { NetWorthChart } from './Chart'
+import { InsightSectionHeader } from '../SectionHeader'
 import {
   formatSignedNetWorthCurrency,
   getNetWorthChartData,

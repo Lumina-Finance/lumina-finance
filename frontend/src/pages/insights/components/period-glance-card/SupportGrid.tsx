@@ -1,5 +1,5 @@
-import { InsightFxStatusBadge } from '@/pages/insights/components/InsightFxStatusBadge'
-import { InsightCalculationTooltip } from '@/pages/insights/components/InsightCalculationTooltip'
+import { InsightFxStatusBadge } from '@/pages/insights/components/FxStatusBadge'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type { PeriodGlanceSupportItem } from '@/pages/insights/types/periodGlance'
 import {
   getPeriodGlanceToneClass,
