@@ -8,7 +8,7 @@ import type {
   BreakdownMode,
   CategoryDriver,
   CategoryTrendSection,
-} from '../components/IncomeExpenseBreakdownCard'
+} from '@/insights/types/incomeExpenseBreakdown'
 
 function getBreakdownEntries(entries: InsightsBreakdownEntry[] | undefined): BreakdownEntry[] {
   return (entries ?? []).map(([id, name, categoryKind, amount]) => ({
