@@ -8,14 +8,14 @@ import { getSavingsRateTrendFxStatusMessage } from '@/insights/utils/fxTooltipMe
 import { formatSavingsRateValue } from '@/insights/utils/money'
 import { getSavingsRateSummary } from '@/insights/utils/savingsRateChart'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 import { FxStatusBadge } from './FxStatusBadge'
 import { InsightActionButton } from './InsightActionButton'
 import { SavingsRateChart } from './savings-rate/SavingsRateChart'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]
@@ -67,7 +67,7 @@ export function SavingsRateTrendCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<SavingsRateTrendSnapshot>({
+  } = useLoadingSnapshot<SavingsRateTrendSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -118,7 +118,7 @@ export function SavingsRateTrendCard({
         )}
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
-        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex flex-col min-[750px]:h-[430px]">
             <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[750px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] min-[750px]:items-center min-[750px]:gap-6">
               <div className="min-w-0">
@@ -251,9 +251,9 @@ export function SavingsRateTrendCard({
               </div>
             </div>
           </div>
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading savings rate trend"

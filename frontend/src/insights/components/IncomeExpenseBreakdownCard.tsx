@@ -4,16 +4,16 @@ import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 import { AppSlotMachineText } from '@/components/AppSlotMachineText'
 import { FxStatusBadge } from './FxStatusBadge'
 import { InsightActionButton } from './InsightActionButton'
 import { IncomeExpensePieChart } from './income-expense/IncomeExpensePieChart'
 import { IncomeExpenseTrendSections } from './income-expense/IncomeExpenseTrendSections'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   getBreakdownCalculation,
 } from '@/insights/utils/incomeExpenseBreakdownDisplay'
@@ -77,7 +77,7 @@ export function IncomeExpenseBreakdownCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<IncomeExpenseBreakdownSnapshot>({
+  } = useLoadingSnapshot<IncomeExpenseBreakdownSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -122,7 +122,7 @@ export function IncomeExpenseBreakdownCard({
         )}
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
-        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
             <IncomeExpensePieChart
               mode={displaySnapshot.mode}
@@ -140,9 +140,9 @@ export function IncomeExpenseBreakdownCard({
               shouldReduceMotion={shouldReduceMotion}
             />
           </div>
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading income and expense breakdown"

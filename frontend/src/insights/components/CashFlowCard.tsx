@@ -7,12 +7,12 @@ import type { CashFlowBarBucket, CashFlowGranularity } from '@/insights/types/ca
 import { getInsightsCashFlowFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatSignedCurrency, getSignedAmountColor } from '@/insights/utils/money'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type CashFlowCardProps = {
   granularity: CashFlowGranularity
@@ -55,7 +55,7 @@ export function CashFlowCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<CashFlowSnapshot>({
+  } = useLoadingSnapshot<CashFlowSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -92,7 +92,7 @@ export function CashFlowCard({
         )}
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
-        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[390px] flex-col">
             <div className="mb-3">
               <p className="app-label app-label-compact inline-flex items-center gap-2">
@@ -135,9 +135,9 @@ export function CashFlowCard({
               </div>
             </div>
           </div>
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading cash flow"

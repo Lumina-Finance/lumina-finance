@@ -6,13 +6,13 @@ import type {
   PeriodGlanceSupportItem,
 } from '@/insights/types/periodGlance'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 import { PeriodGlancePrimaryPanel } from './period-glance/PeriodGlancePrimaryPanel'
 import { PeriodGlanceSupportGrid } from './period-glance/PeriodGlanceSupportGrid'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type PeriodGlanceSnapshot = {
   primaryMetric: PeriodGlancePrimaryMetric
@@ -60,7 +60,7 @@ export function PeriodGlanceCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot({
+  } = useLoadingSnapshot({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -71,7 +71,7 @@ export function PeriodGlanceCard({
       <SectionHeader icon={Sparkles} label="This Period at a Glance" />
 
       <div className="relative overflow-hidden" data-tooltip-bounds>
-        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="grid gap-4 min-[1500px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
             <PeriodGlancePrimaryPanel
               primaryMetric={displaySnapshot.primaryMetric}
@@ -82,9 +82,9 @@ export function PeriodGlanceCard({
             />
             <PeriodGlanceSupportGrid supportItems={displaySnapshot.supportItems} />
           </div>
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading period at a glance"

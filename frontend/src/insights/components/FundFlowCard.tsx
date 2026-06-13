@@ -13,7 +13,7 @@ import { FundFlowCategoryList } from './fund-flow/FundFlowCategoryList'
 import { FundFlowChart } from './fund-flow/FundFlowChart'
 import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type FundFlowSnapshot = {
   flowData: FundFlowData
@@ -90,7 +90,7 @@ export function FundFlowCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot({
+  } = useLoadingSnapshot({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,

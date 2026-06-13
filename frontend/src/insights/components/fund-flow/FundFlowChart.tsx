@@ -16,9 +16,9 @@ import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type { FundFlowData, FundFlowNode, FundFlowNodeKind } from '@/insights/types/fundFlow'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from '../InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 
 type FlowTooltipPayload = Partial<FundFlowNode> & {
   value?: number | string
@@ -217,7 +217,7 @@ export function FundFlowChart({
       animate={{ height: chartHeight }}
       transition={shouldReduceMotion ? { duration: 0 } : chartHeightTransition}
     >
-      <InsightLoadingContent
+      <LoadingContent
         className="relative w-full"
         concealed={contentConcealed}
         shouldReduceMotion={shouldReduceMotion}
@@ -264,8 +264,8 @@ export function FundFlowChart({
             )}
           </CursorTooltipPortal>
         </div>
-      </InsightLoadingContent>
-      <InsightLoadingOverlay
+      </LoadingContent>
+      <LoadingOverlay
         visible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading fund flow"

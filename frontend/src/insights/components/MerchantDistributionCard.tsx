@@ -5,14 +5,14 @@ import IconTooltip from '@/components/IconTooltip'
 import type { MerchantMarketMerchant } from '@/insights/types/merchantDistribution'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 import { FxStatusBadge } from './FxStatusBadge'
 import { MerchantDistributionLegend } from './merchant-distribution/MerchantDistributionLegend'
 import { MerchantMarketMap } from './merchant-distribution/MerchantMarketMap'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type MerchantDistributionCardProps = {
   merchants: MerchantMarketMerchant[]
@@ -50,7 +50,7 @@ export function MerchantDistributionCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<MerchantDistributionSnapshot>({
+  } = useLoadingSnapshot<MerchantDistributionSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -81,7 +81,7 @@ export function MerchantDistributionCard({
         )}
       />
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <InsightLoadingContent
+        <LoadingContent
           className="flex min-h-0 flex-1 flex-col"
           concealed={contentConcealed}
           shouldReduceMotion={shouldReduceMotion}
@@ -97,9 +97,9 @@ export function MerchantDistributionCard({
             <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover</span>
             <MerchantDistributionLegend />
           </div>
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading merchant spending distribution"

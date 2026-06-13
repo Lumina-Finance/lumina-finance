@@ -6,13 +6,13 @@ import { getInsightsNetWorthFxStatusMessage } from '@/insights/utils/fxTooltipMe
 import { formatCurrency } from '@/utils/formatCurrency'
 import { FxStatusBadge } from './FxStatusBadge'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 import { InsightActionButton } from './InsightActionButton'
 import { NetWorthChart } from './net-worth/NetWorthChart'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import {
   formatSignedNetWorthCurrency,
   getNetWorthChartData,
@@ -83,7 +83,7 @@ export function NetWorthCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<NetWorthSnapshot>({
+  } = useLoadingSnapshot<NetWorthSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -141,7 +141,7 @@ export function NetWorthCard({
         )}
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
-        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           <div className="flex h-[360px] flex-col">
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -179,9 +179,9 @@ export function NetWorthCard({
               shouldReduceMotion={shouldReduceMotion}
             />
           </div>
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading net worth"

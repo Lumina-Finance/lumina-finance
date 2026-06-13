@@ -6,12 +6,12 @@ import type { MerchantRankingRow } from '@/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
-  InsightLoadingContent,
-  InsightLoadingOverlay,
-} from './InsightLoadingTransition'
+  LoadingContent,
+  LoadingOverlay,
+} from '@/components/LoadingTransition'
 import { FxStatusBadge } from './FxStatusBadge'
 import { SectionHeader } from './SectionHeader'
-import { useInsightLoadingSnapshot } from './useInsightLoadingSnapshot'
+import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]
@@ -58,7 +58,7 @@ export function MerchantRankingCard({
     contentConcealed,
     loadingVisible,
     shouldReduceMotion,
-  } = useInsightLoadingSnapshot<MerchantRankingSnapshot>({
+  } = useLoadingSnapshot<MerchantRankingSnapshot>({
     snapshot: incomingSnapshot,
     loading,
     transitionKey,
@@ -89,7 +89,7 @@ export function MerchantRankingCard({
         )}
       />
       <div className="relative overflow-hidden">
-        <InsightLoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.merchants.length > 0 ? (
             <div className="space-y-3">
               {displaySnapshot.merchants.map((merchant, index) => (
@@ -127,9 +127,9 @@ export function MerchantRankingCard({
               {displaySnapshot.emptyLabel}
             </div>
           )}
-        </InsightLoadingContent>
+        </LoadingContent>
 
-        <InsightLoadingOverlay
+        <LoadingOverlay
           visible={loadingVisible}
           shouldReduceMotion={shouldReduceMotion}
           label="Loading merchant ranking"
