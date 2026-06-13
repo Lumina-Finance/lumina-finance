@@ -1,44 +1,24 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type UIEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { Pencil, Trash2, X } from 'lucide-react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import { useBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budget, type BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
-import {
-  DeferredChartTooltipOverlay,
-  type DeferredChartTooltipOverlayHandle,
-} from '@/components/charts/DeferredChartTooltipOverlay'
-import {
-  getRechartsTooltipPoint,
-  getRechartsTooltipPointer,
-  type RechartsTooltipState,
-} from '@/components/charts/rechartsTooltip'
-import BudgetChartTooltip, { type BudgetChartPoint } from '@/budgets/components/budget-details-modal/BudgetChartTooltip'
+import BudgetHistoryChart from '@/budgets/components/budget-details-modal/BudgetHistoryChart'
 import BudgetEditModal from '@/budgets/components/budget-form/BudgetEditModal'
 import AttentionIcon from '@/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusTooltip from '@/budgets/components/shared/BudgetFxStatusTooltip'
 import MarqueeText from '@/components/MarqueeText'
 import ScrollableListMoreButton from '@/components/ScrollableListMoreButton'
-import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFACE_TRANSITION_SECONDS } from '@/budgets/constants'
+import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_SECONDS } from '@/budgets/constants'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/budgets/utils/budgetPeriods'
 import { attentionState } from '@/budgets/utils/budgetStatus'
 import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/budgets/utils/fxTooltipMessages'
 import {
-  BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH,
-  BUDGET_CHART_LAYOUT,
   getBudgetChartCategories,
-  getBudgetChartGuideMaxWidth,
   getBudgetDetailsChartData,
   getBudgetPeriodHistory,
   getBudgetUtilizationByBudgetId,
@@ -47,12 +27,6 @@ import {
   getSortedBudgetPeriods,
 } from '@/budgets/utils/budgetDetails'
 import { combineFxStatuses } from '@/utils/fxStatus'
-
-const CHART_INITIAL_DIMENSION = { width: 1, height: 192 }
-
-function getBudgetChartTooltipKey(point: BudgetChartPoint) {
-  return point.label
-}
 
 export default function BudgetDetailsModal({
   baseBudget,
@@ -82,8 +56,6 @@ export default function BudgetDetailsModal({
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const modalScrollRef = useRef<HTMLDivElement | null>(null)
   const trackedCategoryListRef = useRef<HTMLDivElement | null>(null)
-  const budgetChartRef = useRef<HTMLDivElement>(null)
-  const budgetChartTooltipRef = useRef<DeferredChartTooltipOverlayHandle<BudgetChartPoint>>(null)
   const [historyCanScroll, setHistoryCanScroll] = useState(false)
   const [trackedCategoryListScrollable, setTrackedCategoryListScrollable] = useState(false)
   const [trackedCategoryListAtBottom, setTrackedCategoryListAtBottom] = useState(false)
@@ -185,26 +157,6 @@ export default function BudgetDetailsModal({
       list.scrollBy({ top: list.clientHeight * 0.45, behavior: 'smooth' })
     })
   }
-  const showBudgetChartTooltip = (
-    state: RechartsTooltipState<BudgetChartPoint>,
-    event: ReactMouseEvent<SVGGraphicsElement>,
-  ) => {
-    const point = getRechartsTooltipPoint({
-      state,
-      data: chartData,
-      resolveLabel: (label) => chartData.find((item) => item.label === label),
-    })
-    const pointer = getRechartsTooltipPointer(state, event)
-
-    if (!point) {
-      budgetChartTooltipRef.current?.show(null, pointer)
-      return
-    }
-
-    budgetChartTooltipRef.current?.show(point, pointer)
-  }
-  const hideBudgetChartTooltip = () => budgetChartTooltipRef.current?.hide()
-
   const handleDelete = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true)
@@ -441,95 +393,13 @@ export default function BudgetDetailsModal({
               </header>
 
               <section className="shrink-0">
-                <div
-                  ref={budgetChartRef}
-                  className="relative h-48 min-[750px]:h-80"
-                  onMouseLeave={hideBudgetChartTooltip}
-                >
-                  {utilizationHistoryLoading ? (
-                    <div
-                      className="flex h-full items-center justify-center rounded-xl"
-                      style={{ background: 'var(--app-bg)' }}
-                    >
-                      <div className="app-spinner" />
-                    </div>
-                  ) : utilizationHistoryError ? (
-                    <div
-                      className="flex h-full items-center justify-center rounded-xl text-sm"
-                      style={{ background: 'var(--app-bg)', color: 'var(--app-negative)' }}
-                    >
-                      Utilization history could not load.
-                    </div>
-                  ) : chartData.length > 0 ? (
-                    <>
-                      <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
-                        <BarChart
-                          data={chartData}
-                          margin={BUDGET_CHART_LAYOUT.margin}
-                          onMouseMove={(state, event) => showBudgetChartTooltip(state, event)}
-                          onMouseLeave={hideBudgetChartTooltip}
-                        >
-                          <CartesianGrid stroke="var(--app-border)" vertical={false} />
-                          <XAxis
-                            dataKey="label"
-                            tickLine={false}
-                            axisLine={false}
-                            tick={{ fill: 'var(--app-text-subtle)', fontSize: 13 }}
-                          />
-                          <YAxis
-                            tickLine={false}
-                            axisLine={false}
-                            domain={[0, (dataMax: number) => Math.max(100, Math.ceil(dataMax / 25) * 25)]}
-                            tick={{ fill: 'var(--app-text-subtle)', fontSize: 12 }}
-                            tickFormatter={(value) => `${Number(value)}%`}
-                            width={BUDGET_CHART_LAYOUT.yAxisWidth}
-                          />
-                          {showStackedCategoryChart ? chartCategories.map((category, index) => (
-                            <Bar
-                              key={category.id}
-                              dataKey={category.dataKey}
-                              stackId="category-spending"
-                              fill={category.color}
-                              radius={index === chartCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                              barSize={28}
-                              animationBegin={MODAL_SURFACE_TRANSITION_MS}
-                            />
-                          )) : (
-                            <Bar
-                              dataKey="utilizationPct"
-                              fill="var(--app-accent)"
-                              radius={[4, 4, 0, 0]}
-                              barSize={28}
-                              animationBegin={MODAL_SURFACE_TRANSITION_MS}
-                            />
-                          )}
-                        </BarChart>
-                      </ResponsiveContainer>
-                      <DeferredChartTooltipOverlay
-                        ref={budgetChartTooltipRef}
-                        chartRef={budgetChartRef}
-                        className="min-w-44"
-                        guideVariant="bar"
-                        guideWidth={BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH}
-                        guideMaxWidth={(chartWidth) => getBudgetChartGuideMaxWidth(chartWidth, chartData.length)}
-                        getKey={getBudgetChartTooltipKey}
-                        renderContent={(point) => (
-                          <BudgetChartTooltip
-                            point={point}
-                            currency={baseBudget.currency}
-                          />
-                        )}
-                      />
-                    </>
-                  ) : (
-                    <div
-                      className="flex h-full items-center justify-center rounded-xl text-sm"
-                      style={{ background: 'var(--app-bg)', color: 'var(--app-text-subtle)' }}
-                    >
-                      No utilization history yet.
-                    </div>
-                  )}
-                </div>
+                <BudgetHistoryChart
+                  chartData={chartData}
+                  chartCategories={chartCategories}
+                  currency={baseBudget.currency}
+                  loading={utilizationHistoryLoading}
+                  error={utilizationHistoryError}
+                />
               </section>
 
               <section className="min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col">
