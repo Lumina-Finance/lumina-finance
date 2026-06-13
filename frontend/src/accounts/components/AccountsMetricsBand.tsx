@@ -3,7 +3,7 @@ import type { AccountsMetricsViewModel } from '@/accounts/hooks/useAccountsMetri
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
 import AccountsLoadingRegion from '@/accounts/components/AccountsLoadingRegion'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import {
   getCreditFxStatusMessage,
   getRunwayFxStatusMessage,

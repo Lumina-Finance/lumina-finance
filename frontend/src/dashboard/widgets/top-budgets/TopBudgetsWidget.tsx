@@ -4,7 +4,7 @@ import { useLoadingSnapshot } from '@/components/useLoadingSnapshot'
 import { DashboardWidgetLoadingBody } from '@/dashboard/components/DashboardWidgetLoadingBody'
 import { TopBudgetsHeader } from './TopBudgetsHeader'
 import { TopBudgetsList } from './TopBudgetsList'
-import { combineFxStatuses } from '@/dashboard/utils/fxStatus'
+import { combineFxStatuses } from '@/utils/fxStatus'
 import { getTopBudgets } from '@/dashboard/utils/getTopBudgets'
 
 /**

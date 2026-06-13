@@ -1,6 +1,6 @@
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 
 type DashboardFxStatusTooltipProps = {
   label: string

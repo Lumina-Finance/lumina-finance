@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FxStatus } from '@/api/shared/fx'
 import type { OutlierTransaction } from '@/api/transactions'
 import IconTooltip from '@/components/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/dashboard/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   OUTLIER_TRANSACTION_LIMIT,
