@@ -2,13 +2,16 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Plus } from 'lucide-react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
+import {
+  getCreateNewLabel,
+  getEffectiveHighlightedIndex,
+  getGroupedDropdownOptions,
+  getSelectedDropdownOption,
+  getVisibleDropdownOptions,
+} from './dropdown/dropdownOptions';
+import type { DropdownCreateLabel, DropdownOption } from './dropdown/types';
 
-export interface DropdownOption {
-  value: string;
-  label: string;
-  group?: string;
-  icon?: string | null;
-}
+export type { DropdownOption } from './dropdown/types';
 
 interface DropdownProps {
   id?: string;
@@ -34,9 +37,9 @@ interface DropdownProps {
   onSearchCommit?: (value: string) => void;
   disabled?: boolean;
   blankWhenEmpty?: boolean;
-  /** Called when the user clicks the dropdown create action. Receives the current search text. */
+  /** Called when the user clicks the dropdown create action with the current search text */
   onCreateNew?: (query: string) => void;
-  createNewLabel?: string | ((query: string) => string);
+  createNewLabel?: DropdownCreateLabel;
 }
 
 const LOADING_TEXT_MIN_MS = 300;
@@ -87,49 +90,34 @@ const Dropdown = ({
   const listRef = useRef<HTMLUListElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const selected = options.find((o) => o.value === value) ?? (
-    selectedOption?.value === value ? selectedOption : undefined
+  const selected = useMemo(
+    () => getSelectedDropdownOption(options, selectedOption, value),
+    [options, selectedOption, value],
   );
   const emptySelectionIsBlank = blankWhenEmpty && value === '';
   const searchText = searchValue ?? search;
   const heldLoading = useMinimumVisibleFlag(isLoading, loadingMinMs);
   const showLoading = loadingMinMs <= 0 ? isLoading : heldLoading;
-
-  const filtered = useMemo(() => {
-    if (!filterOptions || !searchable || !searchText) return options;
-    const q = searchText.toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(q));
-  }, [options, searchText, searchable, filterOptions]);
   const visibleFiltered = useMemo(
-    () => (showLoading && hideOptionsWhileLoading ? [] : filtered),
-    [filtered, hideOptionsWhileLoading, showLoading],
+    () => getVisibleDropdownOptions({
+      filterOptions,
+      hideOptionsWhileLoading,
+      options,
+      searchable,
+      searchText,
+      showLoading,
+    }),
+    [filterOptions, hideOptionsWhileLoading, options, searchable, searchText, showLoading],
   );
-  const effectiveHighlightedIndex = (
-    autoHighlightFirstOption &&
-    visibleFiltered.length > 0 &&
-    (highlightedIndex < 0 || highlightedIndex >= visibleFiltered.length)
-  )
-    ? 0
-    : highlightedIndex;
-
-  // Group filtered options by their `group` field for sectioned rendering.
-  // Each group wraps its options so sticky headers stay pinned for the full section.
-  const groupedFiltered = useMemo(() => {
-    if (!visibleFiltered.some((o) => o.group)) return null;
-
-    const groups: { label: string; items: { option: DropdownOption; flatIndex: number }[] }[] = [];
-    let current: string | undefined;
-
-    visibleFiltered.forEach((option, i) => {
-      if (groups.length === 0 || option.group !== current) {
-        current = option.group;
-        groups.push({ label: option.group ?? '', items: [] });
-      }
-      groups[groups.length - 1].items.push({ option, flatIndex: i });
-    });
-
-    return groups;
-  }, [visibleFiltered]);
+  const effectiveHighlightedIndex = getEffectiveHighlightedIndex(
+    autoHighlightFirstOption,
+    highlightedIndex,
+    visibleFiltered.length,
+  );
+  const groupedFiltered = useMemo(
+    () => getGroupedDropdownOptions(visibleFiltered),
+    [visibleFiltered],
+  );
 
   const updateListPosition = useCallback(() => {
     if (!triggerRef.current) return;
@@ -234,9 +222,7 @@ const Dropdown = ({
   };
 
   const createQuery = searchText.trim();
-  const resolvedCreateNewLabel = typeof createNewLabel === 'function'
-    ? createNewLabel(createQuery)
-    : createNewLabel ?? (createQuery ? `Create "${createQuery}"` : 'Create new');
+  const resolvedCreateNewLabel = getCreateNewLabel(createNewLabel, createQuery);
 
   const handleCreateNew = () => {
     if (!onCreateNew) return;
