@@ -8,7 +8,7 @@ import type {
   TransactionDirection,
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
-import TransactionModalPillSelector from '@/pages/transactions/components/transaction-modal/controls/PillSelector'
+import TransactionModalPillSelector from '@/pages/transactions/components/transaction-modal/controls/TransactionModalPillSelector'
 import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/TransactionModalSectionFrame'
 
 interface TransactionTypeDirectionSectionProps {
