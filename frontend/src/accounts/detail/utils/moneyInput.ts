@@ -13,23 +13,6 @@ export function fromMinorUnits(value: number | null, currencies: Currency[], cod
   }).format(exponent === 0 ? Math.round(major) : Number(major.toFixed(exponent)))
 }
 
-export function sanitizeMoneyInput(value: string): string {
-  let sanitized = value.replace(/[^\d.]/g, '')
-  const parts = sanitized.split('.')
-  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
-  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
-  return sanitized
-}
-
-export function formatMoneyInputLive(value: string): string {
-  if (!value.trim()) return value
-  const [integerPart, decimalPart] = value.split('.', 2)
-  const formattedInteger = integerPart
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
-    : '0'
-  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
-}
-
 export function toMinorUnits(value: string, currencies: Currency[], code: string): number | null {
   const normalized = value.replace(/,/g, '')
   if (!normalized.trim()) return null

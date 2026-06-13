@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { InsightCalculationTooltip } from '@/insights/components/InsightCalculationTooltip'
 import type { FundFlowEntry } from '@/insights/types/fundFlow'
+import { joinClassNames } from '@/utils/classNames'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type FundFlowCategoryListProps = {
@@ -18,10 +19,6 @@ type FundFlowCategoryListProps = {
 }
 
 const listTransition = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
-
-function joinClassNames(...classNames: Array<string | undefined | false>) {
-  return classNames.filter(Boolean).join(' ')
-}
 
 /**
  * Renders one expandable fund-flow category list with flipped-entry labelling

@@ -8,7 +8,7 @@ import type {
   TransactionFilterSetter,
   TransactionToolbarOptions,
   TransactionToolbarSelectionLabels,
-} from '@/transactions/components/toolbar/types'
+} from '@/transactions/components/Toolbar/types'
 import type { TransactionListFilters } from '@/transactions/types/transactionList'
 
 type DesktopTransactionToolbarControlsProps = TransactionDateRangeDraftProps & TransactionToolbarOptions & TransactionToolbarSelectionLabels & {

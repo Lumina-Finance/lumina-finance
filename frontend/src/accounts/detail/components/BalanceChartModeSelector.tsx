@@ -3,15 +3,12 @@ import {
   TIME_SELECTOR_SPRING,
   type BalanceChartMode,
 } from '@/accounts/detail/constants/accountDetail'
+import { joinClassNames } from '@/utils/classNames'
 
 const BALANCE_CHART_MODE_OPTIONS: Array<{ value: BalanceChartMode; label: string }> = [
   { value: 'balance', label: 'Balance' },
   { value: 'change', label: 'Change' },
 ]
-
-function joinClassNames(...classNames: Array<string | undefined | false>) {
-  return classNames.filter(Boolean).join(' ')
-}
 
 export function BalanceChartModeSelector({
   value,

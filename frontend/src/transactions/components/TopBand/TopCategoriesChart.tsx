@@ -35,8 +35,8 @@ import {
   TOP_CATEGORY_AXIS_MIN_WIDTH,
   TOP_CATEGORY_LIMIT,
   TOP_CATEGORY_ROW_HEIGHT,
-} from '@/transactions/components/topBand/constants'
-import type { OverviewCategorySpend } from '@/transactions/components/topBand/types'
+} from '@/transactions/components/TopBand/constants'
+import type { OverviewCategorySpend } from '@/transactions/components/TopBand/types'
 import { getTopCategoriesFxStatusMessage } from '@/transactions/utils/fxTooltipMessages'
 
 const emptyTopCategoryHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT

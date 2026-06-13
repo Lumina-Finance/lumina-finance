@@ -9,8 +9,8 @@ import {
   type Transaction,
 } from '@/api/transactions'
 import { transactionKeys } from '@/api/cache/queryKeys'
-import CreateTransactionModal from '@/components/CreateTransactionModal'
 import TransactionListSection from '@/transactions/components/TransactionListSection'
+import CreateTransactionModal from '@/transactions/components/TransactionModal/CreateTransactionModal'
 import TransactionsTopBand from '@/transactions/components/TransactionsTopBand'
 import type { TransactionListFilters } from '@/transactions/types/transactionList'
 import {

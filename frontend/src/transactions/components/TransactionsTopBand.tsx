@@ -4,15 +4,15 @@ import type { TransactionsOverview } from '@/api/transactions'
 import TransactionFilterLoadingOverlay from '@/transactions/components/TransactionFilterLoadingOverlay'
 import DailyCashFlowChart, {
   type DailyCashFlowChartMode,
-} from '@/transactions/components/topBand/DailyCashFlowChart'
-import MostExpensiveTransactionsPanel from '@/transactions/components/topBand/MostExpensiveTransactionsPanel'
-import NetFlowSummary from '@/transactions/components/topBand/NetFlowSummary'
-import TopCategoriesChart from '@/transactions/components/topBand/TopCategoriesChart'
+} from '@/transactions/components/TopBand/DailyCashFlowChart'
+import MostExpensiveTransactionsPanel from '@/transactions/components/TopBand/MostExpensiveTransactionsPanel'
+import NetFlowSummary from '@/transactions/components/TopBand/NetFlowSummary'
+import TopCategoriesChart from '@/transactions/components/TopBand/TopCategoriesChart'
 import {
   PLACEHOLDER_CATEGORIES,
   PLACEHOLDER_FLOW,
   PLACEHOLDER_OUTLIERS,
-} from '@/transactions/components/topBand/constants'
+} from '@/transactions/components/TopBand/constants'
 
 const topBandDividerStyle = {
   height: 1,

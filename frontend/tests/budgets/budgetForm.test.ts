@@ -9,8 +9,6 @@ import { validateBudgetCreateForm } from '@/budgets/utils/budgetCreateValidation
 import { sameStringSet } from '@/budgets/utils/form'
 import {
   formatMinorUnitsInput,
-  formatMoneyInputLive,
-  sanitizeMoneyInput,
   toMinorUnits,
 } from '@/budgets/utils/money'
 
@@ -50,12 +48,6 @@ function createForm(overrides: Partial<BudgetFormState> = {}): BudgetFormState {
 }
 
 describe('budget form helpers', () => {
-  it('sanitizes and formats live money input without losing an active decimal', () => {
-    expect(sanitizeMoneyInput('$1,234.5.6')).toBe('1234.56')
-    expect(formatMoneyInputLive('1234.')).toBe('1,234.')
-    expect(formatMoneyInputLive('1234.50')).toBe('1,234.50')
-  })
-
   it('converts between decimal inputs and currency minor units', () => {
     expect(toMinorUnits('1,234.56', currencies, 'CAD')).toBe(123456)
     expect(toMinorUnits('1234.56', currencies, 'JPY')).toBe(1235)

@@ -30,7 +30,7 @@ import {
 import IconTooltip from '@/components/IconTooltip'
 import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { PLACEHOLDER_DAILY_FLOW } from '@/transactions/components/topBand/constants'
+import { PLACEHOLDER_DAILY_FLOW } from '@/transactions/components/TopBand/constants'
 import {
   DAILY_CASH_FLOW_CHART_MARGIN,
   DAILY_CASH_FLOW_X_AXIS_PADDING,

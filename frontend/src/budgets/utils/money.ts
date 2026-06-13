@@ -9,29 +9,6 @@ export function currencySymbol(currencies: Currency[], code: string) {
 }
 
 /**
- * Removes unsupported characters while keeping at most one decimal separator
- */
-export function sanitizeMoneyInput(value: string) {
-  let sanitized = value.replace(/[^\d.]/g, '')
-  const parts = sanitized.split('.')
-  if (parts.length > 1) sanitized = `${parts[0]}.${parts.slice(1).join('')}`
-  if (sanitized.startsWith('.')) sanitized = `0${sanitized}`
-  return sanitized
-}
-
-/**
- * Formats a money input while preserving a trailing decimal during typing
- */
-export function formatMoneyInputLive(value: string) {
-  if (!value.trim()) return value
-  const [integerPart, decimalPart] = value.split('.', 2)
-  const formattedInteger = integerPart
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(integerPart))
-    : '0'
-  return value.includes('.') ? `${formattedInteger}.${decimalPart ?? ''}` : formattedInteger
-}
-
-/**
  * Converts a positive user-entered decimal amount into the currency's minor units
  */
 export function toMinorUnits(value: string, currencies: Currency[], code: string) {
