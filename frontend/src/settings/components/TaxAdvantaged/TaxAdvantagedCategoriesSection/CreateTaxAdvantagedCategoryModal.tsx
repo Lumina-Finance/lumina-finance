@@ -1,28 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
-import type React from 'react'
+import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, X } from 'lucide-react'
 import type { Currency } from '@/api/currency'
-import { useCreateTaxAdvantagedCategory, type TaxTreatment } from '@/api/taxAdvantagedCategories'
+import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
 import Dropdown from '@/components/Dropdown'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
-import type { TaxPlanFormState } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
+import { useCreateTaxAdvantagedCategoryForm } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/hooks/useCreateTaxAdvantagedCategoryForm'
 import {
-  CREATE_TAX_CATEGORY_MIN_LOADING_MS,
   EASE,
   TAX_TREATMENT_OPTIONS,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
-import {
-  currencyOptions,
-  isValidMoneyInput,
-  toMinorUnits,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryUtils'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedCategoryConstants'
 import {
   CurrencyInput,
   TaxAdvantagedCurrencyWarning,
-} from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
+} from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/TaxAdvantagedFormControls'
 
+/**
+ * Renders the modal for creating a new tax-advantaged category
+ */
 export default function CreateTaxAdvantagedCategoryModal({
   currencies,
   onClose,
@@ -32,19 +28,15 @@ export default function CreateTaxAdvantagedCategoryModal({
   onClose: () => void
   userBaseCurrency?: string
 }) {
-  const createPlan = useCreateTaxAdvantagedCategory()
-  const [form, setForm] = useState<TaxPlanFormState>({
-    name: '',
-    tax_treatment: 'tax_free',
-    currency: userBaseCurrency ?? '',
-    lifetime_contribution_limit: '',
-    accrued_contributions: '',
-  })
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [createInProgress, setCreateInProgress] = useState(false)
-  const selectedCurrency = form.currency || userBaseCurrency || ''
-  const options = useMemo(() => currencyOptions(currencies), [currencies])
-  const isCreating = createPlan.isPending || createInProgress
+  const {
+    createError,
+    form,
+    handleCreatePlan,
+    isCreating,
+    options,
+    selectedCurrency,
+    setField,
+  } = useCreateTaxAdvantagedCategoryForm({ currencies, onClose, userBaseCurrency })
 
   useBodyScrollLock(true)
 
@@ -57,54 +49,6 @@ export default function CreateTaxAdvantagedCategoryModal({
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [onClose])
-
-  const setField = <K extends keyof TaxPlanFormState>(key: K, value: TaxPlanFormState[K]) => {
-    setForm((current) => ({ ...current, [key]: value }))
-    setCreateError(null)
-  }
-
-  const handleCreatePlan = (event: React.FormEvent) => {
-    event.preventDefault()
-    if (isCreating) return
-
-    if (!form.name.trim()) {
-      setCreateError('Name is required.')
-      return
-    }
-    if (!selectedCurrency) {
-      setCreateError('Currency is required.')
-      return
-    }
-    if (!isValidMoneyInput(form.lifetime_contribution_limit)) {
-      setCreateError('Lifetime contribution limit must be zero or higher.')
-      return
-    }
-    if (!isValidMoneyInput(form.accrued_contributions)) {
-      setCreateError('Accrued contributions must be zero or higher.')
-      return
-    }
-
-    setCreateInProgress(true)
-    const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, CREATE_TAX_CATEGORY_MIN_LOADING_MS))
-
-    void createPlan.mutateAsync(
-      {
-        name: form.name.trim(),
-        tax_treatment: form.tax_treatment,
-        currency: selectedCurrency,
-        lifetime_contribution_limit: toMinorUnits(form.lifetime_contribution_limit, currencies, selectedCurrency),
-        accrued_contributions: toMinorUnits(form.accrued_contributions, currencies, selectedCurrency) ?? 0,
-        group_id: null,
-      },
-    ).then(async () => {
-      await minimumLoading
-      onClose()
-    }).catch(async (error) => {
-      await minimumLoading
-      setCreateError(error instanceof Error ? error.message : 'Failed to create category.')
-      setCreateInProgress(false)
-    })
-  }
 
   return createPortal(
     <>

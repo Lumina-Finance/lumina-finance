@@ -16,6 +16,13 @@ export interface TaxPlanLimitFormState {
   accrued_withdrawals: string
 }
 
+export type TaxPlanLimitDraftField = keyof Pick<
+  TaxPlanLimitFormState,
+  'contribution_limit' | 'withdrawal_limit' | 'accrued_contributions' | 'accrued_withdrawals'
+>
+
+export type TaxPlanLimitDraftState = Pick<TaxPlanLimitFormState, TaxPlanLimitDraftField>
+
 export interface AutosaveNotice {
   status: 'saving' | 'saved' | 'error'
   message: string

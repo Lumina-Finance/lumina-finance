@@ -1,6 +1,6 @@
 import { AlertTriangle, Check, LoaderCircle } from 'lucide-react'
-import type { AutosaveNotice } from '@/settings/components/tax-advantaged/taxAdvantagedTypes'
-import { autosaveNoticeColor } from '@/settings/components/tax-advantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
+import type { AutosaveNotice } from '@/settings/components/TaxAdvantaged/taxAdvantagedTypes'
+import { autosaveNoticeColor } from '@/settings/components/TaxAdvantaged/TaxAdvantagedCategoriesSection/taxAdvantagedAutosave'
 
 export default function AutosaveStatusIcon({ status }: { status: AutosaveNotice['status'] }) {
   const Icon = status === 'error' ? AlertTriangle : status === 'saved' ? Check : LoaderCircle
