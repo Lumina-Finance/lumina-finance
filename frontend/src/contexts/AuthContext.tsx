@@ -82,7 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setState({ user: res.user, accessToken: res.access_token, loading: false });
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        if (authApi.isRefreshAlreadyRotatedError(error)) {
+          if (!cancelled) {
+            setState((prev) => ({ ...prev, loading: false }));
+          }
+          return;
+        }
+
         localStorage.removeItem(SESSION_KEY);
         queryClient.clear();
         if (!cancelled) {

@@ -4,7 +4,7 @@
  * These tests catch regressions where auth endpoints lose cookie credentials,
  * JSON headers, bearer logout headers, or backend error details
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/api/config';
 import {
   ApiError,
@@ -38,6 +38,10 @@ beforeEach(() => {
     ok: true,
     json: async () => authResponse,
   });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('auth API functions', () => {
@@ -89,6 +93,41 @@ describe('auth API functions', () => {
     await refresh();
 
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
+
+  it('retries refresh when a stale request loses a rotation race', async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ detail: 'Refresh token was already rotated' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => authResponse,
+      });
+
+    const request = refresh();
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(request).resolves.toEqual(authResponse);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(1, `${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, `${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
       headers: {
