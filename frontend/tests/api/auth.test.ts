@@ -30,6 +30,25 @@ const authResponse: AuthResponse = {
 };
 
 const fetchMock = vi.fn();
+const REFRESH_REQUEST_LOCK_KEY = 'lumina:refresh_request_lock_until';
+
+function createStorageMock(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() {
+      return values.size;
+    },
+    clear: vi.fn(() => values.clear()),
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    key: vi.fn((index: number) => Array.from(values.keys())[index] ?? null),
+    removeItem: vi.fn((key: string) => {
+      values.delete(key);
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value);
+    }),
+  } as Storage;
+}
 
 beforeEach(() => {
   fetchMock.mockReset();
@@ -41,6 +60,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -92,6 +112,28 @@ describe('auth API functions', () => {
   it('refreshes the auth session with the refresh cookie', async () => {
     await refresh();
 
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  });
+
+  it('waits for a previous page-load refresh lock before refreshing', async () => {
+    vi.useFakeTimers();
+    const storage = createStorageMock();
+    vi.stubGlobal('window', { localStorage: storage });
+    storage.setItem(REFRESH_REQUEST_LOCK_KEY, String(Date.now() + 3_000));
+
+    const request = refresh();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    await expect(request).resolves.toEqual(authResponse);
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',

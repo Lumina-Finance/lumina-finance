@@ -25,6 +25,24 @@ export interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const SESSION_KEY = 'lumina:has_session';
+const RELOAD_SESSION_RESTORE_DELAY_MS = 750;
+
+/**
+ * Returns whether this page load came from the browser reload action
+ */
+function isBrowserReload(): boolean {
+  if (typeof performance === 'undefined') return false;
+
+  const [navigationEntry] = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+  return navigationEntry?.type === 'reload';
+}
+
+/**
+ * Returns the delay before initial restore so rapid reloads do not start refresh rotation
+ */
+function getSessionRestoreDelayMs(): number {
+  return isBrowserReload() ? RELOAD_SESSION_RESTORE_DELAY_MS : 0;
+}
 
 // Module-scoped so concurrent callers share a single /auth/refresh request.
 // The refresh token is rotated on use, so a second parallel call would race
@@ -75,29 +93,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!hadSession) return;
 
     let cancelled = false;
+    let restoreTimer: ReturnType<typeof setTimeout> | null = null;
 
-    restoreSession()
-      .then((res) => {
-        if (!cancelled) {
-          setState({ user: res.user, accessToken: res.access_token, loading: false });
-        }
-      })
-      .catch((error) => {
-        if (authApi.isRefreshAlreadyRotatedError(error)) {
+    const runRestore = () => {
+      restoreSession()
+        .then((res) => {
           if (!cancelled) {
-            setState((prev) => ({ ...prev, loading: false }));
+            setState({ user: res.user, accessToken: res.access_token, loading: false });
           }
-          return;
-        }
+        })
+        .catch((error) => {
+          if (authApi.isRefreshAlreadyRotatedError(error)) {
+            if (!cancelled) {
+              setState((prev) => ({ ...prev, loading: false }));
+            }
+            return;
+          }
 
-        localStorage.removeItem(SESSION_KEY);
-        queryClient.clear();
-        if (!cancelled) {
-          setState({ user: null, accessToken: null, loading: false });
-        }
-      });
+          localStorage.removeItem(SESSION_KEY);
+          queryClient.clear();
+          if (!cancelled) {
+            setState({ user: null, accessToken: null, loading: false });
+          }
+        });
+    };
 
-    return () => { cancelled = true; };
+    const restoreDelayMs = getSessionRestoreDelayMs();
+    if (restoreDelayMs > 0) {
+      restoreTimer = setTimeout(runRestore, restoreDelayMs);
+    } else {
+      runRestore();
+    }
+
+    return () => {
+      cancelled = true;
+      if (restoreTimer) clearTimeout(restoreTimer);
+    };
   }, [hadSession, queryClient]);
 
   // Call the API and set the session flag, but don't update React state yet.
