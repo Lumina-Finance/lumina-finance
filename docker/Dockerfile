@@ -10,11 +10,14 @@ ENV VITE_APP_VERSION="$APP_VERSION"
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
-COPY frontend/index.html frontend/postcss.config.js frontend/tailwind.config.js frontend/tsconfig.app.json frontend/tsconfig.json frontend/tsconfig.node.json frontend/vite.config.ts ./
+COPY frontend/index.html frontend/postcss.config.js frontend/tailwind.config.js frontend/tsconfig.app.json frontend/tsconfig.node.json frontend/vite.config.ts ./
+
+# Vite reads tsconfig.json during bundling, so Docker uses the app-only config
+COPY frontend/tsconfig.app.json ./tsconfig.json
 COPY frontend/public ./public
 COPY frontend/src ./src
 COPY frontend/styles ./styles
-RUN npm run build
+RUN npm run build:app
 
 
 # Install locked Python production dependencies into a virtualenv.

@@ -1,3 +1,5 @@
+"""Alembic migration environment"""
+
 import asyncio
 from logging.config import fileConfig
 
@@ -10,8 +12,9 @@ from app.config import DATABASE_URL
 # Import all models so Alembic can detect them for autogenerate
 from app.models import (  # noqa: F401
     account,
-    active_token,
     auth,
+    auth_session,
+    auth_token,
     budget,
     cache_state,
     category,

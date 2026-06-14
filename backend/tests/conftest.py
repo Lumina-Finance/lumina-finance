@@ -10,8 +10,9 @@ from app.config import _require
 # Import all models so Base.metadata has the full schema
 from app.models import (  # noqa: F401
     account,
-    active_token,
     auth,
+    auth_session,
+    auth_token,
     budget,
     cache_state,
     category,

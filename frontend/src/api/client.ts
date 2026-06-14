@@ -62,7 +62,11 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
       const refreshed = await refreshOnce();
       bindings.onSessionRefreshed(refreshed);
       res = await makeRequest(refreshed.access_token);
-    } catch {
+    } catch (error) {
+      if (authApi.isRefreshAlreadyRotatedError(error)) {
+        throw error;
+      }
+
       bindings.onSessionLost();
       throw new ApiError('Session expired', 401);
     }

@@ -1,4 +1,7 @@
-export { ApiError } from '@/api/auth/errors';
+export {
+  ApiError,
+  isRefreshAlreadyRotatedError,
+} from '@/api/auth/errors';
 
 export type {
   AuthResponse,

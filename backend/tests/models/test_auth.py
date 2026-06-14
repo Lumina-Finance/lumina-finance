@@ -1,10 +1,13 @@
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.auth import AuthIdentity, PasswordCredential
-from app.models.base import AuthProvider
+from app.models.auth_session import AuthSession
+from app.models.auth_token import AuthToken
+from app.models.base import AuthProvider, AuthTokenKind
 from app.models.currency import Currency
 from app.models.user import User
 
@@ -45,6 +48,33 @@ async def password_credential(db, user):
     db.add(pc)
     await db.flush()
     return pc
+
+
+@pytest.fixture
+async def auth_session(db, user):
+    """Seed an auth session"""
+    session = AuthSession(
+        user_id=user.id,
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    db.add(session)
+    await db.flush()
+    return session
+
+
+@pytest.fixture
+async def auth_token(db, user, auth_session):
+    """Seed an auth token"""
+    token = AuthToken(
+        jti=uuid4(),
+        user_id=user.id,
+        session_id=auth_session.id,
+        token_kind=AuthTokenKind.ACCESS,
+        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+    )
+    db.add(token)
+    await db.flush()
+    return token
 
 
 # --- AuthIdentity: Basic CRUD ---
@@ -186,5 +216,193 @@ async def test_null_password_hash_rejected(db, user):
 async def test_null_password_algo_rejected(db, user):
     """password_algo is NOT NULL."""
     db.add(PasswordCredential(user_id=user.id, password_hash="hashed", password_algo=None))
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- AuthSession: Basic CRUD ---
+
+
+async def test_create_auth_session(db, auth_session):
+    """Insert an auth session and verify fields"""
+    result = await db.get(AuthSession, auth_session.id)
+
+    assert result is not None
+    assert result.user_id == auth_session.user_id
+    assert result.expires_at is not None
+
+
+async def test_auth_session_created_at_auto_set(db, auth_session):
+    """created_at should be set automatically by the database"""
+    await db.refresh(auth_session)
+
+    assert auth_session.created_at is not None
+
+
+async def test_auth_session_invalid_user_rejected(db):
+    """user_id must reference a valid user"""
+    import uuid
+
+    db.add(
+        AuthSession(
+            user_id=uuid.uuid4(),
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        ),
+    )
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+# --- AuthToken: Basic CRUD ---
+
+
+async def test_create_auth_token(db, auth_token):
+    """Insert an auth token and verify fields"""
+    result = await db.get(AuthToken, auth_token.jti)
+
+    assert result is not None
+    assert result.user_id == auth_token.user_id
+    assert result.session_id == auth_token.session_id
+    assert result.token_kind == AuthTokenKind.ACCESS
+    assert result.expires_at is not None
+    assert result.refresh_grace_expires_at is None
+
+
+async def test_auth_token_created_at_auto_set(db, auth_token):
+    """created_at should be set automatically by the database"""
+    await db.refresh(auth_token)
+
+    assert auth_token.created_at is not None
+
+
+async def test_duplicate_session_access_token_rejected(db, user, auth_session):
+    """One session can allowlist only one access token"""
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.ACCESS,
+            expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        ),
+    )
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.ACCESS,
+            expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        ),
+    )
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_session_allows_current_and_previous_refresh_tokens(db, user, auth_session):
+    """One session can allowlist a current and previous refresh token"""
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.REFRESH,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        ),
+    )
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.REFRESH,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+            refresh_grace_expires_at=datetime.now(UTC) + timedelta(seconds=10),
+        ),
+    )
+
+    await db.flush()
+
+
+async def test_duplicate_current_refresh_token_rejected(db, user, auth_session):
+    """One session can allowlist only one current refresh token"""
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.REFRESH,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        ),
+    )
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.REFRESH,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        ),
+    )
+
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_duplicate_previous_refresh_token_rejected(db, user, auth_session):
+    """One session can allowlist only one previous refresh token"""
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.REFRESH,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+            refresh_grace_expires_at=datetime.now(UTC) + timedelta(seconds=10),
+        ),
+    )
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.REFRESH,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+            refresh_grace_expires_at=datetime.now(UTC) + timedelta(seconds=10),
+        ),
+    )
+
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_access_token_with_refresh_grace_rejected(db, user, auth_session):
+    """Only refresh tokens can have a refresh grace expiry"""
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=auth_session.id,
+            token_kind=AuthTokenKind.ACCESS,
+            expires_at=datetime.now(UTC) + timedelta(minutes=15),
+            refresh_grace_expires_at=datetime.now(UTC) + timedelta(seconds=10),
+        ),
+    )
+
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+async def test_auth_token_invalid_session_rejected(db, user):
+    """session_id must reference a valid auth session"""
+    db.add(
+        AuthToken(
+            jti=uuid4(),
+            user_id=user.id,
+            session_id=uuid4(),
+            token_kind=AuthTokenKind.ACCESS,
+            expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        ),
+    )
     with pytest.raises(IntegrityError):
         await db.flush()
