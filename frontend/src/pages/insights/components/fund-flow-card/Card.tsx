@@ -9,9 +9,9 @@ import type {
 import { getFundFlowChartHeight } from '@/pages/insights/utils/fundFlowChart'
 import { withoutMatchingEntries } from '@/pages/insights/utils/fundFlowEntries'
 import { getFundFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { FundFlowCategoryList } from './CategoryList'
 import { FundFlowChart } from './Chart'
-import { InsightFxStatusBadge } from '../FxStatusBadge'
 import { InsightCalculationTooltip } from '../CalculationTooltip'
 import { InsightSectionHeader } from '../SectionHeader'
 
@@ -116,9 +116,9 @@ export function FundFlowCard({
               calculation="Refunds and reversals are applied first. Money in flows to Income. Money out flows through Expenses. Transfers are excluded"
             />
             {displaySnapshot.fxStatus && (
-              <InsightFxStatusBadge
+              <FxStatusBadge
                 label="Fund Flow FX status"
-                status={displaySnapshot.fxStatus}
+                fxStatus={displaySnapshot.fxStatus}
                 getMessage={getFundFlowFxStatusMessage}
               />
             )}

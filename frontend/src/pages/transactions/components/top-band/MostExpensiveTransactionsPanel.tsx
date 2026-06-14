@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { FxStatus } from '@/api/shared/fx'
 import type { OutlierTransaction } from '@/api/transactions'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
   OUTLIER_TRANSACTION_LIMIT,
@@ -49,21 +49,12 @@ export default function MostExpensiveTransactionsPanel({
         >
           Shows the three largest net expense-side transaction contributors in the selected period
         </IconTooltip>
-        {fxStatus && (
-          <IconTooltip
-            label="Most expensive transactions FX status"
-            icon="fx"
-            fxTone={getFxStatusTone(fxStatus)}
-            placement="bottom"
-          >
-            <span className="block">{getMostExpensiveTransactionsFxStatusMessage(fxStatus)}</span>
-            {fxStatus.missing_pairs.length > 0 && (
-              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-              </span>
-            )}
-          </IconTooltip>
-        )}
+        <FxStatusBadge
+          label="Most expensive transactions FX status"
+          fxStatus={fxStatus}
+          placement="bottom"
+          getMessage={getMostExpensiveTransactionsFxStatusMessage}
+        />
       </p>
       <div className="mt-2 flex flex-col gap-2.5">
         <AnimatePresence initial={false} mode="popLayout">

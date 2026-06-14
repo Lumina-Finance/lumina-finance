@@ -1,6 +1,6 @@
 import { Wallet } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import { getNetWorthFxStatusMessage } from '@/utils/fxTooltipMessages'
 
@@ -16,7 +16,7 @@ export function NetWorthHeader({ fxStatus }: NetWorthHeaderProps) {
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={Wallet} />
       <span className="app-label">Net Worth</span>
-      <FxStatusTooltip
+      <FxStatusBadge
         label="Net worth FX status"
         fxStatus={fxStatus}
         getMessage={getNetWorthFxStatusMessage}

@@ -2,7 +2,7 @@ import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { DashboardRangeSelector } from '@/pages/dashboard/components/RangeSelector'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import { DASHBOARD_RANGE_SELECT_OPTIONS } from '@/pages/dashboard/constants/ranges'
@@ -36,7 +36,7 @@ export function SpendingBreakdownHeader({
         <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
         <span className="ml-[0.25em]">Breakdown</span>
       </span>
-      <FxStatusTooltip
+      <FxStatusBadge
         label="Spending breakdown FX status"
         fxStatus={fxStatus}
         getMessage={(status) => getBreakdownFxStatusMessage(status, breakdownMode)}

@@ -8,7 +8,7 @@ import {
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '../CalculationTooltip'
 import { InsightActionButton } from '../ActionButton'
 import { IncomeExpensePieChart } from './PieChart'
@@ -98,9 +98,9 @@ export function IncomeExpenseBreakdownCard({
               calculation={getBreakdownCalculation(displaySnapshot.mode)}
             />
             {displaySnapshot.fxStatus && (
-              <InsightFxStatusBadge
+              <FxStatusBadge
                 label="Income and expense breakdown FX status"
-                status={displaySnapshot.fxStatus}
+                fxStatus={displaySnapshot.fxStatus}
                 getMessage={getIncomeExpenseBreakdownFxStatusMessage}
               />
             )}

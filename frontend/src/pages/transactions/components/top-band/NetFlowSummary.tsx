@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { getCashFlowFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 
@@ -77,21 +77,12 @@ export default function NetFlowSummary({
             {netFlowCalculation}
           </IconTooltip>
         </p>
-        {fxStatus && (
-          <IconTooltip
-            label="Net flow FX status"
-            icon="fx"
-            fxTone={getFxStatusTone(fxStatus)}
-            placement="bottom"
-          >
-            <span className="block">{getCashFlowFxStatusMessage(fxStatus)}</span>
-            {fxStatus.missing_pairs.length > 0 && (
-              <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-              </span>
-            )}
-          </IconTooltip>
-        )}
+        <FxStatusBadge
+          label="Net flow FX status"
+          fxStatus={fxStatus}
+          placement="bottom"
+          getMessage={getCashFlowFxStatusMessage}
+        />
       </div>
       <p
         className="max-w-full whitespace-nowrap font-financial font-semibold leading-none tracking-tight"

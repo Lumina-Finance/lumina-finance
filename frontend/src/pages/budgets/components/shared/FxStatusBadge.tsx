@@ -1,12 +1,12 @@
 import type { SyntheticEvent } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { getBudgetUtilizationFxStatusMessage } from '@/pages/budgets/utils/fxTooltipMessages'
 
 /**
- * Renders the budget FX tooltip while preserving optional card event boundaries
+ * Renders the budget FX status badge while preserving optional card event boundaries
  */
-export default function BudgetFxStatusTooltip({
+export default function BudgetFxStatusBadge({
   fxStatus,
   label,
   placement = 'top',
@@ -29,7 +29,7 @@ export default function BudgetFxStatusTooltip({
       onClick={stopPropagation ? stopEvent : undefined}
       onKeyDown={stopPropagation ? stopEvent : undefined}
     >
-      <FxStatusTooltip
+      <FxStatusBadge
         fxStatus={fxStatus}
         label={label}
         placement={placement}

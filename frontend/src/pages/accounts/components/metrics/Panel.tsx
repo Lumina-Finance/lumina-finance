@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import AccountsLoadingRegion from '@/pages/accounts/components/LoadingRegion'
 
 type MetricPanelProps = {
@@ -43,7 +43,7 @@ export function MetricPanel({
     <div className={className}>
       <div className={`mb-1 flex items-center gap-2 ${headerClassName}`}>
         <p className="app-label">{label}</p>
-        <FxStatusTooltip
+        <FxStatusBadge
           label={tooltipLabel}
           fxStatus={fxStatus}
           getMessage={getMessage}

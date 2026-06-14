@@ -9,7 +9,7 @@ import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { InsightFxStatusBadge } from '../FxStatusBadge'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '../CalculationTooltip'
 import { InsightSectionHeader } from '../SectionHeader'
 
@@ -76,9 +76,9 @@ export function MerchantRankingCard({
               calculation="Ranks merchants by spending after refunds. Income losses are not included"
             />
             {displaySnapshot.fxStatus && (
-              <InsightFxStatusBadge
+              <FxStatusBadge
                 label="Merchant Ranking FX status"
-                status={displaySnapshot.fxStatus}
+                fxStatus={displaySnapshot.fxStatus}
                 getMessage={getMerchantSpendingFxStatusMessage}
               />
             )}

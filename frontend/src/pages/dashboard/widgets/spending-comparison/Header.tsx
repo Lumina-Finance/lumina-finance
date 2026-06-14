@@ -2,7 +2,7 @@ import { BarChart3 } from 'lucide-react'
 import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { DashboardRangeSelector } from '@/pages/dashboard/components/RangeSelector'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import {
@@ -32,7 +32,7 @@ export function SpendingComparisonHeader({
         Spending vs. Last&nbsp;
         <AppSlotMachineText text={PREVIOUS_PERIOD_LABEL_BY_RANGE[spendingRange]} />
       </span>
-      <FxStatusTooltip
+      <FxStatusBadge
         label="Spending comparison FX status"
         fxStatus={fxStatus}
         getMessage={getSpendingComparisonFxStatusMessage}

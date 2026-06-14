@@ -2,7 +2,7 @@ import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { formatCurrency } from '@/utils/formatCurrency'
 import BudgetCategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
-import BudgetFxStatusTooltip from '@/pages/budgets/components/shared/FxStatusTooltip'
+import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { budgetCadenceLabel, formatBudgetPeriod, nextBudgetPeriods } from '@/pages/budgets/utils/budgetPeriods'
 import { attentionState } from '@/pages/budgets/utils/budgetStatus'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
@@ -55,7 +55,7 @@ export default function BudgetCard({
             <h2 className="truncate text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
               {baseBudget.name}
             </h2>
-            <BudgetFxStatusTooltip
+            <BudgetFxStatusBadge
               fxStatus={utilization?.fx_status}
               label="Budget FX status"
               stopPropagation

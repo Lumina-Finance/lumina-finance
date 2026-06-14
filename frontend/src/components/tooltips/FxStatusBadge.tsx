@@ -1,23 +1,23 @@
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
+import { formatMissingFxPairs, getFxStatusMessage, getFxStatusTone } from '@/utils/fxStatus'
 
-type FxStatusTooltipProps = {
+type FxStatusBadgeProps = {
   label: string
   fxStatus: FxStatus | undefined
-  getMessage: (fxStatus: FxStatus) => string
+  getMessage?: (fxStatus: FxStatus) => string
   placement?: 'top' | 'bottom'
 }
 
 /**
- * Renders shared FX tooltip content including missing currency pair details
+ * Renders the shared FX status badge and tooltip content including missing currency pair details
  */
-export function FxStatusTooltip({
+export function FxStatusBadge({
   label,
   fxStatus,
-  getMessage,
+  getMessage = getFxStatusMessage,
   placement = 'top',
-}: FxStatusTooltipProps) {
+}: FxStatusBadgeProps) {
   if (!fxStatus) return null
 
   return (

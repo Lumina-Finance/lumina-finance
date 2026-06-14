@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { CircleHelp, LifeBuoy } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { FxStatusTooltip } from '@/components/tooltips/FxStatusTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import { getRunwayFxStatusMessage } from '@/utils/fxTooltipMessages'
 
@@ -45,7 +45,7 @@ export function RunwayHeader({
           Runway settings
         </Link>
       </IconTooltip>
-      <FxStatusTooltip
+      <FxStatusBadge
         label="Runway FX status"
         fxStatus={fxStatus}
         getMessage={getRunwayFxStatusMessage}

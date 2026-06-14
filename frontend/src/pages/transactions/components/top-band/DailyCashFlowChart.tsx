@@ -27,8 +27,8 @@ import {
   getRechartsTooltipPointer,
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatMissingFxPairs, getFxStatusTone } from '@/utils/fxStatus'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { PLACEHOLDER_DAILY_FLOW } from '@/pages/transactions/components/top-band/constants'
 import {
@@ -288,21 +288,12 @@ export default function DailyCashFlowChart({
           >
             {calculationTooltipMessage}
           </IconTooltip>
-          {fxStatus && (
-            <IconTooltip
-              label="Daily cash flow FX status"
-              icon="fx"
-              fxTone={getFxStatusTone(fxStatus)}
-              placement="top"
-            >
-              <span className="block">{getCashFlowFxStatusMessage(fxStatus)}</span>
-              {fxStatus.missing_pairs.length > 0 && (
-                <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}
-                </span>
-              )}
-            </IconTooltip>
-          )}
+          <FxStatusBadge
+            label="Daily cash flow FX status"
+            fxStatus={fxStatus}
+            placement="top"
+            getMessage={getCashFlowFxStatusMessage}
+          />
         </p>
         <button
           type="button"
