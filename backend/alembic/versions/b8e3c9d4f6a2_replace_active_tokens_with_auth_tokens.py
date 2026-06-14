@@ -64,6 +64,9 @@ def upgrade() -> None:
         postgresql_where=sa.text("token_kind = 'REFRESH' AND refresh_grace_expires_at IS NOT NULL"),
     )
 
+    # This migration intentionally invalidates every existing login session
+    op.execute(sa.text("DELETE FROM auth_sessions"))
+
     op.drop_index(op.f("ix_active_tokens_session_id"), table_name="active_tokens")
     op.drop_table("active_tokens")
 

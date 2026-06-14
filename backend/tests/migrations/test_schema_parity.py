@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
@@ -20,6 +21,8 @@ from tests.conftest import (
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 _ALEMBIC_TEST_DB_NAME = f"{WORKER_DB_NAME}_alembic_schema"
+_ALEMBIC_AUTH_RESET_DB_NAME = f"{WORKER_DB_NAME}_alembic_auth_reset"
+_AUTH_SESSIONS_REVISION = "a4f8d1c2e7b3"
 
 
 async def test_alembic_schema_columns_match_model_metadata() -> None:
@@ -32,6 +35,25 @@ async def test_alembic_schema_columns_match_model_metadata() -> None:
         assert actual_columns == expected_columns
     finally:
         await _drop_database(_ALEMBIC_TEST_DB_NAME)
+
+
+async def test_auth_session_overhaul_clears_legacy_auth_state() -> None:
+    """Verify the auth-token migration does not carry old sessions forward"""
+    await _recreate_database(_ALEMBIC_AUTH_RESET_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_AUTH_RESET_DB_NAME, revision=_AUTH_SESSIONS_REVISION)
+        await _seed_legacy_auth_state(_ALEMBIC_AUTH_RESET_DB_NAME)
+
+        _run_alembic_upgrade(_ALEMBIC_AUTH_RESET_DB_NAME)
+
+        session_count, token_count, active_tokens_exists = await _get_auth_storage_state(
+            _ALEMBIC_AUTH_RESET_DB_NAME,
+        )
+        assert session_count == 0
+        assert token_count == 0
+        assert not active_tokens_exists
+    finally:
+        await _drop_database(_ALEMBIC_AUTH_RESET_DB_NAME)
 
 
 async def _recreate_database(database_name: str) -> None:
@@ -79,8 +101,8 @@ async def _terminate_database_connections(conn: AsyncConnection, database_name: 
     )
 
 
-def _run_alembic_upgrade(database_name: str) -> None:
-    """Run Alembic upgrade head against a generated parity database"""
+def _run_alembic_upgrade(database_name: str, *, revision: str = "head") -> None:
+    """Run Alembic upgrade against a generated parity database"""
     environment = os.environ.copy()
     environment.update(
         {
@@ -92,8 +114,9 @@ def _run_alembic_upgrade(database_name: str) -> None:
         },
     )
 
-    completed = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+    # Alembic revisions are fixed test constants, and subprocess keeps migration imports isolated
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "alembic", "upgrade", revision],
         cwd=_BACKEND_DIR,
         env=environment,
         check=False,
@@ -101,6 +124,83 @@ def _run_alembic_upgrade(database_name: str) -> None:
         text=True,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+async def _seed_legacy_auth_state(database_name: str) -> None:
+    """Insert old auth rows that the overhaul migration should discard"""
+    user_id = UUID("11111111-1111-4111-8111-111111111111")
+    session_id = UUID("22222222-2222-4222-8222-222222222222")
+    token_id = UUID("33333333-3333-4333-8333-333333333333")
+
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.begin() as conn:
+
+            # Seed the user dependency needed by legacy auth rows
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO currencies (id, name, symbol, minor_unit_exponent)
+                    VALUES ('CAD', 'Canadian Dollar', '$', 2)
+                    """,
+                ),
+            )
+
+            # Seed a user so legacy auth rows are valid before the migration runs
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO users (id, email, first_name, tz, base_currency)
+                    VALUES (:user_id, 'migration-auth-reset@example.com', 'Migration', 'America/Toronto', 'CAD')
+                    """,
+                ),
+                {"user_id": user_id},
+            )
+
+            # Seed the old session row that should force the user to log in again
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO auth_sessions (id, user_id, expires_at)
+                    VALUES (:session_id, :user_id, now() + interval '1 day')
+                    """,
+                ),
+                {"session_id": session_id, "user_id": user_id},
+            )
+
+            # Seed the old token row that should be removed with the legacy table
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO active_tokens (jti, user_id, session_id, expires_at)
+                    VALUES (:token_id, :user_id, :session_id, now() + interval '1 day')
+                    """,
+                ),
+                {"token_id": token_id, "user_id": user_id, "session_id": session_id},
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _get_auth_storage_state(database_name: str) -> tuple[int, int, bool]:
+    """Return auth storage row counts after the overhaul migration"""
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.connect() as conn:
+
+            # Count remaining sessions to verify pre-overhaul login state was discarded
+            session_count = await conn.scalar(text("SELECT count(*) FROM auth_sessions"))
+
+            # Count token allowlist rows to verify no token rows exist after upgrade
+            token_count = await conn.scalar(text("SELECT count(*) FROM auth_tokens"))
+
+            # Check the legacy table is gone so old active token rows cannot survive
+            active_tokens_exists = await conn.scalar(
+                text("SELECT to_regclass('public.active_tokens') IS NOT NULL"),
+            )
+            return int(session_count or 0), int(token_count or 0), bool(active_tokens_exists)
+    finally:
+        await engine.dispose()
 
 
 async def _get_database_columns(database_name: str) -> dict[str, set[str]]:
