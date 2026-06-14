@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import delete
+from sqlalchemy import delete, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
@@ -36,9 +36,14 @@ async def delete_expired_auth_tokens(db: AsyncSession) -> None:
     Returns:
         None
     """
-    expired_token_delete_query = delete(AuthToken).where(AuthToken.expires_at < sa_func.now())
+    expired_token_delete_query = delete(AuthToken).where(
+        or_(
+            AuthToken.expires_at < sa_func.now(),
+            AuthToken.refresh_grace_expires_at < sa_func.now(),
+        ),
+    )
 
-    # Keep the token allowlist bounded to credentials that can still authorize requests
+    # Keep the token allowlist bounded to credentials that can still authorize requests or grace refreshes
     await db.execute(expired_token_delete_query)
 
 
@@ -58,20 +63,50 @@ async def delete_auth_session(db: AsyncSession, session_id: uuid.UUID) -> None:
     await db.execute(session_delete_query)
 
 
-async def delete_auth_session_tokens(db: AsyncSession, session_id: uuid.UUID) -> None:
-    """Delete every allowlisted token for a session
+async def rotate_auth_session_tokens(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+    refresh_grace_expires_at: datetime,
+) -> None:
+    """Prepare a session for refresh token rotation
 
     Args:
         db: Active database session
-        session_id: Session whose token rows should be removed
+        session_id: Session whose token rows should be rotated
+        refresh_grace_expires_at: Grace expiry for the previous refresh token
 
     Returns:
         None
     """
-    token_delete_query = delete(AuthToken).where(AuthToken.session_id == session_id)
+    access_token_delete_query = delete(AuthToken).where(
+        AuthToken.session_id == session_id,
+        AuthToken.token_kind == AuthTokenKind.ACCESS,
+    )
 
-    # Refresh rotation replaces both token rows so stale access and refresh tokens stop authorizing
-    await db.execute(token_delete_query)
+    # A new refresh invalidates the old access token immediately
+    await db.execute(access_token_delete_query)
+
+    previous_refresh_delete_query = delete(AuthToken).where(
+        AuthToken.session_id == session_id,
+        AuthToken.token_kind == AuthTokenKind.REFRESH,
+        AuthToken.refresh_grace_expires_at.is_not(None),
+    )
+
+    # Only one previous refresh token is kept so reload races cannot accumulate token rows
+    await db.execute(previous_refresh_delete_query)
+
+    current_refresh_update_query = (
+        update(AuthToken)
+        .where(
+            AuthToken.session_id == session_id,
+            AuthToken.token_kind == AuthTokenKind.REFRESH,
+            AuthToken.refresh_grace_expires_at.is_(None),
+        )
+        .values(refresh_grace_expires_at=refresh_grace_expires_at)
+    )
+
+    # The current refresh token remains usable only for the short rotation grace window
+    await db.execute(current_refresh_update_query)
 
 
 def create_auth_session(user_id: uuid.UUID, session_id: uuid.UUID, expires_at: datetime) -> AuthSession:
@@ -95,6 +130,7 @@ def create_auth_token(
     token_id: uuid.UUID,
     token_kind: AuthTokenKind,
     expires_at: datetime,
+    refresh_grace_expires_at: datetime | None = None,
 ) -> AuthToken:
     """Return a new auth token allowlist row
 
@@ -104,6 +140,7 @@ def create_auth_token(
         token_id: JWT identifier embedded in the token
         token_kind: Whether the token is an access or refresh token
         expires_at: Timestamp when the token expires
+        refresh_grace_expires_at: Timestamp when previous-refresh grace expires
 
     Returns:
         Unsaved auth token model
@@ -114,5 +151,6 @@ def create_auth_token(
         session_id=session_id,
         token_kind=token_kind,
         expires_at=expires_at,
+        refresh_grace_expires_at=refresh_grace_expires_at,
     )
     return auth_token

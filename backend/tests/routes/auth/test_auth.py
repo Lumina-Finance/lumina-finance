@@ -1,9 +1,12 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import jwt
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
+from app.config import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER, JWT_REFRESH_PRIVATE_KEY
 from app.main import app
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
@@ -18,6 +21,29 @@ LOGIN_PAYLOAD = {
     "email": "test@example.com",
     "password": "securepassword123",
 }
+
+
+def _encode_auth_test_token(
+    *,
+    private_key: str,
+    user_id,
+    token_id,
+    session_id,
+    token_use: str,
+) -> str:
+    """Return a signed JWT with explicit auth claims for edge-case tests"""
+    issued_at = datetime.now(UTC)
+    payload = {
+        "sub": str(user_id),
+        "jti": str(token_id),
+        "sid": str(session_id),
+        "token_use": token_use,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(minutes=15),
+        "iss": JWT_ISSUER,
+    }
+    token = jwt.encode(payload, private_key, algorithm=JWT_ALGORITHM)
+    return token
 
 
 # --- Signup ---
@@ -223,7 +249,7 @@ async def test_refresh_returns_new_token_pair(client):
 
 
 async def test_refresh_rotates_token(client):
-    """After refresh, the old refresh token is deleted and a new one is issued."""
+    """After refresh, the old refresh token remains briefly usable in grace"""
     signup_resp = await _create_user(client)
     old_cookie = signup_resp.cookies["refresh_token"]
 
@@ -231,13 +257,142 @@ async def test_refresh_rotates_token(client):
     resp = await client.post("/auth/refresh")
     new_cookie = resp.cookies["refresh_token"]
 
-    # Old and new cookies should differ
     assert old_cookie != new_cookie
 
-    # Old token should no longer work
     client.cookies.set("refresh_token", old_cookie)
     resp = await client.post("/auth/refresh")
+    assert resp.status_code == 200
+
+    async with TestSession() as session:
+        token_result = await session.execute(select(AuthToken))
+        tokens = token_result.scalars().all()
+        refresh_tokens = [token for token in tokens if token.token_kind == AuthTokenKind.REFRESH]
+        access_tokens = [token for token in tokens if token.token_kind == AuthTokenKind.ACCESS]
+        assert len(refresh_tokens) == 2
+        assert len(access_tokens) == 1
+
+
+async def test_previous_refresh_token_after_grace_returns_401(client):
+    """A previous refresh token stops working after its grace window expires"""
+    signup_resp = await _create_user(client)
+    old_cookie = signup_resp.cookies["refresh_token"]
+
+    client.cookies.set("refresh_token", old_cookie)
+    resp = await client.post("/auth/refresh")
+    assert resp.status_code == 200
+
+    async with TestSession() as session:
+        result = await session.execute(
+            select(AuthToken).where(
+                AuthToken.token_kind == AuthTokenKind.REFRESH,
+                AuthToken.refresh_grace_expires_at.is_not(None),
+            ),
+        )
+        previous_refresh_token = result.scalar_one()
+        previous_refresh_token.refresh_grace_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        await session.commit()
+
+    client.cookies.set("refresh_token", old_cookie)
+    resp = await client.post("/auth/refresh")
+
     assert resp.status_code == 401
+    assert resp.json()["detail"] == "Refresh token is not active"
+
+
+async def test_rotated_away_refresh_token_returns_409_without_clearing_cookie(client):
+    """A pruned stale refresh token does not clear a newer browser cookie"""
+    signup_resp = await _create_user(client)
+    old_cookie = signup_resp.cookies["refresh_token"]
+
+    client.cookies.set("refresh_token", old_cookie)
+    first_resp = await client.post("/auth/refresh")
+    assert first_resp.status_code == 200
+
+    client.cookies.set("refresh_token", old_cookie)
+    second_resp = await client.post("/auth/refresh")
+    assert second_resp.status_code == 200
+
+    client.cookies.set("refresh_token", old_cookie)
+    third_resp = await client.post("/auth/refresh")
+
+    assert third_resp.status_code == 409
+    assert third_resp.json()["detail"] == "Refresh token was already rotated"
+    assert "refresh_token" not in third_resp.cookies
+
+
+async def test_concurrent_refresh_keeps_only_current_and_previous_refresh_tokens(client):
+    """Concurrent refresh attempts keep one current and one previous refresh token"""
+    signup_resp = await _create_user(client)
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    async def post_refresh_with_cookie():
+        """Post one refresh request using an isolated client cookie jar"""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as refresh_client:
+            refresh_client.cookies.set("refresh_token", refresh_cookie)
+            response = await refresh_client.post("/auth/refresh")
+            return response
+
+    first_response, second_response = await asyncio.gather(
+        post_refresh_with_cookie(),
+        post_refresh_with_cookie(),
+    )
+    statuses = sorted([first_response.status_code, second_response.status_code])
+
+    assert statuses == [200, 200]
+
+    async with TestSession() as session:
+        token_result = await session.execute(select(AuthToken))
+        session_result = await session.execute(select(AuthSession))
+        tokens = token_result.scalars().all()
+        refresh_tokens = [token for token in tokens if token.token_kind == AuthTokenKind.REFRESH]
+        access_tokens = [token for token in tokens if token.token_kind == AuthTokenKind.ACCESS]
+        assert len(refresh_tokens) == 2
+        assert len(access_tokens) == 1
+        assert len(session_result.scalars().all()) == 1
+
+
+async def test_concurrent_current_and_previous_refresh_tokens_do_not_deadlock(client):
+    """Concurrent current and previous refresh tokens serialize on the auth session"""
+    signup_resp = await _create_user(client)
+    previous_cookie = signup_resp.cookies["refresh_token"]
+
+    client.cookies.set("refresh_token", previous_cookie)
+    refresh_resp = await client.post("/auth/refresh")
+    assert refresh_resp.status_code == 200
+    current_cookie = refresh_resp.cookies["refresh_token"]
+
+    async def post_refresh_with_cookie(refresh_cookie: str):
+        """Post one refresh request using an isolated client cookie jar"""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as refresh_client:
+            refresh_client.cookies.set("refresh_token", refresh_cookie)
+            response = await refresh_client.post("/auth/refresh")
+            return response
+
+    previous_response, current_response = await asyncio.wait_for(
+        asyncio.gather(
+            post_refresh_with_cookie(previous_cookie),
+            post_refresh_with_cookie(current_cookie),
+        ),
+        timeout=10,
+    )
+    statuses = sorted([previous_response.status_code, current_response.status_code])
+
+    assert statuses[0] == 200
+    assert statuses[1] in (200, 409)
+    for response in (previous_response, current_response):
+        if response.status_code == 409:
+            assert response.json()["detail"] == "Refresh token was already rotated"
+            assert "refresh_token" not in response.cookies
+
+    async with TestSession() as session:
+        token_result = await session.execute(select(AuthToken))
+        tokens = token_result.scalars().all()
+        refresh_tokens = [token for token in tokens if token.token_kind == AuthTokenKind.REFRESH]
+        access_tokens = [token for token in tokens if token.token_kind == AuthTokenKind.ACCESS]
+        assert len(refresh_tokens) == 2
+        assert len(access_tokens) == 1
 
 
 async def test_refresh_missing_cookie_returns_401(client):
@@ -269,17 +424,101 @@ async def test_access_token_as_refresh_cookie_returns_401(client):
     assert resp.json()["detail"] == "Invalid or expired refresh token"
 
 
+async def test_refresh_token_with_access_use_claim_returns_401(client):
+    """A refresh-signed token with the wrong use claim is rejected"""
+    await _create_user(client)
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthToken).where(AuthToken.token_kind == AuthTokenKind.REFRESH))
+        refresh_token_row = result.scalar_one()
+        token = _encode_auth_test_token(
+            private_key=JWT_REFRESH_PRIVATE_KEY,
+            user_id=refresh_token_row.user_id,
+            token_id=refresh_token_row.jti,
+            session_id=refresh_token_row.session_id,
+            token_use=AuthTokenKind.ACCESS.value,
+        )
+
+    client.cookies.set("refresh_token", token)
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired refresh token"
+
+
+async def test_refresh_token_with_mismatched_session_claim_returns_401(client):
+    """A refresh token whose sid claim does not match the allowlist row is rejected"""
+    await _create_user(client)
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthToken).where(AuthToken.token_kind == AuthTokenKind.REFRESH))
+        refresh_token_row = result.scalar_one()
+        token = _encode_auth_test_token(
+            private_key=JWT_REFRESH_PRIVATE_KEY,
+            user_id=refresh_token_row.user_id,
+            token_id=refresh_token_row.jti,
+            session_id=uuid4(),
+            token_use=AuthTokenKind.REFRESH.value,
+        )
+
+    client.cookies.set("refresh_token", token)
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid token"
+
+
+async def test_refresh_token_with_mismatched_subject_claim_returns_401(client):
+    """A refresh token whose sub claim does not match the allowlist row is rejected"""
+    await _create_user(client)
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthToken).where(AuthToken.token_kind == AuthTokenKind.REFRESH))
+        refresh_token_row = result.scalar_one()
+        token = _encode_auth_test_token(
+            private_key=JWT_REFRESH_PRIVATE_KEY,
+            user_id=uuid4(),
+            token_id=refresh_token_row.jti,
+            session_id=refresh_token_row.session_id,
+            token_use=AuthTokenKind.REFRESH.value,
+        )
+
+    client.cookies.set("refresh_token", token)
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid token"
+
+
+async def test_refresh_rejects_expired_session_with_active_token_row(client):
+    """Refresh fails when the session is expired even if the token row is active"""
+    signup_resp = await _create_user(client)
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthSession))
+        auth_session = result.scalar_one()
+        auth_session.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+        await session.commit()
+
+    client.cookies.set("refresh_token", refresh_cookie)
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Session is not active"
+
+
 async def test_refresh_revokes_old_access_token(client):
     """After refresh, the old access token is removed from the auth token allowlist"""
     signup_resp = await _create_user(client)
     old_access_token = signup_resp.json()["access_token"]
     refresh_cookie = signup_resp.cookies["refresh_token"]
 
-    # Record JTIs from the signup pair
     async with TestSession() as session:
-        result = await session.execute(select(AuthToken.jti))
-        old_jtis = {row[0] for row in result.all()}
-        assert len(old_jtis) == 2
+        result = await session.execute(select(AuthToken))
+        old_tokens = result.scalars().all()
+        old_access_jti = next(token.jti for token in old_tokens if token.token_kind == AuthTokenKind.ACCESS)
+        old_refresh_jti = next(token.jti for token in old_tokens if token.token_kind == AuthTokenKind.REFRESH)
 
     client.cookies.set("refresh_token", refresh_cookie)
     refresh_resp = await client.post("/auth/refresh")
@@ -287,19 +526,21 @@ async def test_refresh_revokes_old_access_token(client):
 
     new_access_token = refresh_resp.json()["access_token"]
 
-    # Old pair replaced by new pair — JTIs should be entirely different
     async with TestSession() as session:
-        result = await session.execute(select(AuthToken.jti))
-        new_jtis = {row[0] for row in result.all()}
-        assert len(new_jtis) == 2
-        assert old_jtis.isdisjoint(new_jtis)
+        result = await session.execute(select(AuthToken))
+        new_tokens = result.scalars().all()
+        new_jtis = {token.jti for token in new_tokens}
+        refresh_tokens = [token for token in new_tokens if token.token_kind == AuthTokenKind.REFRESH]
+        access_tokens = [token for token in new_tokens if token.token_kind == AuthTokenKind.ACCESS]
+        assert len(refresh_tokens) == 2
+        assert len(access_tokens) == 1
+        assert old_access_jti not in new_jtis
+        assert old_refresh_jti in new_jtis
 
-    # The old access token should no longer authenticate
     resp = await client.get("/test/me", headers={"Authorization": f"Bearer {old_access_token}"})
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Token is not active"
 
-    # The new access token should work
     resp = await client.get("/test/me", headers={"Authorization": f"Bearer {new_access_token}"})
     assert resp.status_code == 200
 
@@ -401,6 +642,24 @@ async def test_logout_without_auth_header_returns_200(client):
 
     assert resp.status_code == 200
     assert resp.json()["detail"] == "Logged out"
+
+
+async def test_logout_with_refresh_cookie_only_revokes_session(client):
+    """Logout can revoke a session using only the refresh cookie"""
+    signup_resp = await _create_user(client)
+    refresh_cookie = signup_resp.cookies["refresh_token"]
+
+    client.cookies.set("refresh_token", refresh_cookie)
+    resp = await client.post("/auth/logout")
+
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "Logged out"
+
+    async with TestSession() as session:
+        token_result = await session.execute(select(AuthToken))
+        session_result = await session.execute(select(AuthSession))
+        assert len(token_result.scalars().all()) == 0
+        assert len(session_result.scalars().all()) == 0
 
 
 async def test_double_logout_is_idempotent(client):
@@ -533,6 +792,86 @@ async def test_invalid_access_token_returns_401(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid or expired token"
+
+
+async def test_access_token_with_refresh_use_claim_returns_401(client):
+    """An access-signed token with the wrong use claim is rejected"""
+    await _create_user(client)
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthToken).where(AuthToken.token_kind == AuthTokenKind.ACCESS))
+        access_token_row = result.scalar_one()
+        token = _encode_auth_test_token(
+            private_key=JWT_ACCESS_PRIVATE_KEY,
+            user_id=access_token_row.user_id,
+            token_id=access_token_row.jti,
+            session_id=access_token_row.session_id,
+            token_use=AuthTokenKind.REFRESH.value,
+        )
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid token"
+
+
+async def test_access_token_with_mismatched_session_claim_returns_401(client):
+    """An access token whose sid claim does not match the allowlist row is rejected"""
+    await _create_user(client)
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthToken).where(AuthToken.token_kind == AuthTokenKind.ACCESS))
+        access_token_row = result.scalar_one()
+        token = _encode_auth_test_token(
+            private_key=JWT_ACCESS_PRIVATE_KEY,
+            user_id=access_token_row.user_id,
+            token_id=access_token_row.jti,
+            session_id=uuid4(),
+            token_use=AuthTokenKind.ACCESS.value,
+        )
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Token is not active"
+
+
+async def test_access_token_with_mismatched_subject_claim_returns_401(client):
+    """An access token whose sub claim does not match the allowlist row is rejected"""
+    await _create_user(client)
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthToken).where(AuthToken.token_kind == AuthTokenKind.ACCESS))
+        access_token_row = result.scalar_one()
+        token = _encode_auth_test_token(
+            private_key=JWT_ACCESS_PRIVATE_KEY,
+            user_id=uuid4(),
+            token_id=access_token_row.jti,
+            session_id=access_token_row.session_id,
+            token_use=AuthTokenKind.ACCESS.value,
+        )
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Token is not active"
+
+
+async def test_access_token_rejects_expired_session_with_active_token_row(client):
+    """Access fails when the session is expired even if the token row is active"""
+    signup_resp = await _create_user(client)
+    access_token = signup_resp.json()["access_token"]
+
+    async with TestSession() as session:
+        result = await session.execute(select(AuthSession))
+        auth_session = result.scalar_one()
+        auth_session.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+        await session.commit()
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {access_token}"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Session is not active"
 
 
 async def test_revoked_access_token_returns_401(client):

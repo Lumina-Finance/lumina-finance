@@ -64,8 +64,17 @@ async def test_delete_expired_auth_tokens_keeps_active_allowlist_rows(db):
         token_kind=AuthTokenKind.REFRESH,
         expires_at=datetime.now(UTC) + timedelta(days=1),
     )
+    expired_grace_token = AuthToken(
+        jti=uuid4(),
+        user_id=user.id,
+        session_id=auth_session.id,
+        token_kind=AuthTokenKind.REFRESH,
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+        refresh_grace_expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
     db.add(expired_token)
     db.add(active_token)
+    db.add(expired_grace_token)
     await db.flush()
 
     await delete_expired_auth_tokens(db)
@@ -77,6 +86,7 @@ async def test_delete_expired_auth_tokens_keeps_active_allowlist_rows(db):
     remaining_token_ids = set(result.scalars().all())
 
     assert expired_token.jti not in remaining_token_ids
+    assert expired_grace_token.jti not in remaining_token_ids
     assert active_token.jti in remaining_token_ids
 
 

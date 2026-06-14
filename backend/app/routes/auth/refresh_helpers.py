@@ -14,11 +14,11 @@ from app.routes.auth.token_helpers import (
     decode_refresh_token,
     get_active_session_by_id,
     get_active_token_by_jti,
+    get_token_by_jti,
     get_user_by_id,
     issue_and_store_tokens,
 )
 from app.schemas.auth import AuthResponse
-from app.services.auth.sessions import delete_auth_session_tokens
 
 
 @dataclass(frozen=True)
@@ -60,7 +60,6 @@ async def refresh_auth_tokens(
     if not user:
         _raise_refresh_token_error(response, "User not found")
 
-    await delete_auth_session_tokens(db, claims.session_id)
     auth_response = await issue_and_store_tokens(db, request, response, user, session_id=claims.session_id)
     return auth_response
 
@@ -112,16 +111,56 @@ async def _verify_refresh_token_allowlist(
     Returns:
         None
     """
+    token = await get_token_by_jti(db, claims.token_id, AuthTokenKind.REFRESH)
+    if token is not None and (token.session_id != claims.session_id or token.user_id != claims.user_id):
+        _raise_refresh_token_error(response, "Invalid token")
+
+    auth_session = await get_active_session_by_id(db, claims.session_id, claims.user_id, lock_for_update=True)
+    if not auth_session:
+        _raise_refresh_token_error(response, "Session is not active")
+
     active = await get_active_token_by_jti(db, claims.token_id, AuthTokenKind.REFRESH)
     if not active:
+        await _raise_for_rotated_or_inactive_refresh_token(db, claims)
         _raise_refresh_token_error(response, "Refresh token is not active")
 
     if active.session_id != claims.session_id or active.user_id != claims.user_id:
         _raise_refresh_token_error(response, "Invalid token")
 
-    auth_session = await get_active_session_by_id(db, claims.session_id, claims.user_id)
-    if not auth_session:
-        _raise_refresh_token_error(response, "Session is not active")
+
+async def _raise_for_rotated_or_inactive_refresh_token(
+    db: AsyncSession,
+    claims: _RefreshTokenClaims,
+) -> None:
+    """Raise a non-clearing conflict when a refresh token was already rotated away
+
+    Args:
+        db: Active database session
+        claims: Parsed refresh token identifiers
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Refresh token was already rotated while the session is still active
+    """
+    token = await get_token_by_jti(db, claims.token_id, AuthTokenKind.REFRESH)
+    if token is not None:
+        return
+
+    _raise_refresh_token_conflict("Refresh token was already rotated")
+
+
+def _raise_refresh_token_conflict(detail: str) -> NoReturn:
+    """Raise a refresh conflict without clearing the refresh cookie
+
+    Args:
+        detail: Response detail explaining why refresh did not produce a token pair
+
+    Raises:
+        HTTPException: Refresh request lost a rotation race
+    """
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from None
 
 
 def _raise_refresh_token_error(response: Response, detail: str) -> NoReturn:

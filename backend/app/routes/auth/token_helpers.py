@@ -1,11 +1,12 @@
 """Auth token route helpers"""
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from fastapi import Request, Response
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
@@ -14,6 +15,7 @@ from app.config import (
     JWT_ALGORITHM,
     JWT_ISSUER,
     JWT_REFRESH_PRIVATE_KEY,
+    JWT_REFRESH_ROTATION_GRACE_SECONDS,
 )
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
@@ -26,6 +28,7 @@ from app.services.auth.sessions import (
     create_auth_token,
     delete_expired_auth_sessions,
     delete_expired_auth_tokens,
+    rotate_auth_session_tokens,
 )
 from app.services.auth.tokens import create_access_token, create_refresh_token
 
@@ -119,6 +122,13 @@ async def get_active_token_by_jti(
         AuthToken.token_kind == token_kind,
         AuthToken.expires_at > sa_func.now(),
     )
+    if token_kind == AuthTokenKind.REFRESH:
+        active_token_query = active_token_query.where(
+            or_(
+                AuthToken.refresh_grace_expires_at.is_(None),
+                AuthToken.refresh_grace_expires_at > sa_func.now(),
+            ),
+        )
 
     # Fetch the token allowlist row so only currently valid credentials authorize
     result = await db.execute(active_token_query)
@@ -126,10 +136,38 @@ async def get_active_token_by_jti(
     return active_token
 
 
+async def get_token_by_jti(
+    db: AsyncSession,
+    token_jti: uuid.UUID,
+    token_kind: AuthTokenKind,
+) -> AuthToken | None:
+    """Return a token allowlist row by JWT identifier without active-window checks
+
+    Args:
+        db: Active database session
+        token_jti: JWT identifier from token claims
+        token_kind: Expected token kind for this auth path
+
+    Returns:
+        Token row when the JWT identifier is still present in the allowlist table
+    """
+    token_query = select(AuthToken).where(
+        AuthToken.jti == token_jti,
+        AuthToken.token_kind == token_kind,
+    )
+
+    # Fetch the raw allowlist row so refresh can distinguish expired grace from rotated-away tokens
+    result = await db.execute(token_query)
+    token = result.scalar_one_or_none()
+    return token
+
+
 async def get_active_session_by_id(
     db: AsyncSession,
     session_id: uuid.UUID,
     user_id: uuid.UUID,
+    *,
+    lock_for_update: bool = False,
 ) -> AuthSession | None:
     """Return an active auth session by identifier
 
@@ -137,6 +175,7 @@ async def get_active_session_by_id(
         db: Active database session
         session_id: Session identifier from token claims
         user_id: User identifier from token claims
+        lock_for_update: Whether to lock the session row for rotation-sensitive checks
 
     Returns:
         Auth session row when it is allowlisted and unexpired
@@ -146,6 +185,8 @@ async def get_active_session_by_id(
         AuthSession.user_id == user_id,
         AuthSession.expires_at > sa_func.now(),
     )
+    if lock_for_update:
+        active_session_query = active_session_query.with_for_update()
 
     # Fetch the session allowlist row so tokens cannot authorize after logout or expiry
     result = await db.execute(active_session_query)
@@ -207,6 +248,8 @@ async def issue_and_store_tokens(
         if auth_session is None:
             raise RuntimeError("Cannot issue tokens for a missing auth session")
         auth_session.expires_at = refresh_exp
+        refresh_grace_expires_at = _get_refresh_grace_expiry()
+        await rotate_auth_session_tokens(db, session_id, refresh_grace_expires_at)
 
     db.add(create_auth_token(user.id, session_id, access_jti, AuthTokenKind.ACCESS, access_exp))
     db.add(create_auth_token(user.id, session_id, refresh_jti, AuthTokenKind.REFRESH, refresh_exp))
@@ -215,3 +258,13 @@ async def issue_and_store_tokens(
     set_refresh_cookie(request, response, refresh_token)
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
     return auth_response
+
+
+def _get_refresh_grace_expiry() -> datetime:
+    """Return when the previous refresh token should stop working
+
+    Returns:
+        UTC timestamp for the refresh rotation grace deadline
+    """
+    grace_expires_at = datetime.now(UTC) + timedelta(seconds=JWT_REFRESH_ROTATION_GRACE_SECONDS)
+    return grace_expires_at
