@@ -39,7 +39,6 @@ export default function AccountsPage() {
   const { taxAdvantagedCategoryById, taxAdvantagedLimitSummaries } =
     useTaxAdvantagedLimitSummaries({
       rows,
-      filteredRows,
       taxAdvantagedCategories,
     })
 

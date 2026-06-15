@@ -3,7 +3,7 @@ import { hasTaxAdvantagedLimitTracking } from '@/pages/accounts/utils/taxAdvanta
 import { TaxAdvantagedLimitMeterStack } from './LimitMeterStack'
 
 /**
- * Renders tax-advantaged limit summaries for the currently visible accounts
+ * Renders tax-advantaged limit summaries for linked active accounts
  */
 export default function TaxAdvantagedLimitsSection({
   summaries,
