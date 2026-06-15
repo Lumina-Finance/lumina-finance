@@ -19,7 +19,10 @@ import {
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
-import { getNextTransactionModalFieldTabStop } from '@/pages/transactions/components/transaction-modal/utils/focus'
+import {
+  getNextTransactionModalFieldTabStop,
+  TRANSACTION_MODAL_FIELD_IDS,
+} from '@/pages/transactions/components/transaction-modal/utils/focus'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -226,12 +229,20 @@ describe('transaction modal helpers', () => {
   })
 
   it('wraps transaction modal Tab focus through field controls only', () => {
-    const fieldTabStops = ['account', 'merchant', 'category', 'date', 'amount', 'notes']
+    const fieldTabStops = [
+      TRANSACTION_MODAL_FIELD_IDS.account,
+      TRANSACTION_MODAL_FIELD_IDS.merchant,
+      TRANSACTION_MODAL_FIELD_IDS.category,
+      'date',
+      'amount',
+      'notes',
+    ]
 
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, null, false)).toBe('account')
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'account', false)).toBe('merchant')
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'notes', false)).toBe('account')
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'account', true)).toBe('notes')
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, null, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.merchant)
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.merchant, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.category)
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'notes', false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, true)).toBe('notes')
     expect(getNextTransactionModalFieldTabStop([], null, false)).toBeNull()
   })
 })

@@ -4,6 +4,7 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
 import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/FieldLabelRow'
 import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/SectionFrame'
+import { TRANSACTION_MODAL_FIELD_IDS } from '@/pages/transactions/components/transaction-modal/utils/focus'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type SelectedTransactionTag = {
@@ -114,6 +115,7 @@ export default function TransactionReferencesSection({
       <div>
         <TransactionModalFieldLabelRow label="Account" error={accountError} />
         <Dropdown
+          id={TRANSACTION_MODAL_FIELD_IDS.account}
           options={accountOptions}
           selectedOption={selectedArchivedAccountOption}
           value={accountValue}
@@ -154,6 +156,7 @@ export default function TransactionReferencesSection({
       <div>
         <TransactionModalFieldLabelRow label="Merchant" error={merchantError} />
         <Dropdown
+          id={TRANSACTION_MODAL_FIELD_IDS.merchant}
           options={merchantOptions}
           selectedOption={selectedMerchantOption}
           value={merchantValue}
@@ -198,6 +201,7 @@ export default function TransactionReferencesSection({
           )}
         />
         <Dropdown
+          id={TRANSACTION_MODAL_FIELD_IDS.category}
           options={categoryOptions}
           value={categoryValue}
           onChange={onCategoryChange}

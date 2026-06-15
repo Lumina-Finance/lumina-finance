@@ -1,9 +1,15 @@
 const FIELD_TAB_STOP_SELECTOR = [
-  'input:not([disabled]):not([type="hidden"])',
+  'input:not([disabled]):not([type="hidden"]):not([data-dropdown-search="true"])',
   'textarea:not([disabled])',
   'select:not([disabled])',
   'button[role="combobox"]:not([disabled])',
 ].join(',')
+
+export const TRANSACTION_MODAL_FIELD_IDS = {
+  account: 'txn-account',
+  merchant: 'txn-merchant',
+  category: 'txn-category',
+} as const
 
 /**
  * Returns enabled transaction modal fields that should receive sequential Tab focus
@@ -30,6 +36,25 @@ export function getNextTransactionModalFieldTabStop<T>(
   }
 
   return fieldTabStops[activeIndex < 0 || activeIndex === fieldTabStops.length - 1 ? 0 : activeIndex + 1]
+}
+
+/**
+ * Moves focus to the next modal field after a dropdown value is selected
+ */
+export function requestNextTransactionModalFieldFocus(currentFieldId: string) {
+  window.requestAnimationFrame(() => {
+    const currentField = document.getElementById(currentFieldId)
+    const panel = currentField?.closest('[data-transaction-modal-panel="true"]') as HTMLElement | null
+    if (!currentField || !panel) return
+
+    const nextField = getNextTransactionModalFieldTabStop(
+      getTransactionModalFieldTabStops(panel),
+      currentField,
+      false,
+    )
+
+    if (nextField && nextField !== currentField) nextField.focus({ preventScroll: true })
+  })
 }
 
 /**

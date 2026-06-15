@@ -179,7 +179,18 @@ const Dropdown = ({
    * Handles shared keyboard navigation from the trigger and search field
    */
   const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    const eventStartedOnTrigger = e.currentTarget === triggerRef.current;
+
     switch (e.key) {
+      case ' ':
+        if (!eventStartedOnTrigger) break;
+        e.preventDefault();
+        if (!open) {
+          updateListPosition();
+          setOpen(true);
+          setHighlightedIndex(visibleFiltered.findIndex((o) => o.value === value));
+        }
+        break;
       case 'ArrowDown':
         e.preventDefault();
         if (!open) {
