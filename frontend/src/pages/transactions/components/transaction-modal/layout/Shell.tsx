@@ -4,9 +4,10 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ReceiptText, X } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
 import {
-  getNextTransactionModalFieldTabStop,
-  getTransactionModalFieldTabStops,
-} from '@/pages/transactions/components/transaction-modal/utils/focus'
+  getModalFieldTabStops,
+  getNextModalFieldTabStop,
+  requestFirstModalFieldFocus,
+} from '@/components/modal/focus'
 
 interface TransactionModalShellProps {
   open: boolean
@@ -37,26 +38,26 @@ export default function TransactionModalShell({
   useEffect(() => {
     if (!open) return
 
-    const frameId = window.requestAnimationFrame(() => {
-      const firstField = panelRef.current
-        ? getTransactionModalFieldTabStops(panelRef.current)[0]
-        : undefined
+    const panel = panelRef.current
+    if (!panel) return
 
-      firstField?.focus({ preventScroll: true })
-    })
+    const frameId = requestFirstModalFieldFocus(panel)
 
     return () => window.cancelAnimationFrame(frameId)
   }, [open])
 
+  /**
+   * Keeps sequential Tab focus on modal fields while leaving action buttons pointer-accessible
+   */
   const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Tab') return
 
     const panel = panelRef.current
     if (!panel) return
 
-    const fieldTabStops = getTransactionModalFieldTabStops(panel)
+    const fieldTabStops = getModalFieldTabStops(panel)
     const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const nextField = getNextTransactionModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
+    const nextField = getNextModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
 
     if (!nextField) {
       event.preventDefault()
@@ -96,7 +97,7 @@ export default function TransactionModalShell({
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-txn-title"
-              data-transaction-modal-panel="true"
+              data-modal-field-focus-panel="true"
               className="app-modal-panel flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
               transition={{ layout: { duration: 0.22, ease: EASE } }}
               style={{

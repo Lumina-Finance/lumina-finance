@@ -1,28 +1,24 @@
-const FIELD_TAB_STOP_SELECTOR = [
+const MODAL_FIELD_TAB_STOP_SELECTOR = [
   'input:not([disabled]):not([type="hidden"]):not([data-dropdown-search="true"])',
   'textarea:not([disabled])',
   'select:not([disabled])',
   'button[role="combobox"]:not([disabled])',
 ].join(',')
 
-export const TRANSACTION_MODAL_FIELD_IDS = {
-  account: 'txn-account',
-  merchant: 'txn-merchant',
-  category: 'txn-category',
-} as const
+const MODAL_FIELD_FOCUS_PANEL_SELECTOR = '[data-modal-field-focus-panel="true"]'
 
 /**
- * Returns enabled transaction modal fields that should receive sequential Tab focus
+ * Returns enabled modal fields that should receive sequential Tab focus
  */
-export function getTransactionModalFieldTabStops(container: HTMLElement) {
-  return Array.from(container.querySelectorAll<HTMLElement>(FIELD_TAB_STOP_SELECTOR))
-    .filter(isVisibleTransactionModalField)
+export function getModalFieldTabStops(container: HTMLElement) {
+  return Array.from(container.querySelectorAll<HTMLElement>(MODAL_FIELD_TAB_STOP_SELECTOR))
+    .filter(isVisibleModalField)
 }
 
 /**
- * Gets the next transaction modal field for Tab or Shift+Tab focus wrapping
+ * Gets the next modal field for Tab or Shift+Tab focus wrapping
  */
-export function getNextTransactionModalFieldTabStop<T>(
+export function getNextModalFieldTabStop<T>(
   fieldTabStops: readonly T[],
   activeElement: T | null,
   shiftKey: boolean,
@@ -41,14 +37,14 @@ export function getNextTransactionModalFieldTabStop<T>(
 /**
  * Moves focus to the next modal field after a dropdown value is selected
  */
-export function requestNextTransactionModalFieldFocus(currentFieldId: string) {
+export function requestNextModalFieldFocus(currentFieldId: string) {
   window.requestAnimationFrame(() => {
     const currentField = document.getElementById(currentFieldId)
-    const panel = currentField?.closest('[data-transaction-modal-panel="true"]') as HTMLElement | null
+    const panel = currentField?.closest(MODAL_FIELD_FOCUS_PANEL_SELECTOR) as HTMLElement | null
     if (!currentField || !panel) return
 
-    const nextField = getNextTransactionModalFieldTabStop(
-      getTransactionModalFieldTabStops(panel),
+    const nextField = getNextModalFieldTabStop(
+      getModalFieldTabStops(panel),
       currentField,
       false,
     )
@@ -58,9 +54,18 @@ export function requestNextTransactionModalFieldFocus(currentFieldId: string) {
 }
 
 /**
+ * Requests focus for the first enabled modal field after the modal panel mounts
+ */
+export function requestFirstModalFieldFocus(panel: HTMLElement) {
+  return window.requestAnimationFrame(() => {
+    getModalFieldTabStops(panel)[0]?.focus({ preventScroll: true })
+  })
+}
+
+/**
  * Filters out responsive-hidden fields while preserving visually layered inputs like mobile date
  */
-function isVisibleTransactionModalField(element: HTMLElement) {
+function isVisibleModalField(element: HTMLElement) {
   const style = window.getComputedStyle(element)
   if (style.display === 'none' || style.visibility === 'hidden') return false
 

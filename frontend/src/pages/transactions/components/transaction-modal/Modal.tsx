@@ -57,10 +57,8 @@ import TransactionTypeDirectionSection from '@/pages/transactions/components/tra
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/pages/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
 import { useTransactionModalEnvironment } from '@/pages/transactions/components/transaction-modal/hooks/useEnvironment'
-import {
-  requestNextTransactionModalFieldFocus,
-  TRANSACTION_MODAL_FIELD_IDS,
-} from '@/pages/transactions/components/transaction-modal/utils/focus'
+import { requestNextModalFieldFocus } from '@/components/modal/focus'
+import { TRANSACTION_MODAL_FIELD_IDS } from '@/pages/transactions/components/transaction-modal/constants'
 
 export default function CreateTransactionModal({
   open,
@@ -308,7 +306,7 @@ export default function CreateTransactionModal({
     }))
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
-    requestNextTransactionModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.category)
+    requestNextModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.category)
   }
 
   const handleCreateCategory = (name: string) => {
@@ -371,7 +369,7 @@ export default function CreateTransactionModal({
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('merchant_id')
     if (defaultCategoryId) clearError('category_id')
-    requestNextTransactionModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.merchant)
+    requestNextModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.merchant)
   }
 
   const handleCreateMerchant = (name: string) => {
@@ -443,7 +441,7 @@ export default function CreateTransactionModal({
     }))
     clearError('account_id')
     clearError('currency')
-    requestNextTransactionModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.account)
+    requestNextModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.account)
   }
 
   const handleField = <K extends keyof TransactionFormValues>(field: K, value: TransactionFormValues[K]) => {

@@ -20,9 +20,9 @@ import {
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import {
-  getNextTransactionModalFieldTabStop,
-  TRANSACTION_MODAL_FIELD_IDS,
-} from '@/pages/transactions/components/transaction-modal/utils/focus'
+  getNextModalFieldTabStop,
+} from '@/components/modal/focus'
+import { TRANSACTION_MODAL_FIELD_IDS } from '@/pages/transactions/components/transaction-modal/constants'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -238,11 +238,11 @@ describe('transaction modal helpers', () => {
       'notes',
     ]
 
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, null, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.merchant)
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.merchant, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.category)
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'notes', false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
-    expect(getNextTransactionModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, true)).toBe('notes')
-    expect(getNextTransactionModalFieldTabStop([], null, false)).toBeNull()
+    expect(getNextModalFieldTabStop(fieldTabStops, null, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
+    expect(getNextModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.merchant)
+    expect(getNextModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.merchant, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.category)
+    expect(getNextModalFieldTabStop(fieldTabStops, 'notes', false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
+    expect(getNextModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, true)).toBe('notes')
+    expect(getNextModalFieldTabStop([], null, false)).toBeNull()
   })
 })
