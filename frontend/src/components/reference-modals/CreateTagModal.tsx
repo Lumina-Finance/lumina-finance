@@ -6,6 +6,7 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/ReferenceModalShell'
+import { CREATE_TAG_FIELD_IDS } from '@/components/reference-modals/createTagConstants'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_TAG_MIN_LOADING_MS = 800
@@ -90,9 +91,9 @@ export default function CreateTagModal({
             Tag Name
           </p>
           <div>
-            <label htmlFor="create-tag-name" className="sr-only">Tag name</label>
+            <label htmlFor={CREATE_TAG_FIELD_IDS.name} className="sr-only">Tag name</label>
             <input
-              id="create-tag-name"
+              id={CREATE_TAG_FIELD_IDS.name}
               className="app-input"
               value={name}
               onChange={(event) => {
