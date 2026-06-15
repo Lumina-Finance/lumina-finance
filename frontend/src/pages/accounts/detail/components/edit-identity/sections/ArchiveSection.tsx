@@ -1,6 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
-import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import {
+  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
+  EASE,
+} from '@/pages/accounts/detail/constants/accountDetail'
 import { ArchiveBalanceWarning } from '../controls/ArchiveBalanceWarning'
 import { EditModalSection } from '../layout/Section'
 
@@ -27,7 +30,7 @@ export function AccountArchiveSection({
   return (
     <EditModalSection number={sectionNumber} title="Archive">
       <label
-        htmlFor="edit-account-archived"
+        htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
         className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
         style={{
           background: 'var(--app-input-bg)',
@@ -45,7 +48,7 @@ export function AccountArchiveSection({
         </span>
         <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors">
           <input
-            id="edit-account-archived"
+            id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
             type="checkbox"
             role="switch"
             checked={isArchived}

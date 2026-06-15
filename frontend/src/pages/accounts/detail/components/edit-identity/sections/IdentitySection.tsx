@@ -1,5 +1,7 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
+import { requestNextModalFieldFocus } from '@/components/modal/focus'
+import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import type {
   IdentityFieldErrors,
   IdentityFormValues,
@@ -29,9 +31,9 @@ export function AccountIdentitySection({
   return (
     <EditModalSection number="01" title="Identity">
       <div>
-        <AccountIdentityFieldLabelRow htmlFor="edit-account-name" label="Account Name" error={fieldErrors.name} />
+        <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name} label="Account Name" error={fieldErrors.name} />
         <input
-          id="edit-account-name"
+          id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name}
           className={`app-input ${fieldErrors.name ? 'app-input-error' : ''}`}
           value={form.name}
           onChange={(event) => setField('name', event.target.value)}
@@ -42,9 +44,13 @@ export function AccountIdentitySection({
       <div>
         <AccountIdentityFieldLabelRow label="Institution" />
         <Dropdown
+          id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution}
           options={institutionOptions}
           value={form.institution_id}
-          onChange={(value) => setField('institution_id', value)}
+          onChange={(value) => {
+            setField('institution_id', value)
+            requestNextModalFieldFocus(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution)
+          }}
           placeholder="Select institution..."
           searchable
           searchPlaceholder="Search institutions..."

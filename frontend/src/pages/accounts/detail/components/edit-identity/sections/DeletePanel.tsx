@@ -1,7 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, EyeOff } from 'lucide-react'
 import type { Account } from '@/api/accounts'
-import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import {
+  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
+  EASE,
+} from '@/pages/accounts/detail/constants/accountDetail'
 import type { DeleteStage } from '../types'
 
 type DeleteAccountPanelProps = {
@@ -116,14 +119,14 @@ export function DeleteAccountPanel({
                       >
                         <div>
                           <label
-                            htmlFor="delete-account-name"
+                            htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName}
                             className="mb-1.5 block break-words text-sm leading-5"
                             style={{ color: 'var(--app-text-muted)' }}
                           >
                             Type <strong className="font-semibold">"{account.name}"</strong> to delete.
                           </label>
                           <input
-                            id="delete-account-name"
+                            id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName}
                             className="app-input"
                             value={deleteNameInput}
                             onChange={(event) => {

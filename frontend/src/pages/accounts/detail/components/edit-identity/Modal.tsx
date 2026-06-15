@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import {
@@ -11,8 +11,17 @@ import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import {
+  getModalFieldTabStops,
+  getNextModalFieldTabStop,
+  requestFirstModalFieldFocus,
+  requestNextModalFieldFocus,
+} from '@/components/modal/focus'
 import { waitForMilliseconds } from '@/utils/timing'
-import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import {
+  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
+  EASE,
+} from '@/pages/accounts/detail/constants/accountDetail'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -50,6 +59,7 @@ export default function EditAccountIdentityModal({
   onDeleted,
   onDeleteFailed,
 }: EditAccountIdentityModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
   const { data: currencies = [] } = useCurrencies()
@@ -114,6 +124,7 @@ export default function EditAccountIdentityModal({
   const handleInstitutionCreated = (institution: { id: string }) => {
     setField('institution_id', institution.id)
     setShowInstitutionModal(false)
+    requestNextModalFieldFocus(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution)
   }
 
   /**
@@ -227,6 +238,37 @@ export default function EditAccountIdentityModal({
     }
   }, [isBusy, onClose])
 
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+
+    const frameId = requestFirstModalFieldFocus(panel)
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [])
+
+  /**
+   * Keeps sequential Tab focus on modal fields while leaving action buttons pointer-accessible
+   */
+  const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const fieldTabStops = getModalFieldTabStops(panel)
+    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const nextField = getNextModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
+
+    if (!nextField) {
+      event.preventDefault()
+      return
+    }
+
+    event.preventDefault()
+    nextField.focus()
+  }
+
   return (
     <>
       {createPortal(
@@ -251,10 +293,12 @@ export default function EditAccountIdentityModal({
             onClick={requestClose}
           >
             <motion.div
+              ref={panelRef}
               layout
               role="dialog"
               aria-modal="true"
               aria-labelledby="edit-account-identity-title"
+              data-modal-field-focus-panel="true"
               className="app-modal-panel flex max-h-[84vh] w-full max-w-2xl overflow-hidden rounded-2xl"
               style={{
                 background: 'var(--app-bg)',
@@ -263,6 +307,7 @@ export default function EditAccountIdentityModal({
               }}
               transition={{ layout: { duration: 0.28, ease: EASE } }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleTabKeyDown}
             >
               <EditModalSideRail />
 

@@ -8,6 +8,15 @@ export const ACCOUNT_KIND_LABEL: Record<string, string> = {
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 
+export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
+  name: 'edit-account-name',
+  institution: 'edit-account-institution',
+  taxAdvantagedCategory: 'edit-account-tax-advantaged-category',
+  creditLimit: 'edit-credit-limit',
+  archive: 'edit-account-archived',
+  deleteName: 'delete-account-name',
+} as const
+
 export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
 export type BalanceChartMode = 'balance' | 'change'
 export const BALANCE_RANGES: BalanceRange[] = ['7D', '30D', '90D', '1Y']
