@@ -1,4 +1,5 @@
 const MODAL_FIELD_TAB_STOP_SELECTOR = [
+  '[data-modal-field-tab-stop="true"]:not([disabled])',
   'input:not([disabled]):not([type="hidden"]):not([data-dropdown-search="true"])',
   'textarea:not([disabled])',
   'select:not([disabled])',

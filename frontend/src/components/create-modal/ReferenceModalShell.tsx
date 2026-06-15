@@ -1,8 +1,13 @@
-import { useEffect, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { X, type LucideIcon } from 'lucide-react'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
+import {
+  getModalFieldTabStops,
+  getNextModalFieldTabStop,
+  requestFirstModalFieldFocus,
+} from '@/components/modal/focus'
 
 export type CreateReferenceModalVariant = 'primary' | 'secondary'
 
@@ -91,6 +96,7 @@ export default function CreateReferenceModalShell({
   const layout = layoutByVariant[variant]
   const closeIfAllowed = closeDisabled ? undefined : onClose
   const hasRail = RailIcon && railLabel
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useBodyScrollLock(open && variant !== 'secondary')
 
@@ -103,6 +109,39 @@ export default function CreateReferenceModalShell({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [closeDisabled, onClose, open])
+
+  useEffect(() => {
+    if (!open) return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const frameId = requestFirstModalFieldFocus(panel)
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open])
+
+  /**
+   * Keeps sequential Tab focus on modal fields while leaving action buttons pointer-accessible
+   */
+  const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const fieldTabStops = getModalFieldTabStops(panel)
+    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const nextField = getNextModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
+
+    if (!nextField) {
+      event.preventDefault()
+      return
+    }
+
+    event.preventDefault()
+    nextField.focus()
+  }
 
   return createPortal(
     <AnimatePresence>
@@ -128,9 +167,11 @@ export default function CreateReferenceModalShell({
             onClick={closeIfAllowed}
           >
             <div
+              ref={panelRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby={modalTitleId}
+              data-modal-field-focus-panel="true"
               className={layout.modalClassName}
               style={{
                 background: 'var(--app-bg)',
@@ -138,6 +179,7 @@ export default function CreateReferenceModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleTabKeyDown}
             >
               {hasRail && (
                 <div className={layout.railClassName} style={layout.railStyle} aria-hidden>

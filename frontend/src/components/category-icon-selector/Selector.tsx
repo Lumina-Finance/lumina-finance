@@ -13,6 +13,8 @@ interface CategoryIconSelectorProps {
   buttonClassName?: string
   categoryName: string
   hasError?: boolean
+  id?: string
+  modalFieldTabStop?: boolean
   onChange: (icon: string) => void
   pickerAnchor?: 'button' | 'row'
   pickerAnchorRef?: RefObject<HTMLElement | null>
@@ -93,6 +95,8 @@ export default function CategoryIconSelector({
   buttonClassName = 'group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-visible:border-[var(--app-accent-border)] focus-visible:outline-none',
   categoryName,
   hasError = false,
+  id,
+  modalFieldTabStop = false,
   onChange,
   pickerAnchor = 'button',
   pickerAnchorRef,
@@ -166,6 +170,8 @@ export default function CategoryIconSelector({
   return (
     <div ref={selectorRef} className="relative shrink-0">
       <button
+        id={id}
+        data-modal-field-tab-stop={modalFieldTabStop ? 'true' : undefined}
         type="button"
         className={buttonClassName}
         style={{
