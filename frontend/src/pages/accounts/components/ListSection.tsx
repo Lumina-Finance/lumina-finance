@@ -7,6 +7,9 @@ import type { AccountAccent } from '@/pages/accounts/types/accounts'
 
 const ACCOUNT_ROW_EASE = [0.25, 0.1, 0.25, 1] as const
 
+/**
+ * Renders one account section with loading, empty-state, and row transition behaviour
+ */
 export default function AccountListSection({
   title,
   accent,
@@ -89,26 +92,31 @@ export default function AccountListSection({
             </motion.p>
           )}
         </AnimatePresence>
-        {!loading && accounts.map((account) => (
-          <motion.div
-            key={account.id}
-            className="overflow-hidden"
-            initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            transition={{
-              duration: prefersReducedMotion ? 0 : 0.22,
-              ease: ACCOUNT_ROW_EASE,
-            }}
-          >
-            <AccountRow
-              account={account}
-              accent={accent}
-              showCreditLimit={showCreditLimit}
-              taxAdvantagedCategoryById={taxAdvantagedCategoryById}
-              displayCurrency={displayCurrency}
-            />
-          </motion.div>
-        ))}
+        <AnimatePresence initial={false}>
+          {!loading && accounts.map((account) => (
+            <motion.div
+              key={account.id}
+              layout={prefersReducedMotion ? false : 'position'}
+              className="overflow-hidden"
+              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              transition={{
+                duration: prefersReducedMotion ? 0 : 0.22,
+                ease: ACCOUNT_ROW_EASE,
+                layout: { duration: prefersReducedMotion ? 0 : 0.22, ease: ACCOUNT_ROW_EASE },
+              }}
+            >
+              <AccountRow
+                account={account}
+                accent={accent}
+                showCreditLimit={showCreditLimit}
+                taxAdvantagedCategoryById={taxAdvantagedCategoryById}
+                displayCurrency={displayCurrency}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </section>
   )
