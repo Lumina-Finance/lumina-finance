@@ -41,6 +41,7 @@ interface TransactionReferencesSectionProps {
   tagHideOptionsWhileLoading: boolean
   tagHasMore: boolean
   selectedTags: SelectedTransactionTag[]
+  readOnly: boolean
   onAccountChange: (value: string) => void
   onMerchantChange: (value: string) => void
   onMerchantSearchChange: (value: string) => void
@@ -91,6 +92,7 @@ export default function TransactionReferencesSection({
   tagHideOptionsWhileLoading,
   tagHasMore,
   selectedTags,
+  readOnly,
   onAccountChange,
   onMerchantChange,
   onMerchantSearchChange,
@@ -120,6 +122,7 @@ export default function TransactionReferencesSection({
           placeholder={accountPlaceholder}
           searchable
           searchPlaceholder="Search accounts..."
+          disabled={readOnly}
         />
         <AnimatePresence initial={false}>
           {runningBalance && (
@@ -171,8 +174,9 @@ export default function TransactionReferencesSection({
           selectHighlightedOnSearchEnter
           hasMore={merchantHasMore}
           onLoadMore={onMerchantLoadMore}
-          onCreateNew={onCreateMerchant}
-          createNewLabel={(query) => query ? `Create merchant "${query}"` : 'Create merchant'}
+          onCreateNew={readOnly ? undefined : onCreateMerchant}
+          createNewLabel={readOnly ? undefined : (query) => query ? `Create merchant "${query}"` : 'Create merchant'}
+          disabled={readOnly}
         />
       </div>
 
@@ -186,7 +190,7 @@ export default function TransactionReferencesSection({
               className="block h-5 min-w-0 max-w-full truncate text-left text-xs font-medium leading-5 disabled:cursor-not-allowed disabled:opacity-60 sm:text-right"
               style={{ color: 'var(--app-accent)' }}
               title={merchantDefaultCategoryActionLabel}
-              disabled={merchantDefaultCategoryPending}
+              disabled={merchantDefaultCategoryPending || readOnly}
               onClick={onMakeMerchantDefaultCategory}
             >
               {merchantDefaultCategoryActionLabel}
@@ -201,8 +205,9 @@ export default function TransactionReferencesSection({
           placeholder="Select category..."
           searchable
           searchPlaceholder="Search categories..."
-          onCreateNew={onCreateCategory}
-          createNewLabel={(query) => query ? `Create category "${query}"` : 'Create category'}
+          onCreateNew={readOnly ? undefined : onCreateCategory}
+          createNewLabel={readOnly ? undefined : (query) => query ? `Create category "${query}"` : 'Create category'}
+          disabled={readOnly}
         />
       </div>
 
@@ -226,9 +231,9 @@ export default function TransactionReferencesSection({
           hideOptionsWhileLoading={tagHideOptionsWhileLoading}
           hasMore={tagHasMore}
           onLoadMore={onTagLoadMore}
-          onCreateNew={onCreateTag}
-          createNewLabel={(query) => query ? `Create tag "${query}"` : 'Create tag'}
-          disabled={tagsDisabled}
+          onCreateNew={readOnly ? undefined : onCreateTag}
+          createNewLabel={readOnly ? undefined : (query) => query ? `Create tag "${query}"` : 'Create tag'}
+          disabled={tagsDisabled || readOnly}
         />
         <AnimatePresence initial={false}>
           {selectedTags.length > 0 && (
@@ -251,12 +256,16 @@ export default function TransactionReferencesSection({
                       layout
                       key={tag.id}
                       type="button"
-                      onClick={() => onRemoveTag(tag.id)}
-                      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-100 hover:bg-[var(--app-accent-soft)]"
+                      onClick={() => {
+                        if (!readOnly) onRemoveTag(tag.id)
+                      }}
+                      disabled={readOnly}
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-100 enabled:hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed"
                       style={{
                         background: 'var(--app-surface-soft)',
                         color: 'var(--app-text-muted)',
                         border: '1px solid var(--app-border)',
+                        opacity: readOnly ? 0.65 : 1,
                       }}
                       initial={{ opacity: 0, scale: 0.96, y: -4 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -266,7 +275,7 @@ export default function TransactionReferencesSection({
                     >
                       <TagIcon size={13} aria-hidden className="shrink-0" />
                       <span className="min-w-0 truncate">{tag.name}</span>
-                      <X size={13} aria-hidden className="shrink-0" />
+                      {!readOnly && <X size={13} aria-hidden className="shrink-0" />}
                     </motion.button>
                   ))}
                 </AnimatePresence>

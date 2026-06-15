@@ -4,6 +4,7 @@ import { Check, Trash2 } from 'lucide-react'
 interface TransactionModalFooterProps {
   editing: boolean
   isPending: boolean
+  readOnly: boolean
   submitLoading: boolean
   deleteLoading: boolean
   keepOpenAfterCreate: boolean
@@ -18,6 +19,7 @@ interface TransactionModalFooterProps {
 export default function TransactionModalFooter({
   editing,
   isPending,
+  readOnly,
   submitLoading,
   deleteLoading,
   keepOpenAfterCreate,
@@ -78,7 +80,7 @@ export default function TransactionModalFooter({
       className="flex shrink-0 flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:px-8 min-[1050px]:py-5"
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
-      {editing ? (
+      {editing && !readOnly ? (
         <button
           ref={deleteButtonRef}
           type="button"
@@ -134,7 +136,7 @@ export default function TransactionModalFooter({
             </span>
           )}
         </button>
-      ) : (
+      ) : !editing ? (
         <div className="min-w-0 sm:max-w-xs">
           <label
             htmlFor="txn-keep-open"
@@ -159,23 +161,25 @@ export default function TransactionModalFooter({
             </span>
           </label>
         </div>
-      )}
+      ) : null}
       <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"
-          className="app-secondary-button w-full sm:w-auto"
+          className={readOnly ? 'app-secondary-button col-span-2 w-full sm:w-auto' : 'app-secondary-button w-full sm:w-auto'}
           onClick={onCancel}
           disabled={isPending}
         >
-          Cancel
+          {readOnly ? 'Close' : 'Cancel'}
         </button>
-        <button
-          type="submit"
-          disabled={isPending}
-          className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
-        >
-          {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
-        </button>
+        {!readOnly && (
+          <button
+            type="submit"
+            disabled={isPending}
+            className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
+          >
+            {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
+          </button>
+        )}
       </div>
     </div>
   )

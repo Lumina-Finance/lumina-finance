@@ -34,7 +34,7 @@ export default function TransactionsPage() {
   const [createModalKey, setCreateModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [openingOutlierId, setOpeningOutlierId] = useState<string | null>(null)
-  const [outlierOpenError, setOutlierOpenError] = useState<string | null>(null)
+  const [outlierLoadError, setOutlierLoadError] = useState<string | null>(null)
 
   /**
    * Opens the transaction modal in create mode and resets any previous edit state
@@ -46,12 +46,9 @@ export default function TransactionsPage() {
   }
 
   /**
-   * Opens the transaction modal in edit mode unless the owning account is archived
+   * Opens the transaction modal in edit mode, including read-only archived account transactions
    */
   const openEditModal = (transaction: Transaction) => {
-    const account = accounts?.find((item) => item.id === transaction.account_id)
-    if (account?.is_archived) return
-
     setEditingTransaction(transaction)
     setCreateModalKey((key) => key + 1)
     setShowCreateModal(true)
@@ -61,16 +58,11 @@ export default function TransactionsPage() {
    * Opens a top-band outlier transaction from the loaded list or a cached detail fetch
    */
   const openOutlierTransaction = async (transactionId: string) => {
-    setOutlierOpenError(null)
+    setOutlierLoadError(null)
 
     // Outliers may not be in the currently loaded list page, so fall back to a detail fetch
     const loadedTransaction = latestTransactionsRef.current.find((transaction) => transaction.id === transactionId)
     if (loadedTransaction) {
-      const account = accounts?.find((item) => item.id === loadedTransaction.account_id)
-      if (account?.is_archived) {
-        setOutlierOpenError('Archived account transactions are read-only')
-        return
-      }
       openEditModal(loadedTransaction)
       return
     }
@@ -82,14 +74,9 @@ export default function TransactionsPage() {
         queryFn: () => fetchTransaction(transactionId),
         staleTime: 10 * 60 * 1000,
       })
-      const account = accounts?.find((item) => item.id === transaction.account_id)
-      if (account?.is_archived) {
-        setOutlierOpenError('Archived account transactions are read-only')
-        return
-      }
       openEditModal(transaction)
     } catch {
-      setOutlierOpenError('Unable to open transaction')
+      setOutlierLoadError('Unable to open transaction')
     } finally {
       setOpeningOutlierId((current) => (current === transactionId ? null : current))
     }
@@ -130,6 +117,11 @@ export default function TransactionsPage() {
     })),
     [accounts],
   )
+  const editingTransactionReadOnly = useMemo(() => {
+    if (!editingTransaction) return false
+
+    return Boolean(accounts?.find((account) => account.id === editingTransaction.account_id)?.is_archived)
+  }, [accounts, editingTransaction])
   const handleSettledTransactionsChange = useCallback((transactions: Transaction[]) => {
     latestTransactionsRef.current = transactions
   }, [])
@@ -153,7 +145,7 @@ export default function TransactionsPage() {
             chartAnimationKey={chartAnimationKey}
             prefersReducedMotion={prefersReducedMotion}
             openingOutlierId={openingOutlierId}
-            outlierOpenError={outlierOpenError}
+            outlierLoadError={outlierLoadError}
             onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
           />
 
@@ -184,6 +176,7 @@ export default function TransactionsPage() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         transaction={editingTransaction ?? undefined}
+        readOnly={editingTransactionReadOnly}
       />
     </div>
   )

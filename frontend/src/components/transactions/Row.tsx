@@ -136,11 +136,8 @@ export default function TransactionRow({
   return (
     <button
       type="button"
-      onClick={() => {
-        if (!readOnly) onOpen(transaction)
-      }}
-      disabled={readOnly}
-      className={`block w-full px-3 py-2.5 text-left transition-colors duration-100 focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none ${readOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-surface-soft)]'}`}
+      onClick={() => onOpen(transaction)}
+      className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none"
       style={{
         borderBottom: '1px solid var(--app-border)',
         opacity: readOnly ? 0.68 : 1,

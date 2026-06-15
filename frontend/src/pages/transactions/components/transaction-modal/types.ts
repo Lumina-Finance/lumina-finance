@@ -38,4 +38,7 @@ export interface CreateTransactionModalProps {
 
   /** Pre-selects this currency in create mode, usually from the default account */
   defaultCurrency?: string
+
+  /** Opens an existing transaction for viewing without allowing changes */
+  readOnly?: boolean
 }

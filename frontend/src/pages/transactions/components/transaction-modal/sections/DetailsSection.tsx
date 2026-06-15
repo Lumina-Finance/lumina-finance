@@ -15,6 +15,7 @@ interface TransactionDetailsSectionProps {
   amount: string
   amountError?: string | false
   notes: string
+  readOnly: boolean
   onDateChange: (value: string) => void
   onDateBlur: () => void
   onAmountChange: (value: string) => void
@@ -35,6 +36,7 @@ export default function TransactionDetailsSection({
   amount,
   amountError,
   notes,
+  readOnly,
   onDateChange,
   onDateBlur,
   onAmountChange,
@@ -51,7 +53,7 @@ export default function TransactionDetailsSection({
               dateError
                 ? 'app-input-error'
                 : 'focus-within:border-[var(--app-accent-border)] focus-within:shadow-[0_0_0_2px_var(--app-accent-soft)]'
-            }`}
+            } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
           >
             <span className="min-w-0 truncate font-medium tabular-nums" aria-hidden>
               {date}
@@ -61,8 +63,9 @@ export default function TransactionDetailsSection({
               id="txn-date-mobile"
               type="date"
               aria-label="Date"
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base disabled:cursor-not-allowed"
               value={date}
+              disabled={readOnly}
               onChange={(event) => onDateChange(event.target.value)}
               onBlur={onDateBlur}
             />
@@ -70,8 +73,9 @@ export default function TransactionDetailsSection({
           <input
             id="txn-date"
             type="date"
-            className={`app-input app-date-input-balanced hidden min-[1050px]:block ${dateError ? 'app-input-error' : ''}`}
+            className={`app-input app-date-input-balanced hidden min-[1050px]:block disabled:cursor-not-allowed disabled:opacity-60 ${dateError ? 'app-input-error' : ''}`}
             value={date}
+            disabled={readOnly}
             onChange={(event) => onDateChange(event.target.value)}
             onBlur={onDateBlur}
           />
@@ -113,9 +117,10 @@ export default function TransactionDetailsSection({
               id="txn-amount"
               type="text"
               inputMode="decimal"
-              className={`app-input w-full ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
+              className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
               placeholder="0.00"
               value={formatMoneyInputLive(amount)}
+              disabled={readOnly}
               onChange={(event) => onAmountChange(event.target.value)}
               onBlur={onAmountBlur}
             />
@@ -128,9 +133,10 @@ export default function TransactionDetailsSection({
         <input
           id="txn-notes"
           type="text"
-          className="app-input"
+          className="app-input disabled:cursor-not-allowed disabled:opacity-60"
           placeholder="Optional"
           value={notes}
+          disabled={readOnly}
           onChange={(event) => onNotesChange(event.target.value)}
           maxLength={500}
         />
