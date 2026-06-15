@@ -26,7 +26,10 @@ import type {
   TransactionFilters,
   UpdateTransactionPayload,
 } from '@/api/transactions/types';
+import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
+
+const TRANSACTION_OVERVIEW_FX_STALE_TIME_MS = 10 * 60 * 1000;
 
 /**
  * Reads transactions for non-infinite consumers such as selectors
@@ -71,7 +74,7 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
     queryKey: transactionOverviewKeys.detail(filters as Record<string, unknown>),
     queryFn: () => fetchTransactionsOverview(filters),
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(TRANSACTION_OVERVIEW_FX_STALE_TIME_MS),
   });
 }
 

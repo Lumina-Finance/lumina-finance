@@ -13,7 +13,10 @@ import {
 } from '@/api/budgets/requests';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { budgetKeys } from '@/api/cache/queryKeys';
+import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
+
+const BUDGET_FX_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
  * Reads base budget definitions
@@ -50,7 +53,7 @@ export function useLatestBudgetUtilizations() {
     queryKey: budgetKeys.latestUtilizations(),
     queryFn: fetchLatestBudgetUtilizations,
     enabled: !!accessToken,
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
   });
 }
 
@@ -64,7 +67,7 @@ export function useBudgetUtilizations(budgetIds: string[]) {
       queryKey: budgetKeys.utilization(budgetId),
       queryFn: () => fetchBudgetUtilization(budgetId),
       enabled: !!accessToken,
-      staleTime: 5 * 60 * 1000,
+      staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
     })),
   });
 }

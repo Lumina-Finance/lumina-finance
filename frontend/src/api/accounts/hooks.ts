@@ -24,7 +24,10 @@ import type {
 } from '@/api/accounts/types';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { accountKeys } from '@/api/cache/queryKeys';
+import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
+
+const ACCOUNT_FX_STALE_TIME_MS = 10 * 60 * 1000;
 
 /**
  * Creates accounts and refreshes account-dependent rollups
@@ -110,7 +113,7 @@ export function useAccounts() {
     queryKey: accountKeys.list(),
     queryFn: fetchAccounts,
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(ACCOUNT_FX_STALE_TIME_MS),
   });
 }
 
@@ -123,7 +126,7 @@ export function useAccount(accountId: string | undefined) {
     queryKey: accountKeys.detail(accountId),
     queryFn: () => fetchAccount(accountId),
     enabled: !!accessToken && !!accountId,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(ACCOUNT_FX_STALE_TIME_MS),
   });
 }
 
