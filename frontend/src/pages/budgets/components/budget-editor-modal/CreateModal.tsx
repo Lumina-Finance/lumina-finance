@@ -24,6 +24,7 @@ const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   limit: 'budget-limit',
   interval: 'budget-interval',
   periodStart: 'budget-period-start',
+  categorySearch: 'budget-category-search',
   categoryError: 'categoryIds-error',
 }
 

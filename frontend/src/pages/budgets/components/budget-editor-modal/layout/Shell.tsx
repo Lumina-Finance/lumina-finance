@@ -1,7 +1,19 @@
-import type React from 'react'
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { CircleAlert, PiggyBank, X } from 'lucide-react'
+import {
+  getModalFieldTabStops,
+  getNextModalFieldTabStop,
+  requestFirstModalFieldFocus,
+} from '@/components/modal/focus'
 import { EASE } from '@/pages/budgets/constants'
 
 type SurfaceMotion = {
@@ -12,7 +24,7 @@ type SurfaceMotion = {
 
 export interface BudgetEditorModalShellAppearance {
   backdropClassName: string
-  backdropStyle: React.CSSProperties
+  backdropStyle: CSSProperties
   backdropDuration: number
   stageClassName: string
   panelClassName: string
@@ -20,7 +32,7 @@ export interface BudgetEditorModalShellAppearance {
   surfaceExit: SurfaceMotion
   surfaceDuration: number
   sideRailClassName: string
-  sideRailStyle: React.CSSProperties
+  sideRailStyle: CSSProperties
   sideRailIconSize: number
   sideLabelClassName: string
   headerClassName: string
@@ -36,10 +48,10 @@ interface BudgetEditorModalShellProps {
   warning?: string
   formError: string | null
   appearance: BudgetEditorModalShellAppearance
-  footer: React.ReactNode
-  children: React.ReactNode
+  footer: ReactNode
+  children: ReactNode
   onClose: () => void
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }
 
 /**
@@ -59,6 +71,41 @@ export default function BudgetEditorModalShell({
   onClose,
   onSubmit,
 }: BudgetEditorModalShellProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const frameId = requestFirstModalFieldFocus(panel)
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open])
+
+  /**
+   * Keeps sequential Tab focus on modal fields while leaving action buttons pointer-accessible
+   */
+  const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const fieldTabStops = getModalFieldTabStops(panel)
+    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const nextField = getNextModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
+
+    if (!nextField) {
+      event.preventDefault()
+      return
+    }
+
+    event.preventDefault()
+    nextField.focus()
+  }
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -92,9 +139,11 @@ export default function BudgetEditorModalShell({
             }}
           >
             <div
+              ref={panelRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
+              data-modal-field-focus-panel="true"
               className={appearance.panelClassName}
               style={{
                 background: 'var(--app-bg)',
@@ -102,6 +151,7 @@ export default function BudgetEditorModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleTabKeyDown}
             >
               <div
                 className={appearance.sideRailClassName}
