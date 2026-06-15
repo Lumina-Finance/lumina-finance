@@ -15,6 +15,7 @@ interface TransactionTypeDirectionSectionProps {
   kind: TransactionModalKind
   direction: TransactionDirection
   editing: boolean
+  readOnly: boolean
   directionHighlightKey: number
   onKindChange: (kind: TransactionModalKind) => void
   onDirectionChange: (direction: TransactionDirection) => void
@@ -27,6 +28,7 @@ export default function TransactionTypeDirectionSection({
   kind,
   direction,
   editing,
+  readOnly,
   directionHighlightKey,
   onKindChange,
   onDirectionChange,
@@ -39,7 +41,7 @@ export default function TransactionTypeDirectionSection({
           options={KIND_OPTIONS}
           ariaLabel="Transaction type"
           onChange={onKindChange}
-          disabled={editing}
+          disabled={editing || readOnly}
         />
         <div className="relative rounded-lg">
           <AnimatePresence initial={false}>
@@ -60,6 +62,7 @@ export default function TransactionTypeDirectionSection({
             options={DIRECTION_OPTIONS}
             ariaLabel="Transaction direction"
             onChange={onDirectionChange}
+            disabled={readOnly}
           />
         </div>
       </div>

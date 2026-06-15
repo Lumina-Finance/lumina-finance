@@ -8,6 +8,7 @@ interface TransactionModalShellProps {
   open: boolean
   editing: boolean
   transactionKindLabel: string
+  headerStatus?: string
   children: ReactNode
   footer: ReactNode
   onClose: () => void
@@ -21,6 +22,7 @@ export default function TransactionModalShell({
   open,
   editing,
   transactionKindLabel,
+  headerStatus,
   children,
   footer,
   onClose,
@@ -85,10 +87,20 @@ export default function TransactionModalShell({
                   <div className="flex items-start justify-between gap-6">
                     <div className="min-w-0">
                       <p
-                        className="mb-2 text-xs font-semibold uppercase"
+                        className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase"
                         style={{ color: 'var(--app-accent)' }}
                       >
-                        {editing ? 'Existing transaction' : `${transactionKindLabel} transaction`}
+                        <span>{editing ? 'Existing transaction' : `${transactionKindLabel} transaction`}</span>
+                        {headerStatus && (
+                          <>
+                            <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
+                              &middot;
+                            </span>
+                            <span style={{ color: 'var(--app-warning-text)' }}>
+                              {headerStatus}
+                            </span>
+                          </>
+                        )}
                       </p>
                       <h2
                         id="create-txn-title"

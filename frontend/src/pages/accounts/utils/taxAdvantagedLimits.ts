@@ -1,4 +1,6 @@
+import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
 
 /**
  * Chooses the usage colour for tax-advantaged contribution and withdrawal meters
@@ -135,5 +137,47 @@ export function hasTaxAdvantagedLimitTracking(plan: TaxAdvantagedCategory): bool
     plan.ytd_withdrawals !== 0 ||
     plan.lifetime_contributions !== 0 ||
     plan.lifetime_withdrawals !== 0
+  )
+}
+
+/**
+ * Builds tax-advantaged limit rows from active account links without applying page filters
+ */
+export function getTaxAdvantagedLimitSummaries(
+  rows: AccountsOverview[],
+  taxAdvantagedCategories: TaxAdvantagedCategory[],
+): TaxAdvantagedLimitSummary[] {
+  const linkedAccountCountByPlanId = new Map<string, number>()
+  const activePlanIds = new Set<string>()
+  const taxAdvantagedCategoryById = new Map(taxAdvantagedCategories.map((plan) => [plan.id, plan]))
+
+  for (const account of rows) {
+    if (account.group_id !== null || !account.tax_advantaged_category_id) continue
+    if (!taxAdvantagedCategoryById.has(account.tax_advantaged_category_id)) continue
+    activePlanIds.add(account.tax_advantaged_category_id)
+    linkedAccountCountByPlanId.set(
+      account.tax_advantaged_category_id,
+      (linkedAccountCountByPlanId.get(account.tax_advantaged_category_id) ?? 0) + 1,
+    )
+  }
+
+  return taxAdvantagedCategories
+    .filter((plan) => activePlanIds.has(plan.id))
+    .filter(hasTaxAdvantagedConfiguredLimit)
+    .map((plan) => ({
+      plan,
+      linkedAccountCount: linkedAccountCountByPlanId.get(plan.id) ?? 0,
+    }))
+}
+
+/**
+ * Checks whether a tax-advantaged category has configured limits worth summarizing
+ */
+function hasTaxAdvantagedConfiguredLimit(plan: TaxAdvantagedCategory): boolean {
+  return (
+    plan.current_year_contribution_limit !== null ||
+    plan.current_year_withdrawal_limit !== null ||
+    plan.lifetime_contribution_limit !== null ||
+    plan.accrued_lifetime_contribution_limit !== null
   )
 }

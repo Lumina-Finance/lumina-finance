@@ -9,7 +9,10 @@ import {
 } from '@/api/dashboard/requests';
 import type { SpendingRange } from '@/api/dashboard/types';
 import { dashboardKeys } from '@/api/cache/queryKeys';
+import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
+
+const DASHBOARD_FX_STALE_TIME_MS = 10 * 60 * 1000;
 
 /**
  * Reads dashboard credit utilization data
@@ -20,7 +23,7 @@ export function useDashboardCredit() {
     queryKey: dashboardKeys.credit(),
     queryFn: fetchDashboardCredit,
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
 }
 
@@ -33,7 +36,7 @@ export function useDashboardNetWorth(windowDays = 90) {
     queryKey: dashboardKeys.netWorth(windowDays),
     queryFn: () => fetchDashboardNetWorth(windowDays),
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
 }
 
@@ -46,7 +49,7 @@ export function useDashboardSavingsRate() {
     queryKey: dashboardKeys.savingsRate(),
     queryFn: fetchDashboardSavingsRate,
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
 }
 
@@ -72,7 +75,7 @@ export function useSpendingComparison(range: SpendingRange) {
     queryKey: dashboardKeys.spendingComparison(range),
     queryFn: () => fetchSpendingComparison(range),
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
 }
 
@@ -85,6 +88,6 @@ export function useSpendingBreakdown(range: SpendingRange) {
     queryKey: dashboardKeys.spendingBreakdown(range),
     queryFn: () => fetchSpendingBreakdown(range),
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
 }

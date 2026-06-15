@@ -13,7 +13,10 @@ import {
   updateRunwaySettings,
 } from '@/api/user/requests';
 import { userKeys } from '@/api/cache/queryKeys';
+import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
+
+const RUNWAY_FX_STALE_TIME_MS = 10 * 60 * 1000;
 
 /**
  * Updates the current user's editable profile fields
@@ -89,6 +92,6 @@ export function useRunway() {
     queryKey: userKeys.runway(),
     queryFn: fetchRunway,
     enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(RUNWAY_FX_STALE_TIME_MS),
   });
 }

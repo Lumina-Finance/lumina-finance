@@ -23,7 +23,7 @@ export default function MostExpensiveTransactionsPanel({
   fxStatus,
   prefersReducedMotion,
   openingOutlierId,
-  outlierOpenError,
+  outlierLoadError,
   onOpenOutlierTransaction,
   className = '',
 }: {
@@ -31,7 +31,7 @@ export default function MostExpensiveTransactionsPanel({
   fxStatus: FxStatus | undefined
   prefersReducedMotion: boolean | null
   openingOutlierId: string | null
-  outlierOpenError: string | null
+  outlierLoadError: string | null
   onOpenOutlierTransaction: (transactionId: string) => void
   className?: string
 }) {
@@ -117,9 +117,9 @@ export default function MostExpensiveTransactionsPanel({
               )
             })}
         </AnimatePresence>
-        {outlierOpenError && (
+        {outlierLoadError && (
           <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
-            {outlierOpenError}
+            {outlierLoadError}
           </p>
         )}
       </div>

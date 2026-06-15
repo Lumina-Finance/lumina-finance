@@ -37,7 +37,7 @@ export default function TransactionsTopBand({
   chartAnimationKey,
   prefersReducedMotion,
   openingOutlierId,
-  outlierOpenError,
+  outlierLoadError,
   onOpenOutlierTransaction,
 }: {
   overview: TransactionsOverview | undefined
@@ -49,7 +49,7 @@ export default function TransactionsTopBand({
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
   openingOutlierId: string | null
-  outlierOpenError: string | null
+  outlierLoadError: string | null
   onOpenOutlierTransaction: (transactionId: string) => void
 }) {
   const overviewOutliers = overview?.outliers ?? []
@@ -156,7 +156,7 @@ export default function TransactionsTopBand({
             fxStatus={overview?.outliers_fx_status}
             prefersReducedMotion={prefersReducedMotion}
             openingOutlierId={openingOutlierId}
-            outlierOpenError={outlierOpenError}
+            outlierLoadError={outlierLoadError}
             onOpenOutlierTransaction={onOpenOutlierTransaction}
             className="border-t border-[var(--app-border)] pt-3 min-[730px]:relative min-[730px]:pr-6 min-[730px]:after:absolute min-[730px]:after:bottom-0 min-[730px]:after:right-0 min-[730px]:after:top-3 min-[730px]:after:w-px min-[730px]:after:bg-[var(--app-border)] min-[730px]:after:content-[''] min-[1750px]:border-x min-[1750px]:border-t-0 min-[1750px]:px-6 min-[1750px]:pt-0 min-[1750px]:after:hidden"
           />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Observes the bottom sentinel and delays infinite-scroll fetches so loading feedback is visible
@@ -14,14 +14,23 @@ export function useInfiniteScrollTrigger({
   disabled: boolean
   fetchNextPage: () => void
 }) {
-  const sentinelRef = useRef<HTMLDivElement>(null)
+  const fetchNextPageRef = useRef(fetchNextPage)
+  const [sentinelElement, setSentinelElement] = useState<HTMLDivElement | null>(null)
   const [pendingFetch, setPendingFetch] = useState(false)
+
+  useEffect(() => {
+    fetchNextPageRef.current = fetchNextPage
+  }, [fetchNextPage])
+
+  const sentinelRef = useCallback((element: HTMLDivElement | null) => {
+    setSentinelElement(element)
+  }, [])
 
   // Watch the sentinel and delay the fetch slightly so the user sees a stable
   // loading state instead of rapid bottom-of-list flicker
   useEffect(() => {
     if (!hasNextPage || isFetchingNextPage || disabled) return
-    const el = sentinelRef.current
+    const el = sentinelElement
     if (!el) return
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     const observer = new IntersectionObserver((entries) => {
@@ -30,7 +39,7 @@ export function useInfiniteScrollTrigger({
           setPendingFetch(true)
           timeoutId = setTimeout(() => {
             setPendingFetch(false)
-            fetchNextPage()
+            fetchNextPageRef.current()
           }, 1000)
         }
       } else if (timeoutId !== null) {
@@ -41,10 +50,13 @@ export function useInfiniteScrollTrigger({
     }, { rootMargin: '200px' })
     observer.observe(el)
     return () => {
-      if (timeoutId !== null) clearTimeout(timeoutId)
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+        setPendingFetch(false)
+      }
       observer.disconnect()
     }
-  }, [disabled, fetchNextPage, hasNextPage, isFetchingNextPage])
+  }, [disabled, hasNextPage, isFetchingNextPage, sentinelElement])
 
   return {
     sentinelRef,

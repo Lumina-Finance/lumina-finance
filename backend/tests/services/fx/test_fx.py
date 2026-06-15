@@ -13,6 +13,7 @@ from app.services.fx import (
     FxRateResponseError,
     convert_minor_units,
 )
+from app.services.fx.frankfurter_provider import DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS
 
 
 class _FakeProvider:
@@ -278,6 +279,110 @@ async def test_frankfurter_provider_uses_configured_url_for_rate_range():
     assert seen_url.params["to"] == "2026-05-30"
 
 
+async def test_frankfurter_provider_retries_single_rate_failure(monkeypatch):
+    """FrankfurterProvider retries a failed single-rate lookup before returning a successful rate"""
+    calls = 0
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        """Record retry delays without waiting"""
+        sleep_calls.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(503)
+        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
+
+    monkeypatch.setattr("app.services.fx.frankfurter_provider.asyncio.sleep", fake_sleep)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        rate = await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rate(
+            "USD",
+            "CAD",
+            date(2026, 5, 30),
+        )
+
+    assert rate == Decimal("1.375")
+    assert calls == 2
+    assert sleep_calls == [DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS]
+
+
+async def test_frankfurter_provider_retries_rate_range_failure(monkeypatch):
+    """FrankfurterProvider retries failed range lookups before returning successful rates"""
+    calls = 0
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        """Record retry delays without waiting"""
+        sleep_calls.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            return httpx.Response(503)
+        return httpx.Response(
+            200,
+            json=[
+                {"date": "2026-05-29", "base": "USD", "quote": "CAD", "rate": 1.37},
+                {"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375},
+            ],
+        )
+
+    monkeypatch.setattr("app.services.fx.frankfurter_provider.asyncio.sleep", fake_sleep)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        rates = await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rates(
+            "USD",
+            "CAD",
+            date(2026, 5, 29),
+            date(2026, 5, 30),
+        )
+
+    assert rates == {
+        date(2026, 5, 29): Decimal("1.37"),
+        date(2026, 5, 30): Decimal("1.375"),
+    }
+    assert calls == 3
+    assert sleep_calls == [
+        DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS,
+        DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS,
+    ]
+
+
+async def test_frankfurter_provider_surfaces_final_lookup_error_after_three_attempts(monkeypatch):
+    """FrankfurterProvider surfaces the existing FX error after all retry attempts fail"""
+    calls = 0
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        """Record retry delays without waiting"""
+        sleep_calls.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503)
+
+    monkeypatch.setattr("app.services.fx.frankfurter_provider.asyncio.sleep", fake_sleep)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(FxProviderUnavailableError):
+            await FrankfurterProvider(url="https://fx.example.test/v2/", client=client).get_rate(
+                "USD",
+                "CAD",
+                date(2026, 5, 30),
+            )
+
+    assert calls == 3
+    assert sleep_calls == [
+        DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS,
+        DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS,
+    ]
+
+
 async def test_frankfurter_provider_rejects_invalid_payload():
     """FrankfurterProvider does not accept malformed rate payloads."""
 
@@ -286,7 +391,7 @@ async def test_frankfurter_provider_rejects_invalid_payload():
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxRateResponseError):
-            await FrankfurterProvider(client=client).get_rate("USD", "CAD", date(2026, 5, 30))
+            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rate("USD", "CAD", date(2026, 5, 30))
 
 
 async def test_frankfurter_provider_rejects_invalid_rate():
@@ -297,4 +402,4 @@ async def test_frankfurter_provider_rejects_invalid_rate():
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxRateResponseError):
-            await FrankfurterProvider(client=client).get_rate("USD", "CAD", date(2026, 5, 30))
+            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rate("USD", "CAD", date(2026, 5, 30))

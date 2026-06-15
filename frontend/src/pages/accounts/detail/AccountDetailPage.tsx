@@ -45,8 +45,6 @@ export default function AccountDetailPage() {
   }
 
   const openEditTransaction = (transaction: Transaction) => {
-    if (visibleAccount?.is_archived) return
-
     setEditingTransaction(transaction)
     setTxnModalKey((key) => key + 1)
     setShowTxnModal(true)
@@ -154,6 +152,7 @@ export default function AccountDetailPage() {
             transaction={editingTransaction ?? undefined}
             defaultAccountId={visibleAccount.id}
             defaultCurrency={visibleAccount.currency}
+            readOnly={Boolean(editingTransaction && visibleAccount.is_archived)}
           />
 
           <AnimatePresence onExitComplete={handleAccountEditModalExitComplete}>

@@ -64,6 +64,7 @@ export default function CreateTransactionModal({
   transaction,
   defaultAccountId,
   defaultCurrency,
+  readOnly: readOnlyProp = false,
 }: CreateTransactionModalProps) {
   const editing = !!transaction
   const queryClient = useQueryClient()
@@ -138,6 +139,7 @@ export default function CreateTransactionModal({
     () => accounts.find((account) => account.id === form.account_id),
     [accounts, form.account_id],
   )
+  const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
   const merchantQuery = useInfiniteMerchants(
     { q: merchantReferenceSearch.activeSearchText || undefined },
     MERCHANT_DROPDOWN_PAGE_SIZE,
@@ -325,7 +327,7 @@ export default function CreateTransactionModal({
   }
 
   const handleMakeMerchantDefaultCategory = () => {
-    if (!selectedMerchant || !selectedCategory || updateMerchantMutation.isPending) return
+    if (readOnly || !selectedMerchant || !selectedCategory || updateMerchantMutation.isPending) return
 
     setSubmitError('')
     updateMerchantMutation.mutate(
@@ -461,7 +463,7 @@ export default function CreateTransactionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isPending) return
+    if (isPending || readOnly) return
     const errors = validateTransactionForm(form)
     setFieldErrors(errors)
     setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true })
@@ -535,7 +537,7 @@ export default function CreateTransactionModal({
   }
 
   const handleDelete = async () => {
-    if (!transaction) return false
+    if (!transaction || readOnly) return false
 
     setSubmitError('')
 
@@ -557,12 +559,14 @@ export default function CreateTransactionModal({
         open={open}
         editing={editing}
         transactionKindLabel={KIND_LABELS[form.kind]}
+        headerStatus={readOnly ? 'Archived account' : undefined}
         onClose={handleClose}
         onSubmit={handleSubmit}
         footer={(
           <TransactionModalFooter
             editing={editing}
             isPending={isPending}
+            readOnly={readOnly}
             submitLoading={submitLoading}
             deleteLoading={deleteLoading}
             keepOpenAfterCreate={keepOpenAfterCreate}
@@ -577,6 +581,7 @@ export default function CreateTransactionModal({
             kind={form.kind}
             direction={form.direction}
             editing={editing}
+            readOnly={readOnly}
             directionHighlightKey={directionHighlightKey}
             onKindChange={handleKindChange}
             onDirectionChange={(value) => handleField('direction', value)}
@@ -614,6 +619,7 @@ export default function CreateTransactionModal({
             tagHideOptionsWhileLoading={tagReference.showInitialLoading}
             tagHasMore={!!tagQuery.hasNextPage}
             selectedTags={selectedTags}
+            readOnly={readOnly}
             onAccountChange={handleAccountChange}
             onMerchantChange={handleMerchantChange}
             onMerchantSearchChange={merchantReferenceSearch.setSearch}
@@ -641,6 +647,7 @@ export default function CreateTransactionModal({
             amount={form.amount}
             amountError={showError('amount')}
             notes={form.notes}
+            readOnly={readOnly}
             onDateChange={(value) => handleField('date', value)}
             onDateBlur={() => handleBlur('date')}
             onAmountChange={handleAmountChange}

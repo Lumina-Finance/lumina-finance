@@ -9,8 +9,11 @@ import {
   fetchInsightsSavingsRateTrend,
 } from '@/api/insights/requests';
 import { insightsKeys } from '@/api/cache/queryKeys';
+import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
 import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
+
+const INSIGHTS_FX_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
  * Reads headline insights metrics for a comparison date range
@@ -26,7 +29,7 @@ export function useInsightsPeriodGlance(
     queryKey: insightsKeys.periodGlance(fromDate, toDate, comparisonPeriod),
     queryFn: () => fetchInsightsPeriodGlance(fromDate, toDate, comparisonPeriod),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
 }
 
@@ -39,7 +42,7 @@ export function useInsightsNetWorth(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.netWorth(fromDate, toDate),
     queryFn: () => fetchInsightsNetWorth(fromDate, toDate),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
 }
 
@@ -52,7 +55,7 @@ export function useInsightsSavingsRateTrend(enabled = true) {
     queryKey: insightsKeys.savingsRateTrend(),
     queryFn: fetchInsightsSavingsRateTrend,
     enabled: !!accessToken && enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
 }
 
@@ -70,7 +73,7 @@ export function useInsightsIncomeExpenseBreakdown(
     queryKey: insightsKeys.incomeExpenseBreakdown(fromDate, toDate, comparisonPeriod),
     queryFn: () => fetchInsightsIncomeExpenseBreakdown(fromDate, toDate, comparisonPeriod),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
 }
 
@@ -83,7 +86,7 @@ export function useInsightsCashFlow(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.cashFlow(fromDate, toDate),
     queryFn: () => fetchInsightsCashFlow(fromDate, toDate),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
 }
 
@@ -96,7 +99,7 @@ export function useInsightsFundFlow(fromDate: string, toDate: string, enabled = 
     queryKey: insightsKeys.fundFlow(fromDate, toDate),
     queryFn: () => fetchInsightsFundFlow(fromDate, toDate),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
 }
 
@@ -114,6 +117,6 @@ export function useInsightsMerchants(
     queryKey: insightsKeys.merchants(fromDate, toDate, comparisonPeriod),
     queryFn: () => fetchInsightsMerchants(fromDate, toDate, comparisonPeriod),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
-    staleTime: 5 * 60 * 1000,
+    staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
 }
