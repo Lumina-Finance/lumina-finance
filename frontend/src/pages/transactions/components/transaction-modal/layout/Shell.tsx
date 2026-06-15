@@ -1,8 +1,12 @@
-import type { FormEvent, ReactNode } from 'react'
+import { useEffect, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { ReceiptText, X } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
+import {
+  getNextTransactionModalFieldTabStop,
+  getTransactionModalFieldTabStops,
+} from '@/pages/transactions/components/transaction-modal/utils/focus'
 
 interface TransactionModalShellProps {
   open: boolean
@@ -28,6 +32,41 @@ export default function TransactionModalShell({
   onClose,
   onSubmit,
 }: TransactionModalShellProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      const firstField = panelRef.current
+        ? getTransactionModalFieldTabStops(panelRef.current)[0]
+        : undefined
+
+      firstField?.focus({ preventScroll: true })
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open])
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const fieldTabStops = getTransactionModalFieldTabStops(panel)
+    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const nextField = getNextTransactionModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
+
+    if (!nextField) {
+      event.preventDefault()
+      return
+    }
+
+    event.preventDefault()
+    nextField.focus()
+  }
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -52,6 +91,7 @@ export default function TransactionModalShell({
             onClick={onClose}
           >
             <motion.div
+              ref={panelRef}
               layout
               role="dialog"
               aria-modal="true"
@@ -64,6 +104,7 @@ export default function TransactionModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleTabKeyDown}
             >
               <div
                 className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"

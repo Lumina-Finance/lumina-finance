@@ -19,6 +19,7 @@ import {
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import { getNextTransactionModalFieldTabStop } from '@/pages/transactions/components/transaction-modal/utils/focus'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -222,5 +223,15 @@ describe('transaction modal helpers', () => {
       amount: 20000,
       tag_ids: ['business'],
     })
+  })
+
+  it('wraps transaction modal Tab focus through field controls only', () => {
+    const fieldTabStops = ['account', 'merchant', 'category', 'date', 'amount', 'notes']
+
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, null, false)).toBe('account')
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'account', false)).toBe('merchant')
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'notes', false)).toBe('account')
+    expect(getNextTransactionModalFieldTabStop(fieldTabStops, 'account', true)).toBe('notes')
+    expect(getNextTransactionModalFieldTabStop([], null, false)).toBeNull()
   })
 })
