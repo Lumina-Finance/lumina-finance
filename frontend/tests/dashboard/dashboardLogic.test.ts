@@ -19,6 +19,7 @@ import type { Transaction } from '@/api/transactions'
 import type { RunwayResult } from '@/api/user'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
+import { getDashboardGreetingForHour } from '@/pages/dashboard/hooks/useDashboardGreeting'
 import { getCreditUsageSummary } from '@/pages/dashboard/utils/getCreditUsageSummary'
 import { getNetWorthSeries } from '@/pages/dashboard/utils/getNetWorthSeries'
 import { getRecentActivityRows } from '@/pages/dashboard/utils/getRecentActivityRows'
@@ -119,6 +120,28 @@ function createBudget(overrides: Partial<LatestBudgetUtilization>): LatestBudget
 }
 
 describe('dashboard logic helpers', () => {
+  it('chooses the dashboard greeting from local hour boundaries', () => {
+    expect(getDashboardGreetingForHour(0)).toEqual({
+      greeting: 'Still up?',
+      subtitle: 'Your finances can wait, your sleep can\u2019t.',
+    })
+    expect(getDashboardGreetingForHour(3)).toMatchObject({ greeting: 'Still up?' })
+    expect(getDashboardGreetingForHour(4)).toMatchObject({ greeting: 'Good morning' })
+    expect(getDashboardGreetingForHour(11)).toMatchObject({ greeting: 'Good morning' })
+    expect(getDashboardGreetingForHour(12)).toMatchObject({ greeting: 'Good afternoon' })
+    expect(getDashboardGreetingForHour(15)).toMatchObject({ greeting: 'Good afternoon' })
+    expect(getDashboardGreetingForHour(16)).toMatchObject({ greeting: 'Good evening' })
+    expect(getDashboardGreetingForHour(20)).toMatchObject({ greeting: 'Good evening' })
+    expect(getDashboardGreetingForHour(21)).toEqual({
+      greeting: 'It\u2019s getting late...',
+      subtitle: 'Your finances can wait, your sleep can\u2019t.',
+    })
+    expect(getDashboardGreetingForHour(23)).toEqual({
+      greeting: 'It\u2019s getting late...',
+      subtitle: 'Your finances can wait, your sleep can\u2019t.',
+    })
+  })
+
   it('summarizes credit usage for used and remaining modes', () => {
     const credit = {
       credit_limit_total: 100000,

@@ -8,6 +8,7 @@ import { SpendingBreakdownWidget } from '@/pages/dashboard/widgets/spending-brea
 import { SpendingComparisonWidget } from '@/pages/dashboard/widgets/spending-comparison/Widget'
 import { TopBudgetsWidget } from '@/pages/dashboard/widgets/top-budgets/Widget'
 import { useDashboardGreeting } from '@/pages/dashboard/hooks/useDashboardGreeting'
+import { DashboardGreetingHeader } from '@/pages/dashboard/components/GreetingHeader'
 
 /**
  * Composes the dashboard greeting and financial overview widgets
@@ -19,12 +20,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <header className="app-page-header">
-        <h1 className="app-page-title">
-          {greeting}
-        </h1>
-        <p className="app-page-description">{subtitle}</p>
-      </header>
+      <DashboardGreetingHeader greeting={greeting} subtitle={subtitle} />
 
       <div className="space-y-5">
         <div className="grid grid-cols-1 gap-4 min-[730px]:grid-cols-2 min-[1750px]:grid-cols-4">
