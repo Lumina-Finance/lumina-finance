@@ -8,11 +8,11 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/ReferenceModalShell'
+import { requestNextModalFieldFocus } from '@/components/modal/focus'
+import { CREATE_MERCHANT_FIELD_IDS, NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const CREATE_MERCHANT_MIN_LOADING_MS = 800
-
-export const NO_DEFAULT_CATEGORY_VALUE = '__none__'
 
 type CreateMerchantField = 'name'
 type CreateMerchantFieldErrors = Partial<Record<CreateMerchantField, string>>
@@ -134,9 +134,9 @@ export default function CreateMerchantModal({
               </AnimatePresence>
             </div>
             <div>
-              <label htmlFor="merchant-name" className="sr-only">Merchant name</label>
+              <label htmlFor={CREATE_MERCHANT_FIELD_IDS.name} className="sr-only">Merchant name</label>
               <input
-                id="merchant-name"
+                id={CREATE_MERCHANT_FIELD_IDS.name}
                 className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
                 value={form.name}
                 onChange={(event) => setField('name', event.target.value)}
@@ -158,12 +158,15 @@ export default function CreateMerchantModal({
               </p>
             </div>
             <div>
-              <label htmlFor="merchant-default-category" className="sr-only">Default category</label>
+              <label htmlFor={CREATE_MERCHANT_FIELD_IDS.defaultCategory} className="sr-only">Default category</label>
               <Dropdown
-                id="merchant-default-category"
+                id={CREATE_MERCHANT_FIELD_IDS.defaultCategory}
                 options={categoryOptions}
                 value={form.default_category_id}
-                onChange={(value) => setField('default_category_id', value)}
+                onChange={(value) => {
+                  setField('default_category_id', value)
+                  requestNextModalFieldFocus(CREATE_MERCHANT_FIELD_IDS.defaultCategory)
+                }}
                 searchable
                 searchPlaceholder="Search categories..."
               />

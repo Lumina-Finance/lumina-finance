@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/CreateMerchantModal'
+import { NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
 import { useAccounts } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
