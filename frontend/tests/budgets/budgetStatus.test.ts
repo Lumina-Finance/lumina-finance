@@ -55,6 +55,10 @@ describe('budget attention status', () => {
     expect(attentionState(undefined, undefined).label).toBe('Needs attention')
   })
 
+  it('treats missing utilization for an existing period as zero spend', () => {
+    expect(attentionState(createBudget(), undefined).label).toBe('On track')
+  })
+
   it('classifies utilization below the warning threshold as on track', () => {
     expect(attentionState(createBudget(), createUtilization(50000)).label).toBe('On track')
   })
