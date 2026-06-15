@@ -15,9 +15,9 @@ export function AuthErrorBanner({ error }: { error: string }) {
             background: 'var(--app-negative-soft)',
             border: '1px solid var(--app-negative-border)',
           }}
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
+          initial={{ opacity: 0, height: 0, marginTop: 0 }}
+          animate={{ opacity: 1, height: 'auto', marginTop: 20 }}
+          exit={{ opacity: 0, height: 0, marginTop: 0 }}
           transition={{ duration: 0.2 }}
         >
           <AlertCircle
@@ -34,4 +34,3 @@ export function AuthErrorBanner({ error }: { error: string }) {
     </AnimatePresence>
   )
 }
-

@@ -60,7 +60,7 @@ const AuthPage = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5" noValidate>
+      <form onSubmit={handleSubmit} className="w-full max-w-sm" noValidate>
         <AuthAnimatedTitle mode={mode} />
 
         <AuthErrorBanner error={displayError} />
@@ -74,19 +74,21 @@ const AuthPage = () => {
           onFieldChange={handleChange}
         />
 
-        <AuthTextField
-          id="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          value={form.email}
-          touched={touched.email}
-          error={fieldErrors.email}
-          onChange={(value) => handleChange('email', value)}
-          onBlur={() => handleBlur('email')}
-        />
+        <div className="mt-5">
+          <AuthTextField
+            id="email"
+            label="Email"
+            type="email"
+            autoComplete="email"
+            value={form.email}
+            touched={touched.email}
+            error={fieldErrors.email}
+            onChange={(value) => handleChange('email', value)}
+            onBlur={() => handleBlur('email')}
+          />
+        </div>
 
-        <div>
+        <div className="mt-5">
           <AuthTextField
             id="password"
             label="Password"
@@ -126,7 +128,7 @@ const AuthPage = () => {
           onFieldChange={handleChange}
         />
 
-        <div className="flex justify-center">
+        <div className="mt-5 flex justify-center">
           <button
             type="submit"
             disabled={submitDisabled}
@@ -138,7 +140,7 @@ const AuthPage = () => {
           </button>
         </div>
 
-        <p className="text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
           {isLogin ? "Don't have an account? " : 'Already have an account? '}
           <button
             type="button"
