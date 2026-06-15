@@ -1,13 +1,9 @@
-import { useEffect, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { ReceiptText, X } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
-import {
-  getModalFieldTabStops,
-  getNextModalFieldTabStop,
-  requestFirstModalFieldFocus,
-} from '@/components/modal/focus'
+import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 
 interface TransactionModalShellProps {
   open: boolean
@@ -33,40 +29,7 @@ export default function TransactionModalShell({
   onClose,
   onSubmit,
 }: TransactionModalShellProps) {
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-
-    const panel = panelRef.current
-    if (!panel) return
-
-    const frameId = requestFirstModalFieldFocus(panel)
-
-    return () => window.cancelAnimationFrame(frameId)
-  }, [open])
-
-  /**
-   * Keeps sequential Tab focus on modal fields while leaving action buttons pointer-accessible
-   */
-  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab') return
-
-    const panel = panelRef.current
-    if (!panel) return
-
-    const fieldTabStops = getModalFieldTabStops(panel)
-    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const nextField = getNextModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
-
-    if (!nextField) {
-      event.preventDefault()
-      return
-    }
-
-    event.preventDefault()
-    nextField.focus()
-  }
+  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus(open)
 
   return createPortal(
     <AnimatePresence>
@@ -106,7 +69,7 @@ export default function TransactionModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
-              onKeyDown={handleTabKeyDown}
+              onKeyDown={handleModalFieldKeyDown}
             >
               <div
                 className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"

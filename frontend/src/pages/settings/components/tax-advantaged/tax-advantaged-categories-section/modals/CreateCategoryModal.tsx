@@ -5,12 +5,15 @@ import { Landmark, X } from 'lucide-react'
 import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
 import Dropdown from '@/components/dropdown/Dropdown'
+import { requestNextModalFieldFocus } from '@/components/modal/focus'
+import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { useCreateTaxAdvantagedCategoryForm } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCreateCategoryForm'
 import {
   EASE,
   TAX_TREATMENT_OPTIONS,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
+import { CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
 import {
   CurrencyInput,
   TaxAdvantagedCurrencyWarning,
@@ -37,6 +40,7 @@ export default function CreateTaxAdvantagedCategoryModal({
     selectedCurrency,
     setField,
   } = useCreateTaxAdvantagedCategoryForm({ currencies, onClose, userBaseCurrency })
+  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus()
 
   useBodyScrollLock(true)
 
@@ -72,9 +76,11 @@ export default function CreateTaxAdvantagedCategoryModal({
         onClick={onClose}
       >
         <div
+          ref={panelRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-tax-advantaged-category-title"
+          data-modal-field-focus-panel="true"
           className="app-modal-panel flex max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
@@ -82,6 +88,7 @@ export default function CreateTaxAdvantagedCategoryModal({
             boxShadow: 'var(--app-shadow-soft)',
           }}
           onClick={(event) => event.stopPropagation()}
+          onKeyDown={handleModalFieldKeyDown}
         >
           <div
             className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"
@@ -142,6 +149,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                       <div>
                         <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category name</span>
                         <input
+                          id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name}
                           className="app-input"
                           value={form.name}
                           onChange={(event) => setField('name', event.target.value)}
@@ -153,9 +161,13 @@ export default function CreateTaxAdvantagedCategoryModal({
                       <div>
                         <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</span>
                         <Dropdown
+                          id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment}
                           options={TAX_TREATMENT_OPTIONS}
                           value={form.tax_treatment}
-                          onChange={(value) => setField('tax_treatment', value as TaxTreatment)}
+                          onChange={(value) => {
+                            setField('tax_treatment', value as TaxTreatment)
+                            requestNextModalFieldFocus(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment)
+                          }}
                         />
                       </div>
                     </div>
@@ -183,9 +195,13 @@ export default function CreateTaxAdvantagedCategoryModal({
                           <TaxAdvantagedCurrencyWarning />
                         </div>
                         <Dropdown
+                          id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency}
                           options={options}
                           value={selectedCurrency}
-                          onChange={(value) => setField('currency', value)}
+                          onChange={(value) => {
+                            setField('currency', value)
+                            requestNextModalFieldFocus(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency)
+                          }}
                           placeholder="Select currency"
                           searchable
                           searchPlaceholder="Search currencies..."
@@ -194,6 +210,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                       <div>
                         <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime Contribution Limit</span>
                         <CurrencyInput
+                          id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit}
                           currencies={currencies}
                           currency={selectedCurrency}
                           value={form.lifetime_contribution_limit}
@@ -204,6 +221,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                       <div>
                         <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Accrued Contributions</span>
                         <CurrencyInput
+                          id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions}
                           currencies={currencies}
                           currency={selectedCurrency}
                           value={form.accrued_contributions}

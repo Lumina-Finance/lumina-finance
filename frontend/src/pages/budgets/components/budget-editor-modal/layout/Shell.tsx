@@ -1,19 +1,12 @@
 import {
-  useEffect,
-  useRef,
   type CSSProperties,
   type FormEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { CircleAlert, PiggyBank, X } from 'lucide-react'
-import {
-  getModalFieldTabStops,
-  getNextModalFieldTabStop,
-  requestFirstModalFieldFocus,
-} from '@/components/modal/focus'
+import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 import { EASE } from '@/pages/budgets/constants'
 
 type SurfaceMotion = {
@@ -71,40 +64,7 @@ export default function BudgetEditorModalShell({
   onClose,
   onSubmit,
 }: BudgetEditorModalShellProps) {
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-
-    const panel = panelRef.current
-    if (!panel) return
-
-    const frameId = requestFirstModalFieldFocus(panel)
-
-    return () => window.cancelAnimationFrame(frameId)
-  }, [open])
-
-  /**
-   * Keeps sequential Tab focus on modal fields while leaving action buttons pointer-accessible
-   */
-  const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab') return
-
-    const panel = panelRef.current
-    if (!panel) return
-
-    const fieldTabStops = getModalFieldTabStops(panel)
-    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const nextField = getNextModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
-
-    if (!nextField) {
-      event.preventDefault()
-      return
-    }
-
-    event.preventDefault()
-    nextField.focus()
-  }
+  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus(open)
 
   return createPortal(
     <AnimatePresence>
@@ -151,7 +111,7 @@ export default function BudgetEditorModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
-              onKeyDown={handleTabKeyDown}
+              onKeyDown={handleModalFieldKeyDown}
             >
               <div
                 className={appearance.sideRailClassName}
