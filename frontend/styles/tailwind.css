@@ -105,6 +105,11 @@
     font-family: "DM Sans", system-ui, sans-serif;
   }
 
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
   @supports (-webkit-touch-callout: none) {
     input,
     select,
