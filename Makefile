@@ -3,13 +3,17 @@ SHELL := /bin/bash
 
 DEV_DIR ?= dev
 
-.PHONY: new-worktree \
+.PHONY: new-worktree cleanup-worktree \
 	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-migrate \
 	reset-test-stack test-stack-down test-stack-build test-stack-restore test-stack-app-up
 
 # Create a fully isolated worktree with its own database, dependencies, and port
 new-worktree:
 	@"$(DEV_DIR)/new-worktree.sh" "$(NAME)"
+
+# Remove the current worktree, its branch, and its database container
+cleanup-worktree:
+	@"$(DEV_DIR)/cleanup-worktree.sh"
 
 # Reset the databases used for local development and pytest
 reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-migrate
