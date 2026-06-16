@@ -4,7 +4,7 @@ SHELL := /bin/bash
 DEV_DIR ?= dev
 
 .PHONY: reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-migrate \
-	reset-test-stack test-stack-down test-stack-build test-stack-db-up test-stack-restore test-stack-app-up
+	reset-test-stack test-stack-down test-stack-build test-stack-restore test-stack-app-up
 
 # Reset the databases used for local development and pytest
 reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-migrate
@@ -26,7 +26,7 @@ dev-db-migrate:
 	@"$(DEV_DIR)/dev-db/migrate.sh"
 
 # Rebuild and reset the local Docker test stack
-reset-test-stack: test-stack-down test-stack-build test-stack-db-up test-stack-restore test-stack-app-up
+reset-test-stack: test-stack-down test-stack-build test-stack-restore test-stack-app-up
 
 # Tear down the test stack and its volumes
 test-stack-down:
@@ -36,11 +36,7 @@ test-stack-down:
 test-stack-build:
 	@"$(DEV_DIR)/test-stack/build.sh"
 
-# Start only the test stack Postgres
-test-stack-db-up:
-	@"$(DEV_DIR)/test-stack/db-up.sh"
-
-# Restore remote staging data into the test stack database
+# Start the test stack Postgres and restore remote staging data into it
 test-stack-restore:
 	@"$(DEV_DIR)/test-stack/restore.sh"
 
