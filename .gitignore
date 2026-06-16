@@ -1,2 +1,5 @@
 **/.env
 **/.DS_Store
+
+# Local git worktrees created by make new-worktree
+.worktree/
