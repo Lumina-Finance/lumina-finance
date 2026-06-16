@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-# Shared paths and helpers for the testing scripts
+# Shared paths and helpers for the dev tooling scripts
 
-testing_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$testing_dir/.." && pwd)"
+dev_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$dev_dir/.." && pwd)"
 
 # Print the value of KEY from a dotenv FILE in a subshell so no other variables
 # leak into the caller, which keeps the dev and test DB_* names from colliding
@@ -40,10 +40,10 @@ ensure_dev_db_container() {
 }
 
 # Run docker compose for the local test stack, reusing the production compose
-# file with the docker test-stack environment from testing/.env
+# file with the docker test-stack environment from dev/.env
 compose_test_stack() {
     docker compose \
-        --env-file "$testing_dir/.env" \
+        --env-file "$dev_dir/.env" \
         -p lumina-test \
         -f "$repo_root/docker/compose.yml" \
         "$@"

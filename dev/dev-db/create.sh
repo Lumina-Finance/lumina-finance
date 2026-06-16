@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 set -a
 source "$repo_root/backend/.env"
 set +a
-dev_pg_container="$(read_env_var "$testing_dir/.env" DEV_PG_CONTAINER)"
+dev_pg_container="$(read_env_var "$dev_dir/.env" DEV_PG_CONTAINER)"
 test_db_name="$(read_env_var "$repo_root/backend/tests/.env.test" DB_NAME)"
 test_db_user="$(read_env_var "$repo_root/backend/tests/.env.test" DB_USER)"
 test_db_password="$(read_env_var "$repo_root/backend/tests/.env.test" DB_PASSWORD)"
@@ -15,7 +15,7 @@ test_db_password="$(read_env_var "$repo_root/backend/tests/.env.test" DB_PASSWOR
 : "${DB_NAME:?DB_NAME is required in backend/.env}"
 : "${DB_USER:?DB_USER is required in backend/.env}"
 : "${DB_PASSWORD:?DB_PASSWORD is required in backend/.env}"
-: "${dev_pg_container:?DEV_PG_CONTAINER is required in testing/.env}"
+: "${dev_pg_container:?DEV_PG_CONTAINER is required in dev/.env}"
 : "${test_db_name:?DB_NAME is required in backend/tests/.env.test}"
 : "${test_db_user:?DB_USER is required in backend/tests/.env.test}"
 : "${test_db_password:?DB_PASSWORD is required in backend/tests/.env.test}"
