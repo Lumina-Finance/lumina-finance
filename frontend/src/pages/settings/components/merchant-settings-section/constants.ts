@@ -1,5 +1,5 @@
 import type { Category } from '@/api/categories'
-import { NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/CreateMerchantModal'
+import { NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
 
 export const DELETE_SPINNER_MS = 800
 export const NO_CATEGORY_VALUE = NO_DEFAULT_CATEGORY_VALUE

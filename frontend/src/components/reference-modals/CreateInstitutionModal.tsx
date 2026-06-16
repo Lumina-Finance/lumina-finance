@@ -6,6 +6,8 @@ import Dropdown from '@/components/dropdown/Dropdown'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell from '@/components/create-modal/ReferenceModalShell'
+import { requestNextModalFieldFocus } from '@/components/modal/focus'
+import { CREATE_INSTITUTION_FIELD_IDS } from '@/components/reference-modals/createInstitutionConstants'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -129,9 +131,9 @@ export default function CreateInstitutionModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor="inst-name" label="Name" error={showError('name') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={CREATE_INSTITUTION_FIELD_IDS.name} label="Name" error={showError('name') || undefined} />
               <input
-                id="inst-name"
+                id={CREATE_INSTITUTION_FIELD_IDS.name}
                 type="text"
                 className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
                 value={form.name}
@@ -142,11 +144,15 @@ export default function CreateInstitutionModal({
             </div>
 
             <div>
-              <CreateModalFieldLabelRow label="Country" error={showError('country_code') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={CREATE_INSTITUTION_FIELD_IDS.country} label="Country" error={showError('country_code') || undefined} />
               <Dropdown
+                id={CREATE_INSTITUTION_FIELD_IDS.country}
                 options={COUNTRY_OPTIONS}
                 value={form.country_code}
-                onChange={(value) => handleChange('country_code', value)}
+                onChange={(value) => {
+                  handleChange('country_code', value)
+                  requestNextModalFieldFocus(CREATE_INSTITUTION_FIELD_IDS.country)
+                }}
                 className={`app-input ${showError('country_code') ? 'app-input-error' : ''}`}
                 placeholder="Select country..."
                 searchable
@@ -161,9 +167,9 @@ export default function CreateInstitutionModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Reference</p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor="inst-website" label="Website" error={showError('website') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={CREATE_INSTITUTION_FIELD_IDS.website} label="Website" error={showError('website') || undefined} />
               <input
-                id="inst-website"
+                id={CREATE_INSTITUTION_FIELD_IDS.website}
                 type="url"
                 className={`app-input ${showError('website') ? 'app-input-error' : ''}`}
                 placeholder="https://example.com"

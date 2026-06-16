@@ -21,6 +21,7 @@ const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   limit: 'budget-edit-limit',
   interval: 'budget-edit-interval',
   periodStart: 'budget-edit-period-start',
+  categorySearch: 'budget-edit-category-search',
   categoryError: 'budget-edit-category-error',
 }
 

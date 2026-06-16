@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { ReceiptText, X } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
+import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 
 interface TransactionModalShellProps {
   open: boolean
@@ -28,6 +29,8 @@ export default function TransactionModalShell({
   onClose,
   onSubmit,
 }: TransactionModalShellProps) {
+  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus(open)
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -52,10 +55,12 @@ export default function TransactionModalShell({
             onClick={onClose}
           >
             <motion.div
+              ref={panelRef}
               layout
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-txn-title"
+              data-modal-field-focus-panel="true"
               className="app-modal-panel flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
               transition={{ layout: { duration: 0.22, ease: EASE } }}
               style={{
@@ -64,6 +69,7 @@ export default function TransactionModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleModalFieldKeyDown}
             >
               <div
                 className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"

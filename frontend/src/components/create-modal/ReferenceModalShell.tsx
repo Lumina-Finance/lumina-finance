@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { X, type LucideIcon } from 'lucide-react'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
+import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 
 export type CreateReferenceModalVariant = 'primary' | 'secondary'
 
@@ -91,6 +92,7 @@ export default function CreateReferenceModalShell({
   const layout = layoutByVariant[variant]
   const closeIfAllowed = closeDisabled ? undefined : onClose
   const hasRail = RailIcon && railLabel
+  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus(open)
 
   useBodyScrollLock(open && variant !== 'secondary')
 
@@ -128,9 +130,11 @@ export default function CreateReferenceModalShell({
             onClick={closeIfAllowed}
           >
             <div
+              ref={panelRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby={modalTitleId}
+              data-modal-field-focus-panel="true"
               className={layout.modalClassName}
               style={{
                 background: 'var(--app-bg)',
@@ -138,6 +142,7 @@ export default function CreateReferenceModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleModalFieldKeyDown}
             >
               {hasRail && (
                 <div className={layout.railClassName} style={layout.railStyle} aria-hidden>

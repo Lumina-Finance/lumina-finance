@@ -1,6 +1,7 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from '@/components/dropdown/Dropdown';
+import { requestNextModalFieldFocus } from '@/components/modal/focus';
 import IconTooltip from '@/components/tooltips/IconTooltip';
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow';
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame';
@@ -19,6 +20,7 @@ import {
 import {
   ALL_CREATE_ACCOUNT_FIELDS_TOUCHED,
   CREATE_ACCOUNT_EASE,
+  CREATE_ACCOUNT_MODAL_FIELD_IDS,
   CREATE_ACCOUNT_TYPE_OPTIONS,
 } from '@/pages/accounts/components/create-account-modal/constants';
 import {
@@ -106,6 +108,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const handleInstitutionCreated = (institution: { id: string }) => {
     handleChange('institution_id', institution.id);
     setShowInstitutionModal(false);
+    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution);
   };
 
   const handleBlur = (field: CreateAccountValidatedField) => {
@@ -151,9 +154,13 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               <div>
                 <CreateModalFieldLabelRow label="Account Type" error={showError('account_type') || undefined} />
                 <Dropdown
+                  id={CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType}
                   options={CREATE_ACCOUNT_TYPE_OPTIONS}
                   value={form.account_type}
-                  onChange={(v) => handleChange('account_type', v)}
+                  onChange={(v) => {
+                    handleChange('account_type', v);
+                    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType);
+                  }}
                   className={`app-input ${showError('account_type') ? 'app-input-error' : ''}`}
                   placeholder="Select type..."
                   searchable
@@ -181,9 +188,13 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               <div>
                 <CreateModalFieldLabelRow label="Currency" error={showError('currency') || undefined} />
                 <Dropdown
+                  id={CREATE_ACCOUNT_MODAL_FIELD_IDS.currency}
                   options={currencyOptions}
                   value={form.currency}
-                  onChange={(v) => handleChange('currency', v)}
+                  onChange={(v) => {
+                    handleChange('currency', v);
+                    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.currency);
+                  }}
                   className={`app-input ${showError('currency') ? 'app-input-error' : ''}`}
                   placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
                   searchable
@@ -203,9 +214,13 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               <div>
                 <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Institution</label>
                 <Dropdown
+                  id={CREATE_ACCOUNT_MODAL_FIELD_IDS.institution}
                   options={institutionOptions}
                   value={form.institution_id}
-                  onChange={(v) => handleChange('institution_id', v)}
+                  onChange={(v) => {
+                    handleChange('institution_id', v);
+                    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution);
+                  }}
                   placeholder="Select institution..."
                   searchable
                   searchPlaceholder="Search institutions..."
@@ -266,9 +281,13 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                       <div>
                         <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Tax-Advantaged Category</label>
                         <Dropdown
+                          id={CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory}
                           options={taxPlanOptions}
                           value={form.tax_advantaged_category_id}
-                          onChange={(v) => handleChange('tax_advantaged_category_id', v)}
+                          onChange={(v) => {
+                            handleChange('tax_advantaged_category_id', v);
+                            requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory);
+                          }}
                           placeholder="Select category..."
                           searchable
                           searchPlaceholder="Search categories..."

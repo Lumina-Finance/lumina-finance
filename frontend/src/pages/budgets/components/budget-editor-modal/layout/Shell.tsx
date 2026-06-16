@@ -1,7 +1,12 @@
-import type React from 'react'
+import {
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { CircleAlert, PiggyBank, X } from 'lucide-react'
+import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 import { EASE } from '@/pages/budgets/constants'
 
 type SurfaceMotion = {
@@ -12,7 +17,7 @@ type SurfaceMotion = {
 
 export interface BudgetEditorModalShellAppearance {
   backdropClassName: string
-  backdropStyle: React.CSSProperties
+  backdropStyle: CSSProperties
   backdropDuration: number
   stageClassName: string
   panelClassName: string
@@ -20,7 +25,7 @@ export interface BudgetEditorModalShellAppearance {
   surfaceExit: SurfaceMotion
   surfaceDuration: number
   sideRailClassName: string
-  sideRailStyle: React.CSSProperties
+  sideRailStyle: CSSProperties
   sideRailIconSize: number
   sideLabelClassName: string
   headerClassName: string
@@ -36,10 +41,10 @@ interface BudgetEditorModalShellProps {
   warning?: string
   formError: string | null
   appearance: BudgetEditorModalShellAppearance
-  footer: React.ReactNode
-  children: React.ReactNode
+  footer: ReactNode
+  children: ReactNode
   onClose: () => void
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }
 
 /**
@@ -59,6 +64,8 @@ export default function BudgetEditorModalShell({
   onClose,
   onSubmit,
 }: BudgetEditorModalShellProps) {
+  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus(open)
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -92,9 +99,11 @@ export default function BudgetEditorModalShell({
             }}
           >
             <div
+              ref={panelRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
+              data-modal-field-focus-panel="true"
               className={appearance.panelClassName}
               style={{
                 background: 'var(--app-bg)',
@@ -102,6 +111,7 @@ export default function BudgetEditorModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleModalFieldKeyDown}
             >
               <div
                 className={appearance.sideRailClassName}

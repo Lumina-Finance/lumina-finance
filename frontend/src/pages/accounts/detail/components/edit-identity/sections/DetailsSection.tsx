@@ -1,5 +1,7 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
+import { requestNextModalFieldFocus } from '@/components/modal/focus'
+import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import {
   formatMoneyInputLive,
   sanitizeMoneyInput,
@@ -40,9 +42,13 @@ export function AccountDetailsSection({
         <div>
           <AccountIdentityFieldLabelRow label="Tax-Advantaged Category" />
           <Dropdown
+            id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory}
             options={taxAdvantagedCategoryOptions}
             value={form.tax_advantaged_category_id}
-            onChange={(value) => setField('tax_advantaged_category_id', value)}
+            onChange={(value) => {
+              setField('tax_advantaged_category_id', value)
+              requestNextModalFieldFocus(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory)
+            }}
             placeholder="Select category..."
             searchable
             searchPlaceholder="Search categories..."
@@ -52,7 +58,7 @@ export function AccountDetailsSection({
 
       {isRevolving && (
         <div>
-          <AccountIdentityFieldLabelRow htmlFor="edit-credit-limit" label="Credit Limit" error={fieldErrors.credit_limit} />
+          <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit} label="Credit Limit" error={fieldErrors.credit_limit} />
           <div className="relative">
             {selectedCurrencySymbol && (
               <span
@@ -64,7 +70,7 @@ export function AccountDetailsSection({
               </span>
             )}
             <input
-              id="edit-credit-limit"
+              id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
               className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
               inputMode="decimal"
               value={form.credit_limit}

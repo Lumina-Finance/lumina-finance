@@ -8,6 +8,8 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/ReferenceModalShell'
+import { requestNextModalFieldFocus } from '@/components/modal/focus'
+import { CREATE_CATEGORY_FIELD_IDS } from '@/components/reference-modals/createCategoryConstants'
 import { waitForMilliseconds } from '@/utils/timing'
 
 type CategoryKind = Category['kind']
@@ -150,11 +152,16 @@ export default function CreateCategoryModal({
                   </AnimatePresence>
                 </div>
                 <CategoryIconSelector
+                  id={CREATE_CATEGORY_FIELD_IDS.icon}
                   categoryName={form.name || 'New category'}
                   value={form.icon}
-                  onChange={(icon) => setField('icon', icon)}
+                  onChange={(icon) => {
+                    setField('icon', icon)
+                    requestNextModalFieldFocus(CREATE_CATEGORY_FIELD_IDS.icon)
+                  }}
                   buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${showError('icon') ? 'app-input-error' : ''}`}
                   hasError={!!showError('icon')}
+                  modalFieldTabStop
                 />
               </div>
 
@@ -178,6 +185,7 @@ export default function CreateCategoryModal({
                   </AnimatePresence>
                 </div>
                 <input
+                  id={CREATE_CATEGORY_FIELD_IDS.name}
                   className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
                   value={form.name}
                   onChange={(event) => setField('name', event.target.value)}
@@ -197,9 +205,13 @@ export default function CreateCategoryModal({
             <div>
               <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</span>
               <Dropdown
+                id={CREATE_CATEGORY_FIELD_IDS.kind}
                 options={KIND_OPTIONS}
                 value={form.kind}
-                onChange={(value) => setField('kind', value as CategoryKind)}
+                onChange={(value) => {
+                  setField('kind', value as CategoryKind)
+                  requestNextModalFieldFocus(CREATE_CATEGORY_FIELD_IDS.kind)
+                }}
               />
             </div>
           </div>

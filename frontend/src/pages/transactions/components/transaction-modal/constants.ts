@@ -20,6 +20,12 @@ export const TAG_SEARCH_DEBOUNCE_MS = 300
 export const TAG_FETCHING_MORE_TEXT_MIN_MS = 800
 export const SEGMENTED_OPTION_GAP_REM = 0.35
 
+export const TRANSACTION_MODAL_FIELD_IDS = {
+  account: 'txn-account',
+  merchant: 'txn-merchant',
+  category: 'txn-category',
+} as const
+
 export const KIND_OPTIONS: { value: TransactionModalKind; label: string }[] = [
   { value: 'expense', label: 'Expense' },
   { value: 'income', label: 'Income' },

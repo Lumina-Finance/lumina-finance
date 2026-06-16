@@ -33,6 +33,7 @@ export interface BudgetEditorModalFieldIds {
   limit: string
   interval: string
   periodStart: string
+  categorySearch: string
   categoryError: string
 }
 

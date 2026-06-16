@@ -34,6 +34,7 @@ export function DropdownSearchControls({
       <input
         ref={searchRef}
         type="text"
+        data-dropdown-search="true"
         className="app-input min-w-0 flex-1"
         style={{ fontSize: '0.8125rem' }}
         placeholder={searchPlaceholder}
@@ -57,4 +58,3 @@ export function DropdownSearchControls({
     </div>
   )
 }
-

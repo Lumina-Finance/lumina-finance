@@ -3,6 +3,13 @@ import type { CreateAccountFieldErrors, CreateAccountForm } from '@/pages/accoun
 
 export const CREATE_ACCOUNT_EASE = [0.25, 0.1, 0.25, 1] as const
 
+export const CREATE_ACCOUNT_MODAL_FIELD_IDS = {
+  accountType: 'account-type',
+  currency: 'account-currency',
+  institution: 'account-institution',
+  taxAdvantagedCategory: 'account-tax-advantaged-category',
+} as const
+
 export const CREATE_ACCOUNT_TYPE_OPTIONS: DropdownOption[] = [
   { value: 'checking', label: 'Checking', group: 'Assets' },
   { value: 'savings', label: 'Savings', group: 'Assets' },

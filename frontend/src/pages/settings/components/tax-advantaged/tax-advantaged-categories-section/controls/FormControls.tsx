@@ -30,6 +30,7 @@ export function CurrencyInput({
   ariaLabel,
   currencies,
   currency,
+  id,
   onBlur,
   onChange,
   placeholder,
@@ -39,6 +40,7 @@ export function CurrencyInput({
   ariaLabel?: string
   currencies: Currency[]
   currency: string
+  id?: string
   onBlur?: () => void
   onChange: (value: string) => void
   placeholder?: string
@@ -66,6 +68,7 @@ export function CurrencyInput({
       )}
       <input
         aria-label={ariaLabel}
+        id={id}
         className={`app-input w-full ${symbol ? 'pl-8' : ''}`}
         inputMode="decimal"
         onBlur={() => {

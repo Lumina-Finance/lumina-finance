@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, X } from 'lucide-react'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { CREATE_ACCOUNT_EASE } from '@/pages/accounts/components/create-account-modal/constants'
+import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 
 interface CreateAccountModalShellProps {
   children: ReactNode
@@ -25,6 +26,8 @@ export default function CreateAccountModalShell({
   onClose,
   onSubmit,
 }: CreateAccountModalShellProps) {
+  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus(open)
+
   useBodyScrollLock(open)
 
   useEffect(() => {
@@ -61,9 +64,11 @@ export default function CreateAccountModalShell({
             onClick={onClose}
           >
             <div
+              ref={panelRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-account-title"
+              data-modal-field-focus-panel="true"
               className="app-modal-panel flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
               style={{
                 background: 'var(--app-bg)',
@@ -71,6 +76,7 @@ export default function CreateAccountModalShell({
                 boxShadow: 'var(--app-shadow-soft)',
               }}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={handleModalFieldKeyDown}
             >
               <div
                 className="hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex"

@@ -95,6 +95,7 @@ export default function BudgetEditorModalCategorySection({
                 aria-hidden
               />
               <input
+                id={ids.categorySearch}
                 className="app-input pl-9"
                 value={categorySearch}
                 onChange={(event) => handlers.onCategorySearchChange(event.target.value)}
