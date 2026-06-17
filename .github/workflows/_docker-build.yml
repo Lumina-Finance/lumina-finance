@@ -40,6 +40,9 @@ jobs:
       # Load the image into the local daemon instead of pushing so the smoke test can run it
       - name: Build image
         uses: docker/build-push-action@v7
+        env:
+          # The build record artifact is unused here and would linger past the image tarball
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           file: ./docker/Dockerfile
