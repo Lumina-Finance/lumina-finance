@@ -51,11 +51,16 @@ jobs:
           POSTGRES_PASSWORD: lumina_test
         ports:
           - 5432:5432
+        # A tight health interval lets the job start as soon as Postgres is ready
+        # instead of idling until the next poll, and the tmpfs data dir keeps the
+        # throwaway test database in memory for faster startup and writes
         options: >-
           --health-cmd "pg_isready -U lumina_test -d lumina_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 10
+          --health-start-period 5s
+          --tmpfs /var/lib/postgresql/data
 
     defaults:
       run:
