@@ -4,15 +4,18 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 name="${1:-}"
 
-: "${name:?Usage: make new-worktree NAME=<slug>}"
+: "${name:?Usage: make new-worktree NAME=<branch>}"
 
-# Restrict the name so it is safe as a branch, directory, container name, and port seed
-if [[ ! "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-	echo "NAME must be lowercase letters, digits, and hyphens (e.g. backend-rls)" >&2
+# Allow conventional branch names, the branch keeps the slashes while the slug
+# replaces them so it is safe as a directory, container name, and port seed
+if [[ ! "$name" =~ ^[a-z0-9]([a-z0-9/-]*[a-z0-9])?$ ]]; then
+	echo "NAME must be lowercase letters, digits, hyphens, and slashes (e.g. feat/backend-rls)" >&2
 	exit 1
 fi
 
-worktree="$repo_root/.worktree/$name"
+slug="${name//\//-}"
+
+worktree="$repo_root/.worktree/$slug"
 if [ -e "$worktree" ]; then
 	echo "Worktree already exists: $worktree" >&2
 	exit 1
@@ -20,11 +23,11 @@ fi
 
 # One stable offset per name drives all three ports, so the same name always
 # maps to the same trio and different worktrees never collide on the host
-offset=$(( $(printf '%s' "$name" | cksum | cut -d' ' -f1) % 1000 ))
+offset=$(( $(printf '%s' "$slug" | cksum | cut -d' ' -f1) % 1000 ))
 db_port=$(( 55000 + offset ))
 api_port=$(( 56000 + offset ))
 web_port=$(( 57000 + offset ))
-container="lumina-dev-$name"
+container="lumina-dev-$slug"
 
 # Replace KEY's value in a dotenv FILE, or append KEY=VALUE when the key is absent
 set_env_var() {
