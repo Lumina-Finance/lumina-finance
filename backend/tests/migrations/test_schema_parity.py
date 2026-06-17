@@ -12,10 +12,10 @@ from sqlalchemy.pool import NullPool
 
 from app.models.base import Base
 from tests.conftest import (
-    TEST_DB_HOST,
-    TEST_DB_PASSWORD,
-    TEST_DB_PORT,
-    TEST_DB_USER,
+    DB_HOST,
+    DB_PASSWORD,
+    DB_PORT,
+    DB_USER,
     WORKER_DB_NAME,
 )
 
@@ -106,11 +106,11 @@ def _run_alembic_upgrade(database_name: str, *, revision: str = "head") -> None:
     environment = os.environ.copy()
     environment.update(
         {
-            "DB_HOST": TEST_DB_HOST,
-            "DB_PORT": TEST_DB_PORT,
+            "DB_HOST": DB_HOST,
+            "DB_PORT": DB_PORT,
             "DB_NAME": database_name,
-            "DB_USER": TEST_DB_USER,
-            "DB_PASSWORD": TEST_DB_PASSWORD,
+            "DB_USER": DB_USER,
+            "DB_PASSWORD": DB_PASSWORD,
         },
     )
 
@@ -240,6 +240,6 @@ def _get_model_columns() -> dict[str, set[str]]:
 
 def _create_engine_for_database(database_name: str, *, isolation_level: str | None = None):
     """Create an async engine for a test database"""
-    database_url = f"postgresql+asyncpg://{TEST_DB_USER}:{TEST_DB_PASSWORD}@{TEST_DB_HOST}:{TEST_DB_PORT}/{database_name}"
+    database_url = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{database_name}"
     engine = create_async_engine(database_url, poolclass=NullPool, isolation_level=isolation_level)
     return engine

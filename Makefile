@@ -1,14 +1,54 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 
-TESTING_DIR ?= testing
+DEV_DIR ?= dev
 
-.PHONY: reset-dev-db reset-docker-stack-test-db
+.PHONY: new-worktree cleanup-worktree \
+	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-migrate \
+	reset-test-stack test-stack-down test-stack-build test-stack-restore test-stack-app-up
+
+# Create a fully isolated worktree with its own database, dependencies, and port
+new-worktree:
+	@"$(DEV_DIR)/new-worktree.sh" "$(NAME)"
+
+# Remove the current worktree, its branch, and its database container
+cleanup-worktree:
+	@"$(DEV_DIR)/cleanup-worktree.sh"
 
 # Reset the databases used for local development and pytest
-reset-dev-db:
-	@"$(TESTING_DIR)/reset-dev-db.sh"
+reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-migrate
 
-# Rebuild and reset the local Docker-stack test instance
-reset-docker-stack-test-db:
-	@"$(TESTING_DIR)/reset-docker-stack-test-db.sh"
+# Recreate the local development Postgres container
+dev-db-recreate:
+	@"$(DEV_DIR)/dev-db/recreate.sh"
+
+# Create the development and pytest databases and roles
+dev-db-create:
+	@"$(DEV_DIR)/dev-db/create.sh"
+
+# Restore remote staging data into the development database
+dev-db-restore:
+	@"$(DEV_DIR)/dev-db/restore.sh"
+
+# Apply local migrations to the development database
+dev-db-migrate:
+	@"$(DEV_DIR)/dev-db/migrate.sh"
+
+# Rebuild and reset the local Docker test stack
+reset-test-stack: test-stack-down test-stack-build test-stack-restore test-stack-app-up
+
+# Tear down the test stack and its volumes
+test-stack-down:
+	@"$(DEV_DIR)/test-stack/down.sh"
+
+# Build the test stack image
+test-stack-build:
+	@"$(DEV_DIR)/test-stack/build.sh"
+
+# Start the test stack Postgres and restore remote staging data into it
+test-stack-restore:
+	@"$(DEV_DIR)/test-stack/restore.sh"
+
+# Start the test stack app so its entrypoint migrates and seeds
+test-stack-app-up:
+	@"$(DEV_DIR)/test-stack/app-up.sh"

@@ -1,6 +1,6 @@
 services:
   app:
-    image: luminahq/lumina-finance:latest
+    image: "luminahq/lumina-finance:${APP_IMAGE_TAG:-latest}"
     restart: unless-stopped
     depends_on:
       postgres:

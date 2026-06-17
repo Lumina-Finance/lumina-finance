@@ -1,2 +1,8 @@
 **/.env
 **/.DS_Store
+
+# Local git worktrees created by make new-worktree
+.worktree/
+
+# Throwaway JWT keys the test suite generates when none are configured
+backend/tests/.keys/
