@@ -62,7 +62,10 @@ done
 # Give this worktree its own database identity
 set_env_var "$worktree/backend/.env" DB_PORT "$db_port"
 set_env_var "$worktree/dev/.env" DEV_PG_CONTAINER "$container"
-[ -f "$worktree/backend/tests/.env.test.local" ] && set_env_var "$worktree/backend/tests/.env.test.local" DB_PORT "$db_port"
+
+# The test suite layers .env.test.local over the committed .env.test, so the port
+# must land here for backend tests to reach this worktree's isolated database
+set_env_var "$worktree/backend/tests/.env.test.local" DB_PORT "$db_port"
 
 # Point the app at this worktree's own server ports, the servers are launched by hand
 set_url_port "$worktree/backend/.env" APP_URL "$web_port"
