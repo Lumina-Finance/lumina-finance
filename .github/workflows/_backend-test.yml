@@ -8,8 +8,31 @@ permissions:
   contents: read
 
 jobs:
+  # Fetch the locked dependencies once and warm the shared uv cache, the test legs
+  # restore it instead of each downloading the same packages in parallel
+  prime-cache:
+    name: Prime the uv cache
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync locked dependencies
+        run: uv sync --frozen
+
   test:
     name: Test backend ${{ matrix.suite.name }}
+    needs: prime-cache
     runs-on: ubuntu-latest
 
     # Each suite runs as its own parallel job against a dedicated database, the
