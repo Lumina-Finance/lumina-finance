@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { Picker } from 'emoji-mart'
 
 type EmojiPickerPosition = {
   left: number
@@ -251,50 +250,59 @@ function EmojiMartIconPicker({
     const container = containerRef.current
     if (!container || !data) return
 
-    container.innerHTML = ''
-    const picker = new Picker({
-      data,
-      autoFocus: false,
-      emojiButtonColors: ['var(--app-accent-soft)'],
-      emojiButtonRadius: '6px',
-      emojiButtonSize: 32,
-      emojiSize: 20,
-      emojiVersion: 14,
-      icons: 'outline',
-      maxFrequentRows: 0,
-      navPosition: 'none',
-      noCountryFlags: true,
-      onEmojiSelect: (selection: EmojiMartSelection) => {
-        if (!selection.native) return
-        onChange(selection.native)
-        onClose()
-      },
-      perLine: 7,
-      previewPosition: 'none',
-      searchPosition: 'sticky',
-      set: 'native',
-      skinTonePosition: 'none',
-      theme: isDark ? 'dark' : 'light',
+    let cancelled = false
+    let pickerElement: HTMLElement | null = null
+
+    // Load the emoji-mart picker on demand so its bundle stays out of the initial load
+    import('emoji-mart').then(({ Picker }) => {
+      if (cancelled || !containerRef.current) return
+
+      container.innerHTML = ''
+      const picker = new Picker({
+        data,
+        autoFocus: false,
+        emojiButtonColors: ['var(--app-accent-soft)'],
+        emojiButtonRadius: '6px',
+        emojiButtonSize: 32,
+        emojiSize: 20,
+        emojiVersion: 14,
+        icons: 'outline',
+        maxFrequentRows: 0,
+        navPosition: 'none',
+        noCountryFlags: true,
+        onEmojiSelect: (selection: EmojiMartSelection) => {
+          if (!selection.native) return
+          onChange(selection.native)
+          onClose()
+        },
+        perLine: 7,
+        previewPosition: 'none',
+        searchPosition: 'sticky',
+        set: 'native',
+        skinTonePosition: 'none',
+        theme: isDark ? 'dark' : 'light',
+      })
+      pickerElement = picker as unknown as HTMLElement
+      const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
+      pickerElement.style.width = '100%'
+      pickerElement.style.setProperty('--font-family', '"DM Sans", system-ui, sans-serif')
+      pickerElement.style.setProperty('--font-size', '14px')
+      pickerElement.style.setProperty('--border-radius', '0.75rem')
+      pickerElement.style.setProperty('--shadow', 'none')
+      pickerElement.style.setProperty('--sidebar-width', '8px')
+      pickerElement.style.setProperty('--rgb-color', theme.color)
+      pickerElement.style.setProperty('--rgb-accent', theme.accent)
+      pickerElement.style.setProperty('--rgb-background', theme.background)
+      pickerElement.style.setProperty('--rgb-input', theme.input)
+      pickerElement.style.setProperty('--color-border', theme.border)
+      pickerElement.style.setProperty('--color-border-over', theme.borderOver)
+      pickerElement.style.height = `${Math.max(position.maxHeight - 14, 220)}px`
+      container.appendChild(pickerElement)
     })
-    const pickerElement = picker as unknown as HTMLElement
-    const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
-    pickerElement.style.width = '100%'
-    pickerElement.style.setProperty('--font-family', '"DM Sans", system-ui, sans-serif')
-    pickerElement.style.setProperty('--font-size', '14px')
-    pickerElement.style.setProperty('--border-radius', '0.75rem')
-    pickerElement.style.setProperty('--shadow', 'none')
-    pickerElement.style.setProperty('--sidebar-width', '8px')
-    pickerElement.style.setProperty('--rgb-color', theme.color)
-    pickerElement.style.setProperty('--rgb-accent', theme.accent)
-    pickerElement.style.setProperty('--rgb-background', theme.background)
-    pickerElement.style.setProperty('--rgb-input', theme.input)
-    pickerElement.style.setProperty('--color-border', theme.border)
-    pickerElement.style.setProperty('--color-border-over', theme.borderOver)
-    pickerElement.style.height = `${Math.max(position.maxHeight - 14, 220)}px`
-    container.appendChild(pickerElement)
 
     return () => {
-      pickerElement.remove()
+      cancelled = true
+      pickerElement?.remove()
       container.innerHTML = ''
     }
   }, [data, isDark, onChange, onClose, position.maxHeight])
