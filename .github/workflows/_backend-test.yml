@@ -31,22 +31,16 @@ jobs:
         run: uv sync --frozen
 
   test:
-    name: Test backend ${{ matrix.suite.name }}
+    name: Test backend ${{ matrix.group }} of 10
     needs: prime-cache
     runs-on: ubuntu-latest
 
-    # Each suite runs as its own parallel job against a dedicated database, the
-    # config update checks live with models and migrations so no test is dropped
+    # pytest-split shards the whole suite into ten balanced groups that run in parallel,
+    # each against its own database, so wall-clock scales with the slowest tenth
     strategy:
       fail-fast: false
       matrix:
-        suite:
-          - name: models, migrations, and configs
-            paths: tests/models tests/migrations tests/test_config_update_checks.py
-          - name: routes
-            paths: tests/routes
-          - name: services
-            paths: tests/services
+        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     services:
       postgres:
@@ -90,4 +84,4 @@ jobs:
           enable-cache: true
 
       - name: Run tests
-        run: uv run pytest -n auto ${{ matrix.suite.paths }}
+        run: uv run pytest -n auto tests --splits 10 --group ${{ matrix.group }}
