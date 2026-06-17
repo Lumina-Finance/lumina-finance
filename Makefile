@@ -4,7 +4,7 @@ SHELL := /bin/bash
 DEV_DIR ?= dev
 
 .PHONY: new-worktree cleanup-worktree \
-	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-migrate \
+	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate \
 	reset-test-stack test-stack-down test-stack-build test-stack-restore test-stack-app-up
 
 # Create a fully isolated worktree with its own database, dependencies, and port
@@ -16,7 +16,7 @@ cleanup-worktree:
 	@"$(DEV_DIR)/cleanup-worktree.sh"
 
 # Reset the databases used for local development and pytest
-reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-migrate
+reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate
 
 # Recreate the local development Postgres container
 dev-db-recreate:
@@ -29,6 +29,10 @@ dev-db-create:
 # Restore remote staging data into the development database
 dev-db-restore:
 	@"$(DEV_DIR)/dev-db/restore.sh"
+
+# Hand restored tables to the migrator role before migrations run
+dev-db-reassign:
+	@"$(DEV_DIR)/dev-db/reassign.sh"
 
 # Apply local migrations to the development database
 dev-db-migrate:
