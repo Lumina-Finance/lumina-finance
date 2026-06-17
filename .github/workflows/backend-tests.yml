@@ -53,8 +53,6 @@ jobs:
       TEST_DB_NAME: lumina_test
       TEST_DB_USER: lumina_test
       TEST_DB_PASSWORD: lumina_test
-      JWT_ACCESS_PRIVATE_KEY_PATH: ${{ github.workspace }}/backend/keys/access_private.pem
-      JWT_REFRESH_PRIVATE_KEY_PATH: ${{ github.workspace }}/backend/keys/refresh_private.pem
 
     steps:
       - name: Check out repository
@@ -67,12 +65,6 @@ jobs:
 
       - name: Install uv
         run: python -m pip install uv
-
-      - name: Generate JWT keys
-        run: |
-          mkdir -p keys
-          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out keys/access_private.pem
-          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out keys/refresh_private.pem
 
       - name: Run tests
         run: uv run pytest -n auto
