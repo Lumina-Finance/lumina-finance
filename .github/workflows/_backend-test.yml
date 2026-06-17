@@ -1,26 +1,29 @@
 name: Backend tests
 
+# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "backend/uv.lock"
-      - "backend/**/*.py"
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/uv.lock"
-      - "backend/**/*.py"
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: Test backend
+    name: Test backend ${{ matrix.suite.name }}
     runs-on: ubuntu-latest
+
+    # Each suite runs as its own parallel job against a dedicated database, the
+    # config update checks live with models and migrations so no test is dropped
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - name: models, migrations, and configs
+            paths: tests/models tests/migrations tests/test_config_update_checks.py
+          - name: routes
+            paths: tests/routes
+          - name: services
+            paths: tests/services
 
     services:
       postgres:
@@ -67,4 +70,4 @@ jobs:
         run: python -m pip install uv
 
       - name: Run tests
-        run: uv run pytest -n auto
+        run: uv run pytest -n auto ${{ matrix.suite.paths }}

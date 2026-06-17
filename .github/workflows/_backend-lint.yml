@@ -1,16 +1,8 @@
 name: Backend lint
 
+# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "backend/**/*.py"
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/**/*.py"
+  workflow_call:
 
 permissions:
   contents: read
