@@ -1,4 +1,3 @@
-import { parse } from 'papaparse'
 import type { CsvRow, ImportFileDraft } from '../types'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
@@ -84,7 +83,10 @@ function createFileId(file: File) {
   return `${file.name}-${file.lastModified}-${file.size}-${Math.random().toString(36).slice(2)}`
 }
 
-function parseCsvFile(file: File): Promise<{ headers: string[]; hasHeaderRow: boolean; rows: CsvRow[] }> {
+async function parseCsvFile(file: File): Promise<{ headers: string[]; hasHeaderRow: boolean; rows: CsvRow[] }> {
+  // Pull the CSV parser on demand so papaparse only ships with the import flow
+  const { parse } = await import('papaparse')
+
   return new Promise((resolve, reject) => {
     const records: string[][] = []
 
