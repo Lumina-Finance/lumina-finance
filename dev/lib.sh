@@ -12,6 +12,18 @@ read_env_var() {
     ( set -a +u; source "$file"; printf '%s' "${!key-}" )
 }
 
+# Replace KEY's value in a dotenv FILE, or append KEY=VALUE when the key is absent
+set_env_var() {
+    local file="$1" key="$2" value="$3" tmp
+    if grep -qE "^${key}=" "$file" 2>/dev/null; then
+        tmp="$(mktemp)"
+        sed "s|^${key}=.*|${key}=${value}|" "$file" >"$tmp"
+        mv "$tmp" "$file"
+    else
+        printf '%s=%s\n' "$key" "$value" >>"$file"
+    fi
+}
+
 # Bring the dev Postgres container up and wait until it accepts connections,
 # creating it when missing and starting it when it exists but is stopped
 ensure_dev_db_container() {
