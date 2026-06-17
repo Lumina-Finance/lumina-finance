@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { useAuth } from '@/hooks/useAuth'
@@ -64,14 +64,16 @@ function scrollDocumentToTop() {
 let hasShownLoadingScreen = false;
 
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
-function ProtectedRoute({ displayPath, onContentReady, pageTransitionPhase }: { displayPath: string; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase }) {
+function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase }) {
   const { user, loading } = useAuth();
-  const location = useLocation();
   const pageTransitioning = pageTransitionPhase !== 'idle';
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
-  const isFocusedPage = location.pathname === '/settings/imports';
-  const desktopBottomPadding = location.pathname === '/transactions' ? 'min-[1050px]:pb-12' : 'min-[1050px]:pb-5';
-  const pageTransitionOffset = isBudgetDetailRoute(location.pathname, location.search) ? 0 : PAGE_TRANSITION_OFFSET_PX;
+  // Derive layout from the displayed location, not the URL, so the focused-page
+  // container and offsets switch in step with the content swap rather than jumping
+  // ahead at navigation time and snapping the page between layouts
+  const isFocusedPage = displayLocation.pathname === '/settings/imports';
+  const desktopBottomPadding = displayLocation.pathname === '/transactions' ? 'min-[1050px]:pb-12' : 'min-[1050px]:pb-5';
+  const pageTransitionOffset = isBudgetDetailRoute(displayLocation.pathname, displayLocation.search) ? 0 : PAGE_TRANSITION_OFFSET_PX;
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
@@ -109,7 +111,10 @@ function ProtectedRoute({ displayPath, onContentReady, pageTransitionPhase }: { 
   // No session and not loading — go straight to login
   if (!loading && !user) return <Navigate to="/login" replace />;
 
-  const pageContentEntering = pageTransitionPhase === 'entering' || animateInitialPageMount;
+  // The Routes subtree remounts on each path change, so this wrapper is recreated
+  // per navigation and must start hidden through both loading and entering, otherwise
+  // an already-cached route mounts at full opacity and snaps in instead of fading
+  const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading' || animateInitialPageMount;
 
   return (
     <>
@@ -153,7 +158,7 @@ function ProtectedRoute({ displayPath, onContentReady, pageTransitionPhase }: { 
               style={{ pointerEvents: pageContentVisible ? 'auto' : 'none' }}
             >
               <Suspense fallback={null}>
-                <RouteReadyNotifier path={displayPath} onReady={onContentReady} />
+                <RouteReadyNotifier path={displayLocation.pathname} onReady={onContentReady} />
                 <Outlet />
               </Suspense>
             </motion.div>
@@ -256,7 +261,7 @@ function AnimatedRoutes() {
         </Route>
 
         {/* Protected app routes */}
-        <Route element={<ProtectedRoute displayPath={displayLocation.pathname} onContentReady={handleContentReady} pageTransitionPhase={pageTransitionPhase} />}>
+        <Route element={<ProtectedRoute displayLocation={displayLocation} onContentReady={handleContentReady} pageTransitionPhase={pageTransitionPhase} />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
