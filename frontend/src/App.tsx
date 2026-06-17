@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -24,8 +24,22 @@ const AuthPage = lazy(() => import('@/pages/auth/AuthPage'))
 const LOADING_SCREEN_MIN_MS = 1000;
 const PAGE_TRANSITION_MS = 350;
 const PAGE_TRANSITION_OFFSET_PX = 12;
+const ROUTE_LOADER_DELAY_MS = 300;
 
-type PageTransitionPhase = 'idle' | 'exiting' | 'entering';
+type PageTransitionPhase = 'idle' | 'exiting' | 'loading' | 'entering';
+
+/**
+ * Reports the displayed route once its lazy chunk has resolved and mounted so the
+ * route loader can fade out under AnimatePresence rather than being unmounted
+ * instantly the way a Suspense fallback would be
+ */
+function RouteReadyNotifier({ path, onReady }: { path: string; onReady: () => void }) {
+  useEffect(() => {
+    onReady();
+  }, [path, onReady]);
+
+  return null;
+}
 
 function isProtectedPath(pathname: string) {
   return (
@@ -50,7 +64,7 @@ function scrollDocumentToTop() {
 let hasShownLoadingScreen = false;
 
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
-function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTransitionPhase }) {
+function ProtectedRoute({ displayPath, onContentReady, pageTransitionPhase }: { displayPath: string; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   const pageTransitioning = pageTransitionPhase !== 'idle';
@@ -64,7 +78,23 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
   const [animateInitialPageMount] = useState(() => !hasShownLoadingScreen);
   const ready = !loading && minTimePassed;
 
+  // The loading phase runs after the switch while the new route's chunk mounts
+  const routeLoading = pageTransitionPhase === 'loading';
+  const [routeLoaderDelayElapsed, setRouteLoaderDelayElapsed] = useState(false);
+
   useCacheValidation(user?.id, Boolean(user && ready));
+
+  // Hold the route loader back until the chunk has stayed pending past the delay so
+  // cached or fast navigations never flash the spinner, and clear the flag on
+  // teardown so the next navigation starts its own delay from scratch
+  useEffect(() => {
+    if (!ready || !routeLoading) return;
+    const timer = setTimeout(() => setRouteLoaderDelayElapsed(true), ROUTE_LOADER_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      setRouteLoaderDelayElapsed(false);
+    };
+  }, [ready, routeLoading]);
 
   // Enforce the first-session loading-screen minimum before revealing the app.
   useEffect(() => {
@@ -92,6 +122,12 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
           <Navigation />
+
+          {/* The main variant keeps the navigation visible while AnimatePresence
+              lets the loader fade back out once the route chunk has mounted */}
+          <AnimatePresence>
+            {routeLoading && routeLoaderDelayElapsed && <LoadingScreen key="route-loader" variant="main" />}
+          </AnimatePresence>
           <main
             id="app-page-content"
             className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10`}`}
@@ -104,7 +140,11 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
               }}
               animate={{
                 opacity: pageContentVisible ? 1 : 0,
-                y: pageTransitionPhase === 'exiting' ? -pageTransitionOffset : 0,
+                y: pageTransitionPhase === 'exiting'
+                  ? -pageTransitionOffset
+                  : pageTransitionPhase === 'loading'
+                    ? pageTransitionOffset
+                    : 0,
               }}
               transition={{
                 duration: PAGE_TRANSITION_MS / 1000,
@@ -112,9 +152,8 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
               }}
               style={{ pointerEvents: pageContentVisible ? 'auto' : 'none' }}
             >
-              {/* Null fallback keeps the surrounding shell mounted while a cold
-                  route chunk loads instead of flashing a full-screen loader */}
               <Suspense fallback={null}>
+                <RouteReadyNotifier path={displayPath} onReady={onContentReady} />
                 <Outlet />
               </Suspense>
             </motion.div>
@@ -144,6 +183,13 @@ function AnimatedRoutes() {
   const [displayLocation, setDisplayLocation] = useState(location);
   const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('idle');
 
+  // Reveal the freshly switched route only once its chunk has mounted, so the enter
+  // fade animates real content rather than an empty wrapper. The functional updater
+  // reads the current phase so a late notifier from an abandoned navigation is ignored
+  const handleContentReady = useCallback(() => {
+    setPageTransitionPhase((current) => (current === 'loading' ? 'entering' : current));
+  }, []);
+
   useLayoutEffect(() => {
     scrollDocumentToTop();
   }, [displayLocation.pathname]);
@@ -169,7 +215,7 @@ function AnimatedRoutes() {
 
       if (!nextPathIsProtected || !displayedPathIsProtected) {
         setDisplayLocation(location);
-        setPageTransitionPhase(nextPathIsProtected ? 'entering' : 'idle');
+        setPageTransitionPhase(nextPathIsProtected ? 'loading' : 'idle');
         return;
       }
 
@@ -177,7 +223,7 @@ function AnimatedRoutes() {
 
       exitTimer = window.setTimeout(() => {
         setDisplayLocation(location);
-        setPageTransitionPhase('entering');
+        setPageTransitionPhase('loading');
       }, PAGE_TRANSITION_MS);
     }, 0);
 
@@ -210,7 +256,7 @@ function AnimatedRoutes() {
         </Route>
 
         {/* Protected app routes */}
-        <Route element={<ProtectedRoute pageTransitionPhase={pageTransitionPhase} />}>
+        <Route element={<ProtectedRoute displayPath={displayLocation.pathname} onContentReady={handleContentReady} pageTransitionPhase={pageTransitionPhase} />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
