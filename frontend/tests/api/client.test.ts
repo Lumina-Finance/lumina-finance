@@ -49,12 +49,10 @@ describe('authenticatedFetch', () => {
         status: 401,
         json: async () => ({ detail: 'Token is not active' }),
       })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 409,
-        json: async () => ({ detail: 'Refresh token was already rotated' }),
-      })
-      .mockResolvedValueOnce({
+
+      // Every refresh attempt keeps reporting the rotation conflict so the retry
+      // budget is exhausted and the conflict is surfaced rather than a lost session
+      .mockResolvedValue({
         ok: false,
         status: 409,
         json: async () => ({ detail: 'Refresh token was already rotated' }),
@@ -62,7 +60,8 @@ describe('authenticatedFetch', () => {
 
     const request = authenticatedFetch('/accounts').catch((error: unknown) => error);
 
-    await vi.advanceTimersByTimeAsync(100);
+    // Advance past the full rotation retry budget so the loop gives up
+    await vi.advanceTimersByTimeAsync(5_000);
 
     const error = await request;
 
