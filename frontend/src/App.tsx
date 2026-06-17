@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -6,16 +6,20 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/navigation/Navigation'
-import DashboardPage from '@/pages/dashboard/DashboardPage'
-import AccountsPage from '@/pages/accounts/AccountsPage'
-import AccountDetailPage from '@/pages/accounts/detail/AccountDetailPage'
-import TransactionsPage from '@/pages/transactions/TransactionsPage'
-import BudgetsPage from '@/pages/budgets/BudgetsPage'
-import InsightsPage from '@/pages/insights/InsightsPage'
-import SettingsPage from '@/pages/settings/SettingsPage'
-import ImportsPage from '@/pages/imports/ImportsPage'
 import LoadingScreen from '@/components/loading/Screen'
-import AuthPage from '@/pages/auth/AuthPage'
+
+// Pages are lazy-loaded so each route ships as its own chunk instead of the
+// initial bundle, keeping first load small and pulling heavy page-only deps
+// like recharts off the landing path
+const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
+const AccountsPage = lazy(() => import('@/pages/accounts/AccountsPage'))
+const AccountDetailPage = lazy(() => import('@/pages/accounts/detail/AccountDetailPage'))
+const TransactionsPage = lazy(() => import('@/pages/transactions/TransactionsPage'))
+const BudgetsPage = lazy(() => import('@/pages/budgets/BudgetsPage'))
+const InsightsPage = lazy(() => import('@/pages/insights/InsightsPage'))
+const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
+const ImportsPage = lazy(() => import('@/pages/imports/ImportsPage'))
+const AuthPage = lazy(() => import('@/pages/auth/AuthPage'))
 
 const LOADING_SCREEN_MIN_MS = 1000;
 const PAGE_TRANSITION_MS = 350;
@@ -108,7 +112,11 @@ function ProtectedRoute({ pageTransitionPhase }: { pageTransitionPhase: PageTran
               }}
               style={{ pointerEvents: pageContentVisible ? 'auto' : 'none' }}
             >
-              <Outlet />
+              {/* Null fallback keeps the surrounding shell mounted while a cold
+                  route chunk loads instead of flashing a full-screen loader */}
+              <Suspense fallback={null}>
+                <Outlet />
+              </Suspense>
             </motion.div>
           </main>
         </div>
@@ -124,7 +132,11 @@ function PublicRoute() {
   if (loading) return null;
   if (user) return <Navigate to="/" replace />;
 
-  return <Outlet />;
+  return (
+    <Suspense fallback={null}>
+      <Outlet />
+    </Suspense>
+  );
 }
 
 function AnimatedRoutes() {
