@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from app.config import DATABASE_URL
+from app.config import migration_database_url
 
 # Import all models so Alembic can detect them for autogenerate
 from app.models import (  # noqa: F401
@@ -30,8 +30,8 @@ from app.models.base import Base
 
 config = context.config
 
-# Set the DB URL from app config instead of alembic.ini
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+# Migrations run as the migrator role, which owns the tables and bypasses RLS
+config.set_main_option("sqlalchemy.url", migration_database_url())
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

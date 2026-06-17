@@ -5,6 +5,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.db.credentials import resolve_role_password
+
 _BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(_BACKEND_DIR / ".env")
 
@@ -78,11 +80,56 @@ def is_update_check_enabled(runtime: str, configured_enabled: bool) -> bool:
 
 # --- Database ---
 
+# Every role connects to the same database, so host, port, and name are shared
 DB_HOST = _require("DB_HOST")
 DB_PORT = _require("DB_PORT")
 DB_NAME = _require("DB_NAME")
-DB_USER = _require("DB_USER")
-DB_PASSWORD = _require("DB_PASSWORD")
+
+# SQLAlchemy driver used for every async PostgreSQL connection
+_DB_URL_SCHEME = "postgresql+asyncpg"
+
+# The migrator role owns the tables and runs migrations and seeding. The app role
+# serves normal requests and is the one restricted by row-level security. Both
+# names are fixed and are never configurable by the operator
+MIGRATOR_DB_USER = "lumina_migrator"
+APP_DB_USER = "lumina_app"
+
+
+def _build_database_url(user: str, password: str) -> str:
+    """Return the asyncpg connection URL for a role against the shared database
+
+    Args:
+        user: Database role name
+        password: Password for the role
+
+    Returns:
+        An asyncpg SQLAlchemy connection URL
+    """
+    return f"{_DB_URL_SCHEME}://{user}:{password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+
+def migration_database_url() -> str:
+    """Return the connection URL for the migrator role
+
+    The password is resolved lazily so a process that only serves requests never
+    needs the migrator secret, which keeps the two roles' secrets separate
+
+    Returns:
+        An asyncpg connection URL for the migrator role
+    """
+    return _build_database_url(MIGRATOR_DB_USER, resolve_role_password("migrator", generate=False))
+
+
+def app_database_url() -> str:
+    """Return the connection URL for the app role
+
+    The password is resolved lazily so a process that only runs migrations never
+    needs the app secret, which keeps the two roles' secrets separate
+
+    Returns:
+        An asyncpg connection URL for the app role
+    """
+    return _build_database_url(APP_DB_USER, resolve_role_password("app", generate=False))
 
 RUNTIME = os.getenv("RUNTIME", "server").strip() or "server"
 if RUNTIME not in ("server", "lambda"):
@@ -103,8 +150,6 @@ APP_URL = os.getenv("APP_URL", "").strip()
 # APP_URL is the public CORS origin. ALLOWED_ORIGINS appends extra internal origins.
 _configured_origins = [APP_URL, *_optional_csv_env("ALLOWED_ORIGINS")]
 ALLOWED_ORIGINS = _unique_values([origin for origin in _configured_origins if origin]) or ["*"]
-
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # --- FX ---
 
