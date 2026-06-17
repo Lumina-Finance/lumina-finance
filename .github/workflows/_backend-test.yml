@@ -61,13 +61,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version-file: backend/.python-version
-
-      - name: Install uv
-        run: python -m pip install uv
+          enable-cache: true
 
       - name: Run tests
         run: uv run pytest -n auto ${{ matrix.suite.paths }}
