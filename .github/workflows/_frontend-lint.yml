@@ -1,16 +1,8 @@
 name: Frontend lint
 
+# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "frontend/src/**"
-  push:
-    branches:
-      - main
-    paths:
-      - "frontend/src/**"
+  workflow_call:
 
 permissions:
   contents: read

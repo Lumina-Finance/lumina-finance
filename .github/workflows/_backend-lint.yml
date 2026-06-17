@@ -1,0 +1,31 @@
+name: Backend lint
+
+# Reusable step invoked by the pull request pipeline, it does not trigger on its own
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint backend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+
+      # Linting only needs ruff, so run it standalone instead of syncing the whole
+      # project venv, leaving the version unpinned tracks the latest ruff used locally
+      - name: Run ruff
+        run: uvx ruff check .

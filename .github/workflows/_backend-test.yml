@@ -1,0 +1,92 @@
+name: Backend tests
+
+# Reusable step invoked by the pull request pipeline, it does not trigger on its own
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # Fetch the locked dependencies once and warm the shared uv cache, the test legs
+  # restore it instead of each downloading the same packages in parallel
+  prime-cache:
+    name: Prime the uv cache
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Sync locked dependencies
+        run: uv sync --frozen
+
+  test:
+    name: Test backend ${{ matrix.group }} of 10
+    needs: prime-cache
+    runs-on: ubuntu-latest
+
+    # pytest-split shards the whole suite into ten balanced groups that run in parallel,
+    # each against its own database, so wall-clock scales with the slowest tenth
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: lumina_test
+          POSTGRES_USER: lumina_test
+          POSTGRES_PASSWORD: lumina_test
+        ports:
+          - 5432:5432
+        # A tight health interval lets the job start as soon as Postgres is ready
+        # instead of idling until the next poll, and the tmpfs data dir keeps the
+        # throwaway test database in memory for faster startup and writes
+        options: >-
+          --health-cmd "pg_isready -U lumina_test -d lumina_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 10
+          --health-start-period 5s
+          --tmpfs /var/lib/postgresql/data
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      TESTING: "1"
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_NAME: lumina_test
+      DB_USER: lumina_test
+      DB_PASSWORD: lumina_test
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: "5432"
+      TEST_DB_NAME: lumina_test
+      TEST_DB_USER: lumina_test
+      TEST_DB_PASSWORD: lumina_test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Run tests
+        run: uv run pytest -n auto tests --splits 10 --group ${{ matrix.group }}
