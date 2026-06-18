@@ -486,8 +486,10 @@ async def test_refresh_token_with_mismatched_subject_claim_returns_401(client):
     client.cookies.set("refresh_token", token)
     resp = await client.post("/auth/refresh")
 
+    # The token and session lookups are scoped by the claimed user, so a mismatched
+    # subject finds no session for that user rather than matching the real owner's row
     assert resp.status_code == 401
-    assert resp.json()["detail"] == "Invalid token"
+    assert resp.json()["detail"] == "Session is not active"
 
 
 async def test_refresh_rejects_expired_session_with_active_token_row(client):
