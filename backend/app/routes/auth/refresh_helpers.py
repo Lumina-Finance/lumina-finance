@@ -8,6 +8,7 @@ import jwt
 from fastapi import HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import current_user_id_ctx
 from app.models.base import AuthTokenKind
 from app.routes.auth.cookie_helpers import clear_refresh_cookie
 from app.routes.auth.token_helpers import (
@@ -54,6 +55,11 @@ async def refresh_auth_tokens(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
 
     claims = _get_refresh_token_claims(response, refresh_token)
+
+    # Stamp the identity from the signature-verified token before any query opens the
+    # transaction the row-level security policies read
+    current_user_id_ctx.set(claims.user_id)
+
     await _verify_refresh_token_allowlist(db, response, claims)
 
     user = await get_user_by_id(db, str(claims.user_id))
