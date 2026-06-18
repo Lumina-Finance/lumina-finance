@@ -208,11 +208,10 @@ export default function CreateTransactionModal({
     if (createdMerchant) map.set(createdMerchant.id, createdMerchant)
     return [...map.values()]
   }, [createdMerchant, merchantReference.visibleItems])
+  // The backend already ranks merchants by recent usage then name, so preserve that order
+  // here instead of re-sorting and place any just-created merchant at the end
   const merchantOptions = useMemo(
-    () => merchantCandidates
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((m) => ({ value: m.id, label: m.name })),
+    () => merchantCandidates.map((m) => ({ value: m.id, label: m.name })),
     [merchantCandidates],
   )
   const selectedTagMap = useMemo(() => {
