@@ -18,9 +18,8 @@ current_user_id_ctx: ContextVar[uuid.UUID | None] = ContextVar("current_user_id"
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 
-@event.listens_for(engine.sync_engine, "begin")
-def _stamp_request_user(connection) -> None:
-    """Stamp the request user onto each new transaction for row-level security"""
+def stamp_request_identity(connection) -> None:
+    """Stamp the request user onto a new transaction for row-level security"""
     # Transaction-local so the value resets on commit and never leaks onto the
     # pooled connection, and re-stamped here whenever a request opens a new one
     user_id = current_user_id_ctx.get()
@@ -29,6 +28,11 @@ def _stamp_request_user(connection) -> None:
     # bound parameter is not available inside this connection-begin event
     identity = str(user_id) if user_id is not None else ""
     connection.exec_driver_sql(f"SELECT set_config('app.current_user_id', '{identity}', true)")
+
+
+# The test suite registers this same listener on its own app-role engine so route
+# tests stamp identity exactly as production does
+event.listen(engine.sync_engine, "begin", stamp_request_identity)
 
 
 async def get_db():
