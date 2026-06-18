@@ -1,4 +1,10 @@
 import { useState } from 'react'
+import {
+  useDeleteSavedInsightsRange,
+  useSaveInsightsRange,
+  useSavedInsightsRanges,
+  type SavedInsightsRange,
+} from '@/api/insights'
 import { useAuth } from '@/hooks/useAuth'
 import { CashFlowCard } from './components/cash-flow-card/Card'
 import {
@@ -27,6 +33,28 @@ export default function InsightsPage() {
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const range = useInsightsRange()
+  const savedRangesQuery = useSavedInsightsRanges()
+  const saveRange = useSaveInsightsRange()
+  const deleteRange = useDeleteSavedInsightsRange()
+
+  /**
+   * Saves the active relative window, letting the control surface a conflicting name
+   */
+  async function handleSaveCurrentRange(name: string) {
+    await saveRange.mutateAsync({
+      name,
+      amount: range.relativeAmount,
+      unit: range.relativeUnit,
+    })
+  }
+
+  /**
+   * Re-applies a saved range, recomputing its rolling window against today
+   */
+  function handleApplySavedRange(savedRange: SavedInsightsRange) {
+    range.applyRelativeRange(savedRange.amount, savedRange.unit)
+  }
+
   const {
     periodGlanceRef,
     fundFlowRef,
@@ -65,13 +93,17 @@ export default function InsightsPage() {
 
       <InsightsFloatingRangeControl
         preset={range.rangePreset}
-        fromDateValue={range.customFrom}
-        toDateValue={range.customTo}
-        customInvalid={range.customInvalid}
+        relativeAmount={range.relativeAmount}
+        relativeUnit={range.relativeUnit}
+        resolvedFrom={range.rangeInputDates.from}
+        resolvedTo={range.rangeInputDates.to}
+        savedRanges={savedRangesQuery.data ?? []}
         onPresetChange={range.setRangePreset}
-        onCustomFromChange={range.setCustomFrom}
-        onCustomToChange={range.setCustomTo}
-        onCustomRangeCommit={range.commitCustomRange}
+        onRelativeAmountChange={range.setRelativeAmount}
+        onRelativeUnitChange={range.setRelativeUnit}
+        onSaveCurrentRange={handleSaveCurrentRange}
+        onApplySavedRange={handleApplySavedRange}
+        onDeleteSavedRange={deleteRange.mutate}
       />
 
       <div className="space-y-4 pb-28 min-[1050px]:pb-0">

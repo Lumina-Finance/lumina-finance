@@ -17,6 +17,29 @@ export function addDays(date: Date, days: number) {
   return next
 }
 
+/**
+ * Returns the Monday that starts the ISO week containing the given date
+ */
+export function getStartOfWeek(date: Date) {
+  // getDay reports 0 for Sunday, so shift it to the end of the week to make Monday day zero
+  const daysFromMonday = (date.getDay() + 6) % 7
+  return addDays(date, -daysFromMonday)
+}
+
+/**
+ * Adds (or subtracts) whole months, clamping the day so stepping back from a month end
+ * never overflows into the following month, for example Mar 31 minus one month is Feb 28
+ */
+export function addMonths(date: Date, months: number) {
+  const next = new Date(date)
+  const targetDay = next.getDate()
+  next.setDate(1)
+  next.setMonth(next.getMonth() + months)
+  const lastDayOfResultMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+  next.setDate(Math.min(targetDay, lastDayOfResultMonth))
+  return next
+}
+
 export function getShortDateLabel(date: Date) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

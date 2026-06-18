@@ -307,6 +307,16 @@
     appearance: none;
   }
 
+  .app-input-no-spinner {
+    appearance: textfield;
+  }
+
+  .app-input-no-spinner::-webkit-outer-spin-button,
+  .app-input-no-spinner::-webkit-inner-spin-button {
+    margin: 0;
+    appearance: none;
+  }
+
   .import-auto-fill-row {
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }

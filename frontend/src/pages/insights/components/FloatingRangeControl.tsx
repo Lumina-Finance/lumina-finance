@@ -1,7 +1,9 @@
-import type { KeyboardEvent } from 'react'
-import { Calendar } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/time-range/Selector'
-import type { InsightsRangePreset } from '../types/range'
+import type { SavedInsightsRange } from '@/api/insights'
+import type { InsightsRangePreset, SavedInsightsRangeUnit } from '../types/range'
+import { RelativeRangeBuilder } from './RelativeRangeBuilder'
+import { SavedRanges } from './SavedRanges'
 
 const INSIGHTS_RANGE_OPTIONS: TimeRangeSelectorOption<InsightsRangePreset>[] = [
   { value: 'THIS_MONTH', label: 'MTD', description: 'This month' },
@@ -12,134 +14,43 @@ const INSIGHTS_RANGE_OPTIONS: TimeRangeSelectorOption<InsightsRangePreset>[] = [
   { value: 'CUSTOM', label: 'Custom' },
 ]
 
+const customPanelTransition = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
+
 type InsightsFloatingRangeControlProps = {
   preset: InsightsRangePreset
-  fromDateValue: string
-  toDateValue: string
-  customInvalid: boolean
+  relativeAmount: number
+  relativeUnit: SavedInsightsRangeUnit
+  resolvedFrom: string
+  resolvedTo: string
+  savedRanges: SavedInsightsRange[]
   onPresetChange: (value: InsightsRangePreset) => void
-  onCustomFromChange: (value: string) => void
-  onCustomToChange: (value: string) => void
-  onCustomRangeCommit: () => void
-}
-
-type InsightsDateFieldProps = {
-  value: string
-  label: string
-  customInvalid: boolean
-  onChange: (value: string) => void
-  onBlur: () => void
-  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
+  onRelativeAmountChange: (value: number) => void
+  onRelativeUnitChange: (value: SavedInsightsRangeUnit) => void
+  onSaveCurrentRange: (name: string) => Promise<void>
+  onApplySavedRange: (range: SavedInsightsRange) => void
+  onDeleteSavedRange: (rangeId: string) => void
 }
 
 /**
- * Adds spacing around mobile date parts so narrow inputs remain readable
- */
-function formatMobileDate(value: string) {
-  const [year, month, day] = value.split('-')
-  if (!year || !month || !day) return value
-  return `${year} - ${month} - ${day}`
-}
-
-/**
- * Renders the responsive date input used by the floating insights range control
- */
-function InsightsDateField({
-  value,
-  label,
-  customInvalid,
-  onChange,
-  onBlur,
-  onKeyDown,
-}: InsightsDateFieldProps) {
-  const inputClassName = `app-input app-date-input-balanced min-w-0 ${customInvalid ? 'app-input-error' : ''}`
-  const mobileFocusClassName = customInvalid
-    ? ''
-    : 'focus-within:border-[var(--app-accent-border)] focus-within:shadow-[0_0_0_2px_var(--app-accent-soft)]'
-
-  return (
-    <>
-      <input
-        type="date"
-        className={`${inputClassName} hidden min-[1050px]:block`}
-        aria-label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
-        onKeyDown={onKeyDown}
-      />
-      <div
-        className={`app-input relative flex items-center justify-between gap-2 overflow-hidden px-3 text-sm min-[1050px]:hidden ${mobileFocusClassName} ${customInvalid ? 'app-input-error' : ''}`}
-      >
-        <span className="min-w-0 truncate font-medium tabular-nums">{formatMobileDate(value)}</span>
-        <Calendar size={15} className="shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
-        <input
-          type="date"
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base"
-          aria-label={label}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={onBlur}
-          onKeyDown={onKeyDown}
-        />
-      </div>
-    </>
-  )
-}
-
-/**
- * Renders the sticky insights date range picker and custom range inputs
+ * Renders the sticky insights range picker, the relative custom-window builder, and the
+ * list of saved ranges
  */
 export function InsightsFloatingRangeControl({
   preset,
-  fromDateValue,
-  toDateValue,
-  customInvalid,
+  relativeAmount,
+  relativeUnit,
+  resolvedFrom,
+  resolvedTo,
+  savedRanges,
   onPresetChange,
-  onCustomFromChange,
-  onCustomToChange,
-  onCustomRangeCommit,
+  onRelativeAmountChange,
+  onRelativeUnitChange,
+  onSaveCurrentRange,
+  onApplySavedRange,
+  onDeleteSavedRange,
 }: InsightsFloatingRangeControlProps) {
-  /**
-   * Commits keyboard-entered custom dates before focus leaves the active input
-   */
-  function handleDateKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'Enter') {
-      onCustomRangeCommit()
-      event.currentTarget.blur()
-    }
-  }
-
-  const dateFields = (
-    <div>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-        <InsightsDateField
-          label="Insights start date"
-          value={fromDateValue}
-          customInvalid={customInvalid}
-          onChange={onCustomFromChange}
-          onBlur={onCustomRangeCommit}
-          onKeyDown={handleDateKeyDown}
-        />
-        <span className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
-          to
-        </span>
-        <InsightsDateField
-          label="Insights end date"
-          value={toDateValue}
-          customInvalid={customInvalid}
-          onChange={onCustomToChange}
-          onBlur={onCustomRangeCommit}
-          onKeyDown={handleDateKeyDown}
-        />
-      </div>
-      {customInvalid && (
-        <p className="mt-1 text-xs" style={{ color: 'var(--app-negative)' }}>
-          Start date must be on or before end date.
-        </p>
-      )}
-    </div>
-  )
+  const isCustom = preset === 'CUSTOM'
+  const shouldReduceMotion = useReducedMotion()
 
   /**
    * Keeps desktop and mobile floating controls structurally identical
@@ -163,9 +74,32 @@ export function InsightsFloatingRangeControl({
         dropdownPlacement={dropdownPlacement}
         shortcutMode="when-description-differs"
       />
-      <div className="mt-2">
-        {dateFields}
-      </div>
+      <AnimatePresence initial={false}>
+        {isCustom && (
+          <motion.div
+            initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={shouldReduceMotion ? { duration: 0 } : customPanelTransition}
+            className="overflow-hidden"
+          >
+            <RelativeRangeBuilder
+              amount={relativeAmount}
+              unit={relativeUnit}
+              resolvedFrom={resolvedFrom}
+              resolvedTo={resolvedTo}
+              onAmountChange={onRelativeAmountChange}
+              onUnitChange={onRelativeUnitChange}
+            />
+            <SavedRanges
+              savedRanges={savedRanges}
+              onSaveCurrentRange={onSaveCurrentRange}
+              onApplySavedRange={onApplySavedRange}
+              onDeleteSavedRange={onDeleteSavedRange}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 

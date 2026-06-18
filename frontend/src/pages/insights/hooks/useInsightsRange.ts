@@ -1,22 +1,24 @@
 import { useMemo, useState } from 'react'
-import type { InsightsComparisonPeriod, InsightsRangeInputDates, InsightsRangePreset } from '../types/range'
-import {
-  getCustomRangeDays,
-  getDefaultCustomRange,
-  getRangeComparisonPeriod,
-  getRangeDisplayDates,
-  getRangeInputDates,
-} from '../utils/range'
+import type {
+  InsightsComparisonPeriod,
+  InsightsRangeInputDates,
+  InsightsRangePreset,
+  SavedInsightsRangeUnit,
+} from '../types/range'
+import { getRangeComparisonPeriod, getRangeInputDates, getRelativeRangeInputDates } from '../utils/range'
+
+// The relative builder opens on a familiar three-month look-back when Custom is first picked
+const DEFAULT_RELATIVE_AMOUNT = 3
+const DEFAULT_RELATIVE_UNIT: SavedInsightsRangeUnit = 'month'
 
 export type InsightsRangeState = {
   rangePreset: InsightsRangePreset
   setRangePreset: (value: InsightsRangePreset) => void
-  customFrom: string
-  setCustomFrom: (value: string) => void
-  customTo: string
-  setCustomTo: (value: string) => void
-  commitCustomRange: () => void
-  customInvalid: boolean
+  relativeAmount: number
+  relativeUnit: SavedInsightsRangeUnit
+  setRelativeAmount: (value: number) => void
+  setRelativeUnit: (value: SavedInsightsRangeUnit) => void
+  applyRelativeRange: (amount: number, unit: SavedInsightsRangeUnit) => void
   rangeInputDates: InsightsRangeInputDates
   comparisonPeriod: InsightsComparisonPeriod
   cardTransitionKey: string
@@ -24,89 +26,58 @@ export type InsightsRangeState = {
 }
 
 /**
- * Owns insight range presets, custom date drafts, query enablement, and card transition keys
+ * Owns insight range presets, the relative custom-window builder, query enablement, and
+ * card transition keys
  */
 export function useInsightsRange(): InsightsRangeState {
-  const defaultCustomRange = useMemo(() => getDefaultCustomRange(), [])
-  const initialRangeInputDates = useMemo(
-    () => getRangeInputDates('THIS_MONTH', defaultCustomRange.from, defaultCustomRange.to),
-    [defaultCustomRange],
-  )
-  const initialRangeDisplayDates = useMemo(
-    () => getRangeDisplayDates('THIS_MONTH', defaultCustomRange.from, defaultCustomRange.to),
-    [defaultCustomRange],
-  )
+  const initialRangeInputDates = useMemo(() => getRangeInputDates('THIS_MONTH'), [])
   const [rangePreset, setRangePresetState] = useState<InsightsRangePreset>('THIS_MONTH')
-  const [committedCustomFrom, setCommittedCustomFrom] = useState(defaultCustomRange.from)
-  const [committedCustomTo, setCommittedCustomTo] = useState(defaultCustomRange.to)
-  const [customFrom, setCustomFromState] = useState(initialRangeDisplayDates.from)
-  const [customTo, setCustomToState] = useState(initialRangeDisplayDates.to)
+  const [relativeAmount, setRelativeAmountState] = useState(DEFAULT_RELATIVE_AMOUNT)
+  const [relativeUnit, setRelativeUnitState] = useState<SavedInsightsRangeUnit>(DEFAULT_RELATIVE_UNIT)
   const [rangeInputDates, setRangeInputDates] = useState<InsightsRangeInputDates>(initialRangeInputDates)
   const [comparisonPeriod, setComparisonPeriod] = useState<InsightsComparisonPeriod>(getRangeComparisonPeriod('THIS_MONTH'))
 
-  const customInvalid = rangePreset === 'CUSTOM'
-    && customFrom !== ''
-    && customTo !== ''
-    && getCustomRangeDays(customFrom, customTo) === null
   const cardTransitionKey = `${rangeInputDates.from}:${rangeInputDates.to}:${comparisonPeriod}`
   const cardQueriesEnabled = rangeInputDates.from !== '' && rangeInputDates.to !== ''
 
   /**
-   * Updates preset dates while preserving the committed custom range for later reuse
+   * Switches to a fixed preset, or re-resolves the rolling window when Custom is chosen
    */
   function setRangePreset(value: InsightsRangePreset) {
     setRangePresetState(value)
-
-    if (value === 'CUSTOM') {
-      const nextRange = { from: committedCustomFrom, to: committedCustomTo }
-      setCustomFromState(nextRange.from)
-      setCustomToState(nextRange.to)
-      setRangeInputDates(nextRange)
-      setComparisonPeriod(getRangeComparisonPeriod(value))
-      return
-    }
-
-    const nextInputRange = getRangeInputDates(value, committedCustomFrom, committedCustomTo)
-    const nextDisplayRange = getRangeDisplayDates(value, committedCustomFrom, committedCustomTo)
-    setCustomFromState(nextDisplayRange.from)
-    setCustomToState(nextDisplayRange.to)
-    setRangeInputDates(nextInputRange)
+    setRangeInputDates(
+      value === 'CUSTOM' ? getRelativeRangeInputDates(relativeAmount, relativeUnit) : getRangeInputDates(value),
+    )
     setComparisonPeriod(getRangeComparisonPeriod(value))
   }
 
-  function setCustomFrom(value: string) {
-    setRangePresetState('CUSTOM')
-    setCustomFromState(value)
-  }
-
-  function setCustomTo(value: string) {
-    setRangePresetState('CUSTOM')
-    setCustomToState(value)
-  }
-
   /**
-   * Commits custom dates only after both inputs form a valid range
+   * Makes a relative window the active range and remembers its amount and unit for saving
    */
-  function commitCustomRange() {
-    if (rangePreset !== 'CUSTOM' || customFrom === '' || customTo === '' || getCustomRangeDays(customFrom, customTo) === null) {
-      return
-    }
-
-    setCommittedCustomFrom(customFrom)
-    setCommittedCustomTo(customTo)
-    setRangeInputDates({ from: customFrom, to: customTo })
+  function applyRelativeRange(amount: number, unit: SavedInsightsRangeUnit) {
+    setRangePresetState('CUSTOM')
+    setRelativeAmountState(amount)
+    setRelativeUnitState(unit)
+    setRangeInputDates(getRelativeRangeInputDates(amount, unit))
     setComparisonPeriod(getRangeComparisonPeriod('CUSTOM'))
+  }
+
+  function setRelativeAmount(value: number) {
+    applyRelativeRange(value, relativeUnit)
+  }
+
+  function setRelativeUnit(value: SavedInsightsRangeUnit) {
+    applyRelativeRange(relativeAmount, value)
   }
 
   return {
     rangePreset,
     setRangePreset,
-    customFrom,
-    setCustomFrom,
-    customTo,
-    setCustomTo,
-    commitCustomRange,
-    customInvalid,
+    relativeAmount,
+    relativeUnit,
+    setRelativeAmount,
+    setRelativeUnit,
+    applyRelativeRange,
     rangeInputDates,
     comparisonPeriod,
     cardTransitionKey,
