@@ -3,13 +3,11 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
 from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.group import GroupMember
-from app.models.transaction import Transaction
 
 
 async def get_tracked_category_ids_by_budget(
@@ -62,49 +60,14 @@ async def get_budget_spend_rows(db: AsyncSession, budget_ids: list[uuid.UUID]) -
         spend_rows: list[Any] = []
         return spend_rows
 
-    # Fetch spend inside each budget period for the matching personal or group account scope
-    budget_spend_query = (
-        select(
-            Budget.id,
-            Transaction.category_id,
-            Transaction.account_id,
-            Transaction.dt.label("date"),
-            Account.currency.label("account_currency"),
-            BaseBudget.currency.label("budget_currency"),
-            func.sum(Transaction.amount).label("amount_sum"),
-        )
-        .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
-        .join(
-            BudgetTrackedCategory,
-            (BudgetTrackedCategory.base_budget_id == BaseBudget.id)
-            & (BudgetTrackedCategory.added_at <= Budget.period_end)
-            & (
-                (BudgetTrackedCategory.removed_at.is_(None))
-                | (BudgetTrackedCategory.removed_at > Budget.period_end)
-            ),
-        )
-        .join(Transaction, Transaction.category_id == BudgetTrackedCategory.category_id)
-        .join(Account, Transaction.account_id == Account.id)
-        .where(
-            Budget.id.in_(budget_ids),
-            Transaction.dt >= Budget.period_start,
-            Transaction.dt <= Budget.period_end,
-            (
-                (BaseBudget.group_id.is_not(None) & (Account.group_id == BaseBudget.group_id))
-                | (BaseBudget.group_id.is_(None) & (Account.owner_id == BaseBudget.owner_id))
-            ),
-        )
-        .group_by(
-            Budget.id,
-            Transaction.category_id,
-            Transaction.account_id,
-            Transaction.dt,
-            Account.currency,
-            BaseBudget.currency,
-        )
+    # The aggregation runs through a security-definer function so a user with budget
+    # read access sees category totals over accounts they cannot read row by row, the
+    # privacy-respecting design of the utilization endpoint. Callers check budget read
+    # access before reaching here, so the function is only ever asked for authorized budgets
+    result = await db.execute(
+        text("SELECT * FROM public.budget_spend_rows(:budget_ids)"),
+        {"budget_ids": budget_ids},
     )
-
-    result = await db.execute(budget_spend_query)
     spend_rows = list(result.all())
     return spend_rows
 

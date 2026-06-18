@@ -103,6 +103,41 @@ _HELPER_FUNCTIONS = (
         ON CONFLICT (user_id) DO UPDATE SET changed_at = clock_timestamp(), last_changed_session_id = NULL
     $$
     """,
+    # Aggregate spend per tracked category for the given budgets. Callers authorize
+    # budget read access first, so this returns category totals over accounts the
+    # reader cannot see row by row, the privacy-respecting design of utilization, and
+    # never exposes the individual transactions to the app role
+    """
+    CREATE OR REPLACE FUNCTION public.budget_spend_rows(p_budget_ids uuid[])
+    RETURNS TABLE (
+        id uuid,
+        category_id uuid,
+        account_id uuid,
+        date date,
+        account_currency varchar,
+        budget_currency varchar,
+        amount_sum numeric
+    )
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT b.id, t.category_id, t.account_id, t.dt, a.currency, bb.currency, sum(t.amount)
+        FROM public.budgets b
+        JOIN public.base_budgets bb ON b.base_budget_id = bb.id
+        JOIN public.budget_tracked_categories btc
+            ON btc.base_budget_id = bb.id
+            AND btc.added_at <= b.period_end
+            AND (btc.removed_at IS NULL OR btc.removed_at > b.period_end)
+        JOIN public.transactions t ON t.category_id = btc.category_id
+        JOIN public.accounts a ON t.account_id = a.id
+        WHERE b.id = ANY(p_budget_ids)
+            AND t.dt >= b.period_start
+            AND t.dt <= b.period_end
+            AND (
+                (bb.group_id IS NOT NULL AND a.group_id = bb.group_id)
+                OR (bb.group_id IS NULL AND a.owner_id = bb.owner_id)
+            )
+        GROUP BY b.id, t.category_id, t.account_id, t.dt, a.currency, bb.currency
+    $$
+    """,
 )
 
 
@@ -173,6 +208,7 @@ _HELPER_SIGNATURES = (
     "find_login_user(text)",
     "user_tz(uuid)",
     "bump_user_cache(uuid)",
+    "budget_spend_rows(uuid[])",
 )
 
 
