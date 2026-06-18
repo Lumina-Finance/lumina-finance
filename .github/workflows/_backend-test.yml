@@ -73,6 +73,10 @@ jobs:
       DB_NAME: lumina_test
       DB_USER: lumina_test
       DB_PASSWORD: lumina_test
+      # The migrator and app roles read their own passwords from these, the same
+      # variables the shared provisioner and the runtime app role resolve them from
+      MIGRATOR_DB_PASSWORD: lumina_migrator
+      APP_DB_PASSWORD: lumina_app
       TEST_DB_HOST: 127.0.0.1
       TEST_DB_PORT: "5432"
       TEST_DB_NAME: lumina_test
@@ -87,6 +91,19 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
+
+      # The tests run as the row-level-security app role, so the migrator and app
+      # roles must exist before pytest. The shared provisioner imports app config,
+      # which loads JWT keys at import, so generate throwaway keys for this step
+      - name: Provision the migrator and app roles
+        run: |
+          mkdir -p "${RUNNER_TEMP}/jwt-keys"
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${RUNNER_TEMP}/jwt-keys/access.pem"
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${RUNNER_TEMP}/jwt-keys/refresh.pem"
+          uv run python -m app.db.provision ensure-roles
+        env:
+          JWT_ACCESS_PRIVATE_KEY_PATH: ${{ runner.temp }}/jwt-keys/access.pem
+          JWT_REFRESH_PRIVATE_KEY_PATH: ${{ runner.temp }}/jwt-keys/refresh.pem
 
       - name: Run tests
         run: uv run pytest -n auto tests --splits 10 --group ${{ matrix.group }}

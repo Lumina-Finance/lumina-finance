@@ -56,3 +56,4 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D100", "D104", "S101", "S105", "S106"]  # tests can omit package docstrings and use assert with sample credentials
 "app/schemas/auth.py" = ["S105"]  # bearer token type is response metadata, not a hardcoded password
+"app/db/rls/functions.py" = ["S608"]  # function bodies are built only from trusted name constants, never user input, and cannot take inline noqa inside the SQL

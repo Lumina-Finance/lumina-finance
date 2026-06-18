@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.config import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER
-from app.database import get_db
+from app.database import current_user_id_ctx, get_db
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
@@ -78,6 +78,10 @@ async def get_current_user(
         user_uuid = uuid.UUID(str(user_id))
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
+
+    # Stamp the identity from the signature-verified token before any scoped query,
+    # so this request's transactions carry it for row-level security
+    current_user_id_ctx.set(user_uuid)
 
     active_token_query = select(AuthToken).where(
         AuthToken.jti == token_id,

@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.rls.functions import USER_TZ
 from app.models.account import TaxAdvantagedCategory, TaxAdvantagedCategoryLimit
-from app.models.user import User
 
 
 @dataclass(frozen=True)
@@ -39,9 +39,11 @@ async def get_tac_category_current_years(
     """
     owner_ids = {tax_advantaged_category.category_owner_user_id for tax_advantaged_category in tax_advantaged_categories}
 
-    # Fetch owner time zones so current-year metrics use each owner's local calendar
-    owner_result = await db.execute(select(User.id, User.tz).where(User.id.in_(owner_ids)))
-    owner_timezones = dict(owner_result.all())
+    # Fetch owner time zones through the helper since other owners' user rows are not
+    # directly visible, so current-year metrics use each owner's local calendar
+    owner_timezones: dict[uuid.UUID, str] = {}
+    for owner_id in owner_ids:
+        owner_timezones[owner_id] = await db.scalar(text(f"SELECT {USER_TZ}(:owner_id)"), {"owner_id": owner_id})
     current_years_by_tax_advantaged_category_id = {
         tax_advantaged_category.id: current_datetime_for_timezone(
             ZoneInfo(owner_timezones[tax_advantaged_category.category_owner_user_id]),

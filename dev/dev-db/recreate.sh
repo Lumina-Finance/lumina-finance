@@ -9,6 +9,8 @@ dev_pg_container="$(read_env_var "$dev_dir/.env" DEV_PG_CONTAINER)"
 
 : "${DB_HOST:?DB_HOST is required in backend/.env}"
 : "${DB_PORT:?DB_PORT is required in backend/.env}"
+: "${DB_NAME:?DB_NAME is required in backend/.env}"
+: "${DB_USER:?DB_USER is required in backend/.env}"
 : "${DB_PASSWORD:?DB_PASSWORD is required in backend/.env}"
 : "${dev_pg_container:?DEV_PG_CONTAINER is required in dev/.env}"
 
@@ -16,4 +18,4 @@ dev_pg_container="$(read_env_var "$dev_dir/.env" DEV_PG_CONTAINER)"
 docker stop "$dev_pg_container" >/dev/null 2>&1 || true
 docker rm -v "$dev_pg_container" >/dev/null 2>&1 || true
 
-ensure_dev_db_container "$dev_pg_container" "$DB_HOST" "$DB_PORT" "$DB_PASSWORD"
+ensure_dev_db_container "$dev_pg_container" "$DB_HOST" "$DB_PORT" "$DB_USER" "$DB_PASSWORD" "$DB_NAME"

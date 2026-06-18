@@ -47,6 +47,11 @@ trap cleanup INT TERM EXIT
 ensure_private_key "Access" "$JWT_ACCESS_PRIVATE_KEY_PATH"
 ensure_private_key "Refresh" "$JWT_REFRESH_PRIVATE_KEY_PATH"
 
+# Create the migrator and app roles and hand them schema ownership while still
+# connected as the admin role, before migrations run as the migrator
+python -m app.db.provision ensure-roles
+python -m app.db.provision transfer-ownership
+
 # Run migrations and seed the database before starting the backend and Caddy
 alembic upgrade head
 python -m scripts.seed_currencies

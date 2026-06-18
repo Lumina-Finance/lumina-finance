@@ -4,7 +4,7 @@ import asyncio
 
 from sqlalchemy.dialects.postgresql import insert
 
-from app.database import async_session
+from app.database import create_migration_sessionmaker
 from app.models.currency import Currency
 
 # (code, name, symbol, minor_unit_exponent)
@@ -173,7 +173,8 @@ async def seed_currencies() -> None:
         {"id": code, "name": name, "symbol": symbol, "minor_unit_exponent": exponent}
         for code, name, symbol, exponent in CURRENCIES
     ]
-    async with async_session() as db:
+    session_factory = create_migration_sessionmaker()
+    async with session_factory() as db:
         stmt = insert(Currency).values(rows)
         stmt = stmt.on_conflict_do_update(
             index_elements=["id"],

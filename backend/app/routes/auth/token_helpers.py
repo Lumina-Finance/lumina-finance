@@ -105,6 +105,7 @@ def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> No
 async def get_active_token_by_jti(
     db: AsyncSession,
     token_jti: uuid.UUID,
+    user_id: uuid.UUID,
     token_kind: AuthTokenKind,
 ) -> AuthToken | None:
     """Return an active token allowlist row by JWT identifier
@@ -112,13 +113,17 @@ async def get_active_token_by_jti(
     Args:
         db: Active database session
         token_jti: JWT identifier from token claims
+        user_id: User the verified token claims to belong to
         token_kind: Expected token kind for this auth path
 
     Returns:
         Active token row when the JWT identifier is allowlisted and unexpired
     """
+    # Scope by user as well as the signature-bound jti so a token can never resolve
+    # against another user's allowlist row
     active_token_query = select(AuthToken).where(
         AuthToken.jti == token_jti,
+        AuthToken.user_id == user_id,
         AuthToken.token_kind == token_kind,
         AuthToken.expires_at > sa_func.now(),
     )
@@ -139,6 +144,7 @@ async def get_active_token_by_jti(
 async def get_token_by_jti(
     db: AsyncSession,
     token_jti: uuid.UUID,
+    user_id: uuid.UUID,
     token_kind: AuthTokenKind,
 ) -> AuthToken | None:
     """Return a token allowlist row by JWT identifier without active-window checks
@@ -146,13 +152,17 @@ async def get_token_by_jti(
     Args:
         db: Active database session
         token_jti: JWT identifier from token claims
+        user_id: User the verified token claims to belong to
         token_kind: Expected token kind for this auth path
 
     Returns:
         Token row when the JWT identifier is still present in the allowlist table
     """
+    # Scope by user as well as the signature-bound jti so a token can never resolve
+    # against another user's allowlist row
     token_query = select(AuthToken).where(
         AuthToken.jti == token_jti,
+        AuthToken.user_id == user_id,
         AuthToken.token_kind == token_kind,
     )
 

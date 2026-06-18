@@ -8,6 +8,7 @@ import jwt
 from fastapi import HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import current_user_id_ctx
 from app.models.base import AuthTokenKind
 from app.routes.auth.cookie_helpers import clear_refresh_cookie
 from app.routes.auth.token_helpers import (
@@ -54,6 +55,11 @@ async def refresh_auth_tokens(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
 
     claims = _get_refresh_token_claims(response, refresh_token)
+
+    # Stamp the identity from the signature-verified token before any query opens the
+    # transaction the row-level security policies read
+    current_user_id_ctx.set(claims.user_id)
+
     await _verify_refresh_token_allowlist(db, response, claims)
 
     user = await get_user_by_id(db, str(claims.user_id))
@@ -111,20 +117,20 @@ async def _verify_refresh_token_allowlist(
     Returns:
         None
     """
-    token = await get_token_by_jti(db, claims.token_id, AuthTokenKind.REFRESH)
-    if token is not None and (token.session_id != claims.session_id or token.user_id != claims.user_id):
+    token = await get_token_by_jti(db, claims.token_id, claims.user_id, AuthTokenKind.REFRESH)
+    if token is not None and token.session_id != claims.session_id:
         _raise_refresh_token_error(response, "Invalid token")
 
     auth_session = await get_active_session_by_id(db, claims.session_id, claims.user_id, lock_for_update=True)
     if not auth_session:
         _raise_refresh_token_error(response, "Session is not active")
 
-    active = await get_active_token_by_jti(db, claims.token_id, AuthTokenKind.REFRESH)
+    active = await get_active_token_by_jti(db, claims.token_id, claims.user_id, AuthTokenKind.REFRESH)
     if not active:
         await _raise_for_rotated_or_inactive_refresh_token(db, claims)
         _raise_refresh_token_error(response, "Refresh token is not active")
 
-    if active.session_id != claims.session_id or active.user_id != claims.user_id:
+    if active.session_id != claims.session_id:
         _raise_refresh_token_error(response, "Invalid token")
 
 
@@ -144,7 +150,7 @@ async def _raise_for_rotated_or_inactive_refresh_token(
     Raises:
         HTTPException: Refresh token was already rotated while the session is still active
     """
-    token = await get_token_by_jti(db, claims.token_id, AuthTokenKind.REFRESH)
+    token = await get_token_by_jti(db, claims.token_id, claims.user_id, AuthTokenKind.REFRESH)
     if token is not None:
         return
 

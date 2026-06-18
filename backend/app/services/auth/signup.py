@@ -1,15 +1,19 @@
 """Signup service"""
 
+import uuid
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import current_user_id_ctx
 from app.models.auth import AuthIdentity, PasswordCredential
 from app.models.base import AuthProvider
 from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import SignupRequest
 from app.services.auth.password_helpers import hash_password
+from app.services.auth.user_lookup import find_user_id_by_email
 
 
 async def signup(db: AsyncSession, data: SignupRequest) -> User:
@@ -28,10 +32,16 @@ async def signup(db: AsyncSession, data: SignupRequest) -> User:
     Raises:
         HTTPException: Email is already registered or base currency is invalid
     """
+    user_id = uuid.uuid4()
+    # Stamp the new user as the current identity before any query so their own row
+    # passes the self-only users policy when it is inserted and read back
+    current_user_id_ctx.set(user_id)
+
     await _reject_registered_email(db, data.email)
     await _reject_missing_base_currency(db, data.base_currency)
 
     user = User(
+        id=user_id,
         email=data.email,
         first_name=data.first_name,
         last_name=data.last_name,
@@ -65,11 +75,9 @@ async def _reject_registered_email(db: AsyncSession, email: str) -> None:
     Raises:
         HTTPException: Email is already registered
     """
-    email_query = select(User).where(User.email == email)
-
-    # Check for an existing user before creating a new password identity
-    result = await db.execute(email_query)
-    if result.scalar_one_or_none():
+    # Check for an existing user before creating a new password identity, through the
+    # helper since the email lookup runs before any request identity exists
+    if await find_user_id_by_email(db, email):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
 

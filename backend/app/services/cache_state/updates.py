@@ -3,9 +3,11 @@
 import uuid
 
 import sqlalchemy as sa
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.rls.functions import BUMP_USER_CACHE
 from app.dependencies import get_current_session_id
 from app.models.cache_state import GroupCacheState, UserCacheState
 
@@ -21,6 +23,23 @@ async def mark_user_cache_changed(db: AsyncSession, user_id: uuid.UUID) -> None:
         None
     """
     await _upsert_cache_state(db, UserCacheState, "user_id", user_id)
+
+
+async def mark_user_cache_changed_privileged(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Record a personal-scope change for a user who may not be the caller
+
+    Removing a member from a group must invalidate that member's cache, which the
+    per-user write policy blocks when an admin removes someone else, so this routes
+    through a security-definer helper that bypasses the per-user scoping
+
+    Args:
+        db: Active database session
+        user_id: User scope that changed
+
+    Returns:
+        None
+    """
+    await db.execute(text(f"SELECT {BUMP_USER_CACHE}(:user_id)"), {"user_id": user_id})
 
 
 async def mark_group_cache_changed(db: AsyncSession, group_id: uuid.UUID) -> None:

@@ -90,8 +90,8 @@ async def _get_session_id_from_access_token(db: AsyncSession, access_token: str)
     except (TypeError, ValueError, jwt.PyJWTError):
         return None
 
-    active_token = await get_active_token_by_jti(db, token_id, AuthTokenKind.ACCESS)
-    if not active_token or active_token.session_id != session_uuid or active_token.user_id != user_uuid:
+    active_token = await get_active_token_by_jti(db, token_id, user_uuid, AuthTokenKind.ACCESS)
+    if not active_token or active_token.session_id != session_uuid:
         return None
 
     return session_uuid
@@ -115,8 +115,8 @@ async def _get_session_id_from_refresh_token(db: AsyncSession, refresh_token: st
     except (TypeError, ValueError, jwt.PyJWTError):
         return None
 
-    active_token = await get_active_token_by_jti(db, token_id, AuthTokenKind.REFRESH)
-    if not active_token or active_token.session_id != session_id or active_token.user_id != user_id:
+    active_token = await get_active_token_by_jti(db, token_id, user_id, AuthTokenKind.REFRESH)
+    if not active_token or active_token.session_id != session_id:
         return None
 
     return session_id

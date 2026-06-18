@@ -1,11 +1,14 @@
 import os
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.config import _require
+from app.config import APP_DB_USER, _require
+from app.database import stamp_request_identity
+from app.db.credentials import resolve_role_password
+from app.db.rls import apply_rls
 
 # Import all models so Base.metadata has the full schema
 from app.models import (  # noqa: F401
@@ -45,6 +48,16 @@ TEST_DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB
 engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 TestSession = async_sessionmaker(engine, expire_on_commit=False)
 
+# A second engine connecting as the runtime app role, which unlike the owner above
+# is subject to row-level security. Route tests and the isolation tests run their
+# code under this role so the policies are actually enforced
+_APP_DATABASE_URL = f"postgresql+asyncpg://{APP_DB_USER}:{resolve_role_password('app', generate=False)}@{DB_HOST}:{DB_PORT}/{WORKER_DB_NAME}"
+scoped_engine = create_async_engine(_APP_DATABASE_URL, poolclass=NullPool)
+ScopedSession = async_sessionmaker(scoped_engine, expire_on_commit=False)
+
+# Stamp the request identity exactly as production does so the policies read it
+event.listen(scoped_engine.sync_engine, "begin", stamp_request_identity)
+
 
 @pytest.fixture(scope="session", autouse=True)
 async def _setup_schema():
@@ -79,6 +92,13 @@ async def _setup_schema():
         await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(text("CREATE SCHEMA public"))
         await conn.run_sync(Base.metadata.create_all)
+        # Apply the same row-level security the migration installs so tests run
+        # against the production schema, not a policy-free copy
+        await conn.run_sync(apply_rls)
+
+        # Recreating the public schema drops the schema-level grant the provisioner
+        # gives the app role, so restore it for tests that connect as that role
+        await conn.execute(text(f'GRANT USAGE ON SCHEMA public TO "{APP_DB_USER}"'))
 
 
 @pytest.fixture(autouse=True)

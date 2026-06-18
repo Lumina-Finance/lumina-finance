@@ -6,10 +6,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import current_user_id_ctx
 from app.models.auth import PasswordCredential
 from app.models.user import User
 from app.schemas.auth import LoginRequest
 from app.services.auth.password_helpers import hash_dummy_password_for_timing, is_password_valid
+from app.services.auth.user_lookup import find_user_id_by_email
 
 _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_MINUTES = 30
@@ -31,12 +33,12 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     Raises:
         HTTPException: Credentials are invalid or the account is temporarily locked
     """
-    user = await _get_user_by_email(db, data.email)
-    if not user:
+    user_id = await find_user_id_by_email(db, data.email)
+    if not user_id:
         hash_dummy_password_for_timing()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    credential = await _get_password_credential(db, user.id)
+    credential = await _get_password_credential(db, user_id)
     if not credential:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
@@ -48,24 +50,11 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     await _reset_failed_login(db, credential)
-    return user
 
-
-async def _get_user_by_email(db: AsyncSession, email: str) -> User | None:
-    """Return a user by email
-
-    Args:
-        db: Active database session
-        email: Login email address
-
-    Returns:
-        User row when the email belongs to an account
-    """
-    user_query = select(User).where(User.email == email)
-
-    # Fetch the user account by email before looking up password credentials
-    result = await db.execute(user_query)
-    user = result.scalar_one_or_none()
+    # The password is verified, so adopt the user's identity and load their row through
+    # the normal self-only users policy rather than a definer that bypasses it
+    current_user_id_ctx.set(user_id)
+    user = await db.get(User, user_id)
     return user
 
 

@@ -29,18 +29,6 @@ api_port=$(( 56000 + offset ))
 web_port=$(( 57000 + offset ))
 container="lumina-dev-$slug"
 
-# Replace KEY's value in a dotenv FILE, or append KEY=VALUE when the key is absent
-set_env_var() {
-	local file="$1" key="$2" value="$3" tmp
-	if grep -qE "^${key}=" "$file" 2>/dev/null; then
-		tmp="$(mktemp)"
-		sed "s|^${key}=.*|${key}=${value}|" "$file" >"$tmp"
-		mv "$tmp" "$file"
-	else
-		printf '%s=%s\n' "$key" "$value" >>"$file"
-	fi
-}
-
 # Swap only the port in KEY's URL value, keeping whatever host is already set
 set_url_port() {
 	local file="$1" key="$2" port="$3" current
