@@ -46,15 +46,16 @@ async def add_group_member_and_get_membership(
 
     group_member = GroupMember(group_id=group_id, user_id=data.user_id)
     db.add(group_member)
-    await mark_group_cache_changed(db, group_id)
 
-    # The user_id foreign key guarantees the target exists, so a violation means the
-    # request named a user that does not exist
+    # The user_id foreign key guarantees the target exists, so flush now to surface a
+    # missing user as a clean error before any later query autoflushes it
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid user") from None
 
+    await mark_group_cache_changed(db, group_id)
+    await db.commit()
     await db.refresh(group_member)
     return group_member
