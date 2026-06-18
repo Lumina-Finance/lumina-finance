@@ -2,8 +2,10 @@
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.rls.functions import FIND_LOGIN_USER
 
 
 async def find_user_id_by_email(db: AsyncSession, email: str) -> uuid.UUID | None:
@@ -19,4 +21,4 @@ async def find_user_id_by_email(db: AsyncSession, email: str) -> uuid.UUID | Non
     # Login and signup run before a request identity exists, so the lookup goes through
     # the SECURITY DEFINER helper that bypasses the self-only users policy, returning
     # only the id so nothing else about the user can leak through it
-    return await db.scalar(select(func.public.find_login_user(email)))
+    return await db.scalar(text(f"SELECT {FIND_LOGIN_USER}(:email)"), {"email": email})

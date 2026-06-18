@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.rls.functions import BUDGET_SPEND_ROWS
 from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.group import GroupMember
 
@@ -65,7 +66,7 @@ async def get_budget_spend_rows(db: AsyncSession, budget_ids: list[uuid.UUID]) -
     # privacy-respecting design of the utilization endpoint. Callers check budget read
     # access before reaching here, so the function is only ever asked for authorized budgets
     result = await db.execute(
-        text("SELECT * FROM public.budget_spend_rows(:budget_ids)"),
+        text(f"SELECT * FROM {BUDGET_SPEND_ROWS}(:budget_ids)"),  # noqa: S608
         {"budget_ids": budget_ids},
     )
     spend_rows = list(result.all())

@@ -3,13 +3,13 @@
 from sqlalchemy import text
 
 from app.config import APP_DB_USER
-from app.db.rls import _AUTH_TABLES, _GLOBAL_READ_TABLES
+from app.db.rls import AUTH_TABLES, GLOBAL_READ_TABLES
 from app.models.base import Base
 from tests.conftest import engine
 
-# Tables intentionally left out of row-level security, sourced from rls.py so the
-# guard and the policy definition can never drift apart
-_RLS_EXEMPT_TABLES = frozenset(_GLOBAL_READ_TABLES) | frozenset(_AUTH_TABLES)
+# Tables intentionally left out of row-level security, sourced from the rls package so
+# the guard and the policy definition can never drift apart
+_RLS_EXEMPT_TABLES = frozenset(GLOBAL_READ_TABLES) | frozenset(AUTH_TABLES)
 
 
 async def _rls_enabled_tables() -> set[str]:
