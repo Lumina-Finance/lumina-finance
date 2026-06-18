@@ -76,12 +76,13 @@ _HELPER_FUNCTIONS = (
         )
     $$
     """,
-    # Look up a user by email for the pre-identity login flow, which runs before any
-    # request identity exists and so cannot pass the users policy
+    # Resolve a user id by email for the pre-identity login and signup flows, which run
+    # before a request identity exists. Returns only the id so the definer never exposes
+    # the rest of the user row outside the self-only users policy
     """
-    CREATE OR REPLACE FUNCTION public.find_login_user(p_email text) RETURNS SETOF public.users
+    CREATE OR REPLACE FUNCTION public.find_login_user(p_email text) RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-        SELECT * FROM public.users WHERE email = p_email
+        SELECT id FROM public.users WHERE email = p_email
     $$
     """,
     # Return another user's timezone for the few group operations that need it,

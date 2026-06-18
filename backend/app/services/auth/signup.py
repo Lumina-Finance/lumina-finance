@@ -13,7 +13,7 @@ from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import SignupRequest
 from app.services.auth.password_helpers import hash_password
-from app.services.auth.user_lookup import find_user_by_email
+from app.services.auth.user_lookup import find_user_id_by_email
 
 
 async def signup(db: AsyncSession, data: SignupRequest) -> User:
@@ -77,7 +77,7 @@ async def _reject_registered_email(db: AsyncSession, email: str) -> None:
     """
     # Check for an existing user before creating a new password identity, through the
     # helper since the email lookup runs before any request identity exists
-    if await find_user_by_email(db, email):
+    if await find_user_id_by_email(db, email):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
 
