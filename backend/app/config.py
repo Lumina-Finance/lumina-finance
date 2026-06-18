@@ -108,28 +108,20 @@ def _build_database_url(user: str, password: str) -> str:
     return f"{_DB_URL_SCHEME}://{user}:{password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 
+# Each URL resolves its password lazily so a process only needs its own role's secret
 def migration_database_url() -> str:
-    """Return the connection URL for the migrator role
-
-    The password is resolved lazily so a process that only serves requests never
-    needs the migrator secret, which keeps the two roles' secrets separate
-
-    Returns:
-        An asyncpg connection URL for the migrator role
-    """
+    """Return the connection URL for the migrator role"""
     return _build_database_url(MIGRATOR_DB_USER, resolve_role_password("migrator", generate=False))
 
 
 def app_database_url() -> str:
-    """Return the connection URL for the app role
-
-    The password is resolved lazily so a process that only runs migrations never
-    needs the app secret, which keeps the two roles' secrets separate
-
-    Returns:
-        An asyncpg connection URL for the app role
-    """
+    """Return the connection URL for the app role"""
     return _build_database_url(APP_DB_USER, resolve_role_password("app", generate=False))
+
+
+def admin_database_url() -> str:
+    """Return the connection URL for the admin role"""
+    return _build_database_url(_require("DB_USER"), _require("DB_PASSWORD"))
 
 RUNTIME = os.getenv("RUNTIME", "server").strip() or "server"
 if RUNTIME not in ("server", "lambda"):

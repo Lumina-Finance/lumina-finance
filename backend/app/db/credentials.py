@@ -18,11 +18,7 @@ _PASSWORD_FILE_MODE = 0o600
 
 
 def generate_password() -> str:
-    """Return a random URL-safe password within the configured length range
-
-    Returns:
-        A password whose length is between the minimum and maximum
-    """
+    """Return a random URL-safe password within the configured length range"""
     # token_urlsafe over-produces characters, so slice to the chosen length
     length = _MIN_PASSWORD_LENGTH + secrets.randbelow(_MAX_PASSWORD_LENGTH - _MIN_PASSWORD_LENGTH + 1)
     return secrets.token_urlsafe(length)[:length]
@@ -32,9 +28,7 @@ def resolve_role_password(role: str, *, generate: bool) -> str:
     """Return the password for a database role
 
     Resolution order is the environment variable, then the persisted file, then a
-    freshly generated password when generation is allowed. The provisioner calls
-    this with generation enabled so it can create the role and persist the secret,
-    while the application reads the same value back without ever writing
+    freshly generated password when generation is allowed
 
     Args:
         role: Short role key such as migrator or app
