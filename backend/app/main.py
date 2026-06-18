@@ -1,9 +1,12 @@
 """Application entrypoint"""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import ALLOWED_ORIGINS, RUNTIME
+from app.database import verify_app_role_is_unprivileged
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
@@ -22,7 +25,15 @@ from app.routes.tax_advantaged_categories import router as tax_advantaged_catego
 from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 
-app = FastAPI(title="Lumina Finance API")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Verify the runtime cannot bypass row-level security before serving requests"""
+    await verify_app_role_is_unprivileged()
+    yield
+
+
+app = FastAPI(title="Lumina Finance API", lifespan=_lifespan)
 
 
 # CORS — origins from env

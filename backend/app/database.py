@@ -3,10 +3,10 @@
 import uuid
 from contextvars import ContextVar
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import app_database_url, migration_database_url
+from app.config import APP_DB_USER, app_database_url, migration_database_url
 
 engine = create_async_engine(app_database_url())
 
@@ -46,6 +46,32 @@ async def get_db():
     current_user_id_ctx.set(None)
     async with async_session() as session:
         yield session
+
+
+async def verify_app_role_is_unprivileged() -> None:
+    """Fail startup unless requests run as the unprivileged app role
+
+    Row-level security only constrains the app role, so serving requests as a
+    superuser, a BYPASSRLS role, or the table owner would silently disable tenant
+    isolation. This checks the live connection rather than trusting configuration
+
+    Raises:
+        RuntimeError: The runtime connection can bypass row-level security
+    """
+    async with engine.connect() as connection:
+        role_name, is_superuser, bypasses_rls = (
+            await connection.execute(text(
+                "SELECT current_user, "
+                "current_setting('is_superuser') = 'on', "
+                "(SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user)"
+            ))
+        ).one()
+
+    if role_name != APP_DB_USER or is_superuser or bypasses_rls:
+        raise RuntimeError(
+            f"Refusing to start: requests must use the unprivileged role {APP_DB_USER!r}, but the "
+            f"connection is role={role_name!r} superuser={is_superuser} bypassrls={bypasses_rls}"
+        )
 
 
 def create_migration_sessionmaker() -> async_sessionmaker[AsyncSession]:
