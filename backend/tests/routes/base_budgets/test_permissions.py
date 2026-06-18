@@ -288,8 +288,8 @@ async def test_grant_base_budget_permission_personal_base_returns_404(client):
     assert resp.json()["detail"] == "Base budget not found"
 
 
-async def test_grant_base_budget_permission_as_non_admin_returns_403(client):
-    """Non-admin group member cannot grant permissions on a base budget."""
+async def test_grant_base_budget_permission_as_non_admin_returns_404(client):
+    """A non-admin member cannot see the group base budget, so granting is not disclosed"""
     _, member_headers, _, _, base_budget_id = (
         await _setup_group_with_member_and_base_budget(client)
     )
@@ -302,8 +302,8 @@ async def test_grant_base_budget_permission_as_non_admin_returns_403(client):
         headers=member_headers,
     )
 
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == "Admin role required"
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
 
 
 async def test_grant_base_budget_permission_as_outsider_returns_404(client):
@@ -538,8 +538,8 @@ async def test_list_base_budget_permissions_personal_base_returns_404(client):
     assert resp.json()["detail"] == "Base budget not found"
 
 
-async def test_list_base_budget_permissions_as_non_admin_returns_403(client):
-    """Non-admin group member cannot list permissions on a base budget."""
+async def test_list_base_budget_permissions_as_non_admin_returns_404(client):
+    """A non-admin member cannot see the group base budget, so its permissions are not disclosed"""
     _, member_headers, _, _, base_budget_id = (
         await _setup_group_with_member_and_base_budget(client)
     )
@@ -549,8 +549,8 @@ async def test_list_base_budget_permissions_as_non_admin_returns_403(client):
         headers=member_headers,
     )
 
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == "Admin role required"
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Base budget not found"
 
 
 async def test_list_base_budget_permissions_as_outsider_returns_404(client):

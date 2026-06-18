@@ -257,8 +257,8 @@ async def test_grant_account_permission_nonexistent_account_returns_404(client):
     assert resp.status_code == 404
 
 
-async def test_grant_account_permission_by_non_admin_returns_403(client):
-    """Non-admin member cannot grant permissions."""
+async def test_grant_account_permission_by_non_admin_returns_404(client):
+    """A non-admin member cannot see the group account, so granting is not disclosed"""
     _, member_headers, member_user_id, _, account_id = await _setup_group_with_member_and_account(client)
 
     resp = await client.post(
@@ -267,7 +267,7 @@ async def test_grant_account_permission_by_non_admin_returns_403(client):
         headers=member_headers,
     )
 
-    assert resp.status_code == 403
+    assert resp.status_code == 404
 
 
 async def test_grant_account_permission_by_non_member_returns_404(client):
@@ -496,13 +496,13 @@ async def test_list_account_permissions_multiple_ordered_by_created_at(client):
     assert resp.json()[1]["level"] == "write"
 
 
-async def test_list_account_permissions_by_non_admin_returns_403(client):
-    """Non-admin cannot list permissions."""
+async def test_list_account_permissions_by_non_admin_returns_404(client):
+    """A non-admin member cannot see the group account, so its permissions are not disclosed"""
     _, member_headers, _, _, account_id = await _setup_group_with_member_and_account(client)
 
     resp = await client.get(f"/accounts/{account_id}/permissions", headers=member_headers)
 
-    assert resp.status_code == 403
+    assert resp.status_code == 404
 
 
 async def test_list_account_permissions_unauthenticated_returns_401(client):
