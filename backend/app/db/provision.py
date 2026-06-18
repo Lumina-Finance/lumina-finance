@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import APP_DB_USER, DB_NAME, MIGRATOR_DB_USER, admin_database_url
 from app.db.credentials import resolve_role_password
 
-# Least-privilege attributes shared by both managed roles
-_ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB"
+# Least-privilege attributes shared by both managed roles. NOBYPASSRLS is stated
+# explicitly so re-provisioning resets any role that was granted the bypass by hand
+_ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS"
 
 # Role key passed to the password resolver paired with the role name it provisions
 _MANAGED_ROLES = (("migrator", MIGRATOR_DB_USER), ("app", APP_DB_USER))

@@ -2,6 +2,7 @@
 
 from sqlalchemy import text
 
+from app.config import APP_DB_USER
 from app.db.rls import _AUTH_TABLES, _GLOBAL_READ_TABLES
 from app.models.base import Base
 from tests.conftest import engine
@@ -39,3 +40,30 @@ def test_rls_exemptions_reference_existing_tables():
     known_tables = {table.name for table in Base.metadata.sorted_tables}
     stale = _RLS_EXEMPT_TABLES - known_tables
     assert not stale, f"Exempt tables that no longer exist: {stale}"
+
+
+async def test_app_role_cannot_bypass_row_level_security():
+    """Fail when the app role could bypass policies as a superuser, BYPASSRLS, or table owner"""
+    async with engine.connect() as conn:
+        attributes = (await conn.execute(
+            text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = :role"),
+            {"role": APP_DB_USER},
+        )).one_or_none()
+        assert attributes is not None, f"App role {APP_DB_USER!r} does not exist"
+
+        is_superuser, bypasses_rls = attributes
+        assert not is_superuser, f"App role {APP_DB_USER!r} is a superuser and bypasses row-level security"
+        assert not bypasses_rls, f"App role {APP_DB_USER!r} has the BYPASSRLS attribute"
+
+        # Owners bypass their own tables' policies unless FORCE is set, so the app role
+        # must own none of the secured tables
+        owned_table_count = await conn.scalar(
+            text(
+                "SELECT count(*) FROM pg_class c "
+                "JOIN pg_namespace n ON n.oid = c.relnamespace "
+                "JOIN pg_roles r ON r.oid = c.relowner "
+                "WHERE n.nspname = 'public' AND c.relkind = 'r' AND r.rolname = :role"
+            ),
+            {"role": APP_DB_USER},
+        )
+        assert owned_table_count == 0, f"App role {APP_DB_USER!r} owns {owned_table_count} public tables"
