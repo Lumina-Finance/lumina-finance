@@ -39,7 +39,7 @@ async def list_merchants(
         offset: Number of merchants to skip before returning rows
 
     Returns:
-        Merchants ordered by name
+        Merchants ordered by recent transaction count then name
     """
     merchants = await get_merchants_for_user(db, user.id, group_id, q, limit, offset)
     return merchants
