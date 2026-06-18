@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import _require
+from app.db.rls import apply_rls
 
 # Import all models so Base.metadata has the full schema
 from app.models import (  # noqa: F401
@@ -79,6 +80,9 @@ async def _setup_schema():
         await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(text("CREATE SCHEMA public"))
         await conn.run_sync(Base.metadata.create_all)
+        # Apply the same row-level security the migration installs so tests run
+        # against the production schema, not a policy-free copy
+        await conn.run_sync(apply_rls)
 
 
 @pytest.fixture(autouse=True)

@@ -51,3 +51,7 @@ SQL
 # Create the migrator and app roles and grant their baseline access, shared with
 # the self-hosted container so role setup is identical everywhere
 ( cd "$repo_root/backend" && .venv/bin/python -m app.db.provision ensure-roles )
+
+# Let the pytest role create parity databases owned by the migrator, which the
+# migration schema-parity tests need since alembic runs as the migrator
+docker exec -i "$dev_pg_container" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -c "GRANT \"$migrator_role\" TO \"$test_db_user\""

@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.config import MIGRATOR_DB_USER
 from app.models.base import Base
 from tests.conftest import (
     DB_HOST,
@@ -66,8 +67,9 @@ async def _recreate_database(database_name: str) -> None:
             # Drop any stale parity database left by an interrupted test run
             await conn.execute(text(f'DROP DATABASE IF EXISTS "{database_name}"'))
 
-            # Create a clean database that Alembic will build from its base revision
-            await conn.execute(text(f'CREATE DATABASE "{database_name}"'))
+            # Create a clean database owned by the migrator, since Alembic runs as
+            # the migrator and must own the schema it builds from the base revision
+            await conn.execute(text(f'CREATE DATABASE "{database_name}" OWNER "{MIGRATOR_DB_USER}"'))
     finally:
         await maintenance_engine.dispose()
 
