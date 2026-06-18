@@ -7,9 +7,15 @@ single pair the migration and the test harness call
 from sqlalchemy import Connection
 
 from app.db.rls.functions import create_helper_functions, drop_helper_functions
-from app.db.rls.policies import AUTH_TABLES, GLOBAL_READ_TABLES, apply_policies, drop_policies
+from app.db.rls.policies import (
+    AUTH_TABLES,
+    GLOBAL_READ_TABLES,
+    apply_policies,
+    drop_policies,
+    secure_registered_table,
+)
 
-__all__ = ["AUTH_TABLES", "GLOBAL_READ_TABLES", "apply_rls", "revoke_rls"]
+__all__ = ["AUTH_TABLES", "GLOBAL_READ_TABLES", "apply_rls", "revoke_rls", "secure_registered_table"]
 
 
 def apply_rls(connection: Connection) -> None:
