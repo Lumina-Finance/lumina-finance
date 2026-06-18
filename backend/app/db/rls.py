@@ -16,6 +16,17 @@ _HELPER_FUNCTIONS = (
         SELECT nullif(current_setting('app.current_user_id', true), '')::uuid
     $$
     """,
+    # Whether the current user is an admin of a group, used both by the access
+    # helpers and directly in policies so a creator passes on its own group id
+    """
+    CREATE OR REPLACE FUNCTION public.is_group_admin(p_group_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT EXISTS (
+            SELECT 1 FROM public.group_members gm
+            WHERE gm.group_id = p_group_id AND gm.user_id = public.current_user_id() AND gm.is_admin
+        )
+    $$
+    """,
     # An account is visible to its personal owner, an admin of its owning group, or
     # a member holding an explicit account permission
     """
@@ -24,10 +35,7 @@ _HELPER_FUNCTIONS = (
         SELECT EXISTS (
             SELECT 1 FROM public.accounts a WHERE a.id = p_account_id AND (
                 a.owner_id = public.current_user_id()
-                OR EXISTS (
-                    SELECT 1 FROM public.group_members gm
-                    WHERE gm.group_id = a.group_id AND gm.user_id = public.current_user_id() AND gm.is_admin
-                )
+                OR public.is_group_admin(a.group_id)
                 OR EXISTS (
                     SELECT 1 FROM public.account_permissions ap
                     WHERE ap.account_id = a.id AND ap.user_id = public.current_user_id()
@@ -59,10 +67,7 @@ _HELPER_FUNCTIONS = (
         SELECT EXISTS (
             SELECT 1 FROM public.base_budgets b WHERE b.id = p_base_budget_id AND (
                 b.owner_id = public.current_user_id()
-                OR EXISTS (
-                    SELECT 1 FROM public.group_members gm
-                    WHERE gm.group_id = b.group_id AND gm.user_id = public.current_user_id() AND gm.is_admin
-                )
+                OR public.is_group_admin(b.group_id)
                 OR EXISTS (
                     SELECT 1 FROM public.budget_permissions bp
                     WHERE bp.base_budget_id = b.id AND bp.user_id = public.current_user_id()
@@ -93,11 +98,15 @@ _HELPER_FUNCTIONS = (
 # Table privileges the app role holds on the data it serves
 _APP_TABLE_PRIVILEGES = "SELECT, INSERT, UPDATE, DELETE"
 
-# (table, USING, WITH CHECK) for tables whose access is one predicate family across
-# reads and writes. Function calls are schema-qualified so a changed search_path
-# cannot route them to a different function
+# (table, USING, WITH CHECK) for tables secured by a single policy. Function calls
+# are schema-qualified so a changed search_path cannot route them to a different
+# function. Where a table's read helper resolves access by reading the table itself,
+# the USING clause also lists the direct owner and group-admin predicates so a
+# creator can read back the row it just inserted, since the helper evaluates against
+# a snapshot that predates the row inside the same INSERT ... RETURNING statement
 _SECURED_TABLES = (
-    ("accounts", "public.can_access_account(id)",
+    ("accounts",
+     "owner_id = public.current_user_id() OR public.is_group_admin(group_id) OR public.can_access_account(id)",
      "owner_id = public.current_user_id() OR public.can_access_group(group_id)"),
     ("account_balance_snapshots", "public.can_access_account(account_id)",
      "public.can_access_account(account_id)"),
@@ -105,7 +114,8 @@ _SECURED_TABLES = (
      "public.can_access_account(account_id)"),
     ("transactions", "public.can_access_account(account_id)",
      "public.can_access_account(account_id)"),
-    ("base_budgets", "public.can_access_base_budget(id)",
+    ("base_budgets",
+     "owner_id = public.current_user_id() OR public.is_group_admin(group_id) OR public.can_access_base_budget(id)",
      "owner_id = public.current_user_id() OR public.can_access_group(group_id)"),
     ("budgets", "public.can_access_base_budget(base_budget_id)",
      "public.can_access_base_budget(base_budget_id)"),
@@ -145,6 +155,7 @@ _AUTH_TABLES = ("auth_identities", "password_credentials", "auth_sessions", "aut
 # Helper signatures, needed to drop them when row-level security is removed
 _HELPER_SIGNATURES = (
     "current_user_id()",
+    "is_group_admin(uuid)",
     "can_access_account(uuid)",
     "can_access_group(uuid)",
     "can_access_base_budget(uuid)",
@@ -219,7 +230,12 @@ def _secure_groups(connection: Connection) -> None:
     """Enable RLS on groups, created by their owner and managed by their members"""
     connection.execute(text("ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY"))
     access = "public.can_access_group(id)"
-    connection.execute(text(f"CREATE POLICY groups_read ON public.groups FOR SELECT USING ({access})"))
+
+    # The read policy also accepts the direct owner check so a creator can read back
+    # the group it just inserted, before the access helper can observe the new row in
+    # the same INSERT ... RETURNING statement
+    read_access = f"owner_id = public.current_user_id() OR {access}"
+    connection.execute(text(f"CREATE POLICY groups_read ON public.groups FOR SELECT USING ({read_access})"))
     connection.execute(text("CREATE POLICY groups_insert ON public.groups FOR INSERT WITH CHECK (owner_id = public.current_user_id())"))
     connection.execute(text(f"CREATE POLICY groups_update ON public.groups FOR UPDATE USING ({access}) WITH CHECK ({access})"))
     connection.execute(text(f"CREATE POLICY groups_delete ON public.groups FOR DELETE USING ({access})"))
