@@ -37,6 +37,9 @@ async def get_db():
     Yields:
         An AsyncSession that is automatically closed when the request completes.
     """
+    # Clear any inherited identity so a request can only ever stamp its own user,
+    # independent of how the server reuses execution contexts between requests
+    current_user_id_ctx.set(None)
     async with async_session() as session:
         yield session
 
