@@ -141,6 +141,16 @@ _GLOBAL_READ_TABLES = ("currencies", "institutions")
 # request identity exists, always by exact id, so the queries already scope them
 _AUTH_TABLES = ("auth_identities", "password_credentials", "auth_sessions", "auth_tokens")
 
+# Helper signatures, needed to drop them when row-level security is removed
+_HELPER_SIGNATURES = (
+    "current_user_id()",
+    "can_access_account(uuid)",
+    "can_access_group(uuid)",
+    "can_access_base_budget(uuid)",
+    "find_login_user(text)",
+    "user_tz(uuid)",
+)
+
 
 def apply_rls(connection: Connection) -> None:
     """Create the RLS helpers, enable the policies, and grant the app role access"""
@@ -162,6 +172,21 @@ def apply_rls(connection: Connection) -> None:
     # The app role evaluates the policies and the auth flows, so it must execute the
     # helpers, while their SECURITY DEFINER owner is what reaches the underlying rows
     connection.execute(text(f'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO "{APP_DB_USER}"'))
+
+
+def revoke_rls(connection: Connection) -> None:
+    """Drop every policy, disable row-level security, and remove the helpers"""
+    connection.execute(text(
+        "DO $$ DECLARE r record; BEGIN "
+        "FOR r IN SELECT tablename, policyname FROM pg_policies WHERE schemaname = 'public' LOOP "
+        "EXECUTE format('DROP POLICY %I ON public.%I', r.policyname, r.tablename); "
+        "END LOOP; "
+        "FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP "
+        "EXECUTE format('ALTER TABLE public.%I DISABLE ROW LEVEL SECURITY', r.tablename); "
+        "END LOOP; END $$"
+    ))
+    for signature in _HELPER_SIGNATURES:
+        connection.execute(text(f"DROP FUNCTION IF EXISTS public.{signature}"))
 
 
 def _secure_table(connection: Connection, table: str, using_expr: str, check_expr: str) -> None:
