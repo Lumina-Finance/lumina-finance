@@ -15,19 +15,6 @@ _ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB"
 # Role key passed to the password resolver paired with the role name it provisions
 _MANAGED_ROLES = (("migrator", MIGRATOR_DB_USER), ("app", APP_DB_USER))
 
-# Reassign every public table and sequence to the migrator. Only the fixed
-# migrator role name is interpolated, so this is not an injection vector
-_TRANSFER_OWNERSHIP_SQL = (
-    "DO $$ DECLARE object_name text; BEGIN "  # noqa: S608
-
-    "FOR object_name IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP "
-    f"EXECUTE format('ALTER TABLE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
-    "END LOOP; "
-    "FOR object_name IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP "
-    f"EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
-    "END LOOP; END $$"
-)
-
 
 def _quote_literal(value: str) -> str:
     """Return a value as a single-quoted SQL string literal
@@ -73,7 +60,16 @@ async def transfer_table_ownership() -> None:
     engine = create_async_engine(admin_database_url(), isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as conn:
-            await conn.execute(text(_TRANSFER_OWNERSHIP_SQL))
+            # Only the fixed migrator role name is interpolated, so this is safe
+            await conn.execute(text(
+                "DO $$ DECLARE object_name text; BEGIN "  # noqa: S608
+                "FOR object_name IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP "
+                f"EXECUTE format('ALTER TABLE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
+                "END LOOP; "
+                "FOR object_name IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP "
+                f"EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
+                "END LOOP; END $$"
+            ))
     finally:
         await engine.dispose()
 
