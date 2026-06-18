@@ -74,7 +74,7 @@ _HELPER_FUNCTIONS = (
     # Look up a user by email for the pre-identity login flow, which runs before any
     # request identity exists and so cannot pass the users policy
     """
-    CREATE OR REPLACE FUNCTION public.find_login_user(p_email text) RETURNS public.users
+    CREATE OR REPLACE FUNCTION public.find_login_user(p_email text) RETURNS SETOF public.users
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
         SELECT * FROM public.users WHERE email = p_email
     $$

@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.group import Group, GroupMember
-from app.models.user import User
 
 
 async def get_group_membership_or_404(
@@ -134,21 +133,3 @@ async def get_group_member_or_404(
     if not target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
     return target
-
-
-async def require_user_exists(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Raise an invalid-user response when a user does not exist
-
-    Args:
-        db: Active database session
-        user_id: User identifier from the request payload
-
-    Raises:
-        HTTPException: User identifier does not match an existing user
-    """
-    user_filter = User.id == user_id
-
-    # Fetch the target user before adding membership while keeping a generic invalid-user response
-    target_user = await db.execute(select(User).where(user_filter))
-    if not target_user.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid user")

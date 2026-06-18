@@ -4,10 +4,11 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.group import GroupMember
-from app.routes.groups.membership_helpers import get_group_admin_membership_or_403, require_user_exists
+from app.routes.groups.membership_helpers import get_group_admin_membership_or_403
 from app.schemas.group import AddGroupMemberRequest
 from app.services.cache_state import mark_group_cache_changed
 
@@ -33,7 +34,6 @@ async def add_group_member_and_get_membership(
         HTTPException: User is not a group admin, the target user does not exist, or the target user already belongs to the group
     """
     await get_group_admin_membership_or_403(db, group_id, user_id)
-    await require_user_exists(db, data.user_id)
 
     # Check whether the target user already belongs to this group
     existing_membership_query = select(GroupMember).where(
@@ -47,6 +47,14 @@ async def add_group_member_and_get_membership(
     group_member = GroupMember(group_id=group_id, user_id=data.user_id)
     db.add(group_member)
     await mark_group_cache_changed(db, group_id)
-    await db.commit()
+
+    # The user_id foreign key guarantees the target exists, so a violation means the
+    # request named a user that does not exist
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid user") from None
+
     await db.refresh(group_member)
     return group_member

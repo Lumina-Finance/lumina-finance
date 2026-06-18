@@ -3,7 +3,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordCredential
@@ -61,10 +61,11 @@ async def _get_user_by_email(db: AsyncSession, email: str) -> User | None:
     Returns:
         User row when the email belongs to an account
     """
-    user_query = select(User).where(User.email == email)
+    # Login runs before any request identity exists, so the lookup goes through the
+    # SECURITY DEFINER helper that bypasses the self-only users policy
+    user_query = select(User).from_statement(text("SELECT * FROM public.find_login_user(:email)"))
 
-    # Fetch the user account by email before looking up password credentials
-    result = await db.execute(user_query)
+    result = await db.execute(user_query, {"email": email})
     user = result.scalar_one_or_none()
     return user
 

@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.group import Group, GroupMember
@@ -112,11 +112,10 @@ async def _get_group_owner_timezone_or_404(db: AsyncSession, group_id: uuid.UUID
     Raises:
         HTTPException: Group does not exist
     """
-    # Fetch the owning user's timezone so group-account history starts on the owner's local day
+    # Fetch the owning user's timezone so group-account history starts on the owner's
+    # local day, through the helper since the owner's user row is not directly visible
     group_owner_tz = await db.scalar(
-        select(User.tz)
-        .join(Group, Group.owner_id == User.id)
-        .where(Group.id == group_id),
+        select(func.public.user_tz(Group.owner_id)).where(Group.id == group_id),
     )
     if group_owner_tz is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
