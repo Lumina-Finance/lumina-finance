@@ -1,4 +1,5 @@
 import type { FxStatus } from '@/api/shared/fx';
+import type { SavedInsightsRangeUnit } from '@/pages/insights/types/range';
 
 export interface InsightsPeriodGlanceResponse {
   income: number;
@@ -75,4 +76,19 @@ export interface InsightsMerchantsResponse {
   distribution: InsightsMerchantDistributionEntry[];
   ranking: InsightsMerchantRankingEntry[];
   fx_status: FxStatus;
+}
+
+export interface SavedInsightsRange {
+  id: string;
+  name: string;
+  // Relative window stored as "last {amount} {unit}", resolved to dates on the client
+  amount: number;
+  unit: SavedInsightsRangeUnit;
+  created_at: string;
+}
+
+export interface SaveInsightsRangePayload {
+  name: string;
+  amount: number;
+  unit: SavedInsightsRangeUnit;
 }

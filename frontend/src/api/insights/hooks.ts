@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createSavedInsightsRange,
+  deleteSavedInsightsRange,
   fetchInsightsCashFlow,
   fetchInsightsFundFlow,
   fetchInsightsIncomeExpenseBreakdown,
@@ -7,6 +9,7 @@ import {
   fetchInsightsNetWorth,
   fetchInsightsPeriodGlance,
   fetchInsightsSavingsRateTrend,
+  fetchSavedInsightsRanges,
 } from '@/api/insights/requests';
 import { insightsKeys } from '@/api/cache/queryKeys';
 import { getFxAwareStaleTime } from '@/api/shared/fxCache';
@@ -118,5 +121,44 @@ export function useInsightsMerchants(
     queryFn: () => fetchInsightsMerchants(fromDate, toDate, comparisonPeriod),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
+  });
+}
+
+/**
+ * Reads the user's saved relative insights ranges
+ */
+export function useSavedInsightsRanges(enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: insightsKeys.savedRanges(),
+    queryFn: fetchSavedInsightsRanges,
+    enabled: !!accessToken && enabled,
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * Saves a named relative range and refreshes the saved range list
+ */
+export function useSaveInsightsRange() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createSavedInsightsRange,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: insightsKeys.savedRanges() });
+    },
+  });
+}
+
+/**
+ * Deletes a saved relative range and refreshes the saved range list
+ */
+export function useDeleteSavedInsightsRange() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteSavedInsightsRange,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: insightsKeys.savedRanges() });
+    },
   });
 }

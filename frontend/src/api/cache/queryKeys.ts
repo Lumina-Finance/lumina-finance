@@ -98,6 +98,7 @@ export const insightsKeys = {
   merchantsAll: ['insights-merchants'] as const,
   merchants: (fromDate: string, toDate: string, comparisonPeriod = 'same_length') =>
     ['insights-merchants', fromDate, toDate, comparisonPeriod] as const,
+  savedRanges: () => ['insights-saved-ranges'] as const,
 };
 
 export const budgetKeys = {

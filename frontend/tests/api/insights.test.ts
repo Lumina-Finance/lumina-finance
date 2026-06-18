@@ -15,6 +15,8 @@ vi.mock('@/api/client', () => ({
 }));
 
 import {
+  createSavedInsightsRange,
+  deleteSavedInsightsRange,
   fetchInsightsCashFlow,
   fetchInsightsFundFlow,
   fetchInsightsIncomeExpenseBreakdown,
@@ -22,6 +24,7 @@ import {
   fetchInsightsNetWorth,
   fetchInsightsPeriodGlance,
   fetchInsightsSavingsRateTrend,
+  fetchSavedInsightsRanges,
 } from '@/api/insights';
 
 beforeEach(() => {
@@ -72,5 +75,30 @@ describe('insights fetch functions', () => {
     await fetchInsightsSavingsRateTrend();
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/savings-rate-trend');
+  });
+});
+
+describe('saved insights range functions', () => {
+  it('lists saved ranges from the saved-ranges endpoint', async () => {
+    await fetchSavedInsightsRanges();
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges');
+  });
+
+  it('creates a saved range with the name, amount, and unit', async () => {
+    await createSavedInsightsRange({ name: 'Half-year', amount: 6, unit: 'month' });
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Half-year', amount: 6, unit: 'month' }),
+    });
+  });
+
+  it('deletes a saved range by ID', async () => {
+    await deleteSavedInsightsRange('range_123');
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges/range_123', {
+      method: 'DELETE',
+    });
   });
 });

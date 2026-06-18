@@ -16,9 +16,13 @@ export type {
   InsightsPeriodGlanceResponse,
   InsightsSavingsRateTrendPoint,
   InsightsSavingsRateTrendResponse,
+  SaveInsightsRangePayload,
+  SavedInsightsRange,
 } from '@/api/insights/types';
 
 export {
+  createSavedInsightsRange,
+  deleteSavedInsightsRange,
   fetchInsightsCashFlow,
   fetchInsightsFundFlow,
   fetchInsightsIncomeExpenseBreakdown,
@@ -26,9 +30,11 @@ export {
   fetchInsightsNetWorth,
   fetchInsightsPeriodGlance,
   fetchInsightsSavingsRateTrend,
+  fetchSavedInsightsRanges,
 } from '@/api/insights/requests';
 
 export {
+  useDeleteSavedInsightsRange,
   useInsightsCashFlow,
   useInsightsFundFlow,
   useInsightsIncomeExpenseBreakdown,
@@ -36,4 +42,6 @@ export {
   useInsightsNetWorth,
   useInsightsPeriodGlance,
   useInsightsSavingsRateTrend,
+  useSaveInsightsRange,
+  useSavedInsightsRanges,
 } from '@/api/insights/hooks';
