@@ -11,6 +11,7 @@ from app.services.cache_state.updates import (
     mark_cache_changed_for_scope,
     mark_group_cache_changed,
     mark_user_cache_changed,
+    mark_user_cache_changed_privileged,
 )
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "mark_cache_changed_for_scope",
     "mark_group_cache_changed",
     "mark_user_cache_changed",
+    "mark_user_cache_changed_privileged",
     "select_user_group_ids",
 ]

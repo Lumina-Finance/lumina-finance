@@ -92,6 +92,17 @@ _HELPER_FUNCTIONS = (
         SELECT tz FROM public.users WHERE id = p_user_id
     $$
     """,
+    # Touch a user's personal cache timestamp on their behalf, used when an authorized
+    # action by another user, such as removing them from a group, must invalidate their
+    # cache even though the per-user write policy scopes cache writes to the caller
+    """
+    CREATE OR REPLACE FUNCTION public.bump_user_cache(p_user_id uuid) RETURNS void
+    LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
+        INSERT INTO public.user_cache_states (user_id, changed_at, last_changed_session_id)
+        VALUES (p_user_id, clock_timestamp(), NULL)
+        ON CONFLICT (user_id) DO UPDATE SET changed_at = clock_timestamp(), last_changed_session_id = NULL
+    $$
+    """,
 )
 
 
@@ -161,6 +172,7 @@ _HELPER_SIGNATURES = (
     "can_access_base_budget(uuid)",
     "find_login_user(text)",
     "user_tz(uuid)",
+    "bump_user_cache(uuid)",
 )
 
 

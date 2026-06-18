@@ -10,7 +10,7 @@ from app.routes.groups.membership_helpers import (
     get_group_membership_or_404,
     get_group_owner_id,
 )
-from app.services.cache_state import mark_group_cache_changed, mark_user_cache_changed
+from app.services.cache_state import mark_group_cache_changed, mark_user_cache_changed_privileged
 
 
 async def remove_group_member(
@@ -51,7 +51,12 @@ async def remove_group_member(
     else:
         target_membership = await get_group_member_or_404(db, group_id, member_id)
 
-    await db.delete(target_membership)
+    # Bump the group cache while the caller is still a member, since a self-leave
+    # removes the membership the group write policy checks
     await mark_group_cache_changed(db, group_id)
-    await mark_user_cache_changed(db, member_id)
+    await db.delete(target_membership)
+
+    # The removed member may not be the caller, so invalidate their cache through the
+    # privileged helper that the per-user write policy would otherwise block
+    await mark_user_cache_changed_privileged(db, member_id)
     await db.commit()
