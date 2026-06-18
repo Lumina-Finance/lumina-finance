@@ -7,16 +7,17 @@ one user's data out of another user's reach at the database level
 """
 
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import ProgrammingError
 
 from app.database import current_user_id_ctx
 from app.models.account import Account
-from app.models.base import AccountKind, AccountType, CategoryKind
+from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
+from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
@@ -189,3 +190,56 @@ async def test_owner_can_create_and_read_back_group(users):
         session.add(group)
         await session.flush()
         assert group.id in (await session.scalars(select(Group.id))).all()
+
+
+async def test_budget_spend_rows_returns_nothing_to_unauthorized_readers(users):
+    """The privileged spend aggregation only returns rows for budgets the caller can access
+
+    The function bypasses account-level policies to compute totals, so it must authorize
+    itself rather than trusting callers, otherwise it would leak another user's spend
+    """
+    user_a, user_b = users
+    async with TestSession() as session:
+
+        # The tracked category and the transaction share a seeded system category
+        system_category_id = await session.scalar(select(Category.id).where(Category.is_system).limit(1))
+        account = _build_account(user_a.id, "A Chequing")
+        base_budget = BaseBudget(
+            owner_id=user_a.id,
+            name="A Groceries",
+            currency="CAD",
+            recurrence_freq=RecurrenceFreq.MONTHLY,
+        )
+        session.add_all([account, base_budget])
+        await session.flush()
+        budget = Budget(
+            base_budget_id=base_budget.id,
+            period_start=date(2026, 3, 1),
+            period_end=date(2026, 3, 31),
+            overall_limit=100000,
+        )
+        session.add(budget)
+        session.add(BudgetTrackedCategory(
+            base_budget_id=base_budget.id,
+            category_id=system_category_id,
+            added_at=date(2026, 1, 1),
+        ))
+        session.add(Transaction(
+            created_by_user_id=user_a.id,
+            account_id=account.id,
+            dt=date(2026, 3, 15),
+            category_id=system_category_id,
+            amount=-5000,
+            currency="CAD",
+        ))
+        await session.commit()
+
+    spend_query = text("SELECT id FROM public.budget_spend_rows(:budget_ids)")
+
+    async with _act_as(user_a.id) as session:
+        owner_rows = (await session.execute(spend_query, {"budget_ids": [budget.id]})).all()
+        assert len(owner_rows) > 0
+
+    async with _act_as(user_b.id) as session:
+        other_rows = (await session.execute(spend_query, {"budget_ids": [budget.id]})).all()
+        assert other_rows == []

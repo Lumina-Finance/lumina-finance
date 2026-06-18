@@ -103,10 +103,11 @@ _HELPER_FUNCTIONS = (
         ON CONFLICT (user_id) DO UPDATE SET changed_at = clock_timestamp(), last_changed_session_id = NULL
     $$
     """,
-    # Aggregate spend per tracked category for the given budgets. Callers authorize
-    # budget read access first, so this returns category totals over accounts the
-    # reader cannot see row by row, the privacy-respecting design of utilization, and
-    # never exposes the individual transactions to the app role
+    # Aggregate spend per tracked category for budgets the current user can access.
+    # The visibility check makes the function self-authorizing rather than trusting its
+    # callers, and returns category totals over accounts the reader cannot see row by
+    # row, the privacy-respecting design of utilization, without ever exposing the
+    # individual transactions to the app role
     """
     CREATE OR REPLACE FUNCTION public.budget_spend_rows(p_budget_ids uuid[])
     RETURNS TABLE (
@@ -129,6 +130,7 @@ _HELPER_FUNCTIONS = (
         JOIN public.transactions t ON t.category_id = btc.category_id
         JOIN public.accounts a ON t.account_id = a.id
         WHERE b.id = ANY(p_budget_ids)
+            AND public.can_access_base_budget(bb.id)
             AND t.dt >= b.period_start
             AND t.dt <= b.period_end
             AND (
