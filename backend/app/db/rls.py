@@ -118,6 +118,7 @@ _SECURED_TABLES = (
     ("user_cache_states", "user_id = public.current_user_id()", "user_id = public.current_user_id()"),
     ("user_runway_accounts", "user_id = public.current_user_id()",
      "user_id = public.current_user_id() AND public.can_access_account(account_id)"),
+    ("users", "id = public.current_user_id()", "id = public.current_user_id()"),
     ("merchants", "owner_id = public.current_user_id() OR public.can_access_group(group_id)",
      "owner_id = public.current_user_id() OR public.can_access_group(group_id)"),
     ("tags", "owner_id = public.current_user_id() OR public.can_access_group(group_id)",
@@ -161,7 +162,6 @@ def apply_rls(connection: Connection) -> None:
         _secure_table(connection, table, using_expr, check_expr)
     _secure_categories(connection)
     _secure_groups(connection)
-    _secure_users(connection)
 
     for table in _GLOBAL_READ_TABLES:
         connection.execute(text(f'GRANT SELECT ON public.{table} TO "{APP_DB_USER}"'))
@@ -224,17 +224,3 @@ def _secure_groups(connection: Connection) -> None:
     connection.execute(text(f"CREATE POLICY groups_update ON public.groups FOR UPDATE USING ({access}) WITH CHECK ({access})"))
     connection.execute(text(f"CREATE POLICY groups_delete ON public.groups FOR DELETE USING ({access})"))
     connection.execute(text(f'GRANT {_APP_TABLE_PRIVILEGES} ON public.groups TO "{APP_DB_USER}"'))
-
-
-def _secure_users(connection: Connection) -> None:
-    """Enable RLS on users, self-only except the permissive signup insert"""
-    connection.execute(text("ALTER TABLE public.users ENABLE ROW LEVEL SECURITY"))
-    self_pred = "id = public.current_user_id()"
-    connection.execute(text(f"CREATE POLICY users_read ON public.users FOR SELECT USING ({self_pred})"))
-    connection.execute(text(f"CREATE POLICY users_update ON public.users FOR UPDATE USING ({self_pred}) WITH CHECK ({self_pred})"))
-    connection.execute(text(f"CREATE POLICY users_delete ON public.users FOR DELETE USING ({self_pred})"))
-
-    # Signup runs before any identity exists, and the unique email constraint stops
-    # an insert from hijacking an existing account
-    connection.execute(text("CREATE POLICY users_insert ON public.users FOR INSERT WITH CHECK (true)"))
-    connection.execute(text(f'GRANT {_APP_TABLE_PRIVILEGES} ON public.users TO "{APP_DB_USER}"'))

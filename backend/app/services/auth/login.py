@@ -3,13 +3,14 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordCredential
 from app.models.user import User
 from app.schemas.auth import LoginRequest
 from app.services.auth.password_helpers import hash_dummy_password_for_timing, is_password_valid
+from app.services.auth.user_lookup import find_user_by_email
 
 _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_MINUTES = 30
@@ -31,7 +32,7 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     Raises:
         HTTPException: Credentials are invalid or the account is temporarily locked
     """
-    user = await _get_user_by_email(db, data.email)
+    user = await find_user_by_email(db, data.email)
     if not user:
         hash_dummy_password_for_timing()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -48,25 +49,6 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     await _reset_failed_login(db, credential)
-    return user
-
-
-async def _get_user_by_email(db: AsyncSession, email: str) -> User | None:
-    """Return a user by email
-
-    Args:
-        db: Active database session
-        email: Login email address
-
-    Returns:
-        User row when the email belongs to an account
-    """
-    # Login runs before any request identity exists, so the lookup goes through the
-    # SECURITY DEFINER helper that bypasses the self-only users policy
-    user_query = select(User).from_statement(text("SELECT * FROM public.find_login_user(:email)"))
-
-    result = await db.execute(user_query, {"email": email})
-    user = result.scalar_one_or_none()
     return user
 
 
