@@ -5,6 +5,9 @@ import type {
 } from '@/pages/transactions/components/transaction-modal/types'
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
+
+// The backend tags synthetic balance adjustments with this system transfer category name and excludes them from cash flow
+export const BALANCE_ADJUSTMENT_CATEGORY_NAME = 'Balance Adjustment'
 export const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 export const DEFAULT_CATEGORY_ICON = '🏷️'
 export const MIN_ADD_TRANSACTION_LOADING_MS = 800
