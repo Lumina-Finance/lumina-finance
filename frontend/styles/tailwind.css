@@ -185,44 +185,6 @@
     color: var(--app-accent);
   }
 
-  @media (min-width: 1200px) {
-    .app-body-scroll-locked .settings-desktop-section-nav {
-      position: fixed;
-      top: 1.5rem;
-      width: 260px;
-    }
-  }
-
-  @media (max-width: 1049.98px) {
-    .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
-      display: block;
-      height: 3.75rem;
-    }
-
-    .app-body-scroll-locked .settings-mobile-section-menu-shell {
-      position: fixed;
-      top: 0;
-      left: 0.5rem;
-      right: 0.5rem;
-      margin: 0;
-    }
-  }
-
-  @media (min-width: 1050px) and (max-width: 1199.98px) {
-    .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
-      display: block;
-      height: 3.75rem;
-    }
-
-    .app-body-scroll-locked .settings-mobile-section-menu-shell {
-      position: fixed;
-      top: 0;
-      left: calc(260px + 1rem);
-      right: 1rem;
-      margin: 0;
-    }
-  }
-
   .app-input {
     @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors duration-200;
     font-size: 0.9375rem;
@@ -1285,4 +1247,51 @@
     font-variant-numeric: tabular-nums;
   }
 
+}
+
+/*
+  While a modal locks body scroll the settings secondary menu must stay pinned to
+  the viewport, so it is switched from sticky to fixed. These rules live in the
+  utilities layer because the menu carries the sticky and hidden Tailwind
+  utilities, and Tailwind orders utilities after components, so a components-layer
+  override would lose the cascade and the menu would scroll away off screen
+*/
+@layer utilities {
+  @media (min-width: 1200px) {
+    .app-body-scroll-locked .settings-desktop-section-nav {
+      position: fixed;
+      top: 1.5rem;
+      width: 260px;
+    }
+  }
+
+  @media (max-width: 1049.98px) {
+    .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
+      display: block;
+      height: 3.75rem;
+    }
+
+    .app-body-scroll-locked .settings-mobile-section-menu-shell {
+      position: fixed;
+      top: 0;
+      left: 0.5rem;
+      right: 0.5rem;
+      margin: 0;
+    }
+  }
+
+  @media (min-width: 1050px) and (max-width: 1199.98px) {
+    .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
+      display: block;
+      height: 3.75rem;
+    }
+
+    .app-body-scroll-locked .settings-mobile-section-menu-shell {
+      position: fixed;
+      top: 0;
+      left: calc(260px + 1rem);
+      right: 1rem;
+      margin: 0;
+    }
+  }
 }
