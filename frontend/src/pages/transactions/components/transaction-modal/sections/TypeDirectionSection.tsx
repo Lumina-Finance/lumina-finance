@@ -13,9 +13,14 @@ import TransactionModalSectionFrame from '@/pages/transactions/components/transa
 
 interface TransactionTypeDirectionSectionProps {
   kind: TransactionModalKind
-  direction: TransactionDirection
+
+  // An empty direction renders the unselected state, used when a symmetric transfer does not involve the viewed account
+  direction: TransactionDirection | ''
   editing: boolean
   readOnly: boolean
+
+  // A symmetric transfer derives its direction from the accounts, so the control is shown but not editable
+  directionDisabled: boolean
   directionHighlightKey: number
   onKindChange: (kind: TransactionModalKind) => void
   onDirectionChange: (direction: TransactionDirection) => void
@@ -29,6 +34,7 @@ export default function TransactionTypeDirectionSection({
   direction,
   editing,
   readOnly,
+  directionDisabled,
   directionHighlightKey,
   onKindChange,
   onDirectionChange,
@@ -62,7 +68,7 @@ export default function TransactionTypeDirectionSection({
             options={DIRECTION_OPTIONS}
             ariaLabel="Transaction direction"
             onChange={onDirectionChange}
-            disabled={readOnly}
+            disabled={readOnly || directionDisabled}
           />
         </div>
       </div>

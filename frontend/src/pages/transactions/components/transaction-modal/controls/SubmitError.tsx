@@ -2,16 +2,19 @@ import { AnimatePresence, motion } from 'motion/react'
 
 interface TransactionModalSubmitErrorProps {
   error: string
+
+  // An optional heading shown above the message, used when one leg of a transfer pair fails
+  title?: string
 }
 
 /**
- * Renders the animated form-level submit error message
+ * Renders the animated form-level submit error, with an optional bold heading
  */
-export default function TransactionModalSubmitError({ error }: TransactionModalSubmitErrorProps) {
+export default function TransactionModalSubmitError({ error, title }: TransactionModalSubmitErrorProps) {
   return (
     <AnimatePresence>
       {error && (
-        <motion.p
+        <motion.div
           className="text-sm font-medium"
           style={{ color: 'var(--app-negative)' }}
           initial={{ opacity: 0, y: -4 }}
@@ -19,8 +22,9 @@ export default function TransactionModalSubmitError({ error }: TransactionModalS
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.15 }}
         >
-          {error}
-        </motion.p>
+          {title && <p className="font-semibold">{title}</p>}
+          <p>{error}</p>
+        </motion.div>
       )}
     </AnimatePresence>
   )

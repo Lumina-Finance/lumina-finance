@@ -7,6 +7,7 @@ import {
 } from '@/pages/transactions/components/transaction-modal/constants'
 import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/FieldLabelRow'
 import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/SectionFrame'
+import type { TransactionModalKind } from '@/pages/transactions/components/transaction-modal/types'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type SelectedTransactionTag = {
@@ -21,6 +22,11 @@ interface TransactionReferencesSectionProps {
   accountError?: string | false
   accountPlaceholder: string
   runningBalance?: { amount: number; currency: string }
+  kind: TransactionModalKind
+
+  isSymmetricTransfer: boolean
+  toAccountValue: string
+  toAccountError?: string | false
   merchantOptions: DropdownOption[]
   selectedMerchantOption?: DropdownOption
   merchantValue: string
@@ -46,6 +52,8 @@ interface TransactionReferencesSectionProps {
   selectedTags: SelectedTransactionTag[]
   readOnly: boolean
   onAccountChange: (value: string) => void
+  onSymmetricTransferChange: (value: boolean) => void
+  onToAccountChange: (value: string) => void
   onMerchantChange: (value: string) => void
   onMerchantSearchChange: (value: string) => void
   onMerchantSearchCommit: (value: string) => void
@@ -72,6 +80,10 @@ export default function TransactionReferencesSection({
   accountError,
   accountPlaceholder,
   runningBalance,
+  kind,
+  isSymmetricTransfer,
+  toAccountValue,
+  toAccountError,
   merchantOptions,
   selectedMerchantOption,
   merchantValue,
@@ -97,6 +109,8 @@ export default function TransactionReferencesSection({
   selectedTags,
   readOnly,
   onAccountChange,
+  onSymmetricTransferChange,
+  onToAccountChange,
   onMerchantChange,
   onMerchantSearchChange,
   onMerchantSearchCommit,
@@ -115,7 +129,10 @@ export default function TransactionReferencesSection({
   return (
     <TransactionModalSectionFrame number="02" title="Source/Destination">
       <div>
-        <TransactionModalFieldLabelRow label="Account" error={accountError} />
+        <TransactionModalFieldLabelRow
+          label={kind === 'transfer' && isSymmetricTransfer ? 'From account' : 'Account'}
+          error={accountError}
+        />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.account}
           options={accountOptions}
@@ -149,6 +166,71 @@ export default function TransactionReferencesSection({
                 >
                   {formatCurrency(runningBalance.amount, runningBalance.currency)}
                 </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence initial={false}>
+          {kind === 'transfer' && (
+            <motion.div
+              key="symmetric-transfer"
+              className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ height: { duration: 0.2, ease: EASE }, opacity: { duration: 0.14, ease: 'linear' } }}
+            >
+              <div className="pt-3">
+                <label
+                  htmlFor="txn-symmetric-transfer"
+                  className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1"
+                >
+                  <input
+                    id="txn-symmetric-transfer"
+                    type="checkbox"
+                    checked={isSymmetricTransfer}
+                    onChange={(event) => onSymmetricTransferChange(event.target.checked)}
+                    disabled={readOnly}
+                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                    style={{ accentColor: 'var(--app-accent)' }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                      Record in both accounts
+                    </span>
+                    <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                      Also create the matching entry in the receiving account
+                    </span>
+                  </span>
+                </label>
+
+                <AnimatePresence initial={false}>
+                  {isSymmetricTransfer && (
+                    <motion.div
+                      key="to-account"
+                      className="overflow-hidden"
+                      initial={{ height: 0, opacity: 0, y: -3 }}
+                      animate={{ height: 'auto', opacity: 1, y: 0 }}
+                      exit={{ height: 0, opacity: 0, y: -3 }}
+                      transition={{ duration: 0.2, ease: EASE }}
+                    >
+                      <div className="pt-3">
+                        <TransactionModalFieldLabelRow label="To account" error={toAccountError} />
+                        <Dropdown
+                          options={accountOptions}
+                          value={toAccountValue}
+                          onChange={onToAccountChange}
+                          className={`app-input ${toAccountError ? 'app-input-error' : ''}`}
+                          placeholder={accountPlaceholder}
+                          searchable
+                          searchPlaceholder="Search accounts..."
+                          disabled={readOnly}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           )}

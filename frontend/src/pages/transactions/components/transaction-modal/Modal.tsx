@@ -11,6 +11,7 @@ import {
   useCreateTransaction,
   useDeleteTransaction,
   useUpdateTransaction,
+  type Transaction,
 } from '@/api/transactions'
 import { ApiError } from '@/api/auth'
 import { sanitizeMoneyInput } from '@/utils/moneyInput'
@@ -38,15 +39,21 @@ import { buildInitialTransactionForm } from '@/pages/transactions/components/tra
 import { getDirectionFromAmountInputSign } from '@/pages/transactions/components/transaction-modal/utils/money'
 import {
   buildCreateTransactionPayload,
+  buildSymmetricTransferPayloads,
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import type {
   CreateTransactionModalProps,
+  TransactionDirection,
   TransactionFormFieldErrors,
   TransactionFormValues,
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
-import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import {
+  getSymmetricTransferAccountError,
+  isSymmetricTransferForm,
+  validateTransactionForm,
+} from '@/pages/transactions/components/transaction-modal/utils/validation'
 import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/DetailsSection'
 import TransactionModalFooter from '@/pages/transactions/components/transaction-modal/layout/Footer'
 import TransactionModalShell from '@/pages/transactions/components/transaction-modal/layout/Shell'
@@ -113,6 +120,9 @@ export default function CreateTransactionModal({
   const [sessionAccountDeltas, setSessionAccountDeltas] = useState<Record<string, number>>({})
   const [createDelayPending, setCreateDelayPending] = useState(false)
   const [directionHighlightKey, setDirectionHighlightKey] = useState(0)
+
+  // A heading shown above the submit error when only one leg of a symmetric transfer fails
+  const [submitErrorTitle, setSubmitErrorTitle] = useState('')
   const merchantReferenceSearch = useDebouncedReferenceSearch(MERCHANT_SEARCH_DEBOUNCE_MS)
   const tagReferenceSearch = useDebouncedReferenceSearch(TAG_SEARCH_DEBOUNCE_MS)
   const createdAccountIdsRef = useRef<Set<string>>(new Set())
@@ -140,6 +150,10 @@ export default function CreateTransactionModal({
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.account_id),
     [accounts, form.account_id],
+  )
+  const selectedToAccount = useMemo(
+    () => accounts.find((account) => account.id === form.to_account_id),
+    [accounts, form.to_account_id],
   )
   const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
   const merchantQuery = useInfiniteMerchants(
@@ -280,6 +294,7 @@ export default function CreateTransactionModal({
   const clearError = (field: keyof TransactionFormFieldErrors) => {
     if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: undefined }))
     setSubmitError('')
+    setSubmitErrorTitle('')
   }
 
   const handleKindChange = (kind: TransactionModalKind) => {
@@ -332,6 +347,7 @@ export default function CreateTransactionModal({
     if (readOnly || !selectedMerchant || !selectedCategory || updateMerchantMutation.isPending) return
 
     setSubmitError('')
+    setSubmitErrorTitle('')
     updateMerchantMutation.mutate(
       {
         merchantId: selectedMerchant.id,
@@ -433,6 +449,8 @@ export default function CreateTransactionModal({
       ...f,
       account_id: accountId,
       currency: account?.currency || '',
+      // The originating account wins, so empty the receiving field when it held the same account
+      to_account_id: accountId === f.to_account_id ? '' : f.to_account_id,
       tag_ids: f.tag_ids.filter((tagId) => {
         const tag = selectedTagMap.get(tagId)
         return !tag || tag.group_id === null || tag.group_id === accountGroupId
@@ -440,7 +458,23 @@ export default function CreateTransactionModal({
     }))
     clearError('account_id')
     clearError('currency')
+    clearError('to_account_id')
     requestNextModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.account)
+  }
+
+  const handleToAccountChange = (accountId: string) => {
+    setForm((f) => ({
+      ...f,
+      to_account_id: accountId,
+      // The receiving account wins, so empty the originating field when it held the same account
+      account_id: accountId === f.account_id ? '' : f.account_id,
+    }))
+    clearError('to_account_id')
+  }
+
+  const handleSymmetricTransferChange = (value: boolean) => {
+    setForm((f) => ({ ...f, symmetric_transfer: value }))
+    if (!value) clearError('to_account_id')
   }
 
   const handleField = <K extends keyof TransactionFormValues>(field: K, value: TransactionFormValues[K]) => {
@@ -469,8 +503,13 @@ export default function CreateTransactionModal({
     e.preventDefault()
     if (isPending || readOnly) return
     const errors = validateTransactionForm(form)
+    // The receiving account needs both accounts loaded to compare currency and group
+    if (!editing && isSymmetricTransferForm(form) && !errors.to_account_id) {
+      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedToAccount)
+      if (accountError) errors.to_account_id = accountError
+    }
     setFieldErrors(errors)
-    setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true })
+    setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true, to_account_id: true })
     if (Object.keys(errors).length > 0) return
 
     if (editing && transaction) {
@@ -493,9 +532,89 @@ export default function CreateTransactionModal({
       return
     }
 
+    if (isSymmetricTransferForm(form)) {
+      const [fromPayload, toPayload] = buildSymmetricTransferPayloads(form, selectedCurrencyExponent)
+      const legs = [
+        { failedKind: 'debit', accountId: form.account_id, payload: fromPayload },
+        { failedKind: 'credit', accountId: form.to_account_id, payload: toPayload },
+      ]
+
+      setSubmitError('')
+      setSubmitErrorTitle('')
+      setCreateDelayPending(true)
+      const minimumLoading = waitForMilliseconds(
+        keepOpenAfterCreate ? MIN_BATCH_ADD_TRANSACTION_LOADING_MS : MIN_ADD_TRANSACTION_LOADING_MS,
+      )
+
+      // Each leg is independent, so a failed leg leaves the other in place rather than rolling back
+      const results = await Promise.allSettled(legs.map((leg) => createMutation.mutateAsync(leg.payload)))
+      const created: Transaction[] = []
+      const failedLegs: typeof legs = []
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') created.push(result.value)
+        else failedLegs.push(legs[index])
+      })
+
+      created.forEach((txn) => createdAccountIdsRef.current.add(txn.account_id))
+      if (created.length > 0) {
+        setSessionAccountDeltas((deltas) => {
+          const next = { ...deltas }
+          created.forEach((txn) => {
+            next[txn.account_id] = (next[txn.account_id] ?? 0) + txn.amount
+          })
+          return next
+        })
+      }
+
+      await minimumLoading
+      setCreateDelayPending(false)
+
+      if (!openRef.current) {
+        flushDeferredAccountInvalidation()
+        return
+      }
+
+      if (failedLegs.length === legs.length) {
+        setSubmitError('Something went wrong. Please try again.')
+        return
+      }
+
+      if (failedLegs.length === 1) {
+        const failedLeg = failedLegs[0]
+        const accountName = accounts.find((account) => account.id === failedLeg.accountId)?.name ?? 'the other account'
+        setSubmitErrorTitle('One of the pair of transactions failed.')
+        setSubmitError(`There was a problem creating a ${failedLeg.failedKind} transfer in ${accountName}. Please add that leg manually.`)
+        return
+      }
+
+      if (!keepOpenAfterCreate) {
+        handleClose()
+        return
+      }
+
+      setForm({
+        ...INITIAL_TRANSACTION_FORM,
+        kind: form.kind,
+        direction: form.direction,
+        account_id: form.account_id,
+        category_id: form.category_id,
+        merchant_id: form.merchant_id,
+        currency: form.currency,
+        date: form.date,
+        symmetric_transfer: form.symmetric_transfer,
+        to_account_id: form.to_account_id,
+      })
+      setFieldErrors({})
+      setTouched({})
+      setSubmitError('')
+      setSubmitErrorTitle('')
+      return
+    }
+
     const payload = buildCreateTransactionPayload(form, selectedCurrencyExponent)
 
     setSubmitError('')
+    setSubmitErrorTitle('')
     setCreateDelayPending(true)
     const minimumLoading = waitForMilliseconds(
       keepOpenAfterCreate ? MIN_BATCH_ADD_TRANSACTION_LOADING_MS : MIN_ADD_TRANSACTION_LOADING_MS,
@@ -544,6 +663,7 @@ export default function CreateTransactionModal({
     if (!transaction || readOnly) return false
 
     setSubmitError('')
+    setSubmitErrorTitle('')
 
     try {
       await deleteMutation.mutateAsync(transaction.id)
@@ -556,6 +676,20 @@ export default function CreateTransactionModal({
   }
 
   const showError = (field: keyof TransactionFormFieldErrors) => touched[field] && fieldErrors[field]
+
+  const isSymmetricTransfer = isSymmetricTransferForm(form)
+
+  // A symmetric transfer shows its direction relative to the account being viewed, so the toggle
+  // reflects whether that account is the source or destination instead of a user choice. It falls
+  // back to the unselected state when the viewed account is on neither leg or no account is in view.
+  const symmetricDisplayDirection: TransactionDirection | '' = !defaultAccountId
+    ? ''
+    : form.account_id === defaultAccountId
+      ? 'debit'
+      : form.to_account_id === defaultAccountId
+        ? 'credit'
+        : ''
+  const directionValue = isSymmetricTransfer ? symmetricDisplayDirection : form.direction
 
   return (
     <>
@@ -583,9 +717,10 @@ export default function CreateTransactionModal({
         <div className="space-y-5">
           <TransactionTypeDirectionSection
             kind={form.kind}
-            direction={form.direction}
+            direction={directionValue}
             editing={editing}
             readOnly={readOnly}
+            directionDisabled={isSymmetricTransfer}
             directionHighlightKey={directionHighlightKey}
             onKindChange={handleKindChange}
             onDirectionChange={(value) => handleField('direction', value)}
@@ -600,6 +735,10 @@ export default function CreateTransactionModal({
             runningBalance={showRunningBalance && selectedAccount
               ? { amount: runningBalance, currency: selectedAccount.currency }
               : undefined}
+            kind={form.kind}
+            isSymmetricTransfer={form.symmetric_transfer}
+            toAccountValue={form.to_account_id}
+            toAccountError={showError('to_account_id')}
             merchantOptions={merchantOptions}
             selectedMerchantOption={selectedMerchantOption}
             merchantValue={form.merchant_id}
@@ -625,6 +764,8 @@ export default function CreateTransactionModal({
             selectedTags={selectedTags}
             readOnly={readOnly}
             onAccountChange={handleAccountChange}
+            onSymmetricTransferChange={handleSymmetricTransferChange}
+            onToAccountChange={handleToAccountChange}
             onMerchantChange={handleMerchantChange}
             onMerchantSearchChange={merchantReferenceSearch.setSearch}
             onMerchantSearchCommit={merchantReferenceSearch.setActiveSearch}
@@ -659,7 +800,7 @@ export default function CreateTransactionModal({
             onNotesChange={(value) => handleField('notes', value)}
           />
 
-          <TransactionModalSubmitError error={submitError} />
+          <TransactionModalSubmitError error={submitError} title={submitErrorTitle} />
         </div>
       </TransactionModalShell>
       <TransactionReferenceCreationModals
