@@ -14,6 +14,7 @@ import {
 import { insightsKeys } from '@/api/cache/queryKeys';
 import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
+import type { SavedInsightsRange } from '@/api/insights/types';
 import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
 
 const INSIGHTS_FX_STALE_TIME_MS = 5 * 60 * 1000;
@@ -138,27 +139,33 @@ export function useSavedInsightsRanges(enabled = true) {
 }
 
 /**
- * Saves a named relative range and refreshes the saved range list
+ * Saves a named relative range and prepends it to the cached saved range list
  */
 export function useSaveInsightsRange() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createSavedInsightsRange,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: insightsKeys.savedRanges() });
+    onSuccess: (savedRange) => {
+      // Prepend the new range so the list stays newest-first without a refetch round-trip
+      queryClient.setQueryData<SavedInsightsRange[]>(insightsKeys.savedRanges(), (ranges) =>
+        ranges ? [savedRange, ...ranges] : [savedRange],
+      );
     },
   });
 }
 
 /**
- * Deletes a saved relative range and refreshes the saved range list
+ * Deletes a saved relative range and drops it from the cached saved range list
  */
 export function useDeleteSavedInsightsRange() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteSavedInsightsRange,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: insightsKeys.savedRanges() });
+    onSuccess: (_, rangeId) => {
+      // Remove the deleted range in place so the exit animation plays without a refetch round-trip
+      queryClient.setQueryData<SavedInsightsRange[]>(insightsKeys.savedRanges(), (ranges) =>
+        ranges?.filter((range) => range.id !== rangeId) ?? ranges,
+      );
     },
   });
 }
