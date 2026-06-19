@@ -1,6 +1,7 @@
 """Schemas for insights endpoint responses"""
 
-from datetime import date
+import uuid
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -9,6 +10,13 @@ from app.schemas.fx import FxStatus
 
 NetWorthGroupKind = Literal["asset", "debt"]
 InsightsComparisonPeriod = Literal["same_length", "previous_month", "previous_year"]
+SavedInsightsRangeUnit = Literal["day", "week", "month", "quarter", "year"]
+
+# this = current period to date, last = previous complete periods, past = rolling window
+SavedInsightsRangeQualifier = Literal["this", "last", "past"]
+
+# Guards a saved range against absurd look-backs while leaving room for any sensible window
+SAVED_INSIGHTS_RANGE_MAX_AMOUNT = 999
 
 
 class InsightsPeriodAtAGlanceResponse(BaseModel):
@@ -100,3 +108,25 @@ class InsightsMerchantsResponse(BaseModel):
     distribution: list[tuple[str, str, int, int | None, int | None]]
     ranking: list[tuple[str, str, int, int, int | None]]
     fx_status: FxStatus = Field(default_factory=FxStatus)
+
+
+class SavedInsightsRangeCreate(BaseModel):
+    """Payload for saving a named relative insights range"""
+
+    name: str = Field(min_length=1, max_length=64)
+    amount: int = Field(ge=1, le=SAVED_INSIGHTS_RANGE_MAX_AMOUNT)
+    unit: SavedInsightsRangeUnit
+    qualifier: SavedInsightsRangeQualifier = "past"
+
+
+class SavedInsightsRangeResponse(BaseModel):
+    """A user's saved relative insights range"""
+
+    id: uuid.UUID
+    name: str
+    amount: int
+    unit: SavedInsightsRangeUnit
+    qualifier: SavedInsightsRangeQualifier
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

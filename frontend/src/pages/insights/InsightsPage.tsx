@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import {
+  useDeleteSavedInsightsRange,
+  useSaveInsightsRange,
+  useSavedInsightsRanges,
+} from '@/api/insights'
 import { useAuth } from '@/hooks/useAuth'
 import { CashFlowCard } from './components/cash-flow-card/Card'
 import {
@@ -27,6 +32,27 @@ export default function InsightsPage() {
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const range = useInsightsRange()
+  const savedRangesQuery = useSavedInsightsRanges()
+  const saveRange = useSaveInsightsRange()
+  const deleteRange = useDeleteSavedInsightsRange()
+
+  /**
+   * Saves the active relative window, letting the control surface a conflicting name
+   */
+  /**
+   * Saves the builder draft under a name, then commits it as the applied range so the cards and
+   * pill switch to it once the save succeeds
+   */
+  async function handleSaveCurrentRange(name: string) {
+    await saveRange.mutateAsync({
+      name,
+      amount: range.draftAmount,
+      unit: range.draftUnit,
+      qualifier: range.draftQualifier,
+    })
+    range.applyDraft(name)
+  }
+
   const {
     periodGlanceRef,
     fundFlowRef,
@@ -64,14 +90,29 @@ export default function InsightsPage() {
       </div>
 
       <InsightsFloatingRangeControl
-        preset={range.rangePreset}
-        fromDateValue={range.customFrom}
-        toDateValue={range.customTo}
-        customInvalid={range.customInvalid}
-        onPresetChange={range.setRangePreset}
-        onCustomFromChange={range.setCustomFrom}
-        onCustomToChange={range.setCustomTo}
-        onCustomRangeCommit={range.commitCustomRange}
+        selectedPreset={range.selectedPreset}
+        appliedPreset={range.appliedPreset}
+        appliedAmount={range.appliedAmount}
+        appliedUnit={range.appliedUnit}
+        appliedQualifier={range.appliedQualifier}
+        appliedSavedRangeName={range.appliedSavedRangeName}
+        resolvedFrom={range.rangeInputDates.from}
+        resolvedTo={range.rangeInputDates.to}
+        draftAmount={range.draftAmount}
+        draftUnit={range.draftUnit}
+        draftQualifier={range.draftQualifier}
+        draftFrom={range.draftInputDates.from}
+        draftTo={range.draftInputDates.to}
+        savedRanges={savedRangesQuery.data ?? []}
+        onSelectPreset={range.selectPreset}
+        onRevertSelection={range.revertSelection}
+        onDraftAmountChange={range.setDraftAmount}
+        onDraftUnitChange={range.setDraftUnit}
+        onDraftQualifierChange={range.setDraftQualifier}
+        onApplyDraft={range.applyDraft}
+        onSaveCurrentRange={handleSaveCurrentRange}
+        onApplySavedRange={range.applySavedRange}
+        onDeleteSavedRange={deleteRange.mutate}
       />
 
       <div className="space-y-4 pb-28 min-[1050px]:pb-0">

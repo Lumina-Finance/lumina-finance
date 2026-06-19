@@ -1,15 +1,19 @@
 """Insights aggregation endpoints"""
 
+import uuid
 from datetime import date
 from datetime import datetime as DateTime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.saved_insights_range import SavedInsightsRange
 from app.models.user import User
 from app.schemas.insights import (
     InsightsCashFlowResponse,
@@ -22,6 +26,8 @@ from app.schemas.insights import (
     InsightsNetWorthResponse,
     InsightsPeriodAtAGlanceResponse,
     InsightsSavingsRateTrendResponse,
+    SavedInsightsRangeCreate,
+    SavedInsightsRangeResponse,
 )
 from app.services.insights import (
     get_cash_flow,
@@ -298,3 +304,97 @@ async def get_merchants_route(
     """
     _validate_date_range(from_date, to_date)
     return await get_merchants(db, user, from_date, to_date, comparison_period)
+
+
+@router.get("/saved-ranges", response_model=list[SavedInsightsRangeResponse])
+async def list_saved_ranges_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return the authenticated user's saved relative insights ranges
+
+    Args:
+        user: Authenticated user requesting their saved ranges
+        db: Active database session
+
+    Returns:
+        Saved ranges ordered with the most recently created first
+    """
+    # Read the caller's saved ranges, newest first so the latest save surfaces at the top
+    result = await db.execute(
+        select(SavedInsightsRange)
+        .where(SavedInsightsRange.user_id == user.id)
+        .order_by(SavedInsightsRange.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/saved-ranges", response_model=SavedInsightsRangeResponse, status_code=status.HTTP_201_CREATED)
+async def create_saved_range_route(
+    data: SavedInsightsRangeCreate,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Save a named relative insights range for the authenticated user
+
+    Args:
+        data: Saved range payload with a name, amount, and unit
+        user: Authenticated user saving the range
+        db: Active database session
+
+    Returns:
+        Newly saved range
+
+    Raises:
+        HTTPException: Raised with 409 when the user already has a saved range with the same name
+    """
+    saved_range = SavedInsightsRange(
+        user_id=user.id,
+        name=data.name,
+        amount=data.amount,
+        unit=data.unit,
+        qualifier=data.qualifier,
+    )
+    db.add(saved_range)
+
+    # Surface a duplicate name as a domain conflict instead of a raw integrity error
+    try:
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A saved range with this name already exists",
+        ) from e
+
+    await db.refresh(saved_range)
+    return saved_range
+
+
+@router.delete("/saved-ranges/{range_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_saved_range_route(
+    range_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete one of the authenticated user's saved relative insights ranges
+
+    Args:
+        range_id: Saved range identifier from the route path
+        user: Authenticated user deleting the range
+        db: Active database session
+
+    Raises:
+        HTTPException: Raised with 404 when the range does not belong to the user
+    """
+    result = await db.execute(
+        delete(SavedInsightsRange).where(
+            SavedInsightsRange.id == range_id,
+            SavedInsightsRange.user_id == user.id,
+        )
+    )
+    await db.commit()
+
+    # A zero row count means the range is missing or owned by another user
+    if result.rowcount == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Saved range not found")

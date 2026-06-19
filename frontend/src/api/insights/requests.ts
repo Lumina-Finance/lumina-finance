@@ -8,6 +8,8 @@ import type {
   InsightsNetWorthResponse,
   InsightsPeriodGlanceResponse,
   InsightsSavingsRateTrendResponse,
+  SaveInsightsRangePayload,
+  SavedInsightsRange,
 } from '@/api/insights/types';
 import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
 
@@ -101,4 +103,30 @@ export function fetchInsightsMerchants(
   return authenticatedFetch<InsightsMerchantsResponse>(
     `/insights/merchants${buildInsightsRangeQueryString(fromDate, toDate, comparisonPeriod)}`,
   );
+}
+
+/**
+ * Fetches the user's saved relative insights ranges, newest first
+ */
+export function fetchSavedInsightsRanges() {
+  return authenticatedFetch<SavedInsightsRange[]>('/insights/saved-ranges');
+}
+
+/**
+ * Saves a named relative insights range
+ */
+export function createSavedInsightsRange(payload: SaveInsightsRangePayload) {
+  return authenticatedFetch<SavedInsightsRange>('/insights/saved-ranges', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Deletes a saved relative insights range by ID
+ */
+export function deleteSavedInsightsRange(rangeId: string) {
+  return authenticatedFetch<void>(`/insights/saved-ranges/${rangeId}`, {
+    method: 'DELETE',
+  });
 }

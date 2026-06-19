@@ -48,6 +48,7 @@ SECURED_TABLES = (
     ("user_cache_states", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("user_runway_accounts", f"user_id = {CURRENT_USER_ID}()",
      f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),
+    ("saved_insights_ranges", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
     ("merchants", f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)",
      f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)"),
@@ -76,6 +77,13 @@ AUTH_TABLES = ("auth_identities", "password_credentials", "auth_sessions", "auth
 def apply_policies(connection: Connection) -> None:
     """Enable the policies and grant the app role the access it serves"""
     for table, using_expr, check_expr in SECURED_TABLES:
+
+        # A table added after the bootstrap RLS migration is created and secured by its own
+        # later migration, so a from-scratch upgrade reaches this loop before that table
+        # exists, while the test harness builds the full schema first and secures it here.
+        # The coverage guard test is what proves every registered table ends up secured
+        if not _table_exists(connection, table):
+            continue
         _secure_table(connection, table, using_expr, check_expr)
     _secure_categories(connection)
     _secure_groups(connection)
@@ -89,6 +97,26 @@ def apply_policies(connection: Connection) -> None:
     # The app role evaluates the policies and the auth flows, so it must execute the
     # helpers, while their SECURITY DEFINER owner is what reaches the underlying rows
     connection.execute(text(f'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO "{APP_DB_USER}"'))
+
+
+def _table_exists(connection: Connection, table: str) -> bool:
+    """Whether a public table is already present in the database"""
+    return connection.execute(
+        text("SELECT to_regclass(:qualified)"), {"qualified": f"public.{table}"}
+    ).scalar() is not None
+
+
+def secure_registered_table(connection: Connection, table: str) -> None:
+    """Enable row-level security on one already-created table using its registered policy
+
+    Incremental migrations that add a secured table call this so the single SECURED_TABLES
+    definition stays the only source of the table's access rule
+    """
+    for name, using_expr, check_expr in SECURED_TABLES:
+        if name == table:
+            _secure_table(connection, name, using_expr, check_expr)
+            return
+    raise KeyError(f"No registered row-level security policy for table {table!r}")
 
 
 def drop_policies(connection: Connection) -> None:

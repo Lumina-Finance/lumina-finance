@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createSavedInsightsRange,
+  deleteSavedInsightsRange,
   fetchInsightsCashFlow,
   fetchInsightsFundFlow,
   fetchInsightsIncomeExpenseBreakdown,
@@ -7,10 +9,12 @@ import {
   fetchInsightsNetWorth,
   fetchInsightsPeriodGlance,
   fetchInsightsSavingsRateTrend,
+  fetchSavedInsightsRanges,
 } from '@/api/insights/requests';
 import { insightsKeys } from '@/api/cache/queryKeys';
 import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
+import type { SavedInsightsRange } from '@/api/insights/types';
 import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
 
 const INSIGHTS_FX_STALE_TIME_MS = 5 * 60 * 1000;
@@ -118,5 +122,51 @@ export function useInsightsMerchants(
     queryFn: () => fetchInsightsMerchants(fromDate, toDate, comparisonPeriod),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
+  });
+}
+
+/**
+ * Reads the user's saved relative insights ranges
+ */
+export function useSavedInsightsRanges(enabled = true) {
+  const { accessToken } = useAuth();
+  // Left at the default stale time, like the app's other lists, so a range saved in another
+  // session is refetched on the next mount rather than staying cached forever
+  return useQuery({
+    queryKey: insightsKeys.savedRanges(),
+    queryFn: fetchSavedInsightsRanges,
+    enabled: !!accessToken && enabled,
+  });
+}
+
+/**
+ * Saves a named relative range and prepends it to the cached saved range list
+ */
+export function useSaveInsightsRange() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createSavedInsightsRange,
+    onSuccess: (savedRange) => {
+      // Prepend the new range so the list stays newest-first without a refetch round-trip
+      queryClient.setQueryData<SavedInsightsRange[]>(insightsKeys.savedRanges(), (ranges) =>
+        ranges ? [savedRange, ...ranges] : [savedRange],
+      );
+    },
+  });
+}
+
+/**
+ * Deletes a saved relative range and drops it from the cached saved range list
+ */
+export function useDeleteSavedInsightsRange() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteSavedInsightsRange,
+    onSuccess: (_, rangeId) => {
+      // Remove the deleted range in place so the exit animation plays without a refetch round-trip
+      queryClient.setQueryData<SavedInsightsRange[]>(insightsKeys.savedRanges(), (ranges) =>
+        ranges?.filter((range) => range.id !== rangeId) ?? ranges,
+      );
+    },
   });
 }
