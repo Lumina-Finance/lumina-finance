@@ -413,6 +413,25 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Primary action that commits the builder draft to the cards without saving it as a named range */
+  .app-range-apply {
+    margin-top: 10px;
+    width: 100%;
+    padding: 8px 0;
+    border: 1px solid var(--app-button-primary-bg);
+    border-radius: 10px;
+    background: var(--app-button-primary-bg);
+    color: var(--app-button-primary-text);
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .app-range-apply:hover {
+    background: var(--app-button-primary-bg-hover);
+    border-color: var(--app-button-primary-bg-hover);
+  }
+
   .app-range-glass-chev {
     flex-shrink: 0;
     color: var(--app-text-subtle);
@@ -480,6 +499,7 @@
   }
 
   .app-range-seg-option {
+    position: relative;
     appearance: none;
     min-width: 0;
     padding: 6px 0;
@@ -494,10 +514,22 @@
   }
 
   .app-range-seg-option-active {
-    background: var(--app-input-bg);
     color: var(--app-text);
     font-weight: 500;
+  }
+
+  /* Sliding highlight behind the active segment, carried between options by a shared layout
+     animation so the selection glides rather than jumping */
+  .app-range-seg-thumb {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: var(--app-input-bg);
     box-shadow: 0 1px 2px #00000014, inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+  }
+
+  .app-range-seg-label {
+    position: relative;
   }
 
   .app-range-custom {

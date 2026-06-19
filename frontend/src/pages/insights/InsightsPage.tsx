@@ -39,13 +39,18 @@ export default function InsightsPage() {
   /**
    * Saves the active relative window, letting the control surface a conflicting name
    */
+  /**
+   * Saves the builder draft under a name, then commits it as the applied range so the cards and
+   * pill switch to it once the save succeeds
+   */
   async function handleSaveCurrentRange(name: string) {
     await saveRange.mutateAsync({
       name,
-      amount: range.relativeAmount,
-      unit: range.relativeUnit,
-      qualifier: range.relativeQualifier,
+      amount: range.draftAmount,
+      unit: range.draftUnit,
+      qualifier: range.draftQualifier,
     })
+    range.applyDraft(name)
   }
 
   const {
@@ -85,18 +90,26 @@ export default function InsightsPage() {
       </div>
 
       <InsightsFloatingRangeControl
-        preset={range.rangePreset}
-        relativeAmount={range.relativeAmount}
-        relativeUnit={range.relativeUnit}
-        relativeQualifier={range.relativeQualifier}
+        selectedPreset={range.selectedPreset}
+        appliedPreset={range.appliedPreset}
+        appliedAmount={range.appliedAmount}
+        appliedUnit={range.appliedUnit}
+        appliedQualifier={range.appliedQualifier}
+        appliedSavedRangeName={range.appliedSavedRangeName}
         resolvedFrom={range.rangeInputDates.from}
         resolvedTo={range.rangeInputDates.to}
-        appliedSavedRangeName={range.appliedSavedRangeName}
+        draftAmount={range.draftAmount}
+        draftUnit={range.draftUnit}
+        draftQualifier={range.draftQualifier}
+        draftFrom={range.draftInputDates.from}
+        draftTo={range.draftInputDates.to}
         savedRanges={savedRangesQuery.data ?? []}
-        onPresetChange={range.setRangePreset}
-        onRelativeAmountChange={range.setRelativeAmount}
-        onRelativeUnitChange={range.setRelativeUnit}
-        onRelativeQualifierChange={range.setRelativeQualifier}
+        onSelectPreset={range.selectPreset}
+        onRevertSelection={range.revertSelection}
+        onDraftAmountChange={range.setDraftAmount}
+        onDraftUnitChange={range.setDraftUnit}
+        onDraftQualifierChange={range.setDraftQualifier}
+        onApplyDraft={range.applyDraft}
         onSaveCurrentRange={handleSaveCurrentRange}
         onApplySavedRange={range.applySavedRange}
         onDeleteSavedRange={deleteRange.mutate}

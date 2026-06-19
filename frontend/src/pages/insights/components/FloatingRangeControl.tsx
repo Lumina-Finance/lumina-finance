@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { Calendar, ChevronDown } from 'lucide-react'
@@ -33,19 +33,29 @@ const INSIGHTS_RANGE_OPTIONS: { value: InsightsRangePreset; code: string; label:
 ]
 
 type InsightsFloatingRangeControlProps = {
-  preset: InsightsRangePreset
-  relativeAmount: number
-  relativeUnit: SavedInsightsRangeUnit
-  relativeQualifier: SavedInsightsRangeQualifier
+  // Highlighted preset segment, CUSTOM while the builder is being edited
+  selectedPreset: InsightsRangePreset
+  // Applied range that the cards and the collapsed pill reflect
+  appliedPreset: InsightsRangePreset
+  appliedAmount: number
+  appliedUnit: SavedInsightsRangeUnit
+  appliedQualifier: SavedInsightsRangeQualifier
+  appliedSavedRangeName: string | null
   resolvedFrom: string
   resolvedTo: string
-  // Name of the applied saved range, shown as the pill label until the window is changed
-  appliedSavedRangeName: string | null
+  // Draft window the builder edits and previews, applied only on Apply, Save, or a saved range
+  draftAmount: number
+  draftUnit: SavedInsightsRangeUnit
+  draftQualifier: SavedInsightsRangeQualifier
+  draftFrom: string
+  draftTo: string
   savedRanges: SavedInsightsRange[]
-  onPresetChange: (value: InsightsRangePreset) => void
-  onRelativeAmountChange: (value: number) => void
-  onRelativeUnitChange: (value: SavedInsightsRangeUnit) => void
-  onRelativeQualifierChange: (value: SavedInsightsRangeQualifier) => void
+  onSelectPreset: (value: InsightsRangePreset) => void
+  onRevertSelection: () => void
+  onDraftAmountChange: (value: number) => void
+  onDraftUnitChange: (value: SavedInsightsRangeUnit) => void
+  onDraftQualifierChange: (value: SavedInsightsRangeQualifier) => void
+  onApplyDraft: () => void
   onSaveCurrentRange: (name: string) => Promise<void>
   onApplySavedRange: (range: SavedInsightsRange) => void
   onDeleteSavedRange: (rangeId: string) => void
@@ -63,18 +73,26 @@ type GlassRangeSelectorProps = InsightsFloatingRangeControlProps & {
  * relative-window builder, and saved ranges
  */
 function GlassRangeSelector({
-  preset,
-  relativeAmount,
-  relativeUnit,
-  relativeQualifier,
+  selectedPreset,
+  appliedPreset,
+  appliedAmount,
+  appliedUnit,
+  appliedQualifier,
+  appliedSavedRangeName,
   resolvedFrom,
   resolvedTo,
-  appliedSavedRangeName,
+  draftAmount,
+  draftUnit,
+  draftQualifier,
+  draftFrom,
+  draftTo,
   savedRanges,
-  onPresetChange,
-  onRelativeAmountChange,
-  onRelativeUnitChange,
-  onRelativeQualifierChange,
+  onSelectPreset,
+  onRevertSelection,
+  onDraftAmountChange,
+  onDraftUnitChange,
+  onDraftQualifierChange,
+  onApplyDraft,
   onSaveCurrentRange,
   onApplySavedRange,
   onDeleteSavedRange,
@@ -84,13 +102,21 @@ function GlassRangeSelector({
   const [open, setOpen] = useState(false)
   const [collapsedWidth, setCollapsedWidth] = useState(COLLAPSED_WIDTH_FALLBACK)
   const containerRef = useRef<HTMLDivElement>(null)
+  // Scopes the sliding-thumb layout animation to this instance so the mobile and desktop pills
+  // never animate their selection highlight into each other
+  const segId = useId()
   const shouldReduceMotion = useReducedMotion()
-  const isCustom = preset === 'CUSTOM'
+  // CUSTOM while the builder is open for editing, which keeps the builder revealed and the Custom
+  // segment highlighted even though the applied range may still be a fixed preset
+  const isCustom = selectedPreset === 'CUSTOM'
   const currentLabel = appliedSavedRangeName
-    ?? (isCustom
-      ? getRelativeRangeLabel(relativeAmount, relativeUnit, relativeQualifier)
-      : INSIGHTS_RANGE_OPTIONS.find((option) => option.value === preset)?.label ?? '')
-  const rangeLabel = formatResolvedRangeLabel(resolvedFrom, resolvedTo)
+    ?? (appliedPreset === 'CUSTOM'
+      ? getRelativeRangeLabel(appliedAmount, appliedUnit, appliedQualifier)
+      : INSIGHTS_RANGE_OPTIONS.find((option) => option.value === appliedPreset)?.label ?? '')
+  // The collapsed pill and the non-custom panel line show the applied window, the builder shows
+  // the draft window being edited
+  const appliedRangeLabel = formatResolvedRangeLabel(resolvedFrom, resolvedTo)
+  const draftRangeLabel = formatResolvedRangeLabel(draftFrom, draftTo)
   const transition = shouldReduceMotion ? { duration: 0 } : glassSpring
 
   // Pins the collapsed desktop pill to its text width, since fit-content would otherwise include
@@ -104,18 +130,27 @@ function GlassRangeSelector({
     setCollapsedWidth(Math.ceil(widest) + COLLAPSED_HEAD_CHROME)
   }, [])
 
-  // The panel closes on an outside press or Escape so a stale open control never lingers
+  /**
+   * Closes the panel without committing, returning the highlight to the applied range so an
+   * abandoned Custom selection does not stay highlighted
+   */
+  const dismiss = useCallback(() => {
+    setOpen(false)
+    onRevertSelection()
+  }, [onRevertSelection])
+
+  // The panel dismisses on an outside press or Escape so a stale open control never lingers
   useEffect(() => {
     if (!open) return
 
     function handlePointerDown(event: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false)
+        dismiss()
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') dismiss()
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
@@ -124,14 +159,31 @@ function GlassRangeSelector({
       document.removeEventListener('pointerdown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open])
+  }, [open, dismiss])
 
   /**
-   * Switches preset and collapses for fixed presets while keeping Custom open for the builder
+   * Highlights a preset, collapsing for fixed presets while keeping Custom open for the builder
    */
-  function handlePresetChange(value: InsightsRangePreset) {
-    onPresetChange(value)
+  function handleSelectPreset(value: InsightsRangePreset) {
+    onSelectPreset(value)
     if (value !== 'CUSTOM') setOpen(false)
+  }
+
+  /**
+   * Commits the builder draft as the applied range and collapses the panel
+   */
+  function handleApplyDraft() {
+    onApplyDraft()
+    setOpen(false)
+  }
+
+  /**
+   * Saves the draft under a name, collapsing only once the save succeeds so a duplicate-name
+   * error keeps the panel open for correction
+   */
+  async function handleSaveCurrentRange(name: string) {
+    await onSaveCurrentRange(name)
+    setOpen(false)
   }
 
   /**
@@ -160,11 +212,11 @@ function GlassRangeSelector({
         className="app-range-glass-head"
         aria-expanded={open}
         aria-label={`Insights date range: ${currentLabel}`}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => (open ? dismiss() : setOpen(true))}
       >
         <span className="app-range-glass-cur">
           <Calendar size={15} aria-hidden className="shrink-0" />
-          <span key={`${currentLabel}|${rangeLabel}`} ref={measureLabel} className="app-range-glass-text">
+          <span key={`${currentLabel}|${appliedRangeLabel}`} ref={measureLabel} className="app-range-glass-text">
             <span className="truncate">{currentLabel}</span>
             <motion.span
               className="app-range-glass-sub"
@@ -172,7 +224,7 @@ function GlassRangeSelector({
               animate={{ height: open ? 0 : 'auto', opacity: open ? 0 : 1 }}
               transition={transition}
             >
-              {rangeLabel}
+              {appliedRangeLabel}
             </motion.span>
           </span>
         </span>
@@ -198,34 +250,44 @@ function GlassRangeSelector({
                   key={option.value}
                   type="button"
                   role="tab"
-                  aria-selected={option.value === preset}
+                  aria-selected={option.value === selectedPreset}
                   className={joinClassNames(
                     'app-range-seg-option',
-                    option.value === preset && 'app-range-seg-option-active',
+                    option.value === selectedPreset && 'app-range-seg-option-active',
                   )}
-                  onClick={() => handlePresetChange(option.value)}
+                  onClick={() => handleSelectPreset(option.value)}
                 >
-                  {option.code}
+                  {option.value === selectedPreset && (
+                    <motion.span
+                      layoutId={`${segId}-preset`}
+                      className="app-range-seg-thumb"
+                      transition={transition}
+                    />
+                  )}
+                  <span className="app-range-seg-label">{option.code}</span>
                 </button>
               ))}
             </div>
 
-            {!isCustom && <p className="app-range-dates">{rangeLabel}</p>}
+            {!isCustom && <p className="app-range-dates">{appliedRangeLabel}</p>}
 
             <div className={joinClassNames('app-range-custom', isCustom && 'app-range-custom-open')}>
               <div className="app-range-custom-inner">
                 <RelativeRangeBuilder
-                  amount={relativeAmount}
-                  unit={relativeUnit}
-                  qualifier={relativeQualifier}
-                  onAmountChange={onRelativeAmountChange}
-                  onUnitChange={onRelativeUnitChange}
-                  onQualifierChange={onRelativeQualifierChange}
+                  amount={draftAmount}
+                  unit={draftUnit}
+                  qualifier={draftQualifier}
+                  onAmountChange={onDraftAmountChange}
+                  onUnitChange={onDraftUnitChange}
+                  onQualifierChange={onDraftQualifierChange}
                 />
-                <p className="app-range-dates">{rangeLabel}</p>
+                <p className="app-range-dates">{draftRangeLabel}</p>
+                <button type="button" className="app-range-apply" onClick={handleApplyDraft}>
+                  Apply
+                </button>
                 <SavedRanges
                   savedRanges={savedRanges}
-                  onSaveCurrentRange={onSaveCurrentRange}
+                  onSaveCurrentRange={handleSaveCurrentRange}
                   onApplySavedRange={handleApplySavedRange}
                   onDeleteSavedRange={onDeleteSavedRange}
                 />

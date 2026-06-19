@@ -1,9 +1,13 @@
-import { useState, type ChangeEvent } from 'react'
+import { useId, useState, type ChangeEvent } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import type { SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '../types/range'
 
 const RELATIVE_UNITS: SavedInsightsRangeUnit[] = ['day', 'week', 'month', 'quarter', 'year']
+
+// Matches the pill's settle so the qualifier highlight glides between options in the same feel
+const qualifierSpring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
 
 // This and Last name whole calendar periods, so they hide the day unit, and This takes no count
 const QUALIFIER_OPTIONS: {
@@ -51,6 +55,10 @@ export function RelativeRangeBuilder({
   const [unitMenuOpen, setUnitMenuOpen] = useState(false)
   const [amountText, setAmountText] = useState(String(amount))
   const [trackedAmount, setTrackedAmount] = useState(amount)
+  // Scopes the sliding-thumb layout animation to this builder instance
+  const groupId = useId()
+  const shouldReduceMotion = useReducedMotion()
+  const thumbTransition = shouldReduceMotion ? { duration: 0 } : qualifierSpring
 
   const activeQualifier = QUALIFIER_OPTIONS.find((option) => option.value === qualifier) ?? QUALIFIER_OPTIONS[2]
   const usePlural = activeQualifier.hasCount && amount !== 1
@@ -107,7 +115,14 @@ export function RelativeRangeBuilder({
             )}
             onClick={() => onQualifierChange(option.value)}
           >
-            {option.label}
+            {option.value === qualifier && (
+              <motion.span
+                layoutId={`${groupId}-qualifier`}
+                className="app-range-seg-thumb"
+                transition={thumbTransition}
+              />
+            )}
+            <span className="app-range-seg-label">{option.label}</span>
           </button>
         ))}
       </div>
