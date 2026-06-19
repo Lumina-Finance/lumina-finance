@@ -6,7 +6,8 @@ import {
 import { joinClassNames } from '@/utils/classNames'
 
 interface TransactionModalPillSelectorProps<T extends string> {
-  value: T
+  // An empty value renders the unselected state with no highlighted option
+  value: T | ''
   options: readonly { value: T; label: string }[]
   ariaLabel: string
   onChange: (value: T) => void
@@ -24,10 +25,12 @@ export default function TransactionModalPillSelector<T extends string>({
   disabled = false,
 }: TransactionModalPillSelectorProps<T>) {
   const shouldReduceMotion = useReducedMotion()
-  const activeIndex = Math.max(options.findIndex((option) => option.value === value), 0)
+  const selectedIndex = options.findIndex((option) => option.value === value)
+  const hasSelection = selectedIndex >= 0
+  const indicatorIndex = hasSelection ? selectedIndex : 0
   const optionGap = options.length > 1 ? SEGMENTED_OPTION_GAP_REM : 0
   const indicatorWidth = `calc((100% - 0.5rem - ${(options.length - 1) * optionGap}rem) / ${options.length})`
-  const indicatorX = `calc(${activeIndex * 100}% + ${activeIndex * optionGap}rem)`
+  const indicatorX = `calc(${indicatorIndex * 100}% + ${indicatorIndex * optionGap}rem)`
 
   return (
     <div
@@ -40,7 +43,7 @@ export default function TransactionModalPillSelector<T extends string>({
         className="app-create-transaction-pill-selector-indicator"
         aria-hidden
         style={{ width: indicatorWidth }}
-        animate={{ x: indicatorX }}
+        animate={{ x: indicatorX, opacity: hasSelection ? 1 : 0 }}
         transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
       />
       {options.map((option) => {
