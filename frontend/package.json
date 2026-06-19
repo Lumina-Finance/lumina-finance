@@ -25,6 +25,9 @@
     "react-router-dom": "^7.17.0",
     "recharts": "^3.8.1"
   },
+  "overrides": {
+    "@babel/core": "^7.29.6"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.3.1",

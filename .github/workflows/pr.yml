@@ -16,6 +16,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
+      lockfiles: ${{ steps.filter.outputs.lockfiles }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -32,29 +33,35 @@ jobs:
             docker:
               - 'docker/**'
 
+            # A lockfile change can shift transitive dependencies that affect the
+            # other side or the built image, so it forces the whole pipeline to run
+            lockfiles:
+              - 'backend/uv.lock'
+              - 'frontend/package-lock.json'
+
   backend-lint:
     needs: changes
-    if: ${{ needs.changes.outputs.backend == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_backend-lint.yml
 
   backend-test:
     needs: [changes, backend-lint]
-    if: ${{ needs.changes.outputs.backend == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_backend-test.yml
 
   frontend-lint:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_frontend-lint.yml
 
   frontend-test:
     needs: [changes, frontend-lint]
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_frontend-test.yml
 
   frontend-build:
     needs: [changes, frontend-test]
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_frontend-build.yml
 
   # Build whenever backend, frontend, or docker changed, as long as no upstream
@@ -70,7 +77,8 @@ jobs:
         && needs.frontend-build.result != 'failure'
         && (needs.changes.outputs.backend == 'true'
             || needs.changes.outputs.frontend == 'true'
-            || needs.changes.outputs.docker == 'true') }}
+            || needs.changes.outputs.docker == 'true'
+            || needs.changes.outputs.lockfiles == 'true') }}
     uses: ./.github/workflows/_docker-build.yml
     secrets: inherit
 
