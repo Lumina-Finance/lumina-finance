@@ -4,7 +4,7 @@ import type {
   InsightsRangePreset,
   SavedInsightsRangeUnit,
 } from '../types/range'
-import { addDays, formatYmd, getStartOfWeek, parseYmd } from './date'
+import { addDays, formatYmd, getShortDateLabel, getStartOfWeek, parseYmd } from './date'
 
 // How many months each calendar unit spans, which doubles as the alignment granularity used to
 // roll a window start back to the first day of a whole month, quarter, or year
@@ -83,6 +83,21 @@ export function getRelativeRangeInputDates(
 export function getRelativeRangeLabel(amount: number, unit: SavedInsightsRangeUnit) {
   const unitLabel = amount === 1 ? unit : `${unit}s`
   return `Last ${amount} ${unitLabel}`
+}
+
+/**
+ * Formats a resolved from/to range for display, for example "Jan 1 – Jun 19", adding the year on
+ * each end only when the range spans more than one calendar year
+ */
+export function formatResolvedRangeLabel(from: string, to: string) {
+  const fromDate = parseYmd(from)
+  const toDate = parseYmd(to)
+  if (!fromDate || !toDate) return ''
+
+  if (fromDate.getFullYear() === toDate.getFullYear()) {
+    return `${getShortDateLabel(fromDate)} – ${getShortDateLabel(toDate)}`
+  }
+  return `${getShortDateLabel(fromDate)}, ${fromDate.getFullYear()} – ${getShortDateLabel(toDate)}, ${toDate.getFullYear()}`
 }
 
 export function getRangeComparisonPeriod(preset: InsightsRangePreset): InsightsComparisonPeriod {

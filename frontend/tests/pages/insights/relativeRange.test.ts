@@ -6,7 +6,11 @@
  * asserted against known dates
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRelativeRangeInputDates, getRelativeRangeLabel } from '@/pages/insights/utils/range';
+import {
+  formatResolvedRangeLabel,
+  getRelativeRangeInputDates,
+  getRelativeRangeLabel,
+} from '@/pages/insights/utils/range';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -51,5 +55,15 @@ describe('getRelativeRangeLabel', () => {
     expect(getRelativeRangeLabel(7, 'day')).toBe('Last 7 days');
     expect(getRelativeRangeLabel(1, 'quarter')).toBe('Last 1 quarter');
     expect(getRelativeRangeLabel(2, 'year')).toBe('Last 2 years');
+  });
+});
+
+describe('formatResolvedRangeLabel', () => {
+  it('formats a same-year range without the year', () => {
+    expect(formatResolvedRangeLabel('2026-01-01', '2026-06-19')).toBe('Jan 1 – Jun 19');
+  });
+
+  it('adds the year on each end when the range crosses years', () => {
+    expect(formatResolvedRangeLabel('2025-01-01', '2026-06-19')).toBe('Jan 1, 2025 – Jun 19, 2026');
   });
 });

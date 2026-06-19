@@ -317,6 +317,253 @@
     appearance: none;
   }
 
+  /* Translucent collapsing date-range control on the insights page. The pill widens with a
+     soft overshoot and the panel height settles smoothly, so it blooms open with a bounce */
+  .app-range-glass {
+    --app-range-glass-bounce: cubic-bezier(0.34, 1.6, 0.5, 1);
+    --app-range-glass-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    display: flex;
+    flex-direction: column;
+    margin-left: auto;
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
+  }
+
+  /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
+  .app-range-glass-full {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* The mobile control floats at the bottom, so it stacks the panel above the pill and grows
+     upward while the panel content keeps its normal top-to-bottom order */
+  .app-range-glass-up {
+    flex-direction: column-reverse;
+  }
+
+  .app-range-glass-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 14px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--app-text);
+    transition: padding-top 0.4s var(--app-range-glass-ease);
+  }
+
+  /* The bottom-floating mobile control is a primary tap target, so it sits taller and uses the
+     standard control text size instead of the compact size the desktop sidebar pill can afford */
+  .app-range-glass-full .app-range-glass-head {
+    padding: 9px 16px;
+    font-size: 0.9375rem;
+  }
+
+  /* Expanding the desktop panel opens up its top edge to match the panel's side and bottom
+     spacing while the collapsed pill stays compact */
+  .app-range-glass-open:not(.app-range-glass-up) .app-range-glass-head {
+    padding-top: 12px;
+  }
+
+  .app-range-glass-cur {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Stacks the label over its resolved dates so both left-align to each other while the calendar
+     icon stays a separate column centred against the two-line block */
+  .app-range-glass-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 1px;
+    line-height: 1.2;
+  }
+
+  /* The resolved date range shown under the label while collapsed, animated to height zero on
+     open so the same range can fade in below the preset row instead */
+  .app-range-glass-sub {
+    display: block;
+    overflow: hidden;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--app-text-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The resolved date range shown inside the open panel, directly under the preset row */
+  .app-range-dates {
+    margin-top: 10px;
+    font-size: 0.75rem;
+    color: var(--app-text-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .app-range-glass-chev {
+    flex-shrink: 0;
+    color: var(--app-text-subtle);
+  }
+
+  .app-range-glass-bodywrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.45s var(--app-range-glass-ease);
+  }
+
+  .app-range-glass-open .app-range-glass-bodywrap {
+    grid-template-rows: 1fr;
+  }
+
+  .app-range-glass-body {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-range-glass-inner {
+    padding: 0 12px 12px;
+    opacity: 0;
+    transition: opacity 0.26s ease 0.05s;
+  }
+
+  .app-range-glass-open .app-range-glass-inner {
+    opacity: 1;
+  }
+
+  /* The grow-up control has no pill header above the panel, so the label needs its own top room */
+  .app-range-glass-up .app-range-glass-inner {
+    padding-top: 12px;
+  }
+
+  /* The full-width control cannot bounce its width like the sidebar pill, so its panel
+     content rises into place with the same overshoot for a matching fluid feel */
+  .app-range-glass-full .app-range-glass-inner {
+    transform: translateY(14px);
+    transition: opacity 0.28s ease, transform 0.55s var(--app-range-glass-bounce);
+  }
+
+  .app-range-glass-full.app-range-glass-open .app-range-glass-inner {
+    transform: translateY(0);
+  }
+
+  /* Flat segmented preset row, appearance reset so native button chrome never boxes a pill */
+  .app-range-seg {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--app-text) 7%, transparent);
+  }
+
+  .app-range-seg-option {
+    appearance: none;
+    min-width: 0;
+    padding: 6px 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    text-align: center;
+    white-space: nowrap;
+    color: var(--app-text-muted);
+  }
+
+  .app-range-seg-option-active {
+    background: var(--app-input-bg);
+    color: var(--app-text);
+    font-weight: 500;
+    box-shadow: 0 1px 2px #00000014, inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+  }
+
+  .app-range-custom {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s var(--app-range-glass-ease);
+  }
+
+  .app-range-custom-open {
+    grid-template-rows: 1fr;
+  }
+
+  .app-range-custom-inner {
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 2px;
+  }
+
+  /* Inline unit picker that expands in place, since the glass backdrop-filter traps and
+     clips an absolutely positioned dropdown menu */
+  .app-range-unit-menu {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .app-range-unit-menu-open {
+    grid-template-rows: 1fr;
+  }
+
+  .app-range-unit-menu-body {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-range-unit-list {
+    margin-top: 6px;
+    padding: 4px;
+    border: 1px solid var(--app-border-strong);
+    border-radius: 10px;
+    background: var(--app-input-bg);
+  }
+
+  .app-range-unit-option {
+    appearance: none;
+    width: 100%;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.8125rem;
+    color: var(--app-text);
+  }
+
+  .app-range-unit-option:hover {
+    background: color-mix(in srgb, var(--app-text) 6%, transparent);
+  }
+
+  .app-range-unit-option-active {
+    color: var(--app-accent);
+    font-weight: 500;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-range-glass-head,
+    .app-range-glass-bodywrap,
+    .app-range-glass-inner,
+    .app-range-glass-full .app-range-glass-inner,
+    .app-range-custom,
+    .app-range-unit-menu {
+      transition-duration: 0s;
+    }
+  }
+
   .import-auto-fill-row {
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
