@@ -46,15 +46,39 @@ describe('getRelativeRangeInputDates', () => {
 
     expect(getRelativeRangeInputDates(6, 'month')).toEqual({ from: '2026-01-01', to: '2026-06-30' });
   });
+
+  it('resolves last-qualifier windows as whole finished periods ending before the current one', () => {
+    expect(getRelativeRangeInputDates(1, 'month', 'last')).toEqual({ from: '2026-05-01', to: '2026-05-31' });
+    expect(getRelativeRangeInputDates(1, 'quarter', 'last')).toEqual({ from: '2026-01-01', to: '2026-03-31' });
+    expect(getRelativeRangeInputDates(2, 'quarter', 'last')).toEqual({ from: '2025-10-01', to: '2026-03-31' });
+    expect(getRelativeRangeInputDates(1, 'year', 'last')).toEqual({ from: '2025-01-01', to: '2025-12-31' });
+    expect(getRelativeRangeInputDates(1, 'week', 'last')).toEqual({ from: '2026-06-08', to: '2026-06-14' });
+  });
+
+  it('resolves this-qualifier windows as the current period up to today', () => {
+    expect(getRelativeRangeInputDates(1, 'month', 'this')).toEqual({ from: '2026-06-01', to: '2026-06-18' });
+    expect(getRelativeRangeInputDates(1, 'quarter', 'this')).toEqual({ from: '2026-04-01', to: '2026-06-18' });
+    expect(getRelativeRangeInputDates(1, 'year', 'this')).toEqual({ from: '2026-01-01', to: '2026-06-18' });
+    expect(getRelativeRangeInputDates(1, 'week', 'this')).toEqual({ from: '2026-06-15', to: '2026-06-18' });
+  });
 });
 
 describe('getRelativeRangeLabel', () => {
-  it('singularizes a one-unit window and pluralizes the rest', () => {
-    expect(getRelativeRangeLabel(1, 'month')).toBe('Last 1 month');
-    expect(getRelativeRangeLabel(6, 'month')).toBe('Last 6 months');
-    expect(getRelativeRangeLabel(7, 'day')).toBe('Last 7 days');
-    expect(getRelativeRangeLabel(1, 'quarter')).toBe('Last 1 quarter');
-    expect(getRelativeRangeLabel(2, 'year')).toBe('Last 2 years');
+  it('labels the current period without a count', () => {
+    expect(getRelativeRangeLabel(1, 'month', 'this')).toBe('This month');
+    expect(getRelativeRangeLabel(3, 'quarter', 'this')).toBe('This quarter');
+  });
+
+  it('labels a single completed period without a count and pluralizes the rest', () => {
+    expect(getRelativeRangeLabel(1, 'quarter', 'last')).toBe('Last quarter');
+    expect(getRelativeRangeLabel(1, 'month', 'last')).toBe('Last month');
+    expect(getRelativeRangeLabel(2, 'quarter', 'last')).toBe('Last 2 quarters');
+  });
+
+  it('labels a rolling window with its count', () => {
+    expect(getRelativeRangeLabel(1, 'month', 'past')).toBe('Past 1 month');
+    expect(getRelativeRangeLabel(6, 'month', 'past')).toBe('Past 6 months');
+    expect(getRelativeRangeLabel(7, 'day', 'past')).toBe('Past 7 days');
   });
 });
 

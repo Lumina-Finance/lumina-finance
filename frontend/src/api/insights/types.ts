@@ -1,5 +1,5 @@
 import type { FxStatus } from '@/api/shared/fx';
-import type { SavedInsightsRangeUnit } from '@/pages/insights/types/range';
+import type { SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '@/pages/insights/types/range';
 
 export interface InsightsPeriodGlanceResponse {
   income: number;
@@ -84,6 +84,8 @@ export interface SavedInsightsRange {
   // Relative window stored as "last {amount} {unit}", resolved to dates on the client
   amount: number;
   unit: SavedInsightsRangeUnit;
+  // How the window is anchored: this (current to date), last (previous complete), past (rolling)
+  qualifier: SavedInsightsRangeQualifier;
   created_at: string;
 }
 
@@ -91,4 +93,5 @@ export interface SaveInsightsRangePayload {
   name: string;
   amount: number;
   unit: SavedInsightsRangeUnit;
+  qualifier: SavedInsightsRangeQualifier;
 }

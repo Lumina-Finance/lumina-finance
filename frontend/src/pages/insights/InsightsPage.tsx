@@ -3,7 +3,6 @@ import {
   useDeleteSavedInsightsRange,
   useSaveInsightsRange,
   useSavedInsightsRanges,
-  type SavedInsightsRange,
 } from '@/api/insights'
 import { useAuth } from '@/hooks/useAuth'
 import { CashFlowCard } from './components/cash-flow-card/Card'
@@ -45,14 +44,8 @@ export default function InsightsPage() {
       name,
       amount: range.relativeAmount,
       unit: range.relativeUnit,
+      qualifier: range.relativeQualifier,
     })
-  }
-
-  /**
-   * Re-applies a saved range, recomputing its rolling window against today
-   */
-  function handleApplySavedRange(savedRange: SavedInsightsRange) {
-    range.applyRelativeRange(savedRange.amount, savedRange.unit)
   }
 
   const {
@@ -95,14 +88,17 @@ export default function InsightsPage() {
         preset={range.rangePreset}
         relativeAmount={range.relativeAmount}
         relativeUnit={range.relativeUnit}
+        relativeQualifier={range.relativeQualifier}
         resolvedFrom={range.rangeInputDates.from}
         resolvedTo={range.rangeInputDates.to}
+        appliedSavedRangeName={range.appliedSavedRangeName}
         savedRanges={savedRangesQuery.data ?? []}
         onPresetChange={range.setRangePreset}
         onRelativeAmountChange={range.setRelativeAmount}
         onRelativeUnitChange={range.setRelativeUnit}
+        onRelativeQualifierChange={range.setRelativeQualifier}
         onSaveCurrentRange={handleSaveCurrentRange}
-        onApplySavedRange={handleApplySavedRange}
+        onApplySavedRange={range.applySavedRange}
         onDeleteSavedRange={deleteRange.mutate}
       />
 

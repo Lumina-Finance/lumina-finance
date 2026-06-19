@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { Calendar, ChevronDown } from 'lucide-react'
 import type { SavedInsightsRange } from '@/api/insights'
 import { joinClassNames } from '@/utils/classNames'
-import type { InsightsRangePreset, SavedInsightsRangeUnit } from '../types/range'
+import type { InsightsRangePreset, SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '../types/range'
 import { formatResolvedRangeLabel, getRelativeRangeLabel } from '../utils/range'
 import { RelativeRangeBuilder } from './RelativeRangeBuilder'
 import { SavedRanges } from './SavedRanges'
@@ -36,12 +36,16 @@ type InsightsFloatingRangeControlProps = {
   preset: InsightsRangePreset
   relativeAmount: number
   relativeUnit: SavedInsightsRangeUnit
+  relativeQualifier: SavedInsightsRangeQualifier
   resolvedFrom: string
   resolvedTo: string
+  // Name of the applied saved range, shown as the pill label until the window is changed
+  appliedSavedRangeName: string | null
   savedRanges: SavedInsightsRange[]
   onPresetChange: (value: InsightsRangePreset) => void
   onRelativeAmountChange: (value: number) => void
   onRelativeUnitChange: (value: SavedInsightsRangeUnit) => void
+  onRelativeQualifierChange: (value: SavedInsightsRangeQualifier) => void
   onSaveCurrentRange: (name: string) => Promise<void>
   onApplySavedRange: (range: SavedInsightsRange) => void
   onDeleteSavedRange: (rangeId: string) => void
@@ -62,12 +66,15 @@ function GlassRangeSelector({
   preset,
   relativeAmount,
   relativeUnit,
+  relativeQualifier,
   resolvedFrom,
   resolvedTo,
+  appliedSavedRangeName,
   savedRanges,
   onPresetChange,
   onRelativeAmountChange,
   onRelativeUnitChange,
+  onRelativeQualifierChange,
   onSaveCurrentRange,
   onApplySavedRange,
   onDeleteSavedRange,
@@ -79,9 +86,10 @@ function GlassRangeSelector({
   const containerRef = useRef<HTMLDivElement>(null)
   const shouldReduceMotion = useReducedMotion()
   const isCustom = preset === 'CUSTOM'
-  const currentLabel = isCustom
-    ? getRelativeRangeLabel(relativeAmount, relativeUnit)
-    : INSIGHTS_RANGE_OPTIONS.find((option) => option.value === preset)?.label ?? ''
+  const currentLabel = appliedSavedRangeName
+    ?? (isCustom
+      ? getRelativeRangeLabel(relativeAmount, relativeUnit, relativeQualifier)
+      : INSIGHTS_RANGE_OPTIONS.find((option) => option.value === preset)?.label ?? '')
   const rangeLabel = formatResolvedRangeLabel(resolvedFrom, resolvedTo)
   const transition = shouldReduceMotion ? { duration: 0 } : glassSpring
 
@@ -124,6 +132,14 @@ function GlassRangeSelector({
   function handlePresetChange(value: InsightsRangePreset) {
     onPresetChange(value)
     if (value !== 'CUSTOM') setOpen(false)
+  }
+
+  /**
+   * Applies a saved range and collapses the panel so the selection reads as final
+   */
+  function handleApplySavedRange(savedRange: SavedInsightsRange) {
+    onApplySavedRange(savedRange)
+    setOpen(false)
   }
 
   return (
@@ -201,14 +217,16 @@ function GlassRangeSelector({
                 <RelativeRangeBuilder
                   amount={relativeAmount}
                   unit={relativeUnit}
+                  qualifier={relativeQualifier}
                   onAmountChange={onRelativeAmountChange}
                   onUnitChange={onRelativeUnitChange}
+                  onQualifierChange={onRelativeQualifierChange}
                 />
                 <p className="app-range-dates">{rangeLabel}</p>
                 <SavedRanges
                   savedRanges={savedRanges}
                   onSaveCurrentRange={onSaveCurrentRange}
-                  onApplySavedRange={onApplySavedRange}
+                  onApplySavedRange={handleApplySavedRange}
                   onDeleteSavedRange={onDeleteSavedRange}
                 />
               </div>

@@ -104,7 +104,7 @@ export function SavedRanges({
                   >
                     <span className="min-w-0 truncate font-medium">{range.name}</span>
                     <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                      {getRelativeRangeLabel(range.amount, range.unit)}
+                      {getRelativeRangeLabel(range.amount, range.unit, range.qualifier)}
                     </span>
                   </button>
                   <button

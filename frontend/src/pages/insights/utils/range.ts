@@ -2,6 +2,7 @@ import type {
   InsightsComparisonPeriod,
   InsightsRangeInputDates,
   InsightsRangePreset,
+  SavedInsightsRangeQualifier,
   SavedInsightsRangeUnit,
 } from '../types/range'
 import { addDays, formatYmd, getShortDateLabel, getStartOfWeek, parseYmd } from './date'
@@ -49,18 +50,17 @@ export function getRangeInputDates(preset: InsightsRangePreset): InsightsRangeIn
 }
 
 /**
- * Resolves a relative "last N units" window to inclusive from/to dates ending today
+ * Resolves a trailing "last N units" window ending today
  *
- * Day windows count the exact number of trailing days ending today. Week, month, quarter, and
- * year windows align the start to the beginning of the earliest whole period they cover, so the
- * window always reaches back to a week, month, quarter, or year boundary
+ * Day windows count the exact number of trailing days. Week, month, quarter, and year windows
+ * align the start to the beginning of the earliest whole period they cover, so the window always
+ * reaches back to a week, month, quarter, or year boundary
  */
-export function getRelativeRangeInputDates(
+function getTrailingRangeInputDates(
   amount: number,
   unit: SavedInsightsRangeUnit,
+  today: Date,
 ): InsightsRangeInputDates {
-  const today = new Date()
-
   if (unit === 'day') {
     return { from: formatYmd(addDays(today, -(amount - 1))), to: formatYmd(today) }
   }
@@ -69,20 +69,73 @@ export function getRelativeRangeInputDates(
     return { from: formatYmd(start), to: formatYmd(today) }
   }
 
-  // Roll back to the first day of the month, quarter, or year that opens the window so the span
-  // covers whole calendar periods up to today regardless of which day of the period it is
   const periodMonths = MONTHS_PER_UNIT[unit]
   const alignedStartMonth = Math.floor(today.getMonth() / periodMonths) * periodMonths - (amount - 1) * periodMonths
-  const start = new Date(today.getFullYear(), alignedStartMonth, 1)
-  return { from: formatYmd(start), to: formatYmd(today) }
+  return { from: formatYmd(new Date(today.getFullYear(), alignedStartMonth, 1)), to: formatYmd(today) }
 }
 
 /**
- * Builds the human label for a relative window, for example "Last 6 months"
+ * Resolves a window of the last N whole completed periods, ending the day before the current
+ * period begins so the in-progress period is excluded
  */
-export function getRelativeRangeLabel(amount: number, unit: SavedInsightsRangeUnit) {
+function getCompleteRangeInputDates(
+  amount: number,
+  unit: SavedInsightsRangeUnit,
+  today: Date,
+): InsightsRangeInputDates {
+  if (unit === 'day') {
+    return { from: formatYmd(addDays(today, -amount)), to: formatYmd(addDays(today, -1)) }
+  }
+  if (unit === 'week') {
+    const currentWeekStart = getStartOfWeek(today)
+    return { from: formatYmd(addDays(currentWeekStart, -amount * 7)), to: formatYmd(addDays(currentWeekStart, -1)) }
+  }
+
+  const periodMonths = MONTHS_PER_UNIT[unit]
+  const currentPeriodStartMonth = Math.floor(today.getMonth() / periodMonths) * periodMonths
+  const currentPeriodStart = new Date(today.getFullYear(), currentPeriodStartMonth, 1)
+  const start = new Date(today.getFullYear(), currentPeriodStartMonth - amount * periodMonths, 1)
+  return { from: formatYmd(start), to: formatYmd(addDays(currentPeriodStart, -1)) }
+}
+
+/**
+ * Resolves a relative window to inclusive from/to dates based on its qualifier: the current
+ * period to date (this), the last N whole completed periods (last), or a rolling window of the
+ * last N periods ending today (past)
+ */
+export function getRelativeRangeInputDates(
+  amount: number,
+  unit: SavedInsightsRangeUnit,
+  qualifier: SavedInsightsRangeQualifier = 'past',
+): InsightsRangeInputDates {
+  const today = new Date()
+  if (qualifier === 'this') {
+    return getTrailingRangeInputDates(1, unit, today)
+  }
+  if (qualifier === 'last') {
+    return getCompleteRangeInputDates(amount, unit, today)
+  }
+  return getTrailingRangeInputDates(amount, unit, today)
+}
+
+/**
+ * Builds the human label for a relative window, for example "This quarter", "Last quarter", or
+ * "Past 6 months"
+ */
+export function getRelativeRangeLabel(
+  amount: number,
+  unit: SavedInsightsRangeUnit,
+  qualifier: SavedInsightsRangeQualifier = 'past',
+) {
+  if (qualifier === 'this') {
+    return `This ${unit}`
+  }
+  if (qualifier === 'last' && amount === 1) {
+    return `Last ${unit}`
+  }
   const unitLabel = amount === 1 ? unit : `${unit}s`
-  return `Last ${amount} ${unitLabel}`
+  const verb = qualifier === 'last' ? 'Last' : 'Past'
+  return `${verb} ${amount} ${unitLabel}`
 }
 
 /**

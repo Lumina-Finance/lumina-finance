@@ -469,6 +469,16 @@
     background: color-mix(in srgb, var(--app-text) 7%, transparent);
   }
 
+  /* This/Last/Past qualifier selector leading the custom builder, reusing the segmented styling */
+  .app-range-qualifier {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--app-text) 7%, transparent);
+  }
+
   .app-range-seg-option {
     appearance: none;
     min-width: 0;
