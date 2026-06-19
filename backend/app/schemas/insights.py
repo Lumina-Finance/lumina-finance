@@ -12,6 +12,9 @@ NetWorthGroupKind = Literal["asset", "debt"]
 InsightsComparisonPeriod = Literal["same_length", "previous_month", "previous_year"]
 SavedInsightsRangeUnit = Literal["day", "week", "month", "quarter", "year"]
 
+# this = current period to date, last = previous complete periods, past = rolling window
+SavedInsightsRangeQualifier = Literal["this", "last", "past"]
+
 # Guards a saved range against absurd look-backs while leaving room for any sensible window
 SAVED_INSIGHTS_RANGE_MAX_AMOUNT = 999
 
@@ -113,6 +116,7 @@ class SavedInsightsRangeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     amount: int = Field(ge=1, le=SAVED_INSIGHTS_RANGE_MAX_AMOUNT)
     unit: SavedInsightsRangeUnit
+    qualifier: SavedInsightsRangeQualifier = "past"
 
 
 class SavedInsightsRangeResponse(BaseModel):
@@ -122,6 +126,7 @@ class SavedInsightsRangeResponse(BaseModel):
     name: str
     amount: int
     unit: SavedInsightsRangeUnit
+    qualifier: SavedInsightsRangeQualifier
     created_at: datetime
 
     model_config = {"from_attributes": True}

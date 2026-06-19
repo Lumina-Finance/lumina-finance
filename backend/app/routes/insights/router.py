@@ -353,6 +353,7 @@ async def create_saved_range_route(
         name=data.name,
         amount=data.amount,
         unit=data.unit,
+        qualifier=data.qualifier,
     )
     db.add(saved_range)
 

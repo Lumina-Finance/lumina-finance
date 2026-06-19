@@ -35,8 +35,36 @@ async def test_create_saved_range_returns_payload(client):
     assert data["name"] == "Half-year review"
     assert data["amount"] == 6
     assert data["unit"] == "month"
+    assert data["qualifier"] == "past"
     assert "id" in data
     assert "created_at" in data
+
+
+async def test_create_saved_range_stores_qualifier(client):
+    """Saving a previous-complete range echoes the chosen qualifier back."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await client.post(
+        "/insights/saved-ranges",
+        json={"name": "Last quarter", "amount": 1, "unit": "quarter", "qualifier": "last"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["qualifier"] == "last"
+
+
+async def test_create_saved_range_rejects_unknown_qualifier(client):
+    """An unsupported qualifier is rejected before reaching the database."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await client.post(
+        "/insights/saved-ranges",
+        json={"name": "Rolling", "amount": 1, "unit": "quarter", "qualifier": "rolling"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
 
 
 async def test_list_saved_ranges_returns_newest_first(client):
