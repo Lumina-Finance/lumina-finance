@@ -60,4 +60,6 @@ export const INITIAL_TRANSACTION_FORM: TransactionFormValues = {
   notes: '',
   date: '',
   tag_ids: [],
+  symmetric_transfer: false,
+  to_account_id: '',
 }

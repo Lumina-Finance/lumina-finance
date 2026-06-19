@@ -31,6 +31,34 @@ export function buildCreateTransactionPayload(
 }
 
 /**
+ * Builds the originating and receiving payloads for a symmetric transfer
+ *
+ * The originating account is debited and the receiving account is credited the same magnitude.
+ * Both legs share every other field so they read as the same movement in two accounts. The two
+ * rows stay independent on the backend, matching how the app already records transfers.
+ */
+export function buildSymmetricTransferPayloads(
+  form: TransactionFormValues,
+  selectedCurrencyExponent: number,
+): [CreateTransactionPayload, CreateTransactionPayload] {
+  const magnitude = amountInputToMinorUnits(form.amount, selectedCurrencyExponent) ?? 0
+  const shared = {
+    dt: form.date,
+    category_id: form.category_id,
+    merchant_id: form.merchant_id,
+    currency: form.currency,
+    notes: form.notes.trim() || null,
+  }
+  const fromPayload: CreateTransactionPayload = { account_id: form.account_id, amount: -magnitude, ...shared }
+  const toPayload: CreateTransactionPayload = { account_id: form.to_account_id, amount: magnitude, ...shared }
+  if (form.tag_ids.length > 0) {
+    fromPayload.tag_ids = form.tag_ids
+    toPayload.tag_ids = form.tag_ids
+  }
+  return [fromPayload, toPayload]
+}
+
+/**
  * Builds a minimal update patch so unchanged transaction fields are not sent back to the API
  */
 export function buildUpdateTransactionPatch(

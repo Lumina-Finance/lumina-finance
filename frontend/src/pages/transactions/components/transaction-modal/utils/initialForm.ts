@@ -55,5 +55,7 @@ export function buildInitialTransactionForm({
     notes: transaction.notes ?? '',
     date: transaction.dt,
     tag_ids: transaction.tags?.map((tag) => tag.id) ?? transaction.tag_ids,
+    symmetric_transfer: false,
+    to_account_id: '',
   }
 }

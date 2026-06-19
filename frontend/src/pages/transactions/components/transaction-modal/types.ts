@@ -15,6 +15,12 @@ export interface TransactionFormValues {
   notes: string
   date: string
   tag_ids: string[]
+
+  // When set on a transfer, the same amount is recorded in both accounts as two independent rows
+  symmetric_transfer: boolean
+
+  // The receiving account for a symmetric transfer, debited from account_id and credited here
+  to_account_id: string
 }
 
 export interface TransactionFormFieldErrors {
@@ -24,6 +30,7 @@ export interface TransactionFormFieldErrors {
   amount?: string
   currency?: string
   date?: string
+  to_account_id?: string
 }
 
 export interface CreateTransactionModalProps {
