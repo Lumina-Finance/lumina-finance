@@ -1,9 +1,13 @@
 import { useState, type FormEvent } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { BookmarkPlus, X } from 'lucide-react'
 import type { SavedInsightsRange } from '@/api/insights'
 import { getRelativeRangeLabel } from '../utils/range'
 
 const SAVED_RANGE_NAME_MAX_LENGTH = 64
+
+// Matches the range pill's settle so a saved row eases in and collapses out in the same feel
+const savedRangeSpring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
 
 type SavedRangesProps = {
   savedRanges: SavedInsightsRange[]
@@ -24,8 +28,10 @@ export function SavedRanges({
   const [name, setName] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const shouldReduceMotion = useReducedMotion()
 
   const trimmedName = name.trim()
+  const rowTransition = shouldReduceMotion ? { duration: 0 } : savedRangeSpring
 
   /**
    * Saves the active relative window under the entered name, surfacing duplicate names
@@ -78,34 +84,43 @@ export function SavedRanges({
         </button>
       </form>
 
-      {savedRanges.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1">
+      <ul className={savedRanges.length > 0 ? 'mt-2' : ''}>
+        <AnimatePresence initial={false}>
           {savedRanges.map((range) => (
-            <li key={range.id} className="flex items-center gap-1">
-              <button
-                type="button"
-                className="app-card flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm"
-                onClick={() => onApplySavedRange(range)}
-                title={`Apply ${range.name}`}
+              <motion.li
+                key={range.id}
+                initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                transition={rowTransition}
+                style={{ overflow: 'hidden' }}
               >
-                <span className="min-w-0 truncate font-medium">{range.name}</span>
-                <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  {getRelativeRangeLabel(range.amount, range.unit)}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="app-icon-button h-8 w-8 shrink-0"
-                onClick={() => onDeleteSavedRange(range.id)}
-                title={`Delete ${range.name}`}
-                aria-label={`Delete ${range.name}`}
-              >
-                <X size={15} aria-hidden />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+                <div className="flex items-center gap-1 pb-1">
+                  <button
+                    type="button"
+                    className="app-card flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm"
+                    onClick={() => onApplySavedRange(range)}
+                    title={`Apply ${range.name}`}
+                  >
+                    <span className="min-w-0 truncate font-medium">{range.name}</span>
+                    <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                      {getRelativeRangeLabel(range.amount, range.unit)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="app-icon-button h-8 w-8 shrink-0"
+                    onClick={() => onDeleteSavedRange(range.id)}
+                    title={`Delete ${range.name}`}
+                    aria-label={`Delete ${range.name}`}
+                  >
+                    <X size={15} aria-hidden />
+                  </button>
+                </div>
+              </motion.li>
+            ))}
+        </AnimatePresence>
+      </ul>
     </div>
   )
 }
