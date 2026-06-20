@@ -286,9 +286,9 @@ function FacetCountBadge({ count }: { count: number }) {
 }
 
 /**
- * Renders one labelled date field with an overlaid calendar glyph, syncing the value back on the
- * native change event so the iOS picker's Clear button, which never fires the input event React
- * binds onChange to, still empties the field
+ * Renders one labelled date field with an overlaid calendar glyph. The iOS picker's Clear button
+ * empties the value without firing any input or change event, so the value is also synced on blur
+ * when the picker dismisses, which is the one signal that fires after a clear
  */
 function DateFacetInput({
   label,
@@ -300,7 +300,7 @@ function DateFacetInput({
   onValueChange: (value: string) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  // Holds the latest callback so the native listener stays bound once while still seeing fresh state
+  // Holds the latest callback so the native listeners stay bound once while still seeing fresh state
   const onValueChangeRef = useRef(onValueChange)
 
   useEffect(() => {
@@ -313,7 +313,11 @@ function DateFacetInput({
 
     const syncValue = () => onValueChangeRef.current(input.value)
     input.addEventListener('change', syncValue)
-    return () => input.removeEventListener('change', syncValue)
+    input.addEventListener('blur', syncValue)
+    return () => {
+      input.removeEventListener('change', syncValue)
+      input.removeEventListener('blur', syncValue)
+    }
   }, [])
 
   return (
