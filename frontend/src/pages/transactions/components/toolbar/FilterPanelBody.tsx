@@ -764,7 +764,7 @@ function ActiveFilterSummary({
 
   return (
     <div
-      className="mt-3 flex min-h-[1.5rem] flex-wrap items-center gap-1.5 border-t pt-2.5"
+      className="mt-3 flex min-h-[1.5rem] flex-wrap items-center gap-1.5 border-t px-0.5 pt-2.5"
       style={{ borderColor: 'var(--app-input-border)' }}
     >
       <AnimatePresence mode="popLayout" initial={false}>
