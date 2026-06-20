@@ -1,9 +1,13 @@
 import { useCallback, useState } from 'react'
+import { useQueries } from '@tanstack/react-query'
 import { Bookmark, Calendar, Coins, Store, Tag, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { useAccounts } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
+import { fetchMerchant } from '@/api/merchants'
+import { fetchTag } from '@/api/tags'
+import { merchantKeys, tagKeys } from '@/api/cache/queryKeys'
 import { useAuth } from '@/hooks/useAuth'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
@@ -74,9 +78,39 @@ export function useTransactionFilterDraft({
   const [referenceLabels, setReferenceLabels] = useState<Record<string, string>>({})
   const [amount, setAmount] = useState<AmountDraft>({ min: '', max: '' })
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
-  const { user } = useAuth()
+  const { user, accessToken } = useAuth()
   const { data: currencies = [] } = useCurrencies()
   const { data: accounts = [] } = useAccounts()
+
+  // Merchant and tag names are only cached for the session they are picked in, so reopening the
+  // panel after that cache is gone would render their raw ids. Their names are refetched by id and
+  // merged over the session labels so the chips and pinned rows stay readable
+  const merchantDetailQueries = useQueries({
+    queries: selections.merchants.map((merchantId) => ({
+      queryKey: merchantKeys.detail(merchantId),
+      queryFn: () => fetchMerchant(merchantId),
+      enabled: !!accessToken,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    })),
+  })
+  const tagDetailQueries = useQueries({
+    queries: selections.tags.map((tagId) => ({
+      queryKey: tagKeys.detail(tagId),
+      queryFn: () => fetchTag(tagId),
+      enabled: !!accessToken,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    })),
+  })
+
+  const resolvedReferenceLabels: Record<string, string> = { ...referenceLabels }
+  merchantDetailQueries.forEach((query, index) => {
+    if (query.data) resolvedReferenceLabels[selections.merchants[index]] = query.data.name
+  })
+  tagDetailQueries.forEach((query, index) => {
+    if (query.data) resolvedReferenceLabels[selections.tags[index]] = query.data.name
+  })
 
   // The currency filter offers the currencies the user's accounts actually use rather than every
   // ISO currency, and only one can be applied at a time
@@ -214,7 +248,7 @@ export function useTransactionFilterDraft({
   return {
     selections,
     tagMatch,
-    referenceLabels,
+    referenceLabels: resolvedReferenceLabels,
     amount,
     dateRange,
     activeFacetCount,
