@@ -15,6 +15,20 @@ import {
 } from '@/pages/transactions/utils/filterOptions'
 
 /**
+ * Builds a label for a multi-select filter: the single chosen name, or a count once several are
+ * selected, or null when nothing is selected
+ */
+function describeSelection(
+  ids: string[] | undefined,
+  lookupName: (id: string) => string | undefined,
+  noun: string,
+): string | null {
+  if (!ids || ids.length === 0) return null
+  if (ids.length === 1) return lookupName(ids[0]) ?? null
+  return `${ids.length} ${noun}`
+}
+
+/**
  * Orchestrates transaction list search, filters, and responsive toolbar layout
  */
 export default function TransactionListToolbar({
@@ -50,8 +64,16 @@ export default function TransactionListToolbar({
     () => getCategoryOptions(categories),
     [categories],
   )
-  const selectedAccountLabel = accounts?.find((account) => account.id === filters.account_id)?.name ?? null
-  const selectedCategoryLabel = categories?.find((category) => category.id === filters.category_id)?.name ?? null
+  const selectedAccountLabel = describeSelection(
+    filters.account_id,
+    (id) => accounts?.find((account) => account.id === id)?.name,
+    'accounts',
+  )
+  const selectedCategoryLabel = describeSelection(
+    filters.category_id,
+    (id) => categories?.find((category) => category.id === id)?.name,
+    'categories',
+  )
   const selectedDateLabel = formatDateRangeLabel(filters.from_date, filters.to_date)
   const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 

@@ -93,17 +93,19 @@ export default function TransactionsPage() {
     () => formatOverviewRangeLabel(overviewFromDate, overviewToDate),
     [overviewFromDate, overviewToDate],
   )
-  // Overview supports account and date filters while category filtering remains list-only
+  // The overview supports a single account and the date range, so it scopes to the chosen account
+  // only when exactly one is selected and otherwise spans every account
+  const overviewAccountId = filters.account_id?.length === 1 ? filters.account_id[0] : undefined
   const { data: overview, isFetching: isOverviewFetching } = useTransactionsOverview({
-    account_id: filters.account_id,
+    account_id: overviewAccountId,
     from_date: overviewFromDate,
     to_date: overviewToDate,
   })
 
   // Chart remounts preserve the pre-refactor animation timing when filters change
   const chartAnimationKey = [
-    filters.account_id ?? 'all-accounts',
-    filters.category_id ?? 'all-categories',
+    filters.account_id?.join(',') || 'all-accounts',
+    filters.category_id?.join(',') || 'all-categories',
     overviewFromDate,
     overviewToDate,
   ].join('|')

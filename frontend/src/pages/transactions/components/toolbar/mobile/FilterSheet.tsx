@@ -134,11 +134,11 @@ export function MobileTransactionFilterSheet({
                 <MobileFilterSection
                   title="Account"
                   options={accountOptions}
-                  selectedValue={filters.account_id}
+                  selectedValue={filters.account_id?.[0]}
                   selectedLabel={selectedAccountLabel}
                   searchPlaceholder="Search accounts..."
                   allLabel="All accounts"
-                  onSelect={(value) => setFilter({ account_id: value })}
+                  onSelect={(value) => setFilter({ account_id: value ? [value] : undefined })}
                   onClear={() => setFilter({ account_id: undefined })}
                   selectFirstSearchResultOnEnter
                 />
@@ -146,11 +146,11 @@ export function MobileTransactionFilterSheet({
               <MobileFilterSection
                 title="Category"
                 options={categoryOptions}
-                selectedValue={filters.category_id}
+                selectedValue={filters.category_id?.[0]}
                 selectedLabel={selectedCategoryLabel}
                 searchPlaceholder="Search categories..."
                 allLabel="All categories"
-                onSelect={(value) => setFilter({ category_id: value })}
+                onSelect={(value) => setFilter({ category_id: value ? [value] : undefined })}
                 onClear={() => setFilter({ category_id: undefined })}
                 selectFirstSearchResultOnEnter
               />

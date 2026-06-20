@@ -65,10 +65,18 @@ export interface TransactionsOverview {
 }
 
 export interface TransactionFilters {
-  account_id?: string;
-  category_id?: string;
-  merchant_id?: string;
+  // Repeated query keys, each matching any of the selected values
+  account_id?: string[];
+  category_id?: string[];
+  merchant_id?: string[];
+  tag_id?: string[];
+  // ``all`` requires every selected tag, ``any`` requires at least one
+  tag_match?: 'all' | 'any';
   currency?: string;
+  // Amount bounds in ``amount_currency`` minor units, matched as a magnitude
+  min_amount?: number;
+  max_amount?: number;
+  amount_currency?: string;
   from_date?: string;
   to_date?: string;
   q?: string;

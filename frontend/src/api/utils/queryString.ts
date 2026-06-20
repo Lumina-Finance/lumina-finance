@@ -1,17 +1,23 @@
-export type QueryStringValue = string | number | boolean | null | undefined;
+export type QueryStringValue = string | number | boolean | null | undefined | string[];
 
 /**
- * Builds a URL query suffix from optional API parameters
+ * Builds a URL query suffix from optional API parameters, emitting one repeated key per item for
+ * array values so multi-value filters reach the backend as a list rather than a joined string
  */
 export function buildQueryString(params: Record<string, QueryStringValue>): string {
-  const entries = Object.entries(params).filter(
-    (entry): entry is [string, string | number | boolean] => {
-      const value = entry[1];
-      return value !== undefined && value !== null && value !== '';
-    },
-  );
+  const search = new URLSearchParams();
 
-  if (entries.length === 0) return '';
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== '') search.append(key, item);
+      }
+      continue;
+    }
+    search.append(key, String(value));
+  }
 
-  return `?${new URLSearchParams(entries.map(([key, value]) => [key, String(value)])).toString()}`;
+  const query = search.toString();
+  return query ? `?${query}` : '';
 }
