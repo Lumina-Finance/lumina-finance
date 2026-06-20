@@ -11,6 +11,7 @@ type DesktopTransactionToolbarControlsProps = TransactionToolbarOptions & {
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
   showAccountFilter: boolean
+  lockedCurrency?: string
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
   controlsRef: RefObject<HTMLDivElement | null>
@@ -28,6 +29,7 @@ export function DesktopTransactionToolbarControls({
   filters,
   setFilter,
   showAccountFilter,
+  lockedCurrency,
   accountOptions,
   categoryOptions,
   desktopInlineLayout,
@@ -54,6 +56,7 @@ export function DesktopTransactionToolbarControls({
           filters={filters}
           setFilter={setFilter}
           showAccountFilter={showAccountFilter}
+          lockedCurrency={lockedCurrency}
         />
       </div>
 

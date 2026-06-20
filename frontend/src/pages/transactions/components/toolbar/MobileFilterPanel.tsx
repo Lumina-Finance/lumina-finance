@@ -35,6 +35,8 @@ type MobileFilterPanelProps = {
   setFilter: TransactionFilterSetter
   // False on an account's own transaction list, where the account facet is disabled
   showAccountFilter: boolean
+  // The account's currency on its own transaction list, which pins the amount currency
+  lockedCurrency?: string
 }
 
 /**
@@ -51,12 +53,13 @@ export function MobileFilterPanel({
   filters,
   setFilter,
   showAccountFilter,
+  lockedCurrency,
 }: MobileFilterPanelProps) {
   // The full-screen modal covers the page, so the page-content dim is left off to keep the glass
   // toolbar from breaking and because nothing behind the modal is visible anyway
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, dimPageContent: false, lockScroll: false })
   const shouldReduceMotion = useReducedMotion()
-  const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, showAccountFilter, onClose })
+  const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, showAccountFilter, lockedCurrency, onClose })
   const { activeFacetCount, seedDraftFromFilters } = draft
 
   // Seed the draft only on the rising edge of opening, so an async data load or a re-render never

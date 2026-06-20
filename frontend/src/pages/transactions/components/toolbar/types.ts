@@ -14,6 +14,8 @@ export type TransactionListToolbarProps = {
   categories?: Category[]
   accounts?: TransactionListAccount[]
   showAccountFilter: boolean
+  // The account's currency on its own transaction list, which pins the amount currency
+  lockedCurrency?: string
   onCreateTransaction: () => void
   createDisabled?: boolean
   createDisabledReason?: string

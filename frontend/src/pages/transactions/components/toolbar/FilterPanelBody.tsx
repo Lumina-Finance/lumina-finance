@@ -135,7 +135,8 @@ export function FilterPanelBody({
               amountSymbol={draft.amountSymbol}
               amountCurrencyNote={draft.amountCurrencyNote}
               currencyOptions={draft.getFacetOptions('currency')}
-              currencyValue={draft.selections.currency[0] ?? ''}
+              currencyValue={draft.currencyLocked ? draft.amountCurrency : draft.selections.currency[0] ?? ''}
+              currencyLocked={draft.currencyLocked}
               dateRange={draft.dateRange}
               fillHeight={fillHeight}
               onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
@@ -374,6 +375,8 @@ type FacetEditorProps = {
   // The currency the amount range matches, chosen inside the amount section
   currencyOptions: OptionItem[]
   currencyValue: string
+  // True on an account's own list, where the currency is pinned to the account and cannot be changed
+  currencyLocked: boolean
   dateRange: { from: string; to: string }
   fillHeight: boolean
   onToggle: (value: string, label?: string) => void
@@ -398,6 +401,7 @@ function FacetEditor({
   amountCurrencyNote,
   currencyOptions,
   currencyValue,
+  currencyLocked,
   dateRange,
   fillHeight,
   onToggle,
@@ -409,31 +413,41 @@ function FacetEditor({
   if (facet.kind === 'amount') {
     return (
       <div className="flex flex-col gap-3">
-        {currencyOptions.length > 0 && (
+        {(currencyLocked || currencyOptions.length > 0) && (
           <div className="flex flex-col gap-1.5">
             <span className="px-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
               Currency
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {currencyOptions.map((option) => {
-                const isSelected = option.value === currencyValue
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={isSelected}
-                    className="rounded-full border px-3 py-1 text-sm transition-colors"
-                    style={
-                      isSelected
-                        ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
-                        : { borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }
-                    }
-                    onClick={() => onCurrencyToggle(option.value)}
-                  >
-                    {option.label}
-                  </button>
-                )
-              })}
+              {currencyLocked ? (
+                <span
+                  aria-disabled
+                  className="rounded-full border px-3 py-1 text-sm"
+                  style={{ background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500, opacity: 0.55, cursor: 'not-allowed' }}
+                >
+                  {currencyValue}
+                </span>
+              ) : (
+                currencyOptions.map((option) => {
+                  const isSelected = option.value === currencyValue
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={isSelected}
+                      className="rounded-full border px-3 py-1 text-sm transition-colors"
+                      style={
+                        isSelected
+                          ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
+                          : { borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }
+                      }
+                      onClick={() => onCurrencyToggle(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })
+              )}
             </div>
           </div>
         )}

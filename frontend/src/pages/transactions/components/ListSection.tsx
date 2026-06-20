@@ -156,6 +156,7 @@ export default function TransactionListSection({
         categories={categories}
         accounts={accounts}
         showAccountFilter={!fixedAccount}
+        lockedCurrency={fixedAccount?.currency}
         onCreateTransaction={onCreateTransaction}
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}

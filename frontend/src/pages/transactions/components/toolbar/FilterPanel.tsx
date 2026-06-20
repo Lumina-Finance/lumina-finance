@@ -37,6 +37,8 @@ type TransactionFilterPanelProps = {
   setFilter: TransactionFilterSetter
   // False on an account's own transaction list, where the account facet is disabled
   showAccountFilter: boolean
+  // The account's currency on its own transaction list, which pins the amount currency
+  lockedCurrency?: string
 }
 
 /**
@@ -49,6 +51,7 @@ export function TransactionFilterPanel({
   filters,
   setFilter,
   showAccountFilter,
+  lockedCurrency,
 }: TransactionFilterPanelProps) {
   const [open, setOpen] = useState(false)
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
@@ -65,6 +68,7 @@ export function TransactionFilterPanel({
     accountOptions,
     categoryOptions,
     showAccountFilter,
+    lockedCurrency,
     onClose: () => setOpen(false),
   })
   const { activeFacetCount, seedDraftFromFilters } = draft

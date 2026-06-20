@@ -57,6 +57,9 @@ type UseTransactionFilterDraftArgs = {
   // False on an account's own transaction list, where the account scope is fixed, so the account
   // facet is not seeded and reads as an applied filter
   showAccountFilter: boolean
+  // The account's currency on its own transaction list, which pins the amount currency without
+  // counting as an applied currency filter
+  lockedCurrency?: string
   // Called after Apply or Clear so each presentation can close its own surface
   onClose: () => void
 }
@@ -73,6 +76,7 @@ export function useTransactionFilterDraft({
   accountOptions,
   categoryOptions,
   showAccountFilter,
+  lockedCurrency,
   onClose,
 }: UseTransactionFilterDraftArgs) {
   const [selections, setSelections] = useState<MultiSelections>(EMPTY_SELECTIONS)
@@ -122,13 +126,17 @@ export function useTransactionFilterDraft({
   const currencyOptions: OptionItem[] = accountCurrencyCodes.map((code) => ({ value: code, label: code }))
   const baseCurrency = user?.base_currency ?? ''
 
-  // The amount range matches within one currency: the selected currency filter, or the base
-  // currency when none is chosen, so the user never picks a currency twice
-  const amountCurrency = selections.currency[0] ?? baseCurrency
+  // The amount range matches within one currency: the account's currency when the list is locked to
+  // one account, otherwise the selected currency filter, falling back to the base currency, so the
+  // user never picks a currency twice
+  const currencyLocked = Boolean(lockedCurrency)
+  const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
   const amountSymbol = currencies.find((currency) => currency.id === amountCurrency)?.symbol ?? ''
-  const amountCurrencyNote = selections.currency[0]
-    ? `Amounts are matched in ${amountCurrency}, from the currency filter`
-    : `Amounts are matched in ${amountCurrency}, your base currency`
+  const amountCurrencyNote = currencyLocked
+    ? `Amounts are matched in ${amountCurrency}, this account's currency`
+    : selections.currency[0]
+      ? `Amounts are matched in ${amountCurrency}, from the currency filter`
+      : `Amounts are matched in ${amountCurrency}, your base currency`
 
   /**
    * Counts the live selections on a facet so its tab can show a badge and the pill can show a total
@@ -170,7 +178,9 @@ export function useTransactionFilterDraft({
       categories: filters.category_id ?? [],
       merchants: filters.merchant_id ?? [],
       tags: filters.tag_id ?? [],
-      currency: filters.currency ? [filters.currency] : [],
+      // The locked account currency pins the amount range but is not a user-applied currency filter,
+      // so it stays out of the draft to keep the amount badge and the clear control quiet
+      currency: currencyLocked ? [] : filters.currency ? [filters.currency] : [],
     })
     setTagMatch(filters.tag_match ?? 'all')
     setDateRange({ from: filters.from_date ?? '', to: filters.to_date ?? '' })
@@ -178,7 +188,7 @@ export function useTransactionFilterDraft({
     const exponent = currencies.find((currency) => currency.id === filters.amount_currency)?.minor_unit_exponent ?? 2
     const toInput = (value?: number) => (value === undefined ? '' : String(value / 10 ** exponent))
     setAmount({ min: toInput(filters.min_amount), max: toInput(filters.max_amount) })
-  }, [filters, currencies, showAccountFilter])
+  }, [filters, currencies, showAccountFilter, currencyLocked])
 
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets
@@ -258,8 +268,10 @@ export function useTransactionFilterDraft({
     amount,
     dateRange,
     activeFacetCount,
+    amountCurrency,
     amountSymbol,
     amountCurrencyNote,
+    currencyLocked,
     getFacetOptions,
     countFacet,
     toggleSelection,

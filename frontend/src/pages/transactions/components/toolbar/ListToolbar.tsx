@@ -25,6 +25,7 @@ export default function TransactionListToolbar({
   categories,
   accounts,
   showAccountFilter,
+  lockedCurrency,
   onCreateTransaction,
   createDisabled = false,
   createDisabledReason,
@@ -95,6 +96,7 @@ export default function TransactionListToolbar({
           filters={filters}
           setFilter={setFilter}
           showAccountFilter={showAccountFilter}
+          lockedCurrency={lockedCurrency}
           accountOptions={accountOptions}
           categoryOptions={categoryOptions}
           desktopInlineLayout={desktopInlineLayout}
@@ -120,6 +122,7 @@ export default function TransactionListToolbar({
           filters={filters}
           setFilter={setFilter}
           showAccountFilter={showAccountFilter}
+          lockedCurrency={lockedCurrency}
         />
       )}
     </>
