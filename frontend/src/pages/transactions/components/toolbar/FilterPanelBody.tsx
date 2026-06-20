@@ -97,25 +97,36 @@ export function FilterPanelBody({
         transition={transition}
         className={joinClassNames('mt-3', mobile && 'flex min-h-0 flex-1 flex-col')}
       >
-        <FacetEditor
-          facet={activeFacet}
-          options={draft.getFacetOptions(activeFacet.id)}
-          selectedValues={draft.selections[activeFacet.id] ?? []}
-          referenceLabels={draft.referenceLabels}
-          tagMatch={draft.tagMatch}
-          amount={draft.amount}
-          amountSymbol={draft.amountSymbol}
-          amountCurrencyNote={draft.amountCurrencyNote}
-          currencyOptions={draft.getFacetOptions('currency')}
-          currencyValue={draft.selections.currency[0] ?? ''}
-          dateRange={draft.dateRange}
-          fillHeight={mobile}
-          onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
-          onCurrencyToggle={(value) => draft.toggleSelection('currency', value)}
-          onTagMatchChange={draft.setTagMatch}
-          onAmountChange={draft.setAmount}
-          onDateRangeChange={draft.setDateRange}
-        />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeFacet.id}
+            className={mobile ? 'flex min-h-0 flex-1 flex-col' : undefined}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+          >
+            <FacetEditor
+              facet={activeFacet}
+              options={draft.getFacetOptions(activeFacet.id)}
+              selectedValues={draft.selections[activeFacet.id] ?? []}
+              referenceLabels={draft.referenceLabels}
+              tagMatch={draft.tagMatch}
+              amount={draft.amount}
+              amountSymbol={draft.amountSymbol}
+              amountCurrencyNote={draft.amountCurrencyNote}
+              currencyOptions={draft.getFacetOptions('currency')}
+              currencyValue={draft.selections.currency[0] ?? ''}
+              dateRange={draft.dateRange}
+              fillHeight={mobile}
+              onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
+              onCurrencyToggle={(value) => draft.toggleSelection('currency', value)}
+              onTagMatchChange={draft.setTagMatch}
+              onAmountChange={draft.setAmount}
+              onDateRangeChange={draft.setDateRange}
+            />
+          </motion.div>
+        </AnimatePresence>
       </motion.div>
 
       <motion.div layout={blockLayout} transition={transition}>
