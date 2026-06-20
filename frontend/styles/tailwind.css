@@ -757,6 +757,39 @@
     box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
   }
 
+  /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
+  .app-glass-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
+    font-size: 0.9375rem;
+    color: var(--app-text-muted);
+    border: 1px solid var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
+  }
+
+  .app-glass-button:hover {
+    color: var(--app-text);
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+  }
+
+  .app-glass-button:active {
+    transform: translateY(1px);
+  }
+
+  .app-glass-button:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .app-glass-button:focus-visible {
+    outline: none;
+    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
+  }
+
   .app-primary-button-loading {
     width: 40px;
     height: 40px;

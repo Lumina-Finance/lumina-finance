@@ -72,9 +72,11 @@ export function MobileFilterPanel({
             aria-label="Transaction filters"
             className="absolute inset-x-0 bottom-0 flex max-h-[86dvh] flex-col overflow-hidden rounded-t-2xl border-t"
             style={{
-              background: 'var(--app-bg)',
-              borderColor: 'var(--app-border)',
-              boxShadow: '0 -18px 44px color-mix(in srgb, var(--app-text) 16%, transparent)',
+              background: 'color-mix(in srgb, var(--app-input-bg) 72%, transparent)',
+              backdropFilter: 'blur(24px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+              borderColor: 'var(--app-border-strong)',
+              boxShadow: '0 -18px 44px color-mix(in srgb, var(--app-text) 16%, transparent), inset 0 1px 0 color-mix(in srgb, white 32%, transparent)',
             }}
             initial={sheetInitial}
             animate={sheetAnimate}
