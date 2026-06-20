@@ -33,6 +33,8 @@ type MobileFilterPanelProps = {
   categoryOptions: OptionItem[]
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
+  // False on an account's own transaction list, where the account facet is disabled
+  showAccountFilter: boolean
 }
 
 /**
@@ -48,12 +50,13 @@ export function MobileFilterPanel({
   categoryOptions,
   filters,
   setFilter,
+  showAccountFilter,
 }: MobileFilterPanelProps) {
   // The full-screen modal covers the page, so the page-content dim is left off to keep the glass
   // toolbar from breaking and because nothing behind the modal is visible anyway
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, dimPageContent: false, lockScroll: false })
   const shouldReduceMotion = useReducedMotion()
-  const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, onClose })
+  const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, showAccountFilter, onClose })
   const { activeFacetCount, seedDraftFromFilters } = draft
 
   // Seed the draft only on the rising edge of opening, so an async data load or a re-render never
@@ -146,7 +149,7 @@ export function MobileFilterPanel({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
-            <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight />
+            <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight showAccountFilter={showAccountFilter} />
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>

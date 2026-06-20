@@ -94,6 +94,7 @@ export default function TransactionListToolbar({
         <DesktopTransactionToolbarControls
           filters={filters}
           setFilter={setFilter}
+          showAccountFilter={showAccountFilter}
           accountOptions={accountOptions}
           categoryOptions={categoryOptions}
           desktopInlineLayout={desktopInlineLayout}
@@ -118,6 +119,7 @@ export default function TransactionListToolbar({
           categoryOptions={categoryOptions}
           filters={filters}
           setFilter={setFilter}
+          showAccountFilter={showAccountFilter}
         />
       )}
     </>

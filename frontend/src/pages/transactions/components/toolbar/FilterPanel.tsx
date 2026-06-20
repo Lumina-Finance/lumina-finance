@@ -35,6 +35,8 @@ type TransactionFilterPanelProps = {
   categoryOptions: OptionItem[]
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
+  // False on an account's own transaction list, where the account facet is disabled
+  showAccountFilter: boolean
 }
 
 /**
@@ -46,6 +48,7 @@ export function TransactionFilterPanel({
   categoryOptions,
   filters,
   setFilter,
+  showAccountFilter,
 }: TransactionFilterPanelProps) {
   const [open, setOpen] = useState(false)
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
@@ -61,6 +64,7 @@ export function TransactionFilterPanel({
     setFilter,
     accountOptions,
     categoryOptions,
+    showAccountFilter,
     onClose: () => setOpen(false),
   })
   const { activeFacetCount, seedDraftFromFilters } = draft
@@ -210,7 +214,7 @@ export function TransactionFilterPanel({
           transition={transition}
         >
           <div className="flex flex-col" style={{ height: openContentHeight, padding: '0 12px 12px' }}>
-            <FilterPanelBody draft={draft} fillHeight />
+            <FilterPanelBody draft={draft} fillHeight showAccountFilter={showAccountFilter} />
           </div>
         </motion.div>
       </motion.div>

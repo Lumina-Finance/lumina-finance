@@ -14,6 +14,12 @@ import {
   type TransactionFilterDraft,
 } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
 
+// Stable empty set so the common, account-enabled case never rebuilds a set on each render
+const NO_DISABLED_FACETS = new Set<string>()
+
+// The account facet is disabled on an account's own transaction list, where the scope is fixed
+const ACCOUNT_DISABLED_FACETS = new Set(['accounts'])
+
 /**
  * Renders the shared filter panel body: the facet tabs, the active facet editor, the removable
  * active-filter chips, and the apply and clear actions, driven by the shared draft
@@ -23,6 +29,7 @@ export function FilterPanelBody({
   showFooter = true,
   mobile = false,
   fillHeight = false,
+  showAccountFilter = true,
 }: {
   draft: TransactionFilterDraft
   showFooter?: boolean
@@ -31,8 +38,14 @@ export function FilterPanelBody({
   // Lets the facet editor grow to fill its container with the option list scrolling internally,
   // used by the mobile sheet and the desktop panel once the panel opens to a fixed height
   fillHeight?: boolean
+  // False on an account's own transaction list, where the account facet is disabled because the
+  // account scope is already fixed
+  showAccountFilter?: boolean
 }) {
-  const [activeFacetId, setActiveFacetId] = useState('accounts')
+  const disabledFacetIds = showAccountFilter ? NO_DISABLED_FACETS : ACCOUNT_DISABLED_FACETS
+  const [activeFacetId, setActiveFacetId] = useState(
+    () => FILTER_FACETS.find((facet) => !disabledFacetIds.has(facet.id))?.id ?? FILTER_FACETS[0].id,
+  )
   // Scopes the sliding-thumb layout animation to this instance
   const segId = useId()
   const shouldReduceMotion = useReducedMotion()
@@ -50,6 +63,7 @@ export function FilterPanelBody({
         <MobileFacetSelect
           activeFacetId={activeFacetId}
           countFacet={draft.countFacet}
+          disabledFacetIds={disabledFacetIds}
           onSelect={setActiveFacetId}
         />
       ) : (
@@ -64,14 +78,16 @@ export function FilterPanelBody({
             const FacetIcon = facet.icon
             const facetCount = draft.countFacet(facet)
             const isActive = facet.id === activeFacetId
+            const isDisabled = disabledFacetIds.has(facet.id)
             return (
               <button
                 key={facet.id}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                disabled={isDisabled}
                 className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, opacity: isDisabled ? 0.4 : 1, cursor: isDisabled ? 'not-allowed' : undefined }}
                 onClick={() => setActiveFacetId(facet.id)}
               >
                 {isActive && <motion.span layoutId={`${segId}-facet`} className="app-range-seg-thumb" transition={transition} />}
@@ -81,7 +97,7 @@ export function FilterPanelBody({
                 <span className="app-range-seg-label" style={{ fontSize: '0.625rem' }}>
                   {facet.label}
                 </span>
-                {facetCount > 0 && (
+                {!isDisabled && facetCount > 0 && (
                   <span
                     className="absolute flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-medium"
                     style={{ top: 2, right: 2, zIndex: 1, background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
@@ -175,15 +191,16 @@ export function FilterPanelBody({
 type MobileFacetSelectProps = {
   activeFacetId: string
   countFacet: (facet: FacetConfig) => number
+  disabledFacetIds: Set<string>
   onSelect: (facetId: string) => void
 }
 
 /**
- * Renders the facet picker as a dropdown for the mobile full-screen panel, where the seven-way tab
- * grid is too cramped. The menu keeps the per-facet active-filter counts so the user can still tell
- * which facets carry filters without opening each one
+ * Renders the facet picker as a dropdown for the mobile full-screen panel, where the facet tab grid
+ * is too cramped. The menu keeps the per-facet active-filter counts so the user can still tell which
+ * facets carry filters without opening each one, and greys out any facet that is disabled
  */
-function MobileFacetSelect({ activeFacetId, countFacet, onSelect }: MobileFacetSelectProps) {
+function MobileFacetSelect({ activeFacetId, countFacet, disabledFacetIds, onSelect }: MobileFacetSelectProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
@@ -245,21 +262,24 @@ function MobileFacetSelect({ activeFacetId, countFacet, onSelect }: MobileFacetS
               const FacetIcon = facet.icon
               const facetCount = countFacet(facet)
               const isActive = facet.id === activeFacetId
+              const isDisabled = disabledFacetIds.has(facet.id)
               return (
                 <li
                   key={facet.id}
                   role="option"
                   aria-selected={isActive}
-                  className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--app-surface-soft)]"
-                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400 }}
+                  aria-disabled={isDisabled}
+                  className={joinClassNames('flex items-center gap-2 px-4 py-2.5 text-sm transition-colors', isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-surface-soft)]')}
+                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400, opacity: isDisabled ? 0.4 : 1 }}
                   onClick={() => {
+                    if (isDisabled) return
                     onSelect(facet.id)
                     setOpen(false)
                   }}
                 >
                   <FacetIcon size={16} aria-hidden className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{facet.label}</span>
-                  {facetCount > 0 && <FacetCountBadge count={facetCount} />}
+                  {!isDisabled && facetCount > 0 && <FacetCountBadge count={facetCount} />}
                   {isActive && <Check size={15} aria-hidden className="shrink-0" />}
                 </li>
               )

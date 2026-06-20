@@ -54,6 +54,9 @@ type UseTransactionFilterDraftArgs = {
   setFilter: TransactionFilterSetter
   accountOptions: OptionItem[]
   categoryOptions: OptionItem[]
+  // False on an account's own transaction list, where the account scope is fixed, so the account
+  // facet is not seeded and reads as an applied filter
+  showAccountFilter: boolean
   // Called after Apply or Clear so each presentation can close its own surface
   onClose: () => void
 }
@@ -69,6 +72,7 @@ export function useTransactionFilterDraft({
   setFilter,
   accountOptions,
   categoryOptions,
+  showAccountFilter,
   onClose,
 }: UseTransactionFilterDraftArgs) {
   const [selections, setSelections] = useState<MultiSelections>(EMPTY_SELECTIONS)
@@ -160,7 +164,9 @@ export function useTransactionFilterDraft({
   const seedDraftFromFilters = useCallback(() => {
     setSelections({
       ...EMPTY_SELECTIONS,
-      accounts: filters.account_id ?? [],
+      // The fixed account scope is not a user-applied filter, so it is left out of the draft to keep
+      // the account facet empty rather than showing a count, badge, or chip
+      accounts: showAccountFilter ? filters.account_id ?? [] : [],
       categories: filters.category_id ?? [],
       merchants: filters.merchant_id ?? [],
       tags: filters.tag_id ?? [],
@@ -172,7 +178,7 @@ export function useTransactionFilterDraft({
     const exponent = currencies.find((currency) => currency.id === filters.amount_currency)?.minor_unit_exponent ?? 2
     const toInput = (value?: number) => (value === undefined ? '' : String(value / 10 ** exponent))
     setAmount({ min: toInput(filters.min_amount), max: toInput(filters.max_amount) })
-  }, [filters, currencies])
+  }, [filters, currencies, showAccountFilter])
 
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets

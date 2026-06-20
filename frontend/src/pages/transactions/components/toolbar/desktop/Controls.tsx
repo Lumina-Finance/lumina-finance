@@ -10,6 +10,7 @@ import type { TransactionListFilters } from '@/pages/transactions/types/transact
 type DesktopTransactionToolbarControlsProps = TransactionToolbarOptions & {
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
+  showAccountFilter: boolean
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
   controlsRef: RefObject<HTMLDivElement | null>
@@ -26,6 +27,7 @@ type DesktopTransactionToolbarControlsProps = TransactionToolbarOptions & {
 export function DesktopTransactionToolbarControls({
   filters,
   setFilter,
+  showAccountFilter,
   accountOptions,
   categoryOptions,
   desktopInlineLayout,
@@ -51,6 +53,7 @@ export function DesktopTransactionToolbarControls({
           categoryOptions={categoryOptions}
           filters={filters}
           setFilter={setFilter}
+          showAccountFilter={showAccountFilter}
         />
       </div>
 
