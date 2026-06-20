@@ -399,6 +399,18 @@
     color: var(--app-text-subtle);
   }
 
+  /* Clear control that replaces the chevron on the collapsed filter pill once filters are applied */
+  .app-range-glass-clear {
+    color: var(--app-text-subtle);
+    border-radius: 9999px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .app-range-glass-clear:hover {
+    color: var(--app-text);
+    background: color-mix(in srgb, var(--app-text) 8%, transparent);
+  }
+
   .app-range-glass-bodywrap {
     display: grid;
     grid-template-rows: 0fr;

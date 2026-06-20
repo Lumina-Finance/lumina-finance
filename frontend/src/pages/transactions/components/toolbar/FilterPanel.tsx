@@ -289,6 +289,9 @@ export function TransactionFilterPanel({
   }
 
   const activeFacet = FACETS.find((facet) => facet.id === activeFacetId) ?? FACETS[0]
+  // The collapsed pill swaps the chevron for a clear control once filters are applied, so the user
+  // can reset without opening the panel while the rest of the pill still opens it
+  const showClearButton = activeFacetCount > 0 && !open
 
   return (
     <div
@@ -325,15 +328,32 @@ export function TransactionFilterPanel({
               </span>
             )}
           </span>
-          <motion.span
-            className="app-range-glass-chev"
-            style={{ display: 'inline-flex' }}
-            animate={{ rotate: open ? 180 : 0 }}
-            transition={transition}
-          >
-            <ChevronDown size={16} aria-hidden />
-          </motion.span>
+          {!showClearButton && (
+            <motion.span
+              className="app-range-glass-chev"
+              style={{ display: 'inline-flex' }}
+              animate={{ rotate: open ? 180 : 0 }}
+              transition={transition}
+            >
+              <ChevronDown size={16} aria-hidden />
+            </motion.span>
+          )}
         </button>
+
+        {showClearButton && (
+          <button
+            type="button"
+            aria-label="Clear all filters"
+            className="app-range-glass-clear absolute inline-flex items-center justify-center"
+            style={{ top: 5, right: 8, height: 28, width: 28, zIndex: 2 }}
+            onClick={(event) => {
+              event.stopPropagation()
+              clearAll()
+            }}
+          >
+            <X size={16} aria-hidden />
+          </button>
+        )}
 
         <motion.div
           style={{ overflow: 'hidden' }}
