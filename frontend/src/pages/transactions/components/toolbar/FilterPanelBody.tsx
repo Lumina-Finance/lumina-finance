@@ -106,9 +106,12 @@ export function FilterPanelBody({
           amount={draft.amount}
           amountSymbol={draft.amountSymbol}
           amountCurrencyNote={draft.amountCurrencyNote}
+          currencyOptions={draft.getFacetOptions('currency')}
+          currencyValue={draft.selections.currency[0] ?? ''}
           dateRange={draft.dateRange}
           fillHeight={mobile}
           onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
+          onCurrencyToggle={(value) => draft.toggleSelection('currency', value)}
           onTagMatchChange={draft.setTagMatch}
           onAmountChange={draft.setAmount}
           onDateRangeChange={draft.setDateRange}
@@ -277,9 +280,13 @@ type FacetEditorProps = {
   amount: AmountDraft
   amountSymbol: string
   amountCurrencyNote: string
+  // The currency the amount range matches, chosen inside the amount section
+  currencyOptions: OptionItem[]
+  currencyValue: string
   dateRange: { from: string; to: string }
   fillHeight: boolean
   onToggle: (value: string, label?: string) => void
+  onCurrencyToggle: (value: string) => void
   onTagMatchChange: (value: 'all' | 'any') => void
   onAmountChange: (value: AmountDraft) => void
   onDateRangeChange: (value: { from: string; to: string }) => void
@@ -298,66 +305,103 @@ function FacetEditor({
   amount,
   amountSymbol,
   amountCurrencyNote,
+  currencyOptions,
+  currencyValue,
   dateRange,
   fillHeight,
   onToggle,
+  onCurrencyToggle,
   onTagMatchChange,
   onAmountChange,
   onDateRangeChange,
 }: FacetEditorProps) {
   if (facet.kind === 'amount') {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-end gap-2">
-          <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            Min
-            <div className="relative">
-              {amountSymbol && (
-                <span
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
-                  style={{ color: 'var(--app-text-subtle)' }}
-                >
-                  {amountSymbol}
-                </span>
-              )}
-              <input
-                type="text"
-                inputMode="decimal"
-                className={joinClassNames('app-input', amountSymbol && 'pl-8')}
-                placeholder="0.00"
-                value={formatMoneyInputLive(amount.min)}
-                onChange={(event) => onAmountChange({ ...amount, min: sanitizeMoneyInput(event.target.value) })}
-              />
+      <div className="flex flex-col gap-3">
+        {currencyOptions.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="px-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              Currency
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {currencyOptions.map((option) => {
+                const isSelected = option.value === currencyValue
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={isSelected}
+                    className="rounded-full border px-3 py-1 text-sm transition-colors"
+                    style={
+                      isSelected
+                        ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
+                        : { borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }
+                    }
+                    onClick={() => onCurrencyToggle(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
             </div>
-          </label>
-          <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-            to
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <span className="px-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            Amount
           </span>
-          <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            Max
-            <div className="relative">
-              {amountSymbol && (
-                <span
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
-                  style={{ color: 'var(--app-text-subtle)' }}
-                >
-                  {amountSymbol}
-                </span>
-              )}
-              <input
-                type="text"
-                inputMode="decimal"
-                className={joinClassNames('app-input', amountSymbol && 'pl-8')}
-                placeholder="Any"
-                value={formatMoneyInputLive(amount.max)}
-                onChange={(event) => onAmountChange({ ...amount, max: sanitizeMoneyInput(event.target.value) })}
-              />
-            </div>
-          </label>
+          <div className="flex items-end gap-2">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              Min
+              <div className="relative">
+                {amountSymbol && (
+                  <span
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                  >
+                    {amountSymbol}
+                  </span>
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={joinClassNames('app-input w-full min-w-0', amountSymbol && 'pl-8')}
+                  placeholder="0.00"
+                  value={formatMoneyInputLive(amount.min)}
+                  onChange={(event) => onAmountChange({ ...amount, min: sanitizeMoneyInput(event.target.value) })}
+                />
+              </div>
+            </label>
+            <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              to
+            </span>
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              Max
+              <div className="relative">
+                {amountSymbol && (
+                  <span
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                  >
+                    {amountSymbol}
+                  </span>
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={joinClassNames('app-input w-full min-w-0', amountSymbol && 'pl-8')}
+                  placeholder="Any"
+                  value={formatMoneyInputLive(amount.max)}
+                  onChange={(event) => onAmountChange({ ...amount, max: sanitizeMoneyInput(event.target.value) })}
+                />
+              </div>
+            </label>
+          </div>
+          <p className="px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+            {amountCurrencyNote}
+          </p>
         </div>
-        <p className="px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-          {amountCurrencyNote}
-        </p>
       </div>
     )
   }
@@ -438,21 +482,14 @@ function FacetEditor({
   }
 
   return (
-    <div className={joinClassNames('flex flex-col gap-1.5', fillHeight && 'min-h-0 flex-1')}>
-      {facet.single && (
-        <p className="px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-          Only one {facet.label.toLowerCase()} can be selected
-        </p>
-      )}
-      <MultiSelectChecklist
-        key={facet.id}
-        options={options}
-        selectedValues={selectedValues}
-        searchPlaceholder={`Search ${facet.label.toLowerCase()}`}
-        fillHeight={fillHeight}
-        onToggle={onToggle}
-      />
-    </div>
+    <MultiSelectChecklist
+      key={facet.id}
+      options={options}
+      selectedValues={selectedValues}
+      searchPlaceholder={`Search ${facet.label.toLowerCase()}`}
+      fillHeight={fillHeight}
+      onToggle={onToggle}
+    />
   )
 }
 

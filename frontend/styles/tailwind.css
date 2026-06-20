@@ -462,16 +462,10 @@
     background: color-mix(in srgb, var(--app-text) 7%, transparent);
   }
 
-  /* The filter facet tabs wrap to two rows on the narrow mobile sheet and sit in one row of seven
-     on the wider desktop panel, so the icon-and-label tabs never crowd */
+  /* The desktop filter panel lays its six facet tabs out in a single row, while the mobile sheet
+     swaps these tabs for a dropdown */
   .app-filter-facet-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  @media (min-width: 750px) {
-    .app-filter-facet-grid {
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-    }
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   /* This/Last/Past qualifier selector leading the custom builder, reusing the segmented styling */

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Bookmark, Calendar, Coins, DollarSign, Store, Tag, Wallet } from 'lucide-react'
+import { Bookmark, Calendar, Coins, Store, Tag, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { useAccounts } from '@/api/accounts'
@@ -18,17 +18,18 @@ export type FacetConfig = {
   label: string
   icon: LucideIcon
   kind: FacetKind
-  // Single-select facets keep at most one value, so picking another replaces the previous one
-  single?: boolean
 }
+
+// Currency keeps at most one value even though it is now edited inside the amount section rather
+// than as its own facet, so picking another replaces the previous one
+const SINGLE_SELECT_FACET_IDS = new Set(['currency'])
 
 export const FILTER_FACETS: FacetConfig[] = [
   { id: 'accounts', label: 'Accounts', icon: Wallet, kind: 'multi' },
   { id: 'categories', label: 'Category', icon: Tag, kind: 'multi' },
   { id: 'merchants', label: 'Merchant', icon: Store, kind: 'multi' },
   { id: 'tags', label: 'Tags', icon: Bookmark, kind: 'multi' },
-  { id: 'currency', label: 'Currency', icon: Coins, kind: 'multi', single: true },
-  { id: 'amount', label: 'Amount', icon: DollarSign, kind: 'amount' },
+  { id: 'amount', label: 'Amount', icon: Coins, kind: 'amount' },
   { id: 'date', label: 'Date', icon: Calendar, kind: 'date' },
 ]
 
@@ -96,7 +97,12 @@ export function useTransactionFilterDraft({
    */
   function countFacet(facet: FacetConfig): number {
     if (facet.kind === 'multi') return selections[facet.id].length
-    if (facet.kind === 'amount') return amount.min || amount.max ? 1 : 0
+
+    // The amount section also owns the currency filter, so a chosen currency and an entered range
+    // each count toward its badge
+    if (facet.kind === 'amount') {
+      return selections.currency.length + (amount.min || amount.max ? 1 : 0)
+    }
     return dateRange.from || dateRange.to ? 1 : 0
   }
 
@@ -140,7 +146,7 @@ export function useTransactionFilterDraft({
   function toggleSelection(facetId: string, value: string, label?: string) {
     setSelections((current) => {
       const values = current[facetId]
-      const isSingle = FILTER_FACETS.find((facet) => facet.id === facetId)?.single
+      const isSingle = SINGLE_SELECT_FACET_IDS.has(facetId)
 
       // A single-select facet keeps only the picked value, toggling off when the same one is tapped
       if (isSingle) {
