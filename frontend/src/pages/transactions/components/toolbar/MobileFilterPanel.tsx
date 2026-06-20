@@ -50,20 +50,46 @@ export function MobileFilterPanel({
   }, [isOpen, seedDraftFromFilters])
 
   // Hold the page still without overflow: hidden, which would strip the sticky toolbar back to its
-  // in-flow position. Touch moves outside the modal's own scroll area are blocked, while the scroll
-  // area scrolls normally and its overscroll-contain keeps it from chaining to the page
+  // in-flow position. Touches outside the modal's scroll area are always blocked. Touches inside it
+  // scroll normally, except at the scroll boundaries: iOS chains an over-scrolled drag through to
+  // the page even with overscroll-contain, so the boundary drag is blocked too
   const scrollRef = useRef<HTMLDivElement>(null)
+  const touchStartY = useRef(0)
   useEffect(() => {
     if (!isOpen) return undefined
 
-    function blockPageScroll(event: TouchEvent) {
-      const scroller = scrollRef.current
-      if (scroller && scroller.contains(event.target as Node)) return
-      event.preventDefault()
+    function recordTouchStart(event: TouchEvent) {
+      touchStartY.current = event.touches[0]?.clientY ?? 0
     }
 
+    function blockPageScroll(event: TouchEvent) {
+      const scroller = scrollRef.current
+      if (!scroller || !scroller.contains(event.target as Node)) {
+        event.preventDefault()
+        return
+      }
+
+      // A scroller shorter than its content cannot absorb any drag, so every move would chain to
+      // the page
+      const isScrollable = scroller.scrollHeight > scroller.clientHeight
+      if (!isScrollable) {
+        event.preventDefault()
+        return
+      }
+
+      // Positive delta means the finger moved down, which scrolls the content toward its top edge
+      const deltaY = (event.touches[0]?.clientY ?? 0) - touchStartY.current
+      const isAtTop = scroller.scrollTop <= 0
+      const isAtBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight
+      if ((isAtTop && deltaY > 0) || (isAtBottom && deltaY < 0)) event.preventDefault()
+    }
+
+    document.addEventListener('touchstart', recordTouchStart, { passive: true })
     document.addEventListener('touchmove', blockPageScroll, { passive: false })
-    return () => document.removeEventListener('touchmove', blockPageScroll)
+    return () => {
+      document.removeEventListener('touchstart', recordTouchStart)
+      document.removeEventListener('touchmove', blockPageScroll)
+    }
   }, [isOpen])
 
   const panelInitial = shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }
