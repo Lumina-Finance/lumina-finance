@@ -9,6 +9,21 @@ import { useTransactionFilterDraft } from '@/pages/transactions/components/toolb
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
+/**
+ * Walks up from a touched node to the first ancestor inside the modal that can scroll vertically,
+ * so the touch guard knows which element a drag should move and where its scroll boundaries are
+ */
+function findScrollableAncestor(start: Node, boundary: HTMLElement): HTMLElement | null {
+  let node = start instanceof HTMLElement ? start : start.parentElement
+  while (node && node !== boundary.parentElement) {
+    const overflowY = window.getComputedStyle(node).overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
+    if (node === boundary) break
+    node = node.parentElement
+  }
+  return null
+}
+
 type MobileFilterPanelProps = {
   isOpen: boolean
   onClose: () => void
@@ -50,10 +65,9 @@ export function MobileFilterPanel({
   }, [isOpen, seedDraftFromFilters])
 
   // Hold the page still without overflow: hidden, which would strip the sticky toolbar back to its
-  // in-flow position. Touches outside the modal's scroll area are always blocked. Touches inside it
-  // scroll normally, except at the scroll boundaries: iOS chains an over-scrolled drag through to
-  // the page even with overscroll-contain, so the boundary drag is blocked too
-  const scrollRef = useRef<HTMLDivElement>(null)
+  // in-flow position. A drag is allowed only when it lands on a scrollable element inside the modal
+  // that can still move in the drag direction. Everything else is blocked, including the boundary
+  // over-scroll that iOS would otherwise chain through to the page even with overscroll-contain
   const touchStartY = useRef(0)
   useEffect(() => {
     if (!isOpen) return undefined
@@ -63,16 +77,15 @@ export function MobileFilterPanel({
     }
 
     function blockPageScroll(event: TouchEvent) {
-      const scroller = scrollRef.current
-      if (!scroller || !scroller.contains(event.target as Node)) {
+      const panel = panelRef.current
+      const target = event.target as Node | null
+      if (!panel || !target || !panel.contains(target)) {
         event.preventDefault()
         return
       }
 
-      // A scroller shorter than its content cannot absorb any drag, so every move would chain to
-      // the page
-      const isScrollable = scroller.scrollHeight > scroller.clientHeight
-      if (!isScrollable) {
+      const scroller = findScrollableAncestor(target, panel)
+      if (!scroller) {
         event.preventDefault()
         return
       }
@@ -90,7 +103,7 @@ export function MobileFilterPanel({
       document.removeEventListener('touchstart', recordTouchStart)
       document.removeEventListener('touchmove', blockPageScroll)
     }
-  }, [isOpen])
+  }, [isOpen, panelRef])
 
   const panelInitial = shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }
   const panelAnimate = shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }
@@ -132,8 +145,8 @@ export function MobileFilterPanel({
             </button>
           </div>
 
-          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
-            <FilterPanelBody draft={draft} showFooter={false} />
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
+            <FilterPanelBody draft={draft} showFooter={false} fillHeight />
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>

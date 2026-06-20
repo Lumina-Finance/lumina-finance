@@ -1,6 +1,7 @@
 import { Check, Search } from 'lucide-react'
 import { useInfiniteMerchants } from '@/api/merchants'
 import { useInfiniteTags } from '@/api/tags'
+import { joinClassNames } from '@/utils/classNames'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
@@ -12,6 +13,8 @@ type ReferenceFacetProps = {
   // Labels for already-selected ids so a chosen item stays readable even when the search hides it
   selectedLabels: Record<string, string>
   searchPlaceholder: string
+  // Mobile full screen lets the result list grow to fill the panel instead of the capped height
+  fillHeight: boolean
   onToggle: (value: string, label: string) => void
 }
 
@@ -19,7 +22,7 @@ type ReferenceFacetProps = {
  * Renders a server-searched multi-select for merchants or tags, since those lists are paginated and
  * too large to load and filter on the client
  */
-export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPlaceholder, onToggle }: ReferenceFacetProps) {
+export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPlaceholder, fillHeight, onToggle }: ReferenceFacetProps) {
   const { search, activeSearchText, setSearch } = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
 
   // Both hooks are called to satisfy the rules of hooks, but only the active kind fetches
@@ -37,7 +40,7 @@ export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPla
   const options = [...pinnedSelected, ...results]
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className={joinClassNames('flex flex-col gap-1', fillHeight && 'min-h-0 flex-1')}>
       <div className="app-input grid grid-cols-[2.25rem_minmax(0,1fr)] items-center overflow-hidden px-0 py-0">
         <span className="pointer-events-none flex h-9 w-9 items-center justify-center">
           <Search size={14} style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
@@ -51,7 +54,7 @@ export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPla
         />
       </div>
 
-      <ul className="max-h-56 overflow-auto">
+      <ul className={fillHeight ? 'min-h-0 flex-1 overflow-auto' : 'max-h-56 overflow-auto'}>
         {query.isPending ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             Loading…

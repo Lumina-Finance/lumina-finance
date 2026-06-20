@@ -18,7 +18,17 @@ import {
  * Renders the shared filter panel body: the facet tabs, the active facet editor, the removable
  * active-filter chips, and the apply and clear actions, driven by the shared draft
  */
-export function FilterPanelBody({ draft, showFooter = true }: { draft: TransactionFilterDraft; showFooter?: boolean }) {
+export function FilterPanelBody({
+  draft,
+  showFooter = true,
+  fillHeight = false,
+}: {
+  draft: TransactionFilterDraft
+  showFooter?: boolean
+  // Mobile full screen lets the facet editor grow to fill the panel and scroll its list internally,
+  // while the desktop pill keeps its measured auto height with a capped list
+  fillHeight?: boolean
+}) {
   const [activeFacetId, setActiveFacetId] = useState('accounts')
   // Scopes the sliding-thumb layout animation to this instance
   const segId = useId()
@@ -26,10 +36,14 @@ export function FilterPanelBody({ draft, showFooter = true }: { draft: Transacti
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
   const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
 
+  // The fill-height layout sizes the editor with flexbox, so the position springs are turned off to
+  // keep framer-motion from fighting the flex sizing
+  const blockLayout = fillHeight ? false : 'position'
+
   return (
-    <>
+    <div className={joinClassNames('contents', fillHeight && '!flex min-h-0 flex-1 flex-col')}>
       <motion.div
-        layout="position"
+        layout={blockLayout}
         transition={transition}
         className="app-range-seg app-filter-facet-grid"
         role="tablist"
@@ -69,7 +83,11 @@ export function FilterPanelBody({ draft, showFooter = true }: { draft: Transacti
         })}
       </motion.div>
 
-      <motion.div layout="position" transition={transition} className="mt-3">
+      <motion.div
+        layout={blockLayout}
+        transition={transition}
+        className={joinClassNames('mt-3', fillHeight && 'flex min-h-0 flex-1 flex-col')}
+      >
         <FacetEditor
           facet={activeFacet}
           options={draft.getFacetOptions(activeFacet.id)}
@@ -80,6 +98,7 @@ export function FilterPanelBody({ draft, showFooter = true }: { draft: Transacti
           amountSymbol={draft.amountSymbol}
           amountCurrencyNote={draft.amountCurrencyNote}
           dateRange={draft.dateRange}
+          fillHeight={fillHeight}
           onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
           onTagMatchChange={draft.setTagMatch}
           onAmountChange={draft.setAmount}
@@ -87,7 +106,7 @@ export function FilterPanelBody({ draft, showFooter = true }: { draft: Transacti
         />
       </motion.div>
 
-      <motion.div layout="position" transition={transition}>
+      <motion.div layout={blockLayout} transition={transition}>
         <ActiveFilterSummary
           selections={draft.selections}
           referenceLabels={draft.referenceLabels}
@@ -101,14 +120,14 @@ export function FilterPanelBody({ draft, showFooter = true }: { draft: Transacti
         />
       </motion.div>
 
-      <motion.div layout="position" transition={transition}>
+      <motion.div layout={blockLayout} transition={transition}>
         <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
           Transactions must match every filter you apply
         </p>
       </motion.div>
 
       {showFooter && (
-        <motion.div layout="position" transition={transition} className="mt-3 flex items-center justify-between">
+        <motion.div layout={blockLayout} transition={transition} className="mt-3 flex items-center justify-between">
           <button
             type="button"
             className="text-xs"
@@ -123,7 +142,7 @@ export function FilterPanelBody({ draft, showFooter = true }: { draft: Transacti
           </button>
         </motion.div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -137,6 +156,7 @@ type FacetEditorProps = {
   amountSymbol: string
   amountCurrencyNote: string
   dateRange: { from: string; to: string }
+  fillHeight: boolean
   onToggle: (value: string, label?: string) => void
   onTagMatchChange: (value: 'all' | 'any') => void
   onAmountChange: (value: AmountDraft) => void
@@ -157,6 +177,7 @@ function FacetEditor({
   amountSymbol,
   amountCurrencyNote,
   dateRange,
+  fillHeight,
   onToggle,
   onTagMatchChange,
   onAmountChange,
@@ -249,7 +270,7 @@ function FacetEditor({
 
   if (facet.id === 'merchants' || facet.id === 'tags') {
     return (
-      <div className="flex flex-col gap-2">
+      <div className={joinClassNames('flex flex-col gap-2', fillHeight && 'min-h-0 flex-1')}>
         {facet.id === 'tags' && (
           <div>
             <div className="app-range-seg" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
@@ -279,6 +300,7 @@ function FacetEditor({
           selectedValues={selectedValues}
           selectedLabels={referenceLabels}
           searchPlaceholder={`Search ${facet.label.toLowerCase()}`}
+          fillHeight={fillHeight}
           onToggle={onToggle}
         />
       </div>
@@ -294,7 +316,7 @@ function FacetEditor({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={joinClassNames('flex flex-col gap-1.5', fillHeight && 'min-h-0 flex-1')}>
       {facet.single && (
         <p className="px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
           Only one {facet.label.toLowerCase()} can be selected
@@ -305,6 +327,7 @@ function FacetEditor({
         options={options}
         selectedValues={selectedValues}
         searchPlaceholder={`Search ${facet.label.toLowerCase()}`}
+        fillHeight={fillHeight}
         onToggle={onToggle}
       />
     </div>
@@ -315,6 +338,7 @@ type MultiSelectChecklistProps = {
   options: OptionItem[]
   selectedValues: string[]
   searchPlaceholder: string
+  fillHeight: boolean
   onToggle: (value: string) => void
 }
 
@@ -322,7 +346,7 @@ type MultiSelectChecklistProps = {
  * Renders a searchable multi-select list, grouping adjacent options under sticky headers and
  * marking the selected rows with a check, mirroring the single-select filter list conventions
  */
-function MultiSelectChecklist({ options, selectedValues, searchPlaceholder, onToggle }: MultiSelectChecklistProps) {
+function MultiSelectChecklist({ options, selectedValues, searchPlaceholder, fillHeight, onToggle }: MultiSelectChecklistProps) {
   const [search, setSearch] = useState('')
 
   const filtered = (() => {
@@ -348,7 +372,7 @@ function MultiSelectChecklist({ options, selectedValues, searchPlaceholder, onTo
   })()
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className={joinClassNames('flex flex-col gap-1', fillHeight && 'min-h-0 flex-1')}>
       <div className="app-input grid grid-cols-[2.25rem_minmax(0,1fr)] items-center overflow-hidden px-0 py-0">
         <span className="pointer-events-none flex h-9 w-9 items-center justify-center">
           <Search size={14} style={{ color: 'var(--app-text-subtle)' }} aria-hidden />
@@ -362,7 +386,7 @@ function MultiSelectChecklist({ options, selectedValues, searchPlaceholder, onTo
         />
       </div>
 
-      <ul className="max-h-56 overflow-auto">
+      <ul className={fillHeight ? 'min-h-0 flex-1 overflow-auto' : 'max-h-56 overflow-auto'}>
         {filtered.length === 0 ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             No matches
