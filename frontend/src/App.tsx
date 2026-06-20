@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, startTransition, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -83,6 +83,21 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
   const routeLoading = pageTransitionPhase === 'loading';
   const [routeLoaderDelayElapsed, setRouteLoaderDelayElapsed] = useState(false);
 
+  // Hold the heavy page body back until the navigation shell has painted, then
+  // mount it as a non-urgent transition. The route subtree remounts per path, so
+  // this resets on every navigation. Without it the lazy page and its charts render
+  // in one blocking commit that freezes taps on the menu and toolbar for the length
+  // of that render, which is roughly a second on a phone
+  const [contentMounted, setContentMounted] = useState(false);
+
+  useEffect(() => {
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => {
+      startTransition(() => setContentMounted(true));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready]);
+
   useCacheValidation(user?.id, Boolean(user && ready));
 
   // Hold the route loader back until the chunk has stayed pending past the delay so
@@ -159,8 +174,12 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
               style={{ pointerEvents: pageContentVisible ? 'auto' : 'none' }}
             >
               <Suspense fallback={null}>
-                <RouteReadyNotifier path={displayLocation.pathname} onReady={onContentReady} />
-                <Outlet />
+                {contentMounted && (
+                  <>
+                    <RouteReadyNotifier path={displayLocation.pathname} onReady={onContentReady} />
+                    <Outlet />
+                  </>
+                )}
               </Suspense>
             </motion.div>
           </main>
