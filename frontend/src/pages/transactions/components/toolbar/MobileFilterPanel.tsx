@@ -49,6 +49,23 @@ export function MobileFilterPanel({
     wasOpen.current = isOpen
   }, [isOpen, seedDraftFromFilters])
 
+  // Hold the page still without overflow: hidden, which would strip the sticky toolbar back to its
+  // in-flow position. Touch moves outside the modal's own scroll area are blocked, while the scroll
+  // area scrolls normally and its overscroll-contain keeps it from chaining to the page
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    function blockPageScroll(event: TouchEvent) {
+      const scroller = scrollRef.current
+      if (scroller && scroller.contains(event.target as Node)) return
+      event.preventDefault()
+    }
+
+    document.addEventListener('touchmove', blockPageScroll, { passive: false })
+    return () => document.removeEventListener('touchmove', blockPageScroll)
+  }, [isOpen])
+
   const panelInitial = shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }
   const panelAnimate = shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }
   const panelExit = shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }
@@ -61,8 +78,11 @@ export function MobileFilterPanel({
           role="dialog"
           aria-modal="true"
           aria-label="Transaction filters"
-          className="fixed inset-0 z-[100] flex flex-col min-[750px]:hidden"
+          className="fixed inset-x-0 top-0 z-[100] flex flex-col min-[750px]:hidden"
           style={{
+            // 100dvh tracks the dynamic viewport so the modal covers the screen even as the mobile
+            // browser chrome shows or hides, leaving no strip of the list peeking below it
+            height: '100dvh',
             background: 'color-mix(in srgb, var(--app-input-bg) 88%, transparent)',
             backdropFilter: 'blur(24px) saturate(160%)',
             WebkitBackdropFilter: 'blur(24px) saturate(160%)',
@@ -86,7 +106,7 @@ export function MobileFilterPanel({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
             <FilterPanelBody draft={draft} showFooter={false} />
           </div>
 
