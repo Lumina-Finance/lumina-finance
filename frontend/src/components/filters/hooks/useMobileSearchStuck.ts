@@ -6,7 +6,8 @@ export type MobileSearchStuckState = {
 }
 
 /**
- * Tracks when the mobile search row has stuck to the viewport so nearby controls can leave breathing room
+ * Tracks when the mobile search row has stuck to the viewport so the search field can leave room for
+ * the fixed mobile navigation toggle pinned to the top-right corner
  */
 export function useMobileSearchStuck(): MobileSearchStuckState {
   const mobileSearchStickySentinelRef = useRef<HTMLDivElement>(null)

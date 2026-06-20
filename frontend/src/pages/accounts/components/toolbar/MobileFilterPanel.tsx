@@ -5,47 +5,43 @@ import { X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { useMobileFilterSheetEffects } from '@/components/filters/hooks/useMobileSheetEffects'
 import { useModalScrollGuard } from '@/components/filters/hooks/useModalScrollGuard'
-import { FilterPanelBody } from '@/pages/transactions/components/toolbar/FilterPanelBody'
-import { useTransactionFilterDraft } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
-import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
-import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
+import { FilterPanelBody } from '@/pages/accounts/components/toolbar/FilterPanelBody'
+import { useAccountFilterDraft } from '@/pages/accounts/components/toolbar/useAccountFilterDraft'
+import type { AccountFilterSetter } from '@/pages/accounts/components/toolbar/types'
+import type { FilterValues } from '@/pages/accounts/types/accounts'
 
 type MobileFilterPanelProps = {
   isOpen: boolean
   onClose: () => void
   // Fires once the close animation finishes so the parent can unmount and release the scroll lock
   onExitComplete: () => void
-  accountOptions: OptionItem[]
-  categoryOptions: OptionItem[]
-  filters: TransactionListFilters
-  setFilter: TransactionFilterSetter
-  // False on an account's own transaction list, where the account facet is disabled
-  showAccountFilter: boolean
-  // The account's currency on its own transaction list, which pins the amount currency
-  lockedCurrency?: string
+  institutionOptions: OptionItem[]
+  kindOptions: OptionItem[]
+  typeOptions: OptionItem[]
+  filters: FilterValues
+  setFilter: AccountFilterSetter
 }
 
 /**
- * Renders the mobile transaction filter as a full-screen modal, reusing the same draft and body as
- * the desktop pill. Full screen keeps the body in a fixed scroll area, so resizing facets never
+ * Renders the mobile account filter as a full-screen modal, reusing the same draft and body as the
+ * desktop pill. Full screen keeps the body in a fixed scroll area, so resizing the checklist never
  * animates the container and the layout stays stable
  */
 export function MobileFilterPanel({
   isOpen,
   onClose,
   onExitComplete,
-  accountOptions,
-  categoryOptions,
+  institutionOptions,
+  kindOptions,
+  typeOptions,
   filters,
   setFilter,
-  showAccountFilter,
-  lockedCurrency,
 }: MobileFilterPanelProps) {
   // The full-screen modal covers the page, so the page-content dim is left off to keep the glass
   // toolbar from breaking and because nothing behind the modal is visible anyway
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, dimPageContent: false, lockScroll: false })
   const shouldReduceMotion = useReducedMotion()
-  const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, showAccountFilter, lockedCurrency, onClose })
+  const draft = useAccountFilterDraft({ filters, setFilter, institutionOptions, kindOptions, typeOptions, onClose })
   const { activeFacetCount, seedDraftFromFilters } = draft
 
   // Seed the draft only on the rising edge of opening, so an async data load or a re-render never
@@ -71,7 +67,7 @@ export function MobileFilterPanel({
           ref={panelRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Transaction filters"
+          aria-label="Account filters"
           className="fixed inset-x-0 top-0 z-[100] flex flex-col min-[750px]:hidden"
           style={{
             // 100dvh tracks the dynamic viewport so the modal covers the screen even as the mobile
@@ -101,7 +97,7 @@ export function MobileFilterPanel({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
-            <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight showAccountFilter={showAccountFilter} />
+            <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight />
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>

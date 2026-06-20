@@ -10,10 +10,13 @@ import {
 } from '@/pages/accounts/utils/filters'
 
 /**
- * Owns account filter state and derives the available filter options for the visible account list
+ * Owns account filter state, the account search text, and the derived option lists for the visible
+ * account list. Filters and search are kept apart so the search field stays separate from the filter
+ * pill, mirroring the transactions toolbar
  */
 export function useFilters(rows: AccountsOverview[]) {
   const [filters, setFilters] = useState<FilterValues>({})
+  const [search, setSearch] = useState('')
 
   const setFilter = useCallback((patch: Partial<FilterValues>) => {
     setFilters((currentFilters) => {
@@ -26,13 +29,20 @@ export function useFilters(rows: AccountsOverview[]) {
   const typeOptions = useMemo(() => getTypeOptions(rows), [rows])
 
   const filteredRows = useMemo(
-    () => getFilteredRows(rows, filters),
-    [filters, rows],
+    () => getFilteredRows(rows, filters, search),
+    [filters, rows, search],
   )
+
+  // Counts the facets carrying a selection so the filter pill can show a badge, leaving the search
+  // text out since it has its own field
+  const activeFilterCount = Object.values(filters).filter((values) => values?.length).length
 
   return {
     filters,
     setFilter,
+    search,
+    setSearch,
+    activeFilterCount,
     institutionOptions,
     kindOptions,
     typeOptions,

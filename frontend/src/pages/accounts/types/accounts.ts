@@ -3,9 +3,9 @@ import type { FxStatus } from '@/api/shared/fx'
 import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 
 export interface FilterValues {
-  institution_id?: string
-  account_kind?: AccountKind
-  account_type?: AccountType
+  institution_id?: string[]
+  account_kind?: AccountKind[]
+  account_type?: AccountType[]
 }
 
 export interface TaxAdvantagedLimitSummary {

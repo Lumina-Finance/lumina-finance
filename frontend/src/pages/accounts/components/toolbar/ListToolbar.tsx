@@ -1,50 +1,30 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { TransactionListToolbarProps } from '@/pages/transactions/components/toolbar/types'
-import { DesktopTransactionToolbarControls } from '@/pages/transactions/components/toolbar/desktop/Controls'
-import { MobileToolbarActions } from '@/pages/transactions/components/toolbar/mobile/Actions'
-import { MobileFilterPanel } from '@/pages/transactions/components/toolbar/MobileFilterPanel'
-import { TransactionSearchField } from '@/pages/transactions/components/toolbar/SearchField'
+import { useCallback, useState } from 'react'
 import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
 import { useMobileSearchStuck } from '@/components/filters/hooks/useMobileSearchStuck'
-import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useStickyOffset'
-import {
-  getAccountOptions,
-  getActiveFilterCount,
-  getCategoryOptions,
-} from '@/pages/transactions/utils/filterOptions'
+import { AccountSearchField } from '@/pages/accounts/components/toolbar/SearchField'
+import { MobileToolbarActions } from '@/pages/accounts/components/toolbar/mobile/Actions'
+import { DesktopAccountToolbarControls } from '@/pages/accounts/components/toolbar/desktop/Controls'
+import { MobileFilterPanel } from '@/pages/accounts/components/toolbar/MobileFilterPanel'
+import type { AccountListToolbarProps } from '@/pages/accounts/components/toolbar/types'
 
 /**
- * Orchestrates transaction list search, filters, and responsive toolbar layout
+ * Orchestrates account list search, filters, and responsive toolbar layout
  */
-export default function TransactionListToolbar({
+export default function AccountListToolbar({
   search,
   onSearchChange,
-  onSearchSubmit,
   filters,
   setFilter,
-  categories,
-  accounts,
-  showAccountFilter,
-  lockedCurrency,
-  onCreateTransaction,
-  createDisabled = false,
-  createDisabledReason,
-  onStickyOffsetChange,
-}: TransactionListToolbarProps) {
+  activeFilterCount,
+  institutionOptions,
+  kindOptions,
+  typeOptions,
+  onAddAccount,
+}: AccountListToolbarProps) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
   // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
   // the sheet exists, never on the page underneath
   const [isMobileSheetMounted, setIsMobileSheetMounted] = useState(false)
-
-  const accountOptions = useMemo(
-    () => getAccountOptions(accounts),
-    [accounts],
-  )
-  const categoryOptions = useMemo(
-    () => getCategoryOptions(categories),
-    [categories],
-  )
-  const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 
   const {
     toolbarRef,
@@ -55,8 +35,6 @@ export default function TransactionListToolbar({
     desktopCreateStacked,
   } = useDesktopToolbarLayout()
   const { mobileSearchStickySentinelRef, mobileSearchStuck } = useMobileSearchStuck()
-
-  useToolbarStickyOffset(toolbarRef, onStickyOffsetChange)
 
   const openMobileSheet = useCallback(() => {
     setIsMobileSheetMounted(true)
@@ -76,10 +54,9 @@ export default function TransactionListToolbar({
           boxShadow: '0 0.25rem 0 var(--app-bg)',
         }}
       >
-        <TransactionSearchField
+        <AccountSearchField
           search={search}
           onSearchChange={onSearchChange}
-          onSearchSubmit={onSearchSubmit}
           mobileSearchStuck={mobileSearchStuck}
           desktopInlineLayout={desktopInlineLayout}
         />
@@ -87,26 +64,21 @@ export default function TransactionListToolbar({
         <MobileToolbarActions
           activeFilterCount={activeFilterCount}
           onOpenFilters={openMobileSheet}
-          onCreateTransaction={onCreateTransaction}
-          createDisabled={createDisabled}
-          createDisabledReason={createDisabledReason}
+          onAddAccount={onAddAccount}
         />
 
-        <DesktopTransactionToolbarControls
+        <DesktopAccountToolbarControls
           filters={filters}
           setFilter={setFilter}
-          showAccountFilter={showAccountFilter}
-          lockedCurrency={lockedCurrency}
-          accountOptions={accountOptions}
-          categoryOptions={categoryOptions}
+          institutionOptions={institutionOptions}
+          kindOptions={kindOptions}
+          typeOptions={typeOptions}
           desktopInlineLayout={desktopInlineLayout}
           desktopCreateStacked={desktopCreateStacked}
           controlsRef={controlsRef}
           filterGroupRef={filterGroupRef}
           createMeasureRef={createMeasureRef}
-          onCreateTransaction={onCreateTransaction}
-          createDisabled={createDisabled}
-          createDisabledReason={createDisabledReason}
+          onAddAccount={onAddAccount}
         />
       </div>
 
@@ -117,12 +89,11 @@ export default function TransactionListToolbar({
           onExitComplete={() => {
             if (!isMobileSheetOpen) setIsMobileSheetMounted(false)
           }}
-          accountOptions={accountOptions}
-          categoryOptions={categoryOptions}
+          institutionOptions={institutionOptions}
+          kindOptions={kindOptions}
+          typeOptions={typeOptions}
           filters={filters}
           setFilter={setFilter}
-          showAccountFilter={showAccountFilter}
-          lockedCurrency={lockedCurrency}
         />
       )}
     </>

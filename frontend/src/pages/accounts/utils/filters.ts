@@ -23,12 +23,13 @@ const TYPE_OPTIONS: OptionItem[] = [
 ]
 
 /**
- * Removes empty filter values so downstream comparisons only handle active filters
+ * Drops empty facet selections so downstream comparisons and the active-filter count only handle
+ * facets that actually narrow the list
  */
 export function getActiveFilters(filters: FilterValues) {
   const activeFilters = { ...filters }
   for (const key of Object.keys(activeFilters) as (keyof FilterValues)[]) {
-    if (!activeFilters[key]) delete activeFilters[key]
+    if (!activeFilters[key]?.length) delete activeFilters[key]
   }
   return activeFilters
 }
@@ -62,16 +63,30 @@ export function getTypeOptions(rows: AccountsOverview[]): OptionItem[] {
 }
 
 /**
- * Applies active account filters while allowing accounts with missing optional metadata to remain searchable
+ * Matches an account against the search text by its name and linked institution, so a query narrows
+ * the list the same way whether the user types the account or its bank
+ */
+function isAccountMatchingSearch(account: AccountsOverview, query: string): boolean {
+  if (account.name.toLowerCase().includes(query)) return true
+  return account.institution?.name.toLowerCase().includes(query) ?? false
+}
+
+/**
+ * Applies the active facet selections and the search text, keeping an account only when it matches at
+ * least one selected value in every active facet. Accounts with no linked institution stay hidden
+ * once an institution facet is active, since they cannot match any selected institution
  */
 export function getFilteredRows(
   rows: AccountsOverview[],
   filters: FilterValues,
+  search: string,
 ) {
+  const query = search.trim().toLowerCase()
   return rows.filter((account) => {
-    if (filters.institution_id && account.institution?.id !== filters.institution_id) return false
-    if (filters.account_kind && account.account_kind !== filters.account_kind) return false
-    if (filters.account_type && account.account_type !== filters.account_type) return false
+    if (filters.institution_id && !(account.institution && filters.institution_id.includes(account.institution.id))) return false
+    if (filters.account_kind && !filters.account_kind.includes(account.account_kind)) return false
+    if (filters.account_type && !filters.account_type.includes(account.account_type)) return false
+    if (query && !isAccountMatchingSearch(account, query)) return false
     return true
   })
 }
