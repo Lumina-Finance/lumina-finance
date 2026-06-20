@@ -1,5 +1,4 @@
 import Dropdown from '@/components/dropdown/Dropdown'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
@@ -97,10 +96,7 @@ export default function BudgetEditorModalScopeSection({
                   label: `${currency.id} · ${currency.name}`,
                 }))}
                 value={form.currency}
-                onChange={(value) => {
-                  setField('currency', value)
-                  requestNextModalFieldFocus(ids.currency)
-                }}
+                onChange={(value) => setField('currency', value)}
                 className={`app-input ${showError('currency') ? 'app-input-error' : ''}`}
                 placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
                 searchable

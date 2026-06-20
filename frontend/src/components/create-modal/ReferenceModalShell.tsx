@@ -134,7 +134,6 @@ export default function CreateReferenceModalShell({
               role="dialog"
               aria-modal="true"
               aria-labelledby={modalTitleId}
-              data-modal-field-focus-panel="true"
               className={layout.modalClassName}
               style={{
                 background: 'var(--app-bg)',

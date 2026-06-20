@@ -103,7 +103,6 @@ export default function BudgetEditorModalShell({
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
-              data-modal-field-focus-panel="true"
               className={appearance.panelClassName}
               style={{
                 background: 'var(--app-bg)',

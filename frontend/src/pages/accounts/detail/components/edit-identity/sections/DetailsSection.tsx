@@ -1,6 +1,5 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import {
   formatMoneyInputLive,
@@ -45,10 +44,7 @@ export function AccountDetailsSection({
             id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory}
             options={taxAdvantagedCategoryOptions}
             value={form.tax_advantaged_category_id}
-            onChange={(value) => {
-              setField('tax_advantaged_category_id', value)
-              requestNextModalFieldFocus(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory)
-            }}
+            onChange={(value) => setField('tax_advantaged_category_id', value)}
             placeholder="Select category..."
             searchable
             searchPlaceholder="Search categories..."

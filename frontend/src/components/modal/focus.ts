@@ -6,8 +6,6 @@ const MODAL_FIELD_TAB_STOP_SELECTOR = [
   'button[role="combobox"]:not([disabled])',
 ].join(',')
 
-const MODAL_FIELD_FOCUS_PANEL_SELECTOR = '[data-modal-field-focus-panel="true"]'
-
 /**
  * Returns enabled modal fields that should receive sequential Tab focus
  */
@@ -33,25 +31,6 @@ export function getNextModalFieldTabStop<T>(
   }
 
   return fieldTabStops[activeIndex < 0 || activeIndex === fieldTabStops.length - 1 ? 0 : activeIndex + 1]
-}
-
-/**
- * Moves focus to the next modal field after a dropdown value is selected
- */
-export function requestNextModalFieldFocus(currentFieldId: string) {
-  window.requestAnimationFrame(() => {
-    const currentField = document.getElementById(currentFieldId)
-    const panel = currentField?.closest(MODAL_FIELD_FOCUS_PANEL_SELECTOR) as HTMLElement | null
-    if (!currentField || !panel) return
-
-    const nextField = getNextModalFieldTabStop(
-      getModalFieldTabStops(panel),
-      currentField,
-      false,
-    )
-
-    if (nextField && nextField !== currentField) nextField.focus({ preventScroll: true })
-  })
 }
 
 /**

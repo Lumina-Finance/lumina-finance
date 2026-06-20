@@ -60,7 +60,6 @@ export default function TransactionModalShell({
               role="dialog"
               aria-modal="true"
               aria-labelledby="create-txn-title"
-              data-modal-field-focus-panel="true"
               className="app-modal-panel flex max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl"
               transition={{ layout: { duration: 0.22, ease: EASE } }}
               style={{

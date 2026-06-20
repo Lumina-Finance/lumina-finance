@@ -6,7 +6,6 @@ import Dropdown from '@/components/dropdown/Dropdown'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell from '@/components/create-modal/ReferenceModalShell'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import { CREATE_INSTITUTION_FIELD_IDS } from '@/components/reference-modals/createInstitutionConstants'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -149,10 +148,7 @@ export default function CreateInstitutionModal({
                 id={CREATE_INSTITUTION_FIELD_IDS.country}
                 options={COUNTRY_OPTIONS}
                 value={form.country_code}
-                onChange={(value) => {
-                  handleChange('country_code', value)
-                  requestNextModalFieldFocus(CREATE_INSTITUTION_FIELD_IDS.country)
-                }}
+                onChange={(value) => handleChange('country_code', value)}
                 className={`app-input ${showError('country_code') ? 'app-input-error' : ''}`}
                 placeholder="Select country..."
                 searchable

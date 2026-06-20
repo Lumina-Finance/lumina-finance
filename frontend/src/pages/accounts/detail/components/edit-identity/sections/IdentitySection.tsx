@@ -1,6 +1,5 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import type {
   IdentityFieldErrors,
@@ -47,10 +46,7 @@ export function AccountIdentitySection({
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution}
           options={institutionOptions}
           value={form.institution_id}
-          onChange={(value) => {
-            setField('institution_id', value)
-            requestNextModalFieldFocus(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution)
-          }}
+          onChange={(value) => setField('institution_id', value)}
           placeholder="Select institution..."
           searchable
           searchPlaceholder="Search institutions..."

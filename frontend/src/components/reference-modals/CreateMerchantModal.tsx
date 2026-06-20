@@ -8,7 +8,6 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/ReferenceModalShell'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import { CREATE_MERCHANT_FIELD_IDS, NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -163,10 +162,7 @@ export default function CreateMerchantModal({
                 id={CREATE_MERCHANT_FIELD_IDS.defaultCategory}
                 options={categoryOptions}
                 value={form.default_category_id}
-                onChange={(value) => {
-                  setField('default_category_id', value)
-                  requestNextModalFieldFocus(CREATE_MERCHANT_FIELD_IDS.defaultCategory)
-                }}
+                onChange={(value) => setField('default_category_id', value)}
                 searchable
                 searchPlaceholder="Search categories..."
               />
