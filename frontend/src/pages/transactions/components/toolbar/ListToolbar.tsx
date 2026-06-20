@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { TransactionListToolbarProps } from '@/pages/transactions/components/toolbar/types'
 import { DesktopTransactionToolbarControls } from '@/pages/transactions/components/toolbar/desktop/Controls'
 import { MobileToolbarActions } from '@/pages/transactions/components/toolbar/mobile/Actions'
-import { MobileTransactionFilterSheet } from '@/pages/transactions/components/toolbar/mobile/FilterSheet'
+import { MobileFilterPanel } from '@/pages/transactions/components/toolbar/MobileFilterPanel'
 import { TransactionSearchField } from '@/pages/transactions/components/toolbar/SearchField'
 import { useDesktopToolbarLayout } from '@/pages/transactions/components/toolbar/hooks/useDesktopLayout'
 import { useMobileSearchStuck } from '@/pages/transactions/components/toolbar/hooks/useMobileSearchStuck'
@@ -54,7 +54,6 @@ export default function TransactionListToolbar({
   onStickyOffsetChange,
 }: TransactionListToolbarProps) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
-  const [isMobileBackdropActive, setIsMobileBackdropActive] = useState(false)
 
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
@@ -94,15 +93,9 @@ export default function TransactionListToolbar({
 
   useToolbarStickyOffset(toolbarRef, onStickyOffsetChange)
 
-  const openMobileSheet = useCallback(() => {
-    setIsMobileBackdropActive(true)
-    setIsMobileSheetOpen(true)
-  }, [])
+  const openMobileSheet = useCallback(() => setIsMobileSheetOpen(true), [])
 
-  const closeMobileSheet = useCallback(() => {
-    onDateRangeClose()
-    setIsMobileSheetOpen(false)
-  }, [onDateRangeClose])
+  const closeMobileSheet = useCallback(() => setIsMobileSheetOpen(false), [])
 
   return (
     <>
@@ -159,32 +152,14 @@ export default function TransactionListToolbar({
         />
       </div>
 
-      {isMobileBackdropActive && (
-        <MobileTransactionFilterSheet
-          isOpen={isMobileSheetOpen}
-          activeFilterCount={activeFilterCount}
-          filters={filters}
-          setFilter={setFilter}
-          showAccountFilter={showAccountFilter}
-          accountOptions={accountOptions}
-          categoryOptions={categoryOptions}
-          selectedAccountLabel={selectedAccountLabel}
-          selectedCategoryLabel={selectedCategoryLabel}
-          selectedDateLabel={selectedDateLabel}
-          pendingFrom={pendingFrom}
-          pendingTo={pendingTo}
-          dateRangeChanged={dateRangeChanged}
-          dateRangeInvalid={dateRangeInvalid}
-          onPendingFromChange={onPendingFromChange}
-          onPendingToChange={onPendingToChange}
-          onDateRangeReset={onDateRangeReset}
-          onDateRangeClose={onDateRangeClose}
-          onClose={closeMobileSheet}
-          onExitComplete={() => {
-            if (!isMobileSheetOpen) setIsMobileBackdropActive(false)
-          }}
-        />
-      )}
+      <MobileFilterPanel
+        isOpen={isMobileSheetOpen}
+        onClose={closeMobileSheet}
+        accountOptions={accountOptions}
+        categoryOptions={categoryOptions}
+        filters={filters}
+        setFilter={setFilter}
+      />
     </>
   )
 }
