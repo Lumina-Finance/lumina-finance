@@ -366,7 +366,7 @@ function FacetEditor({
                 <input
                   type="text"
                   inputMode="decimal"
-                  className={joinClassNames('app-input w-full min-w-0', amountSymbol && 'pl-8')}
+                  className={joinClassNames('app-input', amountSymbol && 'pl-8')}
                   placeholder="0.00"
                   value={formatMoneyInputLive(amount.min)}
                   onChange={(event) => onAmountChange({ ...amount, min: sanitizeMoneyInput(event.target.value) })}
@@ -390,7 +390,7 @@ function FacetEditor({
                 <input
                   type="text"
                   inputMode="decimal"
-                  className={joinClassNames('app-input w-full min-w-0', amountSymbol && 'pl-8')}
+                  className={joinClassNames('app-input', amountSymbol && 'pl-8')}
                   placeholder="Any"
                   value={formatMoneyInputLive(amount.max)}
                   onChange={(event) => onAmountChange({ ...amount, max: sanitizeMoneyInput(event.target.value) })}
@@ -413,7 +413,7 @@ function FacetEditor({
           From
           <input
             type="date"
-            className="app-input app-date-input-balanced w-full min-w-0"
+            className="app-input app-date-input-balanced"
             value={dateRange.from}
             onChange={(event) => onDateRangeChange({ ...dateRange, from: event.target.value })}
           />
@@ -425,7 +425,7 @@ function FacetEditor({
           To
           <input
             type="date"
-            className="app-input app-date-input-balanced w-full min-w-0"
+            className="app-input app-date-input-balanced"
             value={dateRange.to}
             onChange={(event) => onDateRangeChange({ ...dateRange, to: event.target.value })}
           />

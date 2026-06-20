@@ -213,18 +213,18 @@
     padding-right: 0.75rem;
   }
 
-  .app-date-input-balanced[type="date"] {
-    -webkit-appearance: auto;
-    appearance: auto;
-  }
-
+  /* The native date appearance gives WebKit an intrinsic width that ignores the flex track and
+     overflows the panel, so the appearance stays stripped to let the field shrink, and the calendar
+     indicator is forced back on since stripping the appearance otherwise hides it */
   .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
+    display: block;
     width: 1rem;
     height: 1rem;
     margin-left: 0.5rem;
     margin-right: 0;
     padding: 0;
     opacity: 0.6;
+    cursor: pointer;
   }
 
   .app-date-input-balanced[type="date"]:hover::-webkit-calendar-picker-indicator,
