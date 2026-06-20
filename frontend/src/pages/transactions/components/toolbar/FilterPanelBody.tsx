@@ -31,8 +31,7 @@ export function FilterPanelBody({ draft }: { draft: TransactionFilterDraft }) {
       <motion.div
         layout="position"
         transition={transition}
-        className="app-range-seg"
-        style={{ gridTemplateColumns: `repeat(${FILTER_FACETS.length}, minmax(0, 1fr))` }}
+        className="app-range-seg app-filter-facet-grid"
         role="tablist"
         aria-label="Filter facets"
       >
