@@ -9,7 +9,6 @@ import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transact
 import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
 import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
 import TransactionListToolbar from '@/pages/transactions/components/toolbar/ListToolbar'
-import { useDateRangeDraft } from '@/pages/transactions/hooks/useDateRangeDraft'
 import { useTransactionFilterLoadingState } from '@/pages/transactions/hooks/useTransactionFilterLoadingState'
 import { useInfiniteScrollTrigger } from '@/pages/transactions/hooks/useInfiniteScrollTrigger'
 import { useTransactionSearch } from '@/pages/transactions/hooks/useTransactionSearch'
@@ -123,16 +122,6 @@ export default function TransactionListSection({
     }
   }
 
-  const {
-    pendingFrom,
-    pendingTo,
-    setPendingFrom,
-    setPendingTo,
-    dateRangeInvalid,
-    dateRangeChanged,
-    commitDateRange,
-  } = useDateRangeDraft({ filters, setFilter })
-
   const { data: categories } = useCategories()
   const categoryMap = useMemo(
     () => new Map(categories?.map((category) => [category.id, category]) ?? []),
@@ -167,17 +156,6 @@ export default function TransactionListSection({
         categories={categories}
         accounts={accounts}
         showAccountFilter={!fixedAccount}
-        pendingFrom={pendingFrom}
-        pendingTo={pendingTo}
-        dateRangeChanged={dateRangeChanged}
-        dateRangeInvalid={dateRangeInvalid}
-        onPendingFromChange={setPendingFrom}
-        onPendingToChange={setPendingTo}
-        onDateRangeReset={() => {
-          setPendingFrom('')
-          setPendingTo('')
-        }}
-        onDateRangeClose={commitDateRange}
         onCreateTransaction={onCreateTransaction}
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}

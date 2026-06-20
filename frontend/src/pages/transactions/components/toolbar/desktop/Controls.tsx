@@ -2,17 +2,14 @@ import type { RefObject } from 'react'
 import { Plus } from 'lucide-react'
 import { TransactionFilterPanel } from '@/pages/transactions/components/toolbar/FilterPanel'
 import type {
-  TransactionDateRangeDraftProps,
   TransactionFilterSetter,
   TransactionToolbarOptions,
-  TransactionToolbarSelectionLabels,
 } from '@/pages/transactions/components/toolbar/types'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 
-type DesktopTransactionToolbarControlsProps = TransactionDateRangeDraftProps & TransactionToolbarOptions & TransactionToolbarSelectionLabels & {
+type DesktopTransactionToolbarControlsProps = TransactionToolbarOptions & {
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
-  showAccountFilter: boolean
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
   controlsRef: RefObject<HTMLDivElement | null>

@@ -3,13 +3,6 @@ import type { DesktopTransactionToolbarRefs } from '@/pages/transactions/compone
 
 const DESKTOP_SEARCH_MIN_WIDTH = 320
 
-type DesktopToolbarLayoutOptions = {
-  selectedAccountLabel: string | null
-  selectedCategoryLabel: string | null
-  selectedDateLabel: string | null
-  showAccountFilter: boolean
-}
-
 export type DesktopToolbarLayoutState = DesktopTransactionToolbarRefs & {
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
@@ -18,12 +11,7 @@ export type DesktopToolbarLayoutState = DesktopTransactionToolbarRefs & {
 /**
  * Measures the desktop toolbar so the search field, filter group, and create button wrap before they collide
  */
-export function useDesktopToolbarLayout({
-  selectedAccountLabel,
-  selectedCategoryLabel,
-  selectedDateLabel,
-  showAccountFilter,
-}: DesktopToolbarLayoutOptions): DesktopToolbarLayoutState {
+export function useDesktopToolbarLayout(): DesktopToolbarLayoutState {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const filterGroupRef = useRef<HTMLDivElement>(null)
@@ -43,7 +31,7 @@ export function useDesktopToolbarLayout({
     const createMeasureElement = createMeasure
 
     /**
-     * Recomputes layout against rendered widths because filter labels change after selection
+     * Recomputes the inline and stacked layout against the rendered toolbar widths
      */
     function updateCreateLayout() {
       if (!window.matchMedia('(min-width: 750px)').matches) {
@@ -82,7 +70,7 @@ export function useDesktopToolbarLayout({
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateCreateLayout)
     }
-  }, [selectedAccountLabel, selectedCategoryLabel, selectedDateLabel, showAccountFilter])
+  }, [])
 
   return {
     toolbarRef,

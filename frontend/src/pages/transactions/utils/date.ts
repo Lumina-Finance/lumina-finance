@@ -7,28 +7,6 @@ export function parseYmdLocal(ymd: string): Date {
 }
 
 /**
- * Formats the compact label shown in the transaction date-range filter chip
- */
-export function formatDateRangeLabel(from?: string, to?: string): string | null {
-  if (!from && !to) return null
-  const monthDay = (ymd: string) => parseYmdLocal(ymd).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  })
-  const fullYear = (ymd: string) => parseYmdLocal(ymd).getFullYear()
-  const shortYear = (ymd: string) => `'${ymd.slice(2, 4)}`
-
-  if (from && to) {
-    if (fullYear(from) === fullYear(to)) {
-      return `${monthDay(from)} – ${monthDay(to)}, ${fullYear(to)}`
-    }
-    return `${monthDay(from)}, ${shortYear(from)} – ${monthDay(to)}, ${shortYear(to)}`
-  }
-  if (from) return `From ${monthDay(from)}, ${fullYear(from)}`
-  return `Until ${monthDay(to!)}, ${fullYear(to!)}`
-}
-
-/**
  * Formats the full overview range label while treating YYYY-MM-DD inputs as calendar dates
  */
 export function formatOverviewRangeLabel(from: string, to: string): string {

@@ -7,26 +7,11 @@ import { TransactionSearchField } from '@/pages/transactions/components/toolbar/
 import { useDesktopToolbarLayout } from '@/pages/transactions/components/toolbar/hooks/useDesktopLayout'
 import { useMobileSearchStuck } from '@/pages/transactions/components/toolbar/hooks/useMobileSearchStuck'
 import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useStickyOffset'
-import { formatDateRangeLabel } from '@/pages/transactions/utils/date'
 import {
   getAccountOptions,
   getActiveFilterCount,
   getCategoryOptions,
 } from '@/pages/transactions/utils/filterOptions'
-
-/**
- * Builds a label for a multi-select filter: the single chosen name, or a count once several are
- * selected, or null when nothing is selected
- */
-function describeSelection(
-  ids: string[] | undefined,
-  lookupName: (id: string) => string | undefined,
-  noun: string,
-): string | null {
-  if (!ids || ids.length === 0) return null
-  if (ids.length === 1) return lookupName(ids[0]) ?? null
-  return `${ids.length} ${noun}`
-}
 
 /**
  * Orchestrates transaction list search, filters, and responsive toolbar layout
@@ -40,14 +25,6 @@ export default function TransactionListToolbar({
   categories,
   accounts,
   showAccountFilter,
-  pendingFrom,
-  pendingTo,
-  dateRangeChanged,
-  dateRangeInvalid,
-  onPendingFromChange,
-  onPendingToChange,
-  onDateRangeReset,
-  onDateRangeClose,
   onCreateTransaction,
   createDisabled = false,
   createDisabledReason,
@@ -66,17 +43,6 @@ export default function TransactionListToolbar({
     () => getCategoryOptions(categories),
     [categories],
   )
-  const selectedAccountLabel = describeSelection(
-    filters.account_id,
-    (id) => accounts?.find((account) => account.id === id)?.name,
-    'accounts',
-  )
-  const selectedCategoryLabel = describeSelection(
-    filters.category_id,
-    (id) => categories?.find((category) => category.id === id)?.name,
-    'categories',
-  )
-  const selectedDateLabel = formatDateRangeLabel(filters.from_date, filters.to_date)
   const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 
   const {
@@ -86,12 +52,7 @@ export default function TransactionListToolbar({
     createMeasureRef,
     desktopInlineLayout,
     desktopCreateStacked,
-  } = useDesktopToolbarLayout({
-    selectedAccountLabel,
-    selectedCategoryLabel,
-    selectedDateLabel,
-    showAccountFilter,
-  })
+  } = useDesktopToolbarLayout()
   const { mobileSearchStickySentinelRef, mobileSearchStuck } = useMobileSearchStuck()
 
   useToolbarStickyOffset(toolbarRef, onStickyOffsetChange)
@@ -133,20 +94,8 @@ export default function TransactionListToolbar({
         <DesktopTransactionToolbarControls
           filters={filters}
           setFilter={setFilter}
-          showAccountFilter={showAccountFilter}
           accountOptions={accountOptions}
           categoryOptions={categoryOptions}
-          selectedAccountLabel={selectedAccountLabel}
-          selectedCategoryLabel={selectedCategoryLabel}
-          selectedDateLabel={selectedDateLabel}
-          pendingFrom={pendingFrom}
-          pendingTo={pendingTo}
-          dateRangeChanged={dateRangeChanged}
-          dateRangeInvalid={dateRangeInvalid}
-          onPendingFromChange={onPendingFromChange}
-          onPendingToChange={onPendingToChange}
-          onDateRangeReset={onDateRangeReset}
-          onDateRangeClose={onDateRangeClose}
           desktopInlineLayout={desktopInlineLayout}
           desktopCreateStacked={desktopCreateStacked}
           controlsRef={controlsRef}
