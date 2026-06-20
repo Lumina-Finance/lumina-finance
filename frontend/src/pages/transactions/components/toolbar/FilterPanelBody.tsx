@@ -18,7 +18,7 @@ import {
  * Renders the shared filter panel body: the facet tabs, the active facet editor, the removable
  * active-filter chips, and the apply and clear actions, driven by the shared draft
  */
-export function FilterPanelBody({ draft }: { draft: TransactionFilterDraft }) {
+export function FilterPanelBody({ draft, showFooter = true }: { draft: TransactionFilterDraft; showFooter?: boolean }) {
   const [activeFacetId, setActiveFacetId] = useState('accounts')
   // Scopes the sliding-thumb layout animation to this instance
   const segId = useId()
@@ -107,20 +107,22 @@ export function FilterPanelBody({ draft }: { draft: TransactionFilterDraft }) {
         </p>
       </motion.div>
 
-      <motion.div layout="position" transition={transition} className="mt-3 flex items-center justify-between">
-        <button
-          type="button"
-          className="text-xs"
-          style={{ color: 'var(--app-text-muted)' }}
-          disabled={draft.activeFacetCount === 0}
-          onClick={draft.clearAll}
-        >
-          Clear all
-        </button>
-        <button type="button" className="app-glass-button-primary" onClick={draft.applyFilters}>
-          Apply filters
-        </button>
-      </motion.div>
+      {showFooter && (
+        <motion.div layout="position" transition={transition} className="mt-3 flex items-center justify-between">
+          <button
+            type="button"
+            className="text-xs"
+            style={{ color: 'var(--app-text-muted)' }}
+            disabled={draft.activeFacetCount === 0}
+            onClick={draft.clearAll}
+          >
+            Clear all
+          </button>
+          <button type="button" className="app-glass-button-primary" onClick={draft.applyFilters}>
+            Apply filters
+          </button>
+        </motion.div>
+      )}
     </>
   )
 }
