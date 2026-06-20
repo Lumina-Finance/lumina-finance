@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
+  Bookmark,
   Calendar,
   Check,
   ChevronDown,
@@ -8,6 +9,7 @@ import {
   DollarSign,
   Search,
   SlidersHorizontal,
+  Store,
   Tag,
   Wallet,
   X,
@@ -19,6 +21,7 @@ import { useCurrencies } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import { joinClassNames } from '@/utils/classNames'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
+import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
@@ -51,6 +54,8 @@ type FacetConfig = {
 const FACETS: FacetConfig[] = [
   { id: 'accounts', label: 'Accounts', icon: Wallet, kind: 'multi' },
   { id: 'categories', label: 'Category', icon: Tag, kind: 'multi' },
+  { id: 'merchants', label: 'Merchant', icon: Store, kind: 'multi' },
+  { id: 'tags', label: 'Tags', icon: Bookmark, kind: 'multi' },
   { id: 'currency', label: 'Currency', icon: Coins, kind: 'multi', single: true },
   { id: 'amount', label: 'Amount', icon: DollarSign, kind: 'amount' },
   { id: 'date', label: 'Date', icon: Calendar, kind: 'date' },
@@ -61,6 +66,8 @@ type MultiSelections = Record<string, string[]>
 const EMPTY_SELECTIONS: MultiSelections = {
   accounts: [],
   categories: [],
+  merchants: [],
+  tags: [],
   currency: [],
 }
 
@@ -84,6 +91,10 @@ export function TransactionFilterPanel({
   const [open, setOpen] = useState(false)
   const [activeFacetId, setActiveFacetId] = useState('accounts')
   const [selections, setSelections] = useState<MultiSelections>(EMPTY_SELECTIONS)
+  const [tagMatch, setTagMatch] = useState<'all' | 'any'>('all')
+  // Resolved names for selected merchants and tags, kept so the summary and the pinned rows stay
+  // readable after the server search moves on
+  const [referenceLabels, setReferenceLabels] = useState<Record<string, string>>({})
   const [amount, setAmount] = useState({ min: '', max: '' })
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
@@ -124,8 +135,11 @@ export function TransactionFilterPanel({
       ...EMPTY_SELECTIONS,
       accounts: filters.account_id ?? [],
       categories: filters.category_id ?? [],
+      merchants: filters.merchant_id ?? [],
+      tags: filters.tag_id ?? [],
       currency: filters.currency ? [filters.currency] : [],
     })
+    setTagMatch(filters.tag_match ?? 'all')
     setDateRange({ from: filters.from_date ?? '', to: filters.to_date ?? '' })
     // Stored bounds are in the amount currency's minor units, so they are scaled back to a decimal
     const exponent = currencies.find((currency) => currency.id === filters.amount_currency)?.minor_unit_exponent ?? 2
@@ -199,7 +213,9 @@ export function TransactionFilterPanel({
   function getFacetOptions(facetId: string): OptionItem[] {
     if (facetId === 'accounts') return accountOptions
     if (facetId === 'categories') return categoryOptions
-    return currencyOptions
+    if (facetId === 'currency') return currencyOptions
+    // Merchants and tags are searched on the server, so their labels come from referenceLabels
+    return []
   }
 
   /**
@@ -224,7 +240,7 @@ export function TransactionFilterPanel({
   /**
    * Adds or removes a value from a multi-select facet draft
    */
-  function toggleSelection(facetId: string, value: string) {
+  function toggleSelection(facetId: string, value: string, label?: string) {
     setSelections((current) => {
       const values = current[facetId]
       const isSingle = FACETS.find((facet) => facet.id === facetId)?.single
@@ -238,6 +254,11 @@ export function TransactionFilterPanel({
         : [...values, value]
       return { ...current, [facetId]: next }
     })
+
+    // Server-searched facets pass the label so the selection stays readable once the search changes
+    if (label !== undefined) {
+      setReferenceLabels((current) => ({ ...current, [value]: label }))
+    }
   }
 
   /**
@@ -278,6 +299,9 @@ export function TransactionFilterPanel({
     setFilter({
       account_id: selections.accounts,
       category_id: selections.categories,
+      merchant_id: selections.merchants,
+      tag_id: selections.tags,
+      tag_match: selections.tags.length > 0 ? tagMatch : undefined,
       currency: selections.currency[0],
       min_amount: toMinor(amount.min),
       max_amount: toMinor(amount.max),
@@ -418,11 +442,14 @@ export function TransactionFilterPanel({
                 facet={activeFacet}
                 options={getFacetOptions(activeFacet.id)}
                 selectedValues={selections[activeFacet.id] ?? []}
+                referenceLabels={referenceLabels}
+                tagMatch={tagMatch}
                 amount={amount}
                 amountSymbol={amountSymbol}
                 amountCurrencyNote={amountCurrencyNote}
                 dateRange={dateRange}
-                onToggle={(value) => toggleSelection(activeFacet.id, value)}
+                onToggle={(value, label) => toggleSelection(activeFacet.id, value, label)}
+                onTagMatchChange={setTagMatch}
                 onAmountChange={setAmount}
                 onDateRangeChange={setDateRange}
               />
@@ -431,6 +458,7 @@ export function TransactionFilterPanel({
             <motion.div layout="position" transition={transition}>
               <ActiveFilterSummary
                 selections={selections}
+                referenceLabels={referenceLabels}
                 amount={amount}
                 amountSymbol={amountSymbol}
                 dateRange={dateRange}
@@ -478,28 +506,34 @@ type FacetEditorProps = {
   facet: FacetConfig
   options: OptionItem[]
   selectedValues: string[]
+  referenceLabels: Record<string, string>
+  tagMatch: 'all' | 'any'
   amount: AmountDraft
   amountSymbol: string
   amountCurrencyNote: string
   dateRange: { from: string; to: string }
-  onToggle: (value: string) => void
+  onToggle: (value: string, label?: string) => void
+  onTagMatchChange: (value: 'all' | 'any') => void
   onAmountChange: (value: AmountDraft) => void
   onDateRangeChange: (value: { from: string; to: string }) => void
 }
 
 /**
- * Renders the editor for the active facet, a chip grid for multi-select facets and labelled
- * inputs for the amount and date ranges
+ * Renders the editor for the active facet: a searchable list for multi-select facets, a server
+ * search for merchants and tags, and labelled inputs for the amount and date ranges
  */
 function FacetEditor({
   facet,
   options,
   selectedValues,
+  referenceLabels,
+  tagMatch,
   amount,
   amountSymbol,
   amountCurrencyNote,
   dateRange,
   onToggle,
+  onTagMatchChange,
   onAmountChange,
   onDateRangeChange,
 }: FacetEditorProps) {
@@ -584,6 +618,44 @@ function FacetEditor({
             onChange={(event) => onDateRangeChange({ ...dateRange, to: event.target.value })}
           />
         </label>
+      </div>
+    )
+  }
+
+  if (facet.id === 'merchants' || facet.id === 'tags') {
+    return (
+      <div className="flex flex-col gap-2">
+        {facet.id === 'tags' && (
+          <div>
+            <div className="app-range-seg" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              {(['all', 'any'] as const).map((mode) => {
+                const isActive = tagMatch === mode
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={isActive}
+                    className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
+                    style={isActive ? { background: 'var(--app-input-bg)', boxShadow: '0 1px 2px #00000014, inset 0 1px 0 color-mix(in srgb, white 28%, transparent)' } : undefined}
+                    onClick={() => onTagMatchChange(mode)}
+                  >
+                    <span className="app-range-seg-label">{mode === 'all' ? 'All' : 'Any'}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-1 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+              {tagMatch === 'all' ? 'Match transactions with all selected tags' : 'Match transactions with any selected tag'}
+            </p>
+          </div>
+        )}
+        <ReferenceFacet
+          kind={facet.id}
+          selectedValues={selectedValues}
+          selectedLabels={referenceLabels}
+          searchPlaceholder={`Search ${facet.label.toLowerCase()}`}
+          onToggle={onToggle}
+        />
       </div>
     )
   }
@@ -747,6 +819,7 @@ function ChecklistRow({
 
 type ActiveFilterSummaryProps = {
   selections: MultiSelections
+  referenceLabels: Record<string, string>
   amount: AmountDraft
   amountSymbol: string
   dateRange: { from: string; to: string }
@@ -762,6 +835,7 @@ type ActiveFilterSummaryProps = {
  */
 function ActiveFilterSummary({
   selections,
+  referenceLabels,
   amount,
   amountSymbol,
   dateRange,
@@ -772,7 +846,8 @@ function ActiveFilterSummary({
 }: ActiveFilterSummaryProps) {
   const multiChips = Object.entries(selections).flatMap(([facetId, values]) =>
     values.map((value) => {
-      const label = getFacetOptions(facetId).find((option) => option.value === value)?.label ?? value
+      // Client-list facets resolve via their options, server-searched ones via the label cache
+      const label = getFacetOptions(facetId).find((option) => option.value === value)?.label ?? referenceLabels[value] ?? value
       return { key: `${facetId}:${value}`, label, onRemove: () => onRemoveSelection(facetId, value) }
     }),
   )
