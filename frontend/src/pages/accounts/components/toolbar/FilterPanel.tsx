@@ -156,6 +156,7 @@ export function AccountFilterPanel({
         initial={false}
         animate={{ width: open ? OPEN_WIDTH : collapsedSize.width }}
         transition={transition}
+        whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
       >
         <button
           ref={headRef}
@@ -165,7 +166,7 @@ export function AccountFilterPanel({
           style={{ height: 42, padding: '0 16px', gap: 8, fontSize: '0.9375rem' }}
           aria-expanded={open}
           aria-label="Account filters"
-          onClick={() => (open ? setOpen(false) : handleOpen())}
+          onClick={() => (open ? dismiss() : handleOpen())}
         >
           <span ref={headContentRef} className="app-range-glass-cur">
             <SlidersHorizontal size={18} aria-hidden className="shrink-0" />
@@ -210,7 +211,14 @@ export function AccountFilterPanel({
           style={{ overflow: 'hidden' }}
           initial={false}
           animate={{ height: open ? openContentHeight : 0, opacity: open ? 1 : 0 }}
-          transition={transition}
+          transition={
+            shouldReduceMotion
+              ? { duration: 0 }
+              : {
+                  height: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+                  opacity: { duration: 0.26, delay: 0.05 },
+                }
+          }
         >
           <div className="flex flex-col" style={{ height: openContentHeight, padding: '0 12px 12px' }}>
             <FilterPanelBody draft={draft} fillHeight />
