@@ -36,7 +36,7 @@ export function MobileFilterPanel({
 }: MobileFilterPanelProps) {
   // The full-screen modal covers the page, so the page-content dim is left off to keep the glass
   // toolbar from breaking and because nothing behind the modal is visible anyway
-  const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, dimPageContent: false })
+  const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, dimPageContent: false, lockScroll: false })
   const shouldReduceMotion = useReducedMotion()
   const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, onClose })
   const { activeFacetCount, seedDraftFromFilters } = draft
