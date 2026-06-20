@@ -19,6 +19,17 @@ const COLLAPSED_FALLBACK = { width: 140, height: 34 }
 // clips the label. Added to the content width to size the pill
 const COLLAPSED_HEAD_CHROME = 64
 
+// The open panel fills to a consistent height with its option list growing to take the space, rather
+// than hugging each facet. This caps that height
+const OPEN_CONTENT_MAX = 440
+
+// Kept clear below the open panel so it never runs to the bottom edge of the viewport on a short
+// window, where the fill height shrinks to whatever space is left
+const OPEN_CONTENT_VIEWPORT_MARGIN = 24
+
+// Floor so a very short window still leaves the list usable rather than collapsing the panel
+const OPEN_CONTENT_MIN = 220
+
 type TransactionFilterPanelProps = {
   accountOptions: OptionItem[]
   categoryOptions: OptionItem[]
@@ -38,11 +49,10 @@ export function TransactionFilterPanel({
 }: TransactionFilterPanelProps) {
   const [open, setOpen] = useState(false)
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
-  const [contentHeight, setContentHeight] = useState(0)
+  const [openContentHeight, setOpenContentHeight] = useState(OPEN_CONTENT_MAX)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
   const headContentRef = useRef<HTMLSpanElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
   const shouldReduceMotion = useReducedMotion()
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
 
@@ -88,17 +98,23 @@ export function TransactionFilterPanel({
     })
   }, [open, activeFacetCount])
 
-  // The body height is animated as a real property rather than a layout transform, so the content
-  // never scales and distorts. The observer keeps the target height in step with every content
-  // change: switching facets, toggling selections, or filtering a list
+  // The open panel fills to a fixed height so the option list takes the available space instead of
+  // the panel hugging each facet. The height is capped at the viewport less a bottom margin, so a
+  // short window still leaves the panel clear of the bottom edge, and is remeasured on resize
   useLayoutEffect(() => {
-    const content = contentRef.current
-    if (!content) return
-    const observer = new ResizeObserver(() => setContentHeight(content.offsetHeight))
-    observer.observe(content)
-    setContentHeight(content.offsetHeight)
-    return () => observer.disconnect()
-  }, [])
+    if (!open) return undefined
+
+    function measureOpenHeight() {
+      const head = headRef.current
+      if (!head) return
+      const available = window.innerHeight - head.getBoundingClientRect().bottom - OPEN_CONTENT_VIEWPORT_MARGIN
+      setOpenContentHeight(Math.round(Math.max(OPEN_CONTENT_MIN, Math.min(OPEN_CONTENT_MAX, available))))
+    }
+
+    measureOpenHeight()
+    window.addEventListener('resize', measureOpenHeight)
+    return () => window.removeEventListener('resize', measureOpenHeight)
+  }, [open])
 
   // An outside press or Escape dismisses the panel and discards the draft
   useEffect(() => {
@@ -190,11 +206,11 @@ export function TransactionFilterPanel({
         <motion.div
           style={{ overflow: 'hidden' }}
           initial={false}
-          animate={{ height: open ? contentHeight : 0, opacity: open ? 1 : 0 }}
+          animate={{ height: open ? openContentHeight : 0, opacity: open ? 1 : 0 }}
           transition={transition}
         >
-          <div ref={contentRef} style={{ padding: '0 12px 12px' }}>
-            <FilterPanelBody draft={draft} />
+          <div className="flex flex-col" style={{ height: openContentHeight, padding: '0 12px 12px' }}>
+            <FilterPanelBody draft={draft} fillHeight />
           </div>
         </motion.div>
       </motion.div>

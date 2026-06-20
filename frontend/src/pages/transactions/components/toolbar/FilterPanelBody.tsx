@@ -22,13 +22,15 @@ export function FilterPanelBody({
   draft,
   showFooter = true,
   mobile = false,
+  fillHeight = false,
 }: {
   draft: TransactionFilterDraft
   showFooter?: boolean
-  // The mobile full-screen variant swaps the cramped facet tab grid for a dropdown and lets the
-  // facet editor grow to fill the panel, while the desktop pill keeps the tabs and its measured
-  // auto height with a capped list
+  // Swaps the cramped facet tab grid for a dropdown, only used by the mobile full-screen sheet
   mobile?: boolean
+  // Lets the facet editor grow to fill its container with the option list scrolling internally,
+  // used by the mobile sheet and the desktop panel once the panel opens to a fixed height
+  fillHeight?: boolean
 }) {
   const [activeFacetId, setActiveFacetId] = useState('accounts')
   // Scopes the sliding-thumb layout animation to this instance
@@ -37,12 +39,12 @@ export function FilterPanelBody({
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
   const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
 
-  // The mobile layout sizes the editor with flexbox, so the position springs are turned off to keep
+  // The fill layout sizes the editor with flexbox, so the position springs are turned off to keep
   // framer-motion from fighting the flex sizing
-  const blockLayout = mobile ? false : 'position'
+  const blockLayout = fillHeight ? false : 'position'
 
   return (
-    <div className={joinClassNames('contents', mobile && '!flex min-h-0 flex-1 flex-col')}>
+    <div className={joinClassNames('contents', fillHeight && '!flex min-h-0 flex-1 flex-col')}>
       {mobile ? (
         <MobileFacetSelect
           activeFacetId={activeFacetId}
@@ -95,12 +97,12 @@ export function FilterPanelBody({
       <motion.div
         layout={blockLayout}
         transition={transition}
-        className={joinClassNames('mt-3', mobile && 'flex min-h-0 flex-1 flex-col')}
+        className={joinClassNames('mt-3', fillHeight && 'flex min-h-0 flex-1 flex-col')}
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeFacet.id}
-            className={mobile ? 'flex min-h-0 flex-1 flex-col' : undefined}
+            className={fillHeight ? 'flex min-h-0 flex-1 flex-col' : undefined}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -118,7 +120,7 @@ export function FilterPanelBody({
               currencyOptions={draft.getFacetOptions('currency')}
               currencyValue={draft.selections.currency[0] ?? ''}
               dateRange={draft.dateRange}
-              fillHeight={mobile}
+              fillHeight={fillHeight}
               onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
               onCurrencyToggle={(value) => draft.toggleSelection('currency', value)}
               onTagMatchChange={draft.setTagMatch}
