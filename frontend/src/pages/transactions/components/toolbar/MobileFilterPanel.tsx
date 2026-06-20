@@ -146,7 +146,7 @@ export function MobileFilterPanel({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
-            <FilterPanelBody draft={draft} showFooter={false} fillHeight />
+            <FilterPanelBody draft={draft} showFooter={false} mobile />
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
