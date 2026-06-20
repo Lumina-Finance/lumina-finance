@@ -282,6 +282,59 @@ function FacetCountBadge({ count }: { count: number }) {
   )
 }
 
+/**
+ * Renders one labelled date field with an overlaid calendar glyph, syncing the value back on the
+ * native change event so the iOS picker's Clear button, which never fires the input event React
+ * binds onChange to, still empties the field
+ */
+function DateFacetInput({
+  label,
+  value,
+  onValueChange,
+}: {
+  label: string
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Holds the latest callback so the native listener stays bound once while still seeing fresh state
+  const onValueChangeRef = useRef(onValueChange)
+
+  useEffect(() => {
+    onValueChangeRef.current = onValueChange
+  })
+
+  useEffect(() => {
+    const input = inputRef.current
+    if (!input) return undefined
+
+    const syncValue = () => onValueChangeRef.current(input.value)
+    input.addEventListener('change', syncValue)
+    return () => input.removeEventListener('change', syncValue)
+  }, [])
+
+  return (
+    <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+      {label}
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="date"
+          className="app-input app-date-input-balanced pr-9"
+          value={value}
+          onChange={(event) => onValueChange(event.target.value)}
+        />
+        <Calendar
+          size={15}
+          aria-hidden
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+          style={{ color: 'var(--app-text-subtle)' }}
+        />
+      </div>
+    </label>
+  )
+}
+
 type FacetEditorProps = {
   facet: FacetConfig
   options: OptionItem[]
@@ -420,43 +473,19 @@ function FacetEditor({
   if (facet.kind === 'date') {
     return (
       <div className="flex items-end gap-2">
-        <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          From
-          <div className="relative">
-            <input
-              type="date"
-              className="app-input app-date-input-balanced pr-9"
-              value={dateRange.from}
-              onChange={(event) => onDateRangeChange({ ...dateRange, from: event.target.value })}
-            />
-            <Calendar
-              size={15}
-              aria-hidden
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--app-text-subtle)' }}
-            />
-          </div>
-        </label>
+        <DateFacetInput
+          label="From"
+          value={dateRange.from}
+          onValueChange={(value) => onDateRangeChange({ ...dateRange, from: value })}
+        />
         <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           to
         </span>
-        <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          To
-          <div className="relative">
-            <input
-              type="date"
-              className="app-input app-date-input-balanced pr-9"
-              value={dateRange.to}
-              onChange={(event) => onDateRangeChange({ ...dateRange, to: event.target.value })}
-            />
-            <Calendar
-              size={15}
-              aria-hidden
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--app-text-subtle)' }}
-            />
-          </div>
-        </label>
+        <DateFacetInput
+          label="To"
+          value={dateRange.to}
+          onValueChange={(value) => onDateRangeChange({ ...dateRange, to: value })}
+        />
       </div>
     )
   }
