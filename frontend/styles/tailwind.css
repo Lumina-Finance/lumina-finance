@@ -623,18 +623,18 @@
   }
 
   .app-primary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
     box-sizing: border-box;
+    border-radius: 20px;
     font-size: 0.9375rem;
-    background: var(--app-button-primary-bg);
-    border: 1px solid var(--app-button-primary-bg);
     color: var(--app-button-primary-text);
-    box-shadow: none;
+    border: 1px solid color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
   .app-primary-button:hover {
-    background: var(--app-button-primary-bg-hover);
-    border-color: var(--app-button-primary-bg-hover);
+    background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+    border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   .app-primary-button:active {
@@ -652,18 +652,18 @@
   }
 
   .app-secondary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
     font-size: 0.9375rem;
-    background: var(--app-input-bg);
-    border: 1px solid var(--app-border);
     color: var(--app-text-muted);
-    box-shadow: none;
+    border: 1px solid var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
   .app-secondary-button:hover {
-    background: var(--app-surface-soft);
-    border-color: var(--app-border-strong);
     color: var(--app-text);
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
   }
 
   .app-secondary-button:active {
@@ -681,16 +681,18 @@
   }
 
   .app-danger-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
     font-size: 0.9375rem;
-    background: var(--app-negative);
-    border: 1px solid var(--app-negative-border);
     color: white;
+    border: 1px solid color-mix(in srgb, var(--app-negative) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-negative) 82%, transparent);
   }
 
   .app-danger-button:hover {
-    background: color-mix(in srgb, var(--app-negative) 92%, var(--app-bg));
-    border-color: var(--app-negative);
+    background: color-mix(in srgb, var(--app-negative) 90%, transparent);
+    border-color: color-mix(in srgb, var(--app-negative) 72%, var(--app-border-strong));
   }
 
   .app-danger-button:active {
@@ -734,8 +736,6 @@
     color: var(--app-button-primary-text);
     border: 1px solid color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    backdrop-filter: blur(20px) saturate(160%);
   }
 
   .app-glass-button-primary:hover {
