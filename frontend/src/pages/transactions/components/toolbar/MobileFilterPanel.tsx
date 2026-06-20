@@ -12,6 +12,8 @@ import type { TransactionFilterSetter } from '@/pages/transactions/components/to
 type MobileFilterPanelProps = {
   isOpen: boolean
   onClose: () => void
+  // Fires once the close animation finishes so the parent can unmount and release the scroll lock
+  onExitComplete: () => void
   accountOptions: OptionItem[]
   categoryOptions: OptionItem[]
   filters: TransactionListFilters
@@ -25,6 +27,7 @@ type MobileFilterPanelProps = {
 export function MobileFilterPanel({
   isOpen,
   onClose,
+  onExitComplete,
   accountOptions,
   categoryOptions,
   filters,
@@ -48,7 +51,7 @@ export function MobileFilterPanel({
   const sheetExit = shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }
 
   return createPortal(
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onExitComplete}>
       {isOpen && (
         <div className="fixed inset-x-0 -top-[env(safe-area-inset-top)] bottom-0 z-[100] min-[750px]:hidden" onClick={onClose}>
           <motion.div

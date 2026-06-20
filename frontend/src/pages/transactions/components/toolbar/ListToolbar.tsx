@@ -54,6 +54,9 @@ export default function TransactionListToolbar({
   onStickyOffsetChange,
 }: TransactionListToolbarProps) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
+  // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
+  // the sheet exists, never on the page underneath
+  const [isMobileSheetMounted, setIsMobileSheetMounted] = useState(false)
 
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
@@ -93,7 +96,10 @@ export default function TransactionListToolbar({
 
   useToolbarStickyOffset(toolbarRef, onStickyOffsetChange)
 
-  const openMobileSheet = useCallback(() => setIsMobileSheetOpen(true), [])
+  const openMobileSheet = useCallback(() => {
+    setIsMobileSheetMounted(true)
+    setIsMobileSheetOpen(true)
+  }, [])
 
   const closeMobileSheet = useCallback(() => setIsMobileSheetOpen(false), [])
 
@@ -152,14 +158,19 @@ export default function TransactionListToolbar({
         />
       </div>
 
-      <MobileFilterPanel
-        isOpen={isMobileSheetOpen}
-        onClose={closeMobileSheet}
-        accountOptions={accountOptions}
-        categoryOptions={categoryOptions}
-        filters={filters}
-        setFilter={setFilter}
-      />
+      {isMobileSheetMounted && (
+        <MobileFilterPanel
+          isOpen={isMobileSheetOpen}
+          onClose={closeMobileSheet}
+          onExitComplete={() => {
+            if (!isMobileSheetOpen) setIsMobileSheetMounted(false)
+          }}
+          accountOptions={accountOptions}
+          categoryOptions={categoryOptions}
+          filters={filters}
+          setFilter={setFilter}
+        />
+      )}
     </>
   )
 }
