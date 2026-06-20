@@ -693,6 +693,58 @@
     box-shadow: 0 0 0 3px var(--app-negative-soft);
   }
 
+  /* Liquid-glass variants of the toolbar controls, sharing the filter pill and insights range
+     selector surface so the transactions toolbar reads as one glass family */
+  .app-glass-input {
+    @apply min-w-0 border px-4 py-0 outline-none transition-colors duration-200;
+    border-radius: 20px;
+    font-size: 0.9375rem;
+    color: var(--app-text);
+    border-color: var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
+  }
+
+  .app-glass-input::placeholder {
+    color: var(--app-text-subtle);
+  }
+
+  /* The primary action keeps its accent tint but turns translucent so it joins the glass family
+     while still reading as the prominent call to action */
+  .app-glass-button-primary {
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
+    font-size: 0.9375rem;
+    color: var(--app-button-primary-text);
+    border: 1px solid color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+  }
+
+  .app-glass-button-primary:hover {
+    background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+    border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+  }
+
+  .app-glass-button-primary:active {
+    transform: translateY(1px);
+  }
+
+  .app-glass-button-primary:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .app-glass-button-primary:focus-visible {
+    outline: none;
+    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
+  }
+
   .app-primary-button-loading {
     width: 40px;
     height: 40px;
