@@ -4,8 +4,8 @@ import { DesktopTransactionToolbarControls } from '@/pages/transactions/componen
 import { MobileToolbarActions } from '@/pages/transactions/components/toolbar/mobile/Actions'
 import { MobileFilterPanel } from '@/pages/transactions/components/toolbar/MobileFilterPanel'
 import { TransactionSearchField } from '@/pages/transactions/components/toolbar/SearchField'
-import { useDesktopToolbarLayout } from '@/pages/transactions/components/toolbar/hooks/useDesktopLayout'
-import { useMobileSearchStuck } from '@/pages/transactions/components/toolbar/hooks/useMobileSearchStuck'
+import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
+import { useMobileSearchStuck } from '@/components/filters/hooks/useMobileSearchStuck'
 import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useStickyOffset'
 import {
   getAccountOptions,

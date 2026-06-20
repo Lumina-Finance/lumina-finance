@@ -1,9 +1,16 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { DesktopTransactionToolbarRefs } from '@/pages/transactions/components/toolbar/types'
+import type { RefObject } from 'react'
 
 const DESKTOP_SEARCH_MIN_WIDTH = 320
 
-export type DesktopToolbarLayoutState = DesktopTransactionToolbarRefs & {
+export type DesktopToolbarRefs = {
+  toolbarRef: RefObject<HTMLDivElement | null>
+  controlsRef: RefObject<HTMLDivElement | null>
+  filterGroupRef: RefObject<HTMLDivElement | null>
+  createMeasureRef: RefObject<HTMLButtonElement | null>
+}
+
+export type DesktopToolbarLayoutState = DesktopToolbarRefs & {
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
 }
