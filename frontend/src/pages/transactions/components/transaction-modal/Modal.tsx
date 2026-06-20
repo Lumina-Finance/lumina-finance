@@ -17,6 +17,7 @@ import { ApiError } from '@/api/auth'
 import { sanitizeMoneyInput } from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
 import {
+  BALANCE_ADJUSTMENT_CATEGORY_NAME,
   INITIAL_TRANSACTION_FORM,
   KIND_LABELS,
   MERCHANT_DROPDOWN_PAGE_SIZE,
@@ -261,6 +262,12 @@ export default function CreateTransactionModal({
     ? { value: selectedMerchant.id, label: selectedMerchant.name }
     : undefined
   const selectedCategory = form.category_id ? categoryById.get(form.category_id) : undefined
+
+  // The synthetic balance adjustment category never counts toward cash flow, so warn when it is picked
+  const isBalanceAdjustmentCategory = !!(
+    selectedCategory?.is_system &&
+    selectedCategory.name === BALANCE_ADJUSTMENT_CATEGORY_NAME
+  )
   const showMerchantDefaultCategoryAction = !!(
     selectedMerchant &&
     selectedCategory &&
@@ -751,6 +758,7 @@ export default function CreateTransactionModal({
             categoryOptions={categoryOptions}
             categoryValue={form.category_id}
             categoryError={showError('category_id')}
+            isBalanceAdjustmentCategory={isBalanceAdjustmentCategory}
             showMerchantDefaultCategoryAction={showMerchantDefaultCategoryAction}
             merchantDefaultCategoryActionLabel={merchantDefaultCategoryActionLabel}
             merchantDefaultCategoryPending={updateMerchantMutation.isPending}

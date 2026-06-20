@@ -7,6 +7,7 @@ import {
 } from '@/pages/transactions/components/transaction-modal/constants'
 import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/FieldLabelRow'
 import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/SectionFrame'
+import TransferCashFlowNotice from '@/pages/transactions/components/transaction-modal/controls/TransferCashFlowNotice'
 import type { TransactionModalKind } from '@/pages/transactions/components/transaction-modal/types'
 import { formatCurrency } from '@/utils/formatCurrency'
 
@@ -39,6 +40,9 @@ interface TransactionReferencesSectionProps {
   categoryOptions: DropdownOption[]
   categoryValue: string
   categoryError?: string | false
+
+  // True when the chosen category is the synthetic balance adjustment, which is excluded from cash flow
+  isBalanceAdjustmentCategory: boolean
   showMerchantDefaultCategoryAction: boolean
   merchantDefaultCategoryActionLabel: string
   merchantDefaultCategoryPending: boolean
@@ -96,6 +100,7 @@ export default function TransactionReferencesSection({
   categoryOptions,
   categoryValue,
   categoryError,
+  isBalanceAdjustmentCategory,
   showMerchantDefaultCategoryAction,
   merchantDefaultCategoryActionLabel,
   merchantDefaultCategoryPending,
@@ -297,6 +302,7 @@ export default function TransactionReferencesSection({
           createNewLabel={readOnly ? undefined : (query) => query ? `Create category "${query}"` : 'Create category'}
           disabled={readOnly}
         />
+        <TransferCashFlowNotice show={isBalanceAdjustmentCategory} />
       </div>
 
       <div>
