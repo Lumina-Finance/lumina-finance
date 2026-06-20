@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, ChevronDown, Search, X } from 'lucide-react'
+import { Calendar, Check, ChevronDown, Search, X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { joinClassNames } from '@/utils/classNames'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
@@ -411,24 +411,40 @@ function FacetEditor({
       <div className="flex items-end gap-2">
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           From
-          <input
-            type="date"
-            className="app-input app-date-input-balanced"
-            value={dateRange.from}
-            onChange={(event) => onDateRangeChange({ ...dateRange, from: event.target.value })}
-          />
+          <div className="relative">
+            <input
+              type="date"
+              className="app-input app-date-input-balanced pr-9"
+              value={dateRange.from}
+              onChange={(event) => onDateRangeChange({ ...dateRange, from: event.target.value })}
+            />
+            <Calendar
+              size={15}
+              aria-hidden
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--app-text-subtle)' }}
+            />
+          </div>
         </label>
         <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           to
         </span>
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           To
-          <input
-            type="date"
-            className="app-input app-date-input-balanced"
-            value={dateRange.to}
-            onChange={(event) => onDateRangeChange({ ...dateRange, to: event.target.value })}
-          />
+          <div className="relative">
+            <input
+              type="date"
+              className="app-input app-date-input-balanced pr-9"
+              value={dateRange.to}
+              onChange={(event) => onDateRangeChange({ ...dateRange, to: event.target.value })}
+            />
+            <Calendar
+              size={15}
+              aria-hidden
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--app-text-subtle)' }}
+            />
+          </div>
         </label>
       </div>
     )

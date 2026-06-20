@@ -214,22 +214,19 @@
   }
 
   /* The native date appearance gives WebKit an intrinsic width that ignores the flex track and
-     overflows the panel, so the appearance stays stripped to let the field shrink, and the calendar
-     indicator is forced back on since stripping the appearance otherwise hides it */
+     overflows the panel, so the appearance stays stripped from the base rule to let the field
+     shrink. Stripping it also removes the native calendar glyph, so the visible icon is an overlaid
+     element and the native indicator is stretched transparently across the field to keep a tap
+     anywhere opening the picker */
   .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
-    display: block;
-    width: 1rem;
-    height: 1rem;
-    margin-left: 0.5rem;
-    margin-right: 0;
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    margin: 0;
     padding: 0;
-    opacity: 0.6;
+    opacity: 0;
     cursor: pointer;
-  }
-
-  .app-date-input-balanced[type="date"]:hover::-webkit-calendar-picker-indicator,
-  .app-date-input-balanced[type="date"]:focus::-webkit-calendar-picker-indicator {
-    opacity: 1;
   }
 
   .transaction-list-section > :not(:first-child) {
