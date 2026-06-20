@@ -60,8 +60,10 @@ const titleCharVariants = {
   enter: { y: 0, opacity: 1, filter: 'blur(0px)' },
   exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
 } as const
-// Recharts runtime accepts cubic-bezier strings, but Area's public type only lists preset names
-const chartAnimationEasing = 'cubic-bezier(0.05,0.025,0.41,0.941)' as 'ease-in-out'
+// A gentle sine ease for the reveal: near-even pace with soft ends. The reveal is driven by a CSS clip
+// on a wrapper rather than Recharts' own area animation, which gets cut to its final frame whenever the
+// points change mid-animation (a data load or a width change as the layout settles)
+const chartRevealEasing = [0.37, 0, 0.63, 1] as const
 
 function getDailyCashFlowTooltipKey(point: DailyCashFlowPoint) {
   return point.key
@@ -198,6 +200,17 @@ export default function DailyCashFlowChart({
     () => new Map(dailyFlow.map((point) => [point.key, point])),
     [dailyFlow],
   )
+  // Re-key the chart on the displayed values so a placeholder-to-real swap or a refetch remounts it
+  // for one clean reveal, instead of letting Recharts cut the in-flight animation to its final frame
+  // when the points change mid-animation
+  const dailyFlowSignature = useMemo(
+    () =>
+      `${dailyFlow.length}:${dailyFlow.reduce(
+        (total, point) => total + point.net + point.inflow + point.outflow,
+        0,
+      )}`,
+    [dailyFlow],
+  )
   const dailyFlowLabelsByKey = useMemo(
     () => new Map(dailyFlow.map((point) => [point.key, point.date])),
     [dailyFlow],
@@ -215,7 +228,7 @@ export default function DailyCashFlowChart({
       { x: dailyFlow[dailyFlow.length - 1].key, y: 0 },
     ] as const
   }, [dailyFlow])
-  const chartAnimationDuration = prefersReducedMotion ? 0 : 1000
+  const chartAnimationDuration = prefersReducedMotion ? 0 : 1400
   const toggleLabel = mode === 'net' ? 'Show inflow and outflow' : 'Show net cash flow'
   const cashFlowCadenceTitle = getDailyCashFlowCadenceTitle(dailyFlowGranularity)
   const calculationTooltipLabel = mode === 'net'
@@ -310,9 +323,19 @@ export default function DailyCashFlowChart({
         className="relative h-[11.75rem]"
         onMouseLeave={hideDailyCashFlowTooltip}
       >
+        <motion.div
+          key={`daily-flow-reveal-${mode}-${chartAnimationKey}-${dailyFlowSignature}`}
+          className="h-full w-full"
+          initial={prefersReducedMotion ? false : { clipPath: 'inset(0 100% 0 0)' }}
+          animate={{ clipPath: 'inset(0 0% 0 0)' }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0 }
+              : { duration: chartAnimationDuration / 1000, ease: chartRevealEasing }
+          }
+        >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
-            key={`daily-flow-${mode}-${chartAnimationKey}`}
             data={dailyFlow}
             margin={DAILY_CASH_FLOW_CHART_MARGIN}
             onMouseMove={(state, event) => showDailyCashFlowTooltip(state, event)}
@@ -357,9 +380,7 @@ export default function DailyCashFlowChart({
                 stroke="var(--app-text-muted)"
                 fill="url(#netFlowGrad)"
                 strokeWidth={1.5}
-                isAnimationActive={!prefersReducedMotion}
-                animationDuration={chartAnimationDuration}
-                animationEasing={chartAnimationEasing}
+                isAnimationActive={false}
               />
             ) : (
               <>
@@ -369,9 +390,7 @@ export default function DailyCashFlowChart({
                   stroke="var(--app-positive)"
                   fill="url(#inflowGrad)"
                   strokeWidth={1.5}
-                  isAnimationActive={!prefersReducedMotion}
-                  animationDuration={chartAnimationDuration}
-                  animationEasing={chartAnimationEasing}
+                  isAnimationActive={false}
                 />
                 <Area
                   type="monotone"
@@ -379,14 +398,13 @@ export default function DailyCashFlowChart({
                   stroke="var(--app-negative)"
                   fill="url(#outflowGrad)"
                   strokeWidth={1.5}
-                  isAnimationActive={!prefersReducedMotion}
-                  animationDuration={chartAnimationDuration}
-                  animationEasing={chartAnimationEasing}
+                  isAnimationActive={false}
                 />
               </>
             )}
           </AreaChart>
         </ResponsiveContainer>
+        </motion.div>
         <DeferredChartTooltipOverlay
           ref={dailyFlowTooltipRef}
           chartRef={dailyFlowChartRef}
