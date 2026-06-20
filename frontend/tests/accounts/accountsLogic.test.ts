@@ -97,10 +97,10 @@ function createTaxAdvantagedCategory(overrides: Partial<TaxAdvantagedCategory>):
 describe('filter helpers', () => {
   it('removes empty filters before filtering accounts', () => {
     expect(getActiveFilters({
-      institution_id: '',
-      account_kind: 'asset',
+      institution_id: [],
+      account_kind: ['asset'],
       account_type: undefined,
-    })).toEqual({ account_kind: 'asset' })
+    })).toEqual({ account_kind: ['asset'] })
   })
 
   it('derives sorted and present-only filter options', () => {
@@ -163,10 +163,31 @@ describe('filter helpers', () => {
     ]
 
     expect(getFilteredRows(rows, {
-      institution_id: 'bank',
-      account_kind: 'asset',
-      account_type: 'checking',
-    }).map((account) => account.id)).toEqual(['checking'])
+      institution_id: ['bank'],
+      account_kind: ['asset'],
+      account_type: ['checking'],
+    }, '').map((account) => account.id)).toEqual(['checking'])
+  })
+
+  it('keeps accounts matching any selected value within a facet', () => {
+    const rows = [
+      createAccount({ id: 'checking', account_type: 'checking' }),
+      createAccount({ id: 'cash', account_type: 'cash' }),
+      createAccount({ id: 'savings', account_type: 'savings' }),
+    ]
+
+    expect(getFilteredRows(rows, { account_type: ['checking', 'cash'] }, '').map((account) => account.id))
+      .toEqual(['checking', 'cash'])
+  })
+
+  it('narrows accounts by search across name and institution, ignoring case', () => {
+    const rows = [
+      createAccount({ id: 'everyday', name: 'Everyday Chequing', institution: createInstitution('td', 'TD') }),
+      createAccount({ id: 'rainy', name: 'Rainy Day', institution: createInstitution('rbc', 'RBC') }),
+    ]
+
+    expect(getFilteredRows(rows, {}, 'everyday').map((account) => account.id)).toEqual(['everyday'])
+    expect(getFilteredRows(rows, {}, 'rbc').map((account) => account.id)).toEqual(['rainy'])
   })
 })
 
@@ -438,7 +459,7 @@ describe('tax-advantaged limit helpers', () => {
         tax_advantaged_category_id: 'rrsp',
       }),
     ]
-    const filteredRows = getFilteredRows(rows, { institution_id: 'bank' })
+    const filteredRows = getFilteredRows(rows, { institution_id: ['bank'] }, '')
     const summaries = getTaxAdvantagedLimitSummaries(rows, [
       createTaxAdvantagedCategory({
         id: 'fhsa',
