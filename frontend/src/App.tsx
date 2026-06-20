@@ -77,7 +77,6 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
-  const [animateInitialPageMount] = useState(() => !hasShownLoadingScreen);
   const ready = !loading && minTimePassed;
 
   // The loading phase runs after the switch while the new route's chunk mounts
@@ -113,8 +112,10 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
   // per navigation and must start hidden through both loading and entering, otherwise
-  // an already-cached route mounts at full opacity and snaps in instead of fading
-  const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading' || animateInitialPageMount;
+  // an already-mounted route shows at full opacity and snaps in instead of fading.
+  // The first mount also starts in the loading phase, so the fade waits for the lazy
+  // chunk to mount rather than animating the empty Suspense wrapper before it resolves
+  const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading';
 
   return (
     <>
@@ -186,7 +187,11 @@ function PublicRoute() {
 function AnimatedRoutes() {
   const location = useLocation();
   const [displayLocation, setDisplayLocation] = useState(location);
-  const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('idle');
+
+  // Start in the loading phase so the very first route fades in through the same
+  // chunk-ready gate as later navigations, instead of fading the empty wrapper
+  // before its lazy chunk resolves and letting the real content snap in
+  const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('loading');
 
   // Reveal the freshly switched route only once its chunk has mounted, so the enter
   // fade animates real content rather than an empty wrapper. The functional updater
