@@ -292,7 +292,6 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
   }
 
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
@@ -719,7 +718,6 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
   }
 
   .app-glass-input::placeholder {
@@ -738,7 +736,6 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
   }
 
   .app-glass-button-primary:hover {
@@ -757,7 +754,7 @@
 
   .app-glass-button-primary:focus-visible {
     outline: none;
-    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
   }
 
   /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
@@ -771,7 +768,6 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
   }
 
   .app-glass-button:hover {
@@ -790,7 +786,7 @@
 
   .app-glass-button:focus-visible {
     outline: none;
-    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
   }
 
   .app-primary-button-loading {
