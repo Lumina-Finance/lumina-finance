@@ -146,7 +146,7 @@ export default function TransactionListSection({
   })
 
   return (
-    <section className="transaction-list-section">
+    <section>
       <TransactionListToolbar
         search={search}
         onSearchChange={setSearch}
