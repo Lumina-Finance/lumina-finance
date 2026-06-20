@@ -39,9 +39,10 @@ export function FilterPanelBody({
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
   const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
 
-  // The fill layout sizes the editor with flexbox, so the position springs are turned off to keep
-  // framer-motion from fighting the flex sizing
-  const blockLayout = fillHeight ? false : 'position'
+  // The desktop panel keeps the position springs so the summary divider and the blocks below it
+  // glide when the editor resizes. The mobile sheet runs inside a scroll area where those springs
+  // fight the flex sizing, so they are turned off there
+  const blockLayout = mobile ? false : 'position'
 
   return (
     <div className={joinClassNames('contents', fillHeight && '!flex min-h-0 flex-1 flex-col')}>
