@@ -36,7 +36,7 @@ export function TransactionSearchField({
         onKeyDown={(event) => {
           if (event.key === 'Enter') onSearchSubmit()
         }}
-        className="app-glass-input h-11 w-full pl-9 min-[1050px]:h-10"
+        className="app-glass-input h-11 w-full pl-9"
       />
     </div>
   )

@@ -62,7 +62,7 @@ export function DesktopTransactionToolbarControls({
 
       <button
         type="button"
-        className={`app-glass-button-primary h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
+        className={`app-glass-button-primary h-11 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
         onClick={onCreateTransaction}
         disabled={createDisabled}
         title={createDisabledReason}
@@ -73,7 +73,7 @@ export function DesktopTransactionToolbarControls({
       <button
         ref={createMeasureRef}
         type="button"
-        className="app-glass-button-primary pointer-events-none invisible absolute h-10 w-auto shrink-0"
+        className="app-glass-button-primary pointer-events-none invisible absolute h-11 w-auto shrink-0"
         tabIndex={-1}
         aria-hidden
       >

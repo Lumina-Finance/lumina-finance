@@ -32,7 +32,7 @@ export function AccountSearchField({
         placeholder="Search accounts..."
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
-        className="app-glass-input h-11 w-full pl-9 min-[1050px]:h-10"
+        className="app-glass-input h-11 w-full pl-9"
       />
     </div>
   )

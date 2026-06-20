@@ -161,8 +161,8 @@ export function AccountFilterPanel({
           ref={headRef}
           type="button"
           className="app-range-glass-head"
-          // Match the Add Account button: 40px outer height once the glass border is added
-          style={{ height: 38, padding: '0 16px', gap: 8, fontSize: '0.9375rem' }}
+          // Match the Add Account button: 44px outer height once the glass border is added
+          style={{ height: 42, padding: '0 16px', gap: 8, fontSize: '0.9375rem' }}
           aria-expanded={open}
           aria-label="Account filters"
           onClick={() => (open ? setOpen(false) : handleOpen())}
