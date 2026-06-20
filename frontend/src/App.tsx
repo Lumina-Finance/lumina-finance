@@ -142,8 +142,6 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
           className="flex min-h-screen"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
-          <Navigation />
-
           {/* The main variant keeps the navigation visible while AnimatePresence
               lets the loader fade back out once the route chunk has mounted */}
           <AnimatePresence>
@@ -205,6 +203,7 @@ function PublicRoute() {
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const { user } = useAuth();
   const [displayLocation, setDisplayLocation] = useState(location);
 
   // Start in the loading phase so the very first route fades in through the same
@@ -274,10 +273,15 @@ function AnimatedRoutes() {
   }, [pageTransitionPhase]);
 
   return (
-    <Routes
-      location={displayLocation}
-      key={displayLocation.pathname === '/signup' ? '/login' : displayLocation.pathname}
-    >
+    <>
+      {/* The navigation chrome renders outside the keyed Routes so it persists across
+          page changes. A persistent nav lets the active-link highlight crossfade through
+          its CSS transition instead of snapping when the route subtree remounts */}
+      {user && isProtectedPath(displayLocation.pathname) && <Navigation />}
+      <Routes
+        location={displayLocation}
+        key={displayLocation.pathname === '/signup' ? '/login' : displayLocation.pathname}
+      >
         {/* Public routes — login, signup */}
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<AuthPage />} />
@@ -297,7 +301,8 @@ function AnimatedRoutes() {
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 
