@@ -5,7 +5,6 @@ import { Landmark, X } from 'lucide-react'
 import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
 import Dropdown from '@/components/dropdown/Dropdown'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { useCreateTaxAdvantagedCategoryForm } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCreateCategoryForm'
@@ -80,7 +79,6 @@ export default function CreateTaxAdvantagedCategoryModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-tax-advantaged-category-title"
-          data-modal-field-focus-panel="true"
           className="app-modal-panel flex max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-2xl"
           style={{
             background: 'var(--app-bg)',
@@ -164,10 +162,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                           id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment}
                           options={TAX_TREATMENT_OPTIONS}
                           value={form.tax_treatment}
-                          onChange={(value) => {
-                            setField('tax_treatment', value as TaxTreatment)
-                            requestNextModalFieldFocus(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment)
-                          }}
+                          onChange={(value) => setField('tax_treatment', value as TaxTreatment)}
                         />
                       </div>
                     </div>
@@ -198,10 +193,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                           id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency}
                           options={options}
                           value={selectedCurrency}
-                          onChange={(value) => {
-                            setField('currency', value)
-                            requestNextModalFieldFocus(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency)
-                          }}
+                          onChange={(value) => setField('currency', value)}
                           placeholder="Select currency"
                           searchable
                           searchPlaceholder="Search currencies..."

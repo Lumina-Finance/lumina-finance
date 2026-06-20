@@ -1,7 +1,6 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from '@/components/dropdown/Dropdown';
-import { requestNextModalFieldFocus } from '@/components/modal/focus';
 import IconTooltip from '@/components/tooltips/IconTooltip';
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow';
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame';
@@ -108,7 +107,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const handleInstitutionCreated = (institution: { id: string }) => {
     handleChange('institution_id', institution.id);
     setShowInstitutionModal(false);
-    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution);
   };
 
   const handleBlur = (field: CreateAccountValidatedField) => {
@@ -157,10 +155,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType}
                   options={CREATE_ACCOUNT_TYPE_OPTIONS}
                   value={form.account_type}
-                  onChange={(v) => {
-                    handleChange('account_type', v);
-                    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType);
-                  }}
+                  onChange={(v) => handleChange('account_type', v)}
                   className={`app-input ${showError('account_type') ? 'app-input-error' : ''}`}
                   placeholder="Select type..."
                   searchable
@@ -191,10 +186,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.currency}
                   options={currencyOptions}
                   value={form.currency}
-                  onChange={(v) => {
-                    handleChange('currency', v);
-                    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.currency);
-                  }}
+                  onChange={(v) => handleChange('currency', v)}
                   className={`app-input ${showError('currency') ? 'app-input-error' : ''}`}
                   placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
                   searchable
@@ -217,10 +209,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.institution}
                   options={institutionOptions}
                   value={form.institution_id}
-                  onChange={(v) => {
-                    handleChange('institution_id', v);
-                    requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution);
-                  }}
+                  onChange={(v) => handleChange('institution_id', v)}
                   placeholder="Select institution..."
                   searchable
                   searchPlaceholder="Search institutions..."
@@ -284,10 +273,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           id={CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory}
                           options={taxPlanOptions}
                           value={form.tax_advantaged_category_id}
-                          onChange={(v) => {
-                            handleChange('tax_advantaged_category_id', v);
-                            requestNextModalFieldFocus(CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory);
-                          }}
+                          onChange={(v) => handleChange('tax_advantaged_category_id', v)}
                           placeholder="Select category..."
                           searchable
                           searchPlaceholder="Search categories..."

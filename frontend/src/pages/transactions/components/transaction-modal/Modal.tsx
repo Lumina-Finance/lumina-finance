@@ -65,8 +65,6 @@ import TransactionTypeDirectionSection from '@/pages/transactions/components/tra
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from '@/pages/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
 import { useTransactionModalEnvironment } from '@/pages/transactions/components/transaction-modal/hooks/useEnvironment'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
-import { TRANSACTION_MODAL_FIELD_IDS } from '@/pages/transactions/components/transaction-modal/constants'
 
 export default function CreateTransactionModal({
   open,
@@ -327,7 +325,6 @@ export default function CreateTransactionModal({
     }))
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('category_id')
-    requestNextModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.category)
   }
 
   const handleCreateCategory = (name: string) => {
@@ -391,7 +388,6 @@ export default function CreateTransactionModal({
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
     clearError('merchant_id')
     if (defaultCategoryId) clearError('category_id')
-    requestNextModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.merchant)
   }
 
   const handleCreateMerchant = (name: string) => {
@@ -466,7 +462,6 @@ export default function CreateTransactionModal({
     clearError('account_id')
     clearError('currency')
     clearError('to_account_id')
-    requestNextModalFieldFocus(TRANSACTION_MODAL_FIELD_IDS.account)
   }
 
   const handleToAccountChange = (accountId: string) => {

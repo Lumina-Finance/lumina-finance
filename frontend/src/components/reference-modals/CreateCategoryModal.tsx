@@ -8,7 +8,6 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import CreateReferenceModalShell, {
   type CreateReferenceModalVariant,
 } from '@/components/create-modal/ReferenceModalShell'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import { CREATE_CATEGORY_FIELD_IDS } from '@/components/reference-modals/createCategoryConstants'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -155,10 +154,7 @@ export default function CreateCategoryModal({
                   id={CREATE_CATEGORY_FIELD_IDS.icon}
                   categoryName={form.name || 'New category'}
                   value={form.icon}
-                  onChange={(icon) => {
-                    setField('icon', icon)
-                    requestNextModalFieldFocus(CREATE_CATEGORY_FIELD_IDS.icon)
-                  }}
+                  onChange={(icon) => setField('icon', icon)}
                   buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${showError('icon') ? 'app-input-error' : ''}`}
                   hasError={!!showError('icon')}
                   modalFieldTabStop
@@ -208,10 +204,7 @@ export default function CreateCategoryModal({
                 id={CREATE_CATEGORY_FIELD_IDS.kind}
                 options={KIND_OPTIONS}
                 value={form.kind}
-                onChange={(value) => {
-                  setField('kind', value as CategoryKind)
-                  requestNextModalFieldFocus(CREATE_CATEGORY_FIELD_IDS.kind)
-                }}
+                onChange={(value) => setField('kind', value as CategoryKind)}
               />
             </div>
           </div>

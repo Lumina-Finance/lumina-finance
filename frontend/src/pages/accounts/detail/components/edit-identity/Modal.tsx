@@ -11,13 +11,9 @@ import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import { requestNextModalFieldFocus } from '@/components/modal/focus'
 import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
 import { waitForMilliseconds } from '@/utils/timing'
-import {
-  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
-  EASE,
-} from '@/pages/accounts/detail/constants/accountDetail'
+import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -120,7 +116,6 @@ export default function EditAccountIdentityModal({
   const handleInstitutionCreated = (institution: { id: string }) => {
     setField('institution_id', institution.id)
     setShowInstitutionModal(false)
-    requestNextModalFieldFocus(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution)
   }
 
   /**
@@ -263,7 +258,6 @@ export default function EditAccountIdentityModal({
               role="dialog"
               aria-modal="true"
               aria-labelledby="edit-account-identity-title"
-              data-modal-field-focus-panel="true"
               className="app-modal-panel flex max-h-[84vh] w-full max-w-2xl overflow-hidden rounded-2xl"
               style={{
                 background: 'var(--app-bg)',

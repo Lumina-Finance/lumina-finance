@@ -164,6 +164,10 @@ const Dropdown = ({
   const handleSelect = (optionValue: string) => {
     onChange(optionValue);
     close();
+
+    // Closing unmounts the focused option or search input, so return focus to the trigger
+    // to keep the user on this field rather than dropping focus back to the modal top
+    triggerRef.current?.focus({ preventScroll: true });
   };
 
   const createQuery = searchText.trim();
@@ -217,6 +221,7 @@ const Dropdown = ({
         break;
       case 'Escape':
         close();
+        triggerRef.current?.focus({ preventScroll: true });
         break;
     }
   };
