@@ -365,11 +365,11 @@ function FacetEditor({
   if (facet.kind === 'date') {
     return (
       <div className="flex items-end gap-2">
-        <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           From
           <input
             type="date"
-            className="app-input app-date-input-balanced"
+            className="app-input app-date-input-balanced w-full min-w-0"
             value={dateRange.from}
             onChange={(event) => onDateRangeChange({ ...dateRange, from: event.target.value })}
           />
@@ -377,11 +377,11 @@ function FacetEditor({
         <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           to
         </span>
-        <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           To
           <input
             type="date"
-            className="app-input app-date-input-balanced"
+            className="app-input app-date-input-balanced w-full min-w-0"
             value={dateRange.to}
             onChange={(event) => onDateRangeChange({ ...dateRange, to: event.target.value })}
           />
