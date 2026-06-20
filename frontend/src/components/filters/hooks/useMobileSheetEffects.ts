@@ -3,6 +3,9 @@ import { useEffect, useRef } from 'react'
 type MobileFilterSheetEffectsOptions = {
   isOpen: boolean
   onClose: () => void
+  // Sheets with their own glass controls behind the backdrop disable this, since a page-level
+  // filter would zero out the controls' backdrop-filter and make them vanish
+  dimPageContent?: boolean
 }
 
 /**
@@ -11,6 +14,7 @@ type MobileFilterSheetEffectsOptions = {
 export function useMobileFilterSheetEffects({
   isOpen,
   onClose,
+  dimPageContent = true,
 }: MobileFilterSheetEffectsOptions) {
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -86,7 +90,7 @@ export function useMobileFilterSheetEffects({
     if (!blurTarget && !mobileNavigationToggle) return undefined
 
     const frame = window.requestAnimationFrame(() => {
-      if (blurTarget) {
+      if (blurTarget && dimPageContent) {
         blurTarget.style.filter = isOpen ? 'blur(7px)' : 'blur(0px)'
         blurTarget.style.opacity = isOpen ? '0.76' : '1'
       }
@@ -97,7 +101,7 @@ export function useMobileFilterSheetEffects({
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [isOpen])
+  }, [isOpen, dimPageContent])
 
   return panelRef
 }
