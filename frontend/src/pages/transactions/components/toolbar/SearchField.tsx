@@ -24,7 +24,7 @@ export function TransactionSearchField({
     >
       <Search
         size={16}
-        className="absolute left-3 top-1/2 -translate-y-1/2"
+        className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2"
         style={{ color: 'var(--app-text-subtle)' }}
         aria-hidden
       />
@@ -36,7 +36,7 @@ export function TransactionSearchField({
         onKeyDown={(event) => {
           if (event.key === 'Enter') onSearchSubmit()
         }}
-        className="app-input h-11 w-full pl-9 min-[1050px]:h-10"
+        className="app-glass-input h-11 w-full pl-9 min-[1050px]:h-10"
       />
     </div>
   )

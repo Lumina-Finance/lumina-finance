@@ -64,10 +64,15 @@ async def get_transactions_overview(
 async def list_transactions(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    account_id: Annotated[uuid.UUID | None, Query()] = None,
-    category_id: Annotated[uuid.UUID | None, Query()] = None,
-    merchant_id: Annotated[uuid.UUID | None, Query()] = None,
-    currency: Annotated[str | None, Query()] = None,
+    account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    category_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    merchant_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    currency: Annotated[list[str] | None, Query()] = None,
+    tag_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    tag_match: Annotated[str, Query()] = "all",
+    min_amount: Annotated[int | None, Query(ge=0)] = None,
+    max_amount: Annotated[int | None, Query(ge=0)] = None,
+    amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
     from_date: Annotated[date | None, Query()] = None,
     to_date: Annotated[date | None, Query()] = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
@@ -81,10 +86,15 @@ async def list_transactions(
     Args:
         user: Authenticated user requesting transactions
         db: Active database session
-        account_id: Optional account filter applied within the user's accessible accounts
-        category_id: Optional category filter
-        merchant_id: Optional merchant filter
-        currency: Optional transaction currency filter
+        account_id: Optional accounts to keep within the user's accessible accounts
+        category_id: Optional categories to keep
+        merchant_id: Optional merchants to keep
+        currency: Optional transaction currencies to keep
+        tag_id: Optional tags to filter by, combined per ``tag_match``
+        tag_match: ``all`` to require every selected tag, ``any`` to require at least one
+        min_amount: Optional inclusive lower bound on the amount magnitude in ``amount_currency`` minor units
+        max_amount: Optional inclusive upper bound on the amount magnitude in ``amount_currency`` minor units
+        amount_currency: Currency the amount bounds are expressed in, required when a bound is set
         from_date: Optional inclusive start date for transaction dates
         to_date: Optional inclusive end date for transaction dates
         search_text: Optional text search across merchant name and notes
@@ -97,16 +107,21 @@ async def list_transactions(
         Matching transaction responses for the requested page
 
     Raises:
-        HTTPException: Raised with 422 for invalid sort fields, sort order, or
-            date range
+        HTTPException: Raised with 422 for invalid sort fields, sort order, date
+            range, tag match mode, or an amount range missing its currency
     """
     return await list_transaction_responses(
         db,
         user,
-        account_id=account_id,
-        category_id=category_id,
-        merchant_id=merchant_id,
-        currency=currency,
+        account_ids=account_id,
+        category_ids=category_id,
+        merchant_ids=merchant_id,
+        currencies=currency,
+        tag_ids=tag_id,
+        tag_match=tag_match,
+        min_amount=min_amount,
+        max_amount=max_amount,
+        amount_currency=amount_currency,
         from_date=from_date,
         to_date=to_date,
         search_text=search_text,

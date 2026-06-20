@@ -22,7 +22,7 @@ export function MobileToolbarActions({
     <div className="flex w-full items-center gap-3 min-[750px]:hidden">
       <button
         type="button"
-        className="app-secondary-button h-11 min-w-0 flex-1 justify-between"
+        className="app-glass-button h-11 min-w-0 flex-1 justify-between"
         onClick={onOpenFilters}
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -44,7 +44,7 @@ export function MobileToolbarActions({
 
       <button
         type="button"
-        className="app-primary-button h-11 w-11 shrink-0 px-0"
+        className="app-glass-button-primary h-11 w-11 shrink-0 px-0"
         onClick={onCreateTransaction}
         disabled={createDisabled}
         title={createDisabledReason}

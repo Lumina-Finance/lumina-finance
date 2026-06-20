@@ -1,0 +1,227 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
+import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
+import type { OptionItem } from '@/components/filters/OptionList'
+import { FilterPanelBody } from '@/pages/transactions/components/toolbar/FilterPanelBody'
+import { FILTER_GLASS_SPRING, useTransactionFilterDraft } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
+import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
+import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
+
+// Open width of the glass, wide enough to seat the facet tabs without crowding. The glass is
+// anchored to its collapsed right edge, so opening grows this width leftward over the toolbar
+const OPEN_WIDTH = 468
+
+// Collapsed footprint used before the head is measured, so the toolbar slot does not jump on mount
+const COLLAPSED_FALLBACK = { width: 140, height: 34 }
+
+// Chrome around the measured content span in the collapsed pill: horizontal padding, the gap to the
+// chevron, the chevron itself, and the borders, plus a couple of pixels so sub-pixel rounding never
+// clips the label. Added to the content width to size the pill
+const COLLAPSED_HEAD_CHROME = 64
+
+// The open panel fills to a consistent height with its option list growing to take the space, rather
+// than hugging each facet. This caps that height
+const OPEN_CONTENT_MAX = 440
+
+// Kept clear below the open panel so it never runs to the bottom edge of the viewport on a short
+// window, where the fill height shrinks to whatever space is left
+const OPEN_CONTENT_VIEWPORT_MARGIN = 24
+
+// Floor so a very short window still leaves the list usable rather than collapsing the panel
+const OPEN_CONTENT_MIN = 220
+
+type TransactionFilterPanelProps = {
+  accountOptions: OptionItem[]
+  categoryOptions: OptionItem[]
+  filters: TransactionListFilters
+  setFilter: TransactionFilterSetter
+  // False on an account's own transaction list, where the account facet is disabled
+  showAccountFilter: boolean
+  // The account's currency on its own transaction list, which pins the amount currency
+  lockedCurrency?: string
+}
+
+/**
+ * Renders the desktop transaction filter control, a collapsing glass pill whose panel opens as an
+ * overlay anchored to the pill so it never shifts the toolbar height or the list below it
+ */
+export function TransactionFilterPanel({
+  accountOptions,
+  categoryOptions,
+  filters,
+  setFilter,
+  showAccountFilter,
+  lockedCurrency,
+}: TransactionFilterPanelProps) {
+  const [open, setOpen] = useState(false)
+  const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
+  const [openContentHeight, setOpenContentHeight] = useState(OPEN_CONTENT_MAX)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLButtonElement>(null)
+  const headContentRef = useRef<HTMLSpanElement>(null)
+  const shouldReduceMotion = useReducedMotion()
+  const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
+
+  const draft = useTransactionFilterDraft({
+    filters,
+    setFilter,
+    accountOptions,
+    categoryOptions,
+    showAccountFilter,
+    lockedCurrency,
+    onClose: () => setOpen(false),
+  })
+  const { activeFacetCount, seedDraftFromFilters } = draft
+
+  /**
+   * Seeds the draft from the applied filters, then opens the panel so reopening never shows stale
+   * selections
+   */
+  function handleOpen() {
+    seedDraftFromFilters()
+    setOpen(true)
+  }
+
+  /**
+   * Closes the panel and reverts the draft to the applied filters, so clicking away or pressing
+   * Escape takes no action rather than leaving uncommitted selections showing on the pill
+   */
+  const dismiss = useCallback(() => {
+    seedDraftFromFilters()
+    setOpen(false)
+  }, [seedDraftFromFilters])
+
+  // The glass is taken out of flow so its bloom overlays the page, so the wrapper is pinned to the
+  // collapsed head size to hold the toolbar slot. Remeasured while collapsed since the count badge
+  // changes the head width
+  useLayoutEffect(() => {
+    const head = headRef.current
+    const content = headContentRef.current
+    if (open || !head || !content) return
+    // Measure the content span rather than the head, which stretches to the glass width and would
+    // otherwise feed its own width back into the next measurement
+    setCollapsedSize({
+      width: Math.ceil(content.scrollWidth) + COLLAPSED_HEAD_CHROME,
+      height: Math.ceil(head.offsetHeight) + 2,
+    })
+  }, [open, activeFacetCount])
+
+  // The open panel fills to a fixed height so the option list takes the available space instead of
+  // the panel hugging each facet. The height is capped at the viewport less a bottom margin, so a
+  // short window still leaves the panel clear of the bottom edge, and is remeasured on resize
+  useLayoutEffect(() => {
+    if (!open) return undefined
+
+    function measureOpenHeight() {
+      const head = headRef.current
+      if (!head) return
+      const available = window.innerHeight - head.getBoundingClientRect().bottom - OPEN_CONTENT_VIEWPORT_MARGIN
+      setOpenContentHeight(Math.round(Math.max(OPEN_CONTENT_MIN, Math.min(OPEN_CONTENT_MAX, available))))
+    }
+
+    measureOpenHeight()
+    window.addEventListener('resize', measureOpenHeight)
+    return () => window.removeEventListener('resize', measureOpenHeight)
+  }, [open])
+
+  // An outside press or Escape dismisses the panel and discards the draft
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event: PointerEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        dismiss()
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') dismiss()
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open, dismiss])
+
+  // The collapsed pill swaps the chevron for a clear control once filters are applied, so the user
+  // can reset without opening the panel while the rest of the pill still opens it
+  const showClearButton = activeFacetCount > 0 && !open
+
+  return (
+    <div
+      ref={wrapperRef}
+      style={{ position: 'relative', marginLeft: 'auto', width: collapsedSize.width, height: collapsedSize.height }}
+    >
+      <motion.div
+        className="app-range-glass"
+        style={{ position: 'absolute', top: 0, right: 0, maxWidth: '90vw', zIndex: 50, marginLeft: 0 }}
+        initial={false}
+        animate={{ width: open ? OPEN_WIDTH : collapsedSize.width }}
+        transition={transition}
+      >
+        <button
+          ref={headRef}
+          type="button"
+          className="app-range-glass-head"
+          // Match the Add Transaction button: 40px outer height once the glass border is added
+          style={{ height: 38, padding: '0 16px', gap: 8, fontSize: '0.9375rem' }}
+          aria-expanded={open}
+          aria-label="Transaction filters"
+          onClick={() => (open ? setOpen(false) : handleOpen())}
+        >
+          <span ref={headContentRef} className="app-range-glass-cur">
+            <SlidersHorizontal size={18} aria-hidden className="shrink-0" />
+            <span>Filters</span>
+            {activeFacetCount > 0 && (
+              <span
+                className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium"
+                style={{ background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
+              >
+                {activeFacetCount}
+              </span>
+            )}
+          </span>
+          {!showClearButton && (
+            <motion.span
+              className="app-range-glass-chev"
+              style={{ display: 'inline-flex' }}
+              animate={{ rotate: open ? 180 : 0 }}
+              transition={transition}
+            >
+              <ChevronDown size={16} aria-hidden />
+            </motion.span>
+          )}
+        </button>
+
+        {showClearButton && (
+          <button
+            type="button"
+            aria-label="Clear all filters"
+            className="app-range-glass-clear absolute inline-flex items-center justify-center"
+            style={{ top: 5, right: 8, height: 28, width: 28, zIndex: 2 }}
+            onClick={(event) => {
+              event.stopPropagation()
+              draft.clearAll()
+            }}
+          >
+            <X size={16} aria-hidden />
+          </button>
+        )}
+
+        <motion.div
+          style={{ overflow: 'hidden' }}
+          initial={false}
+          animate={{ height: open ? openContentHeight : 0, opacity: open ? 1 : 0 }}
+          transition={transition}
+        >
+          <div className="flex flex-col" style={{ height: openContentHeight, padding: '0 12px 12px' }}>
+            <FilterPanelBody draft={draft} fillHeight showAccountFilter={showAccountFilter} />
+          </div>
+        </motion.div>
+      </motion.div>
+    </div>
+  )
+}

@@ -3,6 +3,13 @@ import { useEffect, useRef } from 'react'
 type MobileFilterSheetEffectsOptions = {
   isOpen: boolean
   onClose: () => void
+  // Sheets with their own glass controls behind the backdrop disable this, since a page-level
+  // filter would zero out the controls' backdrop-filter and make them vanish
+  dimPageContent?: boolean
+  // Full-screen surfaces disable this: setting overflow hidden on the page strips a sticky toolbar
+  // back to its in-flow position, and a full-screen modal already covers the page so no lock is
+  // needed
+  lockScroll?: boolean
 }
 
 /**
@@ -11,6 +18,8 @@ type MobileFilterSheetEffectsOptions = {
 export function useMobileFilterSheetEffects({
   isOpen,
   onClose,
+  dimPageContent = true,
+  lockScroll = true,
 }: MobileFilterSheetEffectsOptions) {
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -47,10 +56,12 @@ export function useMobileFilterSheetEffects({
     const previousMobileNavigationToggleTransition = mobileNavigationToggle?.style.transition ?? ''
     const previousMobileNavigationToggleWillChange = mobileNavigationToggle?.style.willChange ?? ''
 
-    root.style.overflow = 'hidden'
-    root.style.overscrollBehavior = 'none'
-    document.body.style.overflow = 'hidden'
-    document.body.style.overscrollBehavior = 'none'
+    if (lockScroll) {
+      root.style.overflow = 'hidden'
+      root.style.overscrollBehavior = 'none'
+      document.body.style.overflow = 'hidden'
+      document.body.style.overscrollBehavior = 'none'
+    }
     if (blurTarget) {
       blurTarget.style.transition = 'filter 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms cubic-bezier(0.22, 1, 0.36, 1)'
       blurTarget.style.willChange = 'filter, opacity'
@@ -78,7 +89,7 @@ export function useMobileFilterSheetEffects({
         mobileNavigationToggle.style.willChange = previousMobileNavigationToggleWillChange
       }
     }
-  }, [])
+  }, [lockScroll])
 
   useEffect(() => {
     const blurTarget = document.getElementById('app-page-content')
@@ -86,7 +97,7 @@ export function useMobileFilterSheetEffects({
     if (!blurTarget && !mobileNavigationToggle) return undefined
 
     const frame = window.requestAnimationFrame(() => {
-      if (blurTarget) {
+      if (blurTarget && dimPageContent) {
         blurTarget.style.filter = isOpen ? 'blur(7px)' : 'blur(0px)'
         blurTarget.style.opacity = isOpen ? '0.76' : '1'
       }
@@ -97,7 +108,7 @@ export function useMobileFilterSheetEffects({
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [isOpen])
+  }, [isOpen, dimPageContent])
 
   return panelRef
 }

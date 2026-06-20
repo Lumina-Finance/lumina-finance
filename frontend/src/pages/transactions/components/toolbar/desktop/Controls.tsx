@@ -1,20 +1,17 @@
 import type { RefObject } from 'react'
 import { Plus } from 'lucide-react'
-import DateRangeFilterPanel from '@/components/filters/DateRangePanel'
-import FilterChip from '@/components/filters/Chip'
-import FilterOptionList from '@/components/filters/OptionList'
+import { TransactionFilterPanel } from '@/pages/transactions/components/toolbar/FilterPanel'
 import type {
-  TransactionDateRangeDraftProps,
   TransactionFilterSetter,
   TransactionToolbarOptions,
-  TransactionToolbarSelectionLabels,
 } from '@/pages/transactions/components/toolbar/types'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 
-type DesktopTransactionToolbarControlsProps = TransactionDateRangeDraftProps & TransactionToolbarOptions & TransactionToolbarSelectionLabels & {
+type DesktopTransactionToolbarControlsProps = TransactionToolbarOptions & {
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
   showAccountFilter: boolean
+  lockedCurrency?: string
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
   controlsRef: RefObject<HTMLDivElement | null>
@@ -32,19 +29,9 @@ export function DesktopTransactionToolbarControls({
   filters,
   setFilter,
   showAccountFilter,
+  lockedCurrency,
   accountOptions,
   categoryOptions,
-  selectedAccountLabel,
-  selectedCategoryLabel,
-  selectedDateLabel,
-  pendingFrom,
-  pendingTo,
-  dateRangeChanged,
-  dateRangeInvalid,
-  onPendingFromChange,
-  onPendingToChange,
-  onDateRangeReset,
-  onDateRangeClose,
   desktopInlineLayout,
   desktopCreateStacked,
   controlsRef,
@@ -63,66 +50,19 @@ export function DesktopTransactionToolbarControls({
         ref={filterGroupRef}
         className={`flex min-w-0 flex-1 flex-wrap items-center gap-3 ${desktopInlineLayout ? 'min-[750px]:flex-none min-[750px]:flex-nowrap' : ''} ${desktopCreateStacked ? 'justify-between' : ''}`}
       >
-        {showAccountFilter && (
-          <FilterChip
-            label="Account"
-            selectedLabel={selectedAccountLabel}
-            onClear={() => setFilter({ account_id: undefined })}
-          >
-            {(close) => (
-              <FilterOptionList
-                options={accountOptions}
-                selectedValue={filters.account_id}
-                onSelect={(value) => { setFilter({ account_id: value }); close() }}
-                searchPlaceholder="Search accounts..."
-                selectFirstSearchResultOnEnter
-              />
-            )}
-          </FilterChip>
-        )}
-
-        <FilterChip
-          label="Category"
-          selectedLabel={selectedCategoryLabel}
-          onClear={() => setFilter({ category_id: undefined })}
-        >
-          {(close) => (
-            <FilterOptionList
-              options={categoryOptions}
-              selectedValue={filters.category_id}
-              onSelect={(value) => { setFilter({ category_id: value }); close() }}
-              searchPlaceholder="Search categories..."
-              selectFirstSearchResultOnEnter
-            />
-          )}
-        </FilterChip>
-
-        <FilterChip
-          label="Date range"
-          selectedLabel={selectedDateLabel}
-          onClear={() => setFilter({ from_date: undefined, to_date: undefined })}
-          onClose={onDateRangeClose}
-          panelAlign="right"
-          panelClassName="w-[25rem] overflow-hidden"
-        >
-          {(close) => (
-            <DateRangeFilterPanel
-              from={pendingFrom}
-              to={pendingTo}
-              changed={dateRangeChanged}
-              invalid={dateRangeInvalid}
-              onFromChange={onPendingFromChange}
-              onToChange={onPendingToChange}
-              onReset={onDateRangeReset}
-              onApply={close}
-            />
-          )}
-        </FilterChip>
+        <TransactionFilterPanel
+          accountOptions={accountOptions}
+          categoryOptions={categoryOptions}
+          filters={filters}
+          setFilter={setFilter}
+          showAccountFilter={showAccountFilter}
+          lockedCurrency={lockedCurrency}
+        />
       </div>
 
       <button
         type="button"
-        className={`app-primary-button h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
+        className={`app-glass-button-primary h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
         onClick={onCreateTransaction}
         disabled={createDisabled}
         title={createDisabledReason}
@@ -133,7 +73,7 @@ export function DesktopTransactionToolbarControls({
       <button
         ref={createMeasureRef}
         type="button"
-        className="app-primary-button pointer-events-none invisible absolute h-10 w-auto shrink-0"
+        className="app-glass-button-primary pointer-events-none invisible absolute h-10 w-auto shrink-0"
         tabIndex={-1}
         aria-hidden
       >

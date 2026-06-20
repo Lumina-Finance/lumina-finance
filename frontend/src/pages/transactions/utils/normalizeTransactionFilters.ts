@@ -9,9 +9,12 @@ export function normalizeTransactionFilters(
 ): TransactionListFilters {
   const next = { ...filters }
 
-  // Falsy values are equivalent to absent filters for the backend query contract
+  // Empty values, including empty arrays, are equivalent to absent filters for the backend contract
   for (const key of TRANSACTION_FILTER_KEYS) {
-    if (!next[key]) delete next[key]
+    const value = next[key]
+    if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+      delete next[key]
+    }
   }
   return next
 }

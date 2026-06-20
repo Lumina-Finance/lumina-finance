@@ -9,7 +9,6 @@ import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transact
 import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
 import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
 import TransactionListToolbar from '@/pages/transactions/components/toolbar/ListToolbar'
-import { useDateRangeDraft } from '@/pages/transactions/hooks/useDateRangeDraft'
 import { useTransactionFilterLoadingState } from '@/pages/transactions/hooks/useTransactionFilterLoadingState'
 import { useInfiniteScrollTrigger } from '@/pages/transactions/hooks/useInfiniteScrollTrigger'
 import { useTransactionSearch } from '@/pages/transactions/hooks/useTransactionSearch'
@@ -18,6 +17,19 @@ import { groupTransactionsByDate } from '@/pages/transactions/utils/transactionD
 import { normalizeTransactionFilters } from '@/pages/transactions/utils/normalizeTransactionFilters'
 
 const DEFAULT_DATE_HEADER_STICKY_TOP = 72
+
+/**
+ * Compares two filter values, treating arrays as equal when they hold the same members so
+ * re-selecting an identical set is not seen as a change
+ */
+function isSameFilterValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    const members = new Set(b)
+    return a.every((item) => members.has(item))
+  }
+  return a === b
+}
 
 /**
  * Wires transaction list filters, infinite loading, row grouping, and list rendering
@@ -46,7 +58,7 @@ export default function TransactionListSection({
   const prefersReducedMotion = useReducedMotion()
   const { search, setSearch, activeSearch, submitSearch } = useTransactionSearch()
   const [internalFilters, setInternalFilters] = useState<TransactionListFilters>(
-    fixedAccount ? { account_id: fixedAccount.id } : {},
+    fixedAccount ? { account_id: [fixedAccount.id] } : {},
   )
   const filters = controlledFilters ?? internalFilters
   const filtersRef = useRef(filters)
@@ -91,14 +103,16 @@ export default function TransactionListSection({
    */
   function setFilter(patch: Partial<TransactionListFilters>) {
     const current = filtersRef.current
-    const fixedAccountPatch = fixedAccount ? { account_id: fixedAccount.id } : {}
+    const fixedAccountPatch = fixedAccount ? { account_id: [fixedAccount.id] } : {}
     const next = normalizeTransactionFilters({ ...current, ...patch, ...fixedAccountPatch })
-    const changed = TRANSACTION_FILTER_KEYS.some((key) => current[key] !== next[key])
+    const changed = TRANSACTION_FILTER_KEYS.some((key) => !isSameFilterValue(current[key], next[key]))
     if (!changed) return
 
-    const isApplyingFilter = Object.entries(patch).some(([key, value]) => (
-      key !== 'account_id' && Boolean(value)
-    ))
+    // Account scoping is structural rather than a filter the user just applied, so it never holds the rows
+    const isApplyingFilter = Object.entries(patch).some(([key, value]) => {
+      if (key === 'account_id') return false
+      return Array.isArray(value) ? value.length > 0 : Boolean(value)
+    })
     beginFilterTransition(isApplyingFilter ? 'apply' : 'clear')
 
     if (onFiltersChange) {
@@ -107,16 +121,6 @@ export default function TransactionListSection({
       setInternalFilters(next)
     }
   }
-
-  const {
-    pendingFrom,
-    pendingTo,
-    setPendingFrom,
-    setPendingTo,
-    dateRangeInvalid,
-    dateRangeChanged,
-    commitDateRange,
-  } = useDateRangeDraft({ filters, setFilter })
 
   const { data: categories } = useCategories()
   const categoryMap = useMemo(
@@ -152,17 +156,7 @@ export default function TransactionListSection({
         categories={categories}
         accounts={accounts}
         showAccountFilter={!fixedAccount}
-        pendingFrom={pendingFrom}
-        pendingTo={pendingTo}
-        dateRangeChanged={dateRangeChanged}
-        dateRangeInvalid={dateRangeInvalid}
-        onPendingFromChange={setPendingFrom}
-        onPendingToChange={setPendingTo}
-        onDateRangeReset={() => {
-          setPendingFrom('')
-          setPendingTo('')
-        }}
-        onDateRangeClose={commitDateRange}
+        lockedCurrency={fixedAccount?.currency}
         onCreateTransaction={onCreateTransaction}
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}

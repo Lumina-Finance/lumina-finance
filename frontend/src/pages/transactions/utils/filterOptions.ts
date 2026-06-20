@@ -43,9 +43,14 @@ export function getActiveFilterCount(
   filters: TransactionListFilters,
   showAccountFilter: boolean,
 ): number {
+  const hasItems = (value?: string[]) => Boolean(value && value.length > 0)
   return [
-    showAccountFilter && filters.account_id,
-    filters.category_id,
-    filters.from_date || filters.to_date,
+    showAccountFilter && hasItems(filters.account_id),
+    hasItems(filters.category_id),
+    hasItems(filters.merchant_id),
+    hasItems(filters.tag_id),
+    Boolean(filters.currency),
+    filters.min_amount !== undefined || filters.max_amount !== undefined,
+    Boolean(filters.from_date || filters.to_date),
   ].filter(Boolean).length
 }

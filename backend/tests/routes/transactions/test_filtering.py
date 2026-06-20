@@ -5,6 +5,7 @@ from tests.routes.transactions._helpers import (
     _create_account,
     _create_category,
     _create_merchant,
+    _create_tag,
     _create_transaction,
     _seed_usd_currency,
     _setup_user_with_deps,
@@ -158,3 +159,169 @@ async def test_list_transactions_from_date_after_to_date_returns_422(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Start date must be before end date"
+
+
+# --- Multi-value filtering ---
+
+
+async def test_list_transactions_filter_by_multiple_accounts(client):
+    """Repeating account_id keeps transactions from any of the selected accounts."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    second_account = await _create_account(client, headers, name="Savings")
+    third_account = await _create_account(client, headers, name="Cash")
+    second_id = second_account.json()["id"]
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-1000)
+    await _create_transaction(client, headers, second_id, category_id, amount=-2000)
+    await _create_transaction(client, headers, third_account.json()["id"], category_id, amount=-3000)
+
+    resp = await client.get(f"/transactions?account_id={account_id}&account_id={second_id}", headers=headers)
+
+    assert len(resp.json()) == 2
+    assert {transaction["amount"] for transaction in resp.json()} == {-1000, -2000}
+
+
+async def test_list_transactions_filter_by_multiple_categories(client):
+    """Repeating category_id keeps transactions from any of the selected categories."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    income = await _create_category(client, headers, name="Test Salary", kind="income")
+    rent = await _create_category(client, headers, name="Test Rent", kind="expense")
+    income_id = income.json()["id"]
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-1000)
+    await _create_transaction(client, headers, account_id, income_id, amount=5000)
+    await _create_transaction(client, headers, account_id, rent.json()["id"], amount=-3000)
+
+    resp = await client.get(f"/transactions?category_id={category_id}&category_id={income_id}", headers=headers)
+
+    assert len(resp.json()) == 2
+    assert {transaction["amount"] for transaction in resp.json()} == {-1000, 5000}
+
+
+async def test_list_transactions_filter_by_multiple_currencies(client):
+    """Repeating currency keeps transactions in any of the selected currencies."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+    usd_account = await _create_account(client, headers, name="USD Account", currency="USD")
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-1000)
+    await _create_transaction(client, headers, usd_account.json()["id"], category_id, amount=-2000, currency="USD")
+
+    resp = await client.get("/transactions?currency=CAD&currency=USD", headers=headers)
+
+    assert len(resp.json()) == 2
+    assert {transaction["currency"] for transaction in resp.json()} == {"CAD", "USD"}
+
+
+# --- Tag filtering ---
+
+
+async def test_list_transactions_filter_by_tags_requires_all_by_default(client):
+    """By default a transaction must carry every selected tag to match."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    work = (await _create_tag(client, headers, name="work")).json()["id"]
+    travel = (await _create_tag(client, headers, name="travel")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-1000, tag_ids=[work, travel])
+    await _create_transaction(client, headers, account_id, category_id, amount=-2000, tag_ids=[work])
+
+    resp = await client.get(f"/transactions?tag_id={work}&tag_id={travel}", headers=headers)
+
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["amount"] == -1000
+
+
+async def test_list_transactions_filter_by_tags_any_matches_either(client):
+    """tag_match=any keeps transactions carrying at least one selected tag."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    work = (await _create_tag(client, headers, name="work")).json()["id"]
+    travel = (await _create_tag(client, headers, name="travel")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-1000, tag_ids=[work])
+    await _create_transaction(client, headers, account_id, category_id, amount=-2000, tag_ids=[travel])
+    await _create_transaction(client, headers, account_id, category_id, amount=-3000)
+
+    resp = await client.get(f"/transactions?tag_id={work}&tag_id={travel}&tag_match=any", headers=headers)
+
+    assert len(resp.json()) == 2
+    assert {transaction["amount"] for transaction in resp.json()} == {-1000, -2000}
+
+
+async def test_list_transactions_invalid_tag_match_returns_422(client):
+    """A tag filter with an unsupported match mode returns 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    work = (await _create_tag(client, headers, name="work")).json()["id"]
+
+    resp = await client.get(f"/transactions?tag_id={work}&tag_match=some", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Tag match must be 'all' or 'any'"
+
+
+# --- Amount filtering ---
+
+
+async def test_list_transactions_filter_by_amount_range(client):
+    """Amount bounds keep transactions whose magnitude falls within the range."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-1000)
+    await _create_transaction(client, headers, account_id, category_id, amount=-5000)
+    await _create_transaction(client, headers, account_id, category_id, amount=-9000)
+
+    resp = await client.get("/transactions?min_amount=2000&max_amount=6000&amount_currency=CAD", headers=headers)
+
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["amount"] == -5000
+
+
+async def test_list_transactions_amount_range_matches_inflow_and_outflow(client):
+    """The amount range matches magnitude, so inflows and outflows are treated the same."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    income = await _create_category(client, headers, name="Test Salary", kind="income")
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-5000)
+    await _create_transaction(client, headers, account_id, income.json()["id"], amount=5000)
+
+    resp = await client.get("/transactions?min_amount=4000&max_amount=6000&amount_currency=CAD", headers=headers)
+
+    assert len(resp.json()) == 2
+    assert {transaction["amount"] for transaction in resp.json()} == {-5000, 5000}
+
+
+async def test_list_transactions_amount_range_scoped_to_currency(client):
+    """The amount range only matches transactions in the requested currency."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _seed_usd_currency()
+    usd_account = await _create_account(client, headers, name="USD Account", currency="USD")
+
+    await _create_transaction(client, headers, account_id, category_id, amount=-5000)
+    await _create_transaction(client, headers, usd_account.json()["id"], category_id, amount=-5000, currency="USD")
+
+    resp = await client.get("/transactions?min_amount=1000&max_amount=9000&amount_currency=USD", headers=headers)
+
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["currency"] == "USD"
+
+
+async def test_list_transactions_amount_range_without_currency_returns_422(client):
+    """An amount bound without amount_currency returns 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get("/transactions?min_amount=1000", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Amount currency is required when filtering by amount"
+
+
+async def test_list_transactions_amount_min_above_max_returns_422(client):
+    """A minimum amount above the maximum returns 422."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.get("/transactions?min_amount=9000&max_amount=1000&amount_currency=CAD", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Minimum amount must not exceed maximum amount"

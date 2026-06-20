@@ -213,23 +213,20 @@
     padding-right: 0.75rem;
   }
 
-  .app-date-input-balanced[type="date"] {
-    -webkit-appearance: auto;
-    appearance: auto;
-  }
-
+  /* The native date appearance gives WebKit an intrinsic width that ignores the flex track and
+     overflows the panel, so the appearance stays stripped from the base rule to let the field
+     shrink. Stripping it also removes the native calendar glyph, so the visible icon is an overlaid
+     element and the native indicator is stretched transparently across the field to keep a tap
+     anywhere opening the picker */
   .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
-    width: 1rem;
-    height: 1rem;
-    margin-left: 0.5rem;
-    margin-right: 0;
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    margin: 0;
     padding: 0;
-    opacity: 0.6;
-  }
-
-  .app-date-input-balanced[type="date"]:hover::-webkit-calendar-picker-indicator,
-  .app-date-input-balanced[type="date"]:focus::-webkit-calendar-picker-indicator {
-    opacity: 1;
+    opacity: 0;
+    cursor: pointer;
   }
 
   .transaction-list-section > :not(:first-child) {
@@ -399,6 +396,18 @@
     color: var(--app-text-subtle);
   }
 
+  /* Clear control that replaces the chevron on the collapsed filter pill once filters are applied */
+  .app-range-glass-clear {
+    color: var(--app-text-subtle);
+    border-radius: 9999px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .app-range-glass-clear:hover {
+    color: var(--app-text);
+    background: color-mix(in srgb, var(--app-text) 8%, transparent);
+  }
+
   .app-range-glass-bodywrap {
     display: grid;
     grid-template-rows: 0fr;
@@ -448,6 +457,12 @@
     padding: 3px;
     border-radius: 12px;
     background: color-mix(in srgb, var(--app-text) 7%, transparent);
+  }
+
+  /* The desktop filter panel lays its six facet tabs out in a single row, while the mobile sheet
+     swaps these tabs for a dropdown */
+  .app-filter-facet-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   /* This/Last/Past qualifier selector leading the custom builder, reusing the segmented styling */
@@ -691,6 +706,91 @@
   .app-danger-button:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px var(--app-negative-soft);
+  }
+
+  /* Liquid-glass variants of the toolbar controls, sharing the filter pill and insights range
+     selector surface so the transactions toolbar reads as one glass family */
+  .app-glass-input {
+    @apply min-w-0 border px-4 py-0 outline-none transition-colors duration-200;
+    border-radius: 20px;
+    font-size: 0.9375rem;
+    color: var(--app-text);
+    border-color: var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
+  }
+
+  .app-glass-input::placeholder {
+    color: var(--app-text-subtle);
+  }
+
+  /* The primary action keeps its accent tint but turns translucent so it joins the glass family
+     while still reading as the prominent call to action */
+  .app-glass-button-primary {
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
+    font-size: 0.9375rem;
+    color: var(--app-button-primary-text);
+    border: 1px solid color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+  }
+
+  .app-glass-button-primary:hover {
+    background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+    border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+  }
+
+  .app-glass-button-primary:active {
+    transform: translateY(1px);
+  }
+
+  .app-glass-button-primary:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .app-glass-button-primary:focus-visible {
+    outline: none;
+    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
+  }
+
+  /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
+  .app-glass-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
+    font-size: 0.9375rem;
+    color: var(--app-text-muted);
+    border: 1px solid var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
+  }
+
+  .app-glass-button:hover {
+    color: var(--app-text);
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+  }
+
+  .app-glass-button:active {
+    transform: translateY(1px);
+  }
+
+  .app-glass-button:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .app-glass-button:focus-visible {
+    outline: none;
+    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
   }
 
   .app-primary-button-loading {

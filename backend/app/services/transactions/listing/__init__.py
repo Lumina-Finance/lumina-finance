@@ -24,10 +24,15 @@ async def list_transaction_responses(
     db: AsyncSession,
     user: User,
     *,
-    account_id: uuid.UUID | None = None,
-    category_id: uuid.UUID | None = None,
-    merchant_id: uuid.UUID | None = None,
-    currency: str | None = None,
+    account_ids: list[uuid.UUID] | None = None,
+    category_ids: list[uuid.UUID] | None = None,
+    merchant_ids: list[uuid.UUID] | None = None,
+    currencies: list[str] | None = None,
+    tag_ids: list[uuid.UUID] | None = None,
+    tag_match: str = "all",
+    min_amount: int | None = None,
+    max_amount: int | None = None,
+    amount_currency: str | None = None,
     from_date: date | None = None,
     to_date: date | None = None,
     search_text: str | None = None,
@@ -45,10 +50,15 @@ async def list_transaction_responses(
     Args:
         db: Active database session
         user: Authenticated user requesting the transaction list
-        account_id: Optional account filter applied within the user's accessible accounts
-        category_id: Optional category filter
-        merchant_id: Optional merchant filter
-        currency: Optional transaction currency filter
+        account_ids: Optional accounts to keep within the user's accessible accounts
+        category_ids: Optional categories to keep
+        merchant_ids: Optional merchants to keep
+        currencies: Optional transaction currencies to keep
+        tag_ids: Optional tags to filter by, combined per ``tag_match``
+        tag_match: ``all`` to require every selected tag, ``any`` to require at least one
+        min_amount: Optional inclusive lower bound on the amount magnitude in ``amount_currency`` minor units
+        max_amount: Optional inclusive upper bound on the amount magnitude in ``amount_currency`` minor units
+        amount_currency: Currency the amount bounds are expressed in, required when a bound is set
         from_date: Optional inclusive start date for transaction dates
         to_date: Optional inclusive end date for transaction dates
         search_text: Optional text search across merchant name and notes
@@ -62,8 +72,8 @@ async def list_transaction_responses(
         account/base-currency converted amounts
 
     Raises:
-        HTTPException: Raised with 422 for invalid sort fields, sort order, or
-            date range
+        HTTPException: Raised with 422 for invalid sort fields, sort order, date
+            range, tag match mode, or an amount range missing its currency
     """
     if not is_valid_transaction_listing_sort_field(sort_by):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid sort field")
@@ -71,13 +81,24 @@ async def list_transaction_responses(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Sort order must be 'asc' or 'desc'")
     if from_date is not None and to_date is not None and from_date > to_date:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
+    if tag_ids and tag_match not in ("all", "any"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag match must be 'all' or 'any'")
+    if (min_amount is not None or max_amount is not None) and not amount_currency:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Amount currency is required when filtering by amount")
+    if min_amount is not None and max_amount is not None and min_amount > max_amount:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Minimum amount must not exceed maximum amount")
 
     transaction_query = build_transaction_listing_query(
         user_id=user.id,
-        account_id=account_id,
-        category_id=category_id,
-        merchant_id=merchant_id,
-        currency=currency,
+        account_ids=account_ids,
+        category_ids=category_ids,
+        merchant_ids=merchant_ids,
+        currencies=currencies,
+        tag_ids=tag_ids,
+        tag_match=tag_match,
+        min_amount=min_amount,
+        max_amount=max_amount,
+        amount_currency=amount_currency,
         from_date=from_date,
         to_date=to_date,
         search_text=search_text,

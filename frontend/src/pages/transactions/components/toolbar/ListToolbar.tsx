@@ -2,12 +2,11 @@ import { useCallback, useMemo, useState } from 'react'
 import type { TransactionListToolbarProps } from '@/pages/transactions/components/toolbar/types'
 import { DesktopTransactionToolbarControls } from '@/pages/transactions/components/toolbar/desktop/Controls'
 import { MobileToolbarActions } from '@/pages/transactions/components/toolbar/mobile/Actions'
-import { MobileTransactionFilterSheet } from '@/pages/transactions/components/toolbar/mobile/FilterSheet'
+import { MobileFilterPanel } from '@/pages/transactions/components/toolbar/MobileFilterPanel'
 import { TransactionSearchField } from '@/pages/transactions/components/toolbar/SearchField'
 import { useDesktopToolbarLayout } from '@/pages/transactions/components/toolbar/hooks/useDesktopLayout'
 import { useMobileSearchStuck } from '@/pages/transactions/components/toolbar/hooks/useMobileSearchStuck'
 import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useStickyOffset'
-import { formatDateRangeLabel } from '@/pages/transactions/utils/date'
 import {
   getAccountOptions,
   getActiveFilterCount,
@@ -26,21 +25,16 @@ export default function TransactionListToolbar({
   categories,
   accounts,
   showAccountFilter,
-  pendingFrom,
-  pendingTo,
-  dateRangeChanged,
-  dateRangeInvalid,
-  onPendingFromChange,
-  onPendingToChange,
-  onDateRangeReset,
-  onDateRangeClose,
+  lockedCurrency,
   onCreateTransaction,
   createDisabled = false,
   createDisabledReason,
   onStickyOffsetChange,
 }: TransactionListToolbarProps) {
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
-  const [isMobileBackdropActive, setIsMobileBackdropActive] = useState(false)
+  // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
+  // the sheet exists, never on the page underneath
+  const [isMobileSheetMounted, setIsMobileSheetMounted] = useState(false)
 
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
@@ -50,9 +44,6 @@ export default function TransactionListToolbar({
     () => getCategoryOptions(categories),
     [categories],
   )
-  const selectedAccountLabel = accounts?.find((account) => account.id === filters.account_id)?.name ?? null
-  const selectedCategoryLabel = categories?.find((category) => category.id === filters.category_id)?.name ?? null
-  const selectedDateLabel = formatDateRangeLabel(filters.from_date, filters.to_date)
   const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 
   const {
@@ -62,25 +53,17 @@ export default function TransactionListToolbar({
     createMeasureRef,
     desktopInlineLayout,
     desktopCreateStacked,
-  } = useDesktopToolbarLayout({
-    selectedAccountLabel,
-    selectedCategoryLabel,
-    selectedDateLabel,
-    showAccountFilter,
-  })
+  } = useDesktopToolbarLayout()
   const { mobileSearchStickySentinelRef, mobileSearchStuck } = useMobileSearchStuck()
 
   useToolbarStickyOffset(toolbarRef, onStickyOffsetChange)
 
   const openMobileSheet = useCallback(() => {
-    setIsMobileBackdropActive(true)
+    setIsMobileSheetMounted(true)
     setIsMobileSheetOpen(true)
   }, [])
 
-  const closeMobileSheet = useCallback(() => {
-    onDateRangeClose()
-    setIsMobileSheetOpen(false)
-  }, [onDateRangeClose])
+  const closeMobileSheet = useCallback(() => setIsMobileSheetOpen(false), [])
 
   return (
     <>
@@ -113,19 +96,9 @@ export default function TransactionListToolbar({
           filters={filters}
           setFilter={setFilter}
           showAccountFilter={showAccountFilter}
+          lockedCurrency={lockedCurrency}
           accountOptions={accountOptions}
           categoryOptions={categoryOptions}
-          selectedAccountLabel={selectedAccountLabel}
-          selectedCategoryLabel={selectedCategoryLabel}
-          selectedDateLabel={selectedDateLabel}
-          pendingFrom={pendingFrom}
-          pendingTo={pendingTo}
-          dateRangeChanged={dateRangeChanged}
-          dateRangeInvalid={dateRangeInvalid}
-          onPendingFromChange={onPendingFromChange}
-          onPendingToChange={onPendingToChange}
-          onDateRangeReset={onDateRangeReset}
-          onDateRangeClose={onDateRangeClose}
           desktopInlineLayout={desktopInlineLayout}
           desktopCreateStacked={desktopCreateStacked}
           controlsRef={controlsRef}
@@ -137,30 +110,19 @@ export default function TransactionListToolbar({
         />
       </div>
 
-      {isMobileBackdropActive && (
-        <MobileTransactionFilterSheet
+      {isMobileSheetMounted && (
+        <MobileFilterPanel
           isOpen={isMobileSheetOpen}
-          activeFilterCount={activeFilterCount}
+          onClose={closeMobileSheet}
+          onExitComplete={() => {
+            if (!isMobileSheetOpen) setIsMobileSheetMounted(false)
+          }}
+          accountOptions={accountOptions}
+          categoryOptions={categoryOptions}
           filters={filters}
           setFilter={setFilter}
           showAccountFilter={showAccountFilter}
-          accountOptions={accountOptions}
-          categoryOptions={categoryOptions}
-          selectedAccountLabel={selectedAccountLabel}
-          selectedCategoryLabel={selectedCategoryLabel}
-          selectedDateLabel={selectedDateLabel}
-          pendingFrom={pendingFrom}
-          pendingTo={pendingTo}
-          dateRangeChanged={dateRangeChanged}
-          dateRangeInvalid={dateRangeInvalid}
-          onPendingFromChange={onPendingFromChange}
-          onPendingToChange={onPendingToChange}
-          onDateRangeReset={onDateRangeReset}
-          onDateRangeClose={onDateRangeClose}
-          onClose={closeMobileSheet}
-          onExitComplete={() => {
-            if (!isMobileSheetOpen) setIsMobileBackdropActive(false)
-          }}
+          lockedCurrency={lockedCurrency}
         />
       )}
     </>

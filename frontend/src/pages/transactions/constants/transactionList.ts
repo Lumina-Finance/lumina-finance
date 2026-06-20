@@ -5,6 +5,13 @@ export const DEFAULT_TRANSACTION_CATEGORY_ICON = '🏷️'
 export const TRANSACTION_FILTER_KEYS: Array<keyof TransactionListFilters> = [
   'account_id',
   'category_id',
+  'merchant_id',
+  'tag_id',
+  'tag_match',
+  'currency',
+  'min_amount',
+  'max_amount',
+  'amount_currency',
   'from_date',
   'to_date',
 ]

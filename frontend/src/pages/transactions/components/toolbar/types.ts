@@ -5,18 +5,7 @@ import type { TransactionListAccount, TransactionListFilters } from '@/pages/tra
 
 export type TransactionFilterSetter = (patch: Partial<TransactionListFilters>) => void
 
-export type TransactionDateRangeDraftProps = {
-  pendingFrom: string
-  pendingTo: string
-  dateRangeChanged: boolean
-  dateRangeInvalid: boolean
-  onPendingFromChange: (value: string) => void
-  onPendingToChange: (value: string) => void
-  onDateRangeReset: () => void
-  onDateRangeClose: () => void
-}
-
-export type TransactionListToolbarProps = TransactionDateRangeDraftProps & {
+export type TransactionListToolbarProps = {
   search: string
   onSearchChange: (value: string) => void
   onSearchSubmit: () => void
@@ -25,6 +14,8 @@ export type TransactionListToolbarProps = TransactionDateRangeDraftProps & {
   categories?: Category[]
   accounts?: TransactionListAccount[]
   showAccountFilter: boolean
+  // The account's currency on its own transaction list, which pins the amount currency
+  lockedCurrency?: string
   onCreateTransaction: () => void
   createDisabled?: boolean
   createDisabledReason?: string
@@ -34,12 +25,6 @@ export type TransactionListToolbarProps = TransactionDateRangeDraftProps & {
 export type TransactionToolbarOptions = {
   accountOptions: OptionItem[]
   categoryOptions: OptionItem[]
-}
-
-export type TransactionToolbarSelectionLabels = {
-  selectedAccountLabel: string | null
-  selectedCategoryLabel: string | null
-  selectedDateLabel: string | null
 }
 
 export type DesktopTransactionToolbarRefs = {
