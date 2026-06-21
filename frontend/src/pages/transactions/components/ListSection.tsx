@@ -194,7 +194,6 @@ export default function TransactionListSection({
           ) : displayedTransactionsLoaded ? (
             <motion.section
               key={`list-${listRevealKey}`}
-              className="space-y-4"
               exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: TRANSACTION_LIST_EASE }}
             >
