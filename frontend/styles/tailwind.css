@@ -1218,6 +1218,21 @@
   }
 
   .recharts-default-tooltip.app-chart-tooltip-default,
+  /* Inner card of the cursor tooltip. The above/below flip is a translateY driven by a variable the
+     positioning code sets, so the card eases between sides while the outer wrapper follows the cursor
+     instantly without smearing */
+  .app-cursor-tooltip-flip {
+    transform: translateY(var(--cursor-tooltip-flip-y, 0px));
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-cursor-tooltip-flip {
+      transition: none;
+    }
+  }
+
   .app-chart-tooltip-default-content {
     background: var(--app-bg) !important;
     border: 1px solid var(--app-border-strong) !important;
