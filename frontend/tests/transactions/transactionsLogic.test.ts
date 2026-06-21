@@ -41,8 +41,8 @@ describe('filter option helpers', () => {
       createAccount({ id: 'checking', name: 'Checking' }),
       createAccount({ id: 'unnamed', name: undefined }),
     ])).toEqual([
-      { value: 'checking', label: 'Checking' },
-      { value: 'unnamed', label: 'Unnamed account' },
+      { value: 'checking', label: 'Checking', imageUrl: null },
+      { value: 'unnamed', label: 'Unnamed account', imageUrl: null },
     ])
   })
 
