@@ -819,6 +819,31 @@
     box-shadow: 0 0 0 3px var(--app-accent-soft);
   }
 
+  /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
+     translucent blurred surface so it blurs the page content behind it like the toolbar controls */
+  .app-glass-icon-button {
+    @apply inline-flex items-center justify-center transition-colors duration-150 motion-reduce:transition-none;
+    border-radius: 16px;
+    color: var(--app-text);
+    border: 1px solid var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  .app-glass-icon-button:hover {
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+  }
+
+  .app-glass-icon-button:active {
+    transform: translateY(1px);
+  }
+
+  .app-glass-icon-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
+  }
+
   .app-primary-button-loading {
     width: 40px;
     height: 40px;
