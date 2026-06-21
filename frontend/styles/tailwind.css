@@ -462,13 +462,6 @@
     gap: 2px;
     padding: 3px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--app-text) 7%, transparent);
-  }
-
-  /* The desktop filter panel lays its six facet tabs out in a single row, while the mobile sheet
-     swaps these tabs for a dropdown */
-  .app-filter-facet-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
     background: var(--app-input-bg);
     border: 1px solid var(--app-border);
   }
@@ -480,9 +473,13 @@
     gap: 2px;
     padding: 3px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--app-text) 7%, transparent);
+    background: var(--app-input-bg);
+    border: 1px solid var(--app-border);
   }
 
+  /* The segmented toggles adopt the accent colours of the theme switcher and the facet dropdown
+     options so the insights range presets, the This/Last/Past qualifier, and the filter facet tabs
+     all read as the same control */
   .app-range-seg-option {
     position: relative;
     appearance: none;
@@ -496,10 +493,16 @@
     text-align: center;
     white-space: nowrap;
     color: var(--app-text-muted);
+    transition: color 180ms ease, background-color 180ms ease;
+  }
+
+  .app-range-seg-option:hover {
+    color: var(--app-text);
+    background: var(--app-accent-soft);
   }
 
   .app-range-seg-option-active {
-    color: var(--app-text);
+    color: var(--app-accent);
     font-weight: 500;
   }
 
@@ -509,33 +512,12 @@
     position: absolute;
     inset: 0;
     border-radius: 8px;
-    background: var(--app-input-bg);
-    box-shadow: 0 1px 2px #00000014, inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+    background: var(--app-accent-soft);
+    border: 1px solid var(--app-accent-border);
   }
 
   .app-range-seg-label {
     position: relative;
-  }
-
-  /* The filter facet tabs adopt the accent toggle colours of the theme switcher and the facet
-     dropdown options, instead of the neutral sliding thumb the insights presets keep */
-  .app-filter-facet-grid .app-range-seg-option {
-    transition: color 180ms ease, background-color 180ms ease;
-  }
-
-  .app-filter-facet-grid .app-range-seg-option:hover {
-    color: var(--app-text);
-    background: var(--app-accent-soft);
-  }
-
-  .app-filter-facet-grid .app-range-seg-option-active {
-    color: var(--app-accent);
-  }
-
-  .app-filter-facet-grid .app-range-seg-thumb {
-    background: var(--app-accent-soft);
-    border: 1px solid var(--app-accent-border);
-    box-shadow: none;
   }
 
   .app-range-custom {

@@ -72,7 +72,7 @@ export function FilterPanelBody({
         <motion.div
           layout={blockLayout}
           transition={transition}
-          className="app-range-seg app-filter-facet-grid"
+          className="app-range-seg"
           role="tablist"
           aria-label="Filter facets"
         >
