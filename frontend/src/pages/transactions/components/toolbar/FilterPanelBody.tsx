@@ -250,7 +250,7 @@ function MobileFacetSelect({ activeFacetId, countFacet, disabledFacetIds, onSele
         {open && (
           <motion.ul
             role="listbox"
-            className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-auto rounded-xl py-1"
+            className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-auto rounded-xl"
             style={{
               background: 'var(--app-input-bg)',
               border: '1px solid var(--app-border-strong)',

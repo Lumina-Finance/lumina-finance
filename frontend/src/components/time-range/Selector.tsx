@@ -215,7 +215,7 @@ function MobileTimeRangeSelector<T extends string>({
             transition={shouldReduceMotion ? { duration: 0 } : mobileDropdownTransition}
             style={{ transformOrigin: dropdownOrigin, willChange: 'transform, opacity' }}
           >
-            <div className="py-1">
+            <div>
               {options.map((option) => {
                 const active = option.value === value
                 const optionDisplay = option.description ?? option.label
