@@ -3,6 +3,7 @@ import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
@@ -23,12 +24,6 @@ function amountColor(category: Category | undefined, amount: number) {
   return 'var(--app-text)'
 }
 
-function accountLogoSrc(institution: Institution | null | undefined) {
-  if (institution?.logo_url) return institution.logo_url
-  if (!institution?.website) return null
-  return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(institution.website)}&size=256`
-}
-
 function AccountLogo({
   accountName,
   institution,
@@ -36,7 +31,7 @@ function AccountLogo({
   accountName: string | undefined
   institution: Institution | null | undefined
 }) {
-  const logoSrc = accountLogoSrc(institution)
+  const logoSrc = resolveInstitutionLogoUrl(institution)
   const fallback = accountName?.trim().charAt(0).toUpperCase() || '$'
 
   return (
