@@ -45,6 +45,7 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 - [X] UI/UX polish across the main workflows
 - [X] Bug fixes and stability improvements
 - [X] Multi-currency support
+- [X] Row-level security for per-user data isolation
 - [ ] Application security improvements and fixes
 - [ ] OIDC and WebAuthN support
 - [ ] SaaS development and testing
