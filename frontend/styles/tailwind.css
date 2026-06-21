@@ -360,10 +360,10 @@
     display: block;
     overflow: hidden;
     font-size: 0.6875rem;
-    font-weight: 400;
+    font-weight: 500;
     line-height: 1.2;
     white-space: nowrap;
-    color: var(--app-text-subtle);
+    color: var(--app-text-muted);
     font-variant-numeric: tabular-nums;
   }
 
@@ -371,7 +371,8 @@
   .app-range-dates {
     margin-top: 10px;
     font-size: 0.75rem;
-    color: var(--app-text-subtle);
+    font-weight: 500;
+    color: var(--app-text-muted);
     font-variant-numeric: tabular-nums;
   }
 
