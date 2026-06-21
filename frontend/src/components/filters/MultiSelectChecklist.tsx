@@ -55,7 +55,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
         />
       </div>
 
-      <ul className={fillHeight ? 'min-h-0 flex-1 overflow-auto' : 'max-h-56 overflow-auto'}>
+      <ul className={fillHeight ? 'min-h-0 flex-1 space-y-1 overflow-auto py-2' : 'max-h-56 space-y-1 overflow-auto py-2'}>
         {filtered.length === 0 ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             No matches
@@ -69,7 +69,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
               >
                 {group.label}
               </div>
-              <ul>
+              <ul className="space-y-1">
                 {group.items.map((option) => (
                   <ChecklistRow
                     key={option.value}

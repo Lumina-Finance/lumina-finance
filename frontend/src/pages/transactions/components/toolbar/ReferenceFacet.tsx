@@ -54,7 +54,7 @@ export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPla
         />
       </div>
 
-      <ul className={fillHeight ? 'min-h-0 flex-1 overflow-auto' : 'max-h-56 overflow-auto'}>
+      <ul className={fillHeight ? 'min-h-0 flex-1 space-y-1 overflow-auto py-2' : 'max-h-56 space-y-1 overflow-auto py-2'}>
         {query.isPending ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             Loading…
