@@ -272,8 +272,8 @@ function MobileFacetSelect({ activeFacetId, countFacet, disabledFacetIds, onSele
                   role="option"
                   aria-selected={isActive}
                   aria-disabled={isDisabled}
-                  className={joinClassNames('flex items-center gap-2 px-4 py-2.5 text-sm transition-colors', isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-surface-soft)]')}
-                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400, opacity: isDisabled ? 0.4 : 1 }}
+                  className={joinClassNames('flex items-center gap-2 px-4 py-2.5 text-sm transition-colors', isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-accent-soft)]')}
+                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400, opacity: isDisabled ? 0.4 : 1, background: isActive ? 'var(--app-accent-soft)' : undefined }}
                   onClick={() => {
                     if (isDisabled) return
                     onSelect(facet.id)
@@ -437,7 +437,7 @@ function FacetEditor({
                       key={option.value}
                       type="button"
                       aria-pressed={isSelected}
-                      className="rounded-full border px-3 py-1 text-sm transition-colors"
+                      className="rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
                       style={
                         isSelected
                           ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }

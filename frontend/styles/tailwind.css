@@ -466,6 +466,8 @@
      swaps these tabs for a dropdown */
   .app-filter-facet-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
+    background: var(--app-input-bg);
+    border: 1px solid var(--app-border);
   }
 
   /* This/Last/Past qualifier selector leading the custom builder, reusing the segmented styling */
@@ -510,6 +512,27 @@
 
   .app-range-seg-label {
     position: relative;
+  }
+
+  /* The filter facet tabs adopt the accent toggle colours of the theme switcher and the facet
+     dropdown options, instead of the neutral sliding thumb the insights presets keep */
+  .app-filter-facet-grid .app-range-seg-option {
+    transition: color 180ms ease, background-color 180ms ease;
+  }
+
+  .app-filter-facet-grid .app-range-seg-option:hover {
+    color: var(--app-text);
+    background: var(--app-accent-soft);
+  }
+
+  .app-filter-facet-grid .app-range-seg-option-active {
+    color: var(--app-accent);
+  }
+
+  .app-filter-facet-grid .app-range-seg-thumb {
+    background: var(--app-accent-soft);
+    border: 1px solid var(--app-accent-border);
+    box-shadow: none;
   }
 
   .app-range-custom {

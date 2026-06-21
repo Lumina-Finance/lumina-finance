@@ -73,8 +73,8 @@ export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPla
                   role="checkbox"
                   aria-checked={selected}
                   onClick={() => onToggle(option.value, option.label)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-surface-soft)]"
-                  style={{ color: selected ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: selected ? 500 : 400 }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+                  style={{ color: selected ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: selected ? 500 : 400, background: selected ? 'var(--app-accent-soft)' : undefined }}
                 >
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>
                   {selected && <Check size={15} aria-hidden className="shrink-0" />}

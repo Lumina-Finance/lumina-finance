@@ -59,7 +59,7 @@ export function FilterPanelBody({
         <motion.div
           layout={blockLayout}
           transition={transition}
-          className="app-range-seg"
+          className="app-range-seg app-filter-facet-grid"
           style={{ gridTemplateColumns: FACET_GRID_COLUMNS }}
           role="tablist"
           aria-label="Filter facets"
@@ -237,8 +237,8 @@ function MobileFacetSelect({ activeFacetId, countFacet, onSelect }: MobileFacetS
                   key={facet.id}
                   role="option"
                   aria-selected={isActive}
-                  className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--app-surface-soft)]"
-                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400 }}
+                  className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400, background: isActive ? 'var(--app-accent-soft)' : undefined }}
                   onClick={() => {
                     onSelect(facet.id)
                     setOpen(false)
