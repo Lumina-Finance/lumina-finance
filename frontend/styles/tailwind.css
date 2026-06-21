@@ -361,8 +361,8 @@
   .app-range-glass-sub {
     display: block;
     overflow: hidden;
-    font-size: 0.6875rem;
-    font-weight: 500;
+    font-size: 0.75rem;
+    font-weight: 600;
     line-height: 1.2;
     white-space: nowrap;
     color: var(--app-text-muted);
@@ -372,8 +372,8 @@
   /* The resolved date range shown inside the open panel, directly under the preset row */
   .app-range-dates {
     margin-top: 10px;
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: 0.8125rem;
+    font-weight: 600;
     color: var(--app-text-muted);
     font-variant-numeric: tabular-nums;
   }
