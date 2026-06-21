@@ -76,7 +76,7 @@ export function SettingsMobileSectionMenu({
       <div className="settings-mobile-section-menu-lock-spacer hidden min-[1200px]:hidden" aria-hidden />
 
       <div
-        className="settings-mobile-section-menu-shell sticky top-0 z-20 -mx-2 -mt-4 mb-4 min-h-[3.75rem] px-2 pt-4 min-[1050px]:-mt-5 min-[1050px]:min-h-16 min-[1050px]:pt-5 min-[1200px]:hidden"
+        className="settings-mobile-section-menu-shell sticky top-0 z-20 -mx-2 -mt-2 mb-4 min-h-[3.25rem] px-2 pt-2 min-[1050px]:-mt-5 min-[1050px]:min-h-16 min-[1050px]:pt-5 min-[1200px]:hidden"
         style={{
           background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
           backdropFilter: 'blur(10px)',
