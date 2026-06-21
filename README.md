@@ -54,6 +54,7 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 
 - [ ] SimpleFIN and Plaid connections for automatic account and transaction syncing
 - [ ] Basic investment tracker (bring your own data)
+- [ ] Internationalization and multi-language support
 - [ ] A few quite ambitious features we're not quite ready to spoil yet :)
 
 ## Screenshots
