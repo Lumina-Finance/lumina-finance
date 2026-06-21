@@ -1,6 +1,8 @@
 import type { AccountKind, AccountType, AccountsOverview } from '@/api/accounts'
+import type { Institution } from '@/api/institutions'
 import type { OptionItem } from '@/components/filters/OptionList'
 import type { FilterValues } from '@/pages/accounts/types/accounts'
+import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const KIND_OPTIONS: OptionItem[] = [
   { value: 'asset', label: 'Assets' },
@@ -38,12 +40,15 @@ export function getActiveFilters(filters: FilterValues) {
  * Builds sorted institution filter options from accounts with linked institutions
  */
 export function getInstitutionOptions(rows: AccountsOverview[]): OptionItem[] {
-  const seen = new Map<string, string>()
+  const seen = new Map<string, Institution>()
   for (const account of rows) {
-    if (account.institution) seen.set(account.institution.id, account.institution.name)
+    if (account.institution) seen.set(account.institution.id, account.institution)
   }
-  return Array.from(seen, ([value, label]) => ({ value, label }))
-    .sort((a, b) => a.label.localeCompare(b.label))
+  return Array.from(seen.values(), (institution) => ({
+    value: institution.id,
+    label: institution.name,
+    imageUrl: resolveInstitutionLogoUrl(institution),
+  })).sort((a, b) => a.label.localeCompare(b.label))
 }
 
 /**

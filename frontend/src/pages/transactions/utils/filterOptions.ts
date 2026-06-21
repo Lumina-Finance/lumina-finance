@@ -2,6 +2,7 @@ import type { Category } from '@/api/categories'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { DEFAULT_TRANSACTION_CATEGORY_ICON } from '@/pages/transactions/constants/transactionList'
 import type { TransactionListAccount, TransactionListFilters } from '@/pages/transactions/types/transactionList'
+import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const CATEGORY_KIND_LABELS = {
   expense: 'Expense',
@@ -16,6 +17,7 @@ export function getAccountOptions(accounts: TransactionListAccount[] | undefined
   return (accounts ?? []).map((account) => ({
     value: account.id,
     label: account.name ?? 'Unnamed account',
+    imageUrl: resolveInstitutionLogoUrl(account.institution),
   }))
 }
 

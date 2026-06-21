@@ -7,4 +7,6 @@ export interface OptionItem {
   label: string
   group?: string
   icon?: string | null
+  // Logo or image source shown in place of the text icon, used by the institution filter options
+  imageUrl?: string | null
 }

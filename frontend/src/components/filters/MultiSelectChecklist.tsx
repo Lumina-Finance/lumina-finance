@@ -118,10 +118,20 @@ function ChecklistRow({
         className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
         style={{ color: selected ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: selected ? 500 : 400, background: selected ? 'var(--app-accent-soft)' : undefined }}
       >
-        {option.icon && (
-          <span className="shrink-0 text-base leading-none" aria-hidden>
-            {option.icon}
-          </span>
+        {option.imageUrl ? (
+          <img
+            src={option.imageUrl}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            className="h-5 w-5 shrink-0 rounded-md object-contain"
+          />
+        ) : (
+          option.icon && (
+            <span className="shrink-0 text-base leading-none" aria-hidden>
+              {option.icon}
+            </span>
+          )
         )}
         <span className="min-w-0 flex-1 truncate">{option.label}</span>
         {selected && <Check size={15} aria-hidden className="shrink-0" />}
