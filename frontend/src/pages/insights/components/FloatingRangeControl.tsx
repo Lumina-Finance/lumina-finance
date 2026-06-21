@@ -215,7 +215,7 @@ function GlassRangeSelector({
         onClick={() => (open ? dismiss() : setOpen(true))}
       >
         <span className="app-range-glass-cur">
-          <Calendar size={15} aria-hidden className="shrink-0" />
+          <Calendar size={18} aria-hidden className="shrink-0" />
           <span key={`${currentLabel}|${appliedRangeLabel}`} ref={measureLabel} className="app-range-glass-text">
             <span className="truncate">{currentLabel}</span>
             <motion.span

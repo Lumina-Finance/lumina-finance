@@ -310,13 +310,15 @@
     flex-direction: column-reverse;
   }
 
+  /* Vertical padding keeps the collapsed two-line pill at the 44px outer height the toolbar filter
+     button uses, so the insights selector reads as the same control family */
   .app-range-glass-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 7px 14px;
-    font-size: 0.8125rem;
+    gap: 8px;
+    padding: 5px 16px;
+    font-size: 0.9375rem;
     font-weight: 500;
     white-space: nowrap;
     color: var(--app-text);
