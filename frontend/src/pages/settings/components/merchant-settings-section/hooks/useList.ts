@@ -30,11 +30,12 @@ export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
     () => new Set(locallyDeletedMerchantIds),
     [locallyDeletedMerchantIds],
   )
+  // Preserve the server's order, recent usage then name, so appended pages keep the rows already on
+  // screen in place. Re-sorting here would interleave each new page among the loaded rows and
+  // reshuffle the list on every load
   const fetchedMerchants = useMemo(
     () => (merchantQuery.data?.pages.flat() ?? [])
-      .filter((merchant) => !locallyDeletedMerchantIdSet.has(merchant.id))
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name)),
+      .filter((merchant) => !locallyDeletedMerchantIdSet.has(merchant.id)),
     [locallyDeletedMerchantIdSet, merchantQuery.data],
   )
   const fetchedMerchantKey = useMemo(
