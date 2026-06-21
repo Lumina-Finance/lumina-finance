@@ -33,7 +33,7 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
 - **Runway** - Choose the accounts that make up your cash cushion and see how many months they could cover based on your recent average spending in the worst case scenario
 - **Insights** - Review cash flow, income and expense breakdowns, net worth trends, savings-rate trends, and merchant patterns
-- **Self-hostable** - You have full control of your data, run it locally with Docker or bare metal
+- **Self-hostable** - You have full control of your data, run it locally with Docker
 
 ### Roadmap
 
@@ -108,10 +108,6 @@ These pages are now also fully mobile and tablet optimized!
 ### Docker
 
 If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL`, `UPDATE_CHECKS_ENABLED`, and `FRANKFURTER_URL` values.
-
-### Bare Metal
-
-If you'd like to deploy this bare metal, please clone the repo. The frontend is built with vite and you can build it and serve the static files with things like Caddy or Nginx. The backend is built with FastAPI, so you can serve it as a plain ASGI application with uvicorn. All environment variables should be set at the repo's root level. **Note that you will be responsible for generating the required RSA256 private keys as the auto generation currently only works with the Docker deployment as part of the startup process, in additon to configuring the environment variables correctly.**
 
 ### Frankfurter (Foreign Currency Exchange Rates)
 
