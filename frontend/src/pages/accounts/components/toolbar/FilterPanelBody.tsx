@@ -69,11 +69,12 @@ export function FilterPanelBody({
             const facetCount = draft.countFacet(facet)
             const isActive = facet.id === activeFacetId
             return (
-              <button
+              <motion.button
                 key={facet.id}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
                 className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
                 onClick={() => setActiveFacetId(facet.id)}
@@ -93,7 +94,7 @@ export function FilterPanelBody({
                     {facetCount}
                   </span>
                 )}
-              </button>
+              </motion.button>
             )
           })}
         </motion.div>
