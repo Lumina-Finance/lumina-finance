@@ -7,6 +7,7 @@ import { TransactionSearchField } from '@/pages/transactions/components/toolbar/
 import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
 import { useMobileSearchStuck } from '@/components/filters/hooks/useMobileSearchStuck'
 import { useToolbarStuck } from '@/components/filters/hooks/useToolbarStuck'
+import { getToolbarStickyRowClass, getToolbarStuckShadow } from '@/components/list-controls/toolbarStyles'
 import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useStickyOffset'
 import {
   getAccountOptions,
@@ -73,14 +74,10 @@ export default function TransactionListToolbar({
       <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1049px]:hidden" />
       <div
         ref={toolbarRef}
-        className={`sticky top-0 z-30 !mt-1 mb-1 flex flex-col gap-3 pb-1 pt-2 min-[1050px]:top-2.5 min-[1050px]:pt-2.5 ${desktopInlineLayout ? 'min-[750px]:flex-row min-[750px]:items-center' : ''}`}
+        className={getToolbarStickyRowClass(desktopInlineLayout)}
         style={{
           background: 'var(--app-bg)',
-          // While docked at the nav line the upward shadow masks list rows scrolling through the gap
-          // above the toolbar, and it is dropped at rest so it never covers the content above the row
-          boxShadow: isToolbarStuck
-            ? '0 0.25rem 0 var(--app-bg), 0 -1.5rem 0 var(--app-bg)'
-            : '0 0.25rem 0 var(--app-bg)',
+          boxShadow: getToolbarStuckShadow(isToolbarStuck),
         }}
       >
         <TransactionSearchField

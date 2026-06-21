@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
+import { FILTER_PANEL_BODY_TRANSITION, FILTER_PILL_HEAD_STYLE } from '@/components/list-controls/toolbarStyles'
 import { FilterPanelBody } from '@/pages/accounts/components/toolbar/FilterPanelBody'
 import { FILTER_GLASS_SPRING, useAccountFilterDraft } from '@/pages/accounts/components/toolbar/useAccountFilterDraft'
 import type { FilterValues } from '@/pages/accounts/types/accounts'
@@ -162,8 +163,7 @@ export function AccountFilterPanel({
           ref={headRef}
           type="button"
           className="app-range-glass-head"
-          // Match the Add Account button: 44px outer height once the glass border is added
-          style={{ height: 42, padding: '0 16px', gap: 8, fontSize: '0.9375rem' }}
+          style={FILTER_PILL_HEAD_STYLE}
           aria-expanded={open}
           aria-label="Account filters"
           onClick={() => (open ? dismiss() : handleOpen())}
@@ -211,14 +211,7 @@ export function AccountFilterPanel({
           style={{ overflow: 'hidden' }}
           initial={false}
           animate={{ height: open ? openContentHeight : 0, opacity: open ? 1 : 0 }}
-          transition={
-            shouldReduceMotion
-              ? { duration: 0 }
-              : {
-                  height: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
-                  opacity: { duration: 0.26, delay: 0.05 },
-                }
-          }
+          transition={shouldReduceMotion ? { duration: 0 } : FILTER_PANEL_BODY_TRANSITION}
         >
           <div className="flex flex-col" style={{ height: openContentHeight, padding: '0 12px 12px' }}>
             <FilterPanelBody draft={draft} fillHeight />
