@@ -124,8 +124,10 @@ Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfur
 | `DB_HOST` | Yes | Hostname or IP | None | PostgreSQL host |
 | `DB_PORT` | Yes | Port number | None | PostgreSQL port |
 | `DB_NAME` | Yes | Database name | None | PostgreSQL database name |
-| `DB_USER` | Yes | Database user | None | PostgreSQL username |
-| `DB_PASSWORD` | Yes | Database password | None | PostgreSQL password |
+| `DB_USER` | Yes | Database user | None | PostgreSQL admin role used on startup to provision the `lumina_migrator` and `lumina_app` roles |
+| `DB_PASSWORD` | Yes | Database password | None | Password for the PostgreSQL admin role |
+| `MIGRATOR_DB_PASSWORD` | No | Database password | Auto-generated | Password for the `lumina_migrator` role that owns the schema and runs migrations. If unset, a password is generated on first start and persisted to `/data/secrets/migrator_db_password` on the data volume, then reused on later starts |
+| `APP_DB_PASSWORD` | No | Database password | Auto-generated | Password for the `lumina_app` role that serves requests under row-level security. If unset, a password is generated on first start and persisted to `/data/secrets/app_db_password` on the data volume, then reused on later starts |
 | `FRANKFURTER_URL` | No | URL including API version path | `https://api.frankfurter.dev/v2` | Frankfurter-compatible FX rate API URL; set this to a self-hosted Frankfurter instance to keep FX lookups private |
 | `UPDATE_CHECKS_ENABLED` | No | `true` or `false` | `true` in official Docker images | Enables update checks against GitHub releases and matching Docker image tags |
 
