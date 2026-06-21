@@ -3,7 +3,6 @@ import { motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import MarqueeText from '@/components/display/MarqueeText'
 import InlineMerchantEdit from '@/pages/settings/components/merchant-settings-section/editors/InlineEdit'
 import {
   MERCHANT_ROW_EXIT,
@@ -59,11 +58,10 @@ export default function MerchantRow({
       layout={!shouldReduceMotion}
       exit={shouldReduceMotion ? { opacity: 0 } : MERCHANT_ROW_EXIT}
       transition={shouldReduceMotion ? { duration: 0.12 } : MERCHANT_ROW_EXIT_TRANSITION}
-      className="app-marquee-trigger"
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
-      <td className="w-px max-w-[14rem] whitespace-nowrap py-3 pl-4 pr-6 align-middle">
-        <MarqueeText className="font-medium">{merchant.name}</MarqueeText>
+      <td className="min-w-[8rem] max-w-[14rem] py-3 pl-4 pr-6 align-middle">
+        <p className="truncate font-medium">{merchant.name}</p>
         <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
           {scopeLabel(merchant)}
         </p>
