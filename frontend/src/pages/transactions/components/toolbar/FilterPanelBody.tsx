@@ -413,6 +413,9 @@ function FacetEditor({
   onAmountChange,
   onDateRangeChange,
 }: FacetEditorProps) {
+  const shouldReduceMotion = useReducedMotion()
+  const tagMatchThumbId = useId()
+
   if (facet.kind === 'amount') {
     return (
       <div className="flex flex-col gap-3">
@@ -543,16 +546,23 @@ function FacetEditor({
               {(['all', 'any'] as const).map((mode) => {
                 const isActive = tagMatch === mode
                 return (
-                  <button
+                  <motion.button
                     key={mode}
                     type="button"
                     aria-pressed={isActive}
+                    whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
                     className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
-                    style={isActive ? { background: 'var(--app-input-bg)', boxShadow: '0 1px 2px #00000014, inset 0 1px 0 color-mix(in srgb, white 28%, transparent)' } : undefined}
                     onClick={() => onTagMatchChange(mode)}
                   >
+                    {isActive && (
+                      <motion.span
+                        layoutId={`${tagMatchThumbId}-thumb`}
+                        className="app-range-seg-thumb"
+                        transition={shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING}
+                      />
+                    )}
                     <span className="app-range-seg-label">{mode === 'all' ? 'All' : 'Any'}</span>
-                  </button>
+                  </motion.button>
                 )
               })}
             </div>
