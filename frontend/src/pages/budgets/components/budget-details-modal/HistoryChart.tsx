@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Rectangle,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -26,6 +27,40 @@ import {
 } from '@/pages/budgets/utils/budgetDetails'
 
 const CHART_INITIAL_DIMENSION = { width: 1, height: 192 }
+
+/**
+ * Rounds the axis maximum up to the next multiple of 25 strictly above the data, so a bar that lands
+ * on a multiple of 25 (such as exactly 100 percent) keeps a little headroom and its rounded top
+ * corner is not flattened against the plot edge
+ */
+function getBudgetChartAxisMax(dataMax: number): number {
+  return Math.max(100, (Math.floor(dataMax / 25) + 1) * 25)
+}
+
+type StackedBarSegmentProps = {
+  category: BudgetChartCategory
+  chartCategories: BudgetChartCategory[]
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  fill?: string
+  payload?: BudgetChartPoint
+}
+
+/**
+ * Rounds the top of a stacked segment only when it is the topmost non-zero category in its bar, so
+ * each column gets one rounded cap no matter which category happens to sit on top. Applying the
+ * radius to a fixed segment instead leaves bars flat-topped whenever that category is empty
+ */
+function StackedBarSegment({ category, chartCategories, x, y, width, height, fill, payload }: StackedBarSegmentProps) {
+  const topSegment = [...chartCategories]
+    .reverse()
+    .find((entry) => Number((payload as Record<string, unknown> | undefined)?.[entry.dataKey] ?? 0) > 0)
+  const isTopSegment = topSegment?.id === category.id
+
+  return <Rectangle x={x} y={y} width={width} height={height} fill={fill} radius={isTopSegment ? [4, 4, 0, 0] : 0} />
+}
 
 type BudgetHistoryChartProps = {
   chartData: BudgetChartPoint[]
@@ -116,18 +151,18 @@ export default function BudgetHistoryChart({
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                domain={[0, (dataMax: number) => Math.max(100, Math.ceil(dataMax / 25) * 25)]}
+                domain={[0, getBudgetChartAxisMax]}
                 tick={{ fill: 'var(--app-text-subtle)', fontSize: 12 }}
                 tickFormatter={(value) => `${Number(value)}%`}
                 width={BUDGET_CHART_LAYOUT.yAxisWidth}
               />
-              {showStackedCategoryChart ? chartCategories.map((category, index) => (
+              {showStackedCategoryChart ? chartCategories.map((category) => (
                 <Bar
                   key={category.id}
                   dataKey={category.dataKey}
                   stackId="category-spending"
                   fill={category.color}
-                  radius={index === chartCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  shape={(props) => <StackedBarSegment {...props} category={category} chartCategories={chartCategories} />}
                   barSize={28}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
                 />
