@@ -127,7 +127,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
   // per navigation and must start hidden through both loading and entering, otherwise
-  // an already-mounted route shows at full opacity and snaps in instead of fading.
+  // an already-mounted route shows at full opacity and snaps in instead of fading
   // The first mount also starts in the loading phase, so the fade waits for the lazy
   // chunk to mount rather than animating the empty Suspense wrapper before it resolves
   const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading';
