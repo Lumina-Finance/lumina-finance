@@ -230,10 +230,16 @@
   }
 
   /* Firefox keeps its own native calendar button and ignores the WebKit indicator rules above, so
-     the overlaid glyph would double it. Hide the overlay in Firefox and let the native button stand */
+     the overlaid glyph would double it. Hide the overlay in Firefox and let the native button stand.
+     The right padding only exists to clear the WebKit overlay, so it is dropped here to keep the
+     native button against the right edge instead of leaving a wide gap beside it */
   @supports (-moz-appearance: none) {
     .app-date-overlay-icon {
       display: none;
+    }
+
+    .app-date-input-balanced[type="date"] {
+      padding-right: 0.75rem !important;
     }
   }
 
