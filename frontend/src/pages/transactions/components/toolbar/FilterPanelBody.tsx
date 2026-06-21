@@ -356,7 +356,7 @@ function DateFacetInput({
         <Calendar
           size={15}
           aria-hidden
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+          className="app-date-overlay-icon pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
           style={{ color: 'var(--app-text-subtle)' }}
         />
       </div>
