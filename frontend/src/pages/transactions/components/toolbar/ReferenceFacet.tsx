@@ -1,6 +1,7 @@
 import { Check, Search } from 'lucide-react'
 import { useInfiniteMerchants } from '@/api/merchants'
 import { useInfiniteTags } from '@/api/tags'
+import { getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { joinClassNames } from '@/utils/classNames'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 
@@ -54,7 +55,7 @@ export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPla
         />
       </div>
 
-      <ul className={fillHeight ? 'min-h-0 flex-1 space-y-1 overflow-auto py-2' : 'max-h-56 space-y-1 overflow-auto py-2'}>
+      <ul className={getFilterOptionListClass(fillHeight)}>
         {query.isPending ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             Loading…
@@ -74,7 +75,7 @@ export function ReferenceFacet({ kind, selectedValues, selectedLabels, searchPla
                   aria-checked={selected}
                   onClick={() => onToggle(option.value, option.label)}
                   className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
-                  style={{ color: selected ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: selected ? 500 : 400, background: selected ? 'var(--app-accent-soft)' : undefined }}
+                  style={getFilterOptionStyle(selected)}
                 >
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>
                   {selected && <Check size={15} aria-hidden className="shrink-0" />}

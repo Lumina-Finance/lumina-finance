@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Calendar, Check, ChevronDown, X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
+import { getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { joinClassNames } from '@/utils/classNames'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
 import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
@@ -273,7 +274,7 @@ function MobileFacetSelect({ activeFacetId, countFacet, disabledFacetIds, onSele
                   aria-selected={isActive}
                   aria-disabled={isDisabled}
                   className={joinClassNames('flex items-center gap-2 px-4 py-2.5 text-sm transition-colors', isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-accent-soft)]')}
-                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400, opacity: isDisabled ? 0.4 : 1, background: isActive ? 'var(--app-accent-soft)' : undefined }}
+                  style={{ ...getFilterOptionStyle(isActive), opacity: isDisabled ? 0.4 : 1 }}
                   onClick={() => {
                     if (isDisabled) return
                     onSelect(facet.id)

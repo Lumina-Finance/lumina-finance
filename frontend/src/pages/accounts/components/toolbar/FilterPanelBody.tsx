@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Check, ChevronDown, X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
+import { getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { joinClassNames } from '@/utils/classNames'
 import {
   FILTER_FACETS,
@@ -238,7 +239,7 @@ function MobileFacetSelect({ activeFacetId, countFacet, onSelect }: MobileFacetS
                   role="option"
                   aria-selected={isActive}
                   className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
-                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400, background: isActive ? 'var(--app-accent-soft)' : undefined }}
+                  style={getFilterOptionStyle(isActive)}
                   onClick={() => {
                     onSelect(facet.id)
                     setOpen(false)
