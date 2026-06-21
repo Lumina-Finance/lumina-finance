@@ -30,6 +30,7 @@ import {
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { useDeferredMount } from '@/hooks/useDeferredMount'
 import { PLACEHOLDER_DAILY_FLOW } from '@/pages/transactions/components/top-band/constants'
 import {
   DAILY_CASH_FLOW_CHART_MARGIN,
@@ -183,6 +184,8 @@ export default function DailyCashFlowChart({
 }) {
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
   const dailyFlowTooltipRef = useRef<DeferredChartTooltipOverlayHandle<DailyCashFlowPoint>>(null)
+  // The fixed-height wrapper reserves the plot space so deferring the recharts mount shifts nothing
+  const chartReady = useDeferredMount()
   const [dailyFlowChartWidth, setDailyFlowChartWidth] = useState<number>()
   const dailyFlowGranularity = useMemo(
     () => getDailyCashFlowGranularity(fromDate, toDate),
@@ -323,6 +326,7 @@ export default function DailyCashFlowChart({
         className="relative h-[11.75rem]"
         onMouseLeave={hideDailyCashFlowTooltip}
       >
+        {chartReady && (
         <motion.div
           key={`daily-flow-reveal-${mode}-${chartAnimationKey}-${dailyFlowSignature}`}
           className="h-full w-full"
@@ -405,6 +409,7 @@ export default function DailyCashFlowChart({
           </AreaChart>
         </ResponsiveContainer>
         </motion.div>
+        )}
         <DeferredChartTooltipOverlay
           ref={dailyFlowTooltipRef}
           chartRef={dailyFlowChartRef}
