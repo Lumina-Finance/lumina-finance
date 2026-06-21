@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
-import { Plus, Search } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { ApiError } from '@/api/auth'
 import { tagKeys } from '@/api/cache/queryKeys'
 import {
@@ -78,26 +79,13 @@ export default function TagSettingsSection() {
       <SettingsCard>
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative min-w-0 flex-1">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2"
-                style={{ color: 'var(--app-text-subtle)' }}
-                aria-hidden
-              />
-              <input
-                className="app-glass-input h-11 w-full pl-9"
-                value={tagList.search}
-                onChange={(event) => {
-                  tagList.setSearch(event.target.value)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter') return
-                  tagList.setActiveSearch(tagList.search)
-                }}
-                placeholder="Search tags..."
-              />
-            </div>
+            <GlassSearchField
+              value={tagList.search}
+              onValueChange={tagList.setSearch}
+              onSubmit={() => tagList.setActiveSearch(tagList.search)}
+              placeholder="Search tags..."
+              wrapperClassName="flex-1"
+            />
             <button
               type="button"
               className="app-primary-button shrink-0"
