@@ -1,5 +1,6 @@
 import { useLayoutEffect } from 'react'
 import type { RefObject } from 'react'
+import { DESKTOP_MEDIA_QUERY, TOOLBAR_DOCK_OFFSET_PX } from '@/components/filters/hooks/useToolbarStuck'
 
 const DATE_HEADER_STICKY_GAP_PX = 4
 
@@ -17,10 +18,12 @@ export function useToolbarStickyOffset(
     const publishStickyOffset = onStickyOffsetChange
 
     /**
-     * Uses the rendered toolbar height because desktop filters can wrap as labels change
+     * Uses the rendered toolbar height because desktop filters can wrap as labels change, and adds the
+     * desktop dock offset so headers stick below the toolbar once it pins to the navigation pane line
      */
     function updateStickyOffset() {
-      publishStickyOffset(Math.ceil(toolbarElement.getBoundingClientRect().height + DATE_HEADER_STICKY_GAP_PX))
+      const dockOffset = window.matchMedia(DESKTOP_MEDIA_QUERY).matches ? TOOLBAR_DOCK_OFFSET_PX : 0
+      publishStickyOffset(Math.ceil(toolbarElement.getBoundingClientRect().height) + DATE_HEADER_STICKY_GAP_PX + dockOffset)
     }
 
     updateStickyOffset()

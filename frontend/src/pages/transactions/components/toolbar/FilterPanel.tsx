@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
+import { FILTER_PANEL_BODY_TRANSITION, FILTER_PILL_HEAD_STYLE } from '@/components/list-controls/toolbarStyles'
 import { FilterPanelBody } from '@/pages/transactions/components/toolbar/FilterPanelBody'
 import { FILTER_GLASS_SPRING, useTransactionFilterDraft } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
@@ -161,16 +162,16 @@ export function TransactionFilterPanel({
         initial={false}
         animate={{ width: open ? OPEN_WIDTH : collapsedSize.width }}
         transition={transition}
+        whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
       >
         <button
           ref={headRef}
           type="button"
           className="app-range-glass-head"
-          // Match the Add Transaction button: 40px outer height once the glass border is added
-          style={{ height: 38, padding: '0 16px', gap: 8, fontSize: '0.9375rem' }}
+          style={FILTER_PILL_HEAD_STYLE}
           aria-expanded={open}
           aria-label="Transaction filters"
-          onClick={() => (open ? setOpen(false) : handleOpen())}
+          onClick={() => (open ? dismiss() : handleOpen())}
         >
           <span ref={headContentRef} className="app-range-glass-cur">
             <SlidersHorizontal size={18} aria-hidden className="shrink-0" />
@@ -215,7 +216,7 @@ export function TransactionFilterPanel({
           style={{ overflow: 'hidden' }}
           initial={false}
           animate={{ height: open ? openContentHeight : 0, opacity: open ? 1 : 0 }}
-          transition={transition}
+          transition={shouldReduceMotion ? { duration: 0 } : FILTER_PANEL_BODY_TRANSITION}
         >
           <div className="flex flex-col" style={{ height: openContentHeight, padding: '0 12px 12px' }}>
             <FilterPanelBody draft={draft} fillHeight showAccountFilter={showAccountFilter} />

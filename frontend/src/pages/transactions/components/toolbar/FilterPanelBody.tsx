@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Calendar, Check, ChevronDown, X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
+import { getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { joinClassNames } from '@/utils/classNames'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
 import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
@@ -71,7 +72,7 @@ export function FilterPanelBody({
         <motion.div
           layout={blockLayout}
           transition={transition}
-          className="app-range-seg app-filter-facet-grid"
+          className="app-range-seg"
           role="tablist"
           aria-label="Filter facets"
         >
@@ -81,12 +82,13 @@ export function FilterPanelBody({
             const isActive = facet.id === activeFacetId
             const isDisabled = disabledFacetIds.has(facet.id)
             return (
-              <button
+              <motion.button
                 key={facet.id}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
                 disabled={isDisabled}
+                whileTap={shouldReduceMotion || isDisabled ? undefined : { scale: 0.94 }}
                 className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, opacity: isDisabled ? 0.4 : 1, cursor: isDisabled ? 'not-allowed' : undefined }}
                 onClick={() => setActiveFacetId(facet.id)}
@@ -106,7 +108,7 @@ export function FilterPanelBody({
                     {facetCount}
                   </span>
                 )}
-              </button>
+              </motion.button>
             )
           })}
         </motion.div>
@@ -248,7 +250,7 @@ function MobileFacetSelect({ activeFacetId, countFacet, disabledFacetIds, onSele
         {open && (
           <motion.ul
             role="listbox"
-            className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-auto rounded-xl py-1"
+            className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-auto rounded-xl"
             style={{
               background: 'var(--app-input-bg)',
               border: '1px solid var(--app-border-strong)',
@@ -271,8 +273,8 @@ function MobileFacetSelect({ activeFacetId, countFacet, disabledFacetIds, onSele
                   role="option"
                   aria-selected={isActive}
                   aria-disabled={isDisabled}
-                  className={joinClassNames('flex items-center gap-2 px-4 py-2.5 text-sm transition-colors', isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-surface-soft)]')}
-                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400, opacity: isDisabled ? 0.4 : 1 }}
+                  className={joinClassNames('flex items-center gap-2 px-4 py-2.5 text-sm transition-colors', isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--app-accent-soft)]')}
+                  style={{ ...getFilterOptionStyle(isActive), opacity: isDisabled ? 0.4 : 1 }}
                   onClick={() => {
                     if (isDisabled) return
                     onSelect(facet.id)
@@ -356,7 +358,7 @@ function DateFacetInput({
         <Calendar
           size={15}
           aria-hidden
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+          className="app-date-overlay-icon pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
           style={{ color: 'var(--app-text-subtle)' }}
         />
       </div>
@@ -411,6 +413,9 @@ function FacetEditor({
   onAmountChange,
   onDateRangeChange,
 }: FacetEditorProps) {
+  const shouldReduceMotion = useReducedMotion()
+  const tagMatchThumbId = useId()
+
   if (facet.kind === 'amount') {
     return (
       <div className="flex flex-col gap-3">
@@ -436,7 +441,7 @@ function FacetEditor({
                       key={option.value}
                       type="button"
                       aria-pressed={isSelected}
-                      className="rounded-full border px-3 py-1 text-sm transition-colors"
+                      className="rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
                       style={
                         isSelected
                           ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
@@ -541,16 +546,23 @@ function FacetEditor({
               {(['all', 'any'] as const).map((mode) => {
                 const isActive = tagMatch === mode
                 return (
-                  <button
+                  <motion.button
                     key={mode}
                     type="button"
                     aria-pressed={isActive}
+                    whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
                     className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
-                    style={isActive ? { background: 'var(--app-input-bg)', boxShadow: '0 1px 2px #00000014, inset 0 1px 0 color-mix(in srgb, white 28%, transparent)' } : undefined}
                     onClick={() => onTagMatchChange(mode)}
                   >
+                    {isActive && (
+                      <motion.span
+                        layoutId={`${tagMatchThumbId}-thumb`}
+                        className="app-range-seg-thumb"
+                        transition={shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING}
+                      />
+                    )}
                     <span className="app-range-seg-label">{mode === 'all' ? 'All' : 'Any'}</span>
-                  </button>
+                  </motion.button>
                 )
               })}
             </div>

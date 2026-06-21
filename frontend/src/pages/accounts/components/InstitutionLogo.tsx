@@ -1,4 +1,5 @@
 import type { Institution } from '@/api/institutions'
+import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 type InstitutionLogoProps = {
   institution: Institution | null
@@ -23,9 +24,7 @@ export function InstitutionLogo({
   institution,
   variant = 'row',
 }: InstitutionLogoProps) {
-  const faviconUrl = institution?.website
-    ? `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(institution.website)}&size=256`
-    : null
+  const faviconUrl = resolveInstitutionLogoUrl(institution)
   const classNames = variantClassName[variant]
 
   return (

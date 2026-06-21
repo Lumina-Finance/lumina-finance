@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
 import { useMobileSearchStuck } from '@/components/filters/hooks/useMobileSearchStuck'
+import { useToolbarStuck } from '@/components/filters/hooks/useToolbarStuck'
+import { getToolbarStickyRowClass, getToolbarStuckShadow } from '@/components/list-controls/toolbarStyles'
 import { AccountSearchField } from '@/pages/accounts/components/toolbar/SearchField'
 import { MobileToolbarActions } from '@/pages/accounts/components/toolbar/mobile/Actions'
 import { DesktopAccountToolbarControls } from '@/pages/accounts/components/toolbar/desktop/Controls'
@@ -35,6 +37,7 @@ export default function AccountListToolbar({
     desktopCreateStacked,
   } = useDesktopToolbarLayout()
   const { mobileSearchStickySentinelRef, mobileSearchStuck } = useMobileSearchStuck()
+  const { toolbarStuckSentinelRef, isToolbarStuck } = useToolbarStuck()
 
   const openMobileSheet = useCallback(() => {
     setIsMobileSheetMounted(true)
@@ -46,12 +49,13 @@ export default function AccountListToolbar({
   return (
     <>
       <div ref={mobileSearchStickySentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
+      <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1049px]:hidden" />
       <div
         ref={toolbarRef}
-        className={`sticky top-0 z-30 !mt-2 mb-2 flex flex-col gap-3 pb-2 pt-4 min-[1050px]:pt-5 ${desktopInlineLayout ? 'min-[750px]:flex-row min-[750px]:items-center' : ''}`}
+        className={getToolbarStickyRowClass(desktopInlineLayout)}
         style={{
           background: 'var(--app-bg)',
-          boxShadow: '0 0.25rem 0 var(--app-bg)',
+          boxShadow: getToolbarStuckShadow(isToolbarStuck),
         }}
       >
         <AccountSearchField

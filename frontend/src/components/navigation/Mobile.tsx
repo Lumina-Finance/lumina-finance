@@ -48,12 +48,7 @@ export function MobileNavigation({
         aria-controls="mobile-primary-navigation"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="app-icon-button fixed right-4 top-4 z-50 h-11 w-11 min-[1050px]:hidden"
-        style={{
-          background: 'var(--app-nav-bg)',
-          border: '1px solid var(--app-border)',
-          color: 'var(--app-text)',
-        }}
+        className="app-glass-icon-button fixed right-4 top-2 z-50 h-11 w-11 min-[1050px]:hidden"
       >
         <AnimatedMobileMenuIcon isOpen={isOpen} shouldReduceMotion={shouldReduceMotion} />
       </button>

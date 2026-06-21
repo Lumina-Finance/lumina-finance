@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Check, ChevronDown, X } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
+import { getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { joinClassNames } from '@/utils/classNames'
 import {
   FILTER_FACETS,
@@ -69,11 +70,12 @@ export function FilterPanelBody({
             const facetCount = draft.countFacet(facet)
             const isActive = facet.id === activeFacetId
             return (
-              <button
+              <motion.button
                 key={facet.id}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
                 className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
                 onClick={() => setActiveFacetId(facet.id)}
@@ -93,7 +95,7 @@ export function FilterPanelBody({
                     {facetCount}
                   </span>
                 )}
-              </button>
+              </motion.button>
             )
           })}
         </motion.div>
@@ -215,7 +217,7 @@ function MobileFacetSelect({ activeFacetId, countFacet, onSelect }: MobileFacetS
         {open && (
           <motion.ul
             role="listbox"
-            className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-auto rounded-xl py-1"
+            className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-auto rounded-xl"
             style={{
               background: 'var(--app-input-bg)',
               border: '1px solid var(--app-border-strong)',
@@ -236,8 +238,8 @@ function MobileFacetSelect({ activeFacetId, countFacet, onSelect }: MobileFacetS
                   key={facet.id}
                   role="option"
                   aria-selected={isActive}
-                  className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--app-surface-soft)]"
-                  style={{ color: isActive ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: isActive ? 500 : 400 }}
+                  className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+                  style={getFilterOptionStyle(isActive)}
                   onClick={() => {
                     onSelect(facet.id)
                     setOpen(false)

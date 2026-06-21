@@ -4,9 +4,12 @@ type LoadingScreenProps = {
   variant?: 'screen' | 'main';
 };
 
+// The overlay carries no interactive content, so it stays click-through the whole
+// time it is mounted, otherwise its exit fade keeps swallowing taps on the menu and
+// in-page buttons for the length of the fade after the content is already interactive
 const loadingScreenClassNames = {
-  screen: 'fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6',
-  main: 'fixed inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6 min-[1050px]:left-[260px]',
+  screen: 'pointer-events-none fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6',
+  main: 'pointer-events-none fixed inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6 min-[1050px]:left-[260px]',
 };
 
 const LoadingScreen = ({ variant = 'screen' }: LoadingScreenProps) => (

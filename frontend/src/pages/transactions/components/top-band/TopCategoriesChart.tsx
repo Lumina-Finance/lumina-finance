@@ -29,6 +29,7 @@ import {
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { useDeferredMount } from '@/hooks/useDeferredMount'
 import {
   TOP_CATEGORY_AXIS_AVG_CHAR_WIDTH,
   TOP_CATEGORY_AXIS_LABEL_PADDING,
@@ -114,6 +115,8 @@ export default function TopCategoriesChart({
   const topCategoryChartRef = useRef<HTMLDivElement>(null)
   const topCategoryTooltipRef = useRef<DeferredChartTooltipOverlayHandle<OverviewCategorySpend>>(null)
   const topCategoryChartHeight = Math.max(24, categorySpend.length * TOP_CATEGORY_ROW_HEIGHT)
+  // The motion wrapper keeps the reserved height so deferring the recharts mount shifts nothing
+  const chartReady = useDeferredMount()
 
   // Recharts needs an explicit Y-axis width because otherwise long category labels can clip
   const topCategoryAxisWidth = Math.max(
@@ -204,6 +207,7 @@ export default function TopCategoriesChart({
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={contentTransition}
             >
+              {chartReady && (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   key={`categories-${chartAnimationKey}`}
@@ -240,6 +244,7 @@ export default function TopCategoriesChart({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              )}
               <DeferredChartTooltipOverlay
                 ref={topCategoryTooltipRef}
                 chartRef={topCategoryChartRef}

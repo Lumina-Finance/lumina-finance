@@ -104,11 +104,12 @@ export function RelativeRangeBuilder({
     <div className="mt-2">
       <div className="app-range-qualifier" role="tablist" aria-label="Relative range type">
         {QUALIFIER_OPTIONS.map((option) => (
-          <button
+          <motion.button
             key={option.value}
             type="button"
             role="tab"
             aria-selected={option.value === qualifier}
+            whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
             className={joinClassNames(
               'app-range-seg-option',
               option.value === qualifier && 'app-range-seg-option-active',
@@ -123,7 +124,7 @@ export function RelativeRangeBuilder({
               />
             )}
             <span className="app-range-seg-label">{option.label}</span>
-          </button>
+          </motion.button>
         ))}
       </div>
 

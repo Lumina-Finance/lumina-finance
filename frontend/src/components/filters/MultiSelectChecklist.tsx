@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, Search } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
+import { getFilterOptionListClass, getFilterOptionStyle } from '@/components/filters/optionAppearance'
 import { joinClassNames } from '@/utils/classNames'
 
 type MultiSelectChecklistProps = {
@@ -55,7 +56,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
         />
       </div>
 
-      <ul className={fillHeight ? 'min-h-0 flex-1 overflow-auto' : 'max-h-56 overflow-auto'}>
+      <ul className={getFilterOptionListClass(fillHeight)}>
         {filtered.length === 0 ? (
           <li className="px-2 py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             No matches
@@ -69,7 +70,7 @@ export function MultiSelectChecklist({ options, selectedValues, searchPlaceholde
               >
                 {group.label}
               </div>
-              <ul>
+              <ul className="space-y-1">
                 {group.items.map((option) => (
                   <ChecklistRow
                     key={option.value}
@@ -115,13 +116,23 @@ function ChecklistRow({
         role="checkbox"
         aria-checked={selected}
         onClick={() => onToggle(option.value)}
-        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-surface-soft)]"
-        style={{ color: selected ? 'var(--app-accent)' : 'var(--app-text)', fontWeight: selected ? 500 : 400 }}
+        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+        style={getFilterOptionStyle(selected)}
       >
-        {option.icon && (
-          <span className="shrink-0 text-base leading-none" aria-hidden>
-            {option.icon}
-          </span>
+        {option.imageUrl ? (
+          <img
+            src={option.imageUrl}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            className="h-5 w-5 shrink-0 rounded-md object-contain"
+          />
+        ) : (
+          option.icon && (
+            <span className="shrink-0 text-base leading-none" aria-hidden>
+              {option.icon}
+            </span>
+          )
         )}
         <span className="min-w-0 flex-1 truncate">{option.label}</span>
         {selected && <Check size={15} aria-hidden className="shrink-0" />}

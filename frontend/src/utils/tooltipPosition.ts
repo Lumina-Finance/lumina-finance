@@ -54,15 +54,19 @@ export function getCursorTooltipPosition({
   const minX = boundsRect.left - coordinateLeft + margin
   const minY = boundsRect.top - coordinateTop + margin
   const maxX = boundsRect.right - coordinateLeft - tooltip.offsetWidth - margin
-  const maxY = boundsRect.bottom - coordinateTop - tooltip.offsetHeight - margin
   const pointerX = clientX - coordinateLeft
   const pointerY = clientY - coordinateTop
-  const aboveY = pointerY - tooltip.offsetHeight - offset
-  const belowY = pointerY + offset
+
+  // The tooltip sits above the cursor unless it would clip the top bound, where it flips below. The
+  // vertical follow and the flip offset are returned apart so the flip can animate while the tooltip
+  // keeps tracking the cursor instantly
+  const placeAbove = pointerY - tooltip.offsetHeight - offset >= minY
+  const flipY = placeAbove ? -(tooltip.offsetHeight + offset) : offset
 
   return {
     x: clamp(pointerX - tooltip.offsetWidth - offset, minX, maxX),
-    y: clamp(aboveY >= minY ? aboveY : belowY, minY, maxY),
+    y: pointerY,
+    flipY,
     maxWidth: Math.max(boundsRect.width - margin * 2, 1),
   }
 }
@@ -79,4 +83,5 @@ export function applyCursorTooltipPosition({
   tooltip.style.setProperty('--app-cursor-tooltip-max-width', `${position.maxWidth}px`)
   tooltip.style.setProperty(xProperty, `${position.x}px`)
   tooltip.style.setProperty(yProperty, `${position.y}px`)
+  tooltip.style.setProperty('--cursor-tooltip-flip-y', `${position.flipY}px`)
 }

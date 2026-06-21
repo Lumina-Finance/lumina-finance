@@ -77,7 +77,7 @@ function DeferredChartTooltipOverlayInner<T>({
     const tooltip = tooltipRef.current
     if (!chart || !rect || !tooltip) return
 
-    const { x: tooltipX, y: tooltipY, maxWidth } = getCursorTooltipPosition({
+    const { x: tooltipX, y: tooltipY, flipY, maxWidth } = getCursorTooltipPosition({
       origin: chart,
       tooltip,
       clientX: pointer.clientX,
@@ -92,6 +92,7 @@ function DeferredChartTooltipOverlayInner<T>({
 
     tooltip.style.setProperty('--chart-tooltip-x', `${tooltipX}px`)
     tooltip.style.setProperty('--chart-tooltip-y', `${tooltipY}px`)
+    tooltip.style.setProperty('--cursor-tooltip-flip-y', `${flipY}px`)
     tooltip.style.setProperty('--app-cursor-tooltip-max-width', `${maxWidth}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-x', `${guideX}px`)
     guideRef.current?.style.setProperty('--chart-tooltip-guide-width', `${resolvedGuideWidth}px`)

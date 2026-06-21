@@ -71,22 +71,27 @@ export default function AccountsPage() {
           <MetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
           <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
         </div>
+      </div>
 
-        <AccountListToolbar
-          search={search}
-          onSearchChange={setSearch}
-          filters={filters}
-          setFilter={setFilter}
-          activeFilterCount={activeFilterCount}
-          institutionOptions={institutionOptions}
-          kindOptions={kindOptions}
-          typeOptions={typeOptions}
-          onAddAccount={() => {
-            setCreateModalKey((key) => key + 1)
-            setShowCreateModal(true)
-          }}
-        />
+      {/* The toolbar sits outside the surrounding space-y groups so its own
+          sticky margins set its top and bottom spacing, matching the transactions
+          toolbar instead of inheriting the page group's larger gaps */}
+      <AccountListToolbar
+        search={search}
+        onSearchChange={setSearch}
+        filters={filters}
+        setFilter={setFilter}
+        activeFilterCount={activeFilterCount}
+        institutionOptions={institutionOptions}
+        kindOptions={kindOptions}
+        typeOptions={typeOptions}
+        onAddAccount={() => {
+          setCreateModalKey((key) => key + 1)
+          setShowCreateModal(true)
+        }}
+      />
 
+      <div className="space-y-4">
         <AccountListSection
           title="Assets"
           accent="positive"

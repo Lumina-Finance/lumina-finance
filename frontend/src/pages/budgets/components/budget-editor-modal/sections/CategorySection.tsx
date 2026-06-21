@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, Search } from 'lucide-react'
+import { Check } from 'lucide-react'
+import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import type { Category } from '@/api/categories'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import { EASE } from '@/pages/budgets/constants'
@@ -87,21 +88,13 @@ export default function BudgetEditorModalCategorySection({
                 </p>
               </div>
             </div>
-            <div className="relative mt-3">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: 'var(--app-text-subtle)' }}
-                aria-hidden
-              />
-              <input
-                id={ids.categorySearch}
-                className="app-input pl-9"
-                value={categorySearch}
-                onChange={(event) => handlers.onCategorySearchChange(event.target.value)}
-                placeholder="Search categories..."
-              />
-            </div>
+            <GlassSearchField
+              inputId={ids.categorySearch}
+              value={categorySearch}
+              onValueChange={handlers.onCategorySearchChange}
+              placeholder="Search categories..."
+              wrapperClassName="mt-3"
+            />
             <div className="relative mb-1 mt-3 min-h-0 min-[1050px]:flex-1">
               <motion.div
                 className="app-selection-list m-0 min-[1050px]:absolute min-[1050px]:inset-0 min-[1050px]:max-h-none"

@@ -215,7 +215,7 @@ function GlassRangeSelector({
         onClick={() => (open ? dismiss() : setOpen(true))}
       >
         <span className="app-range-glass-cur">
-          <Calendar size={15} aria-hidden className="shrink-0" />
+          <Calendar size={18} aria-hidden className="shrink-0" />
           <span key={`${currentLabel}|${appliedRangeLabel}`} ref={measureLabel} className="app-range-glass-text">
             <span className="truncate">{currentLabel}</span>
             <motion.span
@@ -246,11 +246,12 @@ function GlassRangeSelector({
             </p>
             <div className="app-range-seg" role="tablist" aria-label="Insights date range">
               {INSIGHTS_RANGE_OPTIONS.map((option) => (
-                <button
+                <motion.button
                   key={option.value}
                   type="button"
                   role="tab"
                   aria-selected={option.value === selectedPreset}
+                  whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
                   className={joinClassNames(
                     'app-range-seg-option',
                     option.value === selectedPreset && 'app-range-seg-option-active',
@@ -265,7 +266,7 @@ function GlassRangeSelector({
                     />
                   )}
                   <span className="app-range-seg-label">{option.code}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
 
@@ -282,9 +283,14 @@ function GlassRangeSelector({
                   onQualifierChange={onDraftQualifierChange}
                 />
                 <p className="app-range-dates">{draftRangeLabel}</p>
-                <button type="button" className="app-range-apply" onClick={handleApplyDraft}>
+                <motion.button
+                  type="button"
+                  className="app-range-apply"
+                  whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
+                  onClick={handleApplyDraft}
+                >
                   Apply
-                </button>
+                </motion.button>
                 <SavedRanges
                   savedRanges={savedRanges}
                   onSaveCurrentRange={handleSaveCurrentRange}

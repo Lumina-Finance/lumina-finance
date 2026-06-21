@@ -47,7 +47,7 @@
     --app-border-strong: #d2b4782b;
     --app-text: #ECE6DA;
     --app-text-muted: #8C8074;
-    --app-text-subtle: #534940;
+    --app-text-subtle: #74685C;
     --app-accent: #C9A96A;
     --app-accent-soft: #c9a96a1f;
     --app-accent-border: #c9a96a38;
@@ -229,8 +229,18 @@
     cursor: pointer;
   }
 
-  .transaction-list-section > :not(:first-child) {
-    margin-top: 1.5rem;
+  /* Firefox keeps its own native calendar button and ignores the WebKit indicator rules above, so
+     the overlaid glyph would double it. Hide the overlay in Firefox and let the native button stand.
+     The right padding only exists to clear the WebKit overlay, so it is dropped here to keep the
+     native button against the right edge instead of leaving a wide gap beside it */
+  @supports (-moz-appearance: none) {
+    .app-date-overlay-icon {
+      display: none;
+    }
+
+    .app-date-input-balanced[type="date"] {
+      padding-right: 0.75rem !important;
+    }
   }
 
   .app-input:hover {
@@ -292,7 +302,6 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
   }
 
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
@@ -307,13 +316,15 @@
     flex-direction: column-reverse;
   }
 
+  /* Vertical padding keeps the collapsed two-line pill at the 44px outer height the toolbar filter
+     button uses, so the insights selector reads as the same control family */
   .app-range-glass-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 7px 14px;
-    font-size: 0.8125rem;
+    gap: 8px;
+    padding: 5px 16px;
+    font-size: 0.9375rem;
     font-weight: 500;
     white-space: nowrap;
     color: var(--app-text);
@@ -356,19 +367,20 @@
   .app-range-glass-sub {
     display: block;
     overflow: hidden;
-    font-size: 0.6875rem;
-    font-weight: 400;
+    font-size: 0.75rem;
+    font-weight: 600;
     line-height: 1.2;
     white-space: nowrap;
-    color: var(--app-text-subtle);
+    color: var(--app-text-muted);
     font-variant-numeric: tabular-nums;
   }
 
   /* The resolved date range shown inside the open panel, directly under the preset row */
   .app-range-dates {
     margin-top: 10px;
-    font-size: 0.75rem;
-    color: var(--app-text-subtle);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--app-text-muted);
     font-variant-numeric: tabular-nums;
   }
 
@@ -456,13 +468,8 @@
     gap: 2px;
     padding: 3px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--app-text) 7%, transparent);
-  }
-
-  /* The desktop filter panel lays its six facet tabs out in a single row, while the mobile sheet
-     swaps these tabs for a dropdown */
-  .app-filter-facet-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    background: var(--app-input-bg);
+    border: 1px solid var(--app-border);
   }
 
   /* This/Last/Past qualifier selector leading the custom builder, reusing the segmented styling */
@@ -472,9 +479,13 @@
     gap: 2px;
     padding: 3px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--app-text) 7%, transparent);
+    background: var(--app-input-bg);
+    border: 1px solid var(--app-border);
   }
 
+  /* The segmented toggles adopt the accent colours of the theme switcher and the facet dropdown
+     options so the insights range presets, the This/Last/Past qualifier, and the filter facet tabs
+     all read as the same control */
   .app-range-seg-option {
     position: relative;
     appearance: none;
@@ -488,10 +499,16 @@
     text-align: center;
     white-space: nowrap;
     color: var(--app-text-muted);
+    transition: color 180ms ease, background-color 180ms ease;
+  }
+
+  .app-range-seg-option:hover {
+    color: var(--app-text);
+    background: var(--app-accent-soft);
   }
 
   .app-range-seg-option-active {
-    color: var(--app-text);
+    color: var(--app-accent);
     font-weight: 500;
   }
 
@@ -501,8 +518,8 @@
     position: absolute;
     inset: 0;
     border-radius: 8px;
-    background: var(--app-input-bg);
-    box-shadow: 0 1px 2px #00000014, inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+    background: var(--app-accent-soft);
+    border: 1px solid var(--app-accent-border);
   }
 
   .app-range-seg-label {
@@ -624,18 +641,18 @@
   }
 
   .app-primary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
     box-sizing: border-box;
+    border-radius: 20px;
     font-size: 0.9375rem;
-    background: var(--app-button-primary-bg);
-    border: 1px solid var(--app-button-primary-bg);
     color: var(--app-button-primary-text);
-    box-shadow: none;
+    border: 1px solid color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
   .app-primary-button:hover {
-    background: var(--app-button-primary-bg-hover);
-    border-color: var(--app-button-primary-bg-hover);
+    background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+    border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   .app-primary-button:active {
@@ -653,18 +670,18 @@
   }
 
   .app-secondary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
     font-size: 0.9375rem;
-    background: var(--app-input-bg);
-    border: 1px solid var(--app-border);
     color: var(--app-text-muted);
-    box-shadow: none;
+    border: 1px solid var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
   .app-secondary-button:hover {
-    background: var(--app-surface-soft);
-    border-color: var(--app-border-strong);
     color: var(--app-text);
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
   }
 
   .app-secondary-button:active {
@@ -682,16 +699,18 @@
   }
 
   .app-danger-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3.5 font-medium transition-all duration-150 motion-reduce:transition-none;
+    @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
+    box-sizing: border-box;
+    border-radius: 20px;
     font-size: 0.9375rem;
-    background: var(--app-negative);
-    border: 1px solid var(--app-negative-border);
     color: white;
+    border: 1px solid color-mix(in srgb, var(--app-negative) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-negative) 82%, transparent);
   }
 
   .app-danger-button:hover {
-    background: color-mix(in srgb, var(--app-negative) 92%, var(--app-bg));
-    border-color: var(--app-negative);
+    background: color-mix(in srgb, var(--app-negative) 90%, transparent);
+    border-color: color-mix(in srgb, var(--app-negative) 72%, var(--app-border-strong));
   }
 
   .app-danger-button:active {
@@ -719,7 +738,6 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
   }
 
   .app-glass-input::placeholder {
@@ -736,9 +754,6 @@
     color: var(--app-button-primary-text);
     border: 1px solid color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong));
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
   }
 
   .app-glass-button-primary:hover {
@@ -757,7 +772,7 @@
 
   .app-glass-button-primary:focus-visible {
     outline: none;
-    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
   }
 
   /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
@@ -771,7 +786,6 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: var(--app-shadow-soft), inset 0 1px 0 color-mix(in srgb, white 32%, transparent);
   }
 
   .app-glass-button:hover {
@@ -790,7 +804,32 @@
 
   .app-glass-button:focus-visible {
     outline: none;
-    box-shadow: var(--app-shadow-soft), 0 0 0 3px var(--app-accent-soft);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
+  }
+
+  /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
+     translucent blurred surface so it blurs the page content behind it like the toolbar controls */
+  .app-glass-icon-button {
+    @apply inline-flex items-center justify-center transition-colors duration-150 motion-reduce:transition-none;
+    border-radius: 16px;
+    color: var(--app-text);
+    border: 1px solid var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  .app-glass-icon-button:hover {
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+  }
+
+  .app-glass-icon-button:active {
+    transform: translateY(1px);
+  }
+
+  .app-glass-icon-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
   }
 
   .app-primary-button-loading {
@@ -1167,6 +1206,21 @@
   }
 
   .recharts-default-tooltip.app-chart-tooltip-default,
+  /* Inner card of the cursor tooltip. The above/below flip is a translateY driven by a variable the
+     positioning code sets, so the card eases between sides while the outer wrapper follows the cursor
+     instantly without smearing */
+  .app-cursor-tooltip-flip {
+    transform: translateY(var(--cursor-tooltip-flip-y, 0px));
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-cursor-tooltip-flip {
+      transition: none;
+    }
+  }
+
   .app-chart-tooltip-default-content {
     background: var(--app-bg) !important;
     border: 1px solid var(--app-border-strong) !important;
@@ -1368,7 +1422,7 @@
   @media (max-width: 1049.98px) {
     .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
       display: block;
-      height: 3.75rem;
+      height: 3.25rem;
     }
 
     .app-body-scroll-locked .settings-mobile-section-menu-shell {

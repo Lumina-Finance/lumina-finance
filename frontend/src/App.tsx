@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, startTransition, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -77,12 +77,26 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
-  const [animateInitialPageMount] = useState(() => !hasShownLoadingScreen);
   const ready = !loading && minTimePassed;
 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
   const [routeLoaderDelayElapsed, setRouteLoaderDelayElapsed] = useState(false);
+
+  // Hold the heavy page body back until the navigation shell has painted, then
+  // mount it as a non-urgent transition. The route subtree remounts per path, so
+  // this resets on every navigation. Without it the lazy page and its charts render
+  // in one blocking commit that freezes taps on the menu and toolbar for the length
+  // of that render, which is roughly a second on a phone
+  const [contentMounted, setContentMounted] = useState(false);
+
+  useEffect(() => {
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => {
+      startTransition(() => setContentMounted(true));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready]);
 
   useCacheValidation(user?.id, Boolean(user && ready));
 
@@ -113,8 +127,10 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
   // per navigation and must start hidden through both loading and entering, otherwise
-  // an already-cached route mounts at full opacity and snaps in instead of fading
-  const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading' || animateInitialPageMount;
+  // an already-mounted route shows at full opacity and snaps in instead of fading
+  // The first mount also starts in the loading phase, so the fade waits for the lazy
+  // chunk to mount rather than animating the empty Suspense wrapper before it resolves
+  const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading';
 
   return (
     <>
@@ -126,8 +142,6 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
           className="flex min-h-screen"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
-          <Navigation />
-
           {/* The main variant keeps the navigation visible while AnimatePresence
               lets the loader fade back out once the route chunk has mounted */}
           <AnimatePresence>
@@ -158,8 +172,12 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
               style={{ pointerEvents: pageContentVisible ? 'auto' : 'none' }}
             >
               <Suspense fallback={null}>
-                <RouteReadyNotifier path={displayLocation.pathname} onReady={onContentReady} />
-                <Outlet />
+                {contentMounted && (
+                  <>
+                    <RouteReadyNotifier path={displayLocation.pathname} onReady={onContentReady} />
+                    <Outlet />
+                  </>
+                )}
               </Suspense>
             </motion.div>
           </main>
@@ -185,8 +203,13 @@ function PublicRoute() {
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const { user } = useAuth();
   const [displayLocation, setDisplayLocation] = useState(location);
-  const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('idle');
+
+  // Start in the loading phase so the very first route fades in through the same
+  // chunk-ready gate as later navigations, instead of fading the empty wrapper
+  // before its lazy chunk resolves and letting the real content snap in
+  const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('loading');
 
   // Reveal the freshly switched route only once its chunk has mounted, so the enter
   // fade animates real content rather than an empty wrapper. The functional updater
@@ -250,10 +273,15 @@ function AnimatedRoutes() {
   }, [pageTransitionPhase]);
 
   return (
-    <Routes
-      location={displayLocation}
-      key={displayLocation.pathname === '/signup' ? '/login' : displayLocation.pathname}
-    >
+    <>
+      {/* The navigation chrome renders outside the keyed Routes so it persists across
+          page changes. A persistent nav lets the active-link highlight crossfade through
+          its CSS transition instead of snapping when the route subtree remounts */}
+      {user && isProtectedPath(displayLocation.pathname) && <Navigation />}
+      <Routes
+        location={displayLocation}
+        key={displayLocation.pathname === '/signup' ? '/login' : displayLocation.pathname}
+      >
         {/* Public routes — login, signup */}
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<AuthPage />} />
@@ -273,7 +301,8 @@ function AnimatedRoutes() {
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 
