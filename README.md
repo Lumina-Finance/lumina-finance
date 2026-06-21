@@ -6,7 +6,7 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/backend-tests.yml"><img alt="Backend Tests" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/backend-tests.yml?branch=main&label=Backend%20Tests&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/pr.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/pr.yml?label=CI&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
   <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/build-and-push-docker-image.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/build-and-push-docker-image.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
   <a href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>&nbsp;&nbsp;
   <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>&nbsp;&nbsp;
@@ -33,7 +33,7 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
 - **Runway** - Choose the accounts that make up your cash cushion and see how many months they could cover based on your recent average spending in the worst case scenario
 - **Insights** - Review cash flow, income and expense breakdowns, net worth trends, savings-rate trends, and merchant patterns
-- **Self-hostable** - You have full control of your data, run it locally with Docker or bare metal
+- **Self-hostable** - You have full control of your data, run it locally with Docker
 
 ### Roadmap
 
@@ -45,6 +45,7 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 - [X] UI/UX polish across the main workflows
 - [X] Bug fixes and stability improvements
 - [X] Multi-currency support
+- [X] Row-level security for per-user data isolation
 - [ ] Application security improvements and fixes
 - [ ] OIDC and WebAuthN support
 - [ ] SaaS development and testing
@@ -53,6 +54,7 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 
 - [ ] SimpleFIN and Plaid connections for automatic account and transaction syncing
 - [ ] Basic investment tracker (bring your own data)
+- [ ] Internationalization and multi-language support
 - [ ] A few quite ambitious features we're not quite ready to spoil yet :)
 
 ## Screenshots
@@ -107,11 +109,7 @@ These pages are now also fully mobile and tablet optimized!
 
 ### Docker
 
-If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.example.yml`](docker/compose.example.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL`, `UPDATE_CHECKS_ENABLED`, and `FRANKFURTER_URL` values.
-
-### Bare Metal
-
-If you'd like to deploy this bare metal, please clone the repo. The frontend is built with vite and you can build it and serve the static files with things like Caddy or Nginx. The backend is built with FastAPI, so you can serve it as a plain ASGI application with uvicorn. All environment variables should be set at the repo's root level. **Note that you will be responsible for generating the required RSA256 private keys as the auto generation currently only works with the Docker deployment as part of the startup process, in additon to configuring the environment variables correctly.**
+If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.yml`](docker/compose.yml) with an example [`.env`](docker/.env.example) file containing the required variables and optional `APP_URL`, `UPDATE_CHECKS_ENABLED`, and `FRANKFURTER_URL` values.
 
 ### Frankfurter (Foreign Currency Exchange Rates)
 
@@ -127,8 +125,10 @@ Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfur
 | `DB_HOST` | Yes | Hostname or IP | None | PostgreSQL host |
 | `DB_PORT` | Yes | Port number | None | PostgreSQL port |
 | `DB_NAME` | Yes | Database name | None | PostgreSQL database name |
-| `DB_USER` | Yes | Database user | None | PostgreSQL username |
-| `DB_PASSWORD` | Yes | Database password | None | PostgreSQL password |
+| `DB_USER` | Yes | Database user | None | PostgreSQL admin role used on startup to provision the `lumina_migrator` and `lumina_app` roles |
+| `DB_PASSWORD` | Yes | Database password | None | Password for the PostgreSQL admin role |
+| `MIGRATOR_DB_PASSWORD` | No | Database password | Auto-generated | Password for the `lumina_migrator` role that owns the schema and runs migrations. If unset, a password is generated on first start and persisted to `/data/secrets/migrator_db_password` on the data volume, then reused on later starts |
+| `APP_DB_PASSWORD` | No | Database password | Auto-generated | Password for the `lumina_app` role that serves requests under row-level security. If unset, a password is generated on first start and persisted to `/data/secrets/app_db_password` on the data volume, then reused on later starts |
 | `FRANKFURTER_URL` | No | URL including API version path | `https://api.frankfurter.dev/v2` | Frankfurter-compatible FX rate API URL; set this to a self-hosted Frankfurter instance to keep FX lookups private |
 | `UPDATE_CHECKS_ENABLED` | No | `true` or `false` | `true` in official Docker images | Enables update checks against GitHub releases and matching Docker image tags |
 
