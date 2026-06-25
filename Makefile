@@ -4,7 +4,7 @@ SHELL := /bin/bash
 DEV_DIR ?= dev
 
 .PHONY: new-worktree cleanup-worktree \
-	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate \
+	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls \
 	reset-test-stack test-stack-down test-stack-build test-stack-restore test-stack-app-up
 
 # Create a fully isolated worktree with its own database, dependencies, and port
@@ -16,7 +16,7 @@ cleanup-worktree:
 	@"$(DEV_DIR)/cleanup-worktree.sh"
 
 # Reset the databases used for local development and pytest
-reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate
+reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls
 
 # Recreate the local development Postgres container
 dev-db-recreate:
@@ -37,6 +37,10 @@ dev-db-reassign:
 # Apply local migrations to the development database
 dev-db-migrate:
 	@"$(DEV_DIR)/dev-db/migrate.sh"
+
+# Re-apply row-level security so the restored dump regains its app role grants
+dev-db-apply-rls:
+	@"$(DEV_DIR)/dev-db/apply-rls.sh"
 
 # Rebuild and reset the local Docker test stack
 reset-test-stack: test-stack-down test-stack-build test-stack-restore test-stack-app-up
