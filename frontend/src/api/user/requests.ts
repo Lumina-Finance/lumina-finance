@@ -7,6 +7,7 @@ import {
 } from '@/api/user/mappers';
 import type {
   CacheStatus,
+  ChangePasswordPayload,
   RunwayResultResponse,
   RunwaySettingsResponse,
   RunwaySettingsUpdate,
@@ -25,6 +26,16 @@ export function fetchCacheStatus() {
  */
 export function updateProfile(payload: UpdateProfilePayload) {
   return authenticatedFetch<User>('/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Changes the current user's password and signs out their other sessions
+ */
+export function changePassword(payload: ChangePasswordPayload) {
+  return authenticatedFetch<void>('/auth/password', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });

@@ -10,6 +10,14 @@ export interface UpdateProfilePayload {
   tz?: string;
 }
 
+/**
+ * Current and replacement passwords for a password change
+ */
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+}
+
 export interface CacheScopeStatus {
   changed_at: string | null;
   last_change_from_current_session: boolean;
