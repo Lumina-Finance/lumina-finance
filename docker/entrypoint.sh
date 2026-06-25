@@ -54,6 +54,12 @@ python -m app.db.provision transfer-ownership
 
 # Run migrations and seed the database before starting the backend and Caddy
 alembic upgrade head
+
+# A restored backup arrives at migration head with its ACLs stripped so the bootstrap RLS
+# migration never re-runs, this re-applies the policies and app role grants from the app
+# source and is a no-op on a freshly migrated database
+python -m app.db.provision apply-rls
+
 python -m scripts.seed_currencies
 python -m scripts.seed_categories
 
