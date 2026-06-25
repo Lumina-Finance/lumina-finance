@@ -4,12 +4,15 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete
+from fastapi import HTTPException, status
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.config import APP_URL, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
-from app.models.auth import PasswordResetToken
+from app.models.auth import PasswordCredential, PasswordResetToken
+from app.services.auth.password_helpers import hash_password
+from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.email import send_email
 
@@ -78,3 +81,40 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
     expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
     await send_email(email, _RESET_EMAIL_SUBJECT, _build_reset_email_body(reset_link, expiry_minutes))
+
+
+async def reset_password(db: AsyncSession, token: str, new_password: str) -> None:
+    """Set a new password from a valid reset token and revoke every session
+
+    Args:
+        db: Active database session
+        token: Raw reset token from the emailed link
+        new_password: Replacement password already validated against the policy
+
+    Raises:
+        HTTPException: The token is unknown, already used, or expired
+    """
+    reset_token_query = select(PasswordResetToken).where(
+        PasswordResetToken.token_hash == _hash_reset_token(token),
+        PasswordResetToken.used_at.is_(None),
+        PasswordResetToken.expires_at > sa_func.now(),
+    )
+    reset_token = (await db.execute(reset_token_query)).scalar_one_or_none()
+    if reset_token is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    credential_query = select(PasswordCredential).where(PasswordCredential.user_id == reset_token.user_id)
+    credential = (await db.execute(credential_query)).scalar_one_or_none()
+    if credential is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    # A verified reset clears any login lockout the user was trying to recover from
+    credential.password_hash = hash_password(new_password)
+    credential.password_algo = "argon2id"  # noqa: S105
+    credential.failed_attempt_count = 0
+    credential.locked_until = None
+    reset_token.used_at = datetime.now(UTC)
+
+    # A reset means the old password may be compromised, so end every session
+    await delete_all_user_auth_sessions(db, reset_token.user_id)
+    await db.commit()

@@ -91,6 +91,19 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
+class ResetPasswordRequest(BaseModel):
+    """Password reset payload pairing the emailed token with the new password"""
+
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """Enforce the password policy on the replacement password"""
+        return validate_password_strength(v)
+
+
 class TokenResponse(BaseModel):
     """Access token response payload"""
 

@@ -14,8 +14,15 @@ from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
     issue_and_store_tokens,
 )
-from app.schemas.auth import AuthResponse, ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, SignupRequest
-from app.services.auth import change_password, login, request_password_reset, signup
+from app.schemas.auth import (
+    AuthResponse,
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LoginRequest,
+    ResetPasswordRequest,
+    SignupRequest,
+)
+from app.services.auth import change_password, login, request_password_reset, reset_password, signup
 
 _security = HTTPBearer(auto_error=False)
 
@@ -109,6 +116,23 @@ async def forgot_password_route(
         db: Active database session
     """
     await request_password_reset(db, data.email)
+
+
+@router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password_route(
+    data: ResetPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Set a new password from a valid reset token
+
+    Args:
+        data: Reset payload with the emailed token and the new password
+        db: Active database session
+
+    Raises:
+        HTTPException: The token is invalid, used, or expired
+    """
+    await reset_password(db, data.token, data.new_password)
 
 
 @router.post("/refresh", response_model=AuthResponse)
