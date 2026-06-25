@@ -9,7 +9,7 @@ import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameF
 import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields';
 import { AuthTextField } from '@/pages/auth/components/fields/TextField';
 import { PasswordRequirements } from '@/pages/auth/components/feedback/PasswordRequirements';
-import { SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
+import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode } from '@/pages/auth/utils/authForm';
 
@@ -19,14 +19,6 @@ const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
   value: tz,
   label: tz.replace(/_/g, ' '),
 }));
-
-// Cross-fade with a small slide used when the forgot form gives way to its confirmation
-const FORGOT_VIEW_TRANSITION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-};
 
 /**
  * Renders the auth shell for the login, signup, and forgot-password modes, which share a route key so
@@ -88,7 +80,7 @@ const AuthPage = () => {
 
         <AnimatePresence mode="wait" initial={false}>
           {isForgot && submitted ? (
-            <motion.div key="forgot-confirmation" className="mt-5 space-y-6" {...FORGOT_VIEW_TRANSITION}>
+            <motion.div key="forgot-confirmation" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 If an account exists for {form.email}, a link to set a new password is on its way. Check your inbox.
               </p>
@@ -102,7 +94,7 @@ const AuthPage = () => {
               </button>
             </motion.div>
           ) : (
-            <motion.div key="auth-form-body" {...FORGOT_VIEW_TRANSITION}>
+            <motion.div key="auth-form-body" {...AUTH_VIEW_TRANSITION}>
               <AnimatePresence initial={false}>
                 {isForgot && (
                   <motion.p

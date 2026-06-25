@@ -20,6 +20,7 @@ const InsightsPage = lazy(() => import('@/pages/insights/InsightsPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 const ImportsPage = lazy(() => import('@/pages/imports/ImportsPage'))
 const AuthPage = lazy(() => import('@/pages/auth/AuthPage'))
+const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
 
 const LOADING_SCREEN_MIN_MS = 1000;
 const PAGE_TRANSITION_MS = 350;
@@ -291,6 +292,7 @@ function AnimatedRoutes() {
           <Route path="/login" element={<AuthPage />} />
           <Route path="/signup" element={<AuthPage />} />
           <Route path="/forgot-password" element={<AuthPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
         {/* Protected app routes */}
