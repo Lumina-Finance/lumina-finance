@@ -16,12 +16,13 @@ def test_build_message_sets_sender_recipient_and_body():
     assert message.get_content().strip() == "Body text"
 
 
-async def test_send_email_logs_when_no_smtp_host(caplog):
-    """A blank SMTP host logs the message instead of attempting delivery"""
+async def test_send_email_logs_message_when_no_smtp_host(caplog):
+    """A blank SMTP host logs the full message, including the body, instead of delivering it"""
     with caplog.at_level(logging.INFO):
         await send_email("user@example.com", "Hello", "Body text")
 
-    assert any("Email suppressed" in record.message for record in caplog.records)
+    logged = [record.getMessage() for record in caplog.records]
+    assert any("no SMTP host configured" in message and "Body text" in message for message in logged)
 
 
 async def test_send_email_delivers_when_smtp_host_configured(monkeypatch):

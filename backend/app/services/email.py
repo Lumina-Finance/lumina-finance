@@ -37,7 +37,10 @@ async def send_email(recipient: str, subject: str, body: str) -> None:
     message = _build_message(recipient, subject, body)
 
     if not SMTP_HOST:
-        logger.info("Email suppressed, no SMTP host configured, to=%s subject=%s", recipient, subject)
+        # No mail server means the message cannot be delivered, so log the whole thing at
+        # warning level, which both surfaces the misconfiguration in production and lets the
+        # reset link be read from the server output during local development
+        logger.warning("Email not sent (no SMTP host configured)\nTo: %s\nSubject: %s\n\n%s", recipient, subject, body)
         return
 
     await aiosmtplib.send(
