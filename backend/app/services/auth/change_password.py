@@ -1,5 +1,7 @@
 """Change-password service"""
 
+import uuid
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,14 +10,21 @@ from app.models.auth import PasswordCredential
 from app.models.user import User
 from app.schemas.auth import ChangePasswordRequest
 from app.services.auth.password_helpers import hash_password, is_password_valid
+from app.services.auth.sessions import delete_other_user_auth_sessions
 
 
-async def change_password(db: AsyncSession, user: User, data: ChangePasswordRequest) -> None:
+async def change_password(
+    db: AsyncSession,
+    user: User,
+    current_session_id: uuid.UUID,
+    data: ChangePasswordRequest,
+) -> None:
     """Replace an authenticated user's password after verifying the current one
 
     Args:
         db: Active database session
         user: Authenticated user changing their password
+        current_session_id: Session that made the request and stays signed in
         data: Current and new password payload
 
     Raises:
@@ -34,4 +43,7 @@ async def change_password(db: AsyncSession, user: User, data: ChangePasswordRequ
     credential.password_algo = "argon2id"  # noqa: S105
     credential.failed_attempt_count = 0
     credential.locked_until = None
+
+    # Sign the user out of every other device so a leaked password cannot keep one authenticated
+    await delete_other_user_auth_sessions(db, user.id, current_session_id)
     await db.commit()

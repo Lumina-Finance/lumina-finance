@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_session_id, get_current_user
 from app.models.user import User
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
@@ -90,7 +90,9 @@ async def change_password_route(
     Raises:
         HTTPException: The current password is incorrect
     """
-    await change_password(db, user, data)
+    # get_current_user has already resolved, so the session id is set for this request
+    current_session_id = get_current_session_id()
+    await change_password(db, user, current_session_id, data)
 
 
 @router.post("/refresh", response_model=AuthResponse)
