@@ -6,14 +6,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.user import User
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
     issue_and_store_tokens,
 )
-from app.schemas.auth import AuthResponse, LoginRequest, SignupRequest
-from app.services.auth import login, signup
+from app.schemas.auth import AuthResponse, ChangePasswordRequest, LoginRequest, SignupRequest
+from app.services.auth import change_password, login, signup
 
 _security = HTTPBearer(auto_error=False)
 
@@ -70,6 +72,25 @@ async def login_route(
     user = await login(db, data)
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response
+
+
+@router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password_route(
+    data: ChangePasswordRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Change the authenticated user's password
+
+    Args:
+        data: Current and new password payload
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: The current password is incorrect
+    """
+    await change_password(db, user, data)
 
 
 @router.post("/refresh", response_model=AuthResponse)
