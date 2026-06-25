@@ -22,7 +22,6 @@ interface ProfileSectionProps {
   onFieldChange: <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => void
   firstNameValid: boolean
   userInformationActions: React.ReactNode
-  emailPasswordActions: React.ReactNode
 }
 
 export default function ProfileSection({
@@ -31,7 +30,6 @@ export default function ProfileSection({
   onFieldChange,
   firstNameValid,
   userInformationActions,
-  emailPasswordActions,
 }: ProfileSectionProps) {
   const { data: currencies } = useCurrencies()
   const initials = user
@@ -117,58 +115,6 @@ export default function ProfileSection({
             </div>
 
             {userInformationActions}
-          </div>
-        </SettingsCard>
-
-        <SettingsCard>
-          <div className="space-y-6">
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold">Email and password</h3>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Your login email and password settings.
-              </p>
-            </div>
-
-            <div className="grid gap-4 min-[1500px]:grid-cols-2">
-              <SettingsField label="Email" hint="Planned, currently not supported to change">
-                <input
-                  className="app-input"
-                  type="email"
-                  value={user?.email ?? ''}
-                  disabled
-                  style={DISABLED_INPUT_STYLE}
-                />
-              </SettingsField>
-              <SettingsField label="Current password" hint="Planned, currently not supported to change">
-                <input
-                  className="app-input"
-                  type="password"
-                  placeholder="••••••••"
-                  disabled
-                  style={DISABLED_INPUT_STYLE}
-                />
-              </SettingsField>
-              <SettingsField label="New password" hint="Planned, currently not supported to change">
-                <input
-                  className="app-input"
-                  type="password"
-                  placeholder="••••••••"
-                  disabled
-                  style={DISABLED_INPUT_STYLE}
-                />
-              </SettingsField>
-              <SettingsField label="Confirm new password" hint="Planned, currently not supported to change">
-                <input
-                  className="app-input"
-                  type="password"
-                  placeholder="••••••••"
-                  disabled
-                  style={DISABLED_INPUT_STYLE}
-                />
-              </SettingsField>
-            </div>
-
-            {emailPasswordActions}
           </div>
         </SettingsCard>
       </div>

@@ -1,6 +1,13 @@
-import { Landmark, LifeBuoy, Store, Tag, Tags, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { Landmark, LifeBuoy, Shield, Store, Tag, Tags, User as UserIcon, type LucideIcon } from 'lucide-react'
 
-export type SettingsSectionId = 'profile' | 'runway' | 'categories' | 'merchants' | 'tags' | 'tax-advantaged-categories'
+export type SettingsSectionId =
+  | 'profile'
+  | 'security'
+  | 'runway'
+  | 'categories'
+  | 'merchants'
+  | 'tags'
+  | 'tax-advantaged-categories'
 
 export interface SettingsSection {
   id: SettingsSectionId
@@ -10,6 +17,7 @@ export interface SettingsSection {
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   { id: 'profile', label: 'Profile', icon: UserIcon },
+  { id: 'security', label: 'Security', icon: Shield },
   { id: 'runway', label: 'Runway', icon: LifeBuoy },
   { id: 'categories', label: 'Categories', icon: Tag },
   { id: 'merchants', label: 'Merchants', icon: Store },
