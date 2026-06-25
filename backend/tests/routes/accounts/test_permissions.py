@@ -16,7 +16,7 @@ async def _create_second_user(client):
     """
     resp = await client.post("/auth/signup", json={
         "email": "other@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Other",
         "tz": "America/Toronto",
         "base_currency": "CAD",
@@ -275,7 +275,7 @@ async def test_grant_account_permission_by_non_member_returns_404(client):
     _, _, member_user_id, _, account_id = await _setup_group_with_member_and_account(client)
 
     third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "securepassword123",
+        "email": "third@example.com", "password": "SecurePassword123!",
         "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
     })
     third_headers = _get_auth_header(third_resp)
@@ -469,7 +469,7 @@ async def test_list_account_permissions_multiple_ordered_by_created_at(client):
     admin_headers, _, member_user_id, group_id, account_id = await _setup_group_with_member_and_account(client)
 
     third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "securepassword123",
+        "email": "third@example.com", "password": "SecurePassword123!",
         "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
     })
     third_user_id = third_resp.json()["user"]["id"]

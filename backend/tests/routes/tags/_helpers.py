@@ -33,7 +33,7 @@ async def _create_second_user(client):
     """
     return await client.post("/auth/signup", json={
         "email": "other@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Other",
         "tz": "America/Toronto",
         "base_currency": "CAD",
@@ -68,7 +68,7 @@ async def _setup_group_with_member(client):
 
     member_resp = await client.post("/auth/signup", json={
         "email": "member@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Member",
         "tz": "America/Toronto",
         "base_currency": "CAD",

@@ -155,7 +155,7 @@ async def _setup_user_with_deps(client, email="test@example.com", name_prefix="M
     else:
         signup_resp = await client.post("/auth/signup", json={
             "email": email,
-            "password": "securepassword123",
+            "password": "SecurePassword123!",
             "first_name": name_prefix,
             "tz": "America/Toronto",
             "base_currency": "CAD",

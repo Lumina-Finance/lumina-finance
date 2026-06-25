@@ -124,7 +124,7 @@ async def _setup_group_with_two_members(client):
     # User 2 — group member
     signup2 = await client.post("/auth/signup", json={
         "email": "other@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Other",
         "tz": "America/Toronto",
         "base_currency": "CAD",
@@ -252,7 +252,7 @@ async def _setup_group_with_shared_account(client):
     group_id = group_resp.json()["id"]
 
     signup2 = await client.post("/auth/signup", json={
-        "email": "member@example.com", "password": "securepassword123",
+        "email": "member@example.com", "password": "SecurePassword123!",
         "first_name": "Member", "tz": "America/Toronto", "base_currency": "CAD",
     })
     member_headers = _get_auth_header(signup2)

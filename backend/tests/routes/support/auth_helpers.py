@@ -5,7 +5,7 @@ from tests.conftest import TestSession
 
 SIGNUP_PAYLOAD = {
     "email": "test@example.com",
-    "password": "securepassword123",
+    "password": "SecurePassword123!",
     "first_name": "Test",
     "tz": "America/Toronto",
     "base_currency": "CAD",

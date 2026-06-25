@@ -33,7 +33,7 @@ async def _create_second_user(client):
     """
     resp = await client.post("/auth/signup", json={
         "email": "other@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Other",
         "tz": "America/Toronto",
         "base_currency": "CAD",
@@ -529,7 +529,7 @@ async def test_add_member_by_non_owner_admin_returns_201(client):
     await client.patch(f"/groups/{group_id}/members/{other_user_id}", json={"is_admin": True}, headers=headers)
 
     third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "securepassword123",
+        "email": "third@example.com", "password": "SecurePassword123!",
         "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
     })
     third_user_id = third_resp.json()["user"]["id"]
@@ -676,7 +676,7 @@ async def test_non_owner_admin_cannot_promote_returns_403(client):
 
     # Create a third user to be the target
     third_resp = await client.post("/auth/signup", json={
-        "email": "third@example.com", "password": "securepassword123",
+        "email": "third@example.com", "password": "SecurePassword123!",
         "first_name": "Third", "tz": "America/Toronto", "base_currency": "CAD",
     })
     third_user_id = third_resp.json()["user"]["id"]
@@ -813,7 +813,7 @@ async def test_remove_member_non_admin_cannot_remove_others_returns_403(client):
     # Create a third user to be the removal target
     third_resp = await client.post("/auth/signup", json={
         "email": "third@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Third",
         "tz": "America/Toronto",
         "base_currency": "CAD",

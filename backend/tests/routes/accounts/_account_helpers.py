@@ -61,7 +61,7 @@ async def _create_second_user(client):
     """
     return await client.post("/auth/signup", json={
         "email": "other@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Other",
         "tz": "America/Toronto",
         "base_currency": "CAD",
@@ -72,7 +72,7 @@ async def _signup_user(client, *, email: str, first_name: str, tz: str):
     """Sign up a user with caller-provided identity and timezone details"""
     return await client.post("/auth/signup", json={
         "email": email,
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": first_name,
         "tz": tz,
         "base_currency": "CAD",

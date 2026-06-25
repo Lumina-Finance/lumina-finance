@@ -19,7 +19,7 @@ from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _seed_currency
 
 LOGIN_PAYLOAD = {
     "email": "test@example.com",
-    "password": "securepassword123",
+    "password": "SecurePassword123!",
 }
 
 
@@ -64,6 +64,14 @@ async def test_signup_returns_user_and_access_token(client):
     assert user["created_at"] is not None
     assert "access_token" in data
     assert data["token_type"] == "bearer"
+
+
+async def test_signup_rejects_weak_password(client):
+    """Signup rejects a password that fails the strength policy."""
+    await _seed_currency()
+    resp = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "password": "weak"})
+
+    assert resp.status_code == 422
 
 
 async def test_signup_sets_refresh_cookie(client):

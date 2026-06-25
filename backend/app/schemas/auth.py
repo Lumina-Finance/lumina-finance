@@ -64,6 +64,12 @@ class SignupRequest(BaseModel):
         """Validate timezone names at the API boundary"""
         return validate_iana_timezone(v)
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Enforce the password policy when an account is created"""
+        return validate_password_strength(v)
+
 
 class LoginRequest(BaseModel):
     """Login request payload"""
