@@ -5,7 +5,7 @@ import type { AuthMode } from '@/pages/auth/utils/authForm'
  * Renders the animated auth heading when the route switches between login and signup
  */
 export function AuthAnimatedTitle({ mode }: { mode: AuthMode }) {
-  const title = mode === 'login' ? 'Login' : 'Sign up'
+  const title = mode === 'login' ? 'Login' : mode === 'signup' ? 'Sign up' : 'Password Reset'
 
   return (
     <div className="overflow-hidden" style={{ height: '2.75rem' }}>

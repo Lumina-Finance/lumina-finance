@@ -280,12 +280,17 @@ function AnimatedRoutes() {
       {user && isProtectedPath(displayLocation.pathname) && <Navigation />}
       <Routes
         location={displayLocation}
-        key={displayLocation.pathname === '/signup' ? '/login' : displayLocation.pathname}
+        key={
+          displayLocation.pathname === '/signup' || displayLocation.pathname === '/forgot-password'
+            ? '/login'
+            : displayLocation.pathname
+        }
       >
-        {/* Public routes — login, signup */}
+        {/* Public routes — login, signup, password reset */}
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<AuthPage />} />
           <Route path="/signup" element={<AuthPage />} />
+          <Route path="/forgot-password" element={<AuthPage />} />
         </Route>
 
         {/* Protected app routes */}

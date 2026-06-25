@@ -2,7 +2,7 @@ import { ApiError, type LoginPayload, type SignupPayload } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
-export type AuthMode = 'login' | 'signup'
+export type AuthMode = 'login' | 'signup' | 'forgot'
 
 export interface AuthFormValues {
   email: string
@@ -55,7 +55,9 @@ const ERROR_MESSAGES: Record<string, string> = {
  * Determines the auth mode from the current route path so route changes stay decoupled from form state
  */
 export function getAuthMode(pathname: string): AuthMode {
-  return pathname === '/signup' ? 'signup' : 'login'
+  if (pathname === '/signup') return 'signup'
+  if (pathname === '/forgot-password') return 'forgot'
+  return 'login'
 }
 
 /**
@@ -84,6 +86,9 @@ export function validateAuthFields(form: AuthFormValues, mode: AuthMode): AuthFi
   } else if (!EMAIL_RE.test(form.email)) {
     errors.email = 'Enter a valid email address'
   }
+
+  // Forgot-password only asks for an email, so the password rules never apply
+  if (mode === 'forgot') return errors
 
   if (!form.password) {
     errors.password = 'Password is required'
@@ -116,6 +121,8 @@ export function isAuthFieldErrorKey(field: keyof AuthFormValues): field is keyof
  * Marks every required field as touched after submit so validation errors become visible together
  */
 export function getSubmitTouchedFields(mode: AuthMode): Record<string, boolean> {
+  if (mode === 'forgot') return { email: true }
+
   const touched: Record<string, boolean> = { email: true, password: true }
   if (mode === 'signup') {
     touched.first_name = true

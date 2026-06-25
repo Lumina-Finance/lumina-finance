@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { animate } from 'motion/react'
-import type { AuthResponse } from '@/api/auth'
+import { forgotPassword, type AuthResponse } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -52,6 +52,7 @@ export function useAuthFormWorkflow({
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
 
   const isLogin = mode === 'login'
@@ -72,13 +73,29 @@ export function useAuthFormWorkflow({
   }
 
   /**
-   * Switches auth mode while clearing state that only belongs to the previous form
+   * Clears validation, error, and confirmation state that only belongs to the previous form
    */
-  const switchMode = () => {
-    navigate(isLogin ? '/signup' : '/login', { replace: true })
+  const clearTransientFormState = () => {
     setError('')
     setFieldErrors({})
     setTouched({})
+    setSubmitted(false)
+  }
+
+  /**
+   * Switches between login and signup, clearing state from the previous form
+   */
+  const switchMode = () => {
+    navigate(isLogin ? '/signup' : '/login', { replace: true })
+    clearTransientFormState()
+  }
+
+  /**
+   * Opens the forgot-password form in place, clearing state from the previous form
+   */
+  const goToForgot = () => {
+    navigate('/forgot-password', { replace: true })
+    clearTransientFormState()
   }
 
   /**
@@ -118,6 +135,28 @@ export function useAuthFormWorkflow({
     setFieldErrors(errors)
     setTouched(getSubmitTouchedFields(mode))
     if (Object.keys(errors).length > 0) return
+
+    // Forgot-password sends a reset link and shows a confirmation in place rather than
+    // signing the user in, so it skips the lockout, currency, and route-transition steps
+    if (mode === 'forgot') {
+      setError('')
+      setSubmitting(true)
+      const forgotStart = Date.now()
+      try {
+        await forgotPassword({ email: form.email })
+      } catch (err) {
+        setSubmitting(false)
+        setError(getAuthErrorMessage(err))
+        return
+      }
+      const forgotElapsed = Date.now() - forgotStart
+      if (forgotElapsed < MIN_LOADING_MS) {
+        await waitForMilliseconds(MIN_LOADING_MS - forgotElapsed)
+      }
+      setSubmitting(false)
+      setSubmitted(true)
+      return
+    }
 
     // The browser mirrors backend lockout state before another request is sent
     const remaining = getLockedRemaining()
@@ -172,10 +211,12 @@ export function useAuthFormWorkflow({
     handleChange,
     handlePasswordBlur,
     handleSubmit,
+    goToForgot,
     isLogin,
     passwordFocused,
     setPasswordFocused,
     submitDisabled,
+    submitted,
     submitting,
     switchMode,
     touched,
