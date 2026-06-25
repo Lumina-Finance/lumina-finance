@@ -3,7 +3,7 @@ import type React from 'react'
 import SettingsCard from '@/pages/settings/components/Card'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
-import { NEW_PASSWORD_RULES } from '@/pages/settings/components/security-section/passwordPolicy'
+import { NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
 import type { PasswordFormState } from '@/pages/settings/hooks/useSecuritySettingsForm'
 
 const DISABLED_INPUT_STYLE: React.CSSProperties = {

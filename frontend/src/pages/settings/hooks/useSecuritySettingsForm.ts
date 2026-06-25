@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ApiError } from '@/api/auth'
 import { useChangePassword } from '@/api/user'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
-import { isNewPasswordValid } from '@/pages/settings/components/security-section/passwordPolicy'
+import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
 export interface PasswordFormState {
   currentPassword: string

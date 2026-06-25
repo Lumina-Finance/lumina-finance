@@ -6,7 +6,7 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   isNewPasswordValid,
-} from '@/pages/settings/components/security-section/passwordPolicy'
+} from '@/utils/passwordPolicy'
 
 describe('new password policy', () => {
   it('accepts a password meeting every rule', () => {
