@@ -205,6 +205,11 @@ SMTP_USE_TLS = _optional_bool_env("SMTP_USE_TLS", True)
 MAIL_FROM = os.getenv("MAIL_FROM", "no-reply@lumina.finance").strip()
 MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Lumina Finance").strip()
 
+# --- Password reset ---
+
+# Reset links are short-lived since the raw token grants account access until it expires
+PASSWORD_RESET_TOKEN_EXPIRE_SECONDS = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_SECONDS", "900"))
+
 # --- Dashboard ---
 
 # How many of the user's most recent transactions the dashboard's recent-activity widget returns.

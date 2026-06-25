@@ -85,6 +85,12 @@ class ChangePasswordRequest(BaseModel):
         return validate_password_strength(v)
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Forgot-password request payload"""
+
+    email: EmailStr
+
+
 class TokenResponse(BaseModel):
     """Access token response payload"""
 

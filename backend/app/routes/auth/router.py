@@ -14,8 +14,8 @@ from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
     issue_and_store_tokens,
 )
-from app.schemas.auth import AuthResponse, ChangePasswordRequest, LoginRequest, SignupRequest
-from app.services.auth import change_password, login, signup
+from app.schemas.auth import AuthResponse, ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, SignupRequest
+from app.services.auth import change_password, login, request_password_reset, signup
 
 _security = HTTPBearer(auto_error=False)
 
@@ -93,6 +93,22 @@ async def change_password_route(
     # get_current_user has already resolved, so the session id is set for this request
     current_session_id = get_current_session_id()
     await change_password(db, user, current_session_id, data)
+
+
+@router.post("/password/forgot", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password_route(
+    data: ForgotPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Send a password reset link when the email matches an account
+
+    The response is always 204 so the endpoint never reveals whether an email is registered
+
+    Args:
+        data: Forgot-password payload with the account email
+        db: Active database session
+    """
+    await request_password_reset(db, data.email)
 
 
 @router.post("/refresh", response_model=AuthResponse)
