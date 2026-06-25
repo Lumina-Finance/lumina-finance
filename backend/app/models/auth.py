@@ -35,3 +35,18 @@ class PasswordCredential(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     failed_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Reset to 0 on successful login
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null = temporarily locked
+
+
+class PasswordResetToken(Base):
+    """Stores single-use password reset tokens as hashes, scoped per user and expiring."""
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Only the hash is stored so a leaked table cannot be used to reset accounts
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null once redeemed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
