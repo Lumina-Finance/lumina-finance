@@ -192,6 +192,19 @@ JWT_REFRESH_PRIVATE_KEY = _load_key("JWT_REFRESH_PRIVATE_KEY_PATH", _keys_dir / 
 JWT_ACCESS_KID = os.getenv("JWT_ACCESS_KID", "access-kid").strip() or "access-kid"
 JWT_REFRESH_KID = os.getenv("JWT_REFRESH_KID", "refresh-kid").strip() or "refresh-kid"
 
+# --- Email ---
+
+# A blank SMTP host routes mail to the logger so development and tests need no server
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_USE_TLS = _optional_bool_env("SMTP_USE_TLS", True)
+
+# Sender identity applied to every outgoing message, overridden by the operator in production
+MAIL_FROM = os.getenv("MAIL_FROM", "no-reply@lumina.finance").strip()
+MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Lumina Finance").strip()
+
 # --- Dashboard ---
 
 # How many of the user's most recent transactions the dashboard's recent-activity widget returns.
