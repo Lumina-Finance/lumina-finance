@@ -1,6 +1,6 @@
 import { Check, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { PASSWORD_RULES } from '@/pages/auth/utils/authForm'
+import { NEW_PASSWORD_RULES, isNewPasswordValid } from '@/utils/passwordPolicy'
 
 interface PasswordRequirementsProps {
   focused: boolean
@@ -16,20 +16,20 @@ export function PasswordRequirements({
   password,
   touched,
 }: PasswordRequirementsProps) {
-  const passwordIsValid = PASSWORD_RULES.every((rule) => rule.test(password))
+  const passwordIsValid = isNewPasswordValid(password)
   const showRequirements = (focused || password.length > 0) && !(touched && passwordIsValid)
 
   return (
     <AnimatePresence>
       {showRequirements && (
         <motion.ul
-          className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1"
+          className="mt-2 space-y-1"
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {PASSWORD_RULES.map((rule) => {
+          {NEW_PASSWORD_RULES.map((rule) => {
             const passed = rule.test(password)
             return (
               <li key={rule.label} className="flex items-center gap-2 text-sm transition-colors duration-200">

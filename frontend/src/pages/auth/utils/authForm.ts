@@ -1,6 +1,7 @@
 import { ApiError, type LoginPayload, type SignupPayload } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
 export type AuthMode = 'login' | 'signup' | 'forgot'
 
@@ -34,15 +35,6 @@ export const MIN_LOADING_MS = 1500
 export const FADE_OUT_MS = 300
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-export const PASSWORD_RULES = [
-  { label: '12+ characters', test: (password: string) => password.length >= 12 },
-  { label: '1 uppercase letter', test: (password: string) => /[A-Z]/.test(password) },
-  { label: '1 lowercase letter', test: (password: string) => /[a-z]/.test(password) },
-  { label: '1 number', test: (password: string) => /\d/.test(password) },
-  { label: '1 special character', test: (password: string) => /[^A-Za-z0-9\s]/.test(password) },
-  { label: 'No spaces', test: (password: string) => !/\s/.test(password) },
-]
 
 const ERROR_MESSAGES: Record<string, string> = {
   'Invalid credentials': 'Incorrect email or password. Please try again.',
@@ -92,7 +84,7 @@ export function validateAuthFields(form: AuthFormValues, mode: AuthMode): AuthFi
 
   if (!form.password) {
     errors.password = 'Password is required'
-  } else if (mode === 'signup' && !PASSWORD_RULES.every((rule) => rule.test(form.password))) {
+  } else if (mode === 'signup' && !isNewPasswordValid(form.password)) {
     errors.password = 'Password does not meet requirements'
   }
 
