@@ -30,7 +30,7 @@ from app.services.auth.sessions import (
     delete_expired_auth_tokens,
     rotate_auth_session_tokens,
 )
-from app.services.auth.tokens import create_access_token, create_refresh_token
+from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
 _access_public_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None).public_key()
@@ -85,6 +85,23 @@ def decode_access_token(access_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(access_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
     _raise_for_token_use(payload, "access")
+    return payload
+
+
+def decode_mfa_challenge_token(challenge_token: str) -> dict[str, Any]:
+    """Return decoded challenge token claims
+
+    Args:
+        challenge_token: Encoded challenge JWT string
+
+    Returns:
+        Decoded challenge token claims
+
+    Raises:
+        PyJWTError: Challenge token cannot be decoded or verified
+    """
+    payload = jwt.decode(challenge_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    _raise_for_token_use(payload, MFA_CHALLENGE_TOKEN_USE)
     return payload
 
 
