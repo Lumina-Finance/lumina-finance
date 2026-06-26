@@ -2,6 +2,7 @@
 
 import functools
 import os
+import sys
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -11,6 +12,11 @@ _SECRETS_DIR = Path("/data/secrets")
 _KEY_FILE = _SECRETS_DIR / "app_encryption_key"
 _KEY_FILE_MODE = 0o600
 _KEY_ENV_VAR = "APP_ENCRYPTION_KEY"
+
+
+def generate_encryption_key() -> str:
+    """Return a new url-safe base64 Fernet key"""
+    return Fernet.generate_key().decode()
 
 
 def resolve_encryption_key(*, generate: bool) -> str:
@@ -38,7 +44,7 @@ def resolve_encryption_key(*, generate: bool) -> str:
     if not generate:
         raise RuntimeError(f"No application encryption key. Set {_KEY_ENV_VAR} or provision it first")
 
-    generated_key = Fernet.generate_key().decode()
+    generated_key = generate_encryption_key()
     _SECRETS_DIR.mkdir(parents=True, exist_ok=True)
     _KEY_FILE.write_text(generated_key)
     _KEY_FILE.chmod(_KEY_FILE_MODE)
@@ -63,3 +69,17 @@ def encrypt(plaintext: str) -> str:
 def decrypt(token: str) -> str:
     """Return the plaintext for a Fernet token read from storage"""
     return _fernet().decrypt(token.encode()).decode()
+
+
+def main() -> None:
+    """Generate and persist the encryption key when a deployment has none yet"""
+    key_present = bool(os.getenv(_KEY_ENV_VAR)) or _KEY_FILE.exists()
+    resolve_encryption_key(generate=True)
+    if key_present:
+        print("Application encryption key already configured", file=sys.stderr)
+    else:
+        print(f"Generated application encryption key at {_KEY_FILE}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

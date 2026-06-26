@@ -47,6 +47,10 @@ trap cleanup INT TERM EXIT
 ensure_private_key "Access" "$JWT_ACCESS_PRIVATE_KEY_PATH"
 ensure_private_key "Refresh" "$JWT_REFRESH_PRIVATE_KEY_PATH"
 
+# The encryption key protects TOTP secrets and OIDC client secrets at rest, generated
+# and persisted next to the role secrets when absent
+python -m app.encryption
+
 # Create the migrator and app roles and hand them schema ownership while still
 # connected as the admin role, before migrations run as the migrator
 python -m app.db.provision ensure-roles
