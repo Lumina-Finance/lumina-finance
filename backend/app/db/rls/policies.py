@@ -71,7 +71,15 @@ GLOBAL_READ_TABLES = ("currencies", "institutions")
 
 # Auth tables stay out of RLS because the login and token flows query them before a
 # request identity exists, always by exact id, so the queries already scope them
-AUTH_TABLES = ("auth_identities", "password_credentials", "auth_sessions", "auth_tokens", "password_reset_tokens", "mfa_challenges")
+AUTH_TABLES = (
+    "auth_identities",
+    "password_credentials",
+    "auth_sessions",
+    "auth_tokens",
+    "password_reset_tokens",
+    "mfa_challenges",
+    "totp_credentials",
+)
 
 
 def apply_policies(connection: Connection) -> None:

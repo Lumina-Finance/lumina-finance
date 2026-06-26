@@ -37,6 +37,17 @@ class PasswordCredential(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null = temporarily locked
 
 
+class TotpCredential(Base):
+    """Stores a user's TOTP secret encrypted at rest, one-to-one and pending until confirmed"""
+
+    __tablename__ = "totp_credentials"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null once a code is verified
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class PasswordResetToken(Base):
     """Stores single-use password reset tokens as hashes, scoped per user and expiring."""
 
