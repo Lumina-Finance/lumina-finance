@@ -1,6 +1,5 @@
 """Password reset request and token service"""
 
-import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +12,7 @@ from app.config import APP_URL, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.services.auth.password_helpers import hash_password
 from app.services.auth.sessions import delete_all_user_auth_sessions
+from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.email import send_email
 
@@ -20,15 +20,6 @@ from app.services.email import send_email
 _TOKEN_BYTES = 32
 _RESET_PATH = "/reset-password"
 _RESET_EMAIL_SUBJECT = "Reset your password"
-
-
-def _hash_reset_token(raw_token: str) -> str:
-    """Return the SHA-256 hex digest stored for a reset token
-
-    The token is high-entropy random, so a fast hash resists a database leak without the
-    per-request cost of the Argon2 hashing used for user-chosen passwords
-    """
-    return hashlib.sha256(raw_token.encode()).hexdigest()
 
 
 def _build_reset_email_body(reset_link: str, expiry_minutes: int) -> str:
@@ -74,7 +65,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
 
     raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
     expires_at = datetime.now(UTC) + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
-    db.add(PasswordResetToken(user_id=user_id, token_hash=_hash_reset_token(raw_token), expires_at=expires_at))
+    db.add(PasswordResetToken(user_id=user_id, token_hash=hash_token(raw_token), expires_at=expires_at))
     await db.commit()
 
     # The raw token only ever leaves the server inside the emailed link
@@ -95,7 +86,7 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> Non
         HTTPException: The token is unknown, already used, or expired
     """
     reset_token_query = select(PasswordResetToken).where(
-        PasswordResetToken.token_hash == _hash_reset_token(token),
+        PasswordResetToken.token_hash == hash_token(token),
         PasswordResetToken.used_at.is_(None),
         PasswordResetToken.expires_at > sa_func.now(),
     )
