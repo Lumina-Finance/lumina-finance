@@ -79,6 +79,7 @@ AUTH_TABLES = (
     "password_reset_tokens",
     "mfa_challenges",
     "totp_credentials",
+    "recovery_codes",
 )
 
 
