@@ -210,6 +210,12 @@ MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Lumina Finance").strip()
 # Reset links are short-lived since the raw token grants account access until it expires
 PASSWORD_RESET_TOKEN_EXPIRE_SECONDS = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_SECONDS", "900"))
 
+# --- Two-factor authentication ---
+
+# The challenge token bridges a verified password and the second factor, kept short so a
+# captured token has a small window before the user must restart login
+MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS = int(os.getenv("MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS", "120"))
+
 # --- Dashboard ---
 
 # How many of the user's most recent transactions the dashboard's recent-activity widget returns.
