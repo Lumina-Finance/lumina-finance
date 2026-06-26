@@ -15,6 +15,7 @@ dependencies = [
     "mangum>=0.21.0",
     "pydantic[email]>=2.12.5",
     "pyjwt[crypto]>=2.13.0",
+    "pyotp>=2.10.0",
     "python-dotenv>=1.2.2",
     "sqlalchemy>=2.0.48",
     "uvicorn>=0.44.0",
