@@ -7,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.services.auth.recovery_codes import (
+    activate_pending_recovery_codes,
     consume_recovery_code,
     delete_recovery_codes,
     generate_recovery_codes,
-    has_recovery_codes,
+    has_pending_recovery_codes,
 )
 from app.services.auth.step_up import verify_step_up
 from app.services.auth.totp import (
@@ -72,7 +73,8 @@ async def confirm_totp_enrollment(db: AsyncSession, user_id: uuid.UUID, code: st
     if not await is_pending_totp_code_valid(db, user_id, code):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired code")
 
-    codes = await generate_recovery_codes(db, user_id)
+    # Stage the batch so a current set of codes stays usable until the user acknowledges these
+    codes = await generate_recovery_codes(db, user_id, pending=True)
     await db.commit()
     return codes
 
@@ -80,8 +82,9 @@ async def confirm_totp_enrollment(db: AsyncSession, user_id: uuid.UUID, code: st
 async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Turn on two-factor once the user has acknowledged their recovery codes
 
-    Recovery codes only exist after a confirmed code, so requiring them keeps two-factor from being
-    enabled around an unverified secret
+    Promotes the staged codes to active and lifts any re-enrolment restriction in the same commit, so
+    enabling, the new codes, and unlocking happen together. A staged batch only exists after a
+    confirmed code, so requiring it keeps two-factor from being enabled around an unverified secret
 
     Args:
         db: Active database session
@@ -90,38 +93,14 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
     Raises:
         HTTPException: Enrolment was not confirmed first, or there is no pending setup
     """
-    if not await has_recovery_codes(db, user_id):
+    if not await has_pending_recovery_codes(db, user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Confirm an authenticator code first")
 
     if not await mark_totp_confirmed(db, user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No pending two-factor setup to finish")
 
-    await db.commit()
-
-
-async def reenroll_totp(db: AsyncSession, user_id: uuid.UUID, code: str) -> None:
-    """Re-enable TOTP after a recovery-code login and lift the re-enrolment restriction
-
-    Only a session already flagged for re-enrolment may use this, so it cannot turn on TOTP without
-    the acknowledged recovery codes the normal enrolment requires. Recovery codes are left untouched
-    so the remaining batch keeps depleting one per recovery-code login
-
-    Args:
-        db: Active database session
-        user_id: User re-enrolling after a recovery-code login
-        code: Code from the freshly set up authenticator
-
-    Raises:
-        HTTPException: No re-enrolment is pending, or the code does not verify
-    """
+    await activate_pending_recovery_codes(db, user_id)
     user = await db.get(User, user_id)
-    if user is None or not user.totp_reenrollment_required:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No re-enrolment is required")
-
-    if not await is_pending_totp_code_valid(db, user_id, code):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired code")
-
-    await mark_totp_confirmed(db, user_id)
     user.totp_reenrollment_required = False
     await db.commit()
 

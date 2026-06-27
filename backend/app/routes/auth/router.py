@@ -37,7 +37,6 @@ from app.services.auth import (
     complete_totp_enrollment,
     confirm_totp_enrollment,
     disable_two_factor,
-    reenroll_totp,
     is_totp_enabled,
     issue_mfa_challenge,
     login,
@@ -209,12 +208,13 @@ async def setup_totp_route(
 @router.post("/2fa/confirm", response_model=RecoveryCodesResponse)
 async def confirm_totp_route(
     data: TotpConfirmRequest,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Verify the enrolment code and return the recovery codes, with two-factor still pending
 
-    Two-factor is only turned on by the complete route once the user acknowledges these codes
+    Two-factor is only turned on by the complete route once the user acknowledges these codes. The
+    permissive resolver lets a recovery-code login run this same flow to re-enrol
 
     Args:
         data: Authenticator code confirming enrolment
@@ -233,10 +233,13 @@ async def confirm_totp_route(
 
 @router.post("/2fa/complete", status_code=status.HTTP_204_NO_CONTENT)
 async def complete_totp_route(
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Turn on two-factor after the user has saved their recovery codes
+
+    The permissive resolver lets a recovery-code login finish re-enrolment here, which also lifts the
+    restriction
 
     Args:
         user: Authenticated user resolved from the access token
@@ -246,28 +249,6 @@ async def complete_totp_route(
         HTTPException: Enrolment was not confirmed first, or there is no pending setup
     """
     await complete_totp_enrollment(db, user.id)
-
-
-@router.post("/2fa/reenroll", status_code=status.HTTP_204_NO_CONTENT)
-async def reenroll_totp_route(
-    data: TotpConfirmRequest,
-    user: Annotated[User, Depends(get_authenticated_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Re-enable TOTP after a recovery-code login, lifting the re-enrolment restriction
-
-    Uses the permissive resolver because the restricted session can reach nothing else, and only
-    succeeds while re-enrolment is pending so it cannot enable TOTP without acknowledged recovery codes
-
-    Args:
-        data: Code from the freshly set up authenticator
-        user: Authenticated user resolved from the access token
-        db: Active database session
-
-    Raises:
-        HTTPException: No re-enrolment is pending, or the code does not verify
-    """
-    await reenroll_totp(db, user.id, data.code)
 
 
 @router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)

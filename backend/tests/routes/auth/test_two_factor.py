@@ -254,31 +254,44 @@ async def test_restricted_session_is_blocked_from_normal_routes(client):
     assert blocked.status_code == 403
 
 
-async def test_restricted_session_re_enrols_and_unlocks(client):
-    """A recovery-code session can set up a fresh authenticator, which lifts the restriction"""
-    _, _, codes = await _enroll(client)
-    token = (await _login_with_code(client, codes[0])).json()["access_token"]
+async def test_restricted_session_re_enrols_with_fresh_codes(client):
+    """A recovery-code session re-enrols through setup, confirm, and complete, getting a fresh batch"""
+    _, _, old_codes = await _enroll(client)
+    token = (await _login_with_code(client, old_codes[0])).json()["access_token"]
     restricted = {"Authorization": f"Bearer {token}"}
 
-    setup = await client.post("/auth/2fa/setup", headers=restricted)
-    assert setup.status_code == 200
+    secret = (await client.post("/auth/2fa/setup", headers=restricted)).json()["secret"]
+    confirm = await client.post("/auth/2fa/confirm", headers=restricted, json={"code": pyotp.TOTP(secret).now()})
+    assert confirm.status_code == 200
+    new_codes = confirm.json()["recovery_codes"]
+    assert set(new_codes).isdisjoint(old_codes)
 
-    reenroll = await client.post(
-        "/auth/2fa/reenroll", headers=restricted, json={"code": pyotp.TOTP(setup.json()["secret"]).now()}
-    )
-    assert reenroll.status_code == 204
+    complete = await client.post("/auth/2fa/complete", headers=restricted)
+    assert complete.status_code == 204
 
     unlocked = await client.get("/auth/2fa/status", headers=restricted)
     assert unlocked.status_code == 200
     assert unlocked.json()["totp_enabled"] is True
 
+    # The old batch is replaced, so a leftover old code no longer signs in
+    assert (await _login_with_code(client, old_codes[1])).status_code == 401
 
-async def test_reenroll_is_refused_without_a_pending_restriction(client):
-    """A normal session cannot use re-enrol to turn on TOTP and skip the recovery code step"""
-    auth, secret, _ = await _enroll(client)
 
-    resp = await client.post("/auth/2fa/reenroll", headers=auth, json={"code": pyotp.TOTP(secret).now()})
-    assert resp.status_code == 400
+async def test_old_recovery_codes_survive_an_abandoned_reenrol(client):
+    """Confirming a re-enrol stages new codes, but an old code keeps working until completion"""
+    _, _, old_codes = await _enroll(client)
+    token = (await _login_with_code(client, old_codes[0])).json()["access_token"]
+    restricted = {"Authorization": f"Bearer {token}"}
+
+    # Confirm a fresh authenticator but abandon before completing
+    secret = (await client.post("/auth/2fa/setup", headers=restricted)).json()["secret"]
+    confirm = await client.post("/auth/2fa/confirm", headers=restricted, json={"code": pyotp.TOTP(secret).now()})
+    assert confirm.status_code == 200
+
+    # A remaining old code still signs in, proving the staged batch did not replace it
+    again = await _login_with_code(client, old_codes[1])
+    assert again.status_code == 200
+    assert again.json()["user"]["totp_reenrollment_required"] is True
 
 
 async def test_recovery_codes_are_single_use_and_deplete(client):

@@ -58,6 +58,10 @@ class RecoveryCode(Base):
 
     # Only the hash is stored so a leaked table cannot be used as a second factor
     code_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+
+    # Staged at enrolment confirmation and promoted on completion, so a current batch keeps working
+    # until the user acknowledges the new one
+    pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

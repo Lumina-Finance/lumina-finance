@@ -4,7 +4,7 @@ import secrets
 import uuid
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import RecoveryCode
@@ -43,49 +43,76 @@ async def delete_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user_id))
 
 
-async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> list[str]:
-    """Replace the user's recovery codes with a fresh batch and return the plaintext
+async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID, *, pending: bool = False) -> list[str]:
+    """Issue a fresh batch of recovery codes and return the plaintext
 
-    The plaintext is shown to the user once and never stored, only the hashes are kept. The
-    caller commits so the batch is atomic with confirming or regenerating
+    The plaintext is shown to the user once and never stored, only the hashes are kept. A pending
+    batch is staged for enrolment and leaves any active batch usable until completion, while a
+    non-pending batch replaces the whole set at once. The caller commits
 
     Args:
         db: Active database session
         user_id: User receiving the codes
+        pending: Whether to stage the batch as pending rather than replace the active set
 
     Returns:
         The plaintext recovery codes to display once
     """
-    await delete_recovery_codes(db, user_id)
+    if pending:
+        # Replace only a prior staged batch so the active codes keep working until completion
+        await db.execute(
+            delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True))
+        )
+    else:
+        await delete_recovery_codes(db, user_id)
 
     codes = [_build_recovery_code() for _ in range(_RECOVERY_CODE_COUNT)]
     for code in codes:
-        db.add(RecoveryCode(user_id=user_id, code_hash=hash_token(code)))
+        db.add(RecoveryCode(user_id=user_id, code_hash=hash_token(code), pending=pending))
 
     return codes
 
 
-async def has_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bool:
-    """Return whether the user has any recovery codes, the signal that enrolment was confirmed
+async def activate_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Promote the staged batch to active, discarding the superseded active codes
+
+    The caller commits so promotion is atomic with enabling the new authenticator
+
+    Args:
+        db: Active database session
+        user_id: User whose pending batch becomes active
+    """
+    await db.execute(
+        delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False))
+    )
+    await db.execute(
+        update(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).values(pending=False)
+    )
+
+
+async def has_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    """Return whether a staged batch exists, the signal that enrolment was confirmed
 
     Args:
         db: Active database session
         user_id: User to check
 
     Returns:
-        Whether at least one recovery code exists
+        Whether at least one pending recovery code exists
     """
 
     # Probe for a single row rather than counting the whole batch
-    result = await db.execute(select(RecoveryCode.id).where(RecoveryCode.user_id == user_id).limit(1))
+    result = await db.execute(
+        select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).limit(1)
+    )
     return result.first() is not None
 
 
 async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
-    """Redeem one recovery code by deleting its row
+    """Redeem one active recovery code by deleting its row
 
     The delete is scoped by user and hash so a code is single use and cannot redeem against
-    another user. The caller commits the surrounding transaction
+    another user, and staged codes are excluded so they only work once activated. The caller commits
 
     Args:
         db: Active database session
@@ -93,12 +120,13 @@ async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str)
         code: Submitted recovery code
 
     Returns:
-        Whether a matching code existed and was claimed
+        Whether a matching active code existed and was claimed
     """
     result = await db.execute(
         delete(RecoveryCode).where(
             RecoveryCode.user_id == user_id,
             RecoveryCode.code_hash == hash_token(code),
+            RecoveryCode.pending.is_(False),
         )
     )
     return result.rowcount == 1
