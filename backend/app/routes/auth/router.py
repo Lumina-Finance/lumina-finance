@@ -21,6 +21,7 @@ from app.schemas.auth import (
     DisableTotpRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    MfaRequiredResponse,
     MfaVerifyRequest,
     RecoveryCodesResponse,
     RegenerateRecoveryCodesRequest,
@@ -34,6 +35,8 @@ from app.services.auth import (
     change_password,
     confirm_totp_enrollment,
     disable_two_factor,
+    is_totp_enabled,
+    issue_mfa_challenge,
     login,
     regenerate_recovery_codes,
     request_password_reset,
@@ -72,14 +75,14 @@ async def signup_route(
     return auth_response
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse | MfaRequiredResponse)
 async def login_route(
     data: LoginRequest,
     request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Authenticate a user and issue a token pair
+    """Authenticate a user, issuing tokens or a second-factor challenge
 
     Args:
         data: Login payload with email and password
@@ -88,12 +91,18 @@ async def login_route(
         db: Active database session
 
     Returns:
-        Auth response with user info and access token
+        Auth response with tokens, or a challenge when a second factor is required
 
     Raises:
         HTTPException: Credentials are invalid or the account is locked
     """
     user = await login(db, data)
+
+    # A confirmed second factor holds back tokens until the verify endpoint clears the challenge
+    if await is_totp_enabled(db, user.id):
+        challenge_token = await issue_mfa_challenge(db, user.id)
+        return MfaRequiredResponse(mfa_token=challenge_token)
+
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response
 
