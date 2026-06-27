@@ -10,7 +10,7 @@ const EASE = [0.25, 0.1, 0.25, 1] as const;
 export interface StepUpCredentials {
   /** Empty when the modal does not collect a password */
   password: string;
-  /** A current TOTP code or a recovery code */
+  /** A current TOTP code */
   code: string;
 }
 
@@ -30,8 +30,9 @@ interface StepUpModalProps {
 }
 
 /**
- * Re-verifies the second factor before a sensitive action, the OTP by default with a recovery-code
- * fallback. The parent closes the modal by flipping `open` once onVerify resolves
+ * Re-verifies the authenticator before a sensitive action. Only a TOTP code is accepted, never a
+ * recovery code, since recovery codes are a login-only break-glass. The parent closes the modal by
+ * flipping `open` once onVerify resolves
  */
 export function StepUpModal({
   open,
@@ -43,25 +44,19 @@ export function StepUpModal({
   onClose,
   onVerify,
 }: StepUpModalProps) {
-  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [recoveryCode, setRecoveryCode] = useState('');
   const [error, setError] = useState('');
   const [verifying, setVerifying] = useState(false);
 
-  const enteredCode = useRecoveryCode ? recoveryCode.trim() : otp;
-  const codeReady = useRecoveryCode ? enteredCode.length > 0 : otp.length === OTP_LENGTH;
-  const canSubmit = codeReady && (!requirePassword || password.length > 0);
+  const canSubmit = otp.length === OTP_LENGTH && (!requirePassword || password.length > 0);
 
   /**
    * Clears the transient inputs so the modal opens clean next time
    */
   const reset = () => {
-    setUseRecoveryCode(false);
     setPassword('');
     setOtp('');
-    setRecoveryCode('');
     setError('');
   };
 
@@ -75,14 +70,13 @@ export function StepUpModal({
     setVerifying(true);
     const start = Date.now();
     try {
-      await onVerify({ password, code: enteredCode });
+      await onVerify({ password, code: otp });
       await delayToMinimum(start);
       reset();
     } catch {
       await delayToMinimum(start);
       setError('That did not work. Check your details and try again.');
       setOtp('');
-      setRecoveryCode('');
     } finally {
       setVerifying(false);
     }
@@ -95,16 +89,6 @@ export function StepUpModal({
     if (verifying) return;
     reset();
     onClose();
-  };
-
-  /**
-   * Switches between the authenticator code and a recovery code, clearing the code inputs
-   */
-  const toggleRecoveryCode = () => {
-    setUseRecoveryCode((current) => !current);
-    setOtp('');
-    setRecoveryCode('');
-    setError('');
   };
 
   return createPortal(
@@ -147,21 +131,7 @@ export function StepUpModal({
               />
             )}
 
-            {useRecoveryCode ? (
-              <input
-                className="app-input w-full"
-                placeholder="Recovery code"
-                // A recovery code is not a TOTP code, so suppress one-time-code autofill from password managers
-                autoComplete="off"
-                data-1p-ignore
-                data-lpignore="true"
-                value={recoveryCode}
-                onChange={(event) => setRecoveryCode(event.target.value)}
-                autoFocus={!requirePassword}
-              />
-            ) : (
-              <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword} />
-            )}
+            <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword} />
 
             {error && (
               <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
@@ -176,15 +146,6 @@ export function StepUpModal({
               className={`${danger ? 'app-danger-button' : 'app-primary-button'} w-full`}
             >
               {verifying ? <div className="app-spinner" /> : confirmLabel}
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleRecoveryCode}
-              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-              style={{ color: 'var(--app-accent)' }}
-            >
-              {useRecoveryCode ? 'Use authenticator code' : 'Enter a recovery code instead'}
             </button>
           </motion.div>
         </motion.div>
