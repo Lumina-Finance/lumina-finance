@@ -1,4 +1,4 @@
-import { AlertTriangle } from 'lucide-react';
+import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { copyText } from '@/utils/clipboard';
 
 const RECOVERY_CODES_FILENAME = 'lumina-recovery-codes.txt';
@@ -50,16 +50,10 @@ export function RecoveryCodesPanel({ codes }: RecoveryCodesPanelProps) {
         </button>
       </div>
 
-      <div
-        className="flex items-start gap-2 rounded-lg p-3 text-xs"
-        style={{ backgroundColor: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
-      >
-        <AlertTriangle size={16} strokeWidth={2} className="mt-0.5 shrink-0" aria-hidden />
-        <span>
-          If you lose access to both your authenticator app and these recovery codes, you may be permanently
-          locked out of your account.
-        </span>
-      </div>
+      <WarningCallout>
+        If you lose access to both your authenticator app and these recovery codes, you may be permanently
+        locked out of your account.
+      </WarningCallout>
     </div>
   );
 }
