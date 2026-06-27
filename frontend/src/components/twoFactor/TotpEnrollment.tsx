@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
 import { OtpInput } from '@/components/OtpInput';
+import { delayToMinimum } from '@/utils/timing';
 
 const OTP_LENGTH = 6;
 const RECOVERY_CODES_FILENAME = 'lumina-recovery-codes.txt';
@@ -32,6 +33,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
   const [error, setError] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [savedAcknowledged, setSavedAcknowledged] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   // Generate the pending secret once when the flow opens
   const startSetup = setup.mutate;
@@ -42,20 +44,23 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
   /**
    * Confirms the entered code, revealing the recovery codes on success and allowing a retry on failure
    */
-  const handleConfirm = () => {
-    if (code.length < OTP_LENGTH || confirm.isPending) return;
+  const handleConfirm = async () => {
+    if (code.length < OTP_LENGTH || confirming) return;
 
     setError('');
-    confirm.mutate(
-      { code },
-      {
-        onSuccess: (result) => setRecoveryCodes(result.recovery_codes),
-        onError: () => {
-          setError('That code was incorrect. Try again.');
-          setCode('');
-        },
-      },
-    );
+    setConfirming(true);
+    const start = Date.now();
+    try {
+      const result = await confirm.mutateAsync({ code });
+      await delayToMinimum(start);
+      setRecoveryCodes(result.recovery_codes);
+    } catch {
+      await delayToMinimum(start);
+      setError('That code was incorrect. Try again.');
+      setCode('');
+    } finally {
+      setConfirming(false);
+    }
   };
 
   /**
@@ -151,7 +156,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
             </p>
           )}
 
-          <OtpInput value={code} onChange={setCode} disabled={confirm.isPending} autoFocus />
+          <OtpInput value={code} onChange={setCode} disabled={confirming} autoFocus />
 
           {error && (
             <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
@@ -162,10 +167,10 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={confirm.isPending || code.length < OTP_LENGTH}
+            disabled={confirming || code.length < OTP_LENGTH}
             className="app-primary-button w-full"
           >
-            {confirm.isPending ? <div className="app-spinner" /> : 'Confirm'}
+            {confirming ? <div className="app-spinner" /> : 'Confirm'}
           </button>
 
           {onSkip && (

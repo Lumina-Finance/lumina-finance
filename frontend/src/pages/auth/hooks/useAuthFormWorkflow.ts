@@ -4,12 +4,11 @@ import { animate } from 'motion/react'
 import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
-import { waitForMilliseconds } from '@/utils/timing'
+import { delayToMinimum } from '@/utils/timing'
 import {
   FADE_OUT_MS,
   LOCKOUT_KEY,
   MFA_CODE_LENGTH,
-  MIN_LOADING_MS,
   buildInitialAuthForm,
   buildLoginPayload,
   buildSignupPayload,
@@ -156,10 +155,7 @@ export function useAuthFormWorkflow({
         setError(getAuthErrorMessage(err))
         return
       }
-      const forgotElapsed = Date.now() - forgotStart
-      if (forgotElapsed < MIN_LOADING_MS) {
-        await waitForMilliseconds(MIN_LOADING_MS - forgotElapsed)
-      }
+      await delayToMinimum(forgotStart)
       setSubmitting(false)
       setSubmitted(true)
       return
@@ -197,10 +193,7 @@ export function useAuthFormWorkflow({
       return
     }
 
-    const elapsed = Date.now() - start
-    if (elapsed < MIN_LOADING_MS) {
-      await waitForMilliseconds(MIN_LOADING_MS - elapsed)
-    }
+    await delayToMinimum(start)
 
     // A login that needs a second factor morphs to the code step instead of completing
     if (isMfaRequired(res)) {
@@ -247,11 +240,13 @@ export function useAuthFormWorkflow({
     if (!mfaToken || mfaCode.length < MFA_CODE_LENGTH) return
 
     setMfaSubmitting(true)
+    const start = Date.now()
     let res: AuthResponse
     try {
       res = await verifyMfa({ mfa_token: mfaToken, code: mfaCode })
     } catch (err) {
       // The challenge is single-use, so a rejected code sends the user back to log in afresh
+      await delayToMinimum(start)
       setMfaSubmitting(false)
       setMfaToken(null)
       setMfaCode('')
@@ -259,6 +254,7 @@ export function useAuthFormWorkflow({
       return
     }
 
+    await delayToMinimum(start)
     if (containerRef.current) {
       await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
     }
