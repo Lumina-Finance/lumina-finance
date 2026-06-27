@@ -184,3 +184,9 @@ class MfaVerifyRequest(BaseModel):
 
     mfa_token: str
     code: str
+
+
+class TotpStatusResponse(BaseModel):
+    """Whether the current user has confirmed two-factor authentication"""
+
+    totp_enabled: bool

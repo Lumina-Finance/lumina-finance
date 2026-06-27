@@ -29,6 +29,7 @@ from app.schemas.auth import (
     SignupRequest,
     TotpConfirmRequest,
     TotpSetupResponse,
+    TotpStatusResponse,
 )
 from app.services.auth import (
     begin_totp_setup,
@@ -159,6 +160,23 @@ async def reset_password_route(
         HTTPException: The token is invalid, used, or expired
     """
     await reset_password(db, data.token, data.new_password)
+
+
+@router.get("/2fa/status", response_model=TotpStatusResponse)
+async def totp_status_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Report whether the authenticated user has two-factor enabled
+
+    Args:
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        Whether a confirmed TOTP credential exists
+    """
+    return TotpStatusResponse(totp_enabled=await is_totp_enabled(db, user.id))
 
 
 @router.post("/2fa/setup", response_model=TotpSetupResponse)
