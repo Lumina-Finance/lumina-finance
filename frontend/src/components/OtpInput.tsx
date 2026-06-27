@@ -26,8 +26,20 @@ export function OtpInput({ value, onChange, length = 6, disabled = false, autoFo
 
   /**
    * Writes the typed digit at its position and advances focus, ignoring non-digits
+   *
+   * A password manager autofills the whole code into the first box at once, so any multi-digit input
+   * is spread across the boxes rather than collapsed to a single character
    */
   const handleBoxChange = (index: number, raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+
+    if (digits.length > 1) {
+      const filled = (value.slice(0, index) + digits).slice(0, length);
+      onChange(filled);
+      focusBox(filled.length);
+      return;
+    }
+
     const digit = raw.slice(-1);
     if (digit && !DIGIT_PATTERN.test(digit)) return;
 
@@ -70,7 +82,8 @@ export function OtpInput({ value, onChange, length = 6, disabled = false, autoFo
           type="text"
           inputMode="numeric"
           autoComplete={index === 0 ? 'one-time-code' : 'off'}
-          maxLength={1}
+          // The first box accepts the full autofilled code, which handleBoxChange spreads across boxes
+          maxLength={index === 0 ? length : 1}
           autoFocus={autoFocus && index === 0}
           disabled={disabled}
           value={value[index] ?? ''}
