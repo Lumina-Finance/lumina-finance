@@ -170,3 +170,17 @@ class RecoveryCodesResponse(BaseModel):
     """One-time recovery codes shown once after enrolment or regeneration"""
 
     recovery_codes: list[str]
+
+
+class MfaRequiredResponse(BaseModel):
+    """Login result when a verified password still needs a second factor"""
+
+    mfa_required: bool = True
+    mfa_token: str  # short-lived challenge token exchanged at the verify endpoint
+
+
+class MfaVerifyRequest(BaseModel):
+    """Second-factor verification pairing the challenge token with a code"""
+
+    mfa_token: str
+    code: str
