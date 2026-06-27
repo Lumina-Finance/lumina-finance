@@ -2,6 +2,7 @@
 
 import uuid
 
+import pyotp
 from sqlalchemy import select
 
 from app.models.auth import PasswordCredential
@@ -114,4 +115,50 @@ async def test_change_password_requires_authentication(client):
         json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": _NEW_PASSWORD},
     )
 
+    assert resp.status_code == 401
+
+
+async def _enable_totp(client, headers):
+    """Enrol the authenticated user in TOTP and return the secret"""
+    secret = (await client.post("/auth/2fa/setup", headers=headers)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=headers, json={"code": pyotp.TOTP(secret).now()})
+    return secret
+
+
+async def test_change_password_requires_second_factor_when_totp_enabled(client):
+    """With 2FA on, a missing code is rejected while a valid code lets the change through"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    secret = await _enable_totp(client, headers)
+
+    without_code = await client.patch(
+        "/auth/password",
+        json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": _NEW_PASSWORD},
+        headers=headers,
+    )
+    assert without_code.status_code == 401
+
+    with_code = await client.patch(
+        "/auth/password",
+        json={
+            "current_password": SIGNUP_PAYLOAD["password"],
+            "new_password": _NEW_PASSWORD,
+            "code": pyotp.TOTP(secret).now(),
+        },
+        headers=headers,
+    )
+    assert with_code.status_code == 204
+
+
+async def test_change_password_rejects_wrong_second_factor(client):
+    """With 2FA on, a wrong code is rejected"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    await _enable_totp(client, headers)
+
+    resp = await client.patch(
+        "/auth/password",
+        json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": _NEW_PASSWORD, "code": "000000"},
+        headers=headers,
+    )
     assert resp.status_code == 401
