@@ -5,7 +5,7 @@ from typing import Any
 
 import jwt
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from fastapi import Request, Response
+from fastapi import HTTPException, Request, Response, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
@@ -17,12 +17,14 @@ from app.config import (
     JWT_REFRESH_PRIVATE_KEY,
     JWT_REFRESH_ROTATION_GRACE_SECONDS,
 )
+from app.database import current_user_id_ctx
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
 from app.routes.auth.cookie_helpers import set_refresh_cookie
 from app.schemas.auth import AuthResponse, UserInfo
+from app.services.auth.mfa_challenge import consume_mfa_challenge
 from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
@@ -31,6 +33,7 @@ from app.services.auth.sessions import (
     rotate_auth_session_tokens,
 )
 from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
+from app.services.auth.totp import is_user_totp_code_valid
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
 _access_public_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None).public_key()
@@ -117,6 +120,52 @@ def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> No
     """
     if payload.get("token_use") != expected_token_use:
         raise jwt.InvalidTokenError("Invalid token use")
+
+
+async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str) -> User:
+    """Verify a second factor against a challenge token and return the authenticated user
+
+    The challenge is consumed and committed before the code is checked, so a wrong code still
+    spends this single-use token and the user must log in again. A verified code adopts the
+    user's identity to load their row under the self-only policy
+
+    Args:
+        db: Active database session
+        mfa_token: Challenge token issued when login required a second factor
+        code: Submitted authenticator code
+
+    Returns:
+        The user who passed the second factor
+
+    Raises:
+        HTTPException: The challenge or the code does not verify
+    """
+    try:
+        payload = decode_mfa_challenge_token(mfa_token)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge") from None
+
+    user_id = uuid.UUID(payload["sub"])
+    challenge_jti = uuid.UUID(payload["jti"])
+
+    # The challenge token is signature-verified, so adopt its subject as the identity that the
+    # transactions below stamp onto their connection for the self-only users policy
+    current_user_id_ctx.set(user_id)
+
+    # Consume and commit before checking the code so a wrong code still burns the single-use challenge
+    challenge_valid = await consume_mfa_challenge(db, challenge_jti, user_id)
+    await db.commit()
+    if not challenge_valid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
+
+    if not await is_user_totp_code_valid(db, user_id, code):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
+
+    return user
 
 
 async def get_active_token_by_jti(

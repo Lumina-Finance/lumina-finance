@@ -12,6 +12,7 @@ from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
+    complete_mfa_challenge,
     issue_and_store_tokens,
 )
 from app.schemas.auth import (
@@ -20,6 +21,7 @@ from app.schemas.auth import (
     DisableTotpRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    MfaVerifyRequest,
     RecoveryCodesResponse,
     RegenerateRecoveryCodesRequest,
     ResetPasswordRequest,
@@ -234,6 +236,32 @@ async def regenerate_recovery_codes_route(
     """
     codes = await regenerate_recovery_codes(db, user, data.password, data.code)
     return RecoveryCodesResponse(recovery_codes=codes)
+
+
+@router.post("/2fa/verify", response_model=AuthResponse)
+async def verify_totp_route(
+    data: MfaVerifyRequest,
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Complete login by verifying the second factor and issuing a token pair
+
+    Args:
+        data: Challenge token and the authenticator code
+        request: FastAPI request object
+        response: FastAPI response object for setting the refresh cookie
+        db: Active database session
+
+    Returns:
+        Auth response with user info and access token
+
+    Raises:
+        HTTPException: The challenge or the code does not verify
+    """
+    user = await complete_mfa_challenge(db, data.mfa_token, data.code)
+    auth_response = await issue_and_store_tokens(db, request, response, user)
+    return auth_response
 
 
 @router.post("/refresh", response_model=AuthResponse)
