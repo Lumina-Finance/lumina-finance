@@ -12,3 +12,13 @@ export interface ConfirmTotpPayload {
 export interface RecoveryCodesResponse {
   recovery_codes: string[];
 }
+
+export interface TotpStatusResponse {
+  totp_enabled: boolean;
+}
+
+export interface StepUpPayload {
+  password: string;
+  /** A current TOTP code or a recovery code */
+  code: string;
+}
