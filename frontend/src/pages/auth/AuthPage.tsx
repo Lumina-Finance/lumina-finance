@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
 import { OtpInput } from '@/components/OtpInput';
+import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
@@ -56,6 +57,8 @@ const AuthPage = () => {
     mfaSubmitting,
     handleMfaSubmit,
     cancelMfa,
+    enrolling,
+    finishEnrollment,
   } = useAuthFormWorkflow({
     containerRef,
     currencies,
@@ -80,13 +83,27 @@ const AuthPage = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <form onSubmit={mfaActive ? handleMfaSubmit : handleSubmit} className="w-full max-w-sm" noValidate>
+      <form
+        onSubmit={(event) => {
+          if (enrolling) {
+            event.preventDefault();
+            return;
+          }
+          (mfaActive ? handleMfaSubmit : handleSubmit)(event);
+        }}
+        className="w-full max-w-sm"
+        noValidate
+      >
         <AuthAnimatedTitle mode={mode} />
 
         <AuthErrorBanner error={displayError} />
 
         <AnimatePresence mode="wait" initial={false}>
-          {mfaActive ? (
+          {enrolling ? (
+            <motion.div key="totp-enrollment" className="mt-5" {...AUTH_VIEW_TRANSITION}>
+              <TotpEnrollment onComplete={finishEnrollment} onSkip={finishEnrollment} />
+            </motion.div>
+          ) : mfaActive ? (
             <motion.div key="mfa-code" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 Enter the 6-digit code from your authenticator app.

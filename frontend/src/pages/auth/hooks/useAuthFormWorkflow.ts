@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type RefObject } from 'react'
+import { useRef, useState, type FormEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { animate } from 'motion/react'
 import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
@@ -46,8 +46,9 @@ export function useAuthFormWorkflow({
   detectedTimezone,
   mode,
 }: UseAuthFormWorkflowParams) {
-  const { login, verifyMfa, signup, setSession } = useAuth()
+  const { login, verifyMfa, signup, setSession, primeAccessToken } = useAuth()
   const navigate = useNavigate()
+  const pendingAuthRef = useRef<AuthResponse | null>(null)
   const [form, setForm] = useState<AuthFormValues>(() => buildInitialAuthForm(detectedTimezone))
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
@@ -58,6 +59,7 @@ export function useAuthFormWorkflow({
   const [mfaToken, setMfaToken] = useState<string | null>(null)
   const [mfaCode, setMfaCode] = useState('')
   const [mfaSubmitting, setMfaSubmitting] = useState(false)
+  const [enrolling, setEnrolling] = useState(false)
 
   const isLogin = mode === 'login'
   const mfaActive = mfaToken !== null
@@ -207,10 +209,33 @@ export function useAuthFormWorkflow({
       return
     }
 
+    // Signup offers a skippable 2FA setup before the app, so the token is primed without
+    // committing a session, keeping the auth page mounted rather than redirecting home
+    if (!isLogin) {
+      setSubmitting(false)
+      pendingAuthRef.current = res
+      primeAccessToken(res.access_token)
+      setEnrolling(true)
+      return
+    }
+
     if (containerRef.current) {
       await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
     }
     setSession(res)
+    navigate('/', { replace: true })
+  }
+
+  /**
+   * Leaves the signup 2FA step for the app, whether the user enrolled or skipped
+   */
+  const finishEnrollment = async () => {
+    if (containerRef.current) {
+      await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
+    }
+    if (pendingAuthRef.current) {
+      setSession(pendingAuthRef.current)
+    }
     navigate('/', { replace: true })
   }
 
@@ -274,5 +299,7 @@ export function useAuthFormWorkflow({
     mfaSubmitting,
     handleMfaSubmit,
     cancelMfa,
+    enrolling,
+    finishEnrollment,
   }
 }

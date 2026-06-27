@@ -26,6 +26,8 @@ export interface AuthContextValue extends AuthState {
   signup: (payload: SignupPayload) => Promise<AuthResponse>;
   /** Commit an auth response to state — call after any transition animations */
   setSession: (res: AuthResponse) => void;
+  /** Make an access token usable by requests without committing a session, for the signup 2FA step */
+  primeAccessToken: (token: string) => void;
   /** Replace just the user profile — used after /me updates to keep the context fresh */
   setUser: (user: User) => void;
   logout: () => Promise<void>;
@@ -173,6 +175,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user: res.user, accessToken: res.access_token, loading: false });
   }, []);
 
+  const primeAccessToken = useCallback((token: string) => {
+    // Make the token usable by authenticated requests without setting `user`, so the signup
+    // 2FA step can call the API while the auth page stays mounted instead of redirecting home.
+    // The ref is updated synchronously so getAccessToken sees the token before the effect runs
+    stateRef.current = { ...stateRef.current, accessToken: token };
+    setState((prev) => ({ ...prev, accessToken: token }));
+  }, []);
+
   const setUser = useCallback((user: User) => {
     setState((prev) => ({ ...prev, user }));
   }, []);
@@ -190,8 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.accessToken, queryClient]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, verifyMfa, signup, setSession, setUser, logout }),
-    [state, login, verifyMfa, signup, setSession, setUser, logout],
+    () => ({ ...state, login, verifyMfa, signup, setSession, primeAccessToken, setUser, logout }),
+    [state, login, verifyMfa, signup, setSession, primeAccessToken, setUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
