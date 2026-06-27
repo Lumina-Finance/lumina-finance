@@ -78,7 +78,9 @@ export function OtpInput({ value, onChange, length = 6, disabled = false, autoFo
           onKeyDown={(event) => handleKeyDown(index, event)}
           onPaste={handlePaste}
           aria-label={`Digit ${index + 1}`}
-          className="app-input h-12 w-10 text-center text-lg"
+          // Override the app-input horizontal padding so the centred digit is not clipped in a narrow box
+          style={{ paddingLeft: 0, paddingRight: 0 }}
+          className="app-input h-12 w-12 text-center text-lg"
         />
       ))}
     </div>
