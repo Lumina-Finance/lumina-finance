@@ -4,7 +4,7 @@ import secrets
 import uuid
 from pathlib import Path
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import RecoveryCode
@@ -63,6 +63,22 @@ async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> list[
         db.add(RecoveryCode(user_id=user_id, code_hash=hash_token(code)))
 
     return codes
+
+
+async def has_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    """Return whether the user has any recovery codes, the signal that enrolment was confirmed
+
+    Args:
+        db: Active database session
+        user_id: User to check
+
+    Returns:
+        Whether at least one recovery code exists
+    """
+
+    # Probe for a single row rather than counting the whole batch
+    result = await db.execute(select(RecoveryCode.id).where(RecoveryCode.user_id == user_id).limit(1))
+    return result.first() is not None
 
 
 async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:

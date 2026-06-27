@@ -9,6 +9,7 @@ from app.services.auth.signup import signup
 from app.services.auth.tokens import create_access_token, create_refresh_token
 from app.services.auth.totp import begin_totp_setup, is_totp_enabled
 from app.services.auth.two_factor import (
+    complete_totp_enrollment,
     confirm_totp_enrollment,
     disable_two_factor,
     regenerate_recovery_codes,
@@ -17,6 +18,7 @@ from app.services.auth.two_factor import (
 __all__ = [
     "begin_totp_setup",
     "change_password",
+    "complete_totp_enrollment",
     "confirm_totp_enrollment",
     "create_access_token",
     "create_refresh_token",

@@ -23,6 +23,7 @@ async def _enroll_with_id(client):
     auth = _get_auth_header(signup)
     secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
     return auth, secret, signup.json()["user"]["id"]
 
 
@@ -31,6 +32,7 @@ async def _enroll(client):
     auth = _get_auth_header(await _create_user(client))
     secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
     confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
     return auth, secret, confirm.json()["recovery_codes"]
 
 
@@ -44,13 +46,14 @@ async def test_status_reflects_enrolment(client):
 
     secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
 
     after = await client.get("/auth/2fa/status", headers=auth)
     assert after.json()["totp_enabled"] is True
 
 
-async def test_setup_then_confirm_enables_totp_and_returns_recovery_codes(client):
-    """A valid setup and confirm turns on 2FA and returns the one-time recovery codes"""
+async def test_confirm_returns_recovery_codes_but_leaves_two_factor_pending(client):
+    """Confirm returns the one-time recovery codes yet two-factor stays off until completion"""
     auth = _get_auth_header(await _create_user(client))
 
     setup = await client.post("/auth/2fa/setup", headers=auth)
@@ -65,6 +68,35 @@ async def test_setup_then_confirm_enables_totp_and_returns_recovery_codes(client
     codes = confirm.json()["recovery_codes"]
     assert len(codes) == 6
     assert all(code.count("-") == 4 for code in codes)
+
+    # Closing the recovery code screen without completing must leave two-factor un-enrolled
+    status = await client.get("/auth/2fa/status", headers=auth)
+    assert status.json()["totp_enabled"] is False
+
+
+async def test_complete_turns_on_two_factor_after_confirm(client):
+    """Completing enrolment after confirm turns two-factor on"""
+    auth = _get_auth_header(await _create_user(client))
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+
+    complete = await client.post("/auth/2fa/complete", headers=auth)
+    assert complete.status_code == 204
+
+    status = await client.get("/auth/2fa/status", headers=auth)
+    assert status.json()["totp_enabled"] is True
+
+
+async def test_complete_without_confirm_is_rejected(client):
+    """Completing before a code is confirmed is refused so 2FA never enables around an unverified secret"""
+    auth = _get_auth_header(await _create_user(client))
+    await client.post("/auth/2fa/setup", headers=auth)
+
+    complete = await client.post("/auth/2fa/complete", headers=auth)
+    assert complete.status_code == 400
+
+    status = await client.get("/auth/2fa/status", headers=auth)
+    assert status.json()["totp_enabled"] is False
 
 
 async def test_confirm_rejects_a_wrong_code(client):
@@ -81,6 +113,7 @@ async def test_setup_conflicts_once_confirmed(client):
     auth = _get_auth_header(await _create_user(client))
     secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
 
     again = await client.post("/auth/2fa/setup", headers=auth)
     assert again.status_code == 409

@@ -122,6 +122,7 @@ async def _enable_totp(client, headers):
     """Enrol the authenticated user in TOTP and return the secret"""
     secret = (await client.post("/auth/2fa/setup", headers=headers)).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=headers, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=headers)
     return secret
 
 

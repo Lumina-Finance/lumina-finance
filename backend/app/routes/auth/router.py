@@ -34,6 +34,7 @@ from app.schemas.auth import (
 from app.services.auth import (
     begin_totp_setup,
     change_password,
+    complete_totp_enrollment,
     confirm_totp_enrollment,
     disable_two_factor,
     is_totp_enabled,
@@ -206,7 +207,9 @@ async def confirm_totp_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Confirm TOTP enrolment and return the recovery codes
+    """Verify the enrolment code and return the recovery codes, with two-factor still pending
+
+    Two-factor is only turned on by the complete route once the user acknowledges these codes
 
     Args:
         data: Authenticator code confirming enrolment
@@ -221,6 +224,23 @@ async def confirm_totp_route(
     """
     codes = await confirm_totp_enrollment(db, user.id, data.code)
     return RecoveryCodesResponse(recovery_codes=codes)
+
+
+@router.post("/2fa/complete", status_code=status.HTTP_204_NO_CONTENT)
+async def complete_totp_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Turn on two-factor after the user has saved their recovery codes
+
+    Args:
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: Enrolment was not confirmed first, or there is no pending setup
+    """
+    await complete_totp_enrollment(db, user.id)
 
 
 @router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)

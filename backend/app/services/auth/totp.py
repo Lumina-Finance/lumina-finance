@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import pyotp
 from fastapi import HTTPException, status
 from sqlalchemy import delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.encryption import decrypt, encrypt
@@ -70,24 +71,32 @@ async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: s
     Raises:
         HTTPException: TOTP is already confirmed for this user
     """
-    secret = generate_totp_secret()
     credential = await db.get(TotpCredential, user_id)
     if credential is not None and credential.confirmed_at is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Two-factor authentication is already enabled")
 
-    if credential is None:
-        db.add(TotpCredential(user_id=user_id, secret_encrypted=encrypt(secret)))
-    else:
-        credential.secret_encrypted = encrypt(secret)
+    secret = generate_totp_secret()
+    encrypted_secret = encrypt(secret)
+
+    # Upsert atomically so two near-simultaneous setup requests cannot collide on the primary key,
+    # and never overwrite a confirmed secret if confirmation lands between the read above and here
+    upsert = (
+        pg_insert(TotpCredential)
+        .values(user_id=user_id, secret_encrypted=encrypted_secret)
+        .on_conflict_do_update(
+            index_elements=[TotpCredential.user_id],
+            set_={"secret_encrypted": encrypted_secret},
+            where=TotpCredential.confirmed_at.is_(None),
+        )
+    )
+    await db.execute(upsert)
     await db.commit()
 
     return secret, build_totp_provisioning_uri(secret, account_name)
 
 
-async def confirm_totp_setup(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
-    """Confirm a pending TOTP secret by verifying the first code
-
-    The caller commits so confirmation and recovery code issuance share one transaction
+async def is_pending_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
+    """Return whether a code matches the user's pending, not yet confirmed TOTP secret
 
     Args:
         db: Active database session
@@ -95,13 +104,30 @@ async def confirm_totp_setup(db: AsyncSession, user_id: uuid.UUID, code: str) ->
         code: Code from the authenticator app
 
     Returns:
-        Whether a pending secret existed and the code verified
+        Whether a pending secret exists and the code verifies
     """
     credential = await db.get(TotpCredential, user_id)
-    if credential is None:
+    if credential is None or credential.confirmed_at is not None:
         return False
 
-    if not is_totp_code_valid(decrypt(credential.secret_encrypted), code):
+    return is_totp_code_valid(decrypt(credential.secret_encrypted), code)
+
+
+async def mark_totp_confirmed(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    """Turn on two-factor by stamping the pending credential as confirmed
+
+    Enabling is the last enrolment step so an abandoned setup never leaves two-factor half on. The
+    caller commits so it is atomic with any surrounding changes
+
+    Args:
+        db: Active database session
+        user_id: User finishing enrolment
+
+    Returns:
+        Whether a pending credential existed to confirm
+    """
+    credential = await db.get(TotpCredential, user_id)
+    if credential is None or credential.confirmed_at is not None:
         return False
 
     credential.confirmed_at = datetime.now(UTC)
