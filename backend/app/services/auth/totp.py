@@ -122,6 +122,24 @@ async def is_totp_enabled(db: AsyncSession, user_id: uuid.UUID) -> bool:
     return credential is not None and credential.confirmed_at is not None
 
 
+async def is_user_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
+    """Return whether a code matches the user's confirmed TOTP secret
+
+    Args:
+        db: Active database session
+        user_id: User whose secret verifies the code
+        code: Submitted code from the authenticator app
+
+    Returns:
+        Whether the user has a confirmed credential and the code is valid
+    """
+    credential = await db.get(TotpCredential, user_id)
+    if credential is None or credential.confirmed_at is None:
+        return False
+
+    return is_totp_code_valid(decrypt(credential.secret_encrypted), code)
+
+
 async def disable_totp(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Delete the user's TOTP credential
 
