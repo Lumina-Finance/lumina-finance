@@ -161,15 +161,17 @@ async def test_regenerate_replaces_the_codes(client):
     assert set(new_codes).isdisjoint(codes)
 
 
-async def test_regenerate_accepts_a_recovery_code_as_second_factor(client):
-    """A recovery code satisfies the step-up second factor for regeneration"""
+async def test_regenerate_rejects_a_recovery_code_as_second_factor(client):
+    """Step-up takes only the authenticator, so a recovery code cannot rotate the recovery codes"""
     auth, _, codes = await _enroll(client)
 
     regenerate = await client.post(
         "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": codes[0]}
     )
-    assert regenerate.status_code == 200
-    assert len(regenerate.json()["recovery_codes"]) == 6
+    assert regenerate.status_code == 401
+
+    # The rejected code is not consumed, so it still works at login
+    assert (await _login_with_code(client, codes[0])).status_code == 200
 
 
 async def test_verify_completes_login_with_a_valid_code(client):

@@ -11,8 +11,7 @@ from app.models.user import User
 from app.schemas.auth import ChangePasswordRequest
 from app.services.auth.password_helpers import hash_password, is_password_valid
 from app.services.auth.sessions import delete_other_user_auth_sessions
-from app.services.auth.step_up import is_second_factor_valid
-from app.services.auth.totp import is_totp_enabled
+from app.services.auth.totp import is_totp_enabled, is_user_totp_code_valid
 
 
 async def change_password(
@@ -40,9 +39,10 @@ async def change_password(
     if not credential or not is_password_valid(data.current_password, credential.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    # A password change re-verifies the second factor when two-factor is enabled
+    # A password change re-verifies the authenticator when two-factor is enabled, and only a TOTP
+    # code, never a recovery code, since recovery codes are a login-only break-glass
     if await is_totp_enabled(db, user.id) and (
-        not data.code or not await is_second_factor_valid(db, user.id, data.code)
+        not data.code or not await is_user_totp_code_valid(db, user.id, data.code)
     ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid two-factor code")
 
