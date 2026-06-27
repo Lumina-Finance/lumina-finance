@@ -150,3 +150,29 @@ async def test_verify_rejects_a_forged_token(client):
     """A token that is not a valid challenge JWT is rejected"""
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": "not.a.jwt", "code": "000000"})
     assert verify.status_code == 401
+
+
+async def test_login_returns_a_challenge_when_two_factor_is_enabled(client):
+    """An enrolled user logs in to a challenge, then verifies it for tokens"""
+    _, secret, _ = await _enroll_with_id(client)
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
+    body = login.json()
+    assert body["mfa_required"] is True
+    assert "access_token" not in body
+
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": body["mfa_token"], "code": pyotp.TOTP(secret).now()})
+    assert verify.status_code == 200
+    assert verify.json()["access_token"]
+
+
+async def test_login_returns_tokens_without_two_factor(client):
+    """A user with no second factor logs straight in to tokens"""
+    await _create_user(client)
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
+    body = login.json()
+    assert body["access_token"]
+    assert "mfa_required" not in body
