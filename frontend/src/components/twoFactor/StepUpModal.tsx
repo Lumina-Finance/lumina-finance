@@ -7,41 +7,66 @@ import { delayToMinimum } from '@/utils/timing';
 const OTP_LENGTH = 6;
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 
+export interface StepUpCredentials {
+  /** Empty when the modal does not collect a password */
+  password: string;
+  /** A current TOTP code or a recovery code */
+  code: string;
+}
+
 interface StepUpModalProps {
   open: boolean;
   title: string;
   description: string;
+  /** Collects the current password alongside the code, for actions the backend re-checks it on */
+  requirePassword?: boolean;
+  /** Confirm button text, defaulting to a neutral verify label */
+  confirmLabel?: string;
+  /** Styles the confirm button as destructive, for actions like turning two-factor off */
+  danger?: boolean;
   onClose: () => void;
-  /** Performs the action with the entered code, rejecting on a bad code so the modal can retry */
-  onVerify: (code: string) => Promise<void>;
+  /** Performs the action with the entered credentials, rejecting on a bad code so the modal can retry */
+  onVerify: (credentials: StepUpCredentials) => Promise<void>;
 }
 
 /**
  * Re-verifies the second factor before a sensitive action, the OTP by default with a recovery-code
  * fallback. The parent closes the modal by flipping `open` once onVerify resolves
  */
-export function StepUpModal({ open, title, description, onClose, onVerify }: StepUpModalProps) {
+export function StepUpModal({
+  open,
+  title,
+  description,
+  requirePassword = false,
+  confirmLabel = 'Verify',
+  danger = false,
+  onClose,
+  onVerify,
+}: StepUpModalProps) {
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [error, setError] = useState('');
   const [verifying, setVerifying] = useState(false);
 
   const enteredCode = useRecoveryCode ? recoveryCode.trim() : otp;
-  const canSubmit = useRecoveryCode ? enteredCode.length > 0 : otp.length === OTP_LENGTH;
+  const codeReady = useRecoveryCode ? enteredCode.length > 0 : otp.length === OTP_LENGTH;
+  const canSubmit = codeReady && (!requirePassword || password.length > 0);
 
   /**
    * Clears the transient inputs so the modal opens clean next time
    */
   const reset = () => {
     setUseRecoveryCode(false);
+    setPassword('');
     setOtp('');
     setRecoveryCode('');
     setError('');
   };
 
   /**
-   * Runs the action with the entered code, surfacing a retryable error on failure
+   * Runs the action with the entered credentials, surfacing a retryable error on failure
    */
   const handleVerify = async () => {
     if (!canSubmit || verifying) return;
@@ -50,12 +75,12 @@ export function StepUpModal({ open, title, description, onClose, onVerify }: Ste
     setVerifying(true);
     const start = Date.now();
     try {
-      await onVerify(enteredCode);
+      await onVerify({ password, code: enteredCode });
       await delayToMinimum(start);
       reset();
     } catch {
       await delayToMinimum(start);
-      setError('That did not work. Check your code and try again.');
+      setError('That did not work. Check your details and try again.');
       setOtp('');
       setRecoveryCode('');
     } finally {
@@ -73,7 +98,7 @@ export function StepUpModal({ open, title, description, onClose, onVerify }: Ste
   };
 
   /**
-   * Switches between the authenticator code and a recovery code, clearing the inputs
+   * Switches between the authenticator code and a recovery code, clearing the code inputs
    */
   const toggleRecoveryCode = () => {
     setUseRecoveryCode((current) => !current);
@@ -110,6 +135,18 @@ export function StepUpModal({ open, title, description, onClose, onVerify }: Ste
               </p>
             </div>
 
+            {requirePassword && (
+              <input
+                className="app-input w-full"
+                type="password"
+                placeholder="Current password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoFocus
+              />
+            )}
+
             {useRecoveryCode ? (
               <input
                 className="app-input w-full"
@@ -117,10 +154,10 @@ export function StepUpModal({ open, title, description, onClose, onVerify }: Ste
                 autoComplete="one-time-code"
                 value={recoveryCode}
                 onChange={(event) => setRecoveryCode(event.target.value)}
-                autoFocus
+                autoFocus={!requirePassword}
               />
             ) : (
-              <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus />
+              <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword} />
             )}
 
             {error && (
@@ -133,9 +170,9 @@ export function StepUpModal({ open, title, description, onClose, onVerify }: Ste
               type="button"
               onClick={handleVerify}
               disabled={!canSubmit || verifying}
-              className="app-primary-button w-full"
+              className={`${danger ? 'app-danger-button' : 'app-primary-button'} w-full`}
             >
-              {verifying ? <div className="app-spinner" /> : 'Verify'}
+              {verifying ? <div className="app-spinner" /> : confirmLabel}
             </button>
 
             <button

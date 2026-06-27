@@ -3,6 +3,7 @@ import type React from 'react'
 import SettingsCard from '@/pages/settings/components/Card'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
+import TwoFactorControls from '@/pages/settings/components/security-section/TwoFactorControls'
 import { NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
 import type { PasswordFormState } from '@/pages/settings/hooks/useSecuritySettingsForm'
 
@@ -36,7 +37,10 @@ export default function SecuritySection({
 
   return (
     <section id="security" className="scroll-mt-8">
-      <SettingsSectionHeader title="Security" description="Manage your account email and password." />
+      <SettingsSectionHeader
+        title="Security"
+        description="Manage your account email, password, and two-factor authentication."
+      />
 
       <div className="space-y-4">
         <SettingsCard>
@@ -114,6 +118,10 @@ export default function SecuritySection({
             </div>
 
             {actions}
+
+            <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
+              <TwoFactorControls />
+            </div>
           </div>
         </SettingsCard>
       </div>
