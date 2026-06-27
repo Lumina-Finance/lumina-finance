@@ -83,6 +83,7 @@ class ChangePasswordRequest(BaseModel):
 
     current_password: str
     new_password: str
+    code: str | None = None  # current TOTP or recovery code, required when two-factor is enabled
 
     @field_validator("new_password")
     @classmethod

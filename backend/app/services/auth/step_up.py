@@ -1,5 +1,7 @@
 """Step-up reauthentication for sensitive two-factor changes"""
 
+import uuid
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +11,23 @@ from app.models.user import User
 from app.services.auth.password_helpers import is_password_valid
 from app.services.auth.recovery_codes import consume_recovery_code
 from app.services.auth.totp import is_user_totp_code_valid
+
+
+async def is_second_factor_valid(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
+    """Return whether a TOTP code or a recovery code verifies, consuming a redeemed recovery code
+
+    Args:
+        db: Active database session
+        user_id: User whose second factor is checked
+        code: A current TOTP code or a recovery code
+
+    Returns:
+        Whether the code matched the TOTP secret or an unused recovery code
+    """
+    if await is_user_totp_code_valid(db, user_id, code):
+        return True
+
+    return await consume_recovery_code(db, user_id, code)
 
 
 async def verify_step_up(db: AsyncSession, user: User, password: str, code: str) -> None:
@@ -33,10 +52,5 @@ async def verify_step_up(db: AsyncSession, user: User, password: str, code: str)
     if credential is None or not is_password_valid(password, credential.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    # Try the TOTP code first since it has no side effect, then fall back to consuming a recovery code
-    if await is_user_totp_code_valid(db, user.id, code):
-        return
-    if await consume_recovery_code(db, user.id, code):
-        return
-
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid two-factor code")
+    if not await is_second_factor_valid(db, user.id, code):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid two-factor code")
