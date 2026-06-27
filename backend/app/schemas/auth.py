@@ -137,3 +137,36 @@ class AuthResponse(BaseModel):
     user: UserInfo
     access_token: str
     token_type: str = "bearer"
+
+
+class TotpSetupResponse(BaseModel):
+    """Secret and provisioning URI returned when TOTP enrolment begins"""
+
+    secret: str  # base32 secret for manual entry
+    provisioning_uri: str  # otpauth URI the client renders as a QR code
+
+
+class TotpConfirmRequest(BaseModel):
+    """Authenticator code that confirms a pending TOTP enrolment"""
+
+    code: str
+
+
+class DisableTotpRequest(BaseModel):
+    """Password and a current second factor authorizing TOTP to be disabled"""
+
+    password: str
+    code: str  # a TOTP code or a recovery code
+
+
+class RegenerateRecoveryCodesRequest(BaseModel):
+    """Password and a current second factor authorizing a fresh recovery code batch"""
+
+    password: str
+    code: str  # a TOTP code or a recovery code
+
+
+class RecoveryCodesResponse(BaseModel):
+    """One-time recovery codes shown once after enrolment or regeneration"""
+
+    recovery_codes: list[str]
