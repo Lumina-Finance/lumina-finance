@@ -4,6 +4,7 @@ import MerchantSettingsSection from '@/pages/settings/components/merchant-settin
 import TagSettingsSection from '@/pages/settings/components/tag-settings-section'
 import ProfileSection from '@/pages/settings/components/ProfileSection'
 import RunwaySection from '@/pages/settings/components/runway-section'
+import { StepUpModal } from '@/components/twoFactor/StepUpModal'
 import SecuritySection from '@/pages/settings/components/security-section'
 import {
   SettingsDesktopSectionSidebar,
@@ -59,6 +60,9 @@ export default function SettingsPage() {
     passwordSaveStatus,
     handleSavePassword,
     handleDiscardPassword,
+    isStepUpOpen,
+    verifyPasswordStepUp,
+    closeStepUp,
   } = useSecuritySettingsForm()
   const sectionNavigation = useSettingsSectionNavigation()
 
@@ -138,6 +142,13 @@ export default function SettingsPage() {
             newPasswordValid={newPasswordValid}
             confirmMatches={confirmMatches}
             actions={securityActions}
+          />
+          <StepUpModal
+            open={isStepUpOpen}
+            title="Confirm it's you"
+            description="Enter your authenticator code to change your password."
+            onClose={closeStepUp}
+            onVerify={verifyPasswordStepUp}
           />
           <RunwaySection
             loading={runwayLoading}
