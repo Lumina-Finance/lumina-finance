@@ -11,7 +11,6 @@ export {
   confirmTotp,
   disableTotp,
   fetchTotpStatus,
-  reenrollTotp,
   regenerateRecoveryCodes,
   setupTotp,
 } from '@/api/twoFactor/requests';
@@ -20,7 +19,6 @@ export {
   useCompleteTotp,
   useConfirmTotp,
   useDisableTotp,
-  useReenrollTotp,
   useRegenerateRecoveryCodes,
   useSetupTotp,
   useTotpStatus,

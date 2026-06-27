@@ -5,7 +5,6 @@ import {
   confirmTotp,
   disableTotp,
   fetchTotpStatus,
-  reenrollTotp,
   regenerateRecoveryCodes,
   setupTotp,
 } from '@/api/twoFactor/requests';
@@ -58,17 +57,6 @@ export function useCompleteTotp() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: completeTotp,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: twoFactorKeys.status() }),
-  });
-}
-
-/**
- * Re-enables TOTP after a recovery-code login and refreshes the enabled status
- */
-export function useReenrollTotp() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: reenrollTotp,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: twoFactorKeys.status() }),
   });
 }

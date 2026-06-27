@@ -39,16 +39,6 @@ export function completeTotp() {
 }
 
 /**
- * Re-enables TOTP after a recovery-code login, lifting the forced re-enrolment restriction
- */
-export function reenrollTotp(payload: ConfirmTotpPayload) {
-  return authenticatedFetch<void>('/auth/2fa/reenroll', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-/**
  * Disables two-factor authentication after a step-up reauthentication
  */
 export function disableTotp(payload: StepUpPayload) {
