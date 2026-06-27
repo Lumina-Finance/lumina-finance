@@ -20,6 +20,7 @@
     "lucide-react": "^1.18.0",
     "motion": "^12.40.0",
     "papaparse": "^5.5.3",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.17.0",
