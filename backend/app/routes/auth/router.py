@@ -17,9 +17,11 @@ from app.routes.auth.token_helpers import (
 from app.schemas.auth import (
     AuthResponse,
     ChangePasswordRequest,
+    DisableTotpRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RecoveryCodesResponse,
+    RegenerateRecoveryCodesRequest,
     ResetPasswordRequest,
     SignupRequest,
     TotpConfirmRequest,
@@ -29,7 +31,9 @@ from app.services.auth import (
     begin_totp_setup,
     change_password,
     confirm_totp_enrollment,
+    disable_two_factor,
     login,
+    regenerate_recovery_codes,
     request_password_reset,
     reset_password,
     signup,
@@ -187,6 +191,48 @@ async def confirm_totp_route(
         HTTPException: No pending setup exists or the code is invalid
     """
     codes = await confirm_totp_enrollment(db, user.id, data.code)
+    return RecoveryCodesResponse(recovery_codes=codes)
+
+
+@router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)
+async def disable_totp_route(
+    data: DisableTotpRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Disable two-factor authentication after step-up reauthentication
+
+    Args:
+        data: Password and a current second factor
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: Two-factor is not enabled, or the step-up check fails
+    """
+    await disable_two_factor(db, user, data.password, data.code)
+
+
+@router.post("/2fa/recovery-codes", response_model=RecoveryCodesResponse)
+async def regenerate_recovery_codes_route(
+    data: RegenerateRecoveryCodesRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Replace the recovery codes after step-up reauthentication
+
+    Args:
+        data: Password and a current second factor
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        The fresh recovery codes to show once
+
+    Raises:
+        HTTPException: Two-factor is not enabled, or the step-up check fails
+    """
+    codes = await regenerate_recovery_codes(db, user, data.password, data.code)
     return RecoveryCodesResponse(recovery_codes=codes)
 
 
