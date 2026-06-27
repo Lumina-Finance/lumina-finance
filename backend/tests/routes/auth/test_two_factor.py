@@ -34,6 +34,21 @@ async def _enroll(client):
     return auth, secret, confirm.json()["recovery_codes"]
 
 
+async def test_status_reflects_enrolment(client):
+    """The status endpoint reports false before enrolment and true after"""
+    auth = _get_auth_header(await _create_user(client))
+
+    before = await client.get("/auth/2fa/status", headers=auth)
+    assert before.status_code == 200
+    assert before.json()["totp_enabled"] is False
+
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+
+    after = await client.get("/auth/2fa/status", headers=auth)
+    assert after.json()["totp_enabled"] is True
+
+
 async def test_setup_then_confirm_enables_totp_and_returns_recovery_codes(client):
     """A valid setup and confirm turns on 2FA and returns the one-time recovery codes"""
     auth = _get_auth_header(await _create_user(client))
