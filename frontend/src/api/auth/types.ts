@@ -36,3 +36,16 @@ export interface ResetPasswordPayload {
   token: string;
   new_password: string;
 }
+
+export interface MfaRequiredResponse {
+  mfa_required: true;
+  mfa_token: string;
+}
+
+/** Login returns tokens, or a challenge when the account has a second factor */
+export type LoginResult = AuthResponse | MfaRequiredResponse;
+
+export interface MfaVerifyPayload {
+  mfa_token: string;
+  code: string;
+}

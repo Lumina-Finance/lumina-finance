@@ -1,13 +1,14 @@
 import { useState, type FormEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { animate } from 'motion/react'
-import { forgotPassword, type AuthResponse } from '@/api/auth'
+import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import { waitForMilliseconds } from '@/utils/timing'
 import {
   FADE_OUT_MS,
   LOCKOUT_KEY,
+  MFA_CODE_LENGTH,
   MIN_LOADING_MS,
   buildInitialAuthForm,
   buildLoginPayload,
@@ -45,7 +46,7 @@ export function useAuthFormWorkflow({
   detectedTimezone,
   mode,
 }: UseAuthFormWorkflowParams) {
-  const { login, signup, setSession } = useAuth()
+  const { login, verifyMfa, signup, setSession } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState<AuthFormValues>(() => buildInitialAuthForm(detectedTimezone))
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({})
@@ -54,8 +55,12 @@ export function useAuthFormWorkflow({
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
+  const [mfaToken, setMfaToken] = useState<string | null>(null)
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaSubmitting, setMfaSubmitting] = useState(false)
 
   const isLogin = mode === 'login'
+  const mfaActive = mfaToken !== null
   const currencyPlaceholder = getCurrencyPlaceholder(currenciesError, currencies.length)
   const displayError = getDisplayAuthError(error, mode, currenciesError, currencies.length)
   const submitDisabled = isAuthSubmitDisabled(submitting, fieldErrors, mode, currencies.length)
@@ -175,7 +180,7 @@ export function useAuthFormWorkflow({
     setSubmitting(true)
 
     const start = Date.now()
-    let res: AuthResponse
+    let res: LoginResult
 
     try {
       res = isLogin
@@ -195,11 +200,54 @@ export function useAuthFormWorkflow({
       await waitForMilliseconds(MIN_LOADING_MS - elapsed)
     }
 
+    // A login that needs a second factor morphs to the code step instead of completing
+    if (isMfaRequired(res)) {
+      setSubmitting(false)
+      setMfaToken(res.mfa_token)
+      return
+    }
+
     if (containerRef.current) {
       await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
     }
     setSession(res)
     navigate('/', { replace: true })
+  }
+
+  /**
+   * Exchanges the entered code for a session, returning to the login form when it is rejected
+   */
+  const handleMfaSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!mfaToken || mfaCode.length < MFA_CODE_LENGTH) return
+
+    setMfaSubmitting(true)
+    let res: AuthResponse
+    try {
+      res = await verifyMfa({ mfa_token: mfaToken, code: mfaCode })
+    } catch (err) {
+      // The challenge is single-use, so a rejected code sends the user back to log in afresh
+      setMfaSubmitting(false)
+      setMfaToken(null)
+      setMfaCode('')
+      setError(getAuthErrorMessage(err))
+      return
+    }
+
+    if (containerRef.current) {
+      await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
+    }
+    setSession(res)
+    navigate('/', { replace: true })
+  }
+
+  /**
+   * Abandons the second-factor step and returns to the login form
+   */
+  const cancelMfa = () => {
+    setMfaToken(null)
+    setMfaCode('')
+    setError('')
   }
 
   return {
@@ -220,5 +268,11 @@ export function useAuthFormWorkflow({
     submitting,
     switchMode,
     touched,
+    mfaActive,
+    mfaCode,
+    setMfaCode,
+    mfaSubmitting,
+    handleMfaSubmit,
+    cancelMfa,
   }
 }

@@ -4,6 +4,9 @@ import type {
   AuthResponse,
   ForgotPasswordPayload,
   LoginPayload,
+  LoginResult,
+  MfaRequiredResponse,
+  MfaVerifyPayload,
   ResetPasswordPayload,
   SignupPayload,
 } from '@/api/auth/types';
@@ -126,10 +129,27 @@ async function requestAuth<T>(path: string, options: RequestInit): Promise<T> {
 }
 
 /**
- * Authenticates a user with email and password credentials
+ * Authenticates a user, resolving to tokens or a second-factor challenge
  */
-export function login(payload: LoginPayload): Promise<AuthResponse> {
+export function login(payload: LoginPayload): Promise<LoginResult> {
   return requestAuth('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Narrows a login result to the second-factor challenge case
+ */
+export function isMfaRequired(result: LoginResult): result is MfaRequiredResponse {
+  return 'mfa_required' in result;
+}
+
+/**
+ * Completes a second-factor login by exchanging the challenge token and code for tokens
+ */
+export function verifyMfa(payload: MfaVerifyPayload): Promise<AuthResponse> {
+  return requestAuth('/auth/2fa/verify', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

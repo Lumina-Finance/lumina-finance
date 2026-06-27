@@ -2,7 +2,14 @@ import { createContext, useState, useEffect, useCallback, useMemo, useRef } from
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as authApi from '@/api/auth';
-import type { User, LoginPayload, SignupPayload, AuthResponse } from '@/api/auth';
+import type {
+  AuthResponse,
+  LoginPayload,
+  LoginResult,
+  MfaVerifyPayload,
+  SignupPayload,
+  User,
+} from '@/api/auth';
 import { registerAuthBindings } from '@/api/client';
 
 interface AuthState {
@@ -13,7 +20,9 @@ interface AuthState {
 }
 
 export interface AuthContextValue extends AuthState {
-  login: (payload: LoginPayload) => Promise<AuthResponse>;
+  login: (payload: LoginPayload) => Promise<LoginResult>;
+  /** Exchange a second-factor challenge and code for a session */
+  verifyMfa: (payload: MfaVerifyPayload) => Promise<AuthResponse>;
   signup: (payload: SignupPayload) => Promise<AuthResponse>;
   /** Commit an auth response to state — call after any transition animations */
   setSession: (res: AuthResponse) => void;
@@ -133,8 +142,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Call the API and set the session flag, but don't update React state yet.
   // The caller controls when to commit via setSession().
-  const login = useCallback(async (payload: LoginPayload) => {
+  const login = useCallback(async (payload: LoginPayload): Promise<LoginResult> => {
     const res = await authApi.login(payload);
+
+    // A second-factor challenge is not a session yet, so hold off marking one until verify
+    if (authApi.isMfaRequired(res)) {
+      return res;
+    }
+
+    queryClient.clear();
+    localStorage.setItem(SESSION_KEY, '1');
+    return res;
+  }, [queryClient]);
+
+  const verifyMfa = useCallback(async (payload: MfaVerifyPayload) => {
+    const res = await authApi.verifyMfa(payload);
     queryClient.clear();
     localStorage.setItem(SESSION_KEY, '1');
     return res;
@@ -168,8 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.accessToken, queryClient]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, signup, setSession, setUser, logout }),
-    [state, login, signup, setSession, setUser, logout],
+    () => ({ ...state, login, verifyMfa, signup, setSession, setUser, logout }),
+    [state, login, verifyMfa, signup, setSession, setUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

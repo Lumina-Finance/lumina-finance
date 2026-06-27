@@ -33,6 +33,7 @@ export const LOCKOUT_KEY = 'lumina:auth_lockout'
 export const LOCKOUT_MS = 30 * 60 * 1000 + 30 * 1000
 export const MIN_LOADING_MS = 1500
 export const FADE_OUT_MS = 300
+export const MFA_CODE_LENGTH = 6
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -41,6 +42,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   'Email already registered': 'An account with this email already exists.',
   'Account temporarily locked': 'Too many failed attempts.',
   'Invalid currency code': 'The selected currency is not supported.',
+  'Invalid code': 'That code was incorrect. Please log in and try again.',
+  'Invalid or expired challenge': 'Your verification expired. Please log in again.',
 }
 
 /**

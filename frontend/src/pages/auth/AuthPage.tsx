@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
+import { OtpInput } from '@/components/OtpInput';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
@@ -11,7 +12,7 @@ import { AuthTextField } from '@/pages/auth/components/fields/TextField';
 import { PasswordRequirements } from '@/pages/auth/components/feedback/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
-import { getAuthMode } from '@/pages/auth/utils/authForm';
+import { MFA_CODE_LENGTH, getAuthMode } from '@/pages/auth/utils/authForm';
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -49,6 +50,12 @@ const AuthPage = () => {
     submitting,
     switchMode,
     touched,
+    mfaActive,
+    mfaCode,
+    setMfaCode,
+    mfaSubmitting,
+    handleMfaSubmit,
+    cancelMfa,
   } = useAuthFormWorkflow({
     containerRef,
     currencies,
@@ -73,13 +80,42 @@ const AuthPage = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <form onSubmit={handleSubmit} className="w-full max-w-sm" noValidate>
+      <form onSubmit={mfaActive ? handleMfaSubmit : handleSubmit} className="w-full max-w-sm" noValidate>
         <AuthAnimatedTitle mode={mode} />
 
         <AuthErrorBanner error={displayError} />
 
         <AnimatePresence mode="wait" initial={false}>
-          {isForgot && submitted ? (
+          {mfaActive ? (
+            <motion.div key="mfa-code" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                Enter the 6-digit code from your authenticator app.
+              </p>
+
+              <OtpInput value={mfaCode} onChange={setMfaCode} disabled={mfaSubmitting} autoFocus />
+
+              <div className="flex justify-center">
+                <button
+                  type="submit"
+                  disabled={mfaSubmitting || mfaCode.length < MFA_CODE_LENGTH}
+                  className={`app-primary-button transition-all duration-300 ${
+                    mfaSubmitting ? 'app-primary-button-loading' : 'w-full'
+                  }`}
+                >
+                  {mfaSubmitting ? <div className="app-spinner" /> : 'Verify'}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={cancelMfa}
+                className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                style={{ color: 'var(--app-accent)' }}
+              >
+                Back to login
+              </button>
+            </motion.div>
+          ) : isForgot && submitted ? (
             <motion.div key="forgot-confirmation" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 If an account exists for {form.email}, a link to set a new password is on its way. Check your inbox.

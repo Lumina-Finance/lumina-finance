@@ -7,6 +7,9 @@ export type {
   AuthResponse,
   ForgotPasswordPayload,
   LoginPayload,
+  LoginResult,
+  MfaRequiredResponse,
+  MfaVerifyPayload,
   ResetPasswordPayload,
   SignupPayload,
   User,
@@ -14,9 +17,11 @@ export type {
 
 export {
   forgotPassword,
+  isMfaRequired,
   login,
   logout,
   refresh,
   resetPassword,
   signup,
+  verifyMfa,
 } from '@/api/auth/requests';
