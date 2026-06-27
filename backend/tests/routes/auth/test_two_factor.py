@@ -1,10 +1,29 @@
 """TOTP enrolment route tests"""
 
+import uuid
+
 import pyotp
 
+from app.services.auth.mfa_challenge import issue_mfa_challenge
+from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
+
+
+async def _issue_challenge(user_id):
+    """Issue an MFA challenge token directly, standing in for the login step that emits it"""
+    async with TestSession() as db:
+        return await issue_mfa_challenge(db, uuid.UUID(user_id))
+
+
+async def _enroll_with_id(client):
+    """Enrol a user in TOTP and return the auth header, secret, and user id"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    return auth, secret, signup.json()["user"]["id"]
 
 
 async def _enroll(client):
@@ -103,3 +122,31 @@ async def test_regenerate_accepts_a_recovery_code_as_second_factor(client):
     )
     assert regenerate.status_code == 200
     assert len(regenerate.json()["recovery_codes"]) == 6
+
+
+async def test_verify_completes_login_with_a_valid_code(client):
+    """A valid challenge token and code returns an access token"""
+    _, secret, user_id = await _enroll_with_id(client)
+    mfa_token = await _issue_challenge(user_id)
+
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": pyotp.TOTP(secret).now()})
+    assert verify.status_code == 200
+    assert verify.json()["access_token"]
+
+
+async def test_verify_burns_the_challenge_on_a_wrong_code(client):
+    """A wrong code spends the single-use challenge, so even the right code then fails"""
+    _, secret, user_id = await _enroll_with_id(client)
+    mfa_token = await _issue_challenge(user_id)
+
+    wrong = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": "000000"})
+    assert wrong.status_code == 401
+
+    retry = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": pyotp.TOTP(secret).now()})
+    assert retry.status_code == 401
+
+
+async def test_verify_rejects_a_forged_token(client):
+    """A token that is not a valid challenge JWT is rejected"""
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": "not.a.jwt", "code": "000000"})
+    assert verify.status_code == 401
