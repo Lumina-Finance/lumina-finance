@@ -155,4 +155,5 @@ export const currencyKeys = {
 
 export const twoFactorKeys = {
   status: () => ['two-factor', 'status'] as const,
+  setup: () => ['two-factor', 'setup'] as const,
 };

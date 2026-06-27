@@ -32,6 +32,13 @@ export function confirmTotp(payload: ConfirmTotpPayload) {
 }
 
 /**
+ * Turns two-factor on after the user acknowledges their recovery codes
+ */
+export function completeTotp() {
+  return authenticatedFetch<void>('/auth/2fa/complete', { method: 'POST' });
+}
+
+/**
  * Disables two-factor authentication after a step-up reauthentication
  */
 export function disableTotp(payload: StepUpPayload) {

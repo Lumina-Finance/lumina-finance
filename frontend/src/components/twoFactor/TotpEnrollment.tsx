@@ -1,12 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
+import { useCompleteTotp, useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
 import { OtpInput } from '@/components/OtpInput';
+import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
+import { copyText } from '@/utils/clipboard';
 import { delayToMinimum } from '@/utils/timing';
 
 const OTP_LENGTH = 6;
-const RECOVERY_CODES_FILENAME = 'lumina-recovery-codes.txt';
+
+// How long the copied confirmation stays before reverting to the copy affordance
+const COPIED_FEEDBACK_MS = 1500;
+
+// Hold the QR and key behind the spinner this long so a fast secret does not flash in
+const SETUP_LOADING_MIN_MS = 800;
 
 // Cross-fade with a small slide, matching the auth page so the confirm step gives way smoothly
 const VIEW_TRANSITION = {
@@ -29,17 +37,44 @@ interface TotpEnrollmentProps {
 export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
   const setup = useSetupTotp();
   const confirm = useConfirmTotp();
+  const complete = useCompleteTotp();
+  const [minLoadingElapsed, setMinLoadingElapsed] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [savedAcknowledged, setSavedAcknowledged] = useState(false);
+  const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const copyResetTimer = useRef<number | null>(null);
 
-  // Generate the pending secret once when the flow opens
-  const startSetup = setup.mutate;
+  // Hold the spinner for a fixed minimum from mount so a fast secret does not flash the QR in
   useEffect(() => {
-    startSetup();
-  }, [startSetup]);
+    const timer = window.setTimeout(() => setMinLoadingElapsed(true), SETUP_LOADING_MIN_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // A pending copy timer would fire setState after the modal closes, so it is cleared on unmount
+  useEffect(() => {
+    return () => {
+      if (copyResetTimer.current) window.clearTimeout(copyResetTimer.current);
+    };
+  }, []);
+
+  // The spinner stays until both the minimum has elapsed and the secret has resolved
+  const isSetupLoading = !minLoadingElapsed || (!setup.data && !setup.isError);
+
+  /**
+   * Copies the secret to the clipboard and briefly confirms it so the user need not select the text
+   */
+  const copyKey = async () => {
+    if (!setup.data || !(await copyText(setup.data.secret))) return;
+
+    setKeyCopied(true);
+    if (copyResetTimer.current) window.clearTimeout(copyResetTimer.current);
+    copyResetTimer.current = window.setTimeout(() => setKeyCopied(false), COPIED_FEEDBACK_MS);
+  };
 
   /**
    * Confirms the entered code, revealing the recovery codes on success and allowing a retry on failure
@@ -64,24 +99,23 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
   };
 
   /**
-   * Copies the recovery codes to the clipboard as newline-separated text
+   * Turns two-factor on once the recovery codes are acknowledged, then hands back to the caller
    */
-  const copyCodes = () => {
-    if (recoveryCodes) void navigator.clipboard.writeText(recoveryCodes.join('\n'));
-  };
+  const handleComplete = async () => {
+    if (!savedAcknowledged || !lockoutAcknowledged || completing) return;
 
-  /**
-   * Downloads the recovery codes as a text file
-   */
-  const downloadCodes = () => {
-    if (!recoveryCodes) return;
-
-    const url = URL.createObjectURL(new Blob([recoveryCodes.join('\n')], { type: 'text/plain' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = RECOVERY_CODES_FILENAME;
-    link.click();
-    URL.revokeObjectURL(url);
+    setError('');
+    setCompleting(true);
+    const start = Date.now();
+    try {
+      await complete.mutateAsync();
+      await delayToMinimum(start);
+      onComplete();
+    } catch {
+      await delayToMinimum(start);
+      setError('Could not finish setup. Try again.');
+      setCompleting(false);
+    }
   };
 
   return (
@@ -95,40 +129,42 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
             </p>
           </div>
 
-          <ul
-            className="space-y-1 rounded-lg p-4 font-mono text-sm"
-            style={{ backgroundColor: 'var(--app-surface-soft)' }}
-          >
-            {recoveryCodes.map((recoveryCode) => (
-              <li key={recoveryCode}>{recoveryCode}</li>
-            ))}
-          </ul>
+          <RecoveryCodesPanel codes={recoveryCodes} />
 
-          <div className="flex gap-2">
-            <button type="button" onClick={copyCodes} className="app-secondary-button flex-1">
-              Copy
-            </button>
-            <button type="button" onClick={downloadCodes} className="app-secondary-button flex-1">
-              Download
-            </button>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              <input
+                type="checkbox"
+                checked={savedAcknowledged}
+                onChange={(event) => setSavedAcknowledged(event.target.checked)}
+              />
+              I've saved my recovery codes
+            </label>
+
+            <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              <input
+                type="checkbox"
+                className="mt-1 shrink-0"
+                checked={lockoutAcknowledged}
+                onChange={(event) => setLockoutAcknowledged(event.target.checked)}
+              />
+              I understand I may be permanently locked out if I lose both my authenticator and these codes
+            </label>
           </div>
 
-          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            <input
-              type="checkbox"
-              checked={savedAcknowledged}
-              onChange={(event) => setSavedAcknowledged(event.target.checked)}
-            />
-            I've saved my recovery codes
-          </label>
+          {error && (
+            <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+              {error}
+            </p>
+          )}
 
           <button
             type="button"
-            onClick={onComplete}
-            disabled={!savedAcknowledged}
+            onClick={handleComplete}
+            disabled={!savedAcknowledged || !lockoutAcknowledged || completing}
             className="app-primary-button w-full"
           >
-            Done
+            {completing ? <div className="app-spinner" /> : 'Done'}
           </button>
         </motion.div>
       ) : (
@@ -141,19 +177,44 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
           </div>
 
           <div className="flex justify-center">
-            {setup.data ? (
+            {isSetupLoading ? (
+              <div className="app-spinner" />
+            ) : setup.data ? (
               <div className="rounded-lg bg-white p-3">
                 <QRCodeSVG value={setup.data.provisioning_uri} size={160} />
               </div>
             ) : (
-              <div className="app-spinner" />
+              <button
+                type="button"
+                onClick={() => setup.refetch()}
+                className="app-secondary-button"
+                style={{ color: 'var(--app-negative)' }}
+              >
+                Couldn't start setup. Try again
+              </button>
             )}
           </div>
 
-          {setup.data && (
-            <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              Or enter this key manually: <span className="font-mono">{setup.data.secret}</span>
-            </p>
+          {!isSetupLoading && setup.data && (
+            <div className="space-y-1 text-center">
+              <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                Or enter this key manually
+              </p>
+              <button
+                type="button"
+                onClick={copyKey}
+                aria-label={keyCopied ? 'Key copied' : 'Copy key'}
+                className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors duration-200 hover:bg-[color:var(--app-surface-soft)]"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                <span>{setup.data.secret}</span>
+                {keyCopied ? (
+                  <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-positive)' }} aria-hidden />
+                ) : (
+                  <Copy size={14} strokeWidth={2} aria-hidden />
+                )}
+              </button>
+            </div>
           )}
 
           <OtpInput value={code} onChange={setCode} disabled={confirming} autoFocus />

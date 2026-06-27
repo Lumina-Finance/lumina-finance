@@ -7,6 +7,7 @@ export type {
 } from '@/api/twoFactor/types';
 
 export {
+  completeTotp,
   confirmTotp,
   disableTotp,
   fetchTotpStatus,
@@ -15,6 +16,7 @@ export {
 } from '@/api/twoFactor/requests';
 
 export {
+  useCompleteTotp,
   useConfirmTotp,
   useDisableTotp,
   useRegenerateRecoveryCodes,
