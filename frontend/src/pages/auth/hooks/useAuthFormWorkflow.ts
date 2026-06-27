@@ -57,6 +57,8 @@ export function useAuthFormWorkflow({
   const [passwordFocused, setPasswordFocused] = useState(false)
   const [mfaToken, setMfaToken] = useState<string | null>(null)
   const [mfaCode, setMfaCode] = useState('')
+  const [mfaUseRecoveryCode, setMfaUseRecoveryCode] = useState(false)
+  const [mfaRecoveryOnly, setMfaRecoveryOnly] = useState(false)
   const [mfaSubmitting, setMfaSubmitting] = useState(false)
   const [enrolling, setEnrolling] = useState(false)
 
@@ -199,6 +201,9 @@ export function useAuthFormWorkflow({
     if (isMfaRequired(res)) {
       setSubmitting(false)
       setMfaToken(res.mfa_token)
+      // A revoked authenticator can only be cleared with a recovery code, so skip the OTP prompt
+      setMfaRecoveryOnly(res.recovery_only)
+      setMfaUseRecoveryCode(res.recovery_only)
       return
     }
 
@@ -237,19 +242,25 @@ export function useAuthFormWorkflow({
    */
   const handleMfaSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!mfaToken || mfaCode.length < MFA_CODE_LENGTH) return
+
+    // A recovery code is a free-form string while an authenticator code is a fixed-length number
+    const code = mfaUseRecoveryCode ? mfaCode.trim() : mfaCode
+    const codeReady = mfaUseRecoveryCode ? code.length > 0 : code.length >= MFA_CODE_LENGTH
+    if (!mfaToken || !codeReady) return
 
     setMfaSubmitting(true)
     const start = Date.now()
     let res: AuthResponse
     try {
-      res = await verifyMfa({ mfa_token: mfaToken, code: mfaCode })
+      res = await verifyMfa({ mfa_token: mfaToken, code })
     } catch (err) {
       // The challenge is single-use, so a rejected code sends the user back to log in afresh
       await delayToMinimum(start)
       setMfaSubmitting(false)
       setMfaToken(null)
       setMfaCode('')
+      setMfaUseRecoveryCode(false)
+      setMfaRecoveryOnly(false)
       setError(getAuthErrorMessage(err))
       return
     }
@@ -267,6 +278,17 @@ export function useAuthFormWorkflow({
    */
   const cancelMfa = () => {
     setMfaToken(null)
+    setMfaCode('')
+    setMfaUseRecoveryCode(false)
+    setMfaRecoveryOnly(false)
+    setError('')
+  }
+
+  /**
+   * Switches the second-factor input between an authenticator code and a recovery code
+   */
+  const toggleMfaRecoveryCode = () => {
+    setMfaUseRecoveryCode((current) => !current)
     setMfaCode('')
     setError('')
   }
@@ -292,6 +314,9 @@ export function useAuthFormWorkflow({
     mfaActive,
     mfaCode,
     setMfaCode,
+    mfaUseRecoveryCode,
+    toggleMfaRecoveryCode,
+    mfaRecoveryOnly,
     mfaSubmitting,
     handleMfaSubmit,
     cancelMfa,

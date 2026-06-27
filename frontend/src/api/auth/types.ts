@@ -6,6 +6,8 @@ export interface User {
   tz: string;
   base_currency: string;
   created_at: string;
+  // True after a recovery-code login, holding the account to the forced re-enrolment screen
+  totp_reenrollment_required: boolean;
 }
 
 export interface AuthResponse {
@@ -40,6 +42,8 @@ export interface ResetPasswordPayload {
 export interface MfaRequiredResponse {
   mfa_required: true;
   mfa_token: string;
+  // True once the authenticator is revoked, so the screen offers only the recovery-code input
+  recovery_only: boolean;
 }
 
 /** Login returns tokens, or a challenge when the account has a second factor */

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
 import { OtpInput } from '@/components/OtpInput';
 import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
+import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
@@ -54,6 +55,9 @@ const AuthPage = () => {
     mfaActive,
     mfaCode,
     setMfaCode,
+    mfaUseRecoveryCode,
+    toggleMfaRecoveryCode,
+    mfaRecoveryOnly,
     mfaSubmitting,
     handleMfaSubmit,
     cancelMfa,
@@ -106,15 +110,45 @@ const AuthPage = () => {
           ) : mfaActive ? (
             <motion.div key="mfa-code" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Enter the 6-digit code from your authenticator app.
+                {mfaRecoveryOnly
+                  ? 'Your authenticator was removed. Enter a recovery code to continue.'
+                  : mfaUseRecoveryCode
+                    ? 'Enter one of your recovery codes.'
+                    : 'Enter the 6-digit code from your authenticator app.'}
               </p>
 
-              <OtpInput value={mfaCode} onChange={setMfaCode} disabled={mfaSubmitting} autoFocus />
+              {mfaUseRecoveryCode && (
+                <WarningCallout>
+                  {mfaRecoveryOnly
+                    ? "Each recovery-code sign-in spends one of your remaining codes. If you run out before you set up a new authenticator, you'll be permanently locked out of your account."
+                    : "Using a recovery code removes your current authenticator. You'll be required to set up a new one before you can access your account again."}
+                </WarningCallout>
+              )}
+
+              {mfaUseRecoveryCode ? (
+                <input
+                  className="app-input w-full"
+                  placeholder="Recovery code"
+                  // A recovery code is not a TOTP code, so suppress one-time-code autofill from password managers
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value)}
+                  disabled={mfaSubmitting}
+                  autoFocus
+                />
+              ) : (
+                <OtpInput value={mfaCode} onChange={setMfaCode} disabled={mfaSubmitting} autoFocus />
+              )}
 
               <div className="flex justify-center">
                 <button
                   type="submit"
-                  disabled={mfaSubmitting || mfaCode.length < MFA_CODE_LENGTH}
+                  disabled={
+                    mfaSubmitting ||
+                    (mfaUseRecoveryCode ? mfaCode.trim().length === 0 : mfaCode.length < MFA_CODE_LENGTH)
+                  }
                   className={`app-primary-button transition-all duration-300 ${
                     mfaSubmitting ? 'app-primary-button-loading' : 'w-full'
                   }`}
@@ -123,11 +157,22 @@ const AuthPage = () => {
                 </button>
               </div>
 
+              {!mfaRecoveryOnly && (
+                <button
+                  type="button"
+                  onClick={toggleMfaRecoveryCode}
+                  className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                  style={{ color: 'var(--app-accent)' }}
+                >
+                  {mfaUseRecoveryCode ? 'Use authenticator code' : 'Enter a recovery code instead'}
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={cancelMfa}
                 className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                style={{ color: 'var(--app-accent)' }}
+                style={{ color: 'var(--app-text-muted)' }}
               >
                 Back to login
               </button>

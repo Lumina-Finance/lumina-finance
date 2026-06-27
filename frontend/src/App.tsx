@@ -7,6 +7,7 @@ import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/navigation/Navigation'
 import LoadingScreen from '@/components/loading/Screen'
+import ForcedReenrollScreen from '@/components/twoFactor/ForcedReenrollScreen'
 
 // Pages are lazy-loaded so each route ships as its own chunk instead of the
 // initial bundle, keeping first load small and pulling heavy page-only deps
@@ -125,6 +126,9 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
 
   // No session and not loading — go straight to login
   if (!loading && !user) return <Navigate to="/login" replace />;
+
+  // A recovery-code login holds the account to re-enrolment before any route renders
+  if (user?.totp_reenrollment_required) return <ForcedReenrollScreen />;
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
   // per navigation and must start hidden through both loading and entering, otherwise
@@ -278,7 +282,7 @@ function AnimatedRoutes() {
       {/* The navigation chrome renders outside the keyed Routes so it persists across
           page changes. A persistent nav lets the active-link highlight crossfade through
           its CSS transition instead of snapping when the route subtree remounts */}
-      {user && isProtectedPath(displayLocation.pathname) && <Navigation />}
+      {user && !user.totp_reenrollment_required && isProtectedPath(displayLocation.pathname) && <Navigation />}
       <Routes
         location={displayLocation}
         key={
