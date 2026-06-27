@@ -12,6 +12,7 @@ from app.services.auth.two_factor import (
     complete_totp_enrollment,
     confirm_totp_enrollment,
     disable_two_factor,
+    reenroll_totp,
     regenerate_recovery_codes,
 )
 
@@ -28,6 +29,7 @@ __all__ = [
     "is_totp_enabled",
     "issue_mfa_challenge",
     "login",
+    "reenroll_totp",
     "regenerate_recovery_codes",
     "request_password_reset",
     "reset_password",

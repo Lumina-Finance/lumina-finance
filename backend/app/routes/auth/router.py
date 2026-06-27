@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_session_id, get_current_user
+from app.dependencies import get_authenticated_user, get_current_session_id, get_current_user
 from app.models.user import User
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
@@ -37,6 +37,7 @@ from app.services.auth import (
     complete_totp_enrollment,
     confirm_totp_enrollment,
     disable_two_factor,
+    reenroll_totp,
     is_totp_enabled,
     issue_mfa_challenge,
     login,
@@ -100,10 +101,12 @@ async def login_route(
     """
     user = await login(db, data)
 
-    # A confirmed second factor holds back tokens until the verify endpoint clears the challenge
-    if await is_totp_enabled(db, user.id):
+    # A confirmed second factor, or a pending re-enrolment whose only key is a recovery code, holds
+    # back tokens until the verify endpoint clears the challenge
+    totp_enabled = await is_totp_enabled(db, user.id)
+    if totp_enabled or user.totp_reenrollment_required:
         challenge_token = await issue_mfa_challenge(db, user.id)
-        return MfaRequiredResponse(mfa_token=challenge_token)
+        return MfaRequiredResponse(mfa_token=challenge_token, recovery_only=not totp_enabled)
 
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response
@@ -182,10 +185,12 @@ async def totp_status_route(
 
 @router.post("/2fa/setup", response_model=TotpSetupResponse)
 async def setup_totp_route(
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Begin TOTP enrolment for the authenticated user
+
+    Uses the permissive resolver so a recovery-code login can fetch a fresh secret to re-enrol
 
     Args:
         user: Authenticated user resolved from the access token
@@ -241,6 +246,28 @@ async def complete_totp_route(
         HTTPException: Enrolment was not confirmed first, or there is no pending setup
     """
     await complete_totp_enrollment(db, user.id)
+
+
+@router.post("/2fa/reenroll", status_code=status.HTTP_204_NO_CONTENT)
+async def reenroll_totp_route(
+    data: TotpConfirmRequest,
+    user: Annotated[User, Depends(get_authenticated_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Re-enable TOTP after a recovery-code login, lifting the re-enrolment restriction
+
+    Uses the permissive resolver because the restricted session can reach nothing else, and only
+    succeeds while re-enrolment is pending so it cannot enable TOTP without acknowledged recovery codes
+
+    Args:
+        data: Code from the freshly set up authenticator
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: No re-enrolment is pending, or the code does not verify
+    """
+    await reenroll_totp(db, user.id, data.code)
 
 
 @router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)

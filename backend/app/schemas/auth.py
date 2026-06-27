@@ -128,6 +128,7 @@ class UserInfo(BaseModel):
     tz: str  # IANA timezone needed client-side so settings pages can pre-select
     base_currency: str
     created_at: datetime
+    totp_reenrollment_required: bool  # true holds the client to the forced re-enrolment screen
 
     model_config = {"from_attributes": True}
 
@@ -178,6 +179,7 @@ class MfaRequiredResponse(BaseModel):
 
     mfa_required: bool = True
     mfa_token: str  # short-lived challenge token exchanged at the verify endpoint
+    recovery_only: bool = False  # true once the authenticator is revoked, so only a recovery code works
 
 
 class MfaVerifyRequest(BaseModel):

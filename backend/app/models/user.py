@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, DateTime, Float, ForeignKey, Text, func
+from sqlalchemy import VARCHAR, Boolean, DateTime, Float, ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -24,6 +24,11 @@ class User(Base):
     runway_risky_below_months: Mapped[float] = mapped_column(Float, nullable=False, default=1.0, server_default="1")
     runway_healthy_at_months: Mapped[float] = mapped_column(Float, nullable=False, default=3.0, server_default="3")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # Set when a recovery-code login revokes TOTP, forcing re-enrolment before the account unlocks
+    totp_reenrollment_required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
 
 class UserRunwayAccount(Base):

@@ -208,6 +208,7 @@ async def test_login_returns_a_challenge_when_two_factor_is_enabled(client):
     assert login.status_code == 200
     body = login.json()
     assert body["mfa_required"] is True
+    assert body["recovery_only"] is False
     assert "access_token" not in body
 
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": body["mfa_token"], "code": pyotp.TOTP(secret).now()})
@@ -224,3 +225,84 @@ async def test_login_returns_tokens_without_two_factor(client):
     body = login.json()
     assert body["access_token"]
     assert "mfa_required" not in body
+
+
+async def _login_with_code(client, code):
+    """Sign in past the password step and submit a second-factor code, returning the verify response"""
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    return await client.post("/auth/2fa/verify", json={"mfa_token": login.json()["mfa_token"], "code": code})
+
+
+async def test_recovery_code_login_forces_reenrollment(client):
+    """Signing in with a recovery code logs in but flags the session for forced re-enrolment"""
+    _, _, codes = await _enroll(client)
+
+    verify = await _login_with_code(client, codes[0])
+    assert verify.status_code == 200
+    body = verify.json()
+    assert body["access_token"]
+    assert body["user"]["totp_reenrollment_required"] is True
+
+
+async def test_restricted_session_is_blocked_from_normal_routes(client):
+    """A recovery-code session cannot reach a normal protected route until it re-enrols"""
+    _, _, codes = await _enroll(client)
+    token = (await _login_with_code(client, codes[0])).json()["access_token"]
+    restricted = {"Authorization": f"Bearer {token}"}
+
+    blocked = await client.get("/auth/2fa/status", headers=restricted)
+    assert blocked.status_code == 403
+
+
+async def test_restricted_session_re_enrols_and_unlocks(client):
+    """A recovery-code session can set up a fresh authenticator, which lifts the restriction"""
+    _, _, codes = await _enroll(client)
+    token = (await _login_with_code(client, codes[0])).json()["access_token"]
+    restricted = {"Authorization": f"Bearer {token}"}
+
+    setup = await client.post("/auth/2fa/setup", headers=restricted)
+    assert setup.status_code == 200
+
+    reenroll = await client.post(
+        "/auth/2fa/reenroll", headers=restricted, json={"code": pyotp.TOTP(setup.json()["secret"]).now()}
+    )
+    assert reenroll.status_code == 204
+
+    unlocked = await client.get("/auth/2fa/status", headers=restricted)
+    assert unlocked.status_code == 200
+    assert unlocked.json()["totp_enabled"] is True
+
+
+async def test_reenroll_is_refused_without_a_pending_restriction(client):
+    """A normal session cannot use re-enrol to turn on TOTP and skip the recovery code step"""
+    auth, secret, _ = await _enroll(client)
+
+    resp = await client.post("/auth/2fa/reenroll", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    assert resp.status_code == 400
+
+
+async def test_recovery_codes_are_single_use_and_deplete(client):
+    """Each recovery code logs in once, and a spent code is refused while others still work"""
+    _, _, codes = await _enroll(client)
+
+    first = await _login_with_code(client, codes[0])
+    assert first.status_code == 200
+
+    reused = await _login_with_code(client, codes[0])
+    assert reused.status_code == 401
+
+    another = await _login_with_code(client, codes[1])
+    assert another.status_code == 200
+    assert another.json()["user"]["totp_reenrollment_required"] is True
+
+
+async def test_login_after_recovery_reports_recovery_only(client):
+    """Once the authenticator is revoked, the next login challenge signals only a recovery code works"""
+    _, _, codes = await _enroll(client)
+    await _login_with_code(client, codes[0])
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
+    body = login.json()
+    assert body["mfa_required"] is True
+    assert body["recovery_only"] is True

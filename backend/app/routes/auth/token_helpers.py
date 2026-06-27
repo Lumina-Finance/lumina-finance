@@ -33,7 +33,7 @@ from app.services.auth.sessions import (
     rotate_auth_session_tokens,
 )
 from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
-from app.services.auth.totp import is_user_totp_code_valid
+from app.services.auth.two_factor import verify_login_second_factor
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
 _access_public_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None).public_key()
@@ -158,8 +158,9 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str) ->
     if not challenge_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    if not await is_user_totp_code_valid(db, user_id, code):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+    # A recovery code here revokes TOTP and flags re-enrolment, so commit those writes before loading
+    await verify_login_second_factor(db, user_id, code)
+    await db.commit()
 
     user = await db.get(User, user_id)
     if user is None:

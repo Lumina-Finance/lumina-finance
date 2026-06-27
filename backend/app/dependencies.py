@@ -32,7 +32,7 @@ def get_current_session_id() -> uuid.UUID | None:
     return _current_session_id.get()
 
 
-async def get_current_user(
+async def get_authenticated_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
@@ -40,7 +40,8 @@ async def get_current_user(
 
     Decodes the Bearer token using the access public key, verifies the access
     token and session are allowlisted, then loads the corresponding user from
-    the database.
+    the database. This resolver does not enforce the re-enrolment restriction, so
+    only the routes a restricted session may reach should depend on it directly.
 
     Args:
         credentials: Bearer token extracted from the Authorization header.
@@ -114,5 +115,28 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    return user
+
+
+async def get_current_user(user: Annotated[User, Depends(get_authenticated_user)]) -> User:
+    """Resolve the authenticated user and refuse a session pending TOTP re-enrolment.
+
+    This is the default for protected routes, so a recovery-code login can reach only the
+    re-enrolment endpoints until the user confirms a fresh authenticator.
+
+    Args:
+        user: Authenticated user from get_authenticated_user.
+
+    Returns:
+        The authenticated User.
+
+    Raises:
+        HTTPException 403: The session must re-enrol TOTP before doing anything else.
+    """
+    if user.totp_reenrollment_required:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Two-factor re-enrolment required"
+        )
 
     return user
