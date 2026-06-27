@@ -19,10 +19,21 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    RecoveryCodesResponse,
     ResetPasswordRequest,
     SignupRequest,
+    TotpConfirmRequest,
+    TotpSetupResponse,
 )
-from app.services.auth import change_password, login, request_password_reset, reset_password, signup
+from app.services.auth import (
+    begin_totp_setup,
+    change_password,
+    confirm_totp_enrollment,
+    login,
+    request_password_reset,
+    reset_password,
+    signup,
+)
 
 _security = HTTPBearer(auto_error=False)
 
@@ -133,6 +144,50 @@ async def reset_password_route(
         HTTPException: The token is invalid, used, or expired
     """
     await reset_password(db, data.token, data.new_password)
+
+
+@router.post("/2fa/setup", response_model=TotpSetupResponse)
+async def setup_totp_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Begin TOTP enrolment for the authenticated user
+
+    Args:
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        The secret and provisioning URI for the authenticator app
+
+    Raises:
+        HTTPException: Two-factor authentication is already enabled
+    """
+    secret, provisioning_uri = await begin_totp_setup(db, user.id, user.email)
+    return TotpSetupResponse(secret=secret, provisioning_uri=provisioning_uri)
+
+
+@router.post("/2fa/confirm", response_model=RecoveryCodesResponse)
+async def confirm_totp_route(
+    data: TotpConfirmRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Confirm TOTP enrolment and return the recovery codes
+
+    Args:
+        data: Authenticator code confirming enrolment
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        The one-time recovery codes to show once
+
+    Raises:
+        HTTPException: No pending setup exists or the code is invalid
+    """
+    codes = await confirm_totp_enrollment(db, user.id, data.code)
+    return RecoveryCodesResponse(recovery_codes=codes)
 
 
 @router.post("/refresh", response_model=AuthResponse)
