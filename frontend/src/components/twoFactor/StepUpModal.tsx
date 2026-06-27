@@ -151,7 +151,10 @@ export function StepUpModal({
               <input
                 className="app-input w-full"
                 placeholder="Recovery code"
-                autoComplete="one-time-code"
+                // A recovery code is not a TOTP code, so suppress one-time-code autofill from password managers
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
                 value={recoveryCode}
                 onChange={(event) => setRecoveryCode(event.target.value)}
                 autoFocus={!requirePassword}
